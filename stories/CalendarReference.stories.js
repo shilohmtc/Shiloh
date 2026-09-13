@@ -209,7 +209,7 @@ const monthReferenceCell = ([date, day]) => {
   return `<section class="month-day${holiday ? ' public-holiday' : ''}" data-date="${date}" data-public-holiday="${holiday}">
     <a class="month-day-link" href="/calendar/read-only?view=week&date=${date}&staff=11&staff=12&staff=13" aria-label="Open ${dayLabel}, ${appointments.length} items${holiday ? `. South African public holiday: ${holiday}` : ''}"></a>
     <header class="month-day-head" aria-hidden="true"><strong>${day}</strong>${holiday ? `<span class="month-holiday"><i></i><span>${holiday}</span></span>` : ''}</header>
-    <div class="month-events">${appointments.map(item => `<article class="month-event event-card"><span class="event-time-start">${item.time}</span><h4>${item.client}</h4></article>`).join('')}</div>
+    <div class="month-events">${appointments.map(item => `<div class="month-event"><article class="event-card"><span class="event-time-start">${item.time}</span><h4>${item.client}</h4></article></div>`).join('')}</div>
   </section>`;
 };
 
