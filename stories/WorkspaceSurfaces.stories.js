@@ -3,12 +3,14 @@ import clientPresentation from '../src/presentation/workspaceCommunicationEviden
 import messagesPresentation from '../src/presentation/workspaceMessagesUx.js';
 import editorPresentation from '../src/presentation/calendarAppointmentCompactEditorUx.js';
 import createBookingPresentation from '../src/presentation/calendarCreateBookingUx.js';
+import calendarPresentation from '../src/presentation/calendarReadOnlyUx.js';
 
 const { renderDashboardPage } = dashboardPresentation;
 const { renderClientDetailPageWithCommunications } = clientPresentation;
 const { renderMessagesPage } = messagesPresentation;
 const { calendarAppointmentCompactEditorClientScript } = editorPresentation;
 const { renderCalendarCreateBookingPage } = createBookingPresentation;
+const { renderCalendarPage } = calendarPresentation;
 
 function productionSurface(pageHtml) {
   const styles = [...String(pageHtml).matchAll(/<style>([\s\S]*?)<\/style>/g)]
@@ -23,6 +25,58 @@ const staff = [
   { id: 12, displayName: 'Christel' },
   { id: 13, displayName: 'Marietjie' },
 ];
+
+function monthCalendarModel() {
+  const dateKeys = [];
+  for (let cursor = new Date('2026-08-31T12:00:00Z'); cursor <= new Date('2026-10-03T12:00:00Z'); cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    if (cursor.getUTCDay() !== 0) dateKeys.push(cursor.toISOString().slice(0, 10));
+  }
+  const heritageAppointment = {
+    id: 680,
+    kind: 'appointment',
+    canonical: true,
+    revision: 'heritage-revision',
+    status: 'confirmed',
+    clientName: 'Month view client',
+    serviceName: 'Full Body Swedish',
+    startsAt: '2026-09-24T08:00:00.000Z',
+    endsAt: '2026-09-24T09:00:00.000Z',
+    staffIds: [12],
+    staff: [{ staffId: 12, nameSnapshot: 'Christel' }],
+    serviceContexts: [{ serviceId: 82, categoryName: 'Massage' }],
+  };
+  return {
+    view: 'month',
+    dateKey: '2026-09-14',
+    period: {
+      startKey: '2026-09-01',
+      endKey: '2026-10-01',
+      displayStartKey: '2026-08-31',
+      displayEndKey: '2026-10-05',
+      previousAnchor: '2026-08-01',
+      nextAnchor: '2026-10-01',
+      dateKeys,
+    },
+    selectedStaffId: null,
+    visibleStaffIds: staff.map(person => person.id),
+    visibleStaffSelectionExplicit: true,
+    permittedStaff: staff,
+    publicHolidays: [{ date: '2026-09-24', name: 'Heritage Day', observed: false, countryCode: 'ZA' }],
+    timeline: {
+      staff,
+      workingWindows: [],
+      scheduleExceptions: [],
+      recurringClosures: [],
+      closures: [],
+      appointments: [heritageAppointment],
+      blocks: [],
+      leave: [],
+      externalBusy: [],
+      events: [heritageAppointment],
+    },
+    mutationCapability: { enabled: false, operations: [] },
+  };
+}
 
 function appointment({ id, clientName, serviceName, staffId, startsAt, endsAt, status = 'confirmed', canFinalize = false, operationalDateKey = '2026-09-12' }) {
   const person = staff.find((item) => item.id === staffId);
@@ -145,6 +199,7 @@ export const DashboardOperational = { render: () => productionSurface(renderDash
 export const ClientAppointmentHistory = { render: () => productionSurface(renderClientDetailPageWithCommunications(clientModel(), { calendarNavigationAllowed: true, notificationActionAllowed: true })) };
 export const MessagesAttention = { render: () => productionSurface(renderMessagesPage(messagesModel())) };
 export const CompactAppointmentEditor = { render: editorStory };
+export const MonthWithSouthAfricanHoliday = { render: () => productionSurface(renderCalendarPage(monthCalendarModel())) };
 export const CreateBooking = {
   render: () => productionSurface(renderCalendarCreateBookingPage({
     options: {
