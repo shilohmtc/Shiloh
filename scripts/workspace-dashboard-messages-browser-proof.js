@@ -184,14 +184,14 @@ function attentionExceptions() {
 }
 
 function createFixture() {
-  const state = { providerNetworkCalls: 0, senderCalls: 0, productionReads: 0, productionMutations: 0 };
+  const state = { providerNetworkCalls: 0, senderCalls: 0, productionReads: 0, productionMutations: 0, syntheticProposalRequests: [] };
   const sessionService = {
     async validateSessionToken(token) {
       if (token === OWNER_SESSION_TOKEN) return { ok: true, sessionId: 88, adminId: 77, csrfHash: 'synthetic-owner', recoveryRequired: false, viewer: { calendarScope: 'business_all_staff', operatorAdminId: 77 } };
       if (token === PRACTITIONER_SESSION_TOKEN) return { ok: true, sessionId: 89, adminId: 78, csrfHash: 'synthetic-practitioner', recoveryRequired: false, viewer: { calendarScope: 'own_staff', staffId: 31, operatorAdminId: 78 } };
       return { ok: false };
     },
-    validateCsrfToken() { return false; },
+    validateCsrfToken(_session, token) { return token === 'synthetic-csrf'; },
   };
   const access = { async resolveAccess() { return { canonical: true }; } };
   const messageService = createWorkspaceMessagesService({
@@ -248,6 +248,13 @@ function createFixture() {
       return canonicalDashboardService.buildModel({ ...input, now: new Date('2026-09-05T14:00:00.000Z') });
     },
     finalizeVisit: canonicalDashboardService.finalizeVisit,
+    async resolveBookingRequest(input) {
+      state.syntheticProposalRequests.push(input);
+      const error = new Error('Selected time is unavailable because the practitioner is already booked.');
+      error.code = 'BOOKING_REQUEST_SLOT_UNAVAILABLE';
+      error.httpStatus = 409;
+      throw error;
+    },
   };
   const navigationService = createWorkspaceNavigationService({
     clientAccessService: access, staffAccessService: access, servicesAccessService: access, reportsAccessService: access,
@@ -277,6 +284,7 @@ function createFixture() {
     return res.redirect(302, '/calendar/workspace');
   });
   app.get('/calendar/staff/client.js', (_req, res) => res.type('application/javascript').send("'use strict';"));
+  app.post('/calendar/staff-auth/csrf', (_req, res) => res.status(200).json({ csrfToken: 'synthetic-csrf' }));
   app.get('/calendar/operations/client.js', (_req, res) => res.type('application/javascript').send("'use strict';"));
   app.use('/calendar/workspace', createWorkspaceOperationalRouter({ env: ENV, sessionService, dashboardService, navigationService }));
   app.use('/calendar/messages', createWorkspaceMessagesRouter({ env: ENV, sessionService, service: messageService }));
@@ -513,6 +521,17 @@ async function main() {
         assert.ok(metrics.bookingActionLabels.includes('Propose alternative'));
         assert.ok(metrics.bookingActionLabels.includes('Cannot accommodate'));
         assert.ok(metrics.minBookingActionHeight >= (phone ? 44 : 36), `${name} has undersized booking-request actions`);
+        if (name === 'desktop-dashboard' || name === 'phone-dashboard') {
+          const before = state.syntheticProposalRequests.length;
+          await evaluate(cdp, `document.querySelector('[data-booking-request] [data-booking-action="propose"]').click();true`);
+          await poll(() => evaluate(cdp, `document.querySelector('[data-booking-request-status]').textContent.trim()`), value => value === 'Choose an alternative date and time.');
+          assert.equal(state.syntheticProposalRequests.length, before, `${name} sent an invalid blank proposal`);
+          await evaluate(cdp, `(()=>{const card=document.querySelector('[data-booking-request]');card.querySelector('[data-proposal-date]').value='2026-09-14';card.querySelector('[data-proposal-time]').value='10:00';card.querySelector('[data-booking-action="propose"]').click();return true;})()`);
+          await poll(() => evaluate(cdp, `document.querySelector('[data-booking-request-status]').textContent.trim()`), value => value.includes('practitioner is already booked'));
+          assert.equal(state.syntheticProposalRequests.length, before + 1, `${name} did not reach the canonical proposal endpoint`);
+          assert.equal(state.syntheticProposalRequests.at(-1).startsAt, '2026-09-14T08:00:00.000Z', `${name} did not interpret clinic time in Africa/Johannesburg`);
+          assert.equal(await evaluate(cdp, `document.querySelector('[data-booking-request] [data-booking-action="propose"]').disabled`), false, `${name} did not restore proposal controls after an unavailable slot`);
+        }
         if (phone) assert.equal(metrics.dashboardAttentionBeforeToday, true, `${name} does not put Needs attention before the appointment list`);
       }
       if (urlPath.startsWith('/calendar/services')) {
@@ -567,7 +586,8 @@ async function main() {
 
     assert.deepEqual(browserExceptions, []);
     assert.deepEqual(externalRequests, []);
-    assert.deepEqual(state, { providerNetworkCalls: 0, senderCalls: 0, productionReads: 0, productionMutations: 0 });
+    assert.equal(state.syntheticProposalRequests.length, 2);
+    assert.deepEqual({ ...state, syntheticProposalRequests: undefined }, { providerNetworkCalls: 0, senderCalls: 0, productionReads: 0, productionMutations: 0, syntheticProposalRequests: undefined });
     const exactHead = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
     assert.match(exactHead, /^[0-9a-f]{40}$/);
     const manifest = {
