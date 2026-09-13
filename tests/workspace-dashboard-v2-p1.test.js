@@ -289,7 +289,15 @@ test('Needs Attention projects pending and awaiting-client booking requests with
 
   const ownerHtml = renderDashboardPage({ ...model, mode: 'owner_overview' });
   assert.match(ownerHtml, /Alternative practitioner/);
-  assert.match(dashboardClientScript(), /booking-requests/);
+  assert.match(html, /<span>Alternative date<\/span><input type="date" data-proposal-date>/);
+  assert.match(html, /<span>Alternative time<\/span><input type="time" step="900" data-proposal-time>/);
+  assert.match(html, /data-booking-request-status aria-live="polite"/);
+  const clientScript = dashboardClientScript();
+  assert.match(clientScript, /booking-requests/);
+  assert.match(clientScript, /date\+'T'\+time\+':00\+02:00'/);
+  assert.match(clientScript, /Choose an alternative date and time\./);
+  assert.match(clientScript, /Checking this alternative…/);
+  assert.match(clientScript, /requestStatus/);
 });
 
 test('Workspace booking-request action re-resolves authority and forwards only controlled inputs', async () => {
