@@ -73,6 +73,15 @@ test('all-business/all-services booking scope is canonical data and has no named
   assert.equal(db.calls.some((call) => /Christel|Abigail|Jean-Pierre/.test(call.sql)), false);
 });
 
+test('reception booking options declare practitioner-first presentation without changing service authority', async () => {
+  const db = bookingDb({ admin: principals.naomi });
+  const service = createCalendarCreateBookingService({ db, env: enabledEnv, crmV2Service: crmV2() });
+  const options = await service.listBookableOptions(principals.naomi.id);
+  assert.equal(options.authority.serviceScope, 'all_business:all_services');
+  assert.equal(options.authority.bookingFlow, 'practitioner_first');
+  assert.equal(options.services[0].staffIds[0], 20);
+});
+
 test('bookable catalogue and prepare remain bounded by authenticated service relationships', async () => {
   const db = bookingDb({ admin: principals.marietjie, optionRows: [eligibleRow(), eligibleRow({ staff_id: 21 })] });
   const prepareCalls = [];
