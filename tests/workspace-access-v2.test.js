@@ -10,7 +10,14 @@ const {
   expectedPermissions: receptionPermissions,
   isExactReceptionPrincipal: isReceptionPreset,
 } = require('../src/services/workspaceReceptionAccess');
-const { ACCESS_V2_LOCK_BASE, principalRevision, principalProjection, groupedCapabilities, createWorkspaceAccessV2Service } = require('../src/services/workspaceAccessV2');
+const {
+  ACCESS_V2_LOCK_BASE,
+  principalRevision,
+  principalProjection,
+  groupedCapabilities,
+  practitionerPresetPermissions,
+  createWorkspaceAccessV2Service,
+} = require('../src/services/workspaceAccessV2');
 const { renderAccessListPage, renderAccessDetailPage } = require('../src/presentation/workspaceAccessV2Ux');
 const { dashboardAuthority } = require('../src/services/workspaceDashboard');
 const { operatorCanResolve } = require('../src/services/clientBookingApproval');
@@ -90,7 +97,7 @@ test('Practitioner preset revokes broader target policy without changing identit
   Object.assign(target, { role: 'receptionist', business_role: 'booking_operator', calendar_scope: 'all_business', service_scope: 'all_services' });
   const fake = fakeDb([target]); const service = createWorkspaceAccessV2Service({ db: fake.db, accessService: accessAuthority });
   const result = await service.applyPreset({ adminId: 1, principalId: 20, expectedRevision: principalRevision(target), requestId: 'request_788_preset', preset: 'employee_practitioner_v1' });
-  assert.equal(result.status, 'updated'); assert.deepEqual(fake.state.rows.get(20).permissions, { 'appointment:view': true });
+  assert.equal(result.status, 'updated'); assert.deepEqual(fake.state.rows.get(20).permissions, practitionerPresetPermissions());
   const update = fake.state.calls.find(call => call.sql.startsWith('UPDATE staff_admin_accounts SET role=')); assert.doesNotMatch(update.sql, /whatsapp|normalized|totp|recovery/i);
   assert.equal(fake.state.audits[0].metadata.identityChanged, false);
   const calls = fake.state.calls.length;
