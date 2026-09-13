@@ -297,6 +297,12 @@ async function main() {
     assert.equal(state.prepares.length, 0, 'missing-field feedback must not call prepare');
 
     await evaluate(cdp, `document.querySelectorAll('.client-result')[0].click();true`);
+    await poll(() => evaluate(cdp, `document.querySelector('[data-booking-status]').hidden`), Boolean);
+    const restoredStatus = await evaluate(cdp, `(()=>{const button=document.querySelector('[data-review-booking]');button.click();const status=document.querySelector('[data-booking-status]');return{hidden:status.hidden,message:status.textContent.trim(),error:status.classList.contains('error')};})()`);
+    assert.equal(restoredStatus.hidden, false);
+    assert.equal(restoredStatus.message, 'Choose a start time.');
+    assert.equal(restoredStatus.error, true);
+    assert.equal(state.prepares.length, 0, 'visible missing-field feedback must not call prepare');
     await chooseSlot();
     await prepareDirect();
     const existingReview = await evaluate(cdp, `({
