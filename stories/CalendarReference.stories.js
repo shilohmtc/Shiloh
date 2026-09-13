@@ -296,7 +296,7 @@ export const DesktopCompleteNewMenu = {
           <summary aria-label="Book or add calendar item"><span aria-hidden="true">＋</span><span>Book</span></summary>
           <div class="desktop-menu-popover" data-storybook-desktop-new-menu>
             <a href="#new-appointment">New appointment</a>
-            <a href="/calendar/book/couples?date=2026-09-14" data-calendar-booking-kind="couples">Couples massage <small>2 guests</small></a>
+            <a href="/calendar/book/couples?date=2026-09-14" data-calendar-booking-kind="couples"><span>Couples massage</span> <small>2 guests</small></a>
             <a href="#past-appointment">Record past appointment</a>
             <div class="desktop-menu-divider" role="separator" aria-label="Availability controls"></div>
             <button type="button" data-calendar-operation="add-block">Block time</button>
