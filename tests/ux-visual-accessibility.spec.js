@@ -32,6 +32,8 @@ test('phone Create booking restores canonical Week context and fits the viewport
       timeRight: document.querySelector('#booking-time').getBoundingClientRect().right,
       panelRight: panelRect.right,
       reviewPosition: getComputedStyle(document.querySelector('.review-action')).position,
+      dateAppearance: getComputedStyle(document.querySelector('#booking-date')).webkitAppearance,
+      timeAppearance: getComputedStyle(document.querySelector('#booking-time')).webkitAppearance,
     };
   });
   expect(metrics.documentWidth, 'Create booking must not overflow the Phone viewport').toBeLessThanOrEqual(metrics.viewportWidth);
@@ -40,6 +42,24 @@ test('phone Create booking restores canonical Week context and fits the viewport
   expect(metrics.dateRight).toBeLessThanOrEqual(metrics.panelRight);
   expect(metrics.timeRight).toBeLessThanOrEqual(metrics.panelRight);
   expect(metrics.reviewPosition).toBe('sticky');
+  expect(metrics.dateAppearance).toBe('none');
+  expect(metrics.timeAppearance).toBe('none');
+
+  await page.route('**/calendar/book/client-search', async (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      ambiguous: true,
+      clients: [
+        { id: 1, displayName: 'Alex Adams', contactHint: '••41', profileStatus: 'registered' },
+        { id: 2, displayName: 'Alex Andrews', contactHint: '••92', profileStatus: 'registered' },
+      ],
+    }),
+  }));
+  await page.locator('#client-search').fill('Alex');
+  await page.locator('[data-client-search]').click();
+  await expect(page.locator('.client-result')).toHaveCount(2);
+  await expect(page.locator('[data-booking-status]')).toBeHidden();
 
   const accessibility = await new AxeBuilder({ page })
     .include('.workspace-surface-story')
@@ -47,6 +67,39 @@ test('phone Create booking restores canonical Week context and fits the viewport
     .analyze();
   const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
   expect(serious, `Serious accessibility violations in phone Create booking: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+});
+
+test('phone passkey cards show South African date and time without overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 310, height: 659 });
+  await page.goto('/iframe.html?id=workspace-production-surfaces--phone-passkey-devices&viewMode=story', { waitUntil: 'networkidle' });
+
+  const surface = page.locator('.workspace-surface-story');
+  await expect(surface).toBeVisible();
+  await expect(surface.locator('.credential').first()).toContainText('Added 13/09/2026 17:05');
+  await expect(surface.locator('.credential').first()).toContainText('last used 13/09/2026 17:42');
+  const widths = await page.evaluate(() => ({
+    viewport: window.innerWidth,
+    document: document.documentElement.scrollWidth,
+    cards: [...document.querySelectorAll('.credential')].map(node => node.getBoundingClientRect().right),
+  }));
+  expect(widths.document).toBeLessThanOrEqual(widths.viewport);
+  expect(widths.cards.every(right => right <= widths.viewport)).toBe(true);
+});
+
+test('PWA icon uses balanced optical proportions', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/iframe.html?id=workspace-production-surfaces--pwa-icon-optical-scale&viewMode=story', { waitUntil: 'networkidle' });
+
+  const proportions = await page.locator('.pwa-icon').evaluate((svg) => {
+    const inner = svg.querySelectorAll('rect')[1];
+    const circle = svg.querySelector('circle');
+    return {
+      innerRatio: Number(inner.getAttribute('width')) / 192,
+      markRatio: Number(circle.getAttribute('r')) * 2 / 192,
+    };
+  });
+  expect(proportions.innerRatio).toBeGreaterThanOrEqual(0.87);
+  expect(proportions.markRatio).toBeGreaterThanOrEqual(0.39);
 });
 
 test('Desktop New menu exposes every authorized booking and availability action', async ({ page }) => {

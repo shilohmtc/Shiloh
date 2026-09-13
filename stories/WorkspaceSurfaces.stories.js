@@ -3,12 +3,16 @@ import clientPresentation from '../src/presentation/workspaceCommunicationEviden
 import messagesPresentation from '../src/presentation/workspaceMessagesUx.js';
 import editorPresentation from '../src/presentation/calendarAppointmentCompactEditorUx.js';
 import createBookingPresentation from '../src/presentation/calendarCreateBookingUx.js';
+import passkeyPresentation from '../src/presentation/staffPasskeyUx.js';
+import pwaPresentation from '../src/presentation/workspacePwa.js';
 
 const { renderDashboardPage } = dashboardPresentation;
 const { renderClientDetailPageWithCommunications } = clientPresentation;
 const { renderMessagesPage } = messagesPresentation;
 const { calendarAppointmentCompactEditorClientScript } = editorPresentation;
-const { renderCalendarCreateBookingPage } = createBookingPresentation;
+const { renderCalendarCreateBookingPage, calendarCreateBookingClientScript } = createBookingPresentation;
+const { managePage: renderPasskeyManagePage } = passkeyPresentation;
+const { workspacePwaIconSvg } = pwaPresentation;
 
 function productionSurface(pageHtml) {
   const styles = [...String(pageHtml).matchAll(/<style>([\s\S]*?)<\/style>/g)]
@@ -136,6 +140,21 @@ function editorStory() {
   return root;
 }
 
+function interactiveProductionSurface(pageHtml, clientScript) {
+  const root = document.createElement('div');
+  root.innerHTML = productionSurface(pageHtml);
+  const data = String(pageHtml).match(/<script type="application\/json"[\s\S]*?<\/script>/)?.[0];
+  if (data) root.insertAdjacentHTML('beforeend', data);
+  window.setTimeout(() => new Function(clientScript)(), 0);
+  return root;
+}
+
+function pwaIconStory() {
+  const root = document.createElement('div');
+  root.innerHTML = `<style>*{box-sizing:border-box}body{margin:0;background:#eef1ed;font-family:Inter,system-ui,sans-serif}.pwa-icon-story{min-height:100vh;display:grid;place-items:center;padding:28px}.pwa-icon-card{display:grid;gap:14px;justify-items:center;padding:24px;border-radius:24px;background:#fffdf9;box-shadow:0 16px 44px rgba(23,56,45,.14)}.pwa-icon{display:block;width:192px;height:192px;border-radius:22%;box-shadow:0 8px 20px rgba(23,56,45,.18)}strong{color:#20322b;font-size:1rem}</style><div class="pwa-icon-story"><div class="pwa-icon-card">${workspacePwaIconSvg(192).replace('<svg ', '<svg class="pwa-icon" ')}<strong>Shiloh</strong></div></div>`;
+  return root;
+}
+
 export default {
   title: 'Workspace/Production surfaces',
   parameters: { layout: 'fullscreen' },
@@ -146,14 +165,26 @@ export const ClientAppointmentHistory = { render: () => productionSurface(render
 export const MessagesAttention = { render: () => productionSurface(renderMessagesPage(messagesModel())) };
 export const CompactAppointmentEditor = { render: editorStory };
 export const CreateBooking = {
-  render: () => productionSurface(renderCalendarCreateBookingPage({
-    options: {
-      staff,
-      services: [
-        { id: 81, name: 'Quick Relief: Back & Neck (45 min)', durationMinutes: 45, staffIds: [11, 12] },
-        { id: 82, name: 'Full Body Swedish', durationMinutes: 60, staffIds: [12, 13] },
-      ],
-    },
-    prefill: { date: '2026-09-14', time: '10:30', staffId: 11 },
+  render: () => {
+    const page = renderCalendarCreateBookingPage({
+      options: {
+        staff,
+        services: [
+          { id: 81, name: 'Quick Relief: Back & Neck (45 min)', durationMinutes: 45, staffIds: [11, 12] },
+          { id: 82, name: 'Full Body Swedish', durationMinutes: 60, staffIds: [12, 13] },
+        ],
+      },
+      prefill: { date: '2026-09-14', time: '10:30', staffId: 11 },
+    });
+    return interactiveProductionSurface(page, calendarCreateBookingClientScript());
+  },
+};
+export const PhonePasskeyDevices = {
+  render: () => productionSurface(renderPasskeyManagePage({
+    credentials: [
+      { id: 1, createdAt: '2026-09-13T15:05:00.000Z', lastUsedAt: '2026-09-13T15:42:00.000Z', backedUp: true },
+      { id: 2, createdAt: '2026-09-12T06:30:00.000Z', lastUsedAt: null, backedUp: true },
+    ],
   })),
 };
+export const PwaIconOpticalScale = { render: pwaIconStory };
