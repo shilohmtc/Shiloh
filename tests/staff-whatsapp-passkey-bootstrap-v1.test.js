@@ -219,6 +219,10 @@ test('#804 recognized eligible WhatsApp identity gets one-time token; redemption
   assert.equal(started.options.authenticatorSelection.residentKey, 'discouraged');
   assert.equal(started.options.authenticatorSelection.requireResidentKey, false);
   assert.equal(started.options.authenticatorSelection.userVerification, 'required');
+  assert.equal(started.options.user.name, 'Christel');
+  assert.equal(started.options.user.displayName, 'Christel');
+  assert.equal(started.options.user.id, Buffer.from('staff-admin:44').toString('base64url'));
+  assert.doesNotMatch(started.options.user.name, /^staff-\d+$/);
   assert.equal(db.challenges[0].purpose, 'bootstrap_registration');
   assert.equal(Number(db.challenges[0].admin_id), 44);
 

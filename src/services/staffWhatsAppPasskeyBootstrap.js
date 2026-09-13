@@ -12,6 +12,7 @@ const {
   CHALLENGE_TTL_MS,
   fromB64url,
   passkeyPolicy,
+  registrationUser,
   strongRecentSession,
   verifyRegistrationResponse,
 } = require('./staffPasskeyAuth');
@@ -38,10 +39,6 @@ function bootstrapPolicy(env = process.env) {
     origin: passkey.origin,
     rpId: passkey.rpId,
   };
-}
-
-function opaqueUserId(adminId) {
-  return Buffer.from(`staff-admin:${Number(adminId)}`, 'utf8').toString('base64url');
 }
 
 function cleanDisplayName(value) {
@@ -307,7 +304,7 @@ function createStaffWhatsAppPasskeyBootstrapService({
         options: {
           challenge,
           rp: { name: 'Shiloh', id: currentPolicy.rpId },
-          user: { id: opaqueUserId(admin.id), name: `staff-${admin.id}`, displayName: admin.display_name },
+          user: registrationUser(admin),
           pubKeyCredParams: [
             { type: 'public-key', alg: -7 },
             { type: 'public-key', alg: -8 },

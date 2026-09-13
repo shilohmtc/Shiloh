@@ -7,6 +7,7 @@ const {
   b64url,
   normalizeCredentialHint,
   passkeyPolicy,
+  registrationUser,
   strongRecentSession,
   verifyRegistrationResponse,
   verifyAssertionResponse,
@@ -95,6 +96,16 @@ test('#794 registration and lifecycle require recent TOTP/passkey session, not r
   assert.equal(strongRecentSession({ ...base, authMethod: 'break_glass' }, now), false);
   assert.equal(strongRecentSession({ ...base, authMethod: 'whatsapp_otp' }, now), false);
   assert.equal(strongRecentSession({ ...base, authMethod: 'totp', recoveryRequired: true }, now), false);
+});
+
+test('#940 passkey registration presents the canonical staff name while retaining an opaque stable user id', () => {
+  const user = registrationUser({ id: 4, display_name: 'Jean-Pierre\nBotha' });
+  assert.deepEqual(user, {
+    id: Buffer.from('staff-admin:4').toString('base64url'),
+    name: 'Jean-Pierre Botha',
+    displayName: 'Jean-Pierre Botha',
+  });
+  assert.doesNotMatch(user.name, /^staff-\d+$/);
 });
 
 test('#794 device credential is non-discoverable, platform-bound, and targeted on re-entry', () => {
