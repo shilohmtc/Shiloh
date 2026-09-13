@@ -35,12 +35,12 @@ test('browser client has no challenge or WhatsApp-code verification calls', () =
   assert.doesNotMatch(client, /verifyChallenge/);
 });
 
-test('staff auth router removes browser OTP endpoints but preserves secure one-tap exchange', () => {
+test('staff auth router removes every ordinary browser fallback endpoint but preserves secure one-tap exchange', () => {
   const route = source('src/routes/staffBrowserSession.js');
   assert.doesNotMatch(route, /router\.post\('\/challenge'/);
   assert.doesNotMatch(route, /router\.post\('\/verify'/);
-  assert.match(route, /router\.post\('\/totp\/verify'/);
-  assert.match(route, /router\.post\('\/totp\/recovery\/verify'/);
+  assert.doesNotMatch(route, /router\.post\('\/totp\/verify'/);
+  assert.doesNotMatch(route, /router\.post\('\/totp\/recovery\/verify'/);
   assert.match(route, /router\.post\('\/calendar-handoff\/exchange'/);
 });
 

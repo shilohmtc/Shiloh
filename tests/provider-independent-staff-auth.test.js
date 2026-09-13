@@ -1135,12 +1135,14 @@ test('real Chromium persists the break-glass session and executes management sta
   }
 });
 
-test('feature-off rollback is safe, auditable, and cannot restore retired browser WhatsApp OTP routes', () => {
+test('#946 rollback cannot restore retired browser OTP, authenticator, or recovery-code login routes', () => {
   const routes = fs.readFileSync(path.join(__dirname, '..', 'src/routes/staffBrowserSession.js'), 'utf8');
   const rollback = fs.readFileSync(path.join(__dirname, '..', 'scripts/audit-staff-auth-rollback.js'), 'utf8');
   assert.doesNotMatch(routes, /router\.post\('\/challenge'/);
   assert.doesNotMatch(routes, /router\.post\('\/verify'/);
-  assert.match(routes, /router\.post\('\/totp\/verify'/);
+  assert.doesNotMatch(routes, /router\.post\('\/totp\/verify'/);
+  assert.doesNotMatch(routes, /router\.post\('\/totp\/recovery\/verify'/);
+  assert.match(routes, /router\.post\('\/totp\/break-glass\/exchange'/);
   assert.match(routes, /router\.post\('\/calendar-handoff\/exchange'/);
   assert.match(rollback, /recordRollback/);
   assert.doesNotMatch(routes, /delete.*template|WABA/i);
@@ -1185,6 +1187,7 @@ test('secret-shaped inputs are absent from error responses, request logs, and se
   const originalChild = logger.child;
   logger.child = () => captureLogger;
   const responseBodies = [];
+  let retiredVerifierCalls = 0;
   try {
     const app = express();
     app.use(express.json());
@@ -1196,8 +1199,8 @@ test('secret-shaped inputs are absent from error responses, request logs, and se
         validateCsrfToken() { return false; },
       },
       providerIndependentAuthService: {
-        async verifyTotp() { return { ok: false, code: 'STAFF_AUTH_INVALID' }; },
-        async verifyRecovery() { return { ok: false, code: 'STAFF_AUTH_INVALID' }; },
+        async verifyTotp() { retiredVerifierCalls += 1; return { ok: false, code: 'STAFF_AUTH_INVALID' }; },
+        async verifyRecovery() { retiredVerifierCalls += 1; return { ok: false, code: 'STAFF_AUTH_INVALID' }; },
       },
     }));
     app.use((error, req, res, _next) => {
@@ -1215,10 +1218,11 @@ test('secret-shaped inputs are absent from error responses, request logs, and se
           headers: { Origin: origin, 'Content-Type': 'application/json', Accept: 'application/json' },
           body: JSON.stringify(payload),
         });
-        assert.equal(response.status, 401);
+        assert.equal(response.status, 404);
         responseBodies.push(await response.text());
       }
     });
+    assert.equal(retiredVerifierCalls, 0);
     await new Promise((resolve) => setImmediate(resolve));
   } finally {
     if (hadOwnChild) logger.child = originalChild;

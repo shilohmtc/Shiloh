@@ -124,7 +124,7 @@ test('#831 Workspace browser navigation redirects to existing sign-in while JSON
     assert.match(signInHtml, /<title>Shiloh Workspace sign-in<\/title>/);
     assert.doesNotMatch(signInHtml, /\{"error":"Unauthorized"/);
     assert.doesNotMatch(signInHtml, /First Time|New Device|device not set up|permissions\/governance/i);
-    assert.match(signInHtml, /Use another sign-in method/);
+    assert.doesNotMatch(signInHtml, /Use another sign-in method|Sign in with authenticator|Use a recovery code/);
 
     const json = await rawRequest(workspace, { headers: { accept: 'application/json' } });
     assert.equal(json.status, 401);
@@ -172,6 +172,7 @@ test('#831 real Chromium Desktop and Phone direct navigation land on simplified 
     assert.match(desktop, /Shiloh Workspace sign-in/);
     assert.doesNotMatch(desktop, /\{"error":"Unauthorized"/);
     assert.doesNotMatch(desktop, /First Time|New Device|device not set up|permissions\/governance/i);
+    assert.doesNotMatch(desktop, /Use another sign-in method|Sign in with authenticator|Use a recovery code/);
 
     const phone = await dump([
       '--window-size=390,844',
@@ -180,5 +181,6 @@ test('#831 real Chromium Desktop and Phone direct navigation land on simplified 
     assert.match(phone, /Shiloh Workspace sign-in/);
     assert.doesNotMatch(phone, /\{"error":"Unauthorized"/);
     assert.doesNotMatch(phone, /First Time|New Device|device not set up|permissions\/governance/i);
+    assert.doesNotMatch(phone, /Use another sign-in method|Sign in with authenticator|Use a recovery code/);
   });
 });

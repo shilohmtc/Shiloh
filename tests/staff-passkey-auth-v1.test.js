@@ -147,12 +147,15 @@ test('#794 schema is additive, multi-credential, soft-revocable and extends cano
   assert.match(sql, /staff_auth_webauthn_challenges/); assert.match(sql, /purpose IN \('registration', 'authentication'\)/);
 });
 
-test('#794 integration preserves fallback auth and PWA remains network-only for protected auth', () => {
+test('#946 ordinary fallback login is retired while controlled recovery and passkey protection remain', () => {
   const routes = fs.readFileSync(path.join(__dirname, '../src/routes/staffBrowserSession.js'), 'utf8');
   const access = fs.readFileSync(path.join(__dirname, '../src/routes/staffCalendarAccessUx.js'), 'utf8');
   const pwa = fs.readFileSync(path.join(__dirname, '../src/presentation/workspacePwa.js'), 'utf8');
-  assert.match(routes, /\/totp\/verify/); assert.match(routes, /\/totp\/recovery\/verify/); assert.match(routes, /break-glass\/exchange/);
-  assert.match(access, /withPasskeyReentry/); assert.match(access, /providerIndependentAuthPolicy/);
+  assert.doesNotMatch(routes, /router\.post\('\/totp\/verify'/);
+  assert.doesNotMatch(routes, /router\.post\('\/totp\/recovery\/verify'/);
+  assert.match(routes, /break-glass\/exchange/);
+  assert.match(access, /withPasskeyReentry/);
+  assert.doesNotMatch(access, /providerIndependentAuthPolicy|Emergency sign-in/);
   assert.doesNotMatch(pwa, /staff-auth\/passkeys.*cache/i); assert.match(pwa, /no-store|NETWORK|fetch/i);
 });
 

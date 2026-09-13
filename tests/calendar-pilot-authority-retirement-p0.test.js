@@ -221,7 +221,7 @@ test('Open Calendar uses one-time handoff while canonical capability remains sol
   assert.doesNotMatch(handoff, /display_name\s*===|Christel|Jean-Pierre|Naomi|Marietjie|Abigail/);
 });
 
-test('TOTP, recovery, break-glass, CSRF and endpoint revalidation owners remain installed', () => {
+test('retired public fallback routes stay closed while controlled recovery, CSRF and endpoint revalidation remain installed', () => {
   const auth = read('src/services/providerIndependentStaffAuth.js');
   const authRoutes = read('src/routes/staffBrowserSession.js');
   const middleware = read('src/middleware/staffBrowserSession.js');
@@ -231,8 +231,8 @@ test('TOTP, recovery, break-glass, CSRF and endpoint revalidation owners remain 
   assert.match(auth, /verifyRecovery/);
   assert.match(auth, /issueBreakGlass/);
   assert.match(auth, /exchangeBreakGlass/);
-  assert.match(authRoutes, /totp\/verify/);
-  assert.match(authRoutes, /totp\/recovery\/verify/);
+  assert.doesNotMatch(authRoutes, /router\.post\('\/totp\/verify'/);
+  assert.doesNotMatch(authRoutes, /router\.post\('\/totp\/recovery\/verify'/);
   assert.match(authRoutes, /totp\/break-glass\/exchange/);
   assert.match(authRoutes, /calendar-handoff\/exchange/);
   assert.match(middleware, /sameOriginGuard/);

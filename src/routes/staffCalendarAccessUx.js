@@ -7,7 +7,6 @@ const {
   renderStaffCalendarHandoffPage,
   staffCalendarHandoffClientScript,
 } = require('../presentation/staffCalendarHandoffUx');
-const { providerIndependentAuthPolicy } = require('../services/providerIndependentStaffAuth');
 const { passkeyPolicy } = require('../services/staffPasskeyAuth');
 const { signinPanel, signinScript } = require('../presentation/staffPasskeyUx');
 
@@ -40,10 +39,10 @@ function withAuthenticatorSetupGuidance(html) {
   return String(html).replace(marker, `${guidance}${marker}`);
 }
 
-function withPasskeyReentry(html, { emergencyEnabled = false } = {}) {
+function withPasskeyReentry(html) {
   const marker = '<section data-shiloh-provider-independent-auth>';
   const fallbackMarker = '<section class="section" data-shiloh-whatsapp-handoff-guidance>';
-  const panel = `${signinPanel({ emergencyEnabled })}<script src="/calendar/staff/passkey-signin.js" defer></script>`;
+  const panel = `${signinPanel()}<script src="/calendar/staff/passkey-signin.js" defer></script>`;
   if (String(html || '').includes(marker)) return String(html).replace(marker, `${panel}${marker}`);
   if (String(html || '').includes(fallbackMarker)) return String(html).replace(fallbackMarker, `${panel}${fallbackMarker}`);
   return html;
@@ -53,16 +52,6 @@ function withPasskeyReentry(html, { emergencyEnabled = false } = {}) {
 // first-device explanatory card without changing the underlying WhatsApp bootstrap flow.
 function withWhatsAppBootstrapGuidance(html) {
   return String(html || '');
-}
-
-function withFallbackDisclosure(html) {
-  let output = String(html || '');
-  const start = '<section data-shiloh-provider-independent-auth>';
-  if (!output.includes(start)) return output;
-  output = output.replace(start, `<details class="section" data-shiloh-fallback-auth><summary><strong>Use another sign-in method</strong></summary>${start}`);
-  const end = '</details>\n      </section>';
-  if (output.includes(end)) output = output.replace(end, `${end}</details>`);
-  return output;
 }
 
 function retireBrowserWhatsAppGuidance(html) {
@@ -92,35 +81,24 @@ function createStaffCalendarAccessPageHandler({ env = process.env, renderPage = 
     setAccessSecurityHeaders(res);
     if (!isStaffCalendarAccessUxEnabled(env)) return res.status(404).type('text/plain').send('Not Found');
     const basePath = req.baseUrl || '/calendar/staff';
-    const emergencyEnabled = providerIndependentAuthPolicy(env).operational;
     const passkeyEnabled = passkeyPolicy(env).operational;
     const reason = normalizeReason(req.query?.reason);
-    const inlineEmergencyFallback = emergencyEnabled && !passkeyEnabled;
-    let html = renderPage({ reason, clientScriptPath: `${basePath}/client.js`, providerIndependentAuthEnabled: inlineEmergencyFallback });
-    if (passkeyEnabled) html = withPasskeyReentry(html, { emergencyEnabled });
-    if (inlineEmergencyFallback) html = withFallbackDisclosure(html);
+    let html = renderPage({ reason, clientScriptPath: `${basePath}/client.js`, providerIndependentAuthEnabled: false });
+    if (passkeyEnabled) html = withPasskeyReentry(html);
     html = retireBrowserWhatsAppGuidance(html);
     html = withAccessChangedGuidance(html, reason);
     return res.status(200).type('html').send(html);
   };
 }
 
-function createStaffCalendarEmergencyPageHandler({ env = process.env, renderPage = renderStaffCalendarAccessPage } = {}) {
+function createStaffCalendarEmergencyPageHandler({ env = process.env } = {}) {
   return function staffCalendarEmergencyPage(req, res) {
     setAccessSecurityHeaders(res);
-    if (!isStaffCalendarAccessUxEnabled(env) || !providerIndependentAuthPolicy(env).operational) {
+    if (!isStaffCalendarAccessUxEnabled(env)) {
       return res.status(404).type('text/plain').send('Not Found');
     }
-    let html = renderPage({
-      reason: normalizeReason(req.query?.reason),
-      clientScriptPath: '/calendar/staff/client.js',
-      providerIndependentAuthEnabled: true,
-    });
-    html = retireBrowserWhatsAppGuidance(html);
-    html = html.replace('<title>Shiloh Workspace sign-in</title>', '<title>Emergency sign-in · Shiloh</title>');
-    html = html.replace('<main class="card">', '<main class="card"><span class="eyebrow">Emergency access</span><h2>Emergency sign-in</h2><p class="lead">Use this only when device sign-in or WhatsApp setup is unavailable.</p>');
-    html = html.replace('</main>', '<p class="privacy-note"><a href="/calendar/staff">Back to device sign-in</a></p></main>');
-    return res.status(200).type('html').send(html);
+    res.setHeader('Location', '/calendar/staff');
+    return res.status(302).type('text/plain').send('Found');
   };
 }
 
@@ -176,7 +154,6 @@ module.exports.normalizeReason = normalizeReason;
 module.exports.withAuthenticatorSetupGuidance = withAuthenticatorSetupGuidance;
 module.exports.withPasskeyReentry = withPasskeyReentry;
 module.exports.withWhatsAppBootstrapGuidance = withWhatsAppBootstrapGuidance;
-module.exports.withFallbackDisclosure = withFallbackDisclosure;
 module.exports.bootstrapAwareSigninScript = bootstrapAwareSigninScript;
 module.exports.retireBrowserWhatsAppGuidance = retireBrowserWhatsAppGuidance;
 module.exports.withAccessChangedGuidance = withAccessChangedGuidance;

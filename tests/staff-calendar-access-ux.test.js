@@ -98,7 +98,7 @@ test('Workspace sign-in is human initiated and exposes authenticator plus one-ta
   assert.doesNotMatch(html + client, /beginChallenge|sendWhatsAppMessage|requestChallenge|verifyChallenge/);
 });
 
-test('#932 normal sign-in is passkey-first while provider-independent recovery stays on Emergency sign-in', () => {
+test('#946 normal sign-in is passkey-only and the retired Emergency page redirects safely', () => {
   const emergencyEnv = {
     ...enabledEnv,
     SHILOH_STAFF_PASSKEY_AUTH_ENABLED: 'true',
@@ -113,16 +113,14 @@ test('#932 normal sign-in is passkey-first while provider-independent recovery s
   createStaffCalendarAccessPageHandler({ env: emergencyEnv })({ query: {}, baseUrl: '/calendar/staff' }, normalRes);
   assert.equal(normalRes.statusCode, 200);
   assert.match(normalRes.body, /Continue with device sign-in/);
-  assert.match(normalRes.body, /href="\/calendar\/staff\/emergency"/);
+  assert.doesNotMatch(normalRes.body, /Emergency sign-in|href="\/calendar\/staff\/emergency"/);
   assert.doesNotMatch(normalRes.body, /data-shiloh-totp-form|data-shiloh-recovery-form/);
 
   const emergencyRes = fakeResponse();
   createStaffCalendarEmergencyPageHandler({ env: emergencyEnv })({ query: {} }, emergencyRes);
-  assert.equal(emergencyRes.statusCode, 200);
-  assert.match(emergencyRes.body, /Emergency sign-in/);
-  assert.match(emergencyRes.body, /data-shiloh-totp-form/);
-  assert.match(emergencyRes.body, /data-shiloh-recovery-form/);
-  assert.doesNotMatch(emergencyRes.body, /data-shiloh-passkey-panel|Open from Shiloh WhatsApp/);
+  assert.equal(emergencyRes.statusCode, 302);
+  assert.equal(emergencyRes.headers.location, '/calendar/staff');
+  assert.equal(emergencyRes.body, 'Found');
 });
 
 test('browser client uses only provider-independent staff-auth contracts and never persists browser authority', () => {
