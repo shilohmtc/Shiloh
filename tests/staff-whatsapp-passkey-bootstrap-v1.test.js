@@ -2,6 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -10,7 +11,9 @@ const {
   evaluateBootstrapPrincipal,
   setupUrl,
   createStaffWhatsAppPasskeyBootstrapService,
+  REPLACEMENT_PURPOSE,
 } = require('../src/services/staffWhatsAppPasskeyBootstrap');
+const { b64url } = require('../src/services/staffPasskeyAuth');
 const {
   isGreetingOnly,
   createStaffWhatsAppPasskeyBootstrapMiddleware,
@@ -41,6 +44,7 @@ function principal(overrides = {}) {
     permissions: { 'appointment:view': true },
     admin_active: true,
     staff_status: null,
+    replacement_required_at: null,
     ...overrides,
   };
 }
@@ -51,6 +55,8 @@ class BootstrapDb {
     this.bootstraps = [];
     this.challenges = [];
     this.auditEvents = [];
+    this.credentials = [{ id: 70, admin_id: 44, credential_id: Buffer.alloc(32, 7).toString('base64url'), revoked_at: null }];
+    this.sessions = [{ id: 80, admin_id: 44, revoked_at: null }];
   }
   async connect() { return this; }
   release() {}
@@ -82,14 +88,50 @@ class BootstrapDb {
       if (row) row.consumed_at = params[1];
       return { rows: [], rowCount: row ? 1 : 0 };
     }
-    if (text.startsWith('UPDATE staff_auth_webauthn_challenges SET consumed_at')) {
-      for (const row of this.challenges) if (Number(row.admin_id) === Number(params[0]) && row.purpose === 'bootstrap_registration' && !row.consumed_at) row.consumed_at = params[1];
+    if (text.startsWith('UPDATE staff_auth_webauthn_challenges SET consumed_at') && text.includes('WHERE admin_id = $1')) {
+      for (const row of this.challenges) if (Number(row.admin_id) === Number(params[0]) && !row.consumed_at) row.consumed_at = params[1];
       return { rows: [], rowCount: 1 };
     }
-    if (text.includes('SELECT credential_id FROM staff_auth_passkey_credentials')) return { rows: [] };
+    if (text.includes('SELECT credential_id FROM staff_auth_passkey_credentials')) return { rows: this.credentials.filter(row => !row.revoked_at) };
     if (text.startsWith('INSERT INTO staff_auth_webauthn_challenges')) {
-      this.challenges.push({ id: this.challenges.length + 1, challenge_hash: params[0], purpose: 'bootstrap_registration', admin_id: params[1], request_fingerprint_hash: params[2], expires_at: params[3], consumed_at: null });
+      this.challenges.push({ id: this.challenges.length + 1, challenge_hash: params[0], purpose: params[1], admin_id: params[2], request_fingerprint_hash: params[3], expires_at: params[4], consumed_at: null });
       return { rows: [], rowCount: 1 };
+    }
+    if (text.includes('FROM staff_auth_webauthn_challenges') && text.includes('challenge_hash = $1')) {
+      const row = this.challenges.find(item => item.challenge_hash === params[0] && !item.consumed_at);
+      return { rows: row ? [{ ...row }] : [] };
+    }
+    if (text.startsWith('UPDATE staff_auth_webauthn_challenges SET consumed_at') && text.includes('WHERE id = $1')) {
+      const row = this.challenges.find(item => Number(item.id) === Number(params[0]));
+      if (row) row.consumed_at = params[1];
+      return { rows: [], rowCount: row ? 1 : 0 };
+    }
+    if (text.includes('SELECT id FROM staff_auth_passkey_credentials WHERE credential_id')) {
+      return { rows: this.credentials.filter(row => row.credential_id === params[0]).map(row => ({ id: row.id })) };
+    }
+    if (text.startsWith('INSERT INTO staff_auth_passkey_credentials')) {
+      const id = Math.max(0, ...this.credentials.map(row => row.id)) + 1;
+      this.credentials.push({ id, admin_id: params[0], credential_id: params[1], revoked_at: null });
+      return { rows: [{ id }], rowCount: 1 };
+    }
+    if (text.startsWith('UPDATE staff_auth_passkey_credentials')) {
+      let count = 0;
+      for (const row of this.credentials) if (Number(row.admin_id) === Number(params[0]) && Number(row.id) !== Number(params[1]) && !row.revoked_at) { row.revoked_at = params[2]; count += 1; }
+      return { rows: [], rowCount: count };
+    }
+    if (text.includes('SELECT id FROM staff_browser_sessions')) {
+      const rows = this.sessions.filter(row => Number(row.admin_id) === Number(params[0]) && !row.revoked_at).sort((a, b) => b.id - a.id);
+      return { rows: rows.slice(0, 1).map(row => ({ id: row.id })) };
+    }
+    if (text.startsWith('UPDATE staff_browser_sessions')) {
+      let count = 0;
+      for (const row of this.sessions) if (Number(row.admin_id) === Number(params[0]) && !row.revoked_at) { row.revoked_at = params[1]; count += 1; }
+      return { rows: [], rowCount: count };
+    }
+    if (text.startsWith('INSERT INTO staff_browser_sessions')) {
+      const id = Math.max(0, ...this.sessions.map(row => row.id)) + 1;
+      this.sessions.push({ id, admin_id: params[0], revoked_at: null });
+      return { rows: [{ id }], rowCount: 1 };
     }
     if (text.startsWith('INSERT INTO staff_auth_security_events')) {
       this.auditEvents.push({ eventType: params[0], adminId: params[1], fingerprint: params[2], metadata: params[3] });
@@ -97,6 +139,31 @@ class BootstrapDb {
     }
     throw new Error(`Unhandled bootstrap test SQL: ${text}`);
   }
+}
+
+function encLength(major, value) {
+  if (value < 24) return Buffer.from([(major << 5) | value]);
+  if (value < 256) return Buffer.from([(major << 5) | 24, value]);
+  const result = Buffer.alloc(3); result[0] = (major << 5) | 25; result.writeUInt16BE(value, 1); return result;
+}
+function cbor(value) {
+  if (typeof value === 'number') return value >= 0 ? encLength(0, value) : encLength(1, -1 - value);
+  if (Buffer.isBuffer(value)) return Buffer.concat([encLength(2, value.length), value]);
+  if (typeof value === 'string') { const bytes = Buffer.from(value); return Buffer.concat([encLength(3, bytes.length), bytes]); }
+  if (value instanceof Map) { const chunks = [encLength(5, value.size)]; for (const [key, item] of value) chunks.push(cbor(key), cbor(item)); return Buffer.concat(chunks); }
+  throw new Error('unsupported cbor fixture');
+}
+function registrationResponse(challenge) {
+  const { publicKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  const jwk = publicKey.export({ format: 'jwk' });
+  const cose = new Map([[1, 2], [3, -7], [-1, 1], [-2, Buffer.from(jwk.x, 'base64url')], [-3, Buffer.from(jwk.y, 'base64url')]]);
+  const credentialId = Buffer.alloc(32, 99);
+  const head = Buffer.alloc(37); crypto.createHash('sha256').update('shiloh.example').digest().copy(head); head[32] = 0x45;
+  const idLength = Buffer.alloc(2); idLength.writeUInt16BE(credentialId.length);
+  const authData = Buffer.concat([head, Buffer.alloc(16), idLength, credentialId, cbor(cose)]);
+  const attestationObject = cbor(new Map([['fmt', 'none'], ['attStmt', new Map()], ['authData', authData]]));
+  const clientDataJSON = Buffer.from(JSON.stringify({ type: 'webauthn.create', challenge, origin: 'https://shiloh.example', crossOrigin: false }));
+  return { id: b64url(credentialId), rawId: b64url(credentialId), type: 'public-key', response: { clientDataJSON: b64url(clientDataJSON), attestationObject: b64url(attestationObject), transports: ['internal'] } };
 }
 
 function deterministicRandom() {
@@ -117,6 +184,7 @@ test('#804 bootstrap principal must be exact, active and already Workspace-enabl
   assert.equal(evaluateBootstrapPrincipal([]).matched, false);
   assert.equal(evaluateBootstrapPrincipal([principal(), principal({ id: 45 })]).code, 'STAFF_PASSKEY_BOOTSTRAP_AMBIGUOUS');
   assert.equal(evaluateBootstrapPrincipal([principal({ admin_active: false })]).eligible, false);
+  assert.equal(evaluateBootstrapPrincipal([principal({ replacement_required_at: new Date() })]).code, 'STAFF_PASSKEY_BOOTSTRAP_RECOVERY_REQUIRED');
   assert.equal(evaluateBootstrapPrincipal([principal({ calendar_scope: 'none', permissions: {} })]).code, 'STAFF_PASSKEY_BOOTSTRAP_ACCESS_REQUIRED');
   const allowed = evaluateBootstrapPrincipal([principal()]);
   assert.equal(allowed.eligible, true);
@@ -169,6 +237,40 @@ test('#804 access removal between WhatsApp issuance and redemption fails closed'
   assert.equal(started.code, 'STAFF_PASSKEY_BOOTSTRAP_INVALID');
 });
 
+test('#926 lost-device replacement revokes prior passkeys and sessions only after verified new enrollment', async () => {
+  const db = new BootstrapDb();
+  const service = createStaffWhatsAppPasskeyBootstrapService({ db, env: ENV, randomBytes: deterministicRandom(), now: () => new Date('2026-09-13T12:30:00Z') });
+  const issued = await service.issueBootstrap({ whatsapp: '27721234567' });
+  const started = await service.startRegistration({ token: issued.token, mode: 'replace', requestFingerprintHash: 'c'.repeat(64) });
+  assert.equal(started.ok, true);
+  assert.equal(started.mode, 'replace');
+  assert.equal(db.challenges[0].purpose, REPLACEMENT_PURPOSE);
+  assert.equal(db.credentials[0].revoked_at, null);
+  assert.equal(db.sessions[0].revoked_at, null);
+
+  const finished = await service.finishRegistration({ response: registrationResponse(started.options.challenge), requestFingerprintHash: 'c'.repeat(64) });
+  assert.equal(finished.ok, true);
+  assert.equal(finished.mode, 'replace');
+  assert.equal(finished.revokedCredentialCount, 1);
+  assert.equal(db.credentials[0].revoked_at instanceof Date, true);
+  assert.equal(db.credentials.at(-1).revoked_at, null);
+  assert.equal(db.sessions[0].revoked_at instanceof Date, true);
+  assert.equal(db.sessions.at(-1).revoked_at, null);
+  const completed = db.auditEvents.find(event => event.eventType === 'passkey_bootstrap_completed');
+  assert.deepEqual(JSON.parse(completed.metadata), { source: 'whatsapp_self', mode: 'replace', credentialReference: `passkey:${finished.credentialId}`, backedUp: false, priorCredentialsRevoked: 1, priorSessionsRevoked: 1 });
+  assert.doesNotMatch(JSON.stringify(db.auditEvents), /27721234567/);
+});
+
+test('#926 invalid replacement mode fails before consuming the one-use setup link', async () => {
+  const db = new BootstrapDb();
+  const service = createStaffWhatsAppPasskeyBootstrapService({ db, env: ENV, randomBytes: deterministicRandom(), now: () => new Date('2026-09-13T12:30:00Z') });
+  const issued = await service.issueBootstrap({ whatsapp: '27721234567' });
+  const result = await service.startRegistration({ token: issued.token, mode: 'reset-everything' });
+  assert.equal(result.ok, false);
+  assert.equal(db.bootstraps[0].consumed_at, null);
+  assert.equal(db.credentials[0].revoked_at, null);
+});
+
 test('#804 unknown WhatsApp greeting remains on the existing client flow; eligible greeting is handled by existing sender seam', async () => {
   assert.equal(isGreetingOnly('Hi!'), true);
   assert.equal(isGreetingOnly('I need an appointment'), false);
@@ -212,6 +314,13 @@ test('#804 migration isolates ordinary passkey bootstrap from break-glass/reset 
   assert.doesNotMatch(migration, /UPDATE staff_admin_accounts|permissions\s*=|calendar_scope\s*=|service_scope\s*=/i);
 });
 
+test('#926 migration adds only purpose-isolated replacement ceremonies', () => {
+  const migration = fs.readFileSync(path.join(__dirname, '..', 'migrations', '117_workspace_device_recovery_v1.sql'), 'utf8');
+  assert.match(migration, /registration_replacement/);
+  assert.match(migration, /bootstrap_replacement_registration/);
+  assert.doesNotMatch(migration, /CREATE TABLE|staff_admin_accounts\s+SET|permissions\s*=|DELETE FROM/i);
+});
+
 test('#804 bootstrap route cannot issue a Workspace session until successful passkey finish', () => {
   const route = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'staffPasskeyBootstrap.js'), 'utf8');
   const service = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'staffWhatsAppPasskeyBootstrap.js'), 'utf8');
@@ -242,4 +351,7 @@ test('#804 bootstrap presentation persists no browser authority or setup token',
   const presentation = fs.readFileSync(path.join(__dirname, '..', 'src', 'presentation', 'staffPasskeyBootstrapUx.js'), 'utf8');
   assert.match(presentation, /history\.replaceState/);
   assert.doesNotMatch(presentation, /localStorage|sessionStorage|indexedDB|document\.cookie|Authorization|Bearer/i);
+  assert.match(presentation, /Add this device/);
+  assert.match(presentation, /Replace a lost device/);
+  assert.match(presentation, /Previous device access will be removed only after setup succeeds/);
 });

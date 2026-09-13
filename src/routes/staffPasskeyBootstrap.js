@@ -57,11 +57,12 @@ function createStaffPasskeyBootstrapRouter({
     try {
       const result = await bootstrapService.startRegistration({
         token: req.body?.token,
+        mode: req.body?.mode,
         requestFingerprintHash: requestFingerprintHash(req),
       });
       if (!result.ok) return sendError(res, result);
       noStore(res);
-      return res.status(200).json({ options: result.options, expiresAt: result.expiresAt, displayName: result.displayName });
+      return res.status(200).json({ options: result.options, expiresAt: result.expiresAt, displayName: result.displayName, mode: result.mode });
     } catch (error) {
       return next(error);
     }
@@ -88,6 +89,9 @@ function createStaffPasskeyBootstrapRouter({
         csrfToken: result.csrfToken,
         viewer: result.viewer || null,
         recoveryRequired: false,
+        mode: result.mode,
+        revokedCredentialCount: result.revokedCredentialCount || 0,
+        revokedSessionCount: result.revokedSessionCount || 0,
       });
     } catch (error) {
       return next(error);

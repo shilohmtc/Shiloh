@@ -147,11 +147,12 @@ function createStaffPasskeyAuthRouter({
     try {
       const result = await passkeyService.beginRegistration({
         session: req.staffBrowserSession,
+        mode: req.body?.mode,
         requestFingerprintHash: requestFingerprintHash(req),
       });
       if (!result.ok) return error(res, result);
       noStore(res);
-      return res.status(200).json({ options: result.options, expiresAt: result.expiresAt });
+      return res.status(200).json({ options: result.options, expiresAt: result.expiresAt, mode: result.mode });
     } catch (e) { return next(e); }
   });
   router.post('/registration/finish', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
@@ -164,7 +165,7 @@ function createStaffPasskeyAuthRouter({
       if (!result.ok) return error(res, result);
       noStore(res);
       res.setHeader('Set-Cookie', serializePasskeyHintCookie(result.credentialHint, { env }));
-      return res.status(201).json({ ok: true, credentialId: result.credentialId });
+      return res.status(201).json({ ok: true, credentialId: result.credentialId, mode: result.mode, revokedCredentialCount: result.revokedCredentialCount || 0, revokedSessionCount: result.revokedSessionCount || 0 });
     } catch (e) { return next(e); }
   });
   router.post('/:credentialId/revoke', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
