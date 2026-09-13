@@ -5,6 +5,10 @@ const {
   CLIENT_BROWSE_QUERY,
   calendarCreateBookingClientChoiceScript,
 } = require('../src/presentation/calendarCreateBookingClientChoiceUx');
+const {
+  renderCalendarCreateBookingPage,
+  calendarCreateBookingClientScript,
+} = require('../src/presentation/calendarCreateBookingUx');
 
 test('Calendar booking presents Existing clients first, with Search clients secondary and Add new client explicit', () => {
   const script = calendarCreateBookingClientChoiceScript();
@@ -62,12 +66,13 @@ test('Client-choice enhancement cannot write CRM or bypass guarded booking autho
   assert.doesNotMatch(script, /newClient\s*:/);
 });
 
-test('Switching picker modes blocks stale selection while automatic new-client draft and selected existing results remain explicit', () => {
+test('Switching picker modes clears stale selection while Review booking remains available for feedback', () => {
   const script = calendarCreateBookingClientChoiceScript();
 
-  assert.match(script, /clearVisibleSelection\(\);if\(review\)review\.disabled=true;setMode\('browse'\);loadExistingClients\(\)/);
-  assert.match(script, /clearVisibleSelection\(\);if\(review\)review\.disabled=true;setMode\('search'\)/);
-  assert.match(script, /clearVisibleSelection\(\);if\(review\)review\.disabled=true;setMode\('new'\);syncNewClientDraftFromFields\(\)/);
+  assert.match(script, /clearVisibleSelection\(\);if\(review\)review\.disabled=false;setMode\('browse'\);loadExistingClients\(\)/);
+  assert.match(script, /clearVisibleSelection\(\);if\(review\)review\.disabled=false;setMode\('search'\)/);
+  assert.match(script, /clearVisibleSelection\(\);if\(review\)review\.disabled=false;setMode\('new'\);syncNewClientDraftFromFields\(\)/);
+  assert.doesNotMatch(script, /review\.disabled=true/);
   assert.match(script, /calendar-client-mode/);
   assert.match(script, /if\(!preserveSelection\)window\.dispatchEvent/);
   assert.match(script, /detail:\{mode:'new'\}/);
@@ -75,4 +80,18 @@ test('Switching picker modes blocks stale selection while automatic new-client d
   assert.match(script, /if\(review\)review\.disabled=false/);
   assert.match(script, /data-client-selection/);
   assert.match(script, /getAttribute\('data-client-selection'\)==='existing'/);
+});
+
+test('Review booking is enabled after client JavaScript loads and reports the first missing requirement nearby', () => {
+  const html = renderCalendarCreateBookingPage();
+  const script = calendarCreateBookingClientScript();
+
+  assert.match(html, /data-review-booking disabled>Review booking/);
+  assert.match(html, /data-booking-status/);
+  assert.match(html, /aria-live="polite"/);
+  assert.match(script, /el\('\[data-review-booking\]'\)\.disabled=false;/);
+  assert.doesNotMatch(script, /disabled=!selectedClient&&!newClientDraft/);
+  assert.match(script, /Choose Find client or New client and complete that selection first\./);
+  assert.match(script, /setStatus\(start\.message,'error'\)/);
+  assert.match(script, /Choose treatment and eligible practitioner\./);
 });
