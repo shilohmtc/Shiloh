@@ -24,12 +24,17 @@ test('booking refusal distinguishes holiday, closure, Sunday and treatment outsi
   }
 });
 
-test('practitioner and conflict refusals retain their existing specific explanation', () => {
+test('practitioner and conflict refusals give specific, actionable explanations', () => {
   assert.match(formatAvailabilityReply({ ...unavailable, status: 'schedule_exception' }), /schedule exception/);
   assert.match(formatAvailabilityReply({ ...unavailable, status: 'outside_working_hours' }), /practitioner/);
-  assert.match(formatAvailabilityReply({ ...unavailable, status: 'conflict', conflicts: [
-    { starts_at: unavailable.startsAt, ends_at: unavailable.endsAt, conflict_type: 'block', label: 'Unavailable' },
-  ] }), /block — Unavailable/);
+
+  const conflictReply = formatAvailabilityReply({ ...unavailable, status: 'conflict', conflicts: [
+    { starts_at: unavailable.startsAt, ends_at: unavailable.endsAt, conflict_type: 'calendar_block', label: 'Unavailable' },
+  ] });
+  assert.match(conflictReply, /That time overlaps with:/);
+  assert.match(conflictReply, /Unavailable — calendar block,/);
+  assert.match(conflictReply, /Please choose another start time\./);
+  assert.doesNotMatch(conflictReply, /Do not create a booking/);
 });
 
 test('canonical availability carries the actual holiday reason to its reply', async () => {
