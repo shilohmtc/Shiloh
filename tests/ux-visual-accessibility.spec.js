@@ -16,7 +16,7 @@ test('phone Create booking restores canonical Week context and fits the viewport
     viewportWidth: window.innerWidth,
     documentWidth: document.documentElement.scrollWidth,
     shortTargets: [...document.querySelectorAll('[data-back-calendar], button, input, select')]
-      .filter((node) => !node.hidden && getComputedStyle(node).display !== 'none')
+      .filter((node) => !node.hidden && node.getClientRects().length > 0)
       .map((node) => ({ label: node.textContent || node.getAttribute('aria-label') || node.id, height: node.getBoundingClientRect().height }))
       .filter((target) => target.height < 44),
   }));
