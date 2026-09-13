@@ -6,6 +6,8 @@ const FEATURE_FLAG = 'SHILOH_STAFF_PASSKEY_AUTH_ENABLED';
 const RP_ID_FLAG = 'SHILOH_STAFF_WEBAUTHN_RP_ID';
 const PUBLIC_ORIGIN_FLAG = 'SHILOH_CALENDAR_PUBLIC_ORIGIN';
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const REGISTRATION_PURPOSE = 'registration';
+const REPLACEMENT_REGISTRATION_PURPOSE = 'registration_replacement';
 const STRONG_AUTH_METHODS = new Set(['totp', 'passkey']);
 const ALLOWED_TRANSPORTS = new Set(['usb', 'nfc', 'ble', 'internal', 'hybrid', 'smart-card']);
 const ALGORITHMS = new Set([-7, -8, -257]);
@@ -236,23 +238,26 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
       transports: Array.isArray(credential.transports) ? credential.transports : [],
     };
   }
-  async function beginRegistration({ session, requestFingerprintHash = null } = {}) {
+  async function beginRegistration({ session, mode = 'add', requestFingerprintHash = null } = {}) {
     const p = policy(); const current = now();
     if (!p.operational) return { ok: false, code: unavailableCode() };
     if (!strongRecentSession(session, current)) return { ok: false, code: 'STAFF_RECENT_STRONG_AUTH_REQUIRED' };
+    const purpose = mode === 'replace' ? REPLACEMENT_REGISTRATION_PURPOSE : mode === 'add' ? REGISTRATION_PURPOSE : null;
+    if (!purpose) return { ok: false, code: 'STAFF_PASSKEY_INVALID' };
     const client = typeof db.connect === 'function' ? await db.connect() : db;
     try {
       await client.query('BEGIN');
       const admin = await resolveAdmin(client, session.adminId, true);
       if (!admin) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' }; }
-      await client.query(`UPDATE staff_auth_webauthn_challenges SET consumed_at = $2 WHERE session_id = $1 AND purpose = 'registration' AND consumed_at IS NULL`, [session.sessionId, current]);
+      await client.query(`UPDATE staff_auth_webauthn_challenges SET consumed_at = $2
+        WHERE session_id = $1 AND purpose IN ('registration', 'registration_replacement') AND consumed_at IS NULL`, [session.sessionId, current]);
       const existing = await client.query(`SELECT credential_id FROM staff_auth_passkey_credentials WHERE admin_id = $1 AND revoked_at IS NULL`, [admin.id]);
       const challenge = randomChallenge(randomBytes); const expiresAt = new Date(current.getTime() + CHALLENGE_TTL_MS);
       await client.query(`INSERT INTO staff_auth_webauthn_challenges
         (challenge_hash, purpose, admin_id, session_id, request_fingerprint_hash, expires_at)
-        VALUES ($1, 'registration', $2, $3, $4, $5)`, [sha256(challenge), admin.id, session.sessionId, requestFingerprintHash, expiresAt]);
+        VALUES ($1, $2, $3, $4, $5, $6)`, [sha256(challenge), purpose, admin.id, session.sessionId, requestFingerprintHash, expiresAt]);
       await client.query('COMMIT');
-      return { ok: true, options: { challenge, rp: { name: 'Shiloh', id: p.rpId }, user: { id: opaqueUserId(admin.id), name: `staff-${admin.id}`, displayName: cleanDisplayName(admin.display_name) }, pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -8 }, { type: 'public-key', alg: -257 }], timeout: CHALLENGE_TTL_MS, attestation: 'none', authenticatorSelection: { authenticatorAttachment: 'platform', residentKey: 'discouraged', requireResidentKey: false, userVerification: 'required' }, excludeCredentials: existing.rows.map((row) => ({ type: 'public-key', id: row.credential_id })) }, expiresAt };
+      return { ok: true, mode, options: { challenge, rp: { name: 'Shiloh', id: p.rpId }, user: { id: opaqueUserId(admin.id), name: `staff-${admin.id}`, displayName: cleanDisplayName(admin.display_name) }, pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -8 }, { type: 'public-key', alg: -257 }], timeout: CHALLENGE_TTL_MS, attestation: 'none', authenticatorSelection: { authenticatorAttachment: 'platform', residentKey: 'discouraged', requireResidentKey: false, userVerification: 'required' }, excludeCredentials: existing.rows.map((row) => ({ type: 'public-key', id: row.credential_id })) }, expiresAt };
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; }
     finally { if (client !== db && typeof client.release === 'function') client.release(); }
   }
@@ -266,8 +271,8 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
       await client.query('BEGIN');
       const admin = await resolveAdmin(client, session.adminId, true);
       if (!admin) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' }; }
-      const challengeResult = await client.query(`SELECT id, expires_at FROM staff_auth_webauthn_challenges
-        WHERE challenge_hash = $1 AND purpose = 'registration' AND admin_id = $2 AND session_id = $3 AND consumed_at IS NULL LIMIT 1 FOR UPDATE`,
+      const challengeResult = await client.query(`SELECT id, purpose, expires_at FROM staff_auth_webauthn_challenges
+        WHERE challenge_hash = $1 AND purpose IN ('registration', 'registration_replacement') AND admin_id = $2 AND session_id = $3 AND consumed_at IS NULL LIMIT 1 FOR UPDATE`,
       [sha256(cd.parsed.challenge), admin.id, session.sessionId]);
       const challenge = challengeResult.rows[0];
       if (!challenge || new Date(challenge.expires_at).getTime() <= current.getTime()) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_PASSKEY_INVALID' }; }
@@ -281,8 +286,21 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
         (admin_id, credential_id, public_key_spki, algorithm, sign_count, transports, backed_up)
         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7) RETURNING id`,
       [admin.id, verified.credentialId, verified.publicKeySpki, verified.algorithm, verified.signCount, JSON.stringify(verified.transports), verified.backedUp]);
-      await audit(client, { eventType: 'passkey_registered', subjectAdminId: admin.id, requestFingerprintHash, metadata: { credentialReference: `passkey:${inserted.rows[0].id}`, backedUp: verified.backedUp } });
-      await client.query('COMMIT'); return { ok: true, credentialId: Number(inserted.rows[0].id), credentialHint: verified.credentialId };
+      const replacement = challenge.purpose === REPLACEMENT_REGISTRATION_PURPOSE;
+      let revokedCredentialCount = 0;
+      let revokedSessionCount = 0;
+      if (replacement) {
+        const revokedCredentials = await client.query(`UPDATE staff_auth_passkey_credentials
+          SET revoked_at = $3, revoked_by_admin_id = $1
+          WHERE admin_id = $1 AND id <> $2 AND revoked_at IS NULL`, [admin.id, inserted.rows[0].id, current]);
+        revokedCredentialCount = Number(revokedCredentials.rowCount || 0);
+        const revokedSessions = await client.query(`UPDATE staff_browser_sessions
+          SET revoked_at = $3, revoke_reason = 'device_replaced'
+          WHERE admin_id = $1 AND id <> $2 AND revoked_at IS NULL`, [admin.id, session.sessionId, current]);
+        revokedSessionCount = Number(revokedSessions.rowCount || 0);
+      }
+      await audit(client, { eventType: replacement ? 'passkey_device_replaced' : 'passkey_registered', subjectAdminId: admin.id, requestFingerprintHash, metadata: { credentialReference: `passkey:${inserted.rows[0].id}`, backedUp: verified.backedUp, priorCredentialsRevoked: revokedCredentialCount, priorSessionsRevoked: revokedSessionCount } });
+      await client.query('COMMIT'); return { ok: true, mode: replacement ? 'replace' : 'add', credentialId: Number(inserted.rows[0].id), credentialHint: verified.credentialId, revokedCredentialCount, revokedSessionCount };
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; }
     finally { if (client !== db && typeof client.release === 'function') client.release(); }
   }
@@ -347,6 +365,7 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
 
 module.exports = {
   FEATURE_FLAG, RP_ID_FLAG, PUBLIC_ORIGIN_FLAG, CHALLENGE_TTL_MS, STRONG_AUTH_METHODS,
+  REGISTRATION_PURPOSE, REPLACEMENT_REGISTRATION_PURPOSE,
   b64url, fromB64url, normalizeCredentialHint, passkeyPolicy, strongRecentSession, decodeCbor, cosePublicKeyToSpki,
   verifyRpAndFlags, verifyRegistrationResponse, verifyAssertionResponse, createStaffPasskeyAuthService,
 };

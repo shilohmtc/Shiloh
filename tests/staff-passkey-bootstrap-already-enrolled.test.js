@@ -12,7 +12,7 @@ function base64url(bytes) {
 async function runWithCredentialError(errorName) {
   const status = {
     textContent: '',
-    classList: { toggle() {} },
+    classList: { toggle() {}, add() {} },
   };
   const retry = {
     shown: false,
@@ -24,6 +24,12 @@ async function runWithCredentialError(errorName) {
   };
   const replacements = [];
   const requests = [];
+  let choose;
+  const modeButton = {
+    disabled: false,
+    getAttribute() { return 'add'; },
+    addEventListener(_event, listener) { choose = () => listener.call(modeButton); },
+  };
   const error = new Error(errorName);
   error.name = errorName;
   const token = 'A'.repeat(43);
@@ -32,8 +38,10 @@ async function runWithCredentialError(errorName) {
       querySelector(selector) {
         if (selector === '[data-bootstrap-status]') return status;
         if (selector === '[data-bootstrap-retry]') return retry;
+        if (selector === '[data-bootstrap-choices]') return { setAttribute() {} };
         return null;
       },
+      querySelectorAll(selector) { return selector === '[data-bootstrap-mode]' ? [modeButton] : []; },
     },
     window: { PublicKeyCredential: function PublicKeyCredential() {} },
     navigator: {
@@ -76,6 +84,7 @@ async function runWithCredentialError(errorName) {
   };
 
   vm.runInNewContext(bootstrapScript(), context);
+  choose();
   await new Promise((resolve) => setImmediate(resolve));
   return { status, retry, replacements, requests };
 }

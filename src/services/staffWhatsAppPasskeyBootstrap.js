@@ -19,6 +19,12 @@ const FEATURE_FLAG = 'SHILOH_STAFF_WHATSAPP_PASSKEY_BOOTSTRAP_ENABLED';
 const BOOTSTRAP_TTL_MS = 10 * 60 * 1000;
 const ISSUE_WINDOW_MS = 10 * 60 * 1000;
 const ISSUE_LIMIT = 3;
+const BOOTSTRAP_PURPOSE = 'bootstrap_registration';
+const REPLACEMENT_PURPOSE = 'bootstrap_replacement_registration';
+
+function registrationPurpose(mode) {
+  return mode === 'replace' ? REPLACEMENT_PURPOSE : mode === 'add' ? BOOTSTRAP_PURPOSE : null;
+}
 
 function bootstrapPolicy(env = process.env) {
   const enabled = String(env[FEATURE_FLAG] || '').trim().toLowerCase() === 'true';
@@ -46,6 +52,9 @@ function evaluateBootstrapPrincipal(rows = []) {
   const admin = rows[0];
   if (admin.admin_active !== true || (admin.staff_id != null && admin.staff_status !== 'active')) {
     return { matched: true, eligible: false, code: 'STAFF_PASSKEY_BOOTSTRAP_INACTIVE' };
+  }
+  if (admin.replacement_required_at != null) {
+    return { matched: true, eligible: false, code: 'STAFF_PASSKEY_BOOTSTRAP_RECOVERY_REQUIRED' };
   }
   if (!deriveCalendarViewer(admin)) {
     return { matched: true, eligible: false, code: 'STAFF_PASSKEY_BOOTSTRAP_ACCESS_REQUIRED' };
@@ -103,9 +112,11 @@ function createStaffWhatsAppPasskeyBootstrapService({
   async function identityRows(queryable, normalized, { forUpdate = false } = {}) {
     const result = await queryable.query(
       `SELECT a.id, a.staff_id, a.display_name, a.role, a.business_role, a.calendar_scope,
-              a.service_scope, a.permissions, a.active AS admin_active, s.status AS staff_status
+              a.service_scope, a.permissions, a.active AS admin_active, s.status AS staff_status,
+              t.replacement_required_at
          FROM staff_admin_accounts a
          LEFT JOIN staff s ON s.id = a.staff_id
+         LEFT JOIN staff_totp_credentials t ON t.admin_id = a.id
         WHERE a.normalized_whatsapp = $1
         ORDER BY a.id
         LIMIT 3${forUpdate ? '\n        FOR UPDATE OF a' : ''}`,
@@ -123,9 +134,11 @@ function createStaffWhatsAppPasskeyBootstrapService({
   async function resolveAdmin(queryable, adminId, { forUpdate = false } = {}) {
     const result = await queryable.query(
       `SELECT a.id, a.staff_id, a.display_name, a.role, a.business_role, a.calendar_scope,
-              a.service_scope, a.permissions, a.active AS admin_active, s.status AS staff_status
+              a.service_scope, a.permissions, a.active AS admin_active, s.status AS staff_status,
+              t.replacement_required_at
          FROM staff_admin_accounts a
          LEFT JOIN staff s ON s.id = a.staff_id
+         LEFT JOIN staff_totp_credentials t ON t.admin_id = a.id
         WHERE a.id = $1
         LIMIT 1${forUpdate ? '\n        FOR UPDATE OF a' : ''}`,
       [Number(adminId)]
@@ -191,10 +204,12 @@ function createStaffWhatsAppPasskeyBootstrapService({
     }
   }
 
-  async function startRegistration({ token, requestFingerprintHash = null } = {}) {
+  async function startRegistration({ token, mode = 'add', requestFingerprintHash = null } = {}) {
     const currentPolicy = policy();
     if (!currentPolicy.operational) return { ok: false, code: currentPolicy.enabled ? 'STAFF_PASSKEY_BOOTSTRAP_UNAVAILABLE' : 'STAFF_PASSKEY_BOOTSTRAP_DISABLED' };
     if (!/^[A-Za-z0-9_-]{43}$/.test(String(token || ''))) return { ok: false, code: 'STAFF_PASSKEY_BOOTSTRAP_INVALID' };
+    const purpose = registrationPurpose(mode);
+    if (!purpose) return { ok: false, code: 'STAFF_PASSKEY_BOOTSTRAP_INVALID' };
     const current = now();
     const client = typeof db.connect === 'function' ? await db.connect() : db;
     try {
@@ -228,7 +243,9 @@ function createStaffWhatsAppPasskeyBootstrapService({
       await client.query(`UPDATE staff_auth_passkey_bootstraps SET consumed_at = $2 WHERE id = $1`, [bootstrap.id, current]);
       await client.query(
         `UPDATE staff_auth_webauthn_challenges SET consumed_at = $2
-          WHERE admin_id = $1 AND purpose = 'bootstrap_registration' AND consumed_at IS NULL`,
+          WHERE admin_id = $1
+            AND purpose IN ('bootstrap_registration', 'bootstrap_replacement_registration')
+            AND consumed_at IS NULL`,
         [admin.id, current]
       );
       const existing = await client.query(
@@ -240,14 +257,18 @@ function createStaffWhatsAppPasskeyBootstrapService({
       await client.query(
         `INSERT INTO staff_auth_webauthn_challenges
            (challenge_hash, purpose, admin_id, session_id, request_fingerprint_hash, expires_at)
-         VALUES ($1, 'bootstrap_registration', $2, NULL, $3, $4)`,
-        [sha256(challenge), admin.id, requestFingerprintHash, expiresAt]
+         VALUES ($1, $2, $3, NULL, $4, $5)`,
+        [sha256(challenge), purpose, admin.id, requestFingerprintHash, expiresAt]
       );
-      await audit(client, 'passkey_bootstrap_consumed', admin.id, requestFingerprintHash, { source: 'whatsapp_self' });
+      await audit(client, 'passkey_bootstrap_consumed', admin.id, requestFingerprintHash, {
+        source: 'whatsapp_self',
+        mode,
+      });
       await client.query('COMMIT');
       return {
         ok: true,
         displayName: admin.display_name,
+        mode,
         expiresAt,
         options: {
           challenge,
@@ -287,9 +308,11 @@ function createStaffWhatsAppPasskeyBootstrapService({
     try {
       await client.query('BEGIN');
       const challengeResult = await client.query(
-        `SELECT id, admin_id, expires_at
+        `SELECT id, admin_id, purpose, expires_at
            FROM staff_auth_webauthn_challenges
-          WHERE challenge_hash = $1 AND purpose = 'bootstrap_registration' AND consumed_at IS NULL
+          WHERE challenge_hash = $1
+            AND purpose IN ('bootstrap_registration', 'bootstrap_replacement_registration')
+            AND consumed_at IS NULL
           LIMIT 1
           FOR UPDATE`,
         [sha256(challengeValue)]
@@ -335,6 +358,30 @@ function createStaffWhatsAppPasskeyBootstrapService({
          RETURNING id`,
         [admin.id, verified.credentialId, verified.publicKeySpki, verified.algorithm, verified.signCount, JSON.stringify(verified.transports), verified.backedUp]
       );
+      const replacement = challenge.purpose === REPLACEMENT_PURPOSE;
+      let revokedCredentialCount = 0;
+      let revokedSessionCount = 0;
+      if (replacement) {
+        const revoked = await client.query(
+          `UPDATE staff_auth_passkey_credentials
+              SET revoked_at = $3,
+                  revoked_by_admin_id = $1
+            WHERE admin_id = $1
+              AND id <> $2
+              AND revoked_at IS NULL`,
+          [admin.id, inserted.rows[0].id, current]
+        );
+        revokedCredentialCount = Number(revoked.rowCount || 0);
+        const revokedSessions = await client.query(
+          `UPDATE staff_browser_sessions
+              SET revoked_at = $2,
+                  revoke_reason = 'device_replaced'
+            WHERE admin_id = $1
+              AND revoked_at IS NULL`,
+          [admin.id, current]
+        );
+        revokedSessionCount = Number(revokedSessions.rowCount || 0);
+      }
       const issued = await issueStaffBrowserSession({
         client,
         admin,
@@ -347,11 +394,21 @@ function createStaffWhatsAppPasskeyBootstrapService({
       });
       await audit(client, 'passkey_bootstrap_completed', admin.id, requestFingerprintHash, {
         source: 'whatsapp_self',
+        mode: replacement ? 'replace' : 'add',
         credentialReference: `passkey:${inserted.rows[0].id}`,
         backedUp: verified.backedUp,
+        priorCredentialsRevoked: revokedCredentialCount,
+        priorSessionsRevoked: revokedSessionCount,
       });
       await client.query('COMMIT');
-      return { ...issued, credentialHint: verified.credentialId, credentialId: Number(inserted.rows[0].id) };
+      return {
+        ...issued,
+        credentialHint: verified.credentialId,
+        credentialId: Number(inserted.rows[0].id),
+        mode: replacement ? 'replace' : 'add',
+        revokedCredentialCount,
+        revokedSessionCount,
+      };
     } catch (error) {
       try { await client.query('ROLLBACK'); } catch (_) {}
       throw error;
@@ -376,6 +433,9 @@ module.exports = {
   BOOTSTRAP_TTL_MS,
   ISSUE_WINDOW_MS,
   ISSUE_LIMIT,
+  BOOTSTRAP_PURPOSE,
+  REPLACEMENT_PURPOSE,
+  registrationPurpose,
   bootstrapPolicy,
   cleanDisplayName,
   evaluateBootstrapPrincipal,

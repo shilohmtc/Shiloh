@@ -13,9 +13,9 @@ test('Workspace passkey navigation is feature-flag bounded', () => {
   assert.equal(isStaffPasskeyAuthEnabled({}), false);
 });
 
-test('enabled Workspace nav exposes authenticated Sign-in security destination without credential material', () => {
+test('enabled Workspace nav exposes authenticated Devices & sign-in destination without credential material', () => {
   const script = passkeyNavigationClientScript({ SHILOH_STAFF_PASSKEY_AUTH_ENABLED: 'true' });
-  assert.match(script, /Sign-in security/);
+  assert.match(script, /Devices & sign-in/);
   assert.match(script, /\/calendar\/staff-auth\/passkeys\/manage/);
   assert.match(script, /data-workspace-account-footer/);
   assert.match(script, /data-shiloh-logout/);

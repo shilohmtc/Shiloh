@@ -46,7 +46,7 @@ function accountNavigationMetadata({ viewer, passkeyEnabled = false } = {}) {
 
 function passkeyNavigationClientScript(env = process.env) {
   if (!isStaffPasskeyAuthEnabled(env)) return '';
-  return `(()=>{'use strict';const account=document.querySelector('[data-workspace-account-footer]');if(!account||account.querySelector('[data-workspace-passkey-security]'))return;const link=document.createElement('a');link.className='workspace-account-signout';link.href='/calendar/staff-auth/passkeys/manage';link.dataset.workspacePasskeySecurity='true';link.textContent='Sign-in security';const signout=account.querySelector('[data-shiloh-logout]');if(signout)account.insertBefore(link,signout);else account.appendChild(link);})();`;
+  return `(()=>{'use strict';const account=document.querySelector('[data-workspace-account-footer]');if(!account||account.querySelector('[data-workspace-passkey-security]'))return;const link=document.createElement('a');link.className='workspace-account-signout';link.href='/calendar/staff-auth/passkeys/manage';link.dataset.workspacePasskeySecurity='true';link.textContent='Devices & sign-in';const signout=account.querySelector('[data-shiloh-logout]');if(signout)account.insertBefore(link,signout);else account.appendChild(link);})();`;
 }
 
 function receptionLockNavigationClientScript(env = process.env) {

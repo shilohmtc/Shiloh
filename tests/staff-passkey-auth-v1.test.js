@@ -152,3 +152,20 @@ test('#794 source/UX introduces no biometric collection, alternate provider, raw
   assert.doesNotMatch(files, /normalized_whatsapp|whatsapp_number/);
   assert.doesNotMatch(files, /google|microsoft|sms otp|magic.?link/i);
 });
+
+test('#926 authenticated replacement enrolls first, preserves the current session and then revokes older access', () => {
+  const service = fs.readFileSync(path.join(__dirname, '../src/services/staffPasskeyAuth.js'), 'utf8');
+  const route = fs.readFileSync(path.join(__dirname, '../src/routes/staffPasskeyAuth.js'), 'utf8');
+  const ux = fs.readFileSync(path.join(__dirname, '../src/presentation/staffPasskeyUx.js'), 'utf8');
+  const insertAt = service.indexOf('INSERT INTO staff_auth_passkey_credentials');
+  const revokeAt = service.indexOf('UPDATE staff_auth_passkey_credentials', insertAt);
+  const sessionRevokeAt = service.indexOf('UPDATE staff_browser_sessions', revokeAt);
+  assert.ok(insertAt >= 0 && revokeAt > insertAt && sessionRevokeAt > revokeAt);
+  assert.match(service, /id <> \$2 AND revoked_at IS NULL/);
+  assert.match(service, /revoke_reason = 'device_replaced'/);
+  assert.match(service, /eventType: replacement \? 'passkey_device_replaced' : 'passkey_registered'/);
+  assert.match(route, /mode: req\.body\?\.mode/);
+  assert.match(ux, /Replace a lost device/);
+  assert.match(ux, /Existing device access was not changed/);
+  assert.doesNotMatch(service, /DELETE FROM staff_auth_passkey_credentials|DELETE FROM staff_browser_sessions/i);
+});

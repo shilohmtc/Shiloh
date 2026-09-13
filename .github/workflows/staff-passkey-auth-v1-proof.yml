@@ -6,6 +6,7 @@ on:
       - 'migrations/111_staff_passkey_auth_v1.sql'
       - 'migrations/112_staff_passkey_auth_v1_production_schema_correction.sql'
       - 'migrations/113_staff_whatsapp_passkey_bootstrap_v1.sql'
+      - 'migrations/117_workspace_device_recovery_v1.sql'
       - 'src/services/staffPasskeyAuth.js'
       - 'src/services/staffWhatsAppPasskeyBootstrap.js'
       - 'src/services/workspaceReceptionDeviceSignin.js'
