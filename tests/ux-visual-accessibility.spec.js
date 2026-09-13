@@ -12,16 +12,34 @@ test('phone Create booking restores canonical Week context and fits the viewport
     '/calendar/read-only?view=week&date=2026-09-14&staff=all',
   );
 
-  const metrics = await page.evaluate(() => ({
-    viewportWidth: window.innerWidth,
-    documentWidth: document.documentElement.scrollWidth,
-    shortTargets: [...document.querySelectorAll('[data-back-calendar], button, input, select')]
-      .filter((node) => !node.hidden && node.getClientRects().length > 0)
-      .map((node) => ({ label: node.textContent || node.getAttribute('aria-label') || node.id, height: node.getBoundingClientRect().height }))
-      .filter((target) => target.height < 44),
-  }));
+  const metrics = await page.evaluate(() => {
+    const panel = document.querySelector('.panel');
+    const panelRect = panel.getBoundingClientRect();
+    const visibleControls = [...panel.querySelectorAll('button, input, select')]
+      .filter((node) => !node.hidden && node.getClientRects().length > 0);
+    return {
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      shortTargets: [...document.querySelectorAll('[data-back-calendar], button, input, select')]
+        .filter((node) => !node.hidden && node.getClientRects().length > 0)
+        .map((node) => ({ label: node.textContent || node.getAttribute('aria-label') || node.id, height: node.getBoundingClientRect().height }))
+        .filter((target) => target.height < 44),
+      overflowingControls: visibleControls
+        .map((node) => ({ id: node.id || node.textContent.trim(), rect: node.getBoundingClientRect() }))
+        .filter(({ rect }) => rect.left < panelRect.left - 1 || rect.right > panelRect.right + 1)
+        .map(({ id }) => id),
+      dateRight: document.querySelector('#booking-date').getBoundingClientRect().right,
+      timeRight: document.querySelector('#booking-time').getBoundingClientRect().right,
+      panelRight: panelRect.right,
+      reviewPosition: getComputedStyle(document.querySelector('.review-action')).position,
+    };
+  });
   expect(metrics.documentWidth, 'Create booking must not overflow the Phone viewport').toBeLessThanOrEqual(metrics.viewportWidth);
   expect(metrics.shortTargets, 'Phone controls must retain 44px touch targets').toEqual([]);
+  expect(metrics.overflowingControls, 'Phone booking controls must remain inside the booking panel').toEqual([]);
+  expect(metrics.dateRight).toBeLessThanOrEqual(metrics.panelRight);
+  expect(metrics.timeRight).toBeLessThanOrEqual(metrics.panelRight);
+  expect(metrics.reviewPosition).toBe('sticky');
 
   const accessibility = await new AxeBuilder({ page })
     .include('.workspace-surface-story')
@@ -29,6 +47,46 @@ test('phone Create booking restores canonical Week context and fits the viewport
     .analyze();
   const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
   expect(serious, `Serious accessibility violations in phone Create booking: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+});
+
+test('Month exposes full-cell navigation, appointment details and South African holidays on phone and desktop', async ({ page }) => {
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=workspace-production-surfaces--month-with-south-african-holiday&viewMode=story', { waitUntil: 'networkidle' });
+
+    const surface = page.locator('.workspace-surface-story');
+    await expect(surface).toBeVisible();
+    const emptyDay = surface.locator('.month-day[data-date="2026-09-15"]');
+    const hitTarget = emptyDay.locator('.month-day-link');
+    await expect(hitTarget).toHaveAttribute('href', /view=week&date=2026-09-15/);
+
+    const geometry = await emptyDay.evaluate((day) => {
+      const link = day.querySelector('.month-day-link');
+      const cell = day.getBoundingClientRect();
+      const target = link.getBoundingClientRect();
+      const hit = document.elementFromPoint(cell.left + cell.width / 2, cell.bottom - 6);
+      return {
+        cell: { left: cell.left, top: cell.top, right: cell.right, bottom: cell.bottom },
+        target: { left: target.left, top: target.top, right: target.right, bottom: target.bottom },
+        hitHref: hit && hit.closest('a')?.getAttribute('href'),
+        documentWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      };
+    });
+    expect(Math.abs(geometry.target.left - geometry.cell.left)).toBeLessThanOrEqual(1);
+    expect(Math.abs(geometry.target.right - geometry.cell.right)).toBeLessThanOrEqual(1);
+    expect(Math.abs(geometry.target.bottom - geometry.cell.bottom)).toBeLessThanOrEqual(1);
+    expect(geometry.hitHref).toContain('view=week&date=2026-09-15');
+    expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+
+    const holiday = surface.locator('.month-day[data-date="2026-09-24"]');
+    await expect(holiday).toHaveAttribute('data-public-holiday', 'Heritage Day');
+    await expect(holiday.locator('.month-holiday')).toContainText('Heritage Day');
+    await expect(holiday.locator('.month-day-link')).toHaveAttribute('aria-label', /South African public holiday: Heritage Day/);
+    await expect(holiday.locator('.month-event .event-card')).toBeVisible();
+    await expect(holiday.locator('.month-event .event-time-start')).toContainText('10:00');
+    await expect(holiday.locator('.month-event .event-card h4')).toContainText('Month view client');
+  }
 });
 
 for (const viewport of [{ width: 390, height: 640 }, { width: 1440, height: 1000 }]) {
