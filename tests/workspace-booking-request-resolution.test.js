@@ -7,6 +7,7 @@ const {
   CLIENT_ACCEPT_PREFIX,
   CLIENT_ANOTHER_PREFIX,
   clientActionId,
+  proposalReplyButtons,
   parseClientProposalAction,
   operatorCanResolve,
   requestSnapshotMatches,
@@ -118,6 +119,18 @@ test('client proposal actions are exact request/version payloads and plain Yes i
   assert.deepEqual(parseClientProposalAction(accept), { appointmentId: 7651, proposalVersion: 3, action: 'accept' });
   assert.deepEqual(parseClientProposalAction(another), { appointmentId: 7651, proposalVersion: 3, action: 'another' });
   assert.equal(parseClientProposalAction('Yes'), null);
+});
+
+test('client proposal delivery exposes two native reply-button choices within provider limits', () => {
+  const buttons = proposalReplyButtons(row(), 3);
+  assert.deepEqual(buttons, [
+    { id: `${CLIENT_ACCEPT_PREFIX}7651_3`, title: 'Yes, book this' },
+    { id: `${CLIENT_ANOTHER_PREFIX}7651_3`, title: 'Another option' },
+  ]);
+  assert.equal(buttons.every(button => button.title.length <= 20), true);
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'clientBookingApproval.js'), 'utf8');
+  assert.match(source, /sendWhatsAppReplyButtons\(phone/);
+  assert.doesNotMatch(source, /sendWhatsAppList/);
 });
 
 test('resolver authority is target-specific, with business-wide owner backup and no person-name policy', () => {

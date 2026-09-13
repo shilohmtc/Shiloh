@@ -3,7 +3,7 @@ const { normalizeMobile } = require('./crmV2ClientService');
 const { checkClinicHours } = require('./clinicHours');
 const { checkAuthoritativeSchedule } = require('./adminAvailability');
 const { pendingBookingProposalConflicts } = require('./bookingRequestHolds');
-const { sendWhatsAppList, sendWhatsAppTemplate } = require('./whatsapp');
+const { sendWhatsAppReplyButtons, sendWhatsAppTemplate } = require('./whatsapp');
 const { sendCustomerBookingConfirmationForAppointment } = require('./customerBookingConfirmation');
 const { ensureBookingApprovalInfrastructure } = require('./clientBookingApprovalSchema');
 const logger = require('../lib/logger');
@@ -65,6 +65,13 @@ function fmtDateTime(value) {
 
 function clientActionId(prefix, appointmentId, version) {
   return `${prefix}${positiveId(appointmentId)}_${positiveId(version)}`;
+}
+
+function proposalReplyButtons(row, version) {
+  return [
+    { id: clientActionId(CLIENT_ACCEPT_PREFIX, row.appointment_id, version), title: 'Yes, book this' },
+    { id: clientActionId(CLIENT_ANOTHER_PREFIX, row.appointment_id, version), title: 'Another option' },
+  ];
 }
 
 function parseClientProposalAction(value = '') {
@@ -343,15 +350,12 @@ async function acceptRequestedAppointment({ dbPool = pool, principal, appointmen
 async function defaultSendProposal(row, version) {
   const phone = normalizePhone(row.current_client_phone);
   if (!phone) throw new Error('Canonical client WhatsApp identity is unavailable');
-  return sendWhatsAppList(phone, [
+  return sendWhatsAppReplyButtons(phone, [
     `Hi ${row.client_name}, Shiloh has another option for your booking request. 🌿`, '',
     `Service: ${row.service_name}`, `With: ${row.proposed_staff_name || row.staff_name}`,
     `Proposed time: ${fmtDateTime(row.proposed_starts_at)}`, '',
     'Please choose one response. The appointment is not confirmed until your acceptance is revalidated.',
-  ].join('\n'), 'Choose', [
-    { id: clientActionId(CLIENT_ACCEPT_PREFIX, row.appointment_id, version), title: 'Yes, book this', description: 'Accept this exact option' },
-    { id: clientActionId(CLIENT_ANOTHER_PREFIX, row.appointment_id, version), title: "I'd like another option", description: 'Ask the Shiloh team to review again' },
-  ], 'Booking request');
+  ].join('\n'), proposalReplyButtons(row, version));
 }
 
 async function proposeAlternative({
@@ -559,6 +563,7 @@ module.exports = {
   PROPOSAL_TTL_MS,
   BookingRequestError,
   clientActionId,
+  proposalReplyButtons,
   parseClientProposalAction,
   operatorCanResolve,
   requestSnapshotMatches,
