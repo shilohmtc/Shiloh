@@ -25,7 +25,7 @@ function renderSiteHeader(currentPath) {
 }
 
 function renderSiteFooter() {
-  return `<footer class="site-footer"><div class="site-footer-row"><div><strong>Shiloh Massage Therapy and Aesthetic Clinic</strong><p>Personal massage therapy and aesthetic care in Heidelberg.</p></div><div><b>Visit</b><p>37 Jacobs Street<br>Heidelberg, Gauteng</p></div><div><b>Appointments</b><p><a href="/book">View treatments and book</a><br>Availability is confirmed when Shiloh completes your booking.</p></div></div></footer>`;
+  return `<footer class="site-footer"><div class="site-footer-row"><div><strong>Shiloh Massage Therapy and Aesthetic Clinic</strong><p>Personal massage therapy and aesthetic care in Heidelberg.</p></div><div><b>Visit</b><p>37 Jacobs Street<br>Heidelberg, Gauteng</p></div><div><b>Appointments</b><p><a href="/book">View treatments and book</a><br><a href="/privacy">Privacy policy</a><br>Availability is confirmed when Shiloh completes your booking.</p></div></div></footer>`;
 }
 
 module.exports = { NAV_ITEMS, PUBLIC_CHROME_CSS, renderSiteHeader, renderSiteFooter };
