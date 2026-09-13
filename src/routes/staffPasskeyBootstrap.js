@@ -10,6 +10,7 @@ const {
   serializeSessionCookie,
 } = require('../middleware/staffBrowserSession');
 const { serializePasskeyHintCookie } = require('./staffPasskeyAuth');
+const { defaultDeviceLabel } = require('../services/staffPasskeyAuth');
 
 function createStaffPasskeyBootstrapRouter({
   env = process.env,
@@ -72,6 +73,7 @@ function createStaffPasskeyBootstrapRouter({
     try {
       const result = await bootstrapService.finishRegistration({
         response: req.body?.response,
+        deviceLabel: defaultDeviceLabel(req.headers?.['user-agent']),
         requestFingerprintHash: requestFingerprintHash(req),
       });
       if (!result.ok) return sendError(res, result);

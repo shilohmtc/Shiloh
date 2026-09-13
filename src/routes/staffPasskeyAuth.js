@@ -2,7 +2,7 @@ const express = require('express');
 const QRCode = require('qrcode');
 const { pool } = require('../db/pool');
 const { createStaffBrowserSessionService } = require('../services/staffBrowserSession');
-const { createStaffPasskeyAuthService, normalizeCredentialHint } = require('../services/staffPasskeyAuth');
+const { createStaffPasskeyAuthService, normalizeCredentialHint, defaultDeviceLabel } = require('../services/staffPasskeyAuth');
 const { createStaffWhatsAppPasskeyBootstrapService } = require('../services/staffWhatsAppPasskeyBootstrap');
 const { managePage, manageScript } = require('../presentation/staffPasskeyUx');
 const {
@@ -83,6 +83,8 @@ function createStaffPasskeyAuthRouter({
     if (result.code === 'STAFF_PASSKEY_KNOWN_PRINCIPAL_REQUIRED') return res.status(428).json({ error: 'Device sign-in setup required', requestId: res.req?.id });
     if (result.code === 'STAFF_AUTH_FORBIDDEN') return res.status(403).json({ error: 'Forbidden', requestId: res.req?.id });
     if (result.code === 'STAFF_PASSKEY_NOT_FOUND') return res.status(404).json({ error: 'Not Found', requestId: res.req?.id });
+    if (result.code === 'STAFF_PASSKEY_ONLY_CREDENTIAL') return res.status(409).json({ error: 'Add another device before removing your only active passkey', requestId: res.req?.id });
+    if (result.code === 'STAFF_PASSKEY_LABEL_INVALID') return res.status(400).json({ error: 'Enter a device name between 1 and 48 characters', requestId: res.req?.id });
     return res.status(401).json({ error: fallback, requestId: res.req?.id });
   }
   function sendSession(res, result) {
@@ -127,7 +129,7 @@ function createStaffPasskeyAuthRouter({
   });
   router.get('/manage', requireSession, async (req, res, next) => {
     try {
-      const result = await passkeyService.listCredentials({ session: req.staffBrowserSession });
+      const result = await passkeyService.listCredentials({ session: req.staffBrowserSession, credentialIdHint: passkeyHintFromRequest(req, env) });
       if (!result.ok) return error(res, result);
       secure(res);
       return res.status(200).type('html').send(managePage({ credentials: result.credentials }));
@@ -135,7 +137,7 @@ function createStaffPasskeyAuthRouter({
   });
   router.get('/manage.js', requireSession, async (req, res, next) => {
     try {
-      const result = await passkeyService.listCredentials({ session: req.staffBrowserSession });
+      const result = await passkeyService.listCredentials({ session: req.staffBrowserSession, credentialIdHint: passkeyHintFromRequest(req, env) });
       if (!result.ok) return error(res, result);
       secure(res);
       return res.status(200).type('application/javascript').send(manageScript());
@@ -143,7 +145,7 @@ function createStaffPasskeyAuthRouter({
   });
   router.get('/', requireSession, async (req, res, next) => {
     try {
-      const result = await passkeyService.listCredentials({ session: req.staffBrowserSession });
+      const result = await passkeyService.listCredentials({ session: req.staffBrowserSession, credentialIdHint: passkeyHintFromRequest(req, env) });
       if (!result.ok) return error(res, result);
       noStore(res);
       return res.status(200).json({ credentials: result.credentials });
@@ -166,6 +168,7 @@ function createStaffPasskeyAuthRouter({
       const result = await passkeyService.finishRegistration({
         session: req.staffBrowserSession,
         response: req.body?.response,
+        deviceLabel: defaultDeviceLabel(req.headers?.['user-agent']),
         requestFingerprintHash: requestFingerprintHash(req),
       });
       if (!result.ok) return error(res, result);
@@ -204,6 +207,19 @@ function createStaffPasskeyAuthRouter({
         res.setHeader('Set-Cookie', serializeExpiredPasskeyHintCookie({ env }));
       }
       return res.status(204).send();
+    } catch (e) { return next(e); }
+  });
+  router.post('/:credentialId/rename', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      const result = await passkeyService.renameCredential({
+        session: req.staffBrowserSession,
+        credentialId: req.params.credentialId,
+        label: req.body?.label,
+        requestFingerprintHash: requestFingerprintHash(req),
+      });
+      if (!result.ok) return error(res, result);
+      noStore(res);
+      return res.status(200).json({ ok: true, id: result.id, label: result.label });
     } catch (e) { return next(e); }
   });
   return router;

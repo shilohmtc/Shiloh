@@ -5,6 +5,8 @@ const fs = require('fs');
 const path = require('path');
 const {
   b64url,
+  defaultDeviceLabel,
+  normalizeDeviceLabel,
   normalizeCredentialHint,
   passkeyPolicy,
   registrationUser,
@@ -16,6 +18,7 @@ const {
   passkeyHintCookieName,
   serializePasskeyHintCookie,
 } = require('../src/routes/staffPasskeyAuth');
+const { initialCredentialList, initialHistory, manageScript } = require('../src/presentation/staffPasskeyUx');
 
 const ORIGIN = 'https://staff.shiloh.example';
 const RP_ID = 'staff.shiloh.example';
@@ -199,4 +202,42 @@ test('#932 signed-in device management exposes bounded cross-device setup withou
   assert.match(bootstrapUx, /forcedMode.*flow.*add/);
   assert.match(bootstrapUx, /data-bootstrap-mode'\)===\s*'replace'\)modeButtons\[j\]\.hidden=true/);
   assert.doesNotMatch(ux, /localStorage|sessionStorage|indexedDB/i);
+});
+
+test('#957 device labels are privacy-safe, bounded, and inferred without storing a raw user agent', () => {
+  assert.equal(normalizeDeviceLabel('  JP\nphone  '), 'JP phone');
+  assert.equal(normalizeDeviceLabel(''), null);
+  assert.equal(normalizeDeviceLabel({ toString: () => 'Deceptive label' }), null);
+  assert.equal(normalizeDeviceLabel('x'.repeat(49)), null);
+  assert.equal(defaultDeviceLabel('Mozilla/5.0 (iPhone; CPU iPhone OS 18_6)'), 'iPhone');
+  assert.equal(defaultDeviceLabel('Mozilla/5.0 (Windows NT 10.0; Win64; x64)'), 'Windows PC');
+  assert.equal(defaultDeviceLabel('private-browser'), 'Shiloh device');
+  const migration = fs.readFileSync(path.join(__dirname, '../migrations/119_workspace_passkey_device_labels.sql'), 'utf8');
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS device_label TEXT/);
+  assert.match(migration, /char_length\(device_label\) BETWEEN 1 AND 48/);
+  assert.doesNotMatch(migration, /user.?agent|fingerprint/i);
+});
+
+test('#957 Workspace device manager is self-scoped, protects the last passkey, and keeps removed devices read-only', () => {
+  const service = fs.readFileSync(path.join(__dirname, '../src/services/staffPasskeyAuth.js'), 'utf8');
+  const route = fs.readFileSync(path.join(__dirname, '../src/routes/staffPasskeyAuth.js'), 'utf8');
+  const script = manageScript();
+  assert.match(service, /WHERE admin_id = \$1 AND revoked_at IS NULL ORDER BY id FOR UPDATE/);
+  assert.match(service, /active\.rows\.length <= 1/);
+  assert.match(service, /STAFF_PASSKEY_ONLY_CREDENTIAL/);
+  assert.match(service, /SET device_label = \$3\s+WHERE id = \$2 AND admin_id = \$1 AND revoked_at IS NULL/);
+  assert.match(service, /eventType: 'passkey_label_updated'[\s\S]{0,160}metadata: \{ credentialReference: `passkey:\$\{id\}` \}/);
+  assert.match(route, /post\('\/:credentialId\/rename'/);
+  assert.match(route, /credentialIdHint: passkeyHintFromRequest/);
+  assert.match(script, /This device/);
+  assert.match(script, /data-passkey-history-list/);
+  assert.match(script, /Add another device before removing your only active device/);
+  const rows = [
+    { label: '<JP phone>', current: true, createdAt: '2026-09-13T00:00:00Z' },
+    { label: 'Old PC', revokedAt: '2026-09-12T00:00:00Z' },
+  ];
+  assert.match(initialCredentialList(rows), /&lt;JP phone&gt;/);
+  assert.doesNotMatch(initialCredentialList(rows), /Old PC/);
+  assert.match(initialHistory(rows), /Old PC/);
+  assert.doesNotMatch(initialHistory(rows), />Rename<|>Remove</);
 });
