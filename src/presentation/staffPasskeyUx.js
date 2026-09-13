@@ -20,17 +20,26 @@ loadKnownPrincipal();
 })();`;
 }
 
-function dateLabel(value) {
+function dateTimeLabel(value) {
   if (!value) return null;
   const date = new Date(value);
-  return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : null;
+  if (!Number.isFinite(date.getTime())) return null;
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Johannesburg',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date).replace(',', '');
 }
 
 function initialCredentialList(credentials = []) {
   if (!Array.isArray(credentials) || !credentials.length) return '<p>No passkeys enrolled yet.</p>';
   return credentials.map((row) => {
-    const created = dateLabel(row?.createdAt) || 'unknown date';
-    const lastUsed = dateLabel(row?.lastUsedAt);
+    const created = dateTimeLabel(row?.createdAt) || 'unknown time';
+    const lastUsed = dateTimeLabel(row?.lastUsedAt);
     const backup = row?.backedUp === true ? ' · synced/backup capable' : '';
     return `<div class="credential"><strong>${row?.revokedAt ? 'Revoked passkey' : 'Passkey'}</strong><div class="meta">Added ${escapeHtml(created)}${lastUsed ? ` · last used ${escapeHtml(lastUsed)}` : ''}${backup}</div></div>`;
   }).join('');
@@ -44,7 +53,7 @@ function manageScript() {
   return `(function(){'use strict';
 var add=document.querySelector('[data-passkey-add]'),other=document.querySelector('[data-passkey-other]'),replace=document.querySelector('[data-passkey-replace]'),list=document.querySelector('[data-passkey-list]'),status=document.querySelector('[data-passkey-status]'),otherResult=document.querySelector('[data-passkey-other-result]'),otherQr=document.querySelector('[data-passkey-other-qr]'),otherLink=document.querySelector('[data-passkey-other-link]'),copy=document.querySelector('[data-passkey-copy]');var csrf='';function msg(v){if(status)status.textContent=v||'';}function bytes(v){var s=String(v||'').replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';var raw=atob(s),a=new Uint8Array(raw.length);for(var i=0;i<raw.length;i++)a[i]=raw.charCodeAt(i);return a.buffer;}function enc(v){if(v==null)return null;var a=new Uint8Array(v),s='';for(var i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return btoa(s).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'');}function safe(r){return r.json().catch(function(){return {};});}function headers(){return {'Accept':'application/json','Content-Type':'application/json','x-shiloh-csrf-token':csrf};}function busy(v){if(add)add.disabled=v;if(other)other.disabled=v;if(replace)replace.disabled=v;}
 async function ensureCsrf(){if(csrf)return csrf;var r=await fetch('/calendar/staff-auth/csrf',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Accept':'application/json','Content-Type':'application/json'},body:'{}'});var b=await safe(r);if(!r.ok||!b.csrfToken)throw new Error('session');csrf=b.csrfToken;return csrf;}
-function render(rows){list.textContent='';if(!rows.length){var p=document.createElement('p');p.textContent='No passkeys enrolled yet.';list.appendChild(p);return;}rows.forEach(function(row){var box=document.createElement('div');box.className='credential';var title=document.createElement('strong');title.textContent=row.revokedAt?'Revoked passkey':'Passkey';box.appendChild(title);var meta=document.createElement('div');meta.className='meta';meta.textContent='Added '+new Date(row.createdAt).toLocaleDateString()+(row.lastUsedAt?' · last used '+new Date(row.lastUsedAt).toLocaleDateString():'')+(row.backedUp?' · synced/backup capable':'');box.appendChild(meta);if(!row.revokedAt){var b=document.createElement('button');b.className='button secondary';b.type='button';b.textContent='Revoke';b.addEventListener('click',function(){revoke(row.id,b);});box.appendChild(b);}list.appendChild(box);});}
+function timestamp(value){if(!value)return'unknown time';var date=new Date(value);if(!Number.isFinite(date.getTime()))return'unknown time';return new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Johannesburg',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(date).replace(',','');}\nfunction render(rows){list.textContent='';if(!rows.length){var p=document.createElement('p');p.textContent='No passkeys enrolled yet.';list.appendChild(p);return;}rows.forEach(function(row){var box=document.createElement('div');box.className='credential';var title=document.createElement('strong');title.textContent=row.revokedAt?'Revoked passkey':'Passkey';box.appendChild(title);var meta=document.createElement('div');meta.className='meta';meta.textContent='Added '+timestamp(row.createdAt)+(row.lastUsedAt?' · last used '+timestamp(row.lastUsedAt):'')+(row.backedUp?' · synced/backup capable':'');box.appendChild(meta);if(!row.revokedAt){var b=document.createElement('button');b.className='button secondary';b.type='button';b.textContent='Revoke';b.addEventListener('click',function(){revoke(row.id,b);});box.appendChild(b);}list.appendChild(box);});}
 async function load(){var r=await fetch('/calendar/staff-auth/passkeys',{credentials:'same-origin',cache:'no-store',headers:{'Accept':'application/json'}});if(r.status===401){window.location.replace('/calendar/staff?reason=session');return;}var b=await safe(r);if(!r.ok)throw new Error('load');render(b.credentials||[]);}
 async function anotherDevice(){msg('Creating a private setup link…');busy(true);try{await ensureCsrf();var r=await fetch('/calendar/staff-auth/passkeys/self-bootstrap',{method:'POST',credentials:'same-origin',cache:'no-store',headers:headers(),body:'{}'});var b=await safe(r);if(r.status===428){msg('Sign in again with an existing passkey before setting up another device.');return;}if(r.status===429){msg('Too many setup links were requested. Please wait a few minutes.');return;}if(r.status===403){msg('Setup was rejected because your Workspace access changed.');return;}if(!r.ok||!b.url||!b.qrDataUrl)throw new Error('setup');otherQr.src=b.qrDataUrl;otherLink.value=b.url;otherResult.hidden=false;msg('Private setup link ready.');}catch(_){msg('Shiloh could not create a setup link. Please try again.');}finally{busy(false);}}
 async function copyLink(){if(!otherLink||!otherLink.value)return;try{await navigator.clipboard.writeText(otherLink.value);msg('Private setup link copied.');}catch(_){otherLink.focus();otherLink.select();document.execCommand('copy');msg('Private setup link copied.');}}
@@ -54,4 +63,4 @@ if(add)add.addEventListener('click',function(){register('add');});if(other)other
 })();`;
 }
 
-module.exports = { signinPanel, signinScript, managePage, manageScript, initialCredentialList };
+module.exports = { signinPanel, signinScript, managePage, manageScript, initialCredentialList, dateTimeLabel };
