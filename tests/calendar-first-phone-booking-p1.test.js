@@ -166,7 +166,7 @@ test('Create Booking renders calendar prefill and selects practitioner only when
   assert.match(page, /"prefill":\{"date":"2026-09-07","time":"10:00","staffId":31\}/);
   const script = calendarCreateBookingClientScript();
   assert.match(script, /permitted\.has\(prefillStaffId\)/);
-  assert.match(script, /options\.staff[^;]*returnStaffId/);
+  assert.match(script, /new URLSearchParams\(\{view:'week',date:[^}]+staff:'all'\}\)/);
 });
 
 test('one compact fallback launcher reuses canonical booking authority and mobile overview is retired from runtime', () => {
