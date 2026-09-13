@@ -7,6 +7,7 @@ const {
   b64url,
   defaultDeviceLabel,
   normalizeDeviceLabel,
+  personalizedDeviceLabel,
   normalizeCredentialHint,
   passkeyPolicy,
   registrationUser,
@@ -18,7 +19,7 @@ const {
   passkeyHintCookieName,
   serializePasskeyHintCookie,
 } = require('../src/routes/staffPasskeyAuth');
-const { initialCredentialList, initialHistory, manageScript } = require('../src/presentation/staffPasskeyUx');
+const { signinPanel, signinScript, initialCredentialList, initialHistory, manageScript } = require('../src/presentation/staffPasskeyUx');
 
 const ORIGIN = 'https://staff.shiloh.example';
 const RP_ID = 'staff.shiloh.example';
@@ -127,6 +128,20 @@ test('#794 device credential is non-discoverable, platform-bound, and targeted o
   assert.match(ux, /known-principal/);
 });
 
+test('#968 missing browser device link is explained without disclosing staff identity', () => {
+  const panel = signinPanel();
+  const ux = signinScript();
+  assert.doesNotThrow(() => new Function(ux));
+  assert.match(panel, /data-shiloh-passkey-status[^>]*hidden/);
+  assert.match(ux, /This app is not linked to a Shiloh staff account/);
+  assert.match(ux, /removing or reinstalling Shiloh/);
+  assert.match(ux, /Workspace → Devices & sign-in → Set up another device/);
+  assert.match(ux, /fresh private QR code/);
+  assert.match(ux, /Device setup required/);
+  assert.match(ux, /device-unlinked/);
+  assert.doesNotMatch(ux, /staff-admin:\\d+|normalized_whatsapp|whatsapp_number/);
+});
+
 test('#794 remembered device hint is opaque, HttpOnly, strict, secure in production, and not authority', () => {
   const hint = b64url(crypto.randomBytes(32));
   assert.equal(normalizeCredentialHint(hint), hint);
@@ -212,6 +227,14 @@ test('#957 device labels are privacy-safe, bounded, and inferred without storing
   assert.equal(defaultDeviceLabel('Mozilla/5.0 (iPhone; CPU iPhone OS 18_6)'), 'iPhone');
   assert.equal(defaultDeviceLabel('Mozilla/5.0 (Windows NT 10.0; Win64; x64)'), 'Windows PC');
   assert.equal(defaultDeviceLabel('private-browser'), 'Shiloh device');
+  assert.equal(personalizedDeviceLabel('Jean-Pierre Botha', 'iPhone'), 'Jean-Pierre’s iPhone');
+  assert.equal(personalizedDeviceLabel('Christel Botha', 'Windows PC'), 'Christel’s Windows PC');
+  assert.equal(personalizedDeviceLabel('James Smith', 'iPad'), 'James’ iPad');
+  assert.equal(personalizedDeviceLabel('', 'Android device'), 'Android device');
+  const authService = fs.readFileSync(path.join(__dirname, '../src/services/staffPasskeyAuth.js'), 'utf8');
+  const bootstrapService = fs.readFileSync(path.join(__dirname, '../src/services/staffWhatsAppPasskeyBootstrap.js'), 'utf8');
+  assert.match(authService, /personalizedDeviceLabel\(admin\.display_name, deviceLabel\)/);
+  assert.match(bootstrapService, /personalizedDeviceLabel\(admin\.display_name, deviceLabel\)/);
   const migration = fs.readFileSync(path.join(__dirname, '../migrations/119_workspace_passkey_device_labels.sql'), 'utf8');
   assert.match(migration, /ADD COLUMN IF NOT EXISTS device_label TEXT/);
   assert.match(migration, /char_length\(device_label\) BETWEEN 1 AND 48/);
