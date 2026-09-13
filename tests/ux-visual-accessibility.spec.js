@@ -1,6 +1,28 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 
+for (const viewport of [{ width: 390, height: 640 }, { width: 1440, height: 1000 }]) {
+  test(`appointment sections expose complete forms at ${viewport.width}px`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=workspace-production-surfaces--compact-appointment-editor&viewMode=story');
+    for (const key of ['notes', 'treatment', 'timing', 'practitioner', 'danger']) {
+      const section = page.locator(`[data-appointment-editor-section="${key}"]`);
+      await section.locator('[data-appointment-editor-toggle]').click();
+      const body = section.locator('[data-appointment-editor-body]');
+      await expect(body).toBeVisible();
+      const fits = await section.evaluate(node => {
+        const body = node.querySelector('[data-appointment-editor-body]');
+        return body.getBoundingClientRect().bottom <= node.getBoundingClientRect().bottom + 1;
+      });
+      expect(fits, 'Expanded form must not be clipped by its section').toBe(true);
+      const action = body.getByRole('button').last();
+      await action.scrollIntoViewIfNeeded();
+      await expect(action).toBeInViewport();
+      await expect(page.locator('[data-appointment-editor-toggle][aria-expanded="true"]')).toHaveCount(1);
+    }
+  });
+}
+
 const states = [
   {
     name: 'calendar-desktop',

@@ -192,6 +192,7 @@ test('CRM V2 appointment history follows the canonical XOR key and cannot cross-
     pool.query = originalQuery;
   }
   assert.match(captured.sql, /JOIN crm_v2_clients c ON c\.id=a\.crm_v2_client_id/);
+  assert.match(captured.sql, /SELECT a\.id, a\.starts_at/);
   assert.match(captured.sql, /a\.crm_v2_client_id=\$1/);
   assert.match(captured.sql, /a\.client_id IS NULL/);
   assert.doesNotMatch(captured.sql, /a\.client_id\s*=\s*\$1|\bOR\b[^;]*client_id/is);
