@@ -27,9 +27,11 @@ test('#837 native Chromium prompt enables the single Android install control', (
 
 test('#837 installed and iPhone paths remain bounded', () => {
   const client = workspacePwaClientScript();
-  assert.match(client, /Add Shiloh to this iPhone/);
-  assert.match(client, /Tap Share, choose Add to Home Screen, then tap Add/);
+  assert.match(client, /Keep Shiloh close/);
+  assert.match(client, /Tap Share/);
+  assert.match(client, /Choose Add to Home Screen/);
   assert.match(client, /appinstalled[\s\S]*removeInstallCard\('\[data-shiloh-browser-install\]'\)[\s\S]*removeInstallCard\('\[data-shiloh-ios-install\]'\)/);
   assert.match(client, /document\.documentElement\.dataset\.shilohPwaMode='standalone'/);
-  assert.doesNotMatch(client, /localStorage|sessionStorage|indexedDB|document\.cookie|Authorization|Bearer\s|pushManager|showNotification/i);
+  assert.match(client, /sessionStorage\.setItem\(INSTALL_DISMISS_KEY,'1'\)/);
+  assert.doesNotMatch(client, /localStorage|indexedDB|document\.cookie|Authorization|Bearer\s|pushManager|showNotification/i);
 });

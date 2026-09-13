@@ -8,6 +8,8 @@ const {
   STATIC_CACHE_NAME,
   ICON_URLS,
   workspacePwaManifest,
+  workspaceIosInstallGuideStyles,
+  workspaceIosInstallGuideMarkup,
   decorateWorkspacePwaHtml,
   augmentWorkspacePwaCsp,
   workspacePwaServiceWorkerScript,
@@ -42,7 +44,7 @@ test('#791 PWA metadata decorates existing HTML idempotently and only expands CS
   assert.match(once, new RegExp(`${PWA_BASE.replaceAll('/', '\\/')}\\/manifest\\.webmanifest`));
   assert.match(once, /apple-mobile-web-app-capable/);
   assert.match(once, /theme-color/);
-  assert.match(once, /client\.js\?v=956-v1/);
+  assert.match(once, /client\.js\?v=960-v1/);
 
   const original = "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
   const expanded = augmentWorkspacePwaCsp(original);
@@ -54,7 +56,7 @@ test('#791 PWA metadata decorates existing HTML idempotently and only expands CS
 
 test('#791 service worker caches only inert versioned icon assets and never protected Workspace/API responses', () => {
   const worker = workspacePwaServiceWorkerScript();
-  assert.match(STATIC_CACHE_NAME, /^shiloh-pwa-static-956-v1$/);
+  assert.match(STATIC_CACHE_NAME, /^shiloh-pwa-static-960-v1$/);
   assert.match(worker, /cache\.addAll\(STATIC_URLS\)/);
   assert.match(worker, /STATIC_URLS\.includes\(url\.pathname\+url\.search\)/);
   assert.match(worker, /request\.mode==='navigate'.*url\.pathname\.startsWith\('\/calendar\/'\)/s);
@@ -79,7 +81,27 @@ test('#791 installed client revalidates only through canonical live staff sessio
   assert.match(client, /registration\.waiting/);
   assert.match(client, /addEventListener\('offline'/);
   assert.match(client, /addEventListener\('online'/);
-  assert.doesNotMatch(client, /localStorage|sessionStorage|indexedDB|document\.cookie|Authorization|Bearer\s|recoveryCode|totp_secret|csrfToken/i);
+  assert.match(client, /shiloh-ios-install-dismissed-v1/);
+  assert.match(client, /sessionStorage\.setItem\(INSTALL_DISMISS_KEY,'1'\)/);
+  assert.doesNotMatch(client, /localStorage|indexedDB|document\.cookie|Authorization|Bearer\s|recoveryCode|totp_secret|csrfToken/i);
+});
+
+test('#960 iPhone install guidance is compact, scoped, dismissible and backed by production Storybook markup', () => {
+  const markup = workspaceIosInstallGuideMarkup();
+  const styles = workspaceIosInstallGuideStyles();
+  const client = workspacePwaClientScript();
+  assert.match(markup, /Keep Shiloh close/);
+  assert.match(markup, /Show me how/);
+  assert.match(markup, /Tap Share/);
+  assert.match(markup, /Choose Add to Home Screen/);
+  assert.match(markup, /Tap Add/);
+  assert.match(markup, /role="dialog" aria-modal="true"/);
+  assert.match(styles, /min-height:44px/);
+  assert.match(styles, /safe-area-inset-bottom/);
+  assert.match(client, /IOS_INSTALL_PATHS=\['\/calendar\/workspace','\/calendar\/read-only'\]/);
+  assert.match(client, /iosDevice\(\)&&!standalone\(\)/);
+  assert.match(client, /installDismissed\(\)/);
+  assert.match(client, /data-shiloh-ios-install-dismiss/);
 });
 
 test('#791 canonical launch gate uses current server session state and never creates PWA authority', () => {

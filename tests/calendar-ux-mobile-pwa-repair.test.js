@@ -161,8 +161,8 @@ test('#823 Desktop receives no PWA metadata/client while Android and iOS retain 
   const client = workspacePwaClientScript();
   assert.match(client, /beforeinstallprompt',event=>\{if\(!androidDevice\(\)\|\|standalone\(\)\)return/);
   assert.match(client, /Install Shiloh on this Android phone/);
-  assert.match(client, /Add Shiloh to this iPhone/);
-  assert.equal((client.match(/box-sizing:border-box/g) || []).length, 2);
+  assert.match(client, /Keep Shiloh close/);
+  assert.ok((client.match(/box-sizing:border-box/g) || []).length >= 2);
 });
 
 test('#823 Phone Week filters events inside one active date lane instead of hidden Cartesian lanes', () => {
