@@ -14,6 +14,7 @@ const {
   passkeyPolicy,
   registrationUser,
   strongRecentSession,
+  normalizeDeviceLabel,
   verifyRegistrationResponse,
 } = require('./staffPasskeyAuth');
 
@@ -322,7 +323,7 @@ function createStaffWhatsAppPasskeyBootstrapService({
     }
   }
 
-  async function finishRegistration({ response, requestFingerprintHash = null } = {}) {
+  async function finishRegistration({ response, deviceLabel = null, requestFingerprintHash = null } = {}) {
     const currentPolicy = policy();
     if (!currentPolicy.operational) return { ok: false, code: currentPolicy.enabled ? 'STAFF_PASSKEY_BOOTSTRAP_UNAVAILABLE' : 'STAFF_PASSKEY_BOOTSTRAP_DISABLED' };
     const challengeValue = parseRegistrationChallenge(response, currentPolicy.origin);
@@ -377,10 +378,10 @@ function createStaffWhatsAppPasskeyBootstrapService({
       }
       const inserted = await client.query(
         `INSERT INTO staff_auth_passkey_credentials
-           (admin_id, credential_id, public_key_spki, algorithm, sign_count, transports, backed_up)
-         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7)
+           (admin_id, credential_id, public_key_spki, algorithm, sign_count, transports, backed_up, device_label)
+         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
          RETURNING id`,
-        [admin.id, verified.credentialId, verified.publicKeySpki, verified.algorithm, verified.signCount, JSON.stringify(verified.transports), verified.backedUp]
+        [admin.id, verified.credentialId, verified.publicKeySpki, verified.algorithm, verified.signCount, JSON.stringify(verified.transports), verified.backedUp, normalizeDeviceLabel(deviceLabel) || 'Shiloh device']
       );
       const replacement = challenge.purpose === REPLACEMENT_PURPOSE;
       let revokedCredentialCount = 0;

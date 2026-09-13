@@ -10,6 +10,7 @@ const REPLACEMENT_REGISTRATION_PURPOSE = 'registration_replacement';
 const STRONG_AUTH_METHODS = new Set(['passkey']);
 const ALLOWED_TRANSPORTS = new Set(['usb', 'nfc', 'ble', 'internal', 'hybrid', 'smart-card']);
 const ALGORITHMS = new Set([-7, -8, -257]);
+const MAX_DEVICE_LABEL_LENGTH = 48;
 
 function b64url(buffer) { return Buffer.from(buffer).toString('base64url'); }
 function fromB64url(value, maxBytes = 8192) {
@@ -24,6 +25,20 @@ function normalizeCredentialHint(value) {
     const decoded = fromB64url(value, 1024);
     return decoded.length >= 16 ? b64url(decoded) : null;
   } catch (_) { return null; }
+}
+function normalizeDeviceLabel(value) {
+  if (typeof value !== 'string') return null;
+  const label = value.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return label && [...label].length <= MAX_DEVICE_LABEL_LENGTH ? label : null;
+}
+function defaultDeviceLabel(userAgent = '') {
+  const value = String(userAgent || '');
+  if (/iPhone/i.test(value)) return 'iPhone';
+  if (/iPad/i.test(value)) return 'iPad';
+  if (/Android/i.test(value)) return 'Android device';
+  if (/Windows/i.test(value)) return 'Windows PC';
+  if (/Macintosh|Mac OS/i.test(value)) return 'Mac';
+  return 'Shiloh device';
 }
 function hashBytes(value) { return crypto.createHash('sha256').update(Buffer.from(value)).digest(); }
 function safeBufferEqual(a, b) {
@@ -222,12 +237,22 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
     return credential;
   }
   function unavailableCode() { const p = policy(); return p.enabled ? 'STAFF_PASSKEY_UNAVAILABLE' : 'STAFF_PASSKEY_DISABLED'; }
-  async function listCredentials({ session } = {}) {
+  async function listCredentials({ session, credentialIdHint = null } = {}) {
     const p = policy(); if (!p.operational) return { ok: false, code: unavailableCode() };
     const admin = await resolveAdmin(db, session?.adminId); if (!admin) return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' };
-    const result = await db.query(`SELECT id, transports, backed_up, created_at, last_used_at, revoked_at
+    const currentHint = normalizeCredentialHint(credentialIdHint);
+    const result = await db.query(`SELECT id, credential_id, device_label, transports, backed_up, created_at, last_used_at, revoked_at
       FROM staff_auth_passkey_credentials WHERE admin_id = $1 ORDER BY created_at DESC, id DESC`, [admin.id]);
-    return { ok: true, credentials: result.rows.map((row) => ({ id: Number(row.id), transports: row.transports || [], backedUp: row.backed_up === true, createdAt: row.created_at, lastUsedAt: row.last_used_at, revokedAt: row.revoked_at })) };
+    return { ok: true, credentials: result.rows.map((row) => ({
+      id: Number(row.id),
+      label: normalizeDeviceLabel(row.device_label) || 'Unnamed device',
+      current: !row.revoked_at && Boolean(currentHint) && row.credential_id === currentHint,
+      transports: row.transports || [],
+      backedUp: row.backed_up === true,
+      createdAt: row.created_at,
+      lastUsedAt: row.last_used_at,
+      revokedAt: row.revoked_at,
+    })) };
   }
   async function knownPrincipal({ credentialIdHint } = {}) {
     const p = policy(); if (!p.operational) return { ok: false, code: unavailableCode() };
@@ -264,7 +289,7 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; }
     finally { if (client !== db && typeof client.release === 'function') client.release(); }
   }
-  async function finishRegistration({ session, response, requestFingerprintHash = null } = {}) {
+  async function finishRegistration({ session, response, deviceLabel = null, requestFingerprintHash = null } = {}) {
     const p = policy(); const current = now();
     if (!p.operational) return { ok: false, code: unavailableCode() };
     if (!strongRecentSession(session, current)) return { ok: false, code: 'STAFF_RECENT_STRONG_AUTH_REQUIRED' };
@@ -286,9 +311,9 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
       const duplicate = await client.query(`SELECT id, admin_id FROM staff_auth_passkey_credentials WHERE credential_id = $1 LIMIT 1 FOR UPDATE`, [verified.credentialId]);
       if (duplicate.rows[0]) { await audit(client, { eventType: 'passkey_registration_failed', subjectAdminId: admin.id, requestFingerprintHash, reason: 'credential_exists' }); await client.query('COMMIT'); return { ok: false, code: 'STAFF_PASSKEY_INVALID' }; }
       const inserted = await client.query(`INSERT INTO staff_auth_passkey_credentials
-        (admin_id, credential_id, public_key_spki, algorithm, sign_count, transports, backed_up)
-        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7) RETURNING id`,
-      [admin.id, verified.credentialId, verified.publicKeySpki, verified.algorithm, verified.signCount, JSON.stringify(verified.transports), verified.backedUp]);
+        (admin_id, credential_id, public_key_spki, algorithm, sign_count, transports, backed_up, device_label)
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8) RETURNING id`,
+      [admin.id, verified.credentialId, verified.publicKeySpki, verified.algorithm, verified.signCount, JSON.stringify(verified.transports), verified.backedUp, normalizeDeviceLabel(deviceLabel) || 'Shiloh device']);
       const replacement = challenge.purpose === REPLACEMENT_REGISTRATION_PURPOSE;
       let revokedCredentialCount = 0;
       let revokedSessionCount = 0;
@@ -355,6 +380,11 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
     try {
       await client.query('BEGIN'); const admin = await resolveAdmin(client, session.adminId, true);
       if (!admin) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' }; }
+      const active = await client.query(`SELECT id, credential_id FROM staff_auth_passkey_credentials
+        WHERE admin_id = $1 AND revoked_at IS NULL ORDER BY id FOR UPDATE`, [admin.id]);
+      const target = active.rows.find((row) => Number(row.id) === id);
+      if (!target) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_PASSKEY_NOT_FOUND' }; }
+      if (active.rows.length <= 1) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_PASSKEY_ONLY_CREDENTIAL' }; }
       const result = await client.query(`UPDATE staff_auth_passkey_credentials SET revoked_at = $3, revoked_by_admin_id = $1
         WHERE id = $2 AND admin_id = $1 AND revoked_at IS NULL RETURNING id, credential_id`, [admin.id, id, current]);
       if (!result.rowCount) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_PASSKEY_NOT_FOUND' }; }
@@ -363,12 +393,33 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; }
     finally { if (client !== db && typeof client.release === 'function') client.release(); }
   }
-  return { policy, listCredentials, knownPrincipal, beginRegistration, finishRegistration, beginAuthentication, finishAuthentication, revokeCredential };
+  async function renameCredential({ session, credentialId, label, requestFingerprintHash = null } = {}) {
+    const p = policy();
+    if (!p.operational) return { ok: false, code: unavailableCode() };
+    if (!strongRecentSession(session, now())) return { ok: false, code: 'STAFF_RECENT_STRONG_AUTH_REQUIRED' };
+    const id = Number(credentialId);
+    const normalizedLabel = normalizeDeviceLabel(label);
+    if (!Number.isSafeInteger(id) || id <= 0 || !normalizedLabel) return { ok: false, code: 'STAFF_PASSKEY_LABEL_INVALID' };
+    const client = typeof db.connect === 'function' ? await db.connect() : db;
+    try {
+      await client.query('BEGIN');
+      const admin = await resolveAdmin(client, session.adminId, true);
+      if (!admin) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' }; }
+      const result = await client.query(`UPDATE staff_auth_passkey_credentials SET device_label = $3
+        WHERE id = $2 AND admin_id = $1 AND revoked_at IS NULL RETURNING id`, [admin.id, id, normalizedLabel]);
+      if (!result.rowCount) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_PASSKEY_NOT_FOUND' }; }
+      await audit(client, { eventType: 'passkey_label_updated', subjectAdminId: admin.id, requestFingerprintHash, metadata: { credentialReference: `passkey:${id}` } });
+      await client.query('COMMIT');
+      return { ok: true, id, label: normalizedLabel };
+    } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; }
+    finally { if (client !== db && typeof client.release === 'function') client.release(); }
+  }
+  return { policy, listCredentials, knownPrincipal, beginRegistration, finishRegistration, beginAuthentication, finishAuthentication, revokeCredential, renameCredential };
 }
 
 module.exports = {
   FEATURE_FLAG, RP_ID_FLAG, PUBLIC_ORIGIN_FLAG, CHALLENGE_TTL_MS, STRONG_AUTH_METHODS,
   REGISTRATION_PURPOSE, REPLACEMENT_REGISTRATION_PURPOSE,
-  b64url, fromB64url, normalizeCredentialHint, passkeyPolicy, strongRecentSession, registrationUser, decodeCbor, cosePublicKeyToSpki,
+  MAX_DEVICE_LABEL_LENGTH, b64url, fromB64url, normalizeCredentialHint, normalizeDeviceLabel, defaultDeviceLabel, passkeyPolicy, strongRecentSession, registrationUser, decodeCbor, cosePublicKeyToSpki,
   verifyRpAndFlags, verifyRegistrationResponse, verifyAssertionResponse, createStaffPasskeyAuthService,
 };
