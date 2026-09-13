@@ -83,7 +83,7 @@ var START_INCREMENT_MINUTES=5;
 var MONTH_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 var WEEKDAY_NAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function el(selector){return document.querySelector(selector);}
-function setStatus(message,tone){var node=el('[data-booking-status]');if(!node)return;node.textContent=message;node.classList.toggle('error',tone==='error'||tone===true);node.classList.toggle('ready',tone==='ready');node.classList.toggle('warn',tone==='warn');if(tone==='error'||tone===true||tone==='warn'){node.setAttribute('tabindex','-1');node.focus({preventScroll:true});node.scrollIntoView({block:'nearest'});}}
+function setStatus(message,tone){var node=el('[data-booking-status]');if(!node)return;node.hidden=false;node.textContent=message;node.classList.toggle('error',tone==='error'||tone===true);node.classList.toggle('ready',tone==='ready');node.classList.toggle('warn',tone==='warn');if(tone==='error'||tone===true||tone==='warn'){node.setAttribute('tabindex','-1');node.focus({preventScroll:true});node.scrollIntoView({block:'nearest'});}}
 function json(response){return response.json().catch(function(){return {};});}
 function post(url,payload,csrfToken){var headers={'Content-Type':'application/json','Accept':'application/json'};if(csrfToken)headers['x-shiloh-csrf-token']=csrfToken;return fetch(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:headers,body:JSON.stringify(payload||{})});}
 async function csrf(){var response=await post(AUTH+'/csrf',{});if(!response.ok)throw new Error('SESSION');var body=await json(response);if(!body.csrfToken)throw new Error('SESSION');return body.csrfToken;}
