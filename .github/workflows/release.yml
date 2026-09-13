@@ -1,0 +1,77 @@
+name: Publish Shiloh release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - VERSION
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: shiloh-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact release commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Validate version and prepare release notes
+        id: meta
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const version = fs.readFileSync('VERSION', 'utf8').trim();
+          if (!/^\d+\.\d+\.\d+$/.test(version)) {
+            throw new Error(`Invalid VERSION: ${version}`);
+          }
+
+          const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const packageLock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+          if (packageJson.version !== version || packageLock.version !== version || packageLock.packages?.['']?.version !== version) {
+            throw new Error('VERSION, package.json and package-lock.json must match');
+          }
+
+          const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+          const lines = changelog.split(/\r?\n/);
+          const start = lines.findIndex((line) => line.startsWith(`## [${version}]`));
+          if (start < 0) throw new Error(`CHANGELOG has no section for ${version}`);
+
+          const endOffset = lines.slice(start + 1).findIndex((line) => /^## \[/.test(line));
+          const end = endOffset < 0 ? lines.length : start + 1 + endOffset;
+          const section = lines.slice(start + 1, end).join('\n').trim();
+          const subtitle = lines.slice(start + 1, end).find((line) => line.startsWith('### '))?.slice(4).trim();
+          if (!section || !subtitle) throw new Error('Release section needs a subtitle and notes');
+
+          fs.writeFileSync('.release-notes.md', section + '\n');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `tag=v${version}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `title=Shiloh v${version} — ${subtitle}\n`);
+          NODE
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          TITLE: ${{ steps.meta.outputs.title }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "$TAG already exists; leaving the published release unchanged."
+            exit 0
+          fi
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "$TITLE" \
+            --notes-file .release-notes.md \
+            --latest
