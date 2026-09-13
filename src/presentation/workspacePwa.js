@@ -1,6 +1,6 @@
 'use strict';
 
-const PWA_VERSION = '952-v1';
+const PWA_VERSION = '956-v1';
 const PWA_BASE = '/calendar/pwa';
 const STATIC_CACHE_PREFIX = 'shiloh-pwa-static-';
 const STATIC_CACHE_NAME = `${STATIC_CACHE_PREFIX}${PWA_VERSION}`;
@@ -35,16 +35,16 @@ function workspacePwaManifest() {
 
 function workspacePwaIconSvg(size = 192) {
   const dimension = Number(size) === 512 ? 512 : 192;
-  const inset = Math.round(dimension * 0.11);
-  const radius = Math.round(dimension * 0.2);
-  const markSize = Math.round(dimension * 0.34);
+  const inset = Math.round(dimension * 0.06);
+  const radius = Math.round(dimension * 0.22);
+  const markSize = Math.round(dimension * 0.4);
   const markX = Math.round((dimension - markSize) / 2);
   const markY = Math.round(dimension * 0.27);
-  const stemWidth = Math.max(10, Math.round(dimension * 0.07));
+  const stemWidth = Math.max(10, Math.round(dimension * 0.085));
   const stemX = Math.round((dimension - stemWidth) / 2);
-  const stemY = Math.round(dimension * 0.49);
-  const stemHeight = Math.round(dimension * 0.22);
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${dimension} ${dimension}" role="img" aria-label="Shiloh"><rect width="${dimension}" height="${dimension}" rx="${radius}" fill="#17382d"/><rect x="${inset}" y="${inset}" width="${dimension - inset * 2}" height="${dimension - inset * 2}" rx="${Math.round(radius * 0.72)}" fill="#f7f5ef"/><circle cx="${Math.round(dimension / 2)}" cy="${Math.round(dimension * 0.37)}" r="${Math.round(markSize / 2)}" fill="#496b5a"/><rect x="${stemX}" y="${stemY}" width="${stemWidth}" height="${stemHeight}" rx="${Math.round(stemWidth / 2)}" fill="#496b5a"/></svg>`;
+  const stemY = Math.round(dimension * 0.48);
+  const stemHeight = Math.round(dimension * 0.27);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${dimension} ${dimension}" role="img" aria-label="Shiloh"><rect width="${dimension}" height="${dimension}" rx="${radius}" fill="#17382d"/><rect x="${inset}" y="${inset}" width="${dimension - inset * 2}" height="${dimension - inset * 2}" rx="${Math.round(radius * 0.78)}" fill="#f7f5ef"/><circle cx="${Math.round(dimension / 2)}" cy="${Math.round(dimension * 0.35)}" r="${Math.round(markSize / 2)}" fill="#496b5a"/><rect x="${stemX}" y="${stemY}" width="${stemWidth}" height="${stemHeight}" rx="${Math.round(stemWidth / 2)}" fill="#496b5a"/></svg>`;
 }
 
 function workspacePwaHeadMarkup() {
@@ -56,6 +56,7 @@ function workspacePwaHeadMarkup() {
     '<meta name="apple-mobile-web-app-status-bar-style" content="default">',
     '<meta name="apple-mobile-web-app-title" content="Shiloh">',
     `<link rel="icon" href="${SVG_ICON_URLS[0]}" type="image/svg+xml">`,
+    `<link rel="apple-touch-icon" sizes="192x192" href="${ICON_URLS[0]}">`,
     `<script src="${PWA_BASE}/client.js?v=${PWA_VERSION}" defer></script>`,
   ].join('');
 }
