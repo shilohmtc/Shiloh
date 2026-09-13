@@ -1,5 +1,5 @@
 const express = require('express');
-const workspaceServices = require('../services/workspaceServices');
+const workspaceServices = require('../services/workspaceServicesPractitionerScope');
 const workspaceServiceCreation = require('../services/workspaceServiceCreation');
 const {
   requireStaffSession,
