@@ -21,10 +21,10 @@ test('booking confirmation v1 remains an explicit fallback while v2 is selected 
   assert.match(liveConfirmation, /bodyParameters:\[clientName\|\|'there',serviceName,staffName,date,time,google,ics\|\|google\]/);
 });
 
-test('full Meta inventory audit is explicit, read-only and startup guarded', () => {
-  assert.match(appSource, /META_TEMPLATE_INVENTORY_AUDIT_ON_START/);
-  assert.match(appSource, /inspectMetaTemplateInventory/);
-  assert.match(appSource, /Sanitized Meta template inventory audit completed/);
+test('#952 retires the startup-only Meta inventory audit hook', () => {
+  assert.doesNotMatch(appSource, /META_TEMPLATE_INVENTORY_AUDIT_ON_START/);
+  assert.doesNotMatch(appSource, /inspectMetaTemplateInventory/);
+  assert.doesNotMatch(appSource, /Sanitized Meta template inventory audit completed/);
 });
 
 

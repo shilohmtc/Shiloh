@@ -25,6 +25,8 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      - name: Reject high-severity production dependency findings
+        run: npm run audit:production
       - name: Run low-noise correctness lint
         run: npm run lint
       - name: Check maintenance configuration formatting

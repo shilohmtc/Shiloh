@@ -31,9 +31,7 @@ test('legacy followup and reminder Meta contracts remain retired', () => {
   assert.match(source, /appointment_reminder_legacy:\s*'retired'/);
 });
 
-test('provider-independent staff auth still owns the legacy-named TOTP rollout allowlist', () => {
-  const source = read('src/services/providerIndependentStaffAuth.js');
-  assert.match(source, /SHILOH_STAFF_TOTP_PILOT_ADMIN_IDS/);
-  assert.match(source, /SHILOH_STAFF_TOTP_AUTH_ENABLED/);
-  assert.match(source, /SHILOH_STAFF_TOTP_ENCRYPTION_KEYS_JSON/);
+test('#952 retires the TOTP rollout and encryption environment contract', () => {
+  const source = [read('app.js'), read('src/routes/calendar.js'), read('src/routes/staffBrowserSession.js')].join('\n');
+  assert.doesNotMatch(source, /SHILOH_STAFF_TOTP_(?:PILOT_ADMIN_IDS|AUTH_ENABLED|ENCRYPTION_KEYS_JSON|ACTIVE_KEY_VERSION)/);
 });

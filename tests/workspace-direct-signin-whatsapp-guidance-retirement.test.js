@@ -5,7 +5,6 @@ const {
   renderStaffCalendarAccessPage,
 } = require('../src/presentation/staffCalendarAccessUx');
 const {
-  withAuthenticatorSetupGuidance,
   retireBrowserWhatsAppGuidance,
 } = require('../src/routes/staffCalendarAccessUx');
 const {
@@ -16,20 +15,14 @@ const {
 function decoratedAccessPage(reason = null) {
   const base = renderStaffCalendarAccessPage({
     reason,
-    providerIndependentAuthEnabled: true,
   });
-  return retireBrowserWhatsAppGuidance(withAuthenticatorSetupGuidance(base));
+  return retireBrowserWhatsAppGuidance(base);
 }
 
-test('direct Workspace sign-in retires the redundant legacy WhatsApp helper while keeping recovery fallback', () => {
+test('direct Workspace sign-in retires legacy WhatsApp and recovery fallback panels', () => {
   const page = decoratedAccessPage();
 
-  assert.match(page, /Direct browser sign-in/);
-  assert.match(page, /Use your authenticator/);
-  assert.match(page, /Use a recovery code/);
-  assert.match(page, /Recovery administration/);
-  assert.match(page, /Authenticator enrollment/);
-  assert.match(page, /Open recovery enrollment tools/);
+  assert.doesNotMatch(page, /Direct browser sign-in|Use your authenticator|Use a recovery code|Recovery administration|Open recovery enrollment tools/);
 
   assert.doesNotMatch(page, /Easiest access/i);
   assert.doesNotMatch(page, /Open from Shiloh WhatsApp/i);

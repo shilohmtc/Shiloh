@@ -30,20 +30,9 @@ function normalizeReason(value) {
   return ['logout', 'session', 'access'].includes(reason) ? reason : null;
 }
 
-// Retained only for exceptional recovery/admin tooling compatibility. #804 no longer
-// inserts this into the normal staff journey.
-function withAuthenticatorSetupGuidance(html) {
-  const marker = '<section class="section" data-shiloh-whatsapp-handoff-guidance>';
-  if (!String(html || '').includes(marker)) return html;
-  const guidance = `<section class="section" data-shiloh-authenticator-setup-guidance><span class="eyebrow">Recovery administration</span><h2>Authenticator enrollment</h2><p class="lead">Authenticator enrollment is retained for exceptional recovery. Normal first-device setup now starts from the staff member’s canonical Shiloh WhatsApp conversation.</p><div class="actions"><a class="button secondary" href="/calendar/staff-auth/admin-enrollment">Open recovery enrollment tools</a></div></section>`;
-  return String(html).replace(marker, `${guidance}${marker}`);
-}
-
 function withPasskeyReentry(html) {
-  const marker = '<section data-shiloh-provider-independent-auth>';
   const fallbackMarker = '<section class="section" data-shiloh-whatsapp-handoff-guidance>';
   const panel = `${signinPanel()}<script src="/calendar/staff/passkey-signin.js" defer></script>`;
-  if (String(html || '').includes(marker)) return String(html).replace(marker, `${panel}${marker}`);
   if (String(html || '').includes(fallbackMarker)) return String(html).replace(fallbackMarker, `${panel}${fallbackMarker}`);
   return html;
 }
@@ -57,9 +46,8 @@ function withWhatsAppBootstrapGuidance(html) {
 function retireBrowserWhatsAppGuidance(html) {
   let output = String(html || '');
   output = output.replace(/\s*<section class="section" data-shiloh-whatsapp-handoff-guidance>[\s\S]*?<\/section>\s*/, '\n');
-  output = output.replace(/\s*<p class="privacy-note">Authenticator and recovery credentials stay outside WhatsApp\.[\s\S]*?<\/p>\s*/, '\n');
   output = output.replace(/\s*<p class="footer-note">Workspace access and actions remain governed by canonical server-derived staff\/Admin permissions and scope\.<\/p>\s*/, '\n');
-  output = output.replace('>Use your authenticator here, or open Workspace from your existing Shiloh WhatsApp conversation.</div>', '></div>');
+  output = output.replace('>Use your saved Shiloh passkey to continue.</div>', '></div>');
   output = output.replace('>Your staff session is missing, expired, or revoked. Sign in again to continue.</div>', '></div>');
   if (!output.includes('[data-shiloh-status]:empty{display:none}')) {
     output = output.replace('<style>', '<style>[data-shiloh-status]:empty{display:none}[data-shiloh-passkey-status]:empty{display:none}');
@@ -151,7 +139,6 @@ module.exports.createStaffCalendarHandoffClientHandler = createStaffCalendarHand
 module.exports.isStaffCalendarAccessUxEnabled = isStaffCalendarAccessUxEnabled;
 module.exports.setAccessSecurityHeaders = setAccessSecurityHeaders;
 module.exports.normalizeReason = normalizeReason;
-module.exports.withAuthenticatorSetupGuidance = withAuthenticatorSetupGuidance;
 module.exports.withPasskeyReentry = withPasskeyReentry;
 module.exports.withWhatsAppBootstrapGuidance = withWhatsAppBootstrapGuidance;
 module.exports.bootstrapAwareSigninScript = bootstrapAwareSigninScript;

@@ -7,6 +7,7 @@ const {
 
 const DEFAULT_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+const RECENT_AUTH_TTL_MS = 10 * 60 * 1000;
 const CHALLENGE_ISSUE_WINDOW_MS = 10 * 60 * 1000;
 const CHALLENGE_ISSUE_LIMIT = 3;
 const MAX_CHALLENGE_ATTEMPTS = 5;
@@ -52,6 +53,15 @@ function isValidSessionToken(value) {
 
 function isValidCsrfToken(value) {
   return /^[A-Za-z0-9_-]{43}$/.test(String(value || ''));
+}
+
+function isRecentAuthentication(session, current = new Date(), ttlMs = RECENT_AUTH_TTL_MS) {
+  if (!session?.ok || session.recoveryRequired === true) return false;
+  const authenticatedAt = new Date(session.authenticatedAt);
+  const currentAt = current instanceof Date ? current : new Date(current);
+  if (!Number.isFinite(authenticatedAt.getTime()) || !Number.isFinite(currentAt.getTime())) return false;
+  const age = currentAt.getTime() - authenticatedAt.getTime();
+  return age >= 0 && age <= ttlMs;
 }
 
 function deriveCalendarViewer(admin) {
@@ -439,6 +449,7 @@ module.exports = {
   MAX_CHALLENGE_ATTEMPTS,
   DEFAULT_CHALLENGE_TTL_MS,
   DEFAULT_SESSION_TTL_MS,
+  RECENT_AUTH_TTL_MS,
   normalizeWhatsapp,
   sha256,
   safeHashEqual,
@@ -447,6 +458,7 @@ module.exports = {
   isValidChallengeCode,
   isValidSessionToken,
   isValidCsrfToken,
+  isRecentAuthentication,
   deriveCalendarViewer,
   deriveAccountPrincipal,
   issueStaffBrowserSession,

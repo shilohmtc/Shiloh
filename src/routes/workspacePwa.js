@@ -73,7 +73,7 @@ function createWorkspacePwaHtmlMiddleware() {
 
 function pwaLaunchDestination(session) {
   if (!session?.ok) return '/calendar/staff?reason=session';
-  if (session.recoveryRequired === true) return '/calendar/staff-auth/totp/manage';
+  if (session.recoveryRequired === true) return '/calendar/staff?reason=session';
   if (!session.viewer) return '/calendar/staff?reason=access';
   return '/calendar/workspace';
 }

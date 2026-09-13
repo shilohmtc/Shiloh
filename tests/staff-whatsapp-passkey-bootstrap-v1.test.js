@@ -183,7 +183,7 @@ test('#804 bootstrap principal must be exact, active and already Workspace-enabl
   assert.equal(evaluateBootstrapPrincipal([]).matched, false);
   assert.equal(evaluateBootstrapPrincipal([principal(), principal({ id: 45 })]).code, 'STAFF_PASSKEY_BOOTSTRAP_AMBIGUOUS');
   assert.equal(evaluateBootstrapPrincipal([principal({ admin_active: false })]).eligible, false);
-  assert.equal(evaluateBootstrapPrincipal([principal({ replacement_required_at: new Date() })]).code, 'STAFF_PASSKEY_BOOTSTRAP_RECOVERY_REQUIRED');
+  assert.equal(evaluateBootstrapPrincipal([principal({ replacement_required_at: new Date() })]).eligible, true);
   assert.equal(evaluateBootstrapPrincipal([principal({ calendar_scope: 'none', permissions: {} })]).code, 'STAFF_PASSKEY_BOOTSTRAP_ACCESS_REQUIRED');
   const allowed = evaluateBootstrapPrincipal([principal()]);
   assert.equal(allowed.eligible, true);

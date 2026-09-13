@@ -63,8 +63,8 @@ jobs:
           SHILOH_STAFF_BROWSER_SESSION_CALENDAR_BRIDGE_ENABLED: 'false'
           SHILOH_CALENDAR_READONLY_UX_ENABLED: 'false'
         run: node --test tests/calendar-pilot-authority-retirement-p0.test.js
-      - name: Run provider-independent auth and real browser-cookie tests
-        run: node --test tests/provider-independent-staff-auth.test.js
+      - name: Run passkey authority and retired TOTP runtime tests
+        run: node --test tests/staff-passkey-auth-v1.test.js tests/totp-runtime-retirement-952.test.js
       - name: Run focused WS-10 service-scoped Calendar authority tests
         run: node --test tests/calendar-service-scoped-booking-authority.test.js tests/calendar-service-scope-matrix.test.js
       - name: Run focused capability-driven Calendar roster authority tests
