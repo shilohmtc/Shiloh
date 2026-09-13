@@ -83,9 +83,9 @@ test('Month exposes full-cell navigation, appointment details and South African 
     await expect(holiday).toHaveAttribute('data-public-holiday', 'Heritage Day');
     await expect(holiday.locator('.month-holiday')).toContainText('Heritage Day');
     await expect(holiday.locator('.month-day-link')).toHaveAttribute('aria-label', /South African public holiday: Heritage Day/);
-    await expect(holiday.locator('.month-event .event-card')).toBeVisible();
-    await expect(holiday.locator('.month-event .event-time-start')).toContainText('10:00');
-    await expect(holiday.locator('.month-event .event-card h4')).toContainText('Month view client');
+    await expect(holiday.locator('.month-event .event-card').first()).toBeVisible();
+    await expect(holiday.locator('.month-event .event-time-start').first()).toContainText('10:00');
+    await expect(holiday.locator('.month-event .event-card h4').first()).toContainText('Month view client');
   }
 });
 
