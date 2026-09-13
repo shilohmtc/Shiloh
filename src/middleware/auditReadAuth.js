@@ -8,17 +8,18 @@ function safeEqual(a, b) {
 }
 
 function auditReadAuth(req, res, next) {
+  res.set("Cache-Control", "no-store");
+
   const configuredToken = process.env.AUDIT_READ_TOKEN;
   if (!configuredToken) {
     return res.status(503).json({ error: "Audit read API is not configured", requestId: req.id });
   }
 
-  const suppliedToken = req.query?.access || req.get("x-audit-read-token");
+  const suppliedToken = req.get("x-audit-read-token");
   if (!safeEqual(suppliedToken, configuredToken)) {
     return res.status(401).json({ error: "Unauthorized", requestId: req.id });
   }
 
-  res.set("Cache-Control", "no-store");
   return next();
 }
 

@@ -5,6 +5,7 @@ const { validateEnv } = require("./src/config/env");
 const logger = require("./src/lib/logger");
 const observability = require("./src/lib/observability");
 const requestContext = require("./src/middleware/requestContext");
+const { securityHeaders } = require("./src/middleware/securityHeaders");
 const { canonicalHostRedirect } = require("./src/middleware/canonicalHostRedirect");
 const { presentClientFamilyResult } = require("./src/presentation/clientFamilyPresentation");
 const { presentClientAppointmentChangeResult } = require("./src/presentation/clientAppointmentChangePresentation");
@@ -61,6 +62,7 @@ const {
 
 const app = express();
 app.disable("x-powered-by");
+app.use(securityHeaders);
 app.use(canonicalHostRedirect);
 app.use(express.json({ limit: "2mb" }));
 app.use(requestContext);
