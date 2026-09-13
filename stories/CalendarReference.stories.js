@@ -191,3 +191,62 @@ export const ColourAndTreatmentLanguagePhone = {
   render: () => colourAndTreatmentLanguage('390px'),
   parameters: { viewport: { defaultViewport: 'mobile1' } },
 };
+
+
+const monthReferenceDays = [
+  ['2026-09-14', 14], ['2026-09-15', 15], ['2026-09-16', 16], ['2026-09-17', 17], ['2026-09-18', 18], ['2026-09-19', 19],
+  ['2026-09-21', 21], ['2026-09-22', 22], ['2026-09-23', 23], ['2026-09-24', 24], ['2026-09-25', 25], ['2026-09-26', 26],
+];
+
+const monthReferenceCell = ([date, day]) => {
+  const holiday = date === '2026-09-24' ? 'Heritage Day' : '';
+  const appointments = date === '2026-09-24'
+    ? [{ time: '10:00', client: 'Month view client' }, { time: '13:30', client: 'Second client' }]
+    : date === '2026-09-18'
+      ? [{ time: '09:00', client: 'Friday client' }]
+      : [];
+  const dayLabel = new Intl.DateTimeFormat('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Johannesburg' }).format(new Date(`${date}T12:00:00+02:00`));
+  return `<section class="month-day${holiday ? ' public-holiday' : ''}" data-date="${date}" data-public-holiday="${holiday}">
+    <a class="month-day-link" href="/calendar/read-only?view=week&date=${date}&staff=11&staff=12&staff=13" aria-label="Open ${dayLabel}, ${appointments.length} items${holiday ? `. South African public holiday: ${holiday}` : ''}"></a>
+    <header class="month-day-head" aria-hidden="true"><strong>${day}</strong>${holiday ? `<span class="month-holiday"><i></i><span>${holiday}</span></span>` : ''}</header>
+    <div class="month-events">${appointments.map(item => `<article class="month-event event-card"><span class="event-time-start">${item.time}</span><h4>${item.client}</h4></article>`).join('')}</div>
+  </section>`;
+};
+
+export const MonthAppointmentsAndSouthAfricanHoliday = {
+  render: () => frame(`
+    <style>
+      .month-reference{width:100%;display:grid;gap:8px}
+      .month-reference h2{margin:0;font-size:1.2rem}
+      .month-weekdays,.month-days{display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
+      .month-weekdays span{padding:7px;text-align:center;color:#56685f;font-size:.68rem;font-weight:800}
+      .month-day{position:relative;isolation:isolate;min-height:154px;padding:7px;border:1px solid #dce3dd;background:#fff}
+      .month-day-link{position:absolute;inset:0;z-index:1}
+      .month-day-link:hover{background:#e7eee9}
+      .month-day-link:focus-visible{outline:3px solid #3f6653;outline-offset:-3px}
+      .month-day-head{position:relative;z-index:2;display:grid;justify-items:end;gap:4px;pointer-events:none}
+      .month-holiday{display:flex;gap:4px;width:100%;padding:4px;border:1px solid #ead6cc;border-radius:6px;background:#f8eee8;color:#704f3f;font-size:.64rem;line-height:1.15}
+      .month-holiday i{flex:0 0 7px;width:7px;height:7px;margin-top:2px;border-radius:50%;background:#8b6f5f}
+      .month-events{position:relative;z-index:3;display:grid;gap:3px;margin-top:5px}
+      .month-event{min-width:0;padding:5px;border-left:3px solid #3f6653;border-radius:5px;background:#f7fbf8}
+      .month-event .event-time-start{font-size:.64rem;font-weight:800}
+      .month-event h4{margin:2px 0 0;font-size:.68rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      @media(max-width:700px){
+        .calendar-reference{padding:8px}
+        .month-weekdays span{padding:5px 1px;font-size:.56rem}
+        .month-day{min-height:124px;padding:3px 2px}
+        .month-day-head{min-height:44px}
+        .month-holiday{padding:3px 2px;font-size:.5rem;overflow-wrap:anywhere}
+        .month-holiday i{flex-basis:5px;width:5px;height:5px}
+        .month-events{gap:2px;margin-top:2px}
+        .month-event{padding:3px 2px;border-left-width:3px}
+        .month-event .event-time-start,.month-event h4{font-size:.52rem;line-height:1.05}
+      }
+    </style>
+    <section class="month-reference" aria-label="September 2026 Month view">
+      <h2>September 2026</h2>
+      <div class="month-weekdays" aria-hidden="true"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+      <div class="month-days">${monthReferenceDays.map(monthReferenceCell).join('')}</div>
+    </section>
+  `, '1080px'),
+};
