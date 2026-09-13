@@ -40,10 +40,10 @@ function withAuthenticatorSetupGuidance(html) {
   return String(html).replace(marker, `${guidance}${marker}`);
 }
 
-function withPasskeyReentry(html) {
+function withPasskeyReentry(html, { emergencyEnabled = false } = {}) {
   const marker = '<section data-shiloh-provider-independent-auth>';
   const fallbackMarker = '<section class="section" data-shiloh-whatsapp-handoff-guidance>';
-  const panel = `${signinPanel()}<script src="/calendar/staff/passkey-signin.js" defer></script>`;
+  const panel = `${signinPanel({ emergencyEnabled })}<script src="/calendar/staff/passkey-signin.js" defer></script>`;
   if (String(html || '').includes(marker)) return String(html).replace(marker, `${panel}${marker}`);
   if (String(html || '').includes(fallbackMarker)) return String(html).replace(fallbackMarker, `${panel}${fallbackMarker}`);
   return html;
@@ -92,14 +92,34 @@ function createStaffCalendarAccessPageHandler({ env = process.env, renderPage = 
     setAccessSecurityHeaders(res);
     if (!isStaffCalendarAccessUxEnabled(env)) return res.status(404).type('text/plain').send('Not Found');
     const basePath = req.baseUrl || '/calendar/staff';
-    const providerIndependentAuthEnabled = providerIndependentAuthPolicy(env).operational;
+    const emergencyEnabled = providerIndependentAuthPolicy(env).operational;
     const passkeyEnabled = passkeyPolicy(env).operational;
     const reason = normalizeReason(req.query?.reason);
-    let html = renderPage({ reason, clientScriptPath: `${basePath}/client.js`, providerIndependentAuthEnabled });
-    if (passkeyEnabled) html = withPasskeyReentry(html);
-    if (providerIndependentAuthEnabled) html = withFallbackDisclosure(html);
+    const inlineEmergencyFallback = emergencyEnabled && !passkeyEnabled;
+    let html = renderPage({ reason, clientScriptPath: `${basePath}/client.js`, providerIndependentAuthEnabled: inlineEmergencyFallback });
+    if (passkeyEnabled) html = withPasskeyReentry(html, { emergencyEnabled });
+    if (inlineEmergencyFallback) html = withFallbackDisclosure(html);
     html = retireBrowserWhatsAppGuidance(html);
     html = withAccessChangedGuidance(html, reason);
+    return res.status(200).type('html').send(html);
+  };
+}
+
+function createStaffCalendarEmergencyPageHandler({ env = process.env, renderPage = renderStaffCalendarAccessPage } = {}) {
+  return function staffCalendarEmergencyPage(req, res) {
+    setAccessSecurityHeaders(res);
+    if (!isStaffCalendarAccessUxEnabled(env) || !providerIndependentAuthPolicy(env).operational) {
+      return res.status(404).type('text/plain').send('Not Found');
+    }
+    let html = renderPage({
+      reason: normalizeReason(req.query?.reason),
+      clientScriptPath: '/calendar/staff/client.js',
+      providerIndependentAuthEnabled: true,
+    });
+    html = retireBrowserWhatsAppGuidance(html);
+    html = html.replace('<title>Shiloh Workspace sign-in</title>', '<title>Emergency sign-in · Shiloh</title>');
+    html = html.replace('<main class="card">', '<main class="card"><span class="eyebrow">Emergency access</span><h2>Emergency sign-in</h2><p class="lead">Use this only when device sign-in or WhatsApp setup is unavailable.</p>');
+    html = html.replace('</main>', '<p class="privacy-note"><a href="/calendar/staff">Back to device sign-in</a></p></main>');
     return res.status(200).type('html').send(html);
   };
 }
@@ -135,6 +155,7 @@ function createStaffCalendarHandoffClientHandler({ env = process.env, renderClie
 function createStaffCalendarAccessRouter(options = {}) {
   const router = express.Router();
   router.get('/', createStaffCalendarAccessPageHandler(options));
+  router.get('/emergency', createStaffCalendarEmergencyPageHandler(options));
   router.get('/client.js', createStaffCalendarAccessClientHandler(options));
   router.get('/passkey-signin.js', createStaffPasskeySigninClientHandler(options));
   router.get('/handoff', createStaffCalendarHandoffPageHandler(options));
@@ -144,6 +165,7 @@ function createStaffCalendarAccessRouter(options = {}) {
 module.exports = createStaffCalendarAccessRouter();
 module.exports.createStaffCalendarAccessRouter = createStaffCalendarAccessRouter;
 module.exports.createStaffCalendarAccessPageHandler = createStaffCalendarAccessPageHandler;
+module.exports.createStaffCalendarEmergencyPageHandler = createStaffCalendarEmergencyPageHandler;
 module.exports.createStaffCalendarAccessClientHandler = createStaffCalendarAccessClientHandler;
 module.exports.createStaffPasskeySigninClientHandler = createStaffPasskeySigninClientHandler;
 module.exports.createStaffCalendarHandoffPageHandler = createStaffCalendarHandoffPageHandler;

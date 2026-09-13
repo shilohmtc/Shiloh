@@ -7,6 +7,7 @@ on:
       - 'migrations/112_staff_passkey_auth_v1_production_schema_correction.sql'
       - 'migrations/113_staff_whatsapp_passkey_bootstrap_v1.sql'
       - 'migrations/117_workspace_device_recovery_v1.sql'
+      - 'migrations/118_workspace_self_passkey_bootstrap.sql'
       - 'src/services/staffPasskeyAuth.js'
       - 'src/services/staffWhatsAppPasskeyBootstrap.js'
       - 'src/services/workspaceReceptionDeviceSignin.js'
@@ -22,6 +23,7 @@ on:
       - 'tests/staff-passkey-auth-v1.test.js'
       - 'tests/staff-passkey-auth-v1-production-schema.test.js'
       - 'tests/staff-whatsapp-passkey-bootstrap-v1.test.js'
+      - 'tests/staff-calendar-access-ux.test.js'
       - 'tests/workspace-reception-device-signin.test.js'
       - 'tests/reception-passkey-stale-recovery.test.js'
       - 'tests/reception-laptop-lock.test.js'
@@ -44,8 +46,8 @@ jobs:
           node-version: 24.14.1
           cache: npm
       - run: npm ci
-      - name: Focused #794/#804/#808/#842 security tests
-        run: node --test tests/staff-passkey-auth-v1.test.js tests/staff-passkey-auth-v1-production-schema.test.js tests/staff-whatsapp-passkey-bootstrap-v1.test.js tests/workspace-reception-device-signin.test.js tests/reception-passkey-stale-recovery.test.js tests/reception-laptop-lock.test.js
+      - name: Focused #794/#804/#808/#842/#932 security tests
+        run: node --test tests/staff-passkey-auth-v1.test.js tests/staff-passkey-auth-v1-production-schema.test.js tests/staff-whatsapp-passkey-bootstrap-v1.test.js tests/staff-calendar-access-ux.test.js tests/workspace-reception-device-signin.test.js tests/reception-passkey-stale-recovery.test.js tests/reception-laptop-lock.test.js
       - name: Authenticated Desktop + Phone passkey proof
         run: node scripts/staff-passkey-auth-v1-browser-proof.js
       - uses: actions/upload-artifact@v7

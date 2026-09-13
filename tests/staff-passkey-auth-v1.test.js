@@ -169,3 +169,20 @@ test('#926 authenticated replacement enrolls first, preserves the current sessio
   assert.match(ux, /Existing device access was not changed/);
   assert.doesNotMatch(service, /DELETE FROM staff_auth_passkey_credentials|DELETE FROM staff_browser_sessions/i);
 });
+
+test('#932 signed-in device management exposes bounded cross-device setup without browser persistence', () => {
+  const route = fs.readFileSync(path.join(__dirname, '../src/routes/staffPasskeyAuth.js'), 'utf8');
+  const ux = fs.readFileSync(path.join(__dirname, '../src/presentation/staffPasskeyUx.js'), 'utf8');
+  const bootstrapUx = fs.readFileSync(path.join(__dirname, '../src/presentation/staffPasskeyBootstrapUx.js'), 'utf8');
+  assert.match(route, /post\('\/self-bootstrap'/);
+  assert.match(route, /issueSelfBootstrap\(\{/);
+  assert.match(route, /qrCode\.toDataURL/);
+  assert.match(route, /img-src data:/);
+  assert.match(ux, /Set up this device/);
+  assert.match(ux, /Set up another device/);
+  assert.match(ux, /data-passkey-other-qr/);
+  assert.match(ux, /private setup link/i);
+  assert.match(bootstrapUx, /forcedMode.*flow.*add/);
+  assert.match(bootstrapUx, /data-bootstrap-mode'\)===\s*'replace'\)modeButtons\[j\]\.hidden=true/);
+  assert.doesNotMatch(ux, /localStorage|sessionStorage|indexedDB/i);
+});

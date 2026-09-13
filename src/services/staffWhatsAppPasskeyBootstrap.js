@@ -12,6 +12,7 @@ const {
   CHALLENGE_TTL_MS,
   fromB64url,
   passkeyPolicy,
+  strongRecentSession,
   verifyRegistrationResponse,
 } = require('./staffPasskeyAuth');
 
@@ -21,6 +22,8 @@ const ISSUE_WINDOW_MS = 10 * 60 * 1000;
 const ISSUE_LIMIT = 3;
 const BOOTSTRAP_PURPOSE = 'bootstrap_registration';
 const REPLACEMENT_PURPOSE = 'bootstrap_replacement_registration';
+const WHATSAPP_SOURCE = 'whatsapp_self';
+const WORKSPACE_SOURCE = 'workspace_self';
 
 function registrationPurpose(mode) {
   return mode === 'replace' ? REPLACEMENT_PURPOSE : mode === 'add' ? BOOTSTRAP_PURPOSE : null;
@@ -71,10 +74,11 @@ function evaluateBootstrapPrincipal(rows = []) {
   };
 }
 
-function setupUrl(token, env = process.env) {
+function setupUrl(token, env = process.env, { flow = null } = {}) {
   const policy = bootstrapPolicy(env);
   if (!policy.operational || !/^[A-Za-z0-9_-]{43}$/.test(String(token || ''))) return null;
-  return `${policy.origin}/calendar/staff-auth/passkeys/bootstrap#setup=${encodeURIComponent(token)}`;
+  const suffix = flow === 'add' ? '&flow=add' : '';
+  return `${policy.origin}/calendar/staff-auth/passkeys/bootstrap#setup=${encodeURIComponent(token)}${suffix}`;
 }
 
 function parseRegistrationChallenge(response, expectedOrigin) {
@@ -147,6 +151,41 @@ function createStaffWhatsAppPasskeyBootstrapService({
     return evaluated.eligible ? evaluated.admin : null;
   }
 
+  async function issueForAdmin(client, admin, { current, source, requestFingerprintHash = null } = {}) {
+      await client.query(`SELECT pg_advisory_xact_lock(hashtextextended('staff-passkey-bootstrap:' || $1::text, 0))`, [admin.id]);
+      const since = new Date(current.getTime() - ISSUE_WINDOW_MS);
+      const issueCount = await client.query(
+        `SELECT COUNT(*)::int AS count FROM staff_auth_passkey_bootstraps WHERE admin_id = $1 AND issued_at >= $2`,
+        [admin.id, since]
+      );
+      if (Number(issueCount.rows[0]?.count || 0) >= ISSUE_LIMIT) {
+        await audit(client, 'passkey_bootstrap_rate_limited', admin.id, requestFingerprintHash, { source });
+        return { ok: true, handled: true, eligible: true, rateLimited: true, displayName: admin.display_name };
+      }
+      await client.query(
+        `UPDATE staff_auth_passkey_bootstraps SET revoked_at = $2
+          WHERE admin_id = $1 AND consumed_at IS NULL AND revoked_at IS NULL`,
+        [admin.id, current]
+      );
+      const token = randomBytes(32).toString('base64url');
+      const expiresAt = new Date(current.getTime() + BOOTSTRAP_TTL_MS);
+      await client.query(
+        `INSERT INTO staff_auth_passkey_bootstraps (admin_id, token_hash, issued_at, expires_at, source)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [admin.id, sha256(token), current, expiresAt, source]
+      );
+      await audit(client, 'passkey_bootstrap_issued', admin.id, requestFingerprintHash, { source });
+      return {
+        ok: true,
+        handled: true,
+        eligible: true,
+        displayName: admin.display_name,
+        expiresAt,
+        token,
+        url: setupUrl(token, env, { flow: source === WORKSPACE_SOURCE ? 'add' : null }),
+      };
+  }
+
   async function issueBootstrap({ whatsapp } = {}) {
     const currentPolicy = policy();
     if (!currentPolicy.operational) {
@@ -161,41 +200,32 @@ function createStaffWhatsAppPasskeyBootstrapService({
       const evaluated = evaluateBootstrapPrincipal(await identityRows(client, normalized, { forUpdate: true }));
       if (!evaluated.matched) { await client.query('ROLLBACK'); return { ok: true, handled: false }; }
       if (!evaluated.eligible) { await client.query('ROLLBACK'); return { ok: true, handled: true, eligible: false, code: evaluated.code }; }
-      const admin = evaluated.admin;
-      await client.query(`SELECT pg_advisory_xact_lock(hashtextextended('staff-passkey-bootstrap:' || $1::text, 0))`, [admin.id]);
-      const since = new Date(current.getTime() - ISSUE_WINDOW_MS);
-      const issueCount = await client.query(
-        `SELECT COUNT(*)::int AS count FROM staff_auth_passkey_bootstraps WHERE admin_id = $1 AND issued_at >= $2`,
-        [admin.id, since]
-      );
-      if (Number(issueCount.rows[0]?.count || 0) >= ISSUE_LIMIT) {
-        await audit(client, 'passkey_bootstrap_rate_limited', admin.id, null, { source: 'whatsapp_self' });
-        await client.query('COMMIT');
-        return { ok: true, handled: true, eligible: true, rateLimited: true, displayName: admin.display_name };
-      }
-      await client.query(
-        `UPDATE staff_auth_passkey_bootstraps SET revoked_at = $2
-          WHERE admin_id = $1 AND consumed_at IS NULL AND revoked_at IS NULL`,
-        [admin.id, current]
-      );
-      const token = randomBytes(32).toString('base64url');
-      const expiresAt = new Date(current.getTime() + BOOTSTRAP_TTL_MS);
-      await client.query(
-        `INSERT INTO staff_auth_passkey_bootstraps (admin_id, token_hash, issued_at, expires_at, source)
-         VALUES ($1, $2, $3, $4, 'whatsapp_self')`,
-        [admin.id, sha256(token), current, expiresAt]
-      );
-      await audit(client, 'passkey_bootstrap_issued', admin.id, null, { source: 'whatsapp_self' });
+      const result = await issueForAdmin(client, evaluated.admin, { current, source: WHATSAPP_SOURCE });
       await client.query('COMMIT');
-      return {
-        ok: true,
-        handled: true,
-        eligible: true,
-        displayName: admin.display_name,
-        expiresAt,
-        token,
-        url: setupUrl(token, env),
-      };
+      return result;
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+      throw error;
+    } finally {
+      if (client !== db && typeof client.release === 'function') client.release();
+    }
+  }
+
+  async function issueSelfBootstrap({ session, requestFingerprintHash = null } = {}) {
+    const currentPolicy = policy();
+    if (!currentPolicy.operational) {
+      return { ok: false, code: currentPolicy.enabled ? 'STAFF_PASSKEY_BOOTSTRAP_UNAVAILABLE' : 'STAFF_PASSKEY_BOOTSTRAP_DISABLED' };
+    }
+    const current = now();
+    if (!strongRecentSession(session, current)) return { ok: false, code: 'STAFF_RECENT_STRONG_AUTH_REQUIRED' };
+    const client = typeof db.connect === 'function' ? await db.connect() : db;
+    try {
+      await client.query('BEGIN');
+      const admin = await resolveAdmin(client, session.adminId, { forUpdate: true });
+      if (!admin) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' }; }
+      const result = await issueForAdmin(client, admin, { current, source: WORKSPACE_SOURCE, requestFingerprintHash });
+      await client.query('COMMIT');
+      return result;
     } catch (error) {
       try { await client.query('ROLLBACK'); } catch (_) {}
       throw error;
@@ -215,7 +245,7 @@ function createStaffWhatsAppPasskeyBootstrapService({
     try {
       await client.query('BEGIN');
       const bootstrapResult = await client.query(
-        `SELECT id, admin_id, expires_at, consumed_at, revoked_at
+        `SELECT id, admin_id, expires_at, consumed_at, revoked_at, source
            FROM staff_auth_passkey_bootstraps
           WHERE token_hash = $1
           LIMIT 1
@@ -227,9 +257,13 @@ function createStaffWhatsAppPasskeyBootstrapService({
         await client.query('ROLLBACK');
         return { ok: false, code: 'STAFF_PASSKEY_BOOTSTRAP_INVALID' };
       }
+      if (bootstrap.source === WORKSPACE_SOURCE && mode !== 'add') {
+        await client.query('ROLLBACK');
+        return { ok: false, code: 'STAFF_PASSKEY_BOOTSTRAP_INVALID' };
+      }
       if (new Date(bootstrap.expires_at).getTime() <= current.getTime()) {
         await client.query(`UPDATE staff_auth_passkey_bootstraps SET revoked_at = $2 WHERE id = $1`, [bootstrap.id, current]);
-        await audit(client, 'passkey_bootstrap_expired', bootstrap.admin_id, requestFingerprintHash, { source: 'whatsapp_self' });
+        await audit(client, 'passkey_bootstrap_expired', bootstrap.admin_id, requestFingerprintHash, { source: bootstrap.source });
         await client.query('COMMIT');
         return { ok: false, code: 'STAFF_PASSKEY_BOOTSTRAP_INVALID' };
       }
@@ -261,7 +295,7 @@ function createStaffWhatsAppPasskeyBootstrapService({
         [sha256(challenge), purpose, admin.id, requestFingerprintHash, expiresAt]
       );
       await audit(client, 'passkey_bootstrap_consumed', admin.id, requestFingerprintHash, {
-        source: 'whatsapp_self',
+        source: bootstrap.source,
         mode,
       });
       await client.query('COMMIT');
@@ -393,7 +427,7 @@ function createStaffWhatsAppPasskeyBootstrapService({
         recoveryRequired: false,
       });
       await audit(client, 'passkey_bootstrap_completed', admin.id, requestFingerprintHash, {
-        source: 'whatsapp_self',
+        source: 'bootstrap_link',
         mode: replacement ? 'replace' : 'add',
         credentialReference: `passkey:${inserted.rows[0].id}`,
         backedUp: verified.backedUp,
@@ -421,6 +455,7 @@ function createStaffWhatsAppPasskeyBootstrapService({
     policy,
     resolveIdentity,
     issueBootstrap,
+    issueSelfBootstrap,
     startRegistration,
     finishRegistration,
   };
@@ -435,6 +470,8 @@ module.exports = {
   ISSUE_LIMIT,
   BOOTSTRAP_PURPOSE,
   REPLACEMENT_PURPOSE,
+  WHATSAPP_SOURCE,
+  WORKSPACE_SOURCE,
   registrationPurpose,
   bootstrapPolicy,
   cleanDisplayName,
