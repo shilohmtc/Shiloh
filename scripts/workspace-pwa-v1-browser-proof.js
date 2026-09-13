@@ -181,7 +181,7 @@ async function main() {
     const phoneDom = await chromeRun(chrome, [`--user-data-dir=${phoneProfile}`, androidUa, '--window-size=390,844', '--virtual-time-budget=1600', '--dump-dom', `${origin}/proof-auth`]);
     assert.match(phoneDom, /data-authenticated-workspace/);
     assert.match(phoneDom, /data-root-overflow="false"/);
-    assert.match(phoneDom, /manifest\.webmanifest\?v=952-v1/);
+    assert.match(phoneDom, /manifest\.webmanifest\?v=956-v1/);
     assert.match(phoneDom, /data-sw-ready="true"/);
     assert.doesNotMatch(phoneDom, /In Chrome, tap the .*Add to Home screen/);
     assert.match(phoneDom, /data-workspace-drawer-toggle/);
