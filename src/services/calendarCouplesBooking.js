@@ -1,0 +1,337 @@
+const { pool } = require('../db/pool');
+const crmV2 = require('./crmV2ClientService');
+const { createCalendarCreateBookingService, localDateTimeFromInputs } = require('./calendarCreateBooking');
+const { checkAuthoritativeSchedule, getConflicts } = require('./adminAvailability');
+const { checkClinicHours, getDefaultActiveLocation } = require('./clinicHours');
+const {
+  queueCustomerBookingConfirmation,
+  sendCustomerBookingConfirmationForAppointment,
+} = require('./customerBookingConfirmation');
+const { normalizeAppointmentNotes } = require('./appointmentNotes');
+
+const COUPLES_EXTERNAL_SOURCE = 'shiloh_special';
+const COUPLES_EXTERNAL_ID = 'couples-massage-v1';
+
+function couplesError(code, message, httpStatus = 400) {
+  const error = new Error(message);
+  error.code = code;
+  error.httpStatus = httpStatus;
+  return error;
+}
+
+function positiveId(value) {
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number > 0 ? number : null;
+}
+
+function normalizeGuest(value = {}) {
+  const rawClientId = String(value.clientId || '').trim();
+  const clientId = positiveId(value.clientId);
+  if (rawClientId && !clientId) throw couplesError('COUPLES_INVALID_CLIENT', 'Select a valid client profile or clear the client selection.');
+  const name = crmV2.normalizeName(value.name);
+  const mobile = crmV2.normalizeMobile(value.mobile);
+  const dateOfBirth = crmV2.normalizeDateOfBirth(value.dateOfBirth, { required: true });
+  const gender = crmV2.normalizeGender(value.gender, { required: true });
+  if (!name) throw couplesError('COUPLES_INVALID_NAME', 'Enter the guest’s first name and surname.');
+  if (!mobile) throw couplesError('COUPLES_INVALID_MOBILE', 'Enter a valid South African mobile number for each guest.');
+  return { clientId, name, mobile, dateOfBirth, gender };
+}
+
+function ensureDistinctGuests(guests) {
+  if (guests.length !== 2) throw couplesError('COUPLES_TWO_GUESTS_REQUIRED', 'Add exactly two guests.');
+  if (guests[0].mobile === guests[1].mobile) {
+    throw couplesError('COUPLES_DUPLICATE_MOBILE', 'Guest 1 and Guest 2 need different mobile numbers.');
+  }
+  if (guests[0].clientId && guests[0].clientId === guests[1].clientId) {
+    throw couplesError('COUPLES_DUPLICATE_CLIENT', 'Choose two different client profiles.');
+  }
+}
+
+function durationMinutes(service) {
+  return Number(service.duration_minutes || 0)
+    + Number(service.processing_time_minutes || 0)
+    + Number(service.extra_time_minutes || 0);
+}
+
+function displayPrice(value) {
+  return value == null ? 'Not set' : `R${Number(value).toFixed(2)}`;
+}
+
+async function resolveWindow(db, localDateTime, minutes) {
+  const result = await db.query(
+    `SELECT ($1::timestamp AT TIME ZONE 'Africa/Johannesburg') AS starts_at,
+            (($1::timestamp + ($2::text || ' minutes')::interval) AT TIME ZONE 'Africa/Johannesburg') AS ends_at`,
+    [localDateTime, minutes]
+  );
+  return result.rows[0];
+}
+
+async function assertPairAvailable({ db, staffIds, locationId, startsAt, endsAt }) {
+  const clinic = await checkClinicHours({ db, locationId, startsAt, endsAt });
+  if (!clinic.covered) {
+    throw couplesError('COUPLES_OUTSIDE_CLINIC_HOURS', 'The full couples session does not fit within the clinic’s opening hours.', 409);
+  }
+  for (const staffId of staffIds) {
+    const schedule = await checkAuthoritativeSchedule({ db, staffId, locationId, startsAt, endsAt });
+    if (schedule.partialUnavailable || (schedule.allDayUnavailable && !schedule.insideAvailableException) || !schedule.covered) {
+      throw couplesError('COUPLES_PRACTITIONER_UNAVAILABLE', 'One of the selected practitioners is not working for the full session. Choose another pair or time.', 409);
+    }
+    const conflicts = await getConflicts({ db, staffId, startsAt, endsAt });
+    if (conflicts.length) {
+      throw couplesError('COUPLES_CONFLICT', 'One of the selected practitioners already has an appointment or blocked time then. Choose another pair or time.', 409);
+    }
+  }
+}
+
+function createCalendarCouplesBookingService({
+  db = pool,
+  standardBooking = createCalendarCreateBookingService({ db }),
+} = {}) {
+  async function resolveOperator(adminId) {
+    return standardBooking.resolveOperator(adminId);
+  }
+
+  async function listOptions(adminId) {
+    const standard = await standardBooking.listBookableOptions(adminId);
+    const service = standard.services.find(item => item.externalSource === COUPLES_EXTERNAL_SOURCE && item.externalId === COUPLES_EXTERNAL_ID);
+    if (!service || service.staffIds.length < 2) {
+      throw couplesError('COUPLES_NOT_CONFIGURED', 'Couples Massage needs at least two eligible practitioners before it can be booked.', 409);
+    }
+    if (Number(service.durationMinutes) <= 0 || service.variablePrice === true || service.price == null) {
+      throw couplesError('COUPLES_NOT_CONFIGURED', 'Couples Massage needs one fixed duration and price before it can be booked.', 409);
+    }
+    const eligible = new Set(service.staffIds.map(Number));
+    return {
+      service,
+      staff: standard.staff.filter(person => eligible.has(Number(person.id))),
+      authority: standard.authority,
+    };
+  }
+
+  async function searchClients(adminId, query) {
+    const result = await standardBooking.searchClients(adminId, query);
+    const clients = await Promise.all((result.clients || []).map(async summary => {
+      const client = await crmV2.getClientById(summary.id);
+      return {
+        ...summary,
+        name: client.name,
+        mobile: client.normalizedMobile ? `+${client.normalizedMobile}` : '',
+        dateOfBirth: client.dateOfBirth,
+        gender: client.gender,
+      };
+    }));
+    return { ...result, clients };
+  }
+
+  async function prepare({ adminId, guests: rawGuests, staffIds: rawStaffIds, date, time, notes } = {}) {
+    await resolveOperator(adminId);
+    const options = await listOptions(adminId);
+    const guests = (Array.isArray(rawGuests) ? rawGuests : []).map(normalizeGuest);
+    ensureDistinctGuests(guests);
+    const staffIds = [...new Set((Array.isArray(rawStaffIds) ? rawStaffIds : []).map(positiveId).filter(Boolean))];
+    if (staffIds.length !== 2) throw couplesError('COUPLES_TWO_PRACTITIONERS_REQUIRED', 'Choose two different practitioners.');
+    const eligible = new Set(options.staff.map(person => Number(person.id)));
+    if (!staffIds.every(id => eligible.has(id))) throw couplesError('COUPLES_INELIGIBLE_PAIR', 'Choose two practitioners currently eligible for Couples Massage.', 409);
+    const localDateTime = localDateTimeFromInputs(date, time);
+    const location = await getDefaultActiveLocation(db);
+    if (!location?.id) throw couplesError('COUPLES_LOCATION_UNRESOLVED', 'The clinic location could not be confirmed.', 409);
+    const minutes = Number(options.service.durationMinutes);
+    const window = await resolveWindow(db, localDateTime, minutes);
+    if (new Date(window.starts_at).getTime() <= Date.now()) throw couplesError('COUPLES_PAST_TIME', 'Choose a future start time.');
+    await assertPairAvailable({ db, staffIds, locationId: location.id, startsAt: window.starts_at, endsAt: window.ends_at });
+    const payload = {
+      guests,
+      staffIds,
+      serviceId: Number(options.service.id),
+      locationId: Number(location.id),
+      startsAt: new Date(window.starts_at).toISOString(),
+      endsAt: new Date(window.ends_at).toISOString(),
+      notes: normalizeAppointmentNotes(notes),
+      durationMinutes: minutes,
+      totalPrice: Number(options.service.price),
+    };
+    await db.query(
+      `INSERT INTO admin_couples_booking_sessions(admin_id,payload,state)
+       VALUES($1,$2::jsonb,'confirm')
+       ON CONFLICT(admin_id) DO UPDATE SET payload=EXCLUDED.payload,state='confirm',updated_at=NOW()`,
+      [Number(adminId), JSON.stringify(payload)]
+    );
+    return {
+      status: 'pending_confirmation',
+      review: {
+        guests: guests.map(guest => ({ ...guest, clientId: guest.clientId ? String(guest.clientId) : null })),
+        practitioners: staffIds.map(id => options.staff.find(person => Number(person.id) === id)),
+        service: options.service,
+        startsAt: payload.startsAt,
+        endsAt: payload.endsAt,
+        price: displayPrice(options.service.price),
+      },
+    };
+  }
+
+  async function discard({ adminId } = {}) {
+    await resolveOperator(adminId);
+    const result = await db.query(`DELETE FROM admin_couples_booking_sessions WHERE admin_id=$1`, [Number(adminId)]);
+    return { status: result.rowCount ? 'discarded' : 'no_pending' };
+  }
+
+  async function confirm({ adminId } = {}) {
+    const admin = await resolveOperator(adminId);
+    const currentOptions = await listOptions(adminId);
+    const client = await db.connect();
+    const appointmentIds = [];
+    const obligations = [];
+    try {
+      await client.query('BEGIN');
+      const draftResult = await client.query(
+        `SELECT payload FROM admin_couples_booking_sessions WHERE admin_id=$1 AND state='confirm' FOR UPDATE`,
+        [Number(adminId)]
+      );
+      const payload = draftResult.rows[0]?.payload;
+      if (!payload) throw couplesError('COUPLES_NO_PENDING', 'There is no Couples Massage review waiting to be confirmed.', 409);
+      const guests = payload.guests.map(normalizeGuest);
+      ensureDistinctGuests(guests);
+      const staffIds = [...new Set(payload.staffIds.map(positiveId).filter(Boolean))].sort((a, b) => a - b);
+      if (staffIds.length !== 2) throw couplesError('COUPLES_TWO_PRACTITIONERS_REQUIRED', 'Choose two different practitioners.');
+      const currentlyAuthorizedStaff = new Set(currentOptions.staff.map(person => Number(person.id)));
+      if (Number(currentOptions.service.id) !== Number(payload.serviceId) || !staffIds.every(id => currentlyAuthorizedStaff.has(id))) {
+        throw couplesError('COUPLES_AUTHORITY_CHANGED', 'Your current booking access no longer permits this practitioner pair. Nothing was created.', 403);
+      }
+      for (const staffId of staffIds) await client.query(`SELECT pg_advisory_xact_lock($1::bigint)`, [staffId]);
+      for (const mobile of guests.map(guest => guest.mobile).sort()) {
+        await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`crm-v2-mobile:${mobile}`]);
+      }
+
+      const selection = await client.query(
+        `SELECT sv.id AS service_id,sv.name AS service_name,sv.status AS service_status,
+                sv.duration_minutes,sv.processing_time_minutes,sv.extra_time_minutes,sv.price,sv.variable_price,
+                st.id AS staff_id,st.display_name AS staff_name,st.status AS staff_status
+           FROM services sv
+           JOIN staff_services ss ON ss.service_id=sv.id
+           JOIN staff st ON st.id=ss.staff_id
+          WHERE sv.id=$1 AND sv.external_source=$2 AND sv.external_id=$3
+            AND st.id=ANY($4::bigint[])
+          ORDER BY st.id
+          FOR SHARE OF sv,st`,
+        [payload.serviceId, COUPLES_EXTERNAL_SOURCE, COUPLES_EXTERNAL_ID, staffIds]
+      );
+      if (selection.rowCount !== 2 || selection.rows.some(row => row.service_status !== 'active' || row.staff_status !== 'active')) {
+        throw couplesError('COUPLES_ELIGIBILITY_CHANGED', 'Couples Massage eligibility changed. Nothing was created; review the booking again.', 409);
+      }
+      const service = selection.rows[0];
+      if (
+        durationMinutes(service) <= 0
+        || service.variable_price
+        || service.price == null
+        || durationMinutes(service) !== Number(payload.durationMinutes)
+        || Number(service.price) !== Number(payload.totalPrice)
+      ) {
+        throw couplesError('COUPLES_SERVICE_CHANGED', 'The Couples Massage duration or price is no longer bookable.', 409);
+      }
+      const location = await client.query(`SELECT id FROM locations WHERE id=$1 AND status='active' FOR SHARE`, [payload.locationId]);
+      if (location.rowCount !== 1) throw couplesError('COUPLES_LOCATION_CHANGED', 'The clinic location is no longer active. Nothing was created.', 409);
+      if (new Date(payload.startsAt).getTime() <= Date.now()) throw couplesError('COUPLES_PAST_TIME', 'The reviewed start time has passed. Nothing was created.', 409);
+      await assertPairAvailable({ db: client, staffIds, locationId: payload.locationId, startsAt: payload.startsAt, endsAt: payload.endsAt });
+
+      const resolvedClients = [];
+      for (const guest of guests) {
+        const exact = await client.query(
+          `SELECT * FROM crm_v2_clients WHERE normalized_mobile=$1 AND status='active' ORDER BY id FOR UPDATE`,
+          [guest.mobile]
+        );
+        let row;
+        if (guest.clientId) {
+          row = exact.rows.find(item => Number(item.id) === guest.clientId);
+          if (!row || exact.rowCount !== 1) throw couplesError('COUPLES_CLIENT_CHANGED', 'A selected client or mobile changed. Nothing was created; select the client again.', 409);
+          const updated = await client.query(
+            `UPDATE crm_v2_clients SET name=$2,date_of_birth=$3::date,gender=$4,profile_status='registered',updated_at=NOW(),
+                    provenance=provenance || $5::jsonb WHERE id=$1 RETURNING *`,
+            [row.id, guest.name, guest.dateOfBirth, guest.gender, JSON.stringify({ lastCouplesBookingProfileReview: { actorAdminId: Number(admin.id) } })]
+          );
+          row = updated.rows[0];
+        } else {
+          if (exact.rowCount) throw couplesError('COUPLES_EXISTING_CLIENT', 'That mobile already belongs to a client. Nothing was created; find and select that client instead.', 409);
+          const inserted = await client.query(
+            `INSERT INTO crm_v2_clients(name,normalized_mobile,date_of_birth,gender,profile_status,mobile_verified_at,source,status,provenance)
+             VALUES($1,$2,$3::date,$4,'registered',NULL,'staff','active',$5::jsonb) RETURNING *`,
+            [guest.name, guest.mobile, guest.dateOfBirth, guest.gender, JSON.stringify({ createdVia: 'calendar_couples_booking', actorAdminId: Number(admin.id) })]
+          );
+          row = inserted.rows[0];
+        }
+        resolvedClients.push(row);
+      }
+      if (Number(resolvedClients[0].id) === Number(resolvedClients[1].id)) throw couplesError('COUPLES_DUPLICATE_CLIENT', 'Choose two different client profiles.');
+
+      const totalPrice = Number(service.price);
+      const firstPrice = Math.floor(totalPrice * 50) / 100;
+      const allocatedPrices = [firstPrice, Number((totalPrice - firstPrice).toFixed(2))];
+      const groupResult = await client.query(
+        `INSERT INTO appointment_groups(group_type,service_id,location_id,starts_at,ends_at,status,total_price,currency,source,created_by_admin_id)
+         VALUES('couples_massage',$1,$2,$3,$4,'scheduled',$5,'ZAR','shiloh_calendar_couples',$6) RETURNING id`,
+        [service.service_id, payload.locationId, payload.startsAt, payload.endsAt, totalPrice, Number(admin.id)]
+      );
+      const groupId = groupResult.rows[0].id;
+      for (let index = 0; index < 2; index += 1) {
+        const person = resolvedClients[index];
+        const practitioner = selection.rows.find(row => Number(row.staff_id) === Number(payload.staffIds[index]));
+        const appointmentResult = await client.query(
+          `INSERT INTO appointments(client_id,crm_v2_client_id,source_client_name,location_id,starts_at,ends_at,status,title,notes,total_price,currency,source)
+           VALUES(NULL,$1,$2,$3,$4,$5,'scheduled',$6,$7,$8,'ZAR','shiloh_calendar_couples') RETURNING id`,
+          [person.id, person.name, payload.locationId, payload.startsAt, payload.endsAt, service.service_name, payload.notes || null, allocatedPrices[index]]
+        );
+        const appointmentId = appointmentResult.rows[0].id;
+        appointmentIds.push(Number(appointmentId));
+        await client.query(
+          `INSERT INTO appointment_services(appointment_id,service_id,position,service_name_snapshot,price_snapshot,duration_minutes_snapshot)
+           VALUES($1,$2,1,$3,$4,$5)`,
+          [appointmentId, service.service_id, service.service_name, allocatedPrices[index], durationMinutes(service)]
+        );
+        await client.query(
+          `INSERT INTO appointment_staff(appointment_id,staff_id,position,staff_name_snapshot) VALUES($1,$2,1,$3)`,
+          [appointmentId, practitioner.staff_id, practitioner.staff_name]
+        );
+        await client.query(
+          `INSERT INTO appointment_group_members(group_id,appointment_id,guest_position,allocated_price) VALUES($1,$2,$3,$4)`,
+          [groupId, appointmentId, index + 1, allocatedPrices[index]]
+        );
+        await client.query(
+          `INSERT INTO appointment_status_history(appointment_id,from_status,to_status,changed_by,reason)
+           VALUES($1,NULL,'scheduled',$2,'Atomic Couples Massage booking creation')`,
+          [appointmentId, `admin:${admin.id}:${admin.display_name}`]
+        );
+        obligations.push(await queueCustomerBookingConfirmation(appointmentId, { db: client }));
+        if (!obligations[index]?.queued && obligations[index]?.status !== 'sent') {
+          throw couplesError('COUPLES_CONFIRMATION_QUEUE_FAILED', 'Client confirmations could not be secured, so nothing was created.', 503);
+        }
+      }
+      await client.query(
+        `INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata)
+         VALUES($1,'admin.couples_booking_created','appointment_group',$2,$3::jsonb)`,
+        [Number(admin.id), groupId, JSON.stringify({ appointmentIds, staffIds, clientIds: resolvedClients.map(row => Number(row.id)), atomic: true })]
+      );
+      await client.query(`DELETE FROM admin_couples_booking_sessions WHERE admin_id=$1`, [Number(admin.id)]);
+      await client.query('COMMIT');
+      const confirmations = await Promise.all(appointmentIds.map(async appointmentId => {
+        try { return await sendCustomerBookingConfirmationForAppointment(appointmentId); }
+        catch (_error) { return { sent: false, deliveryStatus: 'retry_pending', retryable: true }; }
+      }));
+      return { status: 'created', groupId: Number(groupId), appointmentIds, confirmations, obligations };
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  return { resolveOperator, listOptions, searchClients, prepare, discard, confirm };
+}
+
+module.exports = {
+  COUPLES_EXTERNAL_SOURCE,
+  COUPLES_EXTERNAL_ID,
+  createCalendarCouplesBookingService,
+  normalizeGuest,
+  ensureDistinctGuests,
+  couplesError,
+};

@@ -1,0 +1,93 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const {
+  createCalendarCouplesBookingService,
+  normalizeGuest,
+  ensureDistinctGuests,
+} = require('../src/services/calendarCouplesBooking');
+const {
+  renderCalendarCouplesBookingPage,
+  calendarCouplesBookingClientScript,
+} = require('../src/presentation/calendarCouplesBookingUx');
+
+const root = path.resolve(__dirname, '..');
+
+test('#971 validates two complete, distinct CRM V2 guest identities', () => {
+  const guests = [
+    normalizeGuest({ clientId: 10, name: 'Alex Adams', mobile: '082 123 4567', dateOfBirth: '1990-01-02', gender: 'female' }),
+    normalizeGuest({ name: 'Sam Adams', mobile: '082 987 6543', dateOfBirth: '1991-03-04', gender: 'prefer not to say' }),
+  ];
+  assert.equal(guests[0].mobile, '27821234567');
+  assert.equal(guests[1].gender, 'prefer_not_to_say');
+  assert.doesNotThrow(() => ensureDistinctGuests(guests));
+  assert.throws(
+    () => ensureDistinctGuests([guests[0], { ...guests[1], mobile: guests[0].mobile }]),
+    error => error.code === 'COUPLES_DUPLICATE_MOBILE'
+  );
+});
+
+test('#971 derives the Couples Massage team from authorized service mappings', async () => {
+  const standardBooking = {
+    resolveOperator: async id => ({ id }),
+    listBookableOptions: async () => ({
+      authority: { bookingFlow: 'practitioner_first' },
+      staff: [
+        { id: 11, displayName: 'Abigail' },
+        { id: 12, displayName: 'Christel' },
+        { id: 13, displayName: 'Marietjie' },
+      ],
+      services: [{
+        id: 90,
+        name: 'Couples Massage',
+        externalSource: 'shiloh_special',
+        externalId: 'couples-massage-v1',
+        durationMinutes: 90,
+        price: 1080,
+        staffIds: [11, 12],
+      }],
+    }),
+  };
+  const service = createCalendarCouplesBookingService({ db: { query() {} }, standardBooking });
+  const options = await service.listOptions(7);
+  assert.deepEqual(options.staff.map(person => person.displayName), ['Abigail', 'Christel']);
+  assert.equal(options.service.durationMinutes, 90);
+  assert.equal(options.service.price, 1080);
+});
+
+test('#971 production Storybook surface exposes complete phone-friendly paired booking fields', () => {
+  const html = renderCalendarCouplesBookingPage({
+    options: {
+      service: { id: 90, name: 'Couples Massage', durationMinutes: 90, price: 1080 },
+      staff: [{ id: 11, displayName: 'Abigail' }, { id: 12, displayName: 'Christel' }],
+    },
+    prefill: { date: '2026-09-14', time: '10:30' },
+  });
+  assert.match(html, /data-guest="1"/);
+  assert.match(html, /data-guest="2"/);
+  assert.equal((html.match(/type="date"/g) || []).length, 3);
+  assert.equal((html.match(/data-gender=/g) || []).length, 2);
+  assert.match(html, /New profiles are saved only when the whole booking succeeds/);
+  assert.match(html, /@media\(max-width:700px\)/);
+  assert.match(calendarCouplesBookingClientScript(), /Guest 1 and Guest 2 need different mobile numbers/);
+});
+
+test('#971 schema and Calendar projection retain one group with two appointment children', () => {
+  const migration = fs.readFileSync(path.join(root, 'migrations/120_couples_booking_groups.sql'), 'utf8');
+  const service = fs.readFileSync(path.join(root, 'src/services/calendarCouplesBooking.js'), 'utf8');
+  const scheduling = fs.readFileSync(path.join(root, 'src/services/schedulingEngine.js'), 'utf8');
+  const calendar = fs.readFileSync(path.join(root, 'src/presentation/calendarReadOnlyUx.js'), 'utf8');
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS appointment_groups/);
+  assert.match(migration, /PRIMARY KEY \(group_id, guest_position\)/);
+  assert.match(migration, /UNIQUE \(appointment_id\)/);
+  assert.match(migration, /admin_couples_booking_sessions/);
+  assert.match(scheduling, /appointment_group_members/);
+  assert.match(calendar, /event-couples/);
+  assert.match(calendar, /appointmentGroupType === 'couples_massage'/);
+  assert.ok(service.indexOf("client.query('BEGIN')") < service.indexOf('INSERT INTO crm_v2_clients'));
+  assert.ok(service.indexOf('INSERT INTO crm_v2_clients') < service.indexOf('INSERT INTO appointment_groups'));
+  assert.ok(service.indexOf('obligations.push(await queueCustomerBookingConfirmation') < service.lastIndexOf("client.query('COMMIT')"));
+  assert.match(service, /client\.query\('ROLLBACK'\)/);
+});

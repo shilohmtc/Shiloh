@@ -154,7 +154,7 @@ const practitionerNames = new Map([[1, 'Abigail'], [2, 'Christel']]);
 
 const languageCard = (item) => {
   const statusLabel = calendarEventStatusLabel(item);
-  const kindLabel = statusLabel
+  const kindLabel = item.appointmentGroupType === 'couples_massage' ? 'Couples' : statusLabel
     || (item.kind === 'calendar_block' ? 'Block time' : item.kind.includes('leave') ? 'Leave' : 'Appointment');
   const title = item.kind === 'appointment' ? item.clientName : item.title || item.reason || kindLabel;
   const serviceIcons = (item.serviceContexts || []).map((context) => renderServiceFamilyIcon(context)).join('');
@@ -163,7 +163,7 @@ const languageCard = (item) => {
     : '';
   const people = (item.staffIds || []).map((id) => practitionerNames.get(id)).filter(Boolean).join(' + ');
   const time = item.allDay ? 'All day' : `${item.startsAt.slice(11, 16)}–${item.endsAt.slice(11, 16)}`;
-  return `<article class="event-card" data-kind="${item.kind}"${calendarEventVisualAttributes(item)}>
+  return `<article class="event-card${item.appointmentGroupType === 'couples_massage' ? ' event-couples' : ''}" data-kind="${item.kind}"${calendarEventVisualAttributes(item)}>
     <div class="event-card-top"><span class="event-time">${time}</span><span class="kind-pill">${kindLabel}</span></div>
     <h4>${title}</h4>
     <p class="event-meta">${service}${service && people ? '<span class="event-detail-separator" aria-hidden="true">•</span>' : ''}${people ? `<span class="event-practitioners"><span class="status-dot" aria-hidden="true"></span>${people}</span>` : ''}</p>
@@ -190,6 +190,23 @@ export const ColourAndTreatmentLanguage = {
 export const ColourAndTreatmentLanguagePhone = {
   render: () => colourAndTreatmentLanguage('390px'),
   parameters: { viewport: { defaultViewport: 'mobile1' } },
+};
+
+const couplesCalendarItems = [
+  {
+    id: 9198, kind: 'appointment', status: 'scheduled', clientName: 'Alex', serviceName: 'Couples Massage',
+    serviceContexts: [{ categoryName: 'Massage' }], appointmentGroupType: 'couples_massage',
+    startsAt: '2026-09-12T07:00:00.000Z', endsAt: '2026-09-12T08:30:00.000Z', staffIds: [1],
+  },
+  {
+    id: 9199, kind: 'appointment', status: 'scheduled', clientName: 'Sam', serviceName: 'Couples Massage',
+    serviceContexts: [{ categoryName: 'Massage' }], appointmentGroupType: 'couples_massage',
+    startsAt: '2026-09-12T07:00:00.000Z', endsAt: '2026-09-12T08:30:00.000Z', staffIds: [2],
+  },
+];
+
+export const CouplesLinkedCalendar = {
+  render: () => frame(`<section class="calendar-language" aria-label="Linked Couples Massage Calendar cards"><div class="calendar-language__intro"><span class="calendar-reference__label">One linked booking</span><h2>Two clearly matched appointment lanes</h2><p>Each guest keeps their own profile and practitioner while the matching Couples label and colour preserve the relationship.</p></div><div class="calendar-language__grid">${couplesCalendarItems.map((item, index) => `<div class="calendar-language__sample"><span>Guest ${index + 1} · ${practitionerNames.get(item.staffIds[0])}</span>${languageCard(item)}</div>`).join('')}</div></section>`, '720px'),
 };
 
 

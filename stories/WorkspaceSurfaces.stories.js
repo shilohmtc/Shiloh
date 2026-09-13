@@ -3,6 +3,7 @@ import clientPresentation from '../src/presentation/workspaceCommunicationEviden
 import messagesPresentation from '../src/presentation/workspaceMessagesUx.js';
 import editorPresentation from '../src/presentation/calendarAppointmentCompactEditorUx.js';
 import createBookingPresentation from '../src/presentation/calendarCreateBookingUx.js';
+import couplesBookingPresentation from '../src/presentation/calendarCouplesBookingUx.js';
 import passkeyPresentation from '../src/presentation/staffPasskeyUx.js';
 import pwaPresentation from '../src/presentation/workspacePwa.js';
 
@@ -15,6 +16,7 @@ const {
   managePage: renderPasskeyManagePage,
   manageScript: passkeyManageScript,
 } = passkeyPresentation;
+const { renderCalendarCouplesBookingPage, calendarCouplesBookingClientScript } = couplesBookingPresentation;
 const {
   workspacePwaIconSvg,
   workspaceIosInstallGuideStyles,
@@ -266,6 +268,18 @@ export const NormalAdminPractitionerFirstBooking = {
       prefill: { date: '2026-09-14', time: '10:30' },
     });
     return interactiveProductionSurface(page, calendarCreateBookingClientScript());
+  },
+};
+export const CouplesMassageBooking = {
+  render: () => {
+    const page = renderCalendarCouplesBookingPage({
+      options: {
+        service: { id: 90, name: 'Couples Massage', durationMinutes: 90, price: 1080, staffIds: [11, 12] },
+        staff: staff.slice(0, 2),
+      },
+      prefill: { date: '2026-09-14', time: '10:30' },
+    });
+    return interactiveProductionSurface(page, calendarCouplesBookingClientScript());
   },
 };
 export const PhonePasskeyDevices = {
