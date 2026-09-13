@@ -321,6 +321,7 @@ async function main() {
     await evaluate(cdp, `document.querySelector('[data-create-booking]').click();true`);
     await poll(() => state.confirmations.length, (value) => value > beforeConfirm);
     await poll(() => evaluate(cdp, 'location.pathname'), (value) => value === '/calendar/read-only');
+    assert.equal(await evaluate(cdp, 'location.search'), `?view=week&date=${DATE}&staff=all`);
     assert.deepEqual(state.confirmations.at(-1), { adminId: 71, notes: '' });
     assert.equal(state.canonicalReloads, 1);
 
