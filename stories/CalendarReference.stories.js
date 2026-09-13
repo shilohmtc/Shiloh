@@ -285,15 +285,20 @@ export const DesktopCompleteNewMenu = {
       .desktop-menu-popover{position:relative;display:grid;gap:3px;width:min(290px,100%);margin-top:6px;padding:7px;border:1px solid #dce3dd;border-radius:11px;background:#fff;box-shadow:0 15px 32px rgba(20,45,35,.18)}
       .desktop-menu-popover a,.desktop-menu-popover button{display:flex;align-items:center;width:100%;min-height:44px;padding:9px 11px;border:0;border-radius:8px;background:transparent;color:#20322b;font:inherit;font-size:.8rem;font-weight:750;text-align:left;text-decoration:none}
       .desktop-menu-popover a:hover,.desktop-menu-popover button:hover{background:#e7eee9}
+      .desktop-menu-popover a[data-calendar-booking-kind="couples"]{background:#fbf5f8;color:#633f55}
+      .desktop-menu-popover a[data-calendar-booking-kind="couples"] small{margin-left:auto;padding:2px 6px;border-radius:999px;background:#ead9e1;font-size:.62rem;font-weight:850}
+      .desktop-menu-divider{height:1px;margin:4px 5px;background:#dce3dd}
     </style>
     <section class="desktop-menu-reference" aria-labelledby="desktop-menu-title">
-      <div><span class="calendar-reference__label">Desktop Calendar</span><h2 id="desktop-menu-title">Complete New menu</h2><p>Booking and authorized availability actions are ready together on first open.</p></div>
+      <div><span class="calendar-reference__label">Desktop Calendar</span><h2 id="desktop-menu-title">Complete Book menu</h2><p>Single and couples bookings are grouped above authorized availability actions.</p></div>
       <div class="desktop-menu-toolbar">
-        <details class="desktop-menu" open>
-          <summary aria-label="New calendar item"><span aria-hidden="true">＋</span><span>New</span></summary>
+        <details class="desktop-menu">
+          <summary aria-label="Book or add calendar item"><span aria-hidden="true">＋</span><span>Book</span></summary>
           <div class="desktop-menu-popover" data-storybook-desktop-new-menu>
             <a href="#new-appointment">New appointment</a>
+            <a href="/calendar/book/couples?date=2026-09-14" data-calendar-booking-kind="couples">Couples massage <small>2 guests</small></a>
             <a href="#past-appointment">Record past appointment</a>
+            <div class="desktop-menu-divider" role="separator" aria-label="Availability controls"></div>
             <button type="button" data-calendar-operation="add-block">Block time</button>
             <button type="button" data-calendar-operation="add-leave">Leave</button>
           </div>

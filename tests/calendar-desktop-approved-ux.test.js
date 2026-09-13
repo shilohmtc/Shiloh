@@ -54,7 +54,7 @@ test('Desktop enhancer preserves Phone by gating all planner changes above 700px
 test('Desktop Week becomes selected-day practitioner columns with a Mon-Sat context strip', () => {
   const script = calendarDesktopApprovedClientScript();
   assert.match(script, /teamDay\.textContent='Team day'/);
-  assert.match(script, /<span>New<\/span>/);
+  assert.match(script, /<span>Book<\/span>/);
   assert.match(script, /desktop-week-strip/);
   assert.match(script, /grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/);
   assert.match(script, /desktop-practitioner-grid/);
@@ -73,10 +73,14 @@ test('Today navigation targets current Week and selected/today date states are t
   assert.match(script, /aria-current/);
 });
 
-test('one New appointment menu reuses authorized booking, retrospective, block and leave controls', () => {
+test('one Book menu exposes single, couples, retrospective, block and leave controls', () => {
   const script = calendarDesktopApprovedClientScript();
   assert.match(script, /desktop-create-menu/);
   assert.match(script, /New appointment/);
+  assert.match(script, /Couples massage/);
+  assert.match(script, /\/calendar\/book\/couples\?/);
+  assert.match(script, /calendarBookingKind='couples'/);
+  assert.match(script, /desktop-create-divider/);
   assert.match(script, /Record past appointment/);
   assert.match(script, /data-calendar-operation="add-block"/);
   assert.match(script, /data-calendar-operation="add-leave"/);

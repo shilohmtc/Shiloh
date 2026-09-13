@@ -369,22 +369,25 @@ test('iPhone install invitation opens an accessible three-step guide without ove
   await expect(host).toHaveCount(0);
 });
 
-test('Desktop New menu exposes every authorized booking and availability action', async ({ page }) => {
+test('Desktop Book menu exposes every authorized booking and availability action', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/iframe.html?id=calendar-reference-implementation--desktop-complete-new-menu&viewMode=story', { waitUntil: 'networkidle' });
 
   const menu = page.locator('[data-storybook-desktop-new-menu]');
+  await page.getByLabel('Book or add calendar item').click();
   await expect(menu).toBeVisible();
-  for (const label of ['New appointment', 'Record past appointment', 'Block time', 'Leave']) {
+  for (const label of ['New appointment', 'Couples massage', 'Record past appointment', 'Block time', 'Leave']) {
     await expect(menu.getByText(label, { exact: true })).toBeVisible();
   }
+  await expect(menu.getByRole('link', { name: /Book a Couples Massage/ })).toHaveAttribute('href', '/calendar/book/couples?date=2026-09-14');
+  await expect(menu.getByRole('separator', { name: 'Availability controls' })).toBeVisible();
   const metrics = await menu.locator('a,button').evaluateAll((nodes) => ({
     labels: nodes.map(node => node.textContent.trim()),
     shortTargets: nodes.filter(node => node.getBoundingClientRect().height < 44).map(node => node.textContent.trim()),
     documentWidth: document.documentElement.scrollWidth,
     viewportWidth: window.innerWidth,
   }));
-  expect(metrics.labels).toEqual(['New appointment', 'Record past appointment', 'Block time', 'Leave']);
+  expect(metrics.labels).toEqual(['New appointment', 'Couples massage 2 guests', 'Record past appointment', 'Block time', 'Leave']);
   expect(metrics.shortTargets).toEqual([]);
   expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
 
@@ -393,7 +396,7 @@ test('Desktop New menu exposes every authorized booking and availability action'
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze();
   const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
-  expect(serious, `Serious accessibility violations in desktop New menu: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+  expect(serious, `Serious accessibility violations in desktop Book menu: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
 });
 
 test('Month exposes full-cell navigation, appointment details and South African holidays on phone and desktop', async ({ page }) => {
