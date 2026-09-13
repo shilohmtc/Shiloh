@@ -11,7 +11,10 @@ const { renderClientDetailPageWithCommunications } = clientPresentation;
 const { renderMessagesPage } = messagesPresentation;
 const { calendarAppointmentCompactEditorClientScript } = editorPresentation;
 const { renderCalendarCreateBookingPage, calendarCreateBookingClientScript } = createBookingPresentation;
-const { managePage: renderPasskeyManagePage } = passkeyPresentation;
+const {
+  managePage: renderPasskeyManagePage,
+  manageScript: passkeyManageScript,
+} = passkeyPresentation;
 const {
   workspacePwaIconSvg,
   workspaceIosInstallGuideStyles,
@@ -153,6 +156,30 @@ function interactiveProductionSurface(pageHtml, clientScript) {
   return root;
 }
 
+function deviceManagementDialogStory() {
+  const credentials = [
+    { id: 1, label: 'Jean-Pierre\u2019s Windows PC', current: true, createdAt: '2026-09-13T15:05:00.000Z', lastUsedAt: '2026-09-13T15:42:00.000Z', backedUp: true },
+    { id: 2, label: 'JP\u2019s iPhone', current: false, createdAt: '2026-09-12T06:30:00.000Z', lastUsedAt: null, backedUp: true },
+  ];
+  const root = document.createElement('div');
+  root.innerHTML = productionSurface(renderPasskeyManagePage({ credentials }));
+  window.setTimeout(() => {
+    const originalFetch = window.fetch;
+    window.fetch = async (input, options = {}) => {
+      const url = typeof input === 'string' ? input : input.url;
+      if (url === '/calendar/staff-auth/passkeys' && (!options.method || options.method === 'GET')) {
+        return new Response(JSON.stringify({ credentials }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return originalFetch(input, options);
+    };
+    new Function(passkeyManageScript())();
+  }, 0);
+  return root;
+}
+
 function pwaIconStory() {
   const root = document.createElement('div');
   root.innerHTML = `<style>*{box-sizing:border-box}body{margin:0;background:#eef1ed;font-family:Inter,system-ui,sans-serif}.pwa-icon-story{min-height:100vh;display:grid;place-items:center;padding:28px}.pwa-icon-card{display:grid;gap:14px;justify-items:center;padding:24px;border-radius:24px;background:#fffdf9;box-shadow:0 16px 44px rgba(23,56,45,.14)}.pwa-icon{display:block;width:192px;height:192px;border-radius:22%;box-shadow:0 8px 20px rgba(23,56,45,.18)}strong{color:#20322b;font-size:1rem}</style><div class="pwa-icon-story"><div class="pwa-icon-card">${workspacePwaIconSvg(192).replace('<svg ', '<svg class="pwa-icon" ')}<strong>Shiloh</strong></div></div>`;
@@ -248,6 +275,9 @@ export const PhonePasskeyDevices = {
       { id: 2, createdAt: '2026-09-12T06:30:00.000Z', lastUsedAt: null, backedUp: true },
     ],
   })),
+};
+export const DeviceManagementDialogs = {
+  render: deviceManagementDialogStory,
 };
 export const PwaIconOpticalScale = { render: pwaIconStory };
 export const IosInstallGuidance = { render: iosInstallGuidanceStory };
