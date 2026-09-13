@@ -19,7 +19,7 @@ const {
   passkeyHintCookieName,
   serializePasskeyHintCookie,
 } = require('../src/routes/staffPasskeyAuth');
-const { signinPanel, signinScript, initialCredentialList, initialHistory, manageScript } = require('../src/presentation/staffPasskeyUx');
+const { signinPanel, signinScript, initialCredentialList, initialHistory, managePage, manageScript } = require('../src/presentation/staffPasskeyUx');
 
 const ORIGIN = 'https://staff.shiloh.example';
 const RP_ID = 'staff.shiloh.example';
@@ -263,4 +263,24 @@ test('#957 Workspace device manager is self-scoped, protects the last passkey, a
   assert.doesNotMatch(initialCredentialList(rows), /Old PC/);
   assert.match(initialHistory(rows), /Old PC/);
   assert.doesNotMatch(initialHistory(rows), />Rename<|>Remove</);
+});
+
+test('#970 device management uses accessible Shiloh dialogs instead of browser prompts', () => {
+  const page = managePage({ credentials: [{ id: 1, label: 'JP\u2019s iPhone', current: true }] });
+  const script = manageScript();
+  assert.match(page, /<dialog class="device-dialog"/);
+  assert.match(page, /aria-labelledby="device-dialog-title"/);
+  assert.match(page, /aria-describedby="device-dialog-copy"/);
+  assert.match(page, /data-device-dialog-input/);
+  assert.match(page, /maxlength="48"/);
+  assert.match(page, /@media\(max-width:560px\)[\s\S]*\.device-dialog/);
+  assert.doesNotMatch(script, /window\.(?:confirm|prompt)\(/);
+  assert.match(script, /dialog\.showModal\(\)/);
+  assert.match(script, /event\.key==='Enter'/);
+  assert.match(script, /event\.preventDefault\(\);settleDialog\(null\)/);
+  assert.match(script, /opener\.focus\(\)/);
+  assert.match(script, /Remove device/);
+  assert.match(script, /Rename this device/);
+  assert.match(script, /Replace a lost device\?/);
+  assert.doesNotThrow(() => new Function(script));
 });

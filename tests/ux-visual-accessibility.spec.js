@@ -172,6 +172,66 @@ test('phone passkey cards show South African date and time without overflow', as
   expect(widths.cards.every(right => right <= widths.viewport)).toBe(true);
 });
 
+test('device management confirmations use accessible Shiloh dialogs on Desktop and Phone', async ({ page }) => {
+  for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=workspace-production-surfaces--device-management-dialogs&viewMode=story', { waitUntil: 'networkidle' });
+
+    const surface = page.locator('.workspace-surface-story');
+    const dialog = page.locator('[data-device-dialog]');
+    const remove = surface.getByRole('button', { name: 'Remove' }).first();
+    await remove.click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: /Remove Jean-Pierre\u2019s Windows PC/ })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Remove device' })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused();
+    await page.screenshot({ path: `artifacts/device-dialog-${viewport.width <= 560 ? 'phone' : 'desktop'}.png` });
+
+    const metrics = await dialog.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      return {
+        viewportWidth: window.innerWidth,
+        left: rect.left,
+        right: rect.right,
+        bottomGap: window.innerHeight - rect.bottom,
+        shortButtons: [...node.querySelectorAll('button')]
+          .filter((button) => button.getBoundingClientRect().height < 44)
+          .map((button) => button.textContent.trim()),
+      };
+    });
+    expect(metrics.left).toBeGreaterThanOrEqual(0);
+    expect(metrics.right).toBeLessThanOrEqual(metrics.viewportWidth);
+    expect(metrics.shortButtons).toEqual([]);
+    if (viewport.width <= 560) expect(metrics.bottomGap).toBeLessThanOrEqual(1);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-device-dialog]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
+    expect(serious, `Serious accessibility violations in device dialog: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(remove).toBeFocused();
+
+    await surface.getByRole('button', { name: 'Rename' }).first().click();
+    await expect(dialog.getByRole('heading', { name: 'Rename this device' })).toBeVisible();
+    const name = dialog.getByLabel('Device name');
+    await expect(name).toBeFocused();
+    await name.fill('');
+    await dialog.getByRole('button', { name: 'Save name' }).click();
+    await expect(dialog.getByRole('alert')).toHaveText('Enter a name for this device.');
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+
+    await surface.getByRole('button', { name: 'Replace a lost device' }).click();
+    await expect(dialog.getByRole('heading', { name: 'Replace a lost device?' })).toBeVisible();
+    await expect(dialog).toContainText('Only after that succeeds');
+    await page.keyboard.press('Escape');
+  }
+});
+
 test('PWA icon uses balanced optical proportions', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/iframe.html?id=workspace-production-surfaces--pwa-icon-optical-scale&viewMode=story', { waitUntil: 'networkidle' });
