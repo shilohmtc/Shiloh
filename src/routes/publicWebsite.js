@@ -5,6 +5,7 @@ const {
   renderTreatments,
   renderAbout,
   renderContact,
+  renderPrivacy,
 } = require('../services/publicWebsite');
 
 const router = express.Router();
@@ -27,5 +28,6 @@ router.get('/treatments', async (req, res) => {
 
 router.get('/about', (req, res) => res.status(200).type('html').send(renderAbout()));
 router.get('/contact', (req, res) => res.status(200).type('html').send(renderContact()));
+router.get('/privacy', (req, res) => res.status(200).type('html').send(renderPrivacy()));
 
 module.exports = router;

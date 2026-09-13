@@ -7,6 +7,7 @@ const {
   renderTreatments,
   renderAbout,
   renderContact,
+  renderPrivacy,
 } = require('../src/services/publicWebsite');
 const { renderBookingPage } = require('../src/services/publicBookingPageEditorial');
 
@@ -73,6 +74,23 @@ test('public pages include search and sharing metadata', () => {
     assert.match(html, /property="og:title"/);
     assert.match(html, /name="description"/);
   }
+});
+
+test('public privacy policy is accessible, specific to Shiloh, and linked site-wide', () => {
+  const privacy = renderPrivacy();
+  assert.match(privacy, /<h1>Your information, handled with care\.<\/h1>/);
+  assert.match(privacy, /Meta and WhatsApp/);
+  assert.match(privacy, /OpenAI/);
+  assert.match(privacy, /outside South Africa/);
+  assert.match(privacy, /13 September 2026/);
+  assert.match(privacy, /rel="canonical" href="https:\/\/app\.shilohmtc\.co\.za\/privacy"/);
+  assert.match(renderHome(catalogue), /href="\/privacy">Privacy policy<\/a>/);
+
+  const websiteRoute = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'routes', 'publicWebsite.js'),
+    'utf8',
+  );
+  assert.match(websiteRoute, /router\.get\('\/privacy'/);
 });
 
 test('routing reuses canonical catalogue and leaves /book and /health intact', () => {

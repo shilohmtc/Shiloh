@@ -87,11 +87,22 @@ function renderContact() {
   });
 }
 
+function renderPrivacy() {
+  return layout({
+    title: 'Privacy Policy',
+    description:
+      'How Shiloh Massage Therapy and Aesthetic Clinic collects, uses and protects personal information.',
+    currentPath: '/privacy',
+    body: `<main id="main-content"><section class="page-hero"><div class="shell prose"><div class="eyebrow">Privacy</div><h1>Your information, handled with care.</h1><p class="lede">This policy explains how Shiloh Massage Therapy and Aesthetic Clinic processes personal information when you contact us, use our website or WhatsApp assistant, or make and manage an appointment.</p><p><strong>Effective date:</strong> 13 September 2026</p></div></section><section class="section alt"><div class="shell prose"><h2>Information we process</h2><p>We may process your name, cellphone number, messages, appointment details, treatment choices, communication preferences, and information you choose to provide about your care needs. We also keep limited technical and security records needed to operate and protect Shiloh.</p><h2>Why we use it</h2><p>We use personal information to answer enquiries, identify and assist clients, arrange and manage appointments, send relevant service messages, maintain accurate clinic records, protect our services, and meet legal obligations. We use it only for a lawful, relevant purpose.</p><h2>Service providers</h2><p>Shiloh uses trusted providers where needed to deliver its services, including Meta and WhatsApp for messaging, Render for application and database hosting, OpenAI for assisted message responses, and Google for calendar operations. These providers process limited information for the service they supply and may process it outside South Africa under their applicable safeguards.</p><h2>Retention and security</h2><p>We keep personal information only for as long as it is reasonably needed for clinic operations, safety, legal obligations, and legitimate record keeping. Shiloh applies access controls, secure connections, protected credentials, and data-minimisation measures. No internet service can promise absolute security, but we work to prevent unauthorised access, loss, misuse, or disclosure.</p><h2>Your choices and rights</h2><p>You may ask us to explain the information we hold about you, correct inaccurate information, or consider a deletion, restriction, or objection request where the law allows. You may also withdraw optional communication preferences. Some clinic or transaction records may need to be retained for lawful reasons.</p><h2>Contact Shiloh</h2><p>For a privacy question or request, contact Shiloh through our official WhatsApp conversation or visit us at 37 Jacobs Street, Heidelberg, Gauteng. We may need to verify your identity before acting on a request.</p><h2>Updates</h2><p>We may update this policy when our services or legal duties change. The current version and effective date will remain available on this page.</p></div></section></main>`,
+  });
+}
+
 module.exports = {
   escapeHtml,
   renderHome,
   renderTreatments,
   renderAbout,
   renderContact,
+  renderPrivacy,
   serviceGroups,
 };
