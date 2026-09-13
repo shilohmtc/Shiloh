@@ -129,7 +129,9 @@ test('Week event position and visual height continue to derive from canonical st
 });
 
 test('Week server markup carries only authorized availability actions for the desktop New menu', () => {
-  const capable = renderCalendarPage(model('week', [31, 32], { mutationEnabled: true }));
+  const capableModel = model('week', [31, 32], { mutationEnabled: true });
+  capableModel.mutationCapability.operations.push('calendar_block:manage', 'operational_leave:manage');
+  const capable = renderCalendarPage(capableModel, { desktopEnhancementEnabled: true });
   assert.match(capable, /data-desktop-availability-sources/);
   assert.equal((capable.match(/data-calendar-operation="add-block"/g) || []).length, 2);
   assert.equal((capable.match(/data-calendar-operation="add-leave"/g) || []).length, 2);
