@@ -586,7 +586,7 @@ async function main() {
     await evaluate(cdp, `document.querySelector('[data-panel-close]').click();true`);
 
     await navigate(`${origin}/calendar/read-only?view=month&date=${DATE_KEY}&staff=51&staff=52&staff=53&activeStaff=51`, '.month-grid');
-    await poll(() => evaluate(cdp, `document.querySelectorAll('.phone-month-density').length`), value => value > 0);
+    await poll(() => evaluate(cdp, `Array.from(document.querySelectorAll('.month-events .event-card')).filter(node=>{const style=getComputedStyle(node),rect=node.getBoundingClientRect();return style.display!=='none'&&style.visibility!=='hidden'&&rect.width>0&&rect.height>0;}).length`), value => value > 0);
     const monthMetrics = await evaluate(cdp, `(() => {
       const visible=node=>{if(!node)return false;const style=getComputedStyle(node),rect=node.getBoundingClientRect();return style.display!=='none'&&style.visibility!=='hidden'&&rect.width>0&&rect.height>0;};
       const dayLinks=Array.from(document.querySelectorAll('.month-day-link')).filter(visible);
@@ -597,6 +597,7 @@ async function main() {
         currentView:document.querySelector('.phone-view-menu>summary strong')?.textContent.trim()||'',
         densityCount:document.querySelectorAll('.phone-month-density').length,
         visibleAppointmentCards:Array.from(document.querySelectorAll('.month-events .event-card')).filter(visible).length,
+        compactAppointmentLabels:Array.from(document.querySelectorAll('.month-events .event-card')).filter(visible).map(node=>node.textContent.trim()),
         minDateTargetHeight:Math.min(...dayLinks.map(node=>node.getBoundingClientRect().height)),
         sundayCells:Array.from(document.querySelectorAll('.month-day')).filter(node=>new Date(node.dataset.date+'T12:00:00Z').getUTCDay()===0).length,
         linksPreserveAll:dayLinks.every(node=>{const url=new URL(node.getAttribute('href'),location.origin);return url.searchParams.getAll('staff').join(',')==='51,52,53'&&url.searchParams.get('activeStaff')==='51';}),
@@ -609,15 +610,16 @@ async function main() {
     assert.ok(monthMetrics.rootScrollWidth <= 391, 'Phone Month leaked horizontal overflow');
     assert.equal(monthMetrics.activeStaff, 'Amber Room');
     assert.equal(monthMetrics.currentView, 'Month');
-    assert.ok(monthMetrics.densityCount > 0, 'Phone Month has no density indicators');
-    assert.equal(monthMetrics.visibleAppointmentCards, 0);
+    assert.equal(monthMetrics.densityCount, 0, 'Phone Month still shows dot-only density indicators');
+    assert.ok(monthMetrics.visibleAppointmentCards > 0, 'Phone Month hides appointment details');
+    assert.ok(monthMetrics.compactAppointmentLabels.some(label => /Client|Shared/.test(label)), 'Phone Month appointment strips do not identify bookings');
     assert.ok(monthMetrics.minDateTargetHeight >= 44, 'Phone Month date target is below 44px');
     assert.equal(monthMetrics.sundayCells, 0);
     assert.equal(monthMetrics.linksPreserveAll, true, 'Phone Month date navigation did not preserve all selected practitioners');
     assert.equal(monthMetrics.holidayAnnotated, true, 'Phone Month did not annotate Heritage Day');
     assert.equal(monthMetrics.holidayShownAsClosure, false, 'Public-holiday annotation was incorrectly promoted to closure authority');
     assert.ok(monthMetrics.bands.every(band => ['light','medium','busy','closed'].includes(band)), 'Phone Month emitted an unknown capacity band');
-    screenshots.push({ ...(await capture('phone-month-capacity-overview')), viewport: monthMetrics.viewport, metrics: monthMetrics });
+    screenshots.push({ ...(await capture('phone-month-appointment-overview')), viewport: monthMetrics.viewport, metrics: monthMetrics });
 
     await evaluate(cdp, `document.querySelector('.month-day[data-date="2026-09-24"] .month-day-link').click();true`);
     await poll(() => evaluate(cdp, `document.body.dataset.phoneActiveDate`), value => value === '2026-09-24');
