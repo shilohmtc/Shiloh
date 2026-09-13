@@ -1,7 +1,7 @@
 const express = require('express');
-const workspaceClients = require('../services/workspaceClients');
+const workspaceClients = require('../services/workspaceClientsPractitionerScope');
 const workspaceClientNotifications = require('../services/workspaceClientNotifications');
-const workspaceClientMutations = require('../services/workspaceClientMutations');
+const workspaceClientMutations = require('../services/workspaceClientMutationsPractitionerScope');
 const {
   renderClientListPage,
   renderClientsUnavailablePage,
