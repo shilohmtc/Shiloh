@@ -232,12 +232,15 @@ function createFixture() {
   });
   app.get('/calendar/staff/client.js', (_req, res) => res.type('application/javascript').send(staffCalendarAccessClientScript()));
   app.get('/calendar/operations/client.js', (_req, res) => res.type('application/javascript').send(calendarOperationalMutationsClientScript()));
-  app.get('/calendar/workspace/nav.js', (_req, res) => res.type('application/javascript').send([
-    workspaceNavigationClientScript(),
-    workspaceIconClientScript(),
-    calendarDesktopApprovedClientScript(),
-    calendarDesktopFitCanvasClientScript(),
-  ].join('\n')));
+  app.get('/calendar/workspace/nav.js', async (_req, res) => {
+    await new Promise(resolve => setTimeout(resolve, 450));
+    return res.type('application/javascript').send([
+      workspaceNavigationClientScript(),
+      workspaceIconClientScript(),
+      calendarDesktopApprovedClientScript(),
+      calendarDesktopFitCanvasClientScript(),
+    ].join('\n'));
+  });
   app.get('/calendar/workspace/navigation', (_req, res) => res.json({
     dashboard: { allowed: true, href: '/calendar/workspace' },
     calendar: { allowed: true, href: '/calendar/read-only' },
@@ -345,9 +348,23 @@ async function main() {
     await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1600, deviceScaleFactor: 1, mobile: false, screenWidth: 1920, screenHeight: 1600 });
     await cdp.send('Page.navigate', { url: `${origin}/proof` });
     await poll(() => evaluate(cdp, 'location.pathname'), value => value === '/calendar/read-only');
+    await poll(() => evaluate(cdp, `document.body?.dataset.calendarDesktopPending`), value => value === 'true');
+    const pendingMetrics = await evaluate(cdp, `(() => ({
+      shellVisibility:getComputedStyle(document.querySelector('.workspace-main>.shell')).visibility,
+      shellOpacity:getComputedStyle(document.querySelector('.workspace-main>.shell')).opacity,
+      canonicalWeekPresent:Boolean(document.querySelector('.week-grid')),
+      approvedPlannerCount:document.querySelectorAll('.desktop-practitioner-grid').length,
+    }))()`);
+    assert.equal(pendingMetrics.shellVisibility, 'hidden');
+    assert.equal(pendingMetrics.shellOpacity, '0');
+    assert.equal(pendingMetrics.canonicalWeekPresent, true);
+    assert.equal(pendingMetrics.approvedPlannerCount, 0);
+    screenshots.push({ ...(await capture('desktop-first-paint-pending')), viewport: { width: 1920, height: 1600 }, metrics: pendingMetrics });
     await poll(() => evaluate(cdp, `document.body.dataset.calendarDesktopApproved`), value => value === 'true');
+    await poll(() => evaluate(cdp, `document.body.hasAttribute('data-calendar-desktop-pending')`), value => value === false);
     await poll(() => evaluate(cdp, `document.querySelectorAll('.desktop-practitioner-lane').length`), value => value === 3);
     await poll(() => evaluate(cdp, `document.querySelectorAll('.desktop-create-popover a').length`), value => value >= 2);
+    await poll(() => evaluate(cdp, `document.querySelectorAll('.desktop-create-popover [data-calendar-operation="add-block"],.desktop-create-popover [data-calendar-operation="add-leave"]').length`), value => value === 6);
     const desktopMetrics = await evaluate(cdp, `(() => ({
       viewport:{width:innerWidth,height:innerHeight,screenWidth:screen.width,screenHeight:screen.height},
       approved:document.body.dataset.calendarDesktopApproved||'',
@@ -385,6 +402,8 @@ async function main() {
     assert.deepEqual(desktopMetrics.visibleEventStaffIds.sort(), ['51,52', '53']);
     assert.ok(desktopMetrics.createLabels.includes('New appointment'));
     assert.ok(desktopMetrics.createLabels.includes('Record past appointment'));
+    assert.ok(desktopMetrics.createLabels.includes('Block time'));
+    assert.ok(desktopMetrics.createLabels.includes('Leave'));
     assert.equal(desktopMetrics.visibleTimeLabels.at(-1), '18:00');
     assert.equal(desktopMetrics.sourceWeekDisplay, 'none');
     assert.equal(desktopMetrics.plannerOverflowY, 'visible');
@@ -400,6 +419,9 @@ async function main() {
     assert.ok(desktopMetrics.gridHeight > 792, JSON.stringify(desktopMetrics));
     assert.ok(1600 - desktopMetrics.gridBottom < 80);
     screenshots.push({ ...(await capture('desktop-approved-calendar-contract')), viewport: desktopMetrics.viewport, metrics: desktopMetrics });
+    await evaluate(cdp, `document.querySelector('.desktop-create-menu>summary').click();true`);
+    await poll(() => evaluate(cdp, `document.querySelector('.desktop-create-menu')?.open`), Boolean);
+    screenshots.push({ ...(await capture('desktop-new-menu-complete')), viewport: desktopMetrics.viewport, metrics: { labels: desktopMetrics.createLabels } });
     const desktopViewOptions = await evaluate(cdp, `Array.from(document.querySelectorAll('[data-calendar-view-option]')).map(node=>node.dataset.calendarViewOption)`);
     assert.deepEqual(desktopViewOptions, ['week', 'agenda', 'month']);
     await navigate(`${origin}/calendar/read-only?view=month&date=${DATE_KEY}&staff=51&staff=52&staff=53&activeStaff=51`, '.month-grid');
