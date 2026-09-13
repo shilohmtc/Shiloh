@@ -57,7 +57,7 @@ async function getClient(id) {
 async function getClientAppointments(id, { limit, offset }) {
   const result = await pool.query(`
     /* workspaceClients:history:crm_v2_xor */
-    SELECT a.starts_at, a.ends_at, a.status, a.title,
+    SELECT a.id, a.starts_at, a.ends_at, a.status, a.title,
            COALESCE((SELECT jsonb_agg(jsonb_build_object(
              'name', aps.service_name_snapshot, 'price', aps.price_snapshot, 'durationMinutes', aps.duration_minutes_snapshot)
              ORDER BY aps.position) FROM appointment_services aps WHERE aps.appointment_id = a.id), '[]'::jsonb) AS services,
