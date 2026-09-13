@@ -1,7 +1,9 @@
 const express = require('express');
+const QRCode = require('qrcode');
 const { pool } = require('../db/pool');
 const { createStaffBrowserSessionService } = require('../services/staffBrowserSession');
 const { createStaffPasskeyAuthService, normalizeCredentialHint } = require('../services/staffPasskeyAuth');
+const { createStaffWhatsAppPasskeyBootstrapService } = require('../services/staffWhatsAppPasskeyBootstrap');
 const { managePage, manageScript } = require('../presentation/staffPasskeyUx');
 const {
   sameOriginGuard,
@@ -53,6 +55,8 @@ function createStaffPasskeyAuthRouter({
   env = process.env,
   sessionService = createStaffBrowserSessionService({ db: pool }),
   passkeyService = createStaffPasskeyAuthService({ db: pool, env }),
+  bootstrapService = createStaffWhatsAppPasskeyBootstrapService({ db: pool, env }),
+  qrCode = QRCode,
 } = {}) {
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
@@ -67,12 +71,14 @@ function createStaffPasskeyAuthRouter({
     noStore(res);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
+    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; img-src data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
   }
   function error(res, result, fallback = 'Passkey request could not be verified') {
     noStore(res);
     if (result.code === 'STAFF_PASSKEY_DISABLED') return res.status(404).json({ error: 'Not Found', requestId: res.req?.id });
     if (result.code === 'STAFF_PASSKEY_UNAVAILABLE') return res.status(503).json({ error: 'Passkey authentication is temporarily unavailable', requestId: res.req?.id });
+    if (result.code === 'STAFF_PASSKEY_BOOTSTRAP_DISABLED') return res.status(404).json({ error: 'Not Found', requestId: res.req?.id });
+    if (result.code === 'STAFF_PASSKEY_BOOTSTRAP_UNAVAILABLE') return res.status(503).json({ error: 'Passkey setup is temporarily unavailable', requestId: res.req?.id });
     if (result.code === 'STAFF_RECENT_STRONG_AUTH_REQUIRED') return res.status(428).json({ error: 'Recent strong authentication required', requestId: res.req?.id });
     if (result.code === 'STAFF_PASSKEY_KNOWN_PRINCIPAL_REQUIRED') return res.status(428).json({ error: 'Device sign-in setup required', requestId: res.req?.id });
     if (result.code === 'STAFF_AUTH_FORBIDDEN') return res.status(403).json({ error: 'Forbidden', requestId: res.req?.id });
@@ -166,6 +172,22 @@ function createStaffPasskeyAuthRouter({
       noStore(res);
       res.setHeader('Set-Cookie', serializePasskeyHintCookie(result.credentialHint, { env }));
       return res.status(201).json({ ok: true, credentialId: result.credentialId, mode: result.mode, revokedCredentialCount: result.revokedCredentialCount || 0, revokedSessionCount: result.revokedSessionCount || 0 });
+    } catch (e) { return next(e); }
+  });
+  router.post('/self-bootstrap', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      const result = await bootstrapService.issueSelfBootstrap({
+        session: req.staffBrowserSession,
+        requestFingerprintHash: requestFingerprintHash(req),
+      });
+      if (!result.ok) return error(res, result);
+      if (result.rateLimited) {
+        noStore(res);
+        return res.status(429).json({ error: 'Please wait before creating another setup link', requestId: req.id });
+      }
+      const qrDataUrl = await qrCode.toDataURL(result.url, { errorCorrectionLevel: 'M', margin: 2, width: 320 });
+      noStore(res);
+      return res.status(201).json({ url: result.url, qrDataUrl, expiresAt: result.expiresAt });
     } catch (e) { return next(e); }
   });
   router.post('/:credentialId/revoke', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {

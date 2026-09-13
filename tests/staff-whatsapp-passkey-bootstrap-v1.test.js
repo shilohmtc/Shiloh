@@ -76,7 +76,7 @@ class BootstrapDb {
       return { rows: [], rowCount: 1 };
     }
     if (text.startsWith('INSERT INTO staff_auth_passkey_bootstraps')) {
-      this.bootstraps.push({ id: this.bootstraps.length + 1, admin_id: params[0], token_hash: params[1], issued_at: params[2], expires_at: params[3], consumed_at: null, revoked_at: null });
+      this.bootstraps.push({ id: this.bootstraps.length + 1, admin_id: params[0], token_hash: params[1], issued_at: params[2], expires_at: params[3], source: params[4], consumed_at: null, revoked_at: null });
       return { rows: [], rowCount: 1 };
     }
     if (text.includes('FROM staff_auth_passkey_bootstraps') && text.includes('token_hash = $1')) {
@@ -237,6 +237,39 @@ test('#804 access removal between WhatsApp issuance and redemption fails closed'
   assert.equal(started.code, 'STAFF_PASSKEY_BOOTSTRAP_INVALID');
 });
 
+test('#932 recent strong Workspace session creates a same-principal one-use setup link without phone lookup', async () => {
+  const current = new Date('2026-09-13T10:00:00Z');
+  const db = new BootstrapDb();
+  const service = createStaffWhatsAppPasskeyBootstrapService({ db, env: ENV, randomBytes: deterministicRandom(), now: () => current });
+  const issued = await service.issueSelfBootstrap({
+    session: { ok: true, adminId: 44, authMethod: 'passkey', authenticatedAt: current, recoveryRequired: false },
+    requestFingerprintHash: 'b'.repeat(64),
+  });
+  assert.equal(issued.ok, true);
+  assert.equal(issued.eligible, true);
+  assert.equal(db.bootstraps.length, 1);
+  assert.equal(db.bootstraps[0].admin_id, 44);
+  assert.equal(db.bootstraps[0].source, 'workspace_self');
+  assert.equal(new URLSearchParams(new URL(issued.url).hash.slice(1)).get('flow'), 'add');
+  assert.equal(db.auditEvents[0].fingerprint, 'b'.repeat(64));
+  assert.deepEqual(JSON.parse(db.auditEvents[0].metadata), { source: 'workspace_self' });
+  assert.doesNotMatch(JSON.stringify(db.auditEvents), new RegExp(issued.token));
+  const replacement = await service.startRegistration({ token: issued.token, mode: 'replace' });
+  assert.equal(replacement.ok, false);
+  assert.equal(db.bootstraps[0].consumed_at, null);
+});
+
+test('#932 self setup fails closed for weak, recovery-required, stale, or disabled principals', async () => {
+  const current = new Date('2026-09-13T10:00:00Z');
+  const session = { ok: true, adminId: 44, authMethod: 'passkey', authenticatedAt: current, recoveryRequired: false };
+  const service = createStaffWhatsAppPasskeyBootstrapService({ db: new BootstrapDb(), env: ENV, now: () => current });
+  assert.equal((await service.issueSelfBootstrap({ session: { ...session, authMethod: 'recovery_code' } })).code, 'STAFF_RECENT_STRONG_AUTH_REQUIRED');
+  assert.equal((await service.issueSelfBootstrap({ session: { ...session, recoveryRequired: true } })).code, 'STAFF_RECENT_STRONG_AUTH_REQUIRED');
+  assert.equal((await service.issueSelfBootstrap({ session: { ...session, authenticatedAt: new Date(current.getTime() - 11 * 60 * 1000) } })).code, 'STAFF_RECENT_STRONG_AUTH_REQUIRED');
+  const disabled = createStaffWhatsAppPasskeyBootstrapService({ db: new BootstrapDb([principal({ admin_active: false })]), env: ENV, now: () => current });
+  assert.equal((await disabled.issueSelfBootstrap({ session })).code, 'STAFF_AUTH_FORBIDDEN');
+});
+
 test('#926 lost-device replacement revokes prior passkeys and sessions only after verified new enrollment', async () => {
   const db = new BootstrapDb();
   const service = createStaffWhatsAppPasskeyBootstrapService({ db, env: ENV, randomBytes: deterministicRandom(), now: () => new Date('2026-09-13T12:30:00Z') });
@@ -257,7 +290,7 @@ test('#926 lost-device replacement revokes prior passkeys and sessions only afte
   assert.equal(db.sessions[0].revoked_at instanceof Date, true);
   assert.equal(db.sessions.at(-1).revoked_at, null);
   const completed = db.auditEvents.find(event => event.eventType === 'passkey_bootstrap_completed');
-  assert.deepEqual(JSON.parse(completed.metadata), { source: 'whatsapp_self', mode: 'replace', credentialReference: `passkey:${finished.credentialId}`, backedUp: false, priorCredentialsRevoked: 1, priorSessionsRevoked: 1 });
+  assert.deepEqual(JSON.parse(completed.metadata), { source: 'bootstrap_link', mode: 'replace', credentialReference: `passkey:${finished.credentialId}`, backedUp: false, priorCredentialsRevoked: 1, priorSessionsRevoked: 1 });
   assert.doesNotMatch(JSON.stringify(db.auditEvents), /27721234567/);
 });
 
@@ -312,6 +345,12 @@ test('#804 migration isolates ordinary passkey bootstrap from break-glass/reset 
   assert.match(migration, /bootstrap_registration/);
   assert.doesNotMatch(migration, /ALTER TABLE staff_auth_break_glass_bootstraps/);
   assert.doesNotMatch(migration, /UPDATE staff_admin_accounts|permissions\s*=|calendar_scope\s*=|service_scope\s*=/i);
+});
+
+test('#932 migration only extends the existing hashed bootstrap source authority', () => {
+  const sql = fs.readFileSync(path.join(__dirname, '../migrations/118_workspace_self_passkey_bootstrap.sql'), 'utf8');
+  assert.match(sql, /source IN \('whatsapp_self', 'workspace_self'\)/);
+  assert.doesNotMatch(sql, /CREATE TABLE|phone|whatsapp_number|session token|otp/i);
 });
 
 test('#926 migration adds only purpose-isolated replacement ceremonies', () => {
