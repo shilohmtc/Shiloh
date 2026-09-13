@@ -18,6 +18,7 @@ test('Storybook workspace catalogue consumes production presentation authorities
   assert.match(story, /renderCalendarCreateBookingPage\(/);
   assert.match(story, /workspaceIosInstallGuideMarkup/);
   assert.match(story, /IosInstallGuidance/);
+  assert.match(story, /ReceptionistPractitionerFirstBooking/);
 });
 
 test('visual gate covers each workspace surface on Desktop and Phone', () => {
@@ -29,6 +30,7 @@ test('visual gate covers each workspace surface on Desktop and Phone', () => {
   assert.match(visual, /width: 390, height: 844/);
   assert.match(visual, /workspace-production-surfaces--create-booking/);
   assert.match(visual, /workspace-production-surfaces--ios-install-guidance/);
+  assert.match(visual, /workspace-production-surfaces--receptionist-practitioner-first-booking/);
   assert.match(visual, /Phone controls must retain 44px touch targets/);
   assert.match(visual, /new AxeBuilder/);
   assert.match(visual, /toHaveScreenshot/);

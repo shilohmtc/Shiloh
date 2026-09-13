@@ -182,7 +182,13 @@ function createCalendarCreateBookingService({
     return {
       staff: [...staffById.values()],
       services: [...servicesById.values()],
-      authority: { operatorAdminId: Number(admin.id), serviceScope: admin.bookingScope.key },
+      authority: {
+        operatorAdminId: Number(admin.id),
+        serviceScope: admin.bookingScope.key,
+        bookingFlow: admin.calendarAuthority.businessRole === 'booking_operator'
+          ? 'practitioner_first'
+          : 'treatment_first',
+      },
     };
   }
 

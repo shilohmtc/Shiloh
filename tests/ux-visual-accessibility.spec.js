@@ -69,6 +69,57 @@ test('phone Create booking restores canonical Week context and fits the viewport
   expect(serious, `Serious accessibility violations in phone Create booking: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
 });
 
+test('receptionist chooses practitioner first and sees only mapped treatments on Phone', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/iframe.html?id=workspace-production-surfaces--receptionist-practitioner-first-booking&viewMode=story', { waitUntil: 'networkidle' });
+
+  const picker = page.locator('[data-practitioner-picker]');
+  const treatment = page.locator('#service-select');
+  await expect(picker).toBeVisible();
+  await expect(treatment).toBeDisabled();
+
+  await picker.getByRole('button', { name: /Marietjie/ }).click();
+  await expect(treatment.locator('option')).toHaveText([
+    'Choose treatment',
+    'Full Body Swedish',
+    'Medi-Heel Pedicure & Foot Massage',
+  ]);
+  await expect(treatment.locator('option', { hasText: 'Quick Relief' })).toHaveCount(0);
+
+  await treatment.selectOption('82');
+  await picker.getByRole('button', { name: /Christel/ }).click();
+  await expect(treatment).toHaveValue('82');
+
+  await picker.getByRole('button', { name: /Marietjie/ }).click();
+  await treatment.selectOption('83');
+  await picker.getByRole('button', { name: /Abigail/ }).click();
+  await expect(treatment).toHaveValue('');
+  await expect(page.locator('[data-booking-status]')).toContainText('previous treatment is not offered');
+
+  await picker.getByRole('button', { name: /Any available/ }).click();
+  await expect(treatment.locator('option')).toHaveCount(5);
+  await treatment.selectOption('81');
+  await expect(page.locator('[data-eligible-practitioner-field]')).toBeVisible();
+  await expect(page.locator('#staff-select').locator('option')).toHaveText(['Choose practitioner', 'Abigail', 'Christel']);
+
+  const metrics = await page.evaluate(() => ({
+    viewportWidth: window.innerWidth,
+    documentWidth: document.documentElement.scrollWidth,
+    shortChoices: [...document.querySelectorAll('[data-practitioner-choice]')]
+      .filter((button) => button.getBoundingClientRect().height < 44)
+      .map((button) => button.textContent.trim()),
+  }));
+  expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+  expect(metrics.shortChoices).toEqual([]);
+
+  const accessibility = await new AxeBuilder({ page })
+    .include('.workspace-surface-story')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
+  expect(serious, `Serious accessibility violations in receptionist booking: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+});
+
 test('phone passkey cards show South African date and time without overflow', async ({ page }) => {
   await page.setViewportSize({ width: 310, height: 659 });
   await page.goto('/iframe.html?id=workspace-production-surfaces--phone-passkey-devices&viewMode=story', { waitUntil: 'networkidle' });
