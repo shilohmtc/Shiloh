@@ -1,6 +1,36 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 
+test('phone Create booking restores canonical Week context and fits the viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/iframe.html?id=workspace-production-surfaces--create-booking&viewMode=story', { waitUntil: 'networkidle' });
+
+  const surface = page.locator('.workspace-surface-story');
+  await expect(surface).toBeVisible();
+  await expect(surface.locator('[data-back-calendar]')).toHaveAttribute(
+    'href',
+    '/calendar/read-only?view=week&date=2026-09-14&staff=all',
+  );
+
+  const metrics = await page.evaluate(() => ({
+    viewportWidth: window.innerWidth,
+    documentWidth: document.documentElement.scrollWidth,
+    shortTargets: [...document.querySelectorAll('[data-back-calendar], button, input, select')]
+      .filter((node) => !node.hidden && node.getClientRects().length > 0)
+      .map((node) => ({ label: node.textContent || node.getAttribute('aria-label') || node.id, height: node.getBoundingClientRect().height }))
+      .filter((target) => target.height < 44),
+  }));
+  expect(metrics.documentWidth, 'Create booking must not overflow the Phone viewport').toBeLessThanOrEqual(metrics.viewportWidth);
+  expect(metrics.shortTargets, 'Phone controls must retain 44px touch targets').toEqual([]);
+
+  const accessibility = await new AxeBuilder({ page })
+    .include('.workspace-surface-story')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
+  expect(serious, `Serious accessibility violations in phone Create booking: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+});
+
 for (const viewport of [{ width: 390, height: 640 }, { width: 1440, height: 1000 }]) {
   test(`appointment sections expose complete forms at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport);

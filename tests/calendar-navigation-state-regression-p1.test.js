@@ -53,17 +53,19 @@ test('#858 Desktop create launcher is a concise New menu rather than a duplicate
   assert.doesNotMatch(script, /<summary>.*<span>New appointment<\/span><\/summary>/);
 });
 
-test('#858 booking Back to Calendar preserves exact explicit fallback and prefers safe same-origin Calendar history', () => {
+test('#948 booking return preserves safe history and otherwise restores canonical Week All staff', () => {
   const html = renderCalendarCreateBookingPage({
     options: { staff: [], services: [] },
     prefill: { date: '2026-09-11', staffId: 42 },
   });
-  assert.match(html, /data-back-calendar href="\/calendar\/read-only\?view=day&amp;date=2026-09-11&amp;staff=42"/);
+  assert.match(html, /data-back-calendar href="\/calendar\/read-only\?view=week&amp;date=2026-09-11&amp;staff=all"/);
 
   const script = calendarCreateBookingClientScript();
   assert.match(script, /calendarHistoryReturnAvailable/);
   assert.match(script, /ref\.pathname==='\/calendar\/workspace'/);
   assert.match(script, /ref\.pathname==='\/calendar\/read-only'/);
   assert.match(script, /history\.back\(\)/);
+  assert.match(script, /var params=new URLSearchParams\(\{view:'week',date:[^}]+staff:'all'\}\)/);
+  assert.doesNotMatch(script, /var params=new URLSearchParams\(\{view:'day'/);
   assert.match(script, /window\.location\.assign\('\/calendar\/read-only\?'/);
 });

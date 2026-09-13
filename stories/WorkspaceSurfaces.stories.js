@@ -2,11 +2,13 @@ import dashboardPresentation from '../src/presentation/workspaceDashboardUx.js';
 import clientPresentation from '../src/presentation/workspaceCommunicationEvidenceUx.js';
 import messagesPresentation from '../src/presentation/workspaceMessagesUx.js';
 import editorPresentation from '../src/presentation/calendarAppointmentCompactEditorUx.js';
+import createBookingPresentation from '../src/presentation/calendarCreateBookingUx.js';
 
 const { renderDashboardPage } = dashboardPresentation;
 const { renderClientDetailPageWithCommunications } = clientPresentation;
 const { renderMessagesPage } = messagesPresentation;
 const { calendarAppointmentCompactEditorClientScript } = editorPresentation;
+const { renderCalendarCreateBookingPage } = createBookingPresentation;
 
 function productionSurface(pageHtml) {
   const styles = [...String(pageHtml).matchAll(/<style>([\s\S]*?)<\/style>/g)]
@@ -143,3 +145,15 @@ export const DashboardOperational = { render: () => productionSurface(renderDash
 export const ClientAppointmentHistory = { render: () => productionSurface(renderClientDetailPageWithCommunications(clientModel(), { calendarNavigationAllowed: true, notificationActionAllowed: true })) };
 export const MessagesAttention = { render: () => productionSurface(renderMessagesPage(messagesModel())) };
 export const CompactAppointmentEditor = { render: editorStory };
+export const CreateBooking = {
+  render: () => productionSurface(renderCalendarCreateBookingPage({
+    options: {
+      staff,
+      services: [
+        { id: 81, name: 'Quick Relief: Back & Neck (45 min)', durationMinutes: 45, staffIds: [11, 12] },
+        { id: 82, name: 'Full Body Swedish', durationMinutes: 60, staffIds: [12, 13] },
+      ],
+    },
+    prefill: { date: '2026-09-14', time: '10:30', staffId: 11 },
+  })),
+};

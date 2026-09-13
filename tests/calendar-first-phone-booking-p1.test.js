@@ -162,11 +162,11 @@ test('Create Booking renders calendar prefill and selects practitioner only when
   });
   assert.match(page, /id="booking-date"[^>]*value="2026-09-07"/);
   assert.match(page, /id="booking-time"[^>]*value="10:00"/);
-  assert.match(page, /data-back-calendar href="\/calendar\/read-only\?view=day&amp;date=2026-09-07&amp;staff=31"/);
+  assert.match(page, /data-back-calendar href="\/calendar\/read-only\?view=week&amp;date=2026-09-07&amp;staff=all"/);
   assert.match(page, /"prefill":\{"date":"2026-09-07","time":"10:00","staffId":31\}/);
   const script = calendarCreateBookingClientScript();
   assert.match(script, /permitted\.has\(prefillStaffId\)/);
-  assert.match(script, /options\.staff[^;]*returnStaffId/);
+  assert.match(script, /new URLSearchParams\(\{view:'week',date:[^}]+staff:'all'\}\)/);
 });
 
 test('one compact fallback launcher reuses canonical booking authority and mobile overview is retired from runtime', () => {
