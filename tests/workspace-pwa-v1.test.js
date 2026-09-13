@@ -42,7 +42,7 @@ test('#791 PWA metadata decorates existing HTML idempotently and only expands CS
   assert.match(once, new RegExp(`${PWA_BASE.replaceAll('/', '\\/')}\\/manifest\\.webmanifest`));
   assert.match(once, /apple-mobile-web-app-capable/);
   assert.match(once, /theme-color/);
-  assert.match(once, /client\.js\?v=837-v1/);
+  assert.match(once, /client\.js\?v=952-v1/);
 
   const original = "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
   const expanded = augmentWorkspacePwaCsp(original);
@@ -54,7 +54,7 @@ test('#791 PWA metadata decorates existing HTML idempotently and only expands CS
 
 test('#791 service worker caches only inert versioned icon assets and never protected Workspace/API responses', () => {
   const worker = workspacePwaServiceWorkerScript();
-  assert.match(STATIC_CACHE_NAME, /^shiloh-pwa-static-837-v1$/);
+  assert.match(STATIC_CACHE_NAME, /^shiloh-pwa-static-952-v1$/);
   assert.match(worker, /cache\.addAll\(STATIC_URLS\)/);
   assert.match(worker, /STATIC_URLS\.includes\(url\.pathname\+url\.search\)/);
   assert.match(worker, /request\.mode==='navigate'.*url\.pathname\.startsWith\('\/calendar\/'\)/s);
@@ -74,7 +74,7 @@ test('#791 installed client revalidates only through canonical live staff sessio
   assert.match(client, /credentials:'same-origin',cache:'no-store'/);
   assert.match(client, /reason=session/);
   assert.match(client, /reason=access/);
-  assert.match(client, /totp\/manage/);
+  assert.doesNotMatch(client, /totp\/manage/);
   assert.match(client, /SHILOH_ACTIVATE_UPDATE/);
   assert.match(client, /registration\.waiting/);
   assert.match(client, /addEventListener\('offline'/);
@@ -85,13 +85,13 @@ test('#791 installed client revalidates only through canonical live staff sessio
 test('#791 canonical launch gate uses current server session state and never creates PWA authority', () => {
   assert.equal(pwaLaunchDestination(null), '/calendar/staff?reason=session');
   assert.equal(pwaLaunchDestination({ ok: false }), '/calendar/staff?reason=session');
-  assert.equal(pwaLaunchDestination({ ok: true, recoveryRequired: true }), '/calendar/staff-auth/totp/manage');
+  assert.equal(pwaLaunchDestination({ ok: true, recoveryRequired: true }), '/calendar/staff?reason=session');
   assert.equal(pwaLaunchDestination({ ok: true, viewer: null }), '/calendar/staff?reason=access');
   assert.equal(pwaLaunchDestination({ ok: true, viewer: { calendarScope: 'own_staff' } }), '/calendar/workspace');
 });
 
 test('#791 PWA metadata covers canonical Workspace/auth HTML surfaces without intercepting PWA assets', () => {
-  for (const pathValue of ['/staff', '/staff-auth/totp/manage', '/workspace', '/clients/42', '/team', '/services', '/reports', '/messages', '/read-only']) {
+  for (const pathValue of ['/staff', '/staff-auth/passkeys/manage', '/workspace', '/clients/42', '/team', '/services', '/reports', '/messages', '/read-only']) {
     assert.equal(shouldDecoratePwaHtmlPath(pathValue), true, pathValue);
   }
   assert.equal(shouldDecoratePwaHtmlPath('/pwa/sw.js'), false);

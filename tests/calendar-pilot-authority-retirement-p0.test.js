@@ -101,7 +101,6 @@ test('obsolete pilot and named emergency authority runtime is fully retired', ()
     'src/services/adminInteractiveMenu.js',
     'src/services/calendarAccessDiagnostic.js',
     'src/services/calendarCreateBooking.js',
-    'src/services/providerIndependentStaffAuth.js',
     'package.json',
   ].map(read).join('\n');
   assert.doesNotMatch(runtime, /SHILOH_STAFF_BROWSER_PILOT|EMERGENCY_ADMIN_ID|SHILOH_EMERGENCY_CHRISTEL_CALENDAR_BOOKING_ENABLED/);
@@ -168,7 +167,7 @@ test('ordinary session validation reloads current canonical active/view authorit
     issued_at: '2026-08-29T08:00:00.000Z',
     expires_at: '2026-08-29T16:00:00.000Z',
     revoked_at: null,
-    auth_method: 'totp',
+    auth_method: 'passkey',
     reauthenticated_at: '2026-08-29T08:00:00.000Z',
     recovery_required: false,
     staff_id: null,
@@ -221,19 +220,12 @@ test('Open Calendar uses one-time handoff while canonical capability remains sol
   assert.doesNotMatch(handoff, /display_name\s*===|Christel|Jean-Pierre|Naomi|Marietjie|Abigail/);
 });
 
-test('retired public fallback routes stay closed while controlled recovery, CSRF and endpoint revalidation remain installed', () => {
-  const auth = read('src/services/providerIndependentStaffAuth.js');
+test('retired fallback routes stay closed while passkey handoff, CSRF and endpoint revalidation remain installed', () => {
   const authRoutes = read('src/routes/staffBrowserSession.js');
   const middleware = read('src/middleware/staffBrowserSession.js');
   const bookingRoutes = read('src/routes/calendarCreateBooking.js');
   const mutationRoutes = read('src/routes/calendarOperationalMutations.js');
-  assert.match(auth, /verifyTotp/);
-  assert.match(auth, /verifyRecovery/);
-  assert.match(auth, /issueBreakGlass/);
-  assert.match(auth, /exchangeBreakGlass/);
-  assert.doesNotMatch(authRoutes, /router\.post\('\/totp\/verify'/);
-  assert.doesNotMatch(authRoutes, /router\.post\('\/totp\/recovery\/verify'/);
-  assert.match(authRoutes, /totp\/break-glass\/exchange/);
+  assert.doesNotMatch(authRoutes, /totp|break-glass|recovery\/verify/i);
   assert.match(authRoutes, /calendar-handoff\/exchange/);
   assert.match(middleware, /sameOriginGuard/);
   assert.match(middleware, /csrfGuard/);

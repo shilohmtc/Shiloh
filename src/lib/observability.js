@@ -109,7 +109,7 @@ function createObservability({ sentry = Sentry, log = logger } = {}) {
     try {
       sentry.init(sentryConfig(env));
       enabled = true;
-      log.info("Privacy-safe Sentry error monitoring initialized");
+  log.info("Privacy-safe Sentry monitoring initialized");
       return true;
     } catch (_error) {
       log.warn("Sentry disabled because initialization failed");

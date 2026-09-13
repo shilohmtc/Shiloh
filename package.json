@@ -11,8 +11,6 @@
     "start": "node scripts/verify-migrations.js && node -r ./src/services/receptionPrincipalAudit780.js -r ./src/bootstrap/adminClientLookupNamePatch.js -r ./src/bootstrap/adminProvisionalClientBookingPatch.js -r ./src/bootstrap/adminBookingNaturalDatePatch.js -r ./src/bootstrap/adminBookingChangeConfirmationPatch.js -r ./src/bootstrap/adminBookingChangeConfirmationAuthPatch.js -r ./src/bootstrap/adminBookingChangeConfirmationCommitPatch.js -r ./src/bootstrap/adminManualStartTimePickerPatch.js -r ./src/bootstrap/adminBookingProviderGuardPatch.js -r ./src/bootstrap/adminBookingCustomerNotificationPatch.js -r ./src/bootstrap/adminBookingTypedTimePickerPatch.js -r ./src/bootstrap/clientRescheduleStartBoundaryPatch.js -r ./src/bootstrap/clientRescheduleApprovedNotificationPatch.js -r ./src/bootstrap/clientRescheduleApprovalPatch.js -r ./src/bootstrap/adminBlockTimePatch.js -r ./src/bootstrap/adminUxStandardizationPatch.js -r ./src/bootstrap/clientCouplesPackagesPatch.js app.js",
     "dev": "node scripts/verify-migrations.js && nodemon --exec \"node -r ./src/bootstrap/adminClientLookupNamePatch.js -r ./src/bootstrap/adminProvisionalClientBookingPatch.js -r ./src/bootstrap/adminBookingNaturalDatePatch.js -r ./src/bootstrap/adminBookingChangeConfirmationPatch.js -r ./src/bootstrap/adminBookingChangeConfirmationAuthPatch.js -r ./src/bootstrap/adminBookingChangeConfirmationCommitPatch.js -r ./src/bootstrap/adminManualStartTimePickerPatch.js -r ./src/bootstrap/adminBookingProviderGuardPatch.js -r ./src/bootstrap/adminBookingCustomerNotificationPatch.js -r ./src/bootstrap/adminBookingTypedTimePickerPatch.js -r ./src/bootstrap/clientRescheduleStartBoundaryPatch.js -r ./src/bootstrap/clientRescheduleApprovedNotificationPatch.js -r ./src/bootstrap/clientRescheduleApprovalPatch.js -r ./src/bootstrap/adminBlockTimePatch.js -r ./src/bootstrap/adminUxStandardizationPatch.js -r ./src/bootstrap/clientCouplesPackagesPatch.js\" app.js",
     "db:migrate": "node scripts/migrate.js",
-    "format:check": "node scripts/check-project-format.js",
-    "lint": "node scripts/check-javascript-syntax.js",
     "maintenance": "node scripts/maintenance.js",
     "test:maintenance-framework": "node --test tests/maintenance-operation-framework.test.js",
     "test:controlled-release-migration": "node --test tests/controlled-release-migration-gate.test.js",
@@ -24,6 +22,7 @@
     "lint": "eslint .",
     "format:check": "prettier --check eslint.config.js knip.json lighthouserc.cjs scripts/lighthouse-production-audit.js .github/dependabot.yml .github/workflows/maintenance-quality.yml .github/workflows/lighthouse.yml",
     "analyze:unused": "knip --production --include files,dependencies,unlisted --max-show-issues 50",
+    "audit:production": "npm audit --omit=dev --audit-level=high",
     "lighthouse:ci": "node scripts/lighthouse-production-audit.js",
     "playwright:install": "playwright install chromium",
     "storybook": "storybook dev -p 6006",
@@ -45,7 +44,6 @@
     "mammoth": "^1.12.2",
     "multer": "^2.3.0",
     "openai": "7.13.0",
-    "otpauth": "9.5.2",
     "pdf-parse": "^1.1.1",
     "pg": "^8.23.0",
     "pino": "^10.1.0",
@@ -65,5 +63,9 @@
     "nodemon": "^3.1.10",
     "prettier": "3.9.6",
     "storybook": "^10.6.0"
+  },
+  "overrides": {
+    "@xmldom/xmldom": "0.8.15",
+    "qs": "6.16.0"
   }
 }

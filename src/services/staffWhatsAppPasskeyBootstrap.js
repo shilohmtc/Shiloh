@@ -53,9 +53,6 @@ function evaluateBootstrapPrincipal(rows = []) {
   if (admin.admin_active !== true || (admin.staff_id != null && admin.staff_status !== 'active')) {
     return { matched: true, eligible: false, code: 'STAFF_PASSKEY_BOOTSTRAP_INACTIVE' };
   }
-  if (admin.replacement_required_at != null) {
-    return { matched: true, eligible: false, code: 'STAFF_PASSKEY_BOOTSTRAP_RECOVERY_REQUIRED' };
-  }
   if (!deriveCalendarViewer(admin)) {
     return { matched: true, eligible: false, code: 'STAFF_PASSKEY_BOOTSTRAP_ACCESS_REQUIRED' };
   }
@@ -113,11 +110,9 @@ function createStaffWhatsAppPasskeyBootstrapService({
   async function identityRows(queryable, normalized, { forUpdate = false } = {}) {
     const result = await queryable.query(
       `SELECT a.id, a.staff_id, a.display_name, a.role, a.business_role, a.calendar_scope,
-              a.service_scope, a.permissions, a.active AS admin_active, s.status AS staff_status,
-              t.replacement_required_at
+              a.service_scope, a.permissions, a.active AS admin_active, s.status AS staff_status
          FROM staff_admin_accounts a
          LEFT JOIN staff s ON s.id = a.staff_id
-         LEFT JOIN staff_totp_credentials t ON t.admin_id = a.id
         WHERE a.normalized_whatsapp = $1
         ORDER BY a.id
         LIMIT 3${forUpdate ? '\n        FOR UPDATE OF a' : ''}`,
@@ -135,11 +130,9 @@ function createStaffWhatsAppPasskeyBootstrapService({
   async function resolveAdmin(queryable, adminId, { forUpdate = false } = {}) {
     const result = await queryable.query(
       `SELECT a.id, a.staff_id, a.display_name, a.role, a.business_role, a.calendar_scope,
-              a.service_scope, a.permissions, a.active AS admin_active, s.status AS staff_status,
-              t.replacement_required_at
+              a.service_scope, a.permissions, a.active AS admin_active, s.status AS staff_status
          FROM staff_admin_accounts a
          LEFT JOIN staff s ON s.id = a.staff_id
-         LEFT JOIN staff_totp_credentials t ON t.admin_id = a.id
         WHERE a.id = $1
         LIMIT 1${forUpdate ? '\n        FOR UPDATE OF a' : ''}`,
       [Number(adminId)]

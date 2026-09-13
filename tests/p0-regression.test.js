@@ -121,7 +121,7 @@ test('maintenance writes and outbound WhatsApp require explicit acknowledgements
   const maintenance = source('scripts/maintenance.js');
   assert.match(maintenance, /command\.mutates && !args\.includes\('--confirm'\)/);
   assert.match(maintenance, /startup-test-command/);
-  assert.match(maintenance, /mutates: true,\n    mayMessage: true/);
+  assert.match(maintenance, /mutates: true,\r?\n    mayMessage: true/);
   assert.match(maintenance, /sendReplyToWhatsApp: allowWhatsApp === true/);
   assert.match(maintenance, /args\.includes\('--allow-whatsapp'\)/);
   assert.match(maintenance, /goldie-future-import-dry-run/);

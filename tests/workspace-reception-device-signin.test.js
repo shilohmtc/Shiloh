@@ -26,16 +26,16 @@ function recentSession(overrides = {}) {
     ok: true,
     adminId: 7,
     authenticatedAt: new Date(NOW.getTime() - 60_000).toISOString(),
+    authMethod: 'passkey',
     recoveryRequired: false,
     ...overrides,
   };
 }
 
-function serviceWith({ db, providerStatus = { available: true, canResetOther: true }, bootstrapResult } = {}) {
+function serviceWith({ db, bootstrapResult } = {}) {
   return createWorkspaceReceptionDeviceSigninService({
     db,
     now: () => new Date(NOW),
-    providerAuthService: { credentialStatus: async () => providerStatus },
     bootstrapService: {
       issueBootstrap: async () => bootstrapResult || {
         ok: true,
@@ -72,12 +72,10 @@ test('issues Reception setup only with recent senior reset authority and audits 
 });
 
 test('fails closed before bootstrap issuance when recent authentication is stale', async () => {
-  let providerCalls = 0;
   let bootstrapCalls = 0;
   const service = createWorkspaceReceptionDeviceSigninService({
     db: { query: async () => { throw new Error('database should not be reached'); } },
     now: () => new Date(NOW),
-    providerAuthService: { credentialStatus: async () => { providerCalls += 1; return { available: true, canResetOther: true }; } },
     bootstrapService: { issueBootstrap: async () => { bootstrapCalls += 1; return {}; } },
   });
 
@@ -87,23 +85,21 @@ test('fails closed before bootstrap issuance when recent authentication is stale
   });
   assert.equal(result.ok, false);
   assert.equal(result.code, 'STAFF_RECENT_AUTH_REQUIRED');
-  assert.equal(providerCalls, 0);
   assert.equal(bootstrapCalls, 0);
 });
 
-test('fails closed before target lookup when operator lacks reset-other authority', async () => {
+test('fails closed before target lookup when canonical operator lacks reset-other authority', async () => {
   let dbCalls = 0;
   let bootstrapCalls = 0;
   const service = serviceWith({
     db: { query: async () => { dbCalls += 1; return { rows: [] }; } },
-    providerStatus: { available: true, canResetOther: false },
     bootstrapResult: null,
   });
   service.issue;
   const result = await service.issue({ session: recentSession(), targetAdminId: RECEPTION.id });
   assert.equal(result.ok, false);
   assert.equal(result.code, 'STAFF_RESET_FORBIDDEN');
-  assert.equal(dbCalls, 0);
+  assert.equal(dbCalls, 1);
   assert.equal(bootstrapCalls, 0);
 });
 

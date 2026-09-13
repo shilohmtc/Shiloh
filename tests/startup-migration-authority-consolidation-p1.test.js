@@ -175,7 +175,6 @@ test('startup-adjacent migration guards verify rather than apply', () => {
     'src/services/juvanBookingApprovalPolicy.js',
     'scripts/ensure-client-identity-verification.js',
     'scripts/ensure-client-facing-name-authority.js',
-    'scripts/ensure-provider-independent-staff-auth.js',
     'scripts/ensure-staff-browser-sessions.js',
     'scripts/ensure-goldie-wave-a-publication.js',
     'scripts/ensure-goldie-wave-b-publication.js',

@@ -1,6 +1,5 @@
 const crypto = require('crypto');
-const { sha256, issueStaffBrowserSession } = require('./staffBrowserSession');
-const { isRecentAuthentication } = require('./providerIndependentStaffAuth');
+const { sha256, issueStaffBrowserSession, isRecentAuthentication } = require('./staffBrowserSession');
 
 const FEATURE_FLAG = 'SHILOH_STAFF_PASSKEY_AUTH_ENABLED';
 const RP_ID_FLAG = 'SHILOH_STAFF_WEBAUTHN_RP_ID';
@@ -8,7 +7,7 @@ const PUBLIC_ORIGIN_FLAG = 'SHILOH_CALENDAR_PUBLIC_ORIGIN';
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const REGISTRATION_PURPOSE = 'registration';
 const REPLACEMENT_REGISTRATION_PURPOSE = 'registration_replacement';
-const STRONG_AUTH_METHODS = new Set(['totp', 'passkey']);
+const STRONG_AUTH_METHODS = new Set(['passkey']);
 const ALLOWED_TRANSPORTS = new Set(['usb', 'nfc', 'ble', 'internal', 'hybrid', 'smart-card']);
 const ALGORITHMS = new Set([-7, -8, -257]);
 

@@ -1,8 +1,7 @@
 'use strict';
 
 const { pool } = require('../db/pool');
-const { sha256 } = require('./staffBrowserSession');
-const { isRecentAuthentication, createProviderIndependentStaffAuthService } = require('./providerIndependentStaffAuth');
+const { sha256, isRecentAuthentication } = require('./staffBrowserSession');
 const { createStaffWhatsAppPasskeyBootstrapService } = require('./staffWhatsAppPasskeyBootstrap');
 const { isExactReceptionPrincipal } = require('./workspaceReceptionAccess');
 
@@ -28,7 +27,6 @@ function createWorkspaceReceptionDeviceSigninService({
   db = pool,
   env = process.env,
   now = () => new Date(),
-  providerAuthService = createProviderIndependentStaffAuthService({ db, env, now }),
   bootstrapService = createStaffWhatsAppPasskeyBootstrapService({ db, env, now }),
 } = {}) {
   if (!db || typeof db.query !== 'function') throw new Error('Reception device sign-in database is required');
@@ -49,6 +47,23 @@ function createWorkspaceReceptionDeviceSigninService({
     const row = result.rows[0] || null;
     if (!row || row.active !== true || row.staff_id != null || !isExactReceptionPrincipal(row)) return null;
     return row;
+  }
+
+  async function hasResetAuthority(adminId) {
+    const id = positiveId(adminId);
+    if (!id) return false;
+    const result = await db.query(
+      `SELECT a.id
+         FROM staff_admin_accounts a
+         LEFT JOIN staff s ON s.id = a.staff_id
+        WHERE a.id = $1
+          AND a.active = TRUE
+          AND (a.staff_id IS NULL OR s.status = 'active')
+          AND COALESCE(a.permissions, '{}'::jsonb) @> '{"staff_auth:reset":true}'::jsonb
+        LIMIT 2`,
+      [id]
+    );
+    return result.rows.length === 1;
   }
 
   async function auditIssued({ operatorAdminId, subjectAdminId, requestFingerprintHash = null }) {
@@ -87,8 +102,7 @@ function createWorkspaceReceptionDeviceSigninService({
       return resultError('STAFF_RECENT_AUTH_REQUIRED');
     }
 
-    const operatorStatus = await providerAuthService.credentialStatus(operatorId);
-    if (!operatorStatus?.available || operatorStatus.canResetOther !== true) {
+    if (!(await hasResetAuthority(operatorId))) {
       return resultError('STAFF_RESET_FORBIDDEN');
     }
 
@@ -120,7 +134,7 @@ function createWorkspaceReceptionDeviceSigninService({
     };
   }
 
-  return { issue, loadReception, revokeIssuedToken };
+  return { issue, loadReception, hasResetAuthority, revokeIssuedToken };
 }
 
 module.exports = {

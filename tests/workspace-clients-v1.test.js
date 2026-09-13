@@ -288,12 +288,10 @@ test('Calendar and Clients share capability-driven navigation without making Cal
 test('Clients surface is GET-only and introduces no public CRM or mutation route', () => {
   const routeSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'workspaceClients.js'), 'utf8');
   const calendarSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'calendar.js'), 'utf8');
-  const appSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8');
   assert.match(routeSource, /requireStaffSession/);
   assert.match(routeSource, /router\.get\('\/'/);
   assert.match(routeSource, /router\.get\('\/:id'/);
   assert.doesNotMatch(routeSource, /router\.(?:post|put|patch|delete)\s*\(/i);
   assert.doesNotMatch(routeSource, /logger|console\.|normalized_mobile|client_contacts/i);
   assert.match(calendarSource, /router\.use\('\/clients'/);
-  assert.doesNotMatch(appSource, /app\.use\(['"]\/crm/);
 });

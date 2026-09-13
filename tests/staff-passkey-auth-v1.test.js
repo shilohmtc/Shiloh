@@ -88,9 +88,9 @@ test('#794 counter replay and invalid assertion signature fail closed', () => {
   assert.throws(() => verifyAssertionResponse(response, credential, { expectedChallenge: f.challenge, origin: ORIGIN, rpId: RP_ID }), /SIGNATURE_INVALID/);
 });
 
-test('#794 registration and lifecycle require recent TOTP/passkey session, not recovery/bootstrap', () => {
+test('#952 registration and lifecycle require a recent passkey session', () => {
   const now = new Date(); const base = { ok: true, authenticatedAt: now, recoveryRequired: false };
-  assert.equal(strongRecentSession({ ...base, authMethod: 'totp' }, now), true);
+  assert.equal(strongRecentSession({ ...base, authMethod: 'totp' }, now), false);
   assert.equal(strongRecentSession({ ...base, authMethod: 'passkey' }, now), true);
   assert.equal(strongRecentSession({ ...base, authMethod: 'recovery_code' }, now), false);
   assert.equal(strongRecentSession({ ...base, authMethod: 'break_glass' }, now), false);
@@ -147,13 +147,13 @@ test('#794 schema is additive, multi-credential, soft-revocable and extends cano
   assert.match(sql, /staff_auth_webauthn_challenges/); assert.match(sql, /purpose IN \('registration', 'authentication'\)/);
 });
 
-test('#946 ordinary fallback login is retired while controlled recovery and passkey protection remain', () => {
+test('#952 ordinary fallback and controlled recovery routes are retired while passkey protection remains', () => {
   const routes = fs.readFileSync(path.join(__dirname, '../src/routes/staffBrowserSession.js'), 'utf8');
   const access = fs.readFileSync(path.join(__dirname, '../src/routes/staffCalendarAccessUx.js'), 'utf8');
   const pwa = fs.readFileSync(path.join(__dirname, '../src/presentation/workspacePwa.js'), 'utf8');
   assert.doesNotMatch(routes, /router\.post\('\/totp\/verify'/);
   assert.doesNotMatch(routes, /router\.post\('\/totp\/recovery\/verify'/);
-  assert.match(routes, /break-glass\/exchange/);
+  assert.doesNotMatch(routes, /break-glass\/exchange/);
   assert.match(access, /withPasskeyReentry/);
   assert.doesNotMatch(access, /providerIndependentAuthPolicy|Emergency sign-in/);
   assert.doesNotMatch(pwa, /staff-auth\/passkeys.*cache/i); assert.match(pwa, /no-store|NETWORK|fetch/i);

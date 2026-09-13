@@ -26,9 +26,9 @@ function cert(dir) { const key = path.join(dir,'key.pem'), crt = path.join(dir,'
 async function port(){const s=net.createServer();s.listen(0,'127.0.0.1');await once(s,'listening');const p=s.address().port;await new Promise((resolve,reject)=>s.close(e=>e?reject(e):resolve()));return p;}
 async function chromeRun(chrome,args){try{const r=await execFileAsync(chrome,['--headless=new','--no-sandbox','--disable-gpu','--ignore-certificate-errors','--allow-insecure-localhost','--disable-dev-shm-usage',...args],{encoding:'utf8',timeout:60000,maxBuffer:10*1024*1024});return r.stdout||'';}catch(e){throw new Error(e.stderr||e.stdout||e.message);}}
 function fixture(origin){
-  const env={NODE_ENV:'production',SHILOH_CALENDAR_READONLY_UX_ENABLED:'true',SHILOH_STAFF_BROWSER_SESSION_CALENDAR_BRIDGE_ENABLED:'true',SHILOH_STAFF_PASSKEY_AUTH_ENABLED:'true',SHILOH_CALENDAR_PUBLIC_ORIGIN:origin,SHILOH_STAFF_WEBAUTHN_RP_ID:'localhost',SHILOH_STAFF_TOTP_AUTH_ENABLED:'true',SHILOH_STAFF_TOTP_PILOT_ADMIN_IDS:'1794',SHILOH_STAFF_TOTP_ENCRYPTION_KEYS_JSON:JSON.stringify({v1:Buffer.alloc(32,9).toString('base64url')}),SHILOH_STAFF_TOTP_ACTIVE_KEY_VERSION:'v1'};
+  const env={NODE_ENV:'production',SHILOH_CALENDAR_READONLY_UX_ENABLED:'true',SHILOH_STAFF_BROWSER_SESSION_CALENDAR_BRIDGE_ENABLED:'true',SHILOH_STAFF_PASSKEY_AUTH_ENABLED:'true',SHILOH_CALENDAR_PUBLIC_ORIGIN:origin,SHILOH_STAFF_WEBAUTHN_RP_ID:'localhost'};
   const sessionService={
-    async validateSessionToken(token){return token===TOKEN?{ok:true,sessionId:794,adminId:1794,authenticatedAt:new Date(),authMethod:'totp',recoveryRequired:false,viewer:{calendarScope:'own_staff',staffId:94}}:{ok:false,code:'STAFF_SESSION_INVALID'};},
+    async validateSessionToken(token){return token===TOKEN?{ok:true,sessionId:794,adminId:1794,authenticatedAt:new Date(),authMethod:'passkey',recoveryRequired:false,viewer:{calendarScope:'own_staff',staffId:94}}:{ok:false,code:'STAFF_SESSION_INVALID'};},
     async validateCsrfToken(){return true;},async rotateCsrfToken(){return{ok:true,csrfToken:'C'.repeat(43)}}
   };
   const passkeyService={
