@@ -9,6 +9,7 @@ const {
 } = require('../src/presentation/staffCalendarAccessUx');
 const {
   createStaffCalendarAccessPageHandler,
+  createStaffCalendarEmergencyPageHandler,
   createStaffCalendarAccessClientHandler,
   isStaffCalendarAccessUxEnabled,
 } = require('../src/routes/staffCalendarAccessUx');
@@ -95,6 +96,33 @@ test('Workspace sign-in is human initiated and exposes authenticator plus one-ta
   assert.doesNotMatch(client, /verifyTotp\(\);/);
   assert.match(client, /if\(select\('\[data-shiloh-staff-calendar-access\]'\)\)probeSession\(\);/);
   assert.doesNotMatch(html + client, /beginChallenge|sendWhatsAppMessage|requestChallenge|verifyChallenge/);
+});
+
+test('#932 normal sign-in is passkey-first while provider-independent recovery stays on Emergency sign-in', () => {
+  const emergencyEnv = {
+    ...enabledEnv,
+    SHILOH_STAFF_PASSKEY_AUTH_ENABLED: 'true',
+    SHILOH_CALENDAR_PUBLIC_ORIGIN: 'https://app.shilohmtc.co.za',
+    SHILOH_STAFF_WEBAUTHN_RP_ID: 'app.shilohmtc.co.za',
+    SHILOH_STAFF_TOTP_AUTH_ENABLED: 'true',
+    SHILOH_STAFF_TOTP_PILOT_ADMIN_IDS: '7',
+    SHILOH_STAFF_TOTP_ENCRYPTION_KEYS_JSON: JSON.stringify({ v1: Buffer.alloc(32, 7).toString('base64url') }),
+    SHILOH_STAFF_TOTP_ACTIVE_KEY_VERSION: 'v1',
+  };
+  const normalRes = fakeResponse();
+  createStaffCalendarAccessPageHandler({ env: emergencyEnv })({ query: {}, baseUrl: '/calendar/staff' }, normalRes);
+  assert.equal(normalRes.statusCode, 200);
+  assert.match(normalRes.body, /Continue with device sign-in/);
+  assert.match(normalRes.body, /href="\/calendar\/staff\/emergency"/);
+  assert.doesNotMatch(normalRes.body, /data-shiloh-totp-form|data-shiloh-recovery-form/);
+
+  const emergencyRes = fakeResponse();
+  createStaffCalendarEmergencyPageHandler({ env: emergencyEnv })({ query: {} }, emergencyRes);
+  assert.equal(emergencyRes.statusCode, 200);
+  assert.match(emergencyRes.body, /Emergency sign-in/);
+  assert.match(emergencyRes.body, /data-shiloh-totp-form/);
+  assert.match(emergencyRes.body, /data-shiloh-recovery-form/);
+  assert.doesNotMatch(emergencyRes.body, /data-shiloh-passkey-panel|Open from Shiloh WhatsApp/);
 });
 
 test('browser client uses only provider-independent staff-auth contracts and never persists browser authority', () => {
