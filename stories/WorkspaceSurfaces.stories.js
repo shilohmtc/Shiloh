@@ -223,6 +223,24 @@ export const ReceptionistPractitionerFirstBooking = {
     return interactiveProductionSurface(page, calendarCreateBookingClientScript());
   },
 };
+export const NormalAdminPractitionerFirstBooking = {
+  render: () => {
+    const page = renderCalendarCreateBookingPage({
+      options: {
+        authority: { serviceScope: 'all_business:all_services', bookingFlow: 'practitioner_first' },
+        staff,
+        services: [
+          { id: 81, name: 'Quick Relief: Back & Neck (45 min)', categoryName: 'Massage', durationMinutes: 45, staffIds: [11, 12] },
+          { id: 82, name: 'Full Body Swedish', categoryName: 'Massage', durationMinutes: 60, staffIds: [12, 13] },
+          { id: 83, name: 'Medi-Heel Pedicure & Foot Massage', categoryName: 'Feet', durationMinutes: 60, staffIds: [13] },
+          { id: 84, name: 'Hot Stone Massage', categoryName: 'Massage', durationMinutes: 75, staffIds: [11, 12] },
+        ],
+      },
+      prefill: { date: '2026-09-14', time: '10:30' },
+    });
+    return interactiveProductionSurface(page, calendarCreateBookingClientScript());
+  },
+};
 export const PhonePasskeyDevices = {
   render: () => productionSurface(renderPasskeyManagePage({
     credentials: [

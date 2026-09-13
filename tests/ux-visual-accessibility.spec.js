@@ -120,6 +120,41 @@ test('receptionist chooses practitioner first and sees only mapped treatments on
   expect(serious, `Serious accessibility violations in receptionist booking: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
 });
 
+test('normal business admin account receives the same practitioner-first Phone booking flow', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/iframe.html?id=workspace-production-surfaces--normal-admin-practitioner-first-booking&viewMode=story', { waitUntil: 'networkidle' });
+
+  const picker = page.locator('[data-practitioner-picker]');
+  const treatment = page.locator('#service-select');
+  await expect(picker).toBeVisible();
+  await expect(treatment).toBeDisabled();
+
+  await picker.getByRole('button', { name: /Marietjie/ }).click();
+  await expect(treatment.locator('option')).toHaveText([
+    'Choose treatment',
+    'Full Body Swedish',
+    'Medi-Heel Pedicure & Foot Massage',
+  ]);
+  await expect(treatment.locator('option', { hasText: 'Quick Relief' })).toHaveCount(0);
+
+  const metrics = await page.evaluate(() => ({
+    viewportWidth: window.innerWidth,
+    documentWidth: document.documentElement.scrollWidth,
+    shortChoices: [...document.querySelectorAll('[data-practitioner-choice]')]
+      .filter((button) => button.getBoundingClientRect().height < 44)
+      .map((button) => button.textContent.trim()),
+  }));
+  expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+  expect(metrics.shortChoices).toEqual([]);
+
+  const accessibility = await new AxeBuilder({ page })
+    .include('.workspace-surface-story')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
+  expect(serious, `Serious accessibility violations in normal admin booking: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+});
+
 test('phone passkey cards show South African date and time without overflow', async ({ page }) => {
   await page.setViewportSize({ width: 310, height: 659 });
   await page.goto('/iframe.html?id=workspace-production-surfaces--phone-passkey-devices&viewMode=story', { waitUntil: 'networkidle' });
