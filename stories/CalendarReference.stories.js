@@ -253,3 +253,35 @@ export const MonthAppointmentsAndSouthAfricanHoliday = {
   `, '100%'),
   parameters: { layout: 'fullscreen' },
 };
+
+
+export const DesktopCompleteNewMenu = {
+  render: () => frame(`
+    <style>
+      .desktop-menu-reference{display:grid;gap:14px}
+      .desktop-menu-reference h2,.desktop-menu-reference p{margin:0}
+      .desktop-menu-reference p{color:#66776f;font-size:.86rem}
+      .desktop-menu-toolbar{display:flex;align-items:center;justify-content:flex-end;padding:10px;border:1px solid #dce3dd;border-radius:14px;background:#fff}
+      .desktop-menu{position:relative}
+      .desktop-menu>summary{display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:8px 14px;border-radius:9px;background:#17382d;color:#fff;font-size:.82rem;font-weight:850;list-style:none;cursor:pointer}
+      .desktop-menu>summary::-webkit-details-marker{display:none}
+      .desktop-menu-popover{position:relative;display:grid;gap:3px;width:min(290px,100%);margin-top:6px;padding:7px;border:1px solid #dce3dd;border-radius:11px;background:#fff;box-shadow:0 15px 32px rgba(20,45,35,.18)}
+      .desktop-menu-popover a,.desktop-menu-popover button{display:flex;align-items:center;width:100%;min-height:44px;padding:9px 11px;border:0;border-radius:8px;background:transparent;color:#20322b;font:inherit;font-size:.8rem;font-weight:750;text-align:left;text-decoration:none}
+      .desktop-menu-popover a:hover,.desktop-menu-popover button:hover{background:#e7eee9}
+    </style>
+    <section class="desktop-menu-reference" aria-labelledby="desktop-menu-title">
+      <div><span class="calendar-reference__label">Desktop Calendar</span><h2 id="desktop-menu-title">Complete New menu</h2><p>Booking and authorized availability actions are ready together on first open.</p></div>
+      <div class="desktop-menu-toolbar">
+        <details class="desktop-menu" open>
+          <summary aria-label="New calendar item"><span aria-hidden="true">＋</span><span>New</span></summary>
+          <div class="desktop-menu-popover" data-storybook-desktop-new-menu>
+            <a href="#new-appointment">New appointment</a>
+            <a href="#past-appointment">Record past appointment</a>
+            <button type="button" data-calendar-operation="add-block">Block time</button>
+            <button type="button" data-calendar-operation="add-leave">Leave</button>
+          </div>
+        </details>
+      </div>
+    </section>
+  `, '720px'),
+};

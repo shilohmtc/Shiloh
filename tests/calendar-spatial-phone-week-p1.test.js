@@ -128,6 +128,19 @@ test('Week event position and visual height continue to derive from canonical st
   assert.match(html, /--event-top:144px;--event-height:141px[\s\S]*?data-event-id="appointment-9702"/);
 });
 
+test('Week server markup carries only authorized availability actions for the desktop New menu', () => {
+  const capableModel = model('week', [31, 32], { mutationEnabled: true });
+  capableModel.mutationCapability.operations.push('calendar_block:manage', 'operational_leave:manage');
+  const capable = renderCalendarPage(capableModel, { desktopEnhancementEnabled: true });
+  assert.match(capable, /data-desktop-availability-sources/);
+  assert.equal((capable.match(/data-calendar-operation="add-block"/g) || []).length, 2);
+  assert.equal((capable.match(/data-calendar-operation="add-leave"/g) || []).length, 2);
+  assert.match(capable, /data-calendar-desktop-pending="true"/);
+
+  const readOnly = renderCalendarPage(model('week', [31, 32]));
+  assert.doesNotMatch(readOnly, /data-desktop-availability-sources|data-calendar-operation="add-block"|data-calendar-operation="add-leave"/);
+});
+
 test('shared Week appointments remain one canonical event with compact practitioner attribution', () => {
   const html = renderCalendarPage(model('week'));
   assert.equal((html.match(/data-event-id="appointment-9702"/g) || []).length, 1);
@@ -202,6 +215,8 @@ test('authenticated browser proof mounts canonical Calendar and Create Booking r
   assert.match(source, /visibleAppointmentCards > 0/);
   assert.match(source, /densityCount, 0/);
   assert.match(source, /desktop-approved-calendar-contract/);
+  assert.match(source, /desktop-first-paint-pending/);
+  assert.match(source, /desktop-new-menu-complete/);
   assert.match(source, /calendarDesktopApprovedClientScript/);
   assert.match(source, /workspaceIconClientScript/);
   assert.doesNotMatch(source, /calendarReadOnlyRoutes\(\{/);

@@ -49,6 +49,33 @@ test('phone Create booking restores canonical Week context and fits the viewport
   expect(serious, `Serious accessibility violations in phone Create booking: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
 });
 
+test('Desktop New menu exposes every authorized booking and availability action', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/iframe.html?id=calendar-reference-implementation--desktop-complete-new-menu&viewMode=story', { waitUntil: 'networkidle' });
+
+  const menu = page.locator('[data-storybook-desktop-new-menu]');
+  await expect(menu).toBeVisible();
+  for (const label of ['New appointment', 'Record past appointment', 'Block time', 'Leave']) {
+    await expect(menu.getByText(label, { exact: true })).toBeVisible();
+  }
+  const metrics = await menu.locator('a,button').evaluateAll((nodes) => ({
+    labels: nodes.map(node => node.textContent.trim()),
+    shortTargets: nodes.filter(node => node.getBoundingClientRect().height < 44).map(node => node.textContent.trim()),
+    documentWidth: document.documentElement.scrollWidth,
+    viewportWidth: window.innerWidth,
+  }));
+  expect(metrics.labels).toEqual(['New appointment', 'Record past appointment', 'Block time', 'Leave']);
+  expect(metrics.shortTargets).toEqual([]);
+  expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+
+  const accessibility = await new AxeBuilder({ page })
+    .include('.calendar-reference')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
+  expect(serious, `Serious accessibility violations in desktop New menu: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+});
+
 test('Month exposes full-cell navigation, appointment details and South African holidays on phone and desktop', async ({ page }) => {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     await page.setViewportSize(viewport);

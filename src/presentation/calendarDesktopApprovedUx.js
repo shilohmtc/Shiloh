@@ -37,6 +37,10 @@ function iconSvg(name) {
   return renderLucideIcon(name, { className: 'calendar-action-icon', size: 16 });
 }
 
+function desktopFirstPaintStyles() {
+  return `@keyframes shiloh-calendar-desktop-first-paint-fallback{to{opacity:1;visibility:visible}}@media(min-width:701px){body[data-calendar-view="week"][data-calendar-desktop-pending="true"] .workspace-main>.shell{opacity:0;visibility:hidden;animation:shiloh-calendar-desktop-first-paint-fallback 0s 1500ms forwards}}`;
+}
+
 function desktopApprovedStyles() {
   const gridHeight = ((DESKTOP_GRID_END_MINUTES - DESKTOP_GRID_START_MINUTES) / 60) * DESKTOP_GRID_PIXELS_PER_HOUR;
   return `@media(min-width:701px){
@@ -123,8 +127,8 @@ function calendarDesktopApprovedClientScript() {
     leave: iconSvg('leave'), chevronLeft: iconSvg('chevronLeft'), chevronRight: iconSvg('chevronRight'), today: iconSvg('today'),
   });
   return `(()=>{'use strict';
-if(!window.matchMedia('(min-width:701px)').matches)return;
-const body=document.body;if(!body||!body.dataset.calendarView)return;body.dataset.calendarDesktopApproved='true';
+const body=document.body;if(!body||!body.dataset.calendarView)return;
+if(!window.matchMedia('(min-width:701px)').matches){body.removeAttribute('data-calendar-desktop-pending');return;}body.dataset.calendarDesktopApproved='true';
 const CSS_TEXT=${css};const ICONS=${icons};const one=(selector,root=document)=>root.querySelector(selector);const all=(selector,root=document)=>Array.from(root.querySelectorAll(selector));
 const esc=value=>{const span=document.createElement('span');span.textContent=String(value||'');return span.innerHTML;};const params=new URLSearchParams(location.search);const view=body.dataset.calendarView||params.get('view')||'week';
 function businessToday(){const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Johannesburg',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const map=Object.fromEntries(parts.map(part=>[part.type,part.value]));return map.year+'-'+map.month+'-'+map.day;}
@@ -145,7 +149,7 @@ function buildPlanner(selected){if(view!=='week')return;const grid=one('.week-gr
 function collectAvailability(doc){const result={block:new Map(),leave:new Map()};all('.lane',doc).forEach(lane=>{const id=Number(lane.dataset.staffId);const name=one('h3',lane)?.textContent.trim()||('Practitioner '+id);if(!Number.isSafeInteger(id))return;const block=one('[data-calendar-operation="add-block"]',lane);const leave=one('[data-calendar-operation="add-leave"]',lane);if(block)result.block.set(id,{id,name,date:block.dataset.date||params.get('date')||businessToday()});if(leave)result.leave.set(id,{id,name,date:leave.dataset.date||params.get('date')||businessToday()});});return result;}
 function appendAvailability(popover,label,operation,entries,iconName){const values=Array.from(entries.values());if(!values.length)return;if(values.length===1){const item=values[0],lane=document.createElement('span');lane.className='lane';lane.dataset.staffId=String(item.id);lane.innerHTML='<h3 class="sr-only">'+esc(item.name)+'</h3><button type="button" data-calendar-operation="'+operation+'" data-staff-id="'+item.id+'" data-date="'+esc(item.date)+'">'+ICONS[iconName]+'<span>'+esc(label)+'</span></button>';popover.append(lane);return;}const details=document.createElement('details');details.className='desktop-create-submenu';details.innerHTML='<summary>'+ICONS[iconName]+'<span>'+esc(label)+'</span></summary><div class="desktop-create-practitioners"></div>';const list=one('.desktop-create-practitioners',details);values.forEach(item=>{const lane=document.createElement('span');lane.className='lane';lane.dataset.staffId=String(item.id);lane.innerHTML='<h3>'+esc(item.name)+'</h3><button type="button" data-calendar-operation="'+operation+'" data-staff-id="'+item.id+'" data-date="'+esc(item.date)+'">'+esc(item.name)+'</button>';list.append(lane);});popover.append(details);}
 async function populateAvailability(popover,selected){if(!popover||body.dataset.calendarReadonly==='true')return;let source=document;if(!one('[data-calendar-operation="add-block"], [data-calendar-operation="add-leave"]')){try{const url=new URL(location.href);url.searchParams.set('view','day');url.searchParams.set('date',selected);const response=await fetch(url.pathname+'?'+url.searchParams.toString(),{credentials:'same-origin',cache:'no-store',headers:{Accept:'text/html'}});if(!response.ok)return;source=new DOMParser().parseFromString(await response.text(),'text/html');}catch(_error){return;}}const allowed=collectAvailability(source);appendAvailability(popover,'Block time','add-block',allowed.block,'block');appendAvailability(popover,'Leave','add-leave',allowed.leave,'leave');}
-installStyles();const days=extractDays();const selected=selectedDate(days);const toolbar=buildToolbar(days);buildWeekStrip(days,selected,one('.week-view'));buildPlanner(selected);if(toolbar)populateAvailability(toolbar.popover,selected);
+installStyles();const days=extractDays();const selected=selectedDate(days);const toolbar=buildToolbar(days);buildWeekStrip(days,selected,one('.week-view'));buildPlanner(selected);if(toolbar)populateAvailability(toolbar.popover,selected);body.removeAttribute('data-calendar-desktop-pending');
 })();`;
 }
 
@@ -158,6 +162,7 @@ module.exports = {
   desktopTimeLabels,
   canonicalLaneStaffId,
   iconSvg,
+  desktopFirstPaintStyles,
   desktopApprovedStyles,
   calendarDesktopApprovedClientScript,
 };

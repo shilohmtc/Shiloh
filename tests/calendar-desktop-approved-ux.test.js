@@ -6,6 +6,7 @@ const {
   compactWeekLabel,
   desktopTimeLabels,
   canonicalLaneStaffId,
+  desktopFirstPaintStyles,
   desktopApprovedStyles,
   calendarDesktopApprovedClientScript,
 } = require('../src/presentation/calendarDesktopApprovedUx');
@@ -32,6 +33,15 @@ test('shared appointment maps to one canonical visible practitioner lane', () =>
   assert.equal(canonicalLaneStaffId([22, 11], [11, 22, 33]), 11);
   assert.equal(canonicalLaneStaffId([22, 11], [33, 22, 11]), 22);
   assert.equal(canonicalLaneStaffId([22], [11, 22, 33]), 22);
+});
+
+test('Desktop Week withholds the canonical first paint until the approved planner is ready', () => {
+  const css = desktopFirstPaintStyles();
+  const script = calendarDesktopApprovedClientScript();
+  assert.match(css, /data-calendar-desktop-pending="true"/);
+  assert.match(css, /opacity:0;visibility:hidden/);
+  assert.match(css, /1500ms forwards/);
+  assert.match(script, /body\.removeAttribute\('data-calendar-desktop-pending'\)/);
 });
 
 test('Desktop enhancer preserves Phone by gating all planner changes above 700px', () => {
@@ -70,6 +80,7 @@ test('one New appointment menu reuses authorized booking, retrospective, block a
   assert.match(script, /Record past appointment/);
   assert.match(script, /data-calendar-operation="add-block"/);
   assert.match(script, /data-calendar-operation="add-leave"/);
+  assert.match(script, /one\('\[data-calendar-operation="add-block"\], \[data-calendar-operation="add-leave"\]'\)/);
   assert.match(script, /fetch\(url\.pathname/);
   assert.match(script, /credentials:'same-origin'/);
   assert.match(script, /all\('\.operational-actions'\)\.forEach\(node=>node\.remove\(\)\)/);

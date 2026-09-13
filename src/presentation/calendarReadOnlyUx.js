@@ -17,6 +17,7 @@ const {
   renderWorkspaceNavigation,
 } = require('./workspaceShell');
 const { normalizeOperationalDateKey } = require('../services/calendarReadOnlyUx');
+const { desktopFirstPaintStyles } = require('./calendarDesktopApprovedUx');
 
 const BUSINESS_TIMEZONE = 'Africa/Johannesburg';
 
@@ -455,6 +456,22 @@ function renderPhoneWeekPractitionerPicker(model, basePath = '/calendar/read-onl
   return `<details class="compact-week-practitioner-picker" data-compact-week-practitioner-picker><summary><span class="status-dot" aria-hidden="true"></span><span>Practitioner</span><strong data-compact-week-active-staff="${escapeHtml(active.id)}">${escapeHtml(active.displayName)}</strong></summary><div class="compact-week-practitioner-options">${options}</div></details>`;
 }
 
+function renderDesktopAvailabilitySources(model, staff = [], date = '') {
+  const lanes = staff.map((person) => {
+    const actions = [
+      staffOperationEnabled(model, 'calendar_block:manage', person.id)
+        ? `<button type="button" data-calendar-operation="add-block" data-staff-id="${escapeHtml(person.id)}" data-date="${escapeHtml(date)}">Add block</button>`
+        : '',
+      staffOperationEnabled(model, 'operational_leave:manage', person.id)
+        ? `<button type="button" data-calendar-operation="add-leave" data-staff-id="${escapeHtml(person.id)}" data-date="${escapeHtml(date)}">Add leave</button>`
+        : '',
+    ].filter(Boolean).join('');
+    if (!actions) return '';
+    return `<span class="desktop-availability-source lane" data-staff-id="${escapeHtml(person.id)}" data-date="${escapeHtml(date)}"><h3>${escapeHtml(person.displayName || `Staff ${person.id}`)}</h3>${actions}</span>`;
+  }).filter(Boolean).join('');
+  return lanes ? `<div hidden data-desktop-availability-sources>${lanes}</div>` : '';
+}
+
 function renderWeek(model, booking = {}, basePath = '/calendar/read-only') {
   const sourceStaff = model.timeline.staff || [];
   const activeStaffId = sourceStaff.some(person => Number(person.id) === Number(model.activeStaffId))
@@ -462,6 +479,7 @@ function renderWeek(model, booking = {}, basePath = '/calendar/read-only') {
     : Number(sourceStaff[0]?.id);
   const staff = sourceStaff;
   const operationalDays = model.period.dateKeys.filter(day => new Date(`${day}T12:00:00+02:00`).getUTCDay() !== 0);
+  const selectedDate = operationalDays.includes(model.dateKey) ? model.dateKey : operationalDays[0] || model.dateKey;
   const unambiguousStaff = staff.length === 1 ? staff[0] : null;
   const lanes = operationalDays.map((day, dayIndex) => {
     const items = eventsForDate(model, day).filter(item => item.kind !== 'clinic_closure');
@@ -477,6 +495,7 @@ function renderWeek(model, booking = {}, basePath = '/calendar/read-only') {
     <div class="view-heading"><div><span class="eyebrow">Week</span><h2>${escapeHtml(formatDay(operationalDays[0] || model.period.startKey, { weekday: 'short', month: 'long' }))} – ${escapeHtml(formatDay(operationalDays.at(-1) || model.period.startKey, { weekday: 'short', month: 'long', year: 'numeric' }))}</h2></div>${renderPhoneWeekPractitionerPicker({ ...model, timeline: { ...model.timeline, staff } }, basePath)}<span class="read-only-badge">${mutationEnabled(model) ? 'Calendar actions' : 'Read-only'}</span></div>
     ${renderViewPractitionerContext(model)}
     ${booking.enabled ? '<p class="calendar-booking-hint">Tap an empty time to start an appointment.</p>' : ''}
+    ${renderDesktopAvailabilitySources(model, staff, selectedDate)}
     <div class="time-grid week-time-grid">${renderTimeRail()}<div class="week-grid" data-week-date-lane-count="${laneCount}" style="--week-lane-count:${Math.max(laneCount, 1)}">${lanes || '<div class="empty large">No operational dates</div>'}</div></div>
   </main>`;
 }
@@ -799,6 +818,7 @@ function renderCalendarPage(model, {
   operationalActions = [],
   bookingEnabled = false,
   bookingPath = '/calendar/book',
+  desktopEnhancementEnabled = false,
   clientNavigationAllowed = false,
   clientsPath = '/calendar/clients',
   timelineReadOnlyMessage = 'Read-only operational view. Booking, reschedule, cancellation, block, leave and schedule mutations are not available here.',
@@ -813,7 +833,7 @@ function renderCalendarPage(model, {
         : renderDay(model, booking);
   const canMutate = mutationEnabled(model);
   const operationScript = canMutate ? `<script src="${escapeHtml(operationalMutationsScriptPath)}" defer></script>` : '';
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Calendar — Shiloh Workspace</title><style>${serviceFamilyAccentCss()}${styles()}${workspaceShellStyles()}${workspaceV1Styles()}${desktopSpatialLaneStyles()}${calendarViewParityStyles()}${calendarViewParityResponsiveStyles()}${canMutate ? operationalStyles() : ''}${calendarFirstPhoneStyles()}${goldieDensityPhoneStyles()}${calendar823Styles()}${calendarEventToneCss()}</style><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${operationScript}</head><body data-calendar-view="${escapeHtml(model.view)}" data-calendar-readonly="${canMutate ? 'false' : 'true'}"><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'calendar', clientsHref: clientNavigationAllowed ? clientsPath : null })}<div class="workspace-main"><div class="shell">
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Calendar — Shiloh Workspace</title><style>${serviceFamilyAccentCss()}${styles()}${desktopFirstPaintStyles()}${workspaceShellStyles()}${workspaceV1Styles()}${desktopSpatialLaneStyles()}${calendarViewParityStyles()}${calendarViewParityResponsiveStyles()}${canMutate ? operationalStyles() : ''}${calendarFirstPhoneStyles()}${goldieDensityPhoneStyles()}${calendar823Styles()}${calendarEventToneCss()}</style><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${operationScript}</head><body data-calendar-view="${escapeHtml(model.view)}" data-calendar-desktop-pending="${model.view === 'week' && desktopEnhancementEnabled ? 'true' : 'false'}" data-calendar-readonly="${canMutate ? 'false' : 'true'}"><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'calendar', clientsHref: clientNavigationAllowed ? clientsPath : null })}<div class="workspace-main"><div class="shell">
     <header class="topbar"><div class="brand"><h1>Calendar</h1><p>Your clinic schedule, at a glance.</p></div><div class="topbar-side"><div class="access-controls"></div></div></header>
     ${renderControls(model, basePath, operationalActions)}${canMutate ? '<span class="operation-status" role="status" aria-live="polite" data-calendar-operation-status></span>' : ''}${content}${renderOperationalSummary(model)}
     <div class="footer-note">${escapeHtml(timelineReadOnlyMessage)}</div>${renderManagementPanel(model)}
