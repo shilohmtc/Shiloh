@@ -14,6 +14,7 @@ const {
 const { normalizeAppointmentNotes } = require('./appointmentNotes');
 
 const BOOKING_TIME_INCREMENT_MINUTES = 5;
+const PRACTITIONER_FIRST_BUSINESS_ROLES = new Set(['owner', 'business_admin', 'booking_operator']);
 
 function bookingError(code, message) {
   const error = new Error(message);
@@ -185,7 +186,8 @@ function createCalendarCreateBookingService({
       authority: {
         operatorAdminId: Number(admin.id),
         serviceScope: admin.bookingScope.key,
-        bookingFlow: admin.calendarAuthority.businessRole === 'booking_operator'
+        bookingFlow: admin.bookingScope.key === 'all_business:all_services'
+          && PRACTITIONER_FIRST_BUSINESS_ROLES.has(admin.calendarAuthority.businessRole)
           ? 'practitioner_first'
           : 'treatment_first',
       },

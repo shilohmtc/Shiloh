@@ -73,13 +73,23 @@ test('all-business/all-services booking scope is canonical data and has no named
   assert.equal(db.calls.some((call) => /Christel|Abigail|Jean-Pierre/.test(call.sql)), false);
 });
 
-test('reception booking options declare practitioner-first presentation without changing service authority', async () => {
-  const db = bookingDb({ admin: principals.naomi });
+test('clinic-wide normal admin and reception accounts declare practitioner-first presentation without changing service authority', async () => {
+  for (const principal of [principals.christel, principals.jp, principals.naomi]) {
+    const db = bookingDb({ admin: principal });
+    const service = createCalendarCreateBookingService({ db, env: enabledEnv, crmV2Service: crmV2() });
+    const options = await service.listBookableOptions(principal.id);
+    assert.equal(options.authority.serviceScope, 'all_business:all_services');
+    assert.equal(options.authority.bookingFlow, 'practitioner_first');
+    assert.equal(options.services[0].staffIds[0], 20);
+  }
+});
+
+test('narrow practitioner accounts retain treatment-first presentation', async () => {
+  const db = bookingDb({ admin: principals.marietjie });
   const service = createCalendarCreateBookingService({ db, env: enabledEnv, crmV2Service: crmV2() });
-  const options = await service.listBookableOptions(principals.naomi.id);
-  assert.equal(options.authority.serviceScope, 'all_business:all_services');
-  assert.equal(options.authority.bookingFlow, 'practitioner_first');
-  assert.equal(options.services[0].staffIds[0], 20);
+  const options = await service.listBookableOptions(principals.marietjie.id);
+  assert.equal(options.authority.serviceScope, 'own_services:own_services');
+  assert.equal(options.authority.bookingFlow, 'treatment_first');
 });
 
 test('bookable catalogue and prepare remain bounded by authenticated service relationships', async () => {
