@@ -14,7 +14,7 @@ const {
   passkeyPolicy,
   registrationUser,
   strongRecentSession,
-  normalizeDeviceLabel,
+  personalizedDeviceLabel,
   verifyRegistrationResponse,
 } = require('./staffPasskeyAuth');
 
@@ -381,7 +381,7 @@ function createStaffWhatsAppPasskeyBootstrapService({
            (admin_id, credential_id, public_key_spki, algorithm, sign_count, transports, backed_up, device_label)
          VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
          RETURNING id`,
-        [admin.id, verified.credentialId, verified.publicKeySpki, verified.algorithm, verified.signCount, JSON.stringify(verified.transports), verified.backedUp, normalizeDeviceLabel(deviceLabel) || 'Shiloh device']
+        [admin.id, verified.credentialId, verified.publicKeySpki, verified.algorithm, verified.signCount, JSON.stringify(verified.transports), verified.backedUp, personalizedDeviceLabel(admin.display_name, deviceLabel)]
       );
       const replacement = challenge.purpose === REPLACEMENT_PURPOSE;
       let revokedCredentialCount = 0;

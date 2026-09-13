@@ -40,6 +40,14 @@ function defaultDeviceLabel(userAgent = '') {
   if (/Macintosh|Mac OS/i.test(value)) return 'Mac';
   return 'Shiloh device';
 }
+function personalizedDeviceLabel(displayName, deviceLabel) {
+  const device = normalizeDeviceLabel(deviceLabel) || 'Shiloh device';
+  const name = cleanDisplayName(displayName);
+  if (name === 'Shiloh staff') return device;
+  const firstName = name.split(/\s+/)[0];
+  const possessive = /s$/i.test(firstName) ? `${firstName}’` : `${firstName}’s`;
+  return normalizeDeviceLabel(`${possessive} ${device}`) || device;
+}
 function hashBytes(value) { return crypto.createHash('sha256').update(Buffer.from(value)).digest(); }
 function safeBufferEqual(a, b) {
   const left = Buffer.from(a || []); const right = Buffer.from(b || []);
@@ -313,7 +321,7 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
       const inserted = await client.query(`INSERT INTO staff_auth_passkey_credentials
         (admin_id, credential_id, public_key_spki, algorithm, sign_count, transports, backed_up, device_label)
         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8) RETURNING id`,
-      [admin.id, verified.credentialId, verified.publicKeySpki, verified.algorithm, verified.signCount, JSON.stringify(verified.transports), verified.backedUp, normalizeDeviceLabel(deviceLabel) || 'Shiloh device']);
+      [admin.id, verified.credentialId, verified.publicKeySpki, verified.algorithm, verified.signCount, JSON.stringify(verified.transports), verified.backedUp, personalizedDeviceLabel(admin.display_name, deviceLabel)]);
       const replacement = challenge.purpose === REPLACEMENT_REGISTRATION_PURPOSE;
       let revokedCredentialCount = 0;
       let revokedSessionCount = 0;
@@ -420,6 +428,6 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
 module.exports = {
   FEATURE_FLAG, RP_ID_FLAG, PUBLIC_ORIGIN_FLAG, CHALLENGE_TTL_MS, STRONG_AUTH_METHODS,
   REGISTRATION_PURPOSE, REPLACEMENT_REGISTRATION_PURPOSE,
-  MAX_DEVICE_LABEL_LENGTH, b64url, fromB64url, normalizeCredentialHint, normalizeDeviceLabel, defaultDeviceLabel, passkeyPolicy, strongRecentSession, registrationUser, decodeCbor, cosePublicKeyToSpki,
+  MAX_DEVICE_LABEL_LENGTH, b64url, fromB64url, normalizeCredentialHint, normalizeDeviceLabel, defaultDeviceLabel, personalizedDeviceLabel, passkeyPolicy, strongRecentSession, registrationUser, decodeCbor, cosePublicKeyToSpki,
   verifyRpAndFlags, verifyRegistrationResponse, verifyAssertionResponse, createStaffPasskeyAuthService,
 };
