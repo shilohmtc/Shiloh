@@ -19,7 +19,14 @@ const {
 const ACCESS_V2_LOCK_BASE = 788000000000;
 const PRACTITIONER_PRESET_KEY = 'employee_practitioner_v1';
 const RECEPTION_PRESET_KEY = 'reception_shared_operational_v1';
-const PRACTITIONER_COPY_CAPABILITIES = Object.freeze(['appointment:view', 'booking:update']);
+const PRACTITIONER_COPY_CAPABILITIES = Object.freeze([
+  'appointment:view',
+  'booking:update',
+  'client:lookup',
+  'client:manage',
+  'services:view',
+  'services:manage',
+]);
 const PRACTITIONER_COPY_CAPABILITY_SET = new Set(PRACTITIONER_COPY_CAPABILITIES);
 
 const CAPABILITY_GROUPS = Object.freeze([
@@ -46,6 +53,10 @@ function enabledCapabilities(value) {
 function stablePermissions(value) {
   const source = permissionSet(value);
   return Object.fromEntries(Object.keys(source).sort().map(key => [key, source[key]]));
+}
+
+function practitionerPresetPermissions() {
+  return Object.fromEntries(PRACTITIONER_COPY_CAPABILITIES.map(key => [key, true]));
 }
 
 function principalRevision(row) {
@@ -285,7 +296,7 @@ function createWorkspaceAccessV2Service({ db = pool, accessService = workspaceSt
       let config;
       if (preset === PRACTITIONER_PRESET_KEY) {
         requirePractitionerTarget(row);
-        config = { role: 'practitioner', businessRole: 'employee_practitioner', calendarScope: 'own_appointments', serviceScope: 'own_services', permissions: { 'appointment:view': true } };
+        config = { role: 'practitioner', businessRole: 'employee_practitioner', calendarScope: 'own_appointments', serviceScope: 'own_services', permissions: practitionerPresetPermissions() };
       } else {
         if (!isReceptionIdentity(row)) throw new WorkspaceStaffError('WORKSPACE_ACCESS_RECEPTION_TARGET_INVALID', 'The Reception preset is reserved for the canonical Shiloh Reception principal.', 409);
         config = { role: RECEPTION_ACCESS_PRESET.role, businessRole: RECEPTION_ACCESS_PRESET.businessRole, calendarScope: RECEPTION_ACCESS_PRESET.calendarScope, serviceScope: RECEPTION_ACCESS_PRESET.serviceScope, permissions: receptionPermissions() };
@@ -419,6 +430,7 @@ module.exports = {
   CAPABILITY_GROUPS,
   enabledCapabilities,
   stablePermissions,
+  practitionerPresetPermissions,
   principalRevision,
   practitionerShape,
   practitionerCompatible,
