@@ -41,7 +41,7 @@ function renderCalendarCreateBookingPage({ options = { staff: [], services: [] }
     services: (options.services || []).map(withServiceFamily),
   };
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Create Shiloh booking</title><style>${serviceFamilyAccentCss()}${styles()}</style><script src="${escapeHtml(clientScriptPath)}" defer></script></head><body data-calendar-create-booking="true"><div class="shell">
-    <header class="topbar"><div><h1>Create booking</h1><p>Choose the client, treatment, practitioner and time.</p></div><div class="actions"><a class="button secondary" data-back-calendar href="${escapeHtml(backHref)}">← Back to Calendar</a></div></header>
+    <header class="topbar"><div><h1>Create booking</h1><p>Choose the client, treatment, practitioner and time.</p></div><div class="actions"><a class="button secondary" data-couples-booking-entry href="/calendar/book/couples${resolvedDate ? `?date=${encodeURIComponent(resolvedDate)}` : ''}">Couples Massage</a><a class="button secondary" data-back-calendar href="${escapeHtml(backHref)}">← Back to Calendar</a></div></header>
     <main>
       <section class="panel"><div class="steps">
         <div class="field"><label for="booking-date">Date</label><input id="booking-date" type="date" value="${escapeHtml(resolvedDate)}" required></div>

@@ -106,6 +106,9 @@ function aggregateAppointments(rows, permittedStaffIds) {
         revision: row.updated_at ? new Date(row.updated_at).toISOString() : null,
         bookingRequestState: row.booking_request_status || null,
         bookingProposalExpiresAt: row.booking_proposal_expires_at || null,
+        appointmentGroupId: row.appointment_group_id || null,
+        appointmentGroupType: row.appointment_group_type || null,
+        appointmentGroupPosition: row.appointment_group_position == null ? null : Number(row.appointment_group_position),
         staff: [],
         staffIds: [],
       });
@@ -271,6 +274,8 @@ function createSchedulingEngine({
       SELECT a.id AS appointment_id,
              a.starts_at, a.ends_at, a.status, a.source AS record_source, a.updated_at,
              aba.status AS booking_request_status,aba.proposal_expires_at AS booking_proposal_expires_at,
+             agm.group_id AS appointment_group_id,ag.group_type AS appointment_group_type,
+             agm.guest_position AS appointment_group_position,
              COALESCE(c.display_name,a.source_client_name,'Client') AS client_name,
              COALESCE((SELECT string_agg(aps.service_name_snapshot,' + ' ORDER BY aps.position)
                          FROM appointment_services aps WHERE aps.appointment_id=a.id),a.title,'Appointment') AS service_name,
@@ -291,6 +296,8 @@ function createSchedulingEngine({
         JOIN appointment_staff ast
           ON ast.appointment_id=a.id AND ast.staff_id = ANY($3::bigint[])
         LEFT JOIN appointment_booking_approvals aba ON aba.appointment_id=a.id
+        LEFT JOIN appointment_group_members agm ON agm.appointment_id=a.id
+        LEFT JOIN appointment_groups ag ON ag.id=agm.group_id
        WHERE a.status <> 'cancelled'
          AND a.starts_at < $2::timestamptz
          AND a.ends_at > $1::timestamptz

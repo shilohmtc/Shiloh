@@ -4,6 +4,7 @@ const calendarReadOnlyUxRoutes = require('./calendarReadOnlyUx');
 const staffCalendarAccessUxRoutes = require('./staffCalendarAccessUx');
 const { createCalendarCreateBookingRouter } = require('./calendarCreateBooking');
 const { createCalendarRetrospectiveBookingRouter } = require('./calendarRetrospectiveBooking');
+const { createCalendarCouplesBookingRouter } = require('./calendarCouplesBooking');
 const { createStaffBrowserSessionService } = require('../services/staffBrowserSession');
 const { createStaffBrowserSessionRouter } = require('./staffBrowserSession');
 const { createStaffPasskeyBootstrapRouter } = require('./staffPasskeyBootstrap');
@@ -60,6 +61,7 @@ router.use('/staff-auth', createStaffBrowserSessionRouter({ service: staffBrowse
 router.use('/staff', staffCalendarAccessUxRoutes);
 router.use('/client-authority', createOperatorContactAuthorityRouter({ sessionService: staffBrowserSessionService }));
 router.use('/book/past', createCalendarRetrospectiveBookingRouter({ sessionService: staffBrowserSessionService }));
+router.use('/book/couples', createCalendarCouplesBookingRouter({ sessionService: staffBrowserSessionService }));
 router.use('/book', createCalendarCreateBookingRouter({ sessionService: staffBrowserSessionService }));
 router.use('/operations', createCalendarAppointmentEndTimeRouter({ sessionService: staffBrowserSessionService }));
 router.use('/operations', createCalendarOperationalMutationRouter({ sessionService: staffBrowserSessionService }));

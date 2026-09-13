@@ -1,6 +1,88 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 
+test('Couples Massage keeps two complete client profiles usable on Phone', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/iframe.html?id=workspace-production-surfaces--couples-massage-booking&viewMode=story', { waitUntil: 'networkidle' });
+
+  await expect(page.getByRole('heading', { name: 'Couples Massage' })).toBeVisible();
+  await expect(page.locator('[data-guest]')).toHaveCount(2);
+  await page.route('**/calendar/book/couples/client-search', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ clients: [{ id: '91', displayName: 'Alex Adams', name: 'Alex Adams', mobile: '+27821234567', dateOfBirth: '1990-01-02', gender: 'female', profileStatus: 'registered', contactHint: 'ending in 4567' }] }),
+  }));
+  await page.locator('#guest-1-search').fill('Alex');
+  await page.locator('[data-search-guest="1"]').click();
+  await page.locator('[data-client-results="1"] .client-result').click();
+  await expect(page.locator('[data-client-id="1"]')).toHaveValue('91');
+  await expect(page.locator('[data-dob="1"]')).toHaveValue('1990-01-02');
+  const values = [
+    ['Alex Adams', '082 123 4567', '1990-01-02', 'female'],
+    ['Sam Adams', '082 987 6543', '1991-03-04', 'male'],
+  ];
+  for (let index = 1; index <= 2; index += 1) {
+    await page.locator(`[data-name="${index}"]`).fill(values[index - 1][0]);
+    await page.locator(`[data-mobile="${index}"]`).fill(values[index - 1][1]);
+    await page.locator(`[data-dob="${index}"]`).fill(values[index - 1][2]);
+    await page.locator(`[data-gender="${index}"]`).selectOption(values[index - 1][3]);
+    await page.locator(`[data-staff="${index}"]`).selectOption(String(10 + index));
+  }
+  await page.locator('[data-mobile="2"]').fill('082 123 4567');
+  await page.locator('[data-review-couples]').click();
+  await expect(page.locator('[data-couples-status]')).toContainText('different mobile numbers');
+  await page.locator('[data-mobile="2"]').fill('082 987 6543');
+
+  const metrics = await page.evaluate(() => ({
+    viewportWidth: innerWidth,
+    documentWidth: document.documentElement.scrollWidth,
+    shortTargets: [...document.querySelectorAll('button,input,select,a')]
+      .filter(node => node.getClientRects().length)
+      .filter(node => node.getBoundingClientRect().height < 44)
+      .map(node => node.textContent.trim() || node.getAttribute('data-name') || node.id),
+    overflowing: [...document.querySelectorAll('input,select,button')]
+      .filter(node => node.getClientRects().length)
+      .filter(node => node.getBoundingClientRect().right > innerWidth + 1)
+      .map(node => node.outerHTML.slice(0, 80)),
+  }));
+  expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+  expect(metrics.shortTargets).toEqual([]);
+  expect(metrics.overflowing).toEqual([]);
+  const accessibility = await new AxeBuilder({ page }).include('.workspace-surface-story').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(accessibility.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
+});
+
+test('Couples Massage remains scannable as two side-by-side guests on Desktop', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/iframe.html?id=workspace-production-surfaces--couples-massage-booking&viewMode=story', { waitUntil: 'networkidle' });
+  const cards = page.locator('[data-guest]');
+  await expect(cards).toHaveCount(2);
+  const geometry = await cards.evaluateAll(nodes => ({
+    firstTop: nodes[0].getBoundingClientRect().top,
+    secondTop: nodes[1].getBoundingClientRect().top,
+    firstRight: nodes[0].getBoundingClientRect().right,
+    secondLeft: nodes[1].getBoundingClientRect().left,
+    documentWidth: document.documentElement.scrollWidth,
+    viewportWidth: innerWidth,
+  }));
+  expect(Math.abs(geometry.firstTop - geometry.secondTop)).toBeLessThanOrEqual(1);
+  expect(geometry.firstRight).toBeLessThan(geometry.secondLeft);
+  expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+});
+
+test('linked Couples appointments share one distinctive labelled Calendar treatment', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/iframe.html?id=calendar-reference-implementation--couples-linked-calendar&viewMode=story', { waitUntil: 'networkidle' });
+  const linked = page.locator('.event-card.event-couples');
+  await expect(linked).toHaveCount(2);
+  await expect(linked.locator('.kind-pill')).toHaveText(['Couples', 'Couples']);
+  const treatment = await linked.evaluateAll(nodes => nodes.map(node => ({
+    border: getComputedStyle(node).borderLeftColor,
+    background: getComputedStyle(node).backgroundColor,
+  })));
+  expect(treatment[0]).toEqual(treatment[1]);
+});
+
 test('phone Create booking restores canonical Week context and fits the viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/iframe.html?id=workspace-production-surfaces--create-booking&viewMode=story', { waitUntil: 'networkidle' });
