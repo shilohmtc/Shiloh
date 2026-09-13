@@ -105,6 +105,7 @@ function model(view, visibleStaffIds = [21, 22, 23], timeline = timelineFixture(
       blocks: filteredBlocks,
       events: [...filteredAppointments, ...filteredBlocks],
     },
+    publicHolidays: [],
     mutationCapability: { enabled: false },
   };
 }
@@ -292,6 +293,18 @@ test('Month renders a Monday-aligned Monday-Saturday grid with subdued outside d
   assert.match(html, /view=week&amp;date=2026-09-18&amp;staff=21&amp;staff=22&amp;staff=23/);
 });
 
+test('Every Month cell is a full-cell link and canonical South African holidays are visible and accessible', () => {
+  const holidayModel = model('month');
+  holidayModel.publicHolidays = [{ date: '2026-09-24', name: 'Heritage Day', observed: false, countryCode: 'ZA' }];
+  const html = renderCalendarPage(holidayModel);
+  assert.equal((html.match(/class="month-day-link"/g) || []).length, holidayModel.period.dateKeys.length);
+  assert.match(html, /class="month-day public-holiday" data-date="2026-09-24" data-item-count="0" data-public-holiday="Heritage Day"/);
+  assert.match(html, /aria-label="Open Thursday, 24 September 2026, 0 items\. South African public holiday: Heritage Day"/);
+  assert.match(html, /class="month-holiday"[^>]*>.*Heritage Day/);
+  assert.match(html, /\.month-day-link\{position:absolute;inset:0;z-index:1/);
+  assert.match(html, /\.month-events\{position:relative;z-index:3/);
+});
+
 test('Sunday public holiday remains canonical while its observed Monday is visible', async () => {
   const timeline = timelineFixture();
   timeline.closures = [
@@ -351,7 +364,8 @@ test('Phone Week, Agenda and Month retain scan-first layouts and touch-safe Mont
     }
   }
   const monthHtml = renderCalendarPage(model('month'));
-  assert.match(monthHtml, /\.month-day-link\{position:relative;display:grid;[^}]*min-height:54px/);
-  assert.match(monthHtml, /\.month-events,\.month-more\{display:none\}/);
+  assert.match(monthHtml, /\.month-day-link\{position:absolute;inset:0;z-index:1/);
+  assert.match(monthHtml, /\.month-events\{display:grid;padding:0 2px 3px;gap:2px\}/);
+  assert.match(monthHtml, /\.month-event \.event-time-start\{display:inline\}/);
   assert.match(monthHtml, /class="month-day-owners" aria-label="Practitioners: Amber Studio \+ Birch Studio \+ Cedar Studio">AS · BS \+1<\/span>/);
 });
