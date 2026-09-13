@@ -11,7 +11,7 @@ const {
   injectClientListManagement,
   injectClientDetailManagement,
   workspaceClientsManageClientScript,
-} = require('../presentation/workspaceClientsManageUx');
+} = require('../presentation/workspaceClientsManagePractitionerScopeUx');
 const { requireStaffSession } = require('../middleware/staffBrowserSession');
 
 function isWorkspaceClientsEnabled(env = process.env) {
