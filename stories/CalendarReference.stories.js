@@ -216,7 +216,9 @@ const monthReferenceCell = ([date, day]) => {
 export const MonthAppointmentsAndSouthAfricanHoliday = {
   render: () => frame(`
     <style>
-      .month-reference{width:100%;display:grid;gap:8px}
+      html,body,#storybook-root{width:100%;max-width:100%;margin:0;overflow-x:hidden}
+      .calendar-reference{width:100%!important;max-width:100%!important;border-radius:0}
+      .month-reference{width:100%;min-width:0;display:grid;gap:8px}
       .month-reference h2{margin:0;font-size:1.2rem}
       .month-weekdays,.month-days{display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
       .month-weekdays span{padding:7px;text-align:center;color:#56685f;font-size:.68rem;font-weight:800}
@@ -248,5 +250,6 @@ export const MonthAppointmentsAndSouthAfricanHoliday = {
       <div class="month-weekdays" aria-hidden="true"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
       <div class="month-days">${monthReferenceDays.map(monthReferenceCell).join('')}</div>
     </section>
-  `, '1080px'),
+  `, '100%'),
+  parameters: { layout: 'fullscreen' },
 };
