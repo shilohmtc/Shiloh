@@ -49,7 +49,11 @@ function fixture(origin){
 function assertSimplifiedSignin(dom,{knownPrincipal=true}={}){
   assert.match(dom,/<h1>Shiloh Workspace<\/h1>/);
   assert.match(dom,/Secure staff access to Shiloh's operating workspace\./);
-  assert.match(dom,knownPrincipal?/Continue as Jean-Pierre/:/Continue with device sign-in/);
+  assert.match(dom,knownPrincipal?/Continue as Jean-Pierre/:/Device setup required/);
+  if(!knownPrincipal){
+    assert.match(dom,/This app is not linked to a Shiloh staff account/);
+    assert.match(dom,/Workspace → Devices &amp; sign-in → Set up another device/);
+  }
   assert.doesNotMatch(dom,/Emergency sign-in|href="\/calendar\/staff\/emergency"/);
   assert.doesNotMatch(dom,/data-shiloh-totp-form|data-shiloh-recovery-form|Use your authenticator/);
   assert.doesNotMatch(dom,/Fast secure re-entry|secure WebAuthn credential registered for this device|First time \/ new device|Set up Shiloh from WhatsApp|Workspace access and actions remain governed by canonical server-derived staff\/Admin permissions and scope\./i);
