@@ -52,9 +52,9 @@ test('phone Create booking restores canonical Week context and fits the viewport
 test('Month exposes full-cell navigation, appointment details and South African holidays on phone and desktop', async ({ page }) => {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
     await page.setViewportSize(viewport);
-    await page.goto('/iframe.html?id=workspace-production-surfaces--month-with-south-african-holiday&viewMode=story', { waitUntil: 'networkidle' });
+    await page.goto('/iframe.html?id=calendar-reference-implementation--month-appointments-and-south-african-holiday&viewMode=story', { waitUntil: 'networkidle' });
 
-    const surface = page.locator('.workspace-surface-story');
+    const surface = page.locator('.calendar-reference');
     await expect(surface).toBeVisible();
     const emptyDay = surface.locator('.month-day[data-date="2026-09-15"]');
     const hitTarget = emptyDay.locator('.month-day-link');
