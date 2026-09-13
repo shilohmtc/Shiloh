@@ -4,6 +4,40 @@ All notable changes to Shiloh are documented in this file.
 
 This project follows Semantic Versioning: MAJOR.MINOR.PATCH.
 
+## [2.0.0] - 2026-09-13
+
+### Unified Clinic Platform
+
+Shiloh now operates as one integrated clinic platform rather than a collection of separate operating streams.
+
+#### Added
+- Complete public website with Home, Treatments, About, Contact and the canonical booking journey.
+- Secure, mobile-first Shiloh Workspace and installable PWA for authorized clinic staff.
+- Canonical Shiloh Calendar with Day, Week and Month views, staff-aware scheduling and guarded booking operations.
+- CRM V2 client, appointment, service and staff foundations with capability-driven access.
+- Atomic Couples Massage booking for two distinct client profiles and two eligible practitioners in one booking group.
+- Self-service passkey sign-in and clearly identified device management.
+- Maintained Assistant FAQ and policy foundations grounded in canonical clinic information.
+- Production-backed Storybook component and journey catalogue.
+
+#### Changed
+- Retired Shiloh Control as a separate product concept in favour of a Shiloh-first operating model.
+- Replaced legacy and emergency staff-authentication paths with the canonical passkey flow.
+- Expanded client onboarding, booking, rescheduling, confirmation and practitioner workflows.
+- Strengthened the public booking experience and practitioner/service eligibility handling.
+- Kept Shiloh CRM as the booking source of truth with Google Calendar as a synchronized operational view.
+
+#### Security and quality
+- Added Playwright phone and desktop journey coverage with visual evidence.
+- Added Storybook, axe-core accessibility checks and Lighthouse CI.
+- Expanded GitHub Actions regression protection, dependency auditing, linting, formatting and unused-code checks.
+- Hardened production dependencies and staff-session boundaries.
+- Preserved exact-commit traceability and automatic Render deployment verification.
+
+#### Release scope
+- This release records the current Shiloh platform generation after 2,951 commits since v1.2.0.
+- Historical handoffs and Control-era documents remain evidence, not current operating authority.
+
 ## [1.2.0] - 2026-08-11
 
 ### Production CRM & Customer Experience
