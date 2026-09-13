@@ -90,7 +90,8 @@ test('Review booking is enabled after client JavaScript loads and reports the fi
   assert.match(html, /data-booking-status/);
   assert.match(html, /aria-live="polite"/);
   assert.match(script, /el\('\[data-review-booking\]'\)\.disabled=false;/);
-  assert.match(script, /if\(!node\)return;node\.hidden=false;node\.textContent=message/);
+  assert.match(script, /if\(!message\)\{node\.hidden=true/);
+  assert.match(script, /node\.hidden=false;node\.textContent=message/);
   assert.doesNotMatch(script, /disabled=!selectedClient&&!newClientDraft/);
   assert.match(script, /Choose Find client or New client and complete that selection first\./);
   assert.match(script, /setStatus\(start\.message,'error'\)/);
