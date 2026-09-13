@@ -519,3 +519,76 @@ for (const state of states) {
     });
   });
 }
+
+
+const publicWebsiteStories = [
+  ['home', 'home'],
+  ['treatments', 'treatments'],
+  ['about', 'about'],
+  ['contact', 'contact'],
+  ['privacy', 'privacy'],
+  ['book', 'book'],
+];
+
+for (const viewport of [
+  { name: 'phone', width: 390, height: 844 },
+  { name: 'desktop', width: 1440, height: 1000 },
+]) {
+  test(`public website production pages remain accessible and responsive on ${viewport.name}`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+
+    for (const [name, story] of publicWebsiteStories) {
+      await page.goto(
+        `/iframe.html?id=public-website-production-pages--${story}&viewMode=story`,
+        { waitUntil: 'networkidle' },
+      );
+
+      const surface = page.locator('[data-public-site-story]');
+      await expect(surface).toBeVisible();
+      await expect(surface.getByRole('heading', { level: 1 })).toBeVisible();
+      await expect(surface.locator('a[href="/book"]').first()).toBeAttached();
+
+      const geometry = await surface.evaluate(() => ({
+        documentWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      }));
+      expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+
+      const accessibility = await new AxeBuilder({ page })
+        .include('[data-public-site-story]')
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      const serious = accessibility.violations.filter((violation) =>
+        ['serious', 'critical'].includes(violation.impact),
+      );
+      expect(
+        serious,
+        `Serious accessibility violations in public ${name} on ${viewport.name}: ${JSON.stringify(serious, null, 2)}`,
+      ).toEqual([]);
+
+      await page.screenshot({
+        path: testInfo.outputPath(`public-${name}-${viewport.name}.png`),
+        fullPage: true,
+        animations: 'disabled',
+        caret: 'hide',
+      });
+    }
+  });
+}
+
+test('public website Storybook exposes catalogue and WhatsApp unavailable states', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await page.goto(
+    '/iframe.html?id=public-website-production-pages--catalogue-unavailable&viewMode=story',
+    { waitUntil: 'networkidle' },
+  );
+  await expect(page.getByRole('heading', { name: 'Treatments are temporarily unavailable' })).toBeVisible();
+
+  await page.goto(
+    '/iframe.html?id=public-website-production-pages--whats-app-unavailable&viewMode=story',
+    { waitUntil: 'networkidle' },
+  );
+  await expect(page.getByRole('status')).toHaveText('WhatsApp booking is temporarily unavailable');
+  await expect(page.locator('a[href^="https://wa.me/"]')).toHaveCount(0);
+});

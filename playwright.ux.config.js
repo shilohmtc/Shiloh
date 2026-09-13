@@ -22,5 +22,7 @@ module.exports = defineConfig({
     colorScheme: 'light',
     reducedMotion: 'reduce',
     deviceScaleFactor: 1,
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
   },
 });
