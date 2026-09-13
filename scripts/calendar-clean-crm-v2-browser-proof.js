@@ -290,6 +290,12 @@ async function main() {
     assert.ok(surface.overflow <= 1);
     assert.equal(state.prepares.length, 0, 'client browse must not auto-select or prepare');
 
+    const missingReview = await evaluate(cdp, `(()=>{const button=document.querySelector('[data-review-booking]');button.click();const status=document.querySelector('[data-booking-status]');return{enabled:!button.disabled,message:status.textContent.trim(),error:status.classList.contains('error')};})()`);
+    assert.equal(missingReview.enabled, true);
+    assert.equal(missingReview.message, 'Choose Find client or New client and complete that selection first.');
+    assert.equal(missingReview.error, true);
+    assert.equal(state.prepares.length, 0, 'missing-field feedback must not call prepare');
+
     await evaluate(cdp, `document.querySelectorAll('.client-result')[0].click();true`);
     await chooseSlot();
     await prepareDirect();
