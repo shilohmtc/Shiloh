@@ -12,7 +12,11 @@ const { renderMessagesPage } = messagesPresentation;
 const { calendarAppointmentCompactEditorClientScript } = editorPresentation;
 const { renderCalendarCreateBookingPage, calendarCreateBookingClientScript } = createBookingPresentation;
 const { managePage: renderPasskeyManagePage } = passkeyPresentation;
-const { workspacePwaIconSvg } = pwaPresentation;
+const {
+  workspacePwaIconSvg,
+  workspaceIosInstallGuideStyles,
+  workspaceIosInstallGuideMarkup,
+} = pwaPresentation;
 
 function productionSurface(pageHtml) {
   const styles = [...String(pageHtml).matchAll(/<style>([\s\S]*?)<\/style>/g)]
@@ -155,6 +159,28 @@ function pwaIconStory() {
   return root;
 }
 
+function iosInstallGuidanceStory() {
+  const root = document.createElement('div');
+  root.className = 'ios-install-story';
+  root.innerHTML = `<style>*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#eef4ef,#f7f5ef);font-family:Inter,system-ui,sans-serif}.ios-install-story{min-height:100vh}${workspaceIosInstallGuideStyles()}</style><main style="min-height:100vh;padding:24px 18px"><p style="margin:0;color:#496b5a;font-size:.72rem;font-weight:850;letter-spacing:.1em">CALENDAR</p><h1 style="margin:6px 0;color:#20322b;font-size:1.55rem">Your week</h1><p style="margin:0;color:#61736a">Appointments stay visible behind the install help.</p></main>${workspaceIosInstallGuideMarkup()}`;
+  const host = root.querySelector('[data-shiloh-ios-install]');
+  const layer = host.querySelector('[data-shiloh-ios-install-layer]');
+  const opener = host.querySelector('[data-shiloh-ios-install-open]');
+  const setOpen = (open) => {
+    layer.hidden = !open;
+    opener.setAttribute('aria-expanded', String(open));
+    if (open) host.querySelector('.shiloh-ios-close').focus();
+    else opener.focus();
+  };
+  opener.addEventListener('click', () => setOpen(true));
+  host.querySelectorAll('[data-shiloh-ios-install-close]').forEach((button) => button.addEventListener('click', () => setOpen(false)));
+  host.querySelectorAll('[data-shiloh-ios-install-dismiss]').forEach((button) => button.addEventListener('click', () => host.remove()));
+  host.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !layer.hidden) setOpen(false);
+  });
+  return root;
+}
+
 export default {
   title: 'Workspace/Production surfaces',
   parameters: { layout: 'fullscreen' },
@@ -188,3 +214,4 @@ export const PhonePasskeyDevices = {
   })),
 };
 export const PwaIconOpticalScale = { render: pwaIconStory };
+export const IosInstallGuidance = { render: iosInstallGuidanceStory };

@@ -102,6 +102,45 @@ test('PWA icon uses balanced optical proportions', async ({ page }) => {
   expect(proportions.markRatio).toBeGreaterThanOrEqual(0.39);
 });
 
+test('iPhone install invitation opens an accessible three-step guide without overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/iframe.html?id=workspace-production-surfaces--ios-install-guidance&viewMode=story', { waitUntil: 'networkidle' });
+
+  const host = page.locator('[data-shiloh-ios-install]');
+  const opener = host.getByRole('button', { name: 'Show me how' });
+  const dialog = host.getByRole('dialog', { name: 'Install Shiloh on iPhone' });
+  await expect(host).toBeVisible();
+  await expect(dialog).toBeHidden();
+  await opener.click();
+  await expect(dialog).toBeVisible();
+  for (const step of ['Tap Share', 'Choose Add to Home Screen', 'Tap Add']) {
+    await expect(dialog.getByText(step, { exact: true })).toBeVisible();
+  }
+
+  const metrics = await page.evaluate(() => ({
+    viewportWidth: window.innerWidth,
+    documentWidth: document.documentElement.scrollWidth,
+    shortButtons: [...document.querySelectorAll('[data-shiloh-ios-install] button')]
+      .filter((button) => button.getClientRects().length > 0 && button.getBoundingClientRect().height < 44)
+      .map((button) => button.textContent.trim() || button.getAttribute('aria-label')),
+  }));
+  expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+  expect(metrics.shortButtons).toEqual([]);
+
+  const accessibility = await new AxeBuilder({ page })
+    .include('.ios-install-story')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
+  expect(serious, `Serious accessibility violations in iPhone install guide: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+
+  await dialog.getByRole('button', { name: 'Close installation guide' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(opener).toBeFocused();
+  await host.getByRole('button', { name: 'Not now' }).click();
+  await expect(host).toHaveCount(0);
+});
+
 test('Desktop New menu exposes every authorized booking and availability action', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/iframe.html?id=calendar-reference-implementation--desktop-complete-new-menu&viewMode=story', { waitUntil: 'networkidle' });

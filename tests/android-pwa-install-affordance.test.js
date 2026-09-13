@@ -19,8 +19,9 @@ test('#810 Chromium install affordance is browser-owned, user-gesture driven, an
 
   assert.match(client, /if\(!androidDevice\(\)\|\|standalone\(\)\)return/);
   assert.match(client, /beforeinstallprompt'[\s\S]*if\(!androidDevice\(\)\|\|standalone\(\)\)return/);
-  assert.match(client, /Add Shiloh to this iPhone/);
+  assert.match(client, /Keep Shiloh close/);
   assert.match(client, /Add to Home Screen/);
 
-  assert.doesNotMatch(client, /localStorage|sessionStorage|indexedDB|document\.cookie|Authorization|Bearer\s|navigator\.credentials|permissions\s*=|calendar_scope\s*=/i);
+  assert.match(client, /sessionStorage\.setItem\(INSTALL_DISMISS_KEY,'1'\)/);
+  assert.doesNotMatch(client, /localStorage|indexedDB|document\.cookie|Authorization|Bearer\s|navigator\.credentials|permissions\s*=|calendar_scope\s*=/i);
 });
