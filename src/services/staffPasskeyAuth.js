@@ -185,6 +185,10 @@ function verifyAssertionResponse(response, credential, { expectedChallenge, orig
 function randomChallenge(randomBytes = crypto.randomBytes) { return randomBytes(32).toString('base64url'); }
 function opaqueUserId(adminId) { return Buffer.from(`staff-admin:${Number(adminId)}`, 'utf8').toString('base64url'); }
 function cleanDisplayName(value) { return String(value || 'Shiloh staff').replace(/[\r\n\t]+/g, ' ').slice(0, 80) || 'Shiloh staff'; }
+function registrationUser(admin = {}) {
+  const name = cleanDisplayName(admin.display_name);
+  return { id: opaqueUserId(admin.id), name, displayName: name };
+}
 
 function createStaffPasskeyAuthService({ db, env = process.env, now = () => new Date(), randomBytes = crypto.randomBytes, sessionTtlMs } = {}) {
   if (!db || typeof db.query !== 'function') throw new Error('staff passkey auth db is required');
@@ -257,7 +261,7 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
         (challenge_hash, purpose, admin_id, session_id, request_fingerprint_hash, expires_at)
         VALUES ($1, $2, $3, $4, $5, $6)`, [sha256(challenge), purpose, admin.id, session.sessionId, requestFingerprintHash, expiresAt]);
       await client.query('COMMIT');
-      return { ok: true, mode, options: { challenge, rp: { name: 'Shiloh', id: p.rpId }, user: { id: opaqueUserId(admin.id), name: `staff-${admin.id}`, displayName: cleanDisplayName(admin.display_name) }, pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -8 }, { type: 'public-key', alg: -257 }], timeout: CHALLENGE_TTL_MS, attestation: 'none', authenticatorSelection: { authenticatorAttachment: 'platform', residentKey: 'discouraged', requireResidentKey: false, userVerification: 'required' }, excludeCredentials: existing.rows.map((row) => ({ type: 'public-key', id: row.credential_id })) }, expiresAt };
+      return { ok: true, mode, options: { challenge, rp: { name: 'Shiloh', id: p.rpId }, user: registrationUser(admin), pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -8 }, { type: 'public-key', alg: -257 }], timeout: CHALLENGE_TTL_MS, attestation: 'none', authenticatorSelection: { authenticatorAttachment: 'platform', residentKey: 'discouraged', requireResidentKey: false, userVerification: 'required' }, excludeCredentials: existing.rows.map((row) => ({ type: 'public-key', id: row.credential_id })) }, expiresAt };
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; }
     finally { if (client !== db && typeof client.release === 'function') client.release(); }
   }
@@ -366,6 +370,6 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
 module.exports = {
   FEATURE_FLAG, RP_ID_FLAG, PUBLIC_ORIGIN_FLAG, CHALLENGE_TTL_MS, STRONG_AUTH_METHODS,
   REGISTRATION_PURPOSE, REPLACEMENT_REGISTRATION_PURPOSE,
-  b64url, fromB64url, normalizeCredentialHint, passkeyPolicy, strongRecentSession, decodeCbor, cosePublicKeyToSpki,
+  b64url, fromB64url, normalizeCredentialHint, passkeyPolicy, strongRecentSession, registrationUser, decodeCbor, cosePublicKeyToSpki,
   verifyRpAndFlags, verifyRegistrationResponse, verifyAssertionResponse, createStaffPasskeyAuthService,
 };
