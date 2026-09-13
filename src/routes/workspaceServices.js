@@ -1,5 +1,5 @@
 const express = require('express');
-const workspaceServices = require('../services/workspaceServices');
+const workspaceServices = require('../services/workspaceServicesPractitionerScope');
 const workspaceServiceCreation = require('../services/workspaceServiceCreation');
 const workspaceClients = require('../services/workspaceClients');
 const workspaceStaff = require('../services/workspaceStaff');
@@ -57,8 +57,12 @@ async function pageOptions(req, clientAccessService, staffAccessService, staffAc
   };
 }
 
-async function detailPageOptions(req, service, clientAccessService, staffAccessService, staffAccessPath) {
+async function detailPageOptions(req, service, clientAccessService, staffAccessService, staffAccessPath, model = null) {
   const options = await pageOptions(req, clientAccessService, staffAccessService, staffAccessPath);
+  if (model?.practitionerScoped === true) {
+    options.manageAllowed = model.manageUiAllowed === true;
+    return options;
+  }
   try { options.manageAllowed = Boolean(await service.resolveManageAccess(req.staffBrowserSession?.adminId)); }
   catch (_error) { options.manageAllowed = false; }
   return options;
@@ -85,7 +89,7 @@ function createWorkspaceServicesListHandler({
         status: req.query?.status,
         offset: req.query?.offset,
       });
-      const options = await detailPageOptions(req, service, clientAccessService, staffAccessService, staffAccessPath);
+      const options = await detailPageOptions(req, service, clientAccessService, staffAccessService, staffAccessPath, model);
       let html = renderPage(model, options);
       try { if (await creationService.resolveCreateAccess(req.staffBrowserSession?.adminId)) html = injectCreateAction(html); }
       catch (_error) {}
@@ -113,7 +117,7 @@ function createWorkspaceServiceDetailHandler({
       const model = await service.getServiceDetail({ adminId: req.staffBrowserSession?.adminId, serviceId: req.params?.id });
       return res.status(200).type('html').send(renderPage(
         model,
-        await detailPageOptions(req, service, clientAccessService, staffAccessService, staffAccessPath)
+        await detailPageOptions(req, service, clientAccessService, staffAccessService, staffAccessPath, model)
       ));
     } catch (error) {
       const safe = safeError(error);
