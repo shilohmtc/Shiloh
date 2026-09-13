@@ -64,30 +64,6 @@ function createStaffBrowserSessionRouter({
     });
   }
 
-  router.post('/totp/verify', sameOrigin, async (req, res, next) => {
-    try {
-      const result = await providerIndependentAuthService.verifyTotp({
-        identifier: req.body?.identifier,
-        code: req.body?.code,
-        requestFingerprintHash: requestFingerprintHash(req),
-      });
-      if (!result.ok) return providerAuthError(res, result);
-      return sendAuthenticatedSession(res, result);
-    } catch (error) { return next(error); }
-  });
-
-  router.post('/totp/recovery/verify', sameOrigin, async (req, res, next) => {
-    try {
-      const result = await providerIndependentAuthService.verifyRecovery({
-        identifier: req.body?.identifier,
-        recoveryCode: req.body?.recoveryCode,
-        requestFingerprintHash: requestFingerprintHash(req),
-      });
-      if (!result.ok) return providerAuthError(res, result);
-      return sendAuthenticatedSession(res, result);
-    } catch (error) { return next(error); }
-  });
-
   router.post('/totp/break-glass/exchange', sameOrigin, async (req, res, next) => {
     try {
       const result = await providerIndependentAuthService.exchangeBreakGlass({
