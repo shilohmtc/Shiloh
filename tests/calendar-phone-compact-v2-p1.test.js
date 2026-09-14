@@ -60,12 +60,15 @@ test('Phone V2 top launcher binds all approved actions to the explicit active pr
   assert.match(html, />\+ Booking</);
   assert.match(html, /\/calendar\/book\?date=2026-09-05&amp;staff=22/);
   assert.match(html, /\/calendar\/book\/couples\?date=2026-09-05/);
+  assert.match(html, /\/calendar\/book\/group\?date=2026-09-05/);
   assert.match(html, /\/calendar\/book\/past\?date=2026-09-05&amp;staff=22/);
   assert.match(html, />New appointment</);
   assert.match(html, />Couples booking</);
+  assert.match(html, />Group booking</);
   assert.match(html, />Record past appointment</);
   assert.ok(html.indexOf('>New appointment<') < html.indexOf('>Couples booking<'));
-  assert.ok(html.indexOf('>Couples booking<') < html.indexOf('>Record past appointment<'));
+  assert.ok(html.indexOf('>Couples booking<') < html.indexOf('>Group booking<'));
+  assert.ok(html.indexOf('>Group booking<') < html.indexOf('>Record past appointment<'));
   assert.ok(html.indexOf('>Record past appointment<') < html.indexOf('phone-plus-divider'));
   assert.match(html, /data-calendar-operation="add-block"[^>]*data-staff-id="22"/);
   assert.match(html, /data-calendar-operation="add-leave"[^>]*data-staff-id="22"/);
