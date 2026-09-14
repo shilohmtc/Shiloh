@@ -1,7 +1,7 @@
 const { shilohUiPrimitiveStyles } = require('./shilohUiPrimitives');
 
 function escapeHtml(value = '') { return String(value).replace(/[&<>"']/g, char => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[char]); }
-function baseStyles() { return `${shilohUiPrimitiveStyles()}:root{--ink:#20322b;--muted:#56685f;--panel:#fffdf9;--line:#dce3dd;--line-strong:#c8d3cb;--leaf-soft:#e7eee9;--leaf-deep:#294c3c}*{box-sizing:border-box}body{font-family:Inter,system-ui,-apple-system,sans-serif}.eyebrow{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;font-weight:850;color:var(--muted)}h2{font-size:1.05rem;margin:0 0 12px}h3{font-size:.9rem;margin:0}`; }
+function baseStyles() { return `${shilohUiPrimitiveStyles()}:root{--ink:#20322b;--muted:#56685f;--panel:#fffdf9;--line:#dce3dd;--line-strong:#c8d3cb;--leaf-soft:#e7eee9;--leaf-deep:#294c3c}*{box-sizing:border-box}body{font-family:Inter,system-ui,-apple-system,sans-serif}.eyebrow{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;font-weight:850;color:var(--muted)}h2{font-size:1.05rem;margin:0 0 12px}h3{font-size:.9rem;margin:0}.back{display:inline-flex;align-items:center;min-height:44px}`; }
 
 function rand(value) { return new Intl.NumberFormat('en-ZA', { style:'currency', currency:'ZAR' }).format(Number(value || 0)); }
 
