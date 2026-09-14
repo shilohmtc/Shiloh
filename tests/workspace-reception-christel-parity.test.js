@@ -12,7 +12,7 @@ const EXPECTED_CHRISTEL_CAPABILITIES = [
   'appointment:view', 'appointment:create', 'appointment:record_past', 'appointment:adjust_end',
   'calendar:booking:reschedule', 'calendar:booking:cancel', 'calendar:booking:reassign',
   'client:lookup', 'client:delete', 'client:manage', 'client:notify', 'walkin:create',
-  'booking:update', 'loyalty:redeem', 'service:pricing', 'staff:services:view',
+  'booking:update', 'loyalty:redeem', 'service:pricing', 'appointment:couples:discount', 'staff:services:view',
   'services:view', 'services:manage', 'services:create', 'schedule:manage',
   'staff:view', 'staff:manage', 'staff_access:manage', 'staff_auth:reset',
 ];

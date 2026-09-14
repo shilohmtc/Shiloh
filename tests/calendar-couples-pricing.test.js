@@ -1,13 +1,43 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const {
   COUPLES_DISCOUNT_CAPABILITY,
   priceCouplesBooking,
 } = require('../src/services/calendarCouplesPricing');
+const { evaluateCalendarAuthority } = require('../src/services/calendarAuthorization');
 
-test('#985 uses Shiloh service:pricing as the existing discretionary discount capability', () => {
-  assert.equal(COUPLES_DISCOUNT_CAPABILITY, 'service:pricing');
+test('#985 uses a dedicated Couples discount capability instead of broad service pricing', () => {
+  assert.equal(COUPLES_DISCOUNT_CAPABILITY, 'appointment:couples:discount');
+  assert.notEqual(COUPLES_DISCOUNT_CAPABILITY, 'service:pricing');
+});
+
+test('#985 grants Couples discount authority to owner and Reception roles but not business admin', () => {
+  const principal = businessRole => evaluateCalendarAuthority({
+    id: businessRole === 'owner' ? 1 : businessRole === 'booking_operator' ? 2 : 3,
+    admin_active: true,
+    staff_id: null,
+    staff_status: null,
+    business_role: businessRole,
+    calendar_scope: 'all_business',
+    service_scope: 'all_services',
+    permissions: {
+      'service:pricing': true,
+      'appointment:couples:discount': businessRole !== 'business_admin',
+    },
+  });
+  assert.equal(principal('owner').capabilities.includes(COUPLES_DISCOUNT_CAPABILITY), true);
+  assert.equal(principal('booking_operator').capabilities.includes(COUPLES_DISCOUNT_CAPABILITY), true);
+  assert.equal(principal('business_admin').capabilities.includes(COUPLES_DISCOUNT_CAPABILITY), false);
+});
+
+test('#985 migration grants the dedicated capability by canonical role and excludes business admin', () => {
+  const migration = fs.readFileSync(path.join(__dirname, '../migrations/122_couples_discount_capability.sql'), 'utf8');
+  assert.match(migration, /business_role IN \('owner','booking_operator'\)/);
+  assert.doesNotMatch(migration, /business_role IN \([^)]*business_admin/);
+  assert.match(migration, /appointment:couples:discount/);
 });
 
 test('#985 applies a percentage discount to the overall canonical subtotal', () => {

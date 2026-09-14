@@ -51,6 +51,7 @@ test('stable vocabulary and evaluator derive authority only from canonical data 
     BOOKING_RESCHEDULE: 'calendar:booking:reschedule',
     BOOKING_CANCEL: 'calendar:booking:cancel',
     BOOKING_REASSIGN: 'calendar:booking:reassign',
+    COUPLES_DISCOUNT: 'appointment:couples:discount',
     SCHEDULE_MANAGE: 'schedule:manage',
   });
   const first = evaluateCalendarAuthority(principal());
