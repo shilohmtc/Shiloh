@@ -1,4 +1,3 @@
-const crypto = require('crypto');
 const { pool } = require('../db/pool');
 const { getClientPrivacyInventory } = require('./privacyClientInventory');
 const { buildRetentionDecisionPlan } = require('./privacyRetentionPolicy');
@@ -43,21 +42,6 @@ async function ensurePrivacyRequestTable(db = pool) {
 
 function validPositiveId(value) {
   return /^\d+$/.test(String(value)) && Number(value) > 0;
-}
-
-function safeEqual(a, b) {
-  const left = Buffer.from(String(a || ''));
-  const right = Buffer.from(String(b || ''));
-  return left.length === right.length && crypto.timingSafeEqual(left, right);
-}
-
-function ownerApprovalConfigured() {
-  return Boolean(process.env.PRIVACY_OWNER_APPROVAL_KEY);
-}
-
-function ownerApprovalAuthorized(suppliedKey) {
-  const configured = process.env.PRIVACY_OWNER_APPROVAL_KEY;
-  return Boolean(configured) && safeEqual(suppliedKey, configured);
 }
 
 function sanitizePreview(plan) {
@@ -175,8 +159,6 @@ module.exports = {
   VERIFICATION_METHODS,
   validPositiveId,
   ensurePrivacyRequestTable,
-  ownerApprovalConfigured,
-  ownerApprovalAuthorized,
   createPrivacyRequest,
   getPrivacyRequest,
   verifyPrivacyRequest,

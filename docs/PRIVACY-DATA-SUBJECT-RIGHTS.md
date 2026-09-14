@@ -1,8 +1,8 @@
-# Shiloh OS — Data-subject rights lifecycle
+# Shiloh — Data-subject rights lifecycle
 
 ## Status
 
-P-PRIV-4 is intentionally being implemented in phases. The first production phase is inventory/preview only. It does not erase, anonymise, archive, update, or otherwise mutate client records.
+P-PRIV-4 is intentionally being implemented in phases. Its inventory and request-workflow services are preserved and non-destructive. The former shared-key `/admin/privacy/*` HTTP surface was retired by #990 and is not a current operator interface.
 
 ## Why preview comes first
 
@@ -10,15 +10,11 @@ A privacy deletion/destruction request is not the same as the existing operation
 
 Irreversible deletion is forbidden until the retention decision layer is explicit and tested.
 
-## Preview endpoint
+## Preserved preview service
 
-Protected internal endpoint:
+The former endpoint `GET /admin/privacy/clients/:id/preview` is retired and returns the same `410 Gone` response as every legacy `/admin/*` path. Do not use `ADMIN_API_KEY` or `x-admin-key`; they no longer authorize any Shiloh runtime operation.
 
-`GET /admin/privacy/clients/:id/preview`
-
-Authentication: existing `x-admin-key` admin API protection.
-
-The response contains counts/classifications only. It does not return phone numbers, email addresses, DOB, appointment details, notes, treatment names, profile values, or raw audit metadata.
+The preserved internal service produces counts/classifications only. It does not return phone numbers, email addresses, DOB, appointment details, notes, treatment names, profile values, or raw audit metadata.
 
 The preview discovers direct foreign-key references to the canonical `clients` table dynamically. This is deliberate: a future table that links to a client but has not yet been privacy-classified must fail closed as `manual_review_required` rather than being silently omitted or automatically deleted.
 
@@ -45,4 +41,4 @@ The preview also counts known phone-linked operational stores without returning 
 
 ## Next phase
 
-After production preview behavior is verified, P-PRIV-4 continues with a retention-decision policy and an owner-only request workflow. The eventual destructive/de-identification execution path must require explicit confirmation, write a non-sensitive audit record, avoid reintroducing erased personal data into audit metadata, and be covered by synthetic transaction/rollback tests before any production use.
+P-PRIV-4 continues only through a future explicitly authorized, capability-scoped Shiloh Workspace unit. The eventual destructive/de-identification execution path must require explicit confirmation, write a non-sensitive audit record, avoid reintroducing erased personal data into audit metadata, and be covered by synthetic transaction/rollback tests before any production use.

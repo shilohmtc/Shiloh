@@ -25,16 +25,14 @@ test('privacy preview primitives fail closed', () => {
   assert.equal(classifyDirectReference('future_sensitive_table'), 'manual_review_required');
 });
 
-test('privacy preview route is protected and explicitly non-destructive', () => {
-  const route = source('src/routes/privacy.js');
+test('privacy inventory is preserved but the legacy shared-key HTTP route is retired', () => {
+  const route = source('src/routes/admin.js');
   const app = source('app.js');
   const service = source('src/services/privacyClientInventory.js');
 
-  assert.match(route, /router\.use\(adminAuth\)/);
-  assert.match(route, /router\.get\('\/clients\/:id\/preview'/);
-  assert.doesNotMatch(route, /router\.(?:put|patch|delete)\(/i);
-  assert.doesNotMatch(route, /\/clients\/:id\/(?:delete|erase|deidentify|execute)/i);
-  assert.match(app, /app\.use\("\/admin\/privacy", privacyRoutes\)/);
+  assert.match(route, /SHILOH_LEGACY_ADMIN_API_RETIRED/);
+  assert.match(route, /status\(410\)/);
+  assert.doesNotMatch(app, /privacyRoutes|\/admin\/privacy/);
   assert.match(service, /destructiveActionAllowed:\s*false/);
   assert.doesNotMatch(service, /\b(?:DELETE\s+FROM|UPDATE\s+clients|INSERT\s+INTO\s+clients)\b/i);
 });

@@ -10,7 +10,7 @@ Staff browser authentication uses server-side opaque sessions. The browser recei
 
 The production session cookie is `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/`, bounded by `Max-Age`, and has no `Domain` attribute. Session tokens must never be placed in URLs, localStorage, or sessionStorage.
 
-`ADMIN_API_KEY` / `x-admin-key` remains a hard server/API boundary. It is not a browser credential and must never be exposed, serialized, stored, or reused by staff browser authentication.
+The former `ADMIN_API_KEY` / `x-admin-key` server/API boundary was retired by #990 and must not be restored or repurposed as browser identity. Staff browser authentication continues to use Shiloh's canonical session, capability, same-origin and CSRF boundaries.
 
 State-changing authentication/session endpoints require same-origin JSON requests. Authenticated mutations additionally require the per-session CSRF token. Malformed, tampered, expired, revoked, inactive-account, or privilege-revoked session state fails closed.
 

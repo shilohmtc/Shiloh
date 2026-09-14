@@ -4,7 +4,6 @@ This file records the disposition of production environment keys audited in #654
 
 ## Keep — current runtime authority or active integration contract
 
-- `ADMIN_API_KEY` — current admin API authentication.
 - `AUDIT_READ_TOKEN` — current audit-read authentication.
 - `DATABASE_URL` — production database connection secret.
 - `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_FAST_MODEL` — current OpenAI runtime.
@@ -47,6 +46,10 @@ These are not credentials and should not remain as durable production configurat
 - `WHATSAPP_BOOKING_APPROVAL_REQUEST_TEMPLATE`
 - `WHATSAPP_BOOKING_APPROVAL_OUTCOME_TEMPLATE`
 - `META_TEMPLATE_INVENTORY_AUDIT_ON_START`
+
+## Retired runtime authority — external secret removal pending
+
+- `ADMIN_API_KEY` — the generic `/admin/*` HTTP authority was retired by #990. Runtime source no longer reads or accepts this key. Removing the residual Render secret is an external credential mutation and requires explicit owner authorization.
 
 ## Retire code/capability before removing configuration
 
