@@ -1,6 +1,6 @@
 const { pool } = require('../db/pool');
 const crmV2 = require('./crmV2ClientService');
-const { createCalendarCreateBookingService, localDateTimeFromInputs } = require('./calendarCreateBooking');
+const { createCalendarCreateBookingService, canonicalLocalDateTimeFromInputs } = require('./calendarCreateBooking');
 const { checkAuthoritativeSchedule, getConflicts } = require('./adminAvailability');
 const { checkClinicHours, getDefaultActiveLocation } = require('./clinicHours');
 const {
@@ -132,7 +132,7 @@ function createCalendarCouplesBookingService({
     if (staffIds.length !== 2) throw couplesError('COUPLES_TWO_PRACTITIONERS_REQUIRED', 'Choose two different practitioners.');
     const eligible = new Set(options.staff.map(person => Number(person.id)));
     if (!staffIds.every(id => eligible.has(id))) throw couplesError('COUPLES_INELIGIBLE_PAIR', 'Choose two practitioners currently eligible for Couples Massage.', 409);
-    const localDateTime = localDateTimeFromInputs(date, time);
+    const localDateTime = canonicalLocalDateTimeFromInputs(date, time);
     const location = await getDefaultActiveLocation(db);
     if (!location?.id) throw couplesError('COUPLES_LOCATION_UNRESOLVED', 'The clinic location could not be confirmed.', 409);
     const minutes = Number(options.service.durationMinutes);
