@@ -119,21 +119,28 @@ test('Group booking adds multiple guests and reviews an optional-note discount o
     ['Sam Adams', '082 222 2222', '84', '12'],
     ['Taylor Adams', '082 333 3333', '82', '13'],
   ];
-  await page.route('**/calendar/staff-auth/csrf', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ csrfToken: 'storybook-csrf' }) }));
-  await page.route('**/calendar/book/group/prepare', route => route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: JSON.stringify({ review: {
-      guests: guests.map(item => ({ name: item[0] })),
-      assignments: [
-        { startsAt: '2026-09-14T08:30:00.000Z', service: { name: 'Quick Relief: Back & Neck', price: 520 }, practitioner: { displayName: 'Abigail' } },
-        { startsAt: '2026-09-14T08:30:00.000Z', service: { name: 'Hot Stone Massage', price: 850 }, practitioner: { displayName: 'Christel' } },
-        { startsAt: '2026-09-14T08:30:00.000Z', service: { name: 'Full Body Swedish', price: 720 }, practitioner: { displayName: 'Marietjie' } },
-      ],
-      startsAt: '2026-09-14T08:30:00.000Z',
-      pricing: { subtotal: 2090, discountAmount: 209, discountReason: null, total: 1881 },
-    } }),
-  }));
+  await page.addInitScript(({ guestNames }) => {
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      const url = new URL(typeof input === 'string' ? input : input.url, window.location.href);
+      if (url.pathname === '/calendar/staff-auth/csrf') {
+        return new Response(JSON.stringify({ csrfToken: 'storybook-csrf' }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (url.pathname === '/calendar/book/group/prepare') {
+        return new Response(JSON.stringify({ review: {
+          guests: guestNames.map(name => ({ name })),
+          assignments: [
+            { startsAt: '2026-09-14T08:30:00.000Z', service: { name: 'Quick Relief: Back & Neck', price: 520 }, practitioner: { displayName: 'Abigail' } },
+            { startsAt: '2026-09-14T08:30:00.000Z', service: { name: 'Hot Stone Massage', price: 850 }, practitioner: { displayName: 'Christel' } },
+            { startsAt: '2026-09-14T08:30:00.000Z', service: { name: 'Full Body Swedish', price: 720 }, practitioner: { displayName: 'Marietjie' } },
+          ],
+          startsAt: '2026-09-14T08:30:00.000Z',
+          pricing: { subtotal: 2090, discountAmount: 209, discountReason: null, total: 1881 },
+        } }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return nativeFetch(input, init);
+    };
+  }, { guestNames: guests.map(item => item[0]) });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/iframe.html?id=workspace-production-surfaces--group-booking-multiple-guests-and-discount&viewMode=story', { waitUntil: 'networkidle' });
   await expect(page.getByRole('heading', { name: 'Group booking' })).toBeVisible();
