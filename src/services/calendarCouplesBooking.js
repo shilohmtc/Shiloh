@@ -171,32 +171,67 @@ function createCalendarCouplesBookingService({
     return { ...result, clients };
   }
 
-  async function prepare({ adminId, guests: rawGuests, staffIds: rawStaffIds, date, time, notes } = {}) {
-    await resolveOperator(adminId);
+  async function prepare({
+    adminId,
+    guests: rawGuests,
+    staffIds: rawStaffIds,
+    serviceIds: rawServiceIds,
+    date,
+    time,
+    discount,
+    notes,
+  } = {}) {
     const options = await listOptions(adminId);
     const guests = (Array.isArray(rawGuests) ? rawGuests : []).map(normalizeGuest);
     ensureDistinctGuests(guests);
-    const staffIds = [...new Set((Array.isArray(rawStaffIds) ? rawStaffIds : []).map(positiveId).filter(Boolean))];
-    if (staffIds.length !== 2) throw couplesError('COUPLES_TWO_PRACTITIONERS_REQUIRED', 'Choose two different practitioners.');
-    const eligible = new Set(options.staff.map(person => Number(person.id)));
-    if (!staffIds.every(id => eligible.has(id))) throw couplesError('COUPLES_INELIGIBLE_PAIR', 'Choose two practitioners currently eligible for Couples Massage.', 409);
+    const assignments = resolveAssignments(options, rawStaffIds, rawServiceIds);
+    const pricing = priceCouplesBooking({
+      prices: assignments.map(item => item.service.price),
+      discount,
+      canDiscount: options.authority.canApplyDiscount,
+    });
     const localDateTime = canonicalLocalDateTimeFromInputs(date, time);
     const location = await getDefaultActiveLocation(db);
     if (!location?.id) throw couplesError('COUPLES_LOCATION_UNRESOLVED', 'The clinic location could not be confirmed.', 409);
-    const minutes = Number(options.service.durationMinutes);
-    const window = await resolveWindow(db, localDateTime, minutes);
-    if (new Date(window.starts_at).getTime() <= Date.now()) throw couplesError('COUPLES_PAST_TIME', 'Choose a future start time.');
-    await assertPairAvailable({ db, staffIds, locationId: location.id, startsAt: window.starts_at, endsAt: window.ends_at });
+
+    const resolved = [];
+    for (const assignment of assignments) {
+      const window = await resolveWindow(db, localDateTime, Number(assignment.service.durationMinutes));
+      if (new Date(window.starts_at).getTime() <= Date.now()) {
+        throw couplesError('COUPLES_PAST_TIME', 'Choose a future start time.');
+      }
+      await assertPairAvailable({
+        db,
+        staffIds: [Number(assignment.practitioner.id)],
+        locationId: location.id,
+        startsAt: window.starts_at,
+        endsAt: window.ends_at,
+      });
+      resolved.push({ ...assignment, startsAt: window.starts_at, endsAt: window.ends_at });
+    }
+
+    const startsAt = new Date(resolved[0].startsAt).toISOString();
+    const endsAt = new Date(Math.max(...resolved.map(item => new Date(item.endsAt).getTime()))).toISOString();
     const payload = {
       guests,
-      staffIds,
-      serviceId: Number(options.service.id),
+      assignments: resolved.map(item => ({
+        guestPosition: item.guestPosition,
+        staffId: Number(item.practitioner.id),
+        serviceId: Number(item.service.id),
+        durationMinutes: Number(item.service.durationMinutes),
+        unitPrice: Number(item.service.price),
+        endsAt: new Date(item.endsAt).toISOString(),
+      })),
+      groupServiceId: Number(options.groupService.id),
       locationId: Number(location.id),
-      startsAt: new Date(window.starts_at).toISOString(),
-      endsAt: new Date(window.ends_at).toISOString(),
+      startsAt,
+      endsAt,
       notes: normalizeAppointmentNotes(notes),
-      durationMinutes: minutes,
-      totalPrice: Number(options.service.price),
+      discount: {
+        type: pricing.discountType || 'none',
+        value: pricing.discountValue,
+        reason: pricing.discountReason,
+      },
     };
     await db.query(
       `INSERT INTO admin_couples_booking_sessions(admin_id,payload,state)
@@ -208,11 +243,16 @@ function createCalendarCouplesBookingService({
       status: 'pending_confirmation',
       review: {
         guests: guests.map(guest => ({ ...guest, clientId: guest.clientId ? String(guest.clientId) : null })),
-        practitioners: staffIds.map(id => options.staff.find(person => Number(person.id) === id)),
-        service: options.service,
-        startsAt: payload.startsAt,
-        endsAt: payload.endsAt,
-        price: displayPrice(options.service.price),
+        assignments: resolved.map(item => ({
+          guestPosition: item.guestPosition,
+          practitioner: item.practitioner,
+          service: item.service,
+          endsAt: new Date(item.endsAt).toISOString(),
+        })),
+        startsAt,
+        endsAt,
+        pricing,
+        price: displayPrice(pricing.total),
       },
     };
   }
