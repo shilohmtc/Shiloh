@@ -8,10 +8,14 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
 function forbiddenTemporaryArtifacts() {
   const found = [];
-  const tempDir = path.join(root, '.control-temp');
-  if (fs.existsSync(tempDir)) found.push('.control-temp/');
+  for (const directory of ['.shiloh-temp', '.control-temp']) {
+    const tempDir = path.join(root, directory);
+    if (fs.existsSync(tempDir)) found.push(`${directory}/`);
+  }
 
   for (const [directory, prefix] of [
+    ['.github/workflows', 'shiloh-temp-'],
+    ['scripts', 'shiloh-temp-'],
     ['.github/workflows', 'control-temp-'],
     ['scripts', 'control-temp-'],
   ]) {
@@ -25,7 +29,7 @@ function forbiddenTemporaryArtifacts() {
 }
 
 test('canonical governance makes Clean Change part of meaningful implementation and completion', () => {
-  const rules = read('docs/SHILOH_CONTROL_RULES.md');
+  const rules = read('docs/SHILOH_OPERATING_RULES.md');
   assert.match(rules, /### Clean Change and Complexity Gate/);
   for (const marker of [
     '**Reuse**', '**Smallest change**', '**Permanent vs temporary**',
@@ -37,14 +41,33 @@ test('canonical governance makes Clean Change part of meaningful implementation 
   assert.match(rules, /compact \*\*Clean Change\*\* record/);
 });
 
-test('release tree contains no explicitly temporary Control engineering artifacts', () => {
+test('release tree contains no explicitly temporary Shiloh engineering artifacts', () => {
   assert.deepEqual(forbiddenTemporaryArtifacts(), []);
+});
+
+test('retired Control rulebook is only a compatibility pointer to one Shiloh authority', () => {
+  const current = read('docs/SHILOH_OPERATING_RULES.md');
+  const historical = read('docs/SHILOH_CONTROL_RULES.md');
+  assert.equal((current.match(/Shiloh Control/g) || []).length, 1);
+  assert.match(current, /“Shiloh Control” is retired as a current operating concept/);
+  assert.doesNotMatch(current, /10\/20\/30\/40|00 —/);
+  assert.match(historical, /retired as a separate operating concept/);
+  assert.match(historical, /SHILOH_OPERATING_RULES\.md/);
+});
+
+test('canonical governance makes Storybook and Playwright the interface quality standard', () => {
+  const rules = read('docs/SHILOH_OPERATING_RULES.md');
+  assert.match(rules, /### Interface quality standard/);
+  assert.match(rules, /Storybook coverage/);
+  assert.match(rules, /Playwright proof at desktop and phone sizes/);
+  assert.match(rules, /keyboard and accessibility behaviour/);
+  assert.match(rules, /exact-commit production verification/);
 });
 
 test('canonical CI runs the focused Clean Change hygiene gate', () => {
   const ci = read('.github/workflows/ci.yml');
   assert.match(ci, /Run focused Clean Change hygiene test/);
-  assert.match(ci, /node --test tests\/control-clean-change-gate\.test\.js/);
+  assert.match(ci, /node --test tests\/shiloh-clean-change-gate\.test\.js/);
 });
 
 test('engineering fast path requires impact scanning and coherent multi-file changes', () => {

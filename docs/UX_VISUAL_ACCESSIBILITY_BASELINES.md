@@ -38,7 +38,7 @@ Never auto-accept visual drift. If a visual change is intentional:
 5. commit only the approved `.png.b64.part*` fixtures together with the authorized presentation change;
 6. rerun the exact-head UX gate and normal repository gates.
 
-When a new baseline has not yet been committed, the PR workflow generates candidate PNGs plus their encoded part fixtures as an artifact and fails closed. A human/Control review must deliberately accept the pixels and commit the corresponding parts before the gate can pass.
+When a new baseline has not yet been committed, the PR workflow generates candidate PNGs plus their encoded part fixtures as an artifact and fails closed. A deliberate human visual review must accept the pixels and commit the corresponding parts before the gate can pass.
 
 ## Clean Change
 

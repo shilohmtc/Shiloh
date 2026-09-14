@@ -2,7 +2,7 @@
 
 Status: **Canonical messaging architecture**
 
-Owner: **30 — WhatsApp & Meta Integration under 00 — Shiloh Control**
+Owner: **Shiloh messaging**
 
 This document defines the authority boundary for Shiloh operational messages. It complements `docs/META-TEMPLATE-READINESS-MATRIX.md`; where historical template-count prose conflicts with current code, the current Shiloh message-contract registry is authoritative.
 
@@ -136,7 +136,7 @@ Deleting a WABA must not delete Shiloh's messaging authority.
 
 After an owner-authorized provider rebuild:
 
-1. Shiloh Control confirms the intended WABA and phone-number authority.
+1. Shiloh confirms the intended WABA and phone-number authority.
 2. The Meta adapter generates registration payloads for only current/sendable Shiloh contracts.
 3. An explicit provider provisioning action submits those payloads to Meta.
 4. Meta approves/rejects provider assets on its normal provider lifecycle.
@@ -159,7 +159,7 @@ The following remain explicit external-provider/security mutations and are not p
 - transfer provider ownership/control;
 - create, rotate, revoke or disclose Meta credentials/secrets.
 
-These actions require the authorization applicable under `docs/SHILOH_CONTROL_RULES.md`.
+These actions require the authorization applicable under `docs/SHILOH_OPERATING_RULES.md`.
 
 ## Design rule
 
