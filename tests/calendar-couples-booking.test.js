@@ -95,7 +95,7 @@ test('#971 production Storybook surface exposes complete phone-friendly paired b
   assert.match(html, /data-guest="2"/);
   assert.equal((html.match(/type="date"/g) || []).length, 3);
   assert.equal((html.match(/data-gender=/g) || []).length, 2);
-  assert.equal((html.match(/class="optional">Optional/g) || []).length, 4);
+  assert.equal((html.match(/class="optional">Optional/g) || []).length, 5);
   assert.doesNotMatch(html, /data-dob="[12]" type="date" required/);
   assert.doesNotMatch(html, /data-gender="[12]" required/);
   assert.match(html, /New profiles are saved only when the whole booking succeeds/);

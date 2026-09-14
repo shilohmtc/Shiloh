@@ -73,12 +73,14 @@ test('Today navigation targets current Week and selected/today date states are t
   assert.match(script, /aria-current/);
 });
 
-test('one Book menu exposes single, couples, retrospective, block and leave controls', () => {
+test('one Book menu exposes single, couples, group, retrospective, block and leave controls', () => {
   const script = calendarDesktopApprovedClientScript();
   assert.match(script, /desktop-create-menu/);
   assert.match(script, /New appointment/);
   assert.match(script, /Couples massage/);
   assert.match(script, /\/calendar\/book\/couples\?/);
+  assert.match(script, /Group booking/);
+  assert.match(script, /\/calendar\/book\/group\?/);
   assert.match(script, /calendarBookingKind='couples'/);
   assert.match(script, /desktop-create-divider/);
   assert.match(script, /Record past appointment/);

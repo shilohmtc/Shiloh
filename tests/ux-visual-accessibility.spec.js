@@ -127,6 +127,60 @@ test('Couples booking remains scannable with separate treatments on Desktop', as
   await page.screenshot({ path: testInfo.outputPath('couples-booking-pricing-desktop.png'), fullPage: true });
 });
 
+test('Group booking adds multiple guests and exposes an optional-note discount on Phone', async ({ page }, testInfo) => {
+  const guests = [
+    ['Alex Adams', '082 111 1111', '81', '11'],
+    ['Sam Adams', '082 222 2222', '84', '12'],
+    ['Taylor Adams', '082 333 3333', '82', '13'],
+  ];
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/iframe.html?id=workspace-production-surfaces--group-booking-multiple-guests-and-discount&viewMode=story', { waitUntil: 'networkidle' });
+  await expect(page.getByRole('heading', { name: 'Group booking' })).toBeVisible();
+  await expect(page.locator('[data-guest]')).toHaveCount(3);
+  await page.locator('[data-add-guest]').click();
+  await expect(page.locator('[data-guest]')).toHaveCount(4);
+  await page.locator('[data-guest="4"] [data-remove-guest]').click();
+  await expect(page.locator('[data-guest]')).toHaveCount(3);
+
+  for (let index = 0; index < guests.length; index += 1) {
+    const card = page.locator('[data-guest]').nth(index);
+    await card.locator('[data-name]').fill(guests[index][0]);
+    await card.locator('[data-mobile]').fill(guests[index][1]);
+    await card.locator('[data-service]').selectOption(guests[index][2]);
+    await card.locator('[data-staff]').selectOption(guests[index][3]);
+    await expect(card.locator('[data-dob]')).not.toHaveAttribute('required', '');
+    await expect(card.locator('[data-gender]')).not.toHaveAttribute('required', '');
+  }
+  await page.locator('[data-discount-type]').selectOption('percent');
+  await page.locator('[data-discount-value]').fill('10');
+  await expect(page.locator('[data-discount-reason]')).toHaveValue('');
+  await expect(page.locator('[data-review-group]')).toBeEnabled();
+
+  const metrics = await page.evaluate(() => ({
+    viewportWidth: innerWidth,
+    documentWidth: document.documentElement.scrollWidth,
+    shortTargets: [...document.querySelectorAll('button,input,select,textarea,a')].filter(node => node.getClientRects().length).filter(node => node.getBoundingClientRect().height < 44).map(node => node.textContent.trim() || node.getAttribute('aria-label')),
+    overflowing: [...document.querySelectorAll('input,select,textarea,button')].filter(node => node.getClientRects().length).filter(node => node.getBoundingClientRect().right > innerWidth + 1).map(node => node.outerHTML.slice(0, 80)),
+  }));
+  expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+  expect(metrics.shortTargets).toEqual([]);
+  expect(metrics.overflowing).toEqual([]);
+  const accessibility = await new AxeBuilder({ page }).include('.workspace-surface-story').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(accessibility.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath('group-booking-phone.png'), fullPage: true });
+});
+
+test('Group booking remains scannable with three guest cards on Desktop', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/iframe.html?id=workspace-production-surfaces--group-booking-multiple-guests-and-discount&viewMode=story', { waitUntil: 'networkidle' });
+  await expect(page.locator('[data-guest]')).toHaveCount(3);
+  await expect(page.locator('[data-service]')).toHaveCount(3);
+  await expect(page.locator('[data-add-guest]')).toBeVisible();
+  const accessibility = await new AxeBuilder({ page }).include('.workspace-surface-story').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  expect(accessibility.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath('group-booking-desktop.png'), fullPage: true });
+});
+
 test('Couples discount controls do not render without canonical pricing authority', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/iframe.html?id=workspace-production-surfaces--couples-booking-without-discount-authority&viewMode=story', { waitUntil: 'networkidle' });

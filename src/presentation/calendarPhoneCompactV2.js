@@ -362,6 +362,7 @@ function renderPhoneCalendarDock(model, {
   basePath = '/calendar/read-only',
   bookingPath = '/calendar/book',
   couplesBookingPath = '/calendar/book/couples',
+  groupBookingPath = '/calendar/book/group',
   bookingAllowed = false,
   retrospectiveBookingPath = '/calendar/book/past',
   retrospectiveAllowed = false,
@@ -377,6 +378,7 @@ function renderPhoneCalendarDock(model, {
   if (bookingAllowed) {
     bookingActions.push(`<a data-phone-appointment-action href="${escapeHtml(bookingHref(bookingPath, { date, staffId }))}" aria-label="Create appointment">${renderLucideIcon('calendarPlus', { size: 17 })}<span>New appointment</span></a>`);
     bookingActions.push(`<a data-phone-appointment-action data-calendar-booking-kind="couples" href="${escapeHtml(bookingHref(couplesBookingPath, { date }))}" aria-label="Book a Couples booking for two guests">${renderLucideIcon('couples', { size: 17 })}<span>Couples booking</span></a>`);
+    bookingActions.push(`<a data-phone-appointment-action data-calendar-booking-kind="group" href="${escapeHtml(bookingHref(groupBookingPath, { date }))}" aria-label="Book a Group booking for multiple guests">${renderLucideIcon('users', { size: 17 })}<span>Group booking</span></a>`);
   }
   if (retrospectiveAllowed) {
     bookingActions.push(`<a data-phone-appointment-action href="${escapeHtml(bookingHref(retrospectiveBookingPath, { date, staffId }))}" aria-label="Record past appointment">${renderLucideIcon('history', { size: 17 })}<span>Record past appointment</span></a>`);

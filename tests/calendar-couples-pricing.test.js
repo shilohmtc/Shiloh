@@ -72,7 +72,7 @@ test('#985 applies a Rand discount and preserves exact cent allocation', () => {
   assert.equal(pricing.allocations.reduce((sum, value) => sum + value, 0), pricing.total);
 });
 
-test('#985 discounting fails closed without pricing authority or an audit reason', () => {
+test('discounting fails closed without authority while its note remains optional', () => {
   assert.throws(
     () => priceCouplesBooking({
       prices: [850, 620],
@@ -81,12 +81,11 @@ test('#985 discounting fails closed without pricing authority or an audit reason
     }),
     error => error.code === 'COUPLES_DISCOUNT_FORBIDDEN' && error.httpStatus === 403
   );
-  assert.throws(
-    () => priceCouplesBooking({
-      prices: [850, 620],
-      discount: { type: 'amount', value: 50, reason: '' },
-      canDiscount: true,
-    }),
-    error => error.code === 'COUPLES_DISCOUNT_REASON_REQUIRED'
-  );
+  const withoutNote = priceCouplesBooking({
+    prices: [850, 620],
+    discount: { type: 'amount', value: 50, reason: '' },
+    canDiscount: true,
+  });
+  assert.equal(withoutNote.discountReason, null);
+  assert.equal(withoutNote.total, 1420);
 });
