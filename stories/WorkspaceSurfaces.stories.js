@@ -270,18 +270,35 @@ export const NormalAdminPractitionerFirstBooking = {
     return interactiveProductionSurface(page, calendarCreateBookingClientScript());
   },
 };
-export const CouplesMassageBooking = {
-  render: () => {
-    const page = renderCalendarCouplesBookingPage({
-      options: {
-        service: { id: 90, name: 'Couples Massage', durationMinutes: 90, price: 1080, staffIds: [11, 12] },
-        staff: staff.slice(0, 2),
-      },
-      prefill: { date: '2026-09-14', time: '10:30' },
-    });
-    return interactiveProductionSurface(page, calendarCouplesBookingClientScript());
-  },
+const couplesBookingOptions = {
+  groupService: { id: 90, name: 'Couples Massage', externalSource: 'shiloh_special', externalId: 'couples-massage-v1' },
+  services: [
+    { id: 81, name: 'Quick Relief: Back & Neck (45 min)', categoryName: 'Massage', durationMinutes: 45, price: 520, variablePrice: false, staffIds: [11, 12] },
+    { id: 82, name: 'Full Body Swedish', categoryName: 'Massage', durationMinutes: 60, price: 720, variablePrice: false, staffIds: [12, 13] },
+    { id: 84, name: 'Hot Stone Massage', categoryName: 'Massage', durationMinutes: 75, price: 850, variablePrice: false, staffIds: [11, 12] },
+  ],
+  staff,
 };
+
+function couplesBookingStory(canApplyDiscount) {
+  const page = renderCalendarCouplesBookingPage({
+    options: {
+      ...couplesBookingOptions,
+      authority: { bookingFlow: 'practitioner_first', canApplyDiscount },
+    },
+    prefill: { date: '2026-09-14', time: '10:30' },
+  });
+  return interactiveProductionSurface(page, calendarCouplesBookingClientScript());
+}
+
+export const CouplesBookingTreatmentsAndDiscount = {
+  render: () => couplesBookingStory(true),
+};
+
+export const CouplesBookingWithoutDiscountAuthority = {
+  render: () => couplesBookingStory(false),
+};
+
 export const PhonePasskeyDevices = {
   render: () => productionSurface(renderPasskeyManagePage({
     credentials: [
