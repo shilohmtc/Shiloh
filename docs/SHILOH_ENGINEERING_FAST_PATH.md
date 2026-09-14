@@ -1,8 +1,8 @@
 # Shiloh Engineering Fast Path
 
-Status: **Permanent engineering execution guidance under Shiloh Control**
+Status: **Permanent engineering execution guidance under Shiloh operating rules**
 
-This document is not a second governance or release authority. `docs/SHILOH_CONTROL_RULES.md` and GitHub issue #611 remain authoritative. The Fast Path exists only to reduce avoidable engineering latency while preserving the same release safety.
+This document is not a second governance or release authority. `docs/SHILOH_OPERATING_RULES.md` and GitHub issue #611 remain authoritative. The Fast Path exists only to reduce avoidable engineering latency while preserving the same release safety.
 
 ## 1. Pre-CI contract impact scan
 

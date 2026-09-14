@@ -30,7 +30,7 @@ jobs:
       - name: Run focused controlled release migration tests
         run: npm run test:controlled-release-migration
       - name: Run focused Clean Change hygiene test
-        run: node --test tests/control-clean-change-gate.test.js
+        run: node --test tests/shiloh-clean-change-gate.test.js
       - name: Run focused SchedulingTimeline parity tests
         run: node --test tests/scheduling-engine-readonly-projection.test.js
       - name: Run focused Calendar UX security tests
