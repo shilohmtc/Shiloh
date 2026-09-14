@@ -1,5 +1,7 @@
 # Sprint 3.5 — Goldie Knowledge Sync
 
+> Historical implementation record. The generic `/admin/*` HTTP API and its `ADMIN_API_KEY`/`x-admin-key` authority were retired by #990. Manual endpoint calls below are no longer available; normal scheduled sync behavior remains independent of that retired surface.
+
 Shiloh now treats the public Goldie booking page as an automatically refreshed business-knowledge source.
 
 ## Source

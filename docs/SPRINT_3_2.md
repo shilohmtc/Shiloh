@@ -1,5 +1,7 @@
 # Sprint 3.2 — Real document ingestion
 
+> Historical implementation record. The generic `/admin/*` HTTP API and its `ADMIN_API_KEY`/`x-admin-key` authority were retired by #990. The endpoints and Postman steps below are not current Shiloh operating instructions.
+
 ## Supported files
 
 - PDF (`.pdf`)

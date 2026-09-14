@@ -1,5 +1,7 @@
 # Sprint 3.3 — Intelligent user profiles
 
+> Historical implementation record. The generic `/admin/*` HTTP API and its `ADMIN_API_KEY`/`x-admin-key` authority were retired by #990. The endpoints and Postman step below are not current Shiloh operating instructions.
+
 ## What this adds
 
 Shiloh now stores durable structured user profiles in PostgreSQL and injects relevant profile facts into GPT responses.

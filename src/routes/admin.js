@@ -1,46 +1,14 @@
-const express = require("express");
-const adminAuth = require("../middleware/adminAuth");
-const testCommandAuth = require("../middleware/testCommandAuth");
-const { documentUpload } = require("../middleware/documentUpload");
-const { csvUpload } = require("../middleware/csvUpload");
-const crmRoutes = require("./crm");
-const { createDocument, uploadDocument, getDocuments, removeDocument, getProfiles, getProfileByPhone, patchProfileByPhone, sendTemplateTest } = require("../controllers/adminController");
-const { runTestCommand, runBookingPolicyTest } = require("../controllers/testCommandController");
-const { syncGoldie, getGoldieSyncStatus } = require("../controllers/goldieController");
-const { stageClients: stageGoldieClients, stageAppointments: stageGoldieAppointments } = require("../controllers/goldieImportController");
-const { getSummary: getReconciliationSummary, getRecommendations: getReconciliationRecommendations, getAppointmentIdentityEvidence, getSecondPassReconciliation, getManualQueue, decideManualCase, getChantelDuplicatePlan, executeChantelDuplicate, getSeparateIdentityPlan, executeSeparateIdentity, getCanonicalizationAudit, canonicalizeClients: canonicalizeReconciliationClients, getCases: getReconciliationCases, getCase: getReconciliationCase } = require("../controllers/reconciliationController");
-const { createLifecycleAppointment, getLifecycleAppointments, patchLifecycleAppointment, runLifecycleScan, runControlledLifecycleTest } = require("../controllers/appointmentLifecycleController");
-const { getFeedback, getReviews, getCustomerSatisfaction, resolveCustomerFeedback } = require("../controllers/customerExperienceController");
-const { getStatus: getDatabaseStatus, getTables: getDatabaseTables, getSchema: getDatabaseSchema, getOverview: getDatabaseOverview, getMigrations: getDatabaseMigrations, applyMigrations: applyDatabaseMigrations } = require("../controllers/databaseController");
-const { getStatus: getLifecycleTemplateStatus, submitMissing: submitMissingLifecycleTemplates } = require("../controllers/clientLifecycleTemplateController");
+const express = require('express');
+
 const router = express.Router();
 
-router.post("/test-command", testCommandAuth, runTestCommand);
+router.use((req, res) => {
+  res.set('Cache-Control', 'no-store');
+  return res.status(410).json({
+    error: 'Legacy admin API retired',
+    code: 'SHILOH_LEGACY_ADMIN_API_RETIRED',
+    requestId: req.id,
+  });
+});
 
-router.use(adminAuth);
-router.post("/tests/booking-policy", runBookingPolicyTest);
-router.use("/crm", crmRoutes);
-router.get("/documents", getDocuments); router.post("/documents", createDocument); router.post("/documents/upload", documentUpload, uploadDocument); router.delete("/documents/:id", removeDocument);
-router.get("/profiles", getProfiles); router.get("/profiles/:phone", getProfileByPhone); router.patch("/profiles/:phone", patchProfileByPhone);
-router.get("/sync/goldie", getGoldieSyncStatus); router.post("/sync/goldie", syncGoldie);
-router.post("/imports/goldie/clients", csvUpload, stageGoldieClients); router.post("/imports/goldie/appointments", csvUpload, stageGoldieAppointments);
-router.get("/reconciliation/clients/summary", getReconciliationSummary);
-router.get("/reconciliation/clients/recommendations", getReconciliationRecommendations);
-router.get("/reconciliation/clients/appointment-evidence", getAppointmentIdentityEvidence);
-router.get("/reconciliation/clients/second-pass", getSecondPassReconciliation);
-router.get("/reconciliation/clients/manual-queue", getManualQueue);
-router.post("/reconciliation/clients/manual-queue/:id/decision", decideManualCase);
-router.get("/reconciliation/clients/chantel-duplicate/plan", getChantelDuplicatePlan);
-router.post("/reconciliation/clients/chantel-duplicate/execute", executeChantelDuplicate);
-router.get("/reconciliation/clients/separate-identities/plan", getSeparateIdentityPlan);
-router.post("/reconciliation/clients/separate-identities/execute", executeSeparateIdentity);
-router.get("/reconciliation/clients/canonicalization-audit", getCanonicalizationAudit);
-router.post("/reconciliation/clients/canonicalize", canonicalizeReconciliationClients);
-router.get("/reconciliation/clients", getReconciliationCases); router.get("/reconciliation/clients/:id", getReconciliationCase);
-router.get("/appointments", getLifecycleAppointments); router.post("/appointments", createLifecycleAppointment); router.patch("/appointments/:id", patchLifecycleAppointment); router.post("/appointments/scan", runLifecycleScan); router.post("/appointments/test-lifecycle", runControlledLifecycleTest);
-router.get("/whatsapp/templates/lifecycle", getLifecycleTemplateStatus);
-router.post("/whatsapp/templates/lifecycle/submit-missing", submitMissingLifecycleTemplates);
-router.post("/whatsapp/templates/test", sendTemplateTest);
-router.get("/feedback", getFeedback); router.patch("/feedback/:id/resolve", resolveCustomerFeedback); router.get("/reviews", getReviews); router.get("/customer-satisfaction", getCustomerSatisfaction);
-router.get("/database/status", getDatabaseStatus); router.get("/database/tables", getDatabaseTables); router.get("/database/schema", getDatabaseSchema); router.get("/database/overview", getDatabaseOverview); router.get("/database/migrations", getDatabaseMigrations); router.post("/database/migrations/apply", applyDatabaseMigrations);
 module.exports = router;
