@@ -121,13 +121,14 @@ test('Group booking adds multiple guests and reviews an optional-note discount o
   ];
   await page.addInitScript(({ guestNames }) => {
     const nativeFetch = window.fetch.bind(window);
+    const jsonResponse = body => ({ ok: true, status: 200, json: async () => body });
     window.fetch = async (input, init) => {
       const url = new URL(typeof input === 'string' ? input : input.url, window.location.href);
       if (url.pathname === '/calendar/staff-auth/csrf') {
-        return new Response(JSON.stringify({ csrfToken: 'storybook-csrf' }), { status: 200, headers: { 'content-type': 'application/json' } });
+        return jsonResponse({ csrfToken: 'storybook-csrf' });
       }
       if (url.pathname === '/calendar/book/group/prepare') {
-        return new Response(JSON.stringify({ review: {
+        return jsonResponse({ review: {
           guests: guestNames.map(name => ({ name })),
           assignments: [
             { startsAt: '2026-09-14T08:30:00.000Z', service: { name: 'Quick Relief: Back & Neck', price: 520 }, practitioner: { displayName: 'Abigail' } },
@@ -136,7 +137,7 @@ test('Group booking adds multiple guests and reviews an optional-note discount o
           ],
           startsAt: '2026-09-14T08:30:00.000Z',
           pricing: { subtotal: 2090, discountAmount: 209, discountReason: null, total: 1881 },
-        } }), { status: 200, headers: { 'content-type': 'application/json' } });
+        } });
       }
       return nativeFetch(input, init);
     };
