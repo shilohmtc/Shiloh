@@ -1,6 +1,7 @@
 require("dotenv").config();
 const path = require("path");
 const express = require("express");
+const { createPaymentProviderRouter } = require('./src/routes/paymentProviders');
 const { validateEnv } = require("./src/config/env");
 const logger = require("./src/lib/logger");
 const observability = require("./src/lib/observability");
@@ -67,7 +68,7 @@ app.use(express.json({ limit: "2mb" }));
 app.use(requestContext);
 app.use("/assets/service-images", express.static(path.join(__dirname, "public", "service-images"), { maxAge: "30d", immutable: true }));
 app.get("/health", async (req, res) => { const ok = await checkDatabase(); return res.status(ok ? 200 : 503).json({ status: ok ? "ok" : "degraded", database: ok ? "ok" : "unavailable", timestamp: new Date().toISOString() }); });
-app.use("/audit-read", auditReadRoutes); app.use("/admin", adminRoutes); app.use("/calendar", calendarRoutes); app.use("/", publicWebsiteRoutes); app.use("/", serviceRoutes); app.use("/", walkinRoutes); app.use("/", bookRoutes); app.use("/", webhookRoutes);
+app.use("/payments/providers", createPaymentProviderRouter()); app.use("/audit-read", auditReadRoutes); app.use("/admin", adminRoutes); app.use("/calendar", calendarRoutes); app.use("/", publicWebsiteRoutes); app.use("/", serviceRoutes); app.use("/", walkinRoutes); app.use("/", bookRoutes); app.use("/", webhookRoutes);
 app.use((err, req, res, next) => {
   const log = req.log || logger;
   const route = `${req.baseUrl || ""}${req.route?.path || ""}` || "unmatched";
