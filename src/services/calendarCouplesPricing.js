@@ -1,4 +1,4 @@
-const COUPLES_DISCOUNT_CAPABILITY = 'service:pricing';
+const COUPLES_DISCOUNT_CAPABILITY = 'appointment:couples:discount';
 
 function pricingError(code, message, httpStatus = 400) {
   const error = new Error(message);
