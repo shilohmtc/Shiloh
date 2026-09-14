@@ -119,31 +119,27 @@ test('Group booking adds multiple guests and reviews an optional-note discount o
     ['Sam Adams', '082 222 2222', '84', '12'],
     ['Taylor Adams', '082 333 3333', '82', '13'],
   ];
-  await page.addInitScript(({ guestNames }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/iframe.html?id=workspace-production-surfaces--group-booking-multiple-guests-and-discount&viewMode=story', { waitUntil: 'networkidle' });
+  await page.evaluate(({ guestNames }) => {
     const nativeFetch = window.fetch.bind(window);
     const jsonResponse = body => ({ ok: true, status: 200, json: async () => body });
     window.fetch = async (input, init) => {
       const url = new URL(typeof input === 'string' ? input : input.url, window.location.href);
-      if (url.pathname === '/calendar/staff-auth/csrf') {
-        return jsonResponse({ csrfToken: 'storybook-csrf' });
-      }
-      if (url.pathname === '/calendar/book/group/prepare') {
-        return jsonResponse({ review: {
-          guests: guestNames.map(name => ({ name })),
-          assignments: [
-            { startsAt: '2026-09-14T08:30:00.000Z', service: { name: 'Quick Relief: Back & Neck', price: 520 }, practitioner: { displayName: 'Abigail' } },
-            { startsAt: '2026-09-14T08:30:00.000Z', service: { name: 'Hot Stone Massage', price: 850 }, practitioner: { displayName: 'Christel' } },
-            { startsAt: '2026-09-14T08:30:00.000Z', service: { name: 'Full Body Swedish', price: 720 }, practitioner: { displayName: 'Marietjie' } },
-          ],
-          startsAt: '2026-09-14T08:30:00.000Z',
-          pricing: { subtotal: 2090, discountAmount: 209, discountReason: null, total: 1881 },
-        } });
-      }
+      if (url.pathname === '/calendar/staff-auth/csrf') return jsonResponse({ csrfToken: 'storybook-csrf' });
+      if (url.pathname === '/calendar/book/group/prepare') return jsonResponse({ review: {
+        guests: guestNames.map(name => ({ name })),
+        assignments: [
+          { startsAt: '2026-09-14T08:30:00.000Z', service: { name: 'Quick Relief: Back & Neck', price: 520 }, practitioner: { displayName: 'Abigail' } },
+          { startsAt: '2026-09-14T08:30:00.000Z', service: { name: 'Hot Stone Massage', price: 850 }, practitioner: { displayName: 'Christel' } },
+          { startsAt: '2026-09-14T08:30:00.000Z', service: { name: 'Full Body Swedish', price: 720 }, practitioner: { displayName: 'Marietjie' } },
+        ],
+        startsAt: '2026-09-14T08:30:00.000Z',
+        pricing: { subtotal: 2090, discountAmount: 209, discountReason: null, total: 1881 },
+      } });
       return nativeFetch(input, init);
     };
   }, { guestNames: guests.map(item => item[0]) });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/iframe.html?id=workspace-production-surfaces--group-booking-multiple-guests-and-discount&viewMode=story', { waitUntil: 'networkidle' });
   await expect(page.getByRole('heading', { name: 'Group booking' })).toBeVisible();
   await expect(page.locator('[data-guest]')).toHaveCount(3);
   await page.locator('[data-add-guest]').click();
