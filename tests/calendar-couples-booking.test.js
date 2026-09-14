@@ -119,3 +119,23 @@ test('#971 schema and Calendar projection retain one group with two appointment 
   assert.ok(service.indexOf('obligations.push(await queueCustomerBookingConfirmation') < service.lastIndexOf("client.query('COMMIT')"));
   assert.match(service, /client\.query\('ROLLBACK'\)/);
 });
+
+test('#985 persists the complete canonical pricing decision on the booking group', () => {
+  const migration = fs.readFileSync(path.join(root, 'migrations/121_couples_booking_pricing_audit.sql'), 'utf8');
+  const service = fs.readFileSync(path.join(root, 'src/services/calendarCouplesBooking.js'), 'utf8');
+  for (const column of [
+    'canonical_subtotal',
+    'discount_type',
+    'discount_value',
+    'discount_amount',
+    'discount_reason',
+    'final_total',
+    'discounted_by_admin_id',
+  ]) {
+    assert.match(migration, new RegExp(`ADD COLUMN IF NOT EXISTS ${column}`));
+    assert.match(service, new RegExp(column));
+  }
+  assert.match(migration, /canonical_subtotal = discount_amount \+ final_total/);
+  assert.match(migration, /final_total = total_price/);
+  assert.match(migration, /service:pricing/);
+});

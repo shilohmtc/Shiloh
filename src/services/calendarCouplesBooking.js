@@ -391,10 +391,30 @@ function createCalendarCouplesBookingService({
       }
 
       const groupEndsAt = new Date(Math.max(...endsAt.map(value => new Date(value).getTime()))).toISOString();
+      const discountingPrincipalId = pricing.discountAmount > 0 ? Number(admin.id) : null;
       const groupResult = await client.query(
-        `INSERT INTO appointment_groups(group_type,service_id,location_id,starts_at,ends_at,status,total_price,currency,source,created_by_admin_id)
-         VALUES('couples_massage',$1,$2,$3,$4,'scheduled',$5,'ZAR','shiloh_calendar_couples',$6) RETURNING id`,
-        [payload.groupServiceId, payload.locationId, startsAt.toISOString(), groupEndsAt, pricing.total, Number(admin.id)]
+        `INSERT INTO appointment_groups(
+           group_type,service_id,location_id,starts_at,ends_at,status,total_price,currency,source,created_by_admin_id,
+           canonical_subtotal,discount_type,discount_value,discount_amount,discount_reason,final_total,discounted_by_admin_id
+         ) VALUES(
+           'couples_massage',$1,$2,$3,$4,'scheduled',$5,'ZAR','shiloh_calendar_couples',$6,
+           $7,$8,$9,$10,$11,$12,$13
+         ) RETURNING id`,
+        [
+          payload.groupServiceId,
+          payload.locationId,
+          startsAt.toISOString(),
+          groupEndsAt,
+          pricing.total,
+          Number(admin.id),
+          pricing.subtotal,
+          pricing.discountType,
+          pricing.discountValue,
+          pricing.discountAmount,
+          pricing.discountReason,
+          pricing.total,
+          discountingPrincipalId,
+        ]
       );
       const groupId = groupResult.rows[0].id;
       for (let index = 0; index < 2; index += 1) {
@@ -457,7 +477,7 @@ function createCalendarCouplesBookingService({
               discountAmount: pricing.discountAmount,
               discountReason: pricing.discountReason,
               finalTotal: pricing.total,
-              discountedByAdminId: pricing.discountAmount > 0 ? Number(admin.id) : null,
+              discountedByAdminId: discountingPrincipalId,
               finalAllocations: pricing.allocations,
             },
             atomic: true,
