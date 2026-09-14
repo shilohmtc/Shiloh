@@ -8,6 +8,11 @@ const {
   sendCustomerBookingConfirmationForAppointment,
 } = require('./customerBookingConfirmation');
 const { normalizeAppointmentNotes } = require('./appointmentNotes');
+const { hasCapability } = require('./calendarAuthorization');
+const {
+  COUPLES_DISCOUNT_CAPABILITY,
+  priceCouplesBooking,
+} = require('./calendarCouplesPricing');
 
 const COUPLES_EXTERNAL_SOURCE = 'shiloh_special';
 const COUPLES_EXTERNAL_ID = 'couples-massage-v1';
@@ -81,6 +86,29 @@ async function assertPairAvailable({ db, staffIds, locationId, startsAt, endsAt 
       throw couplesError('COUPLES_CONFLICT', 'One of the selected practitioners already has an appointment or blocked time then. Choose another pair or time.', 409);
     }
   }
+}
+
+function resolveAssignments(options, rawStaffIds, rawServiceIds) {
+  const staffIds = Array.isArray(rawStaffIds) ? rawStaffIds.map(positiveId) : [];
+  const serviceIds = Array.isArray(rawServiceIds) ? rawServiceIds.map(positiveId) : [];
+  if (staffIds.length !== 2 || staffIds.some(id => !id) || new Set(staffIds).size !== 2) {
+    throw couplesError('COUPLES_TWO_PRACTITIONERS_REQUIRED', 'Choose two different practitioners.');
+  }
+  if (serviceIds.length !== 2 || serviceIds.some(id => !id)) {
+    throw couplesError('COUPLES_TWO_TREATMENTS_REQUIRED', 'Choose one treatment for each guest.');
+  }
+  return serviceIds.map((serviceId, index) => {
+    const service = options.services.find(item => Number(item.id) === serviceId);
+    const practitioner = options.staff.find(person => Number(person.id) === staffIds[index]);
+    if (!service || !practitioner || !service.staffIds.map(Number).includes(staffIds[index])) {
+      throw couplesError(
+        'COUPLES_INELIGIBLE_SELECTION',
+        `Choose a practitioner currently eligible for Guest ${index + 1}’s treatment.`,
+        409
+      );
+    }
+    return { guestPosition: index + 1, service, practitioner };
+  });
 }
 
 function createCalendarCouplesBookingService({
