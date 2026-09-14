@@ -76,7 +76,7 @@ test('production Group surface starts at three and supports dynamic guests and o
 });
 
 test('group schema and atomic service preserve one parent with separate appointment children', () => {
-  const migration = fs.readFileSync(path.join(root, 'migrations/123_group_bookings_and_optional_discount_note.sql'), 'utf8');
+  const migration = fs.readFileSync(path.join(root, 'migrations/124_group_bookings_and_optional_discount_note.sql'), 'utf8');
   const service = fs.readFileSync(path.join(root, 'src/services/calendarGroupBooking.js'), 'utf8');
   const route = fs.readFileSync(path.join(root, 'src/routes/calendar.js'), 'utf8');
   assert.match(migration, /group_booking/);

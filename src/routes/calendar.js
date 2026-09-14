@@ -6,6 +6,7 @@ const { createCalendarCreateBookingRouter } = require('./calendarCreateBooking')
 const { createCalendarRetrospectiveBookingRouter } = require('./calendarRetrospectiveBooking');
 const { createCalendarCouplesBookingRouter } = require('./calendarCouplesBooking');
 const { createCalendarGroupBookingRouter } = require('./calendarGroupBooking');
+const { createCalendarPaymentsRouter } = require('./calendarPayments');
 const { createStaffBrowserSessionService } = require('../services/staffBrowserSession');
 const { createStaffBrowserSessionRouter } = require('./staffBrowserSession');
 const { createStaffPasskeyBootstrapRouter } = require('./staffPasskeyBootstrap');
@@ -29,6 +30,7 @@ const { createWorkspacePwaRouter, createWorkspacePwaHtmlMiddleware } = require('
 const { calendarPhoneCompactV2ClientScript } = require('../presentation/calendarPhoneCompactV2');
 const { calendarPhoneAllStaffClientScript } = require('../presentation/calendarPhoneAllStaffUx');
 const { calendarAppointmentDetailsClientScript } = require('../presentation/calendarAppointmentDetailsUx');
+const { calendarPaymentLinkClientScript } = require('../presentation/calendarPaymentsUx');
 const router = express.Router();
 
 const staffBrowserSessionService = createStaffBrowserSessionService({ db: pool });
@@ -65,6 +67,7 @@ router.use('/book/past', createCalendarRetrospectiveBookingRouter({ sessionServi
 router.use('/book/couples', createCalendarCouplesBookingRouter({ sessionService: staffBrowserSessionService }));
 router.use('/book/group', createCalendarGroupBookingRouter({ sessionService: staffBrowserSessionService }));
 router.use('/book', createCalendarCreateBookingRouter({ sessionService: staffBrowserSessionService }));
+router.use('/payments', createCalendarPaymentsRouter({ sessionService: staffBrowserSessionService }));
 router.use('/operations', createCalendarAppointmentEndTimeRouter({ sessionService: staffBrowserSessionService }));
 router.use('/operations', createCalendarOperationalMutationRouter({ sessionService: staffBrowserSessionService }));
 router.use('/clients', createWorkspaceClientsRouter({ sessionService: staffBrowserSessionService }));
@@ -81,7 +84,7 @@ router.use('/messages', createWorkspaceMessagesRouter({ sessionService: staffBro
 router.get('/read-only/phone-v2.js', (_req, res) => {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  return res.status(200).type('application/javascript').send(`${calendarPhoneCompactV2ClientScript()}\n${calendarPhoneAllStaffClientScript()}\n${calendarAppointmentDetailsClientScript()}`);
+  return res.status(200).type('application/javascript').send(`${calendarPhoneCompactV2ClientScript()}\n${calendarPhoneAllStaffClientScript()}\n${calendarAppointmentDetailsClientScript()}\n${calendarPaymentLinkClientScript()}`);
 });
 router.use('/read-only', createOptionalCalendarSessionMiddleware({ service: staffBrowserSessionService }), calendarReadOnlyUxRoutes);
 router.get('/', (_req, res) => res.redirect(302, '/calendar/workspace'));

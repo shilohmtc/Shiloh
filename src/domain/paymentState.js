@@ -13,6 +13,7 @@ const STATES = Object.freeze({
 const EVIDENCE = Object.freeze({
   INTERNAL: 'internal',
   VERIFIED_PROVIDER: 'verified_provider',
+  AUTHORIZED_MANUAL: 'authorized_manual',
 });
 
 const TRANSITIONS = Object.freeze({
@@ -27,7 +28,7 @@ const TRANSITIONS = Object.freeze({
   [STATES.REFUNDED]: new Set(),
 });
 
-const PROVIDER_PROOF_REQUIRED = new Set([
+const SETTLEMENT_PROOF_REQUIRED = new Set([
   STATES.PAID,
   STATES.PARTIALLY_REFUNDED,
   STATES.REFUNDED,
@@ -42,8 +43,8 @@ function transitionPaymentState(currentState, nextState, { evidence = EVIDENCE.I
   assertState(nextState);
 
   if (currentState === nextState) {
-    if (PROVIDER_PROOF_REQUIRED.has(nextState) && evidence !== EVIDENCE.VERIFIED_PROVIDER) {
-      throw new Error(`Verified provider evidence is required to reaffirm payment state ${nextState}`);
+    if (SETTLEMENT_PROOF_REQUIRED.has(nextState) && ![EVIDENCE.VERIFIED_PROVIDER, EVIDENCE.AUTHORIZED_MANUAL].includes(evidence)) {
+      throw new Error(`Verified settlement evidence is required to reaffirm payment state ${nextState}`);
     }
     return nextState;
   }
@@ -52,8 +53,8 @@ function transitionPaymentState(currentState, nextState, { evidence = EVIDENCE.I
     throw new Error(`Payment transition ${currentState} -> ${nextState} is not allowed`);
   }
 
-  if (PROVIDER_PROOF_REQUIRED.has(nextState) && evidence !== EVIDENCE.VERIFIED_PROVIDER) {
-    throw new Error(`Verified provider evidence is required for payment state ${nextState}`);
+  if (SETTLEMENT_PROOF_REQUIRED.has(nextState) && ![EVIDENCE.VERIFIED_PROVIDER, EVIDENCE.AUTHORIZED_MANUAL].includes(evidence)) {
+    throw new Error(`Verified settlement evidence is required for payment state ${nextState}`);
   }
 
   return nextState;

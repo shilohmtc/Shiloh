@@ -1,0 +1,14 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const {money,CAPABILITIES}=require('../src/services/bookingPayments');
+const {canonicalHash,configured,createOzowPaymentProvider}=require('../src/services/ozowPaymentProvider');
+const {renderCalendarPaymentPage,calendarPaymentLinkClientScript}=require('../src/presentation/calendarPaymentsUx');
+
+const root=path.join(__dirname,'..');
+test('payment schema owns one ordinary or linked booking subject and immutable evidence',()=>{const sql=fs.readFileSync(path.join(root,'migrations/123_booking_payment_foundation.sql'),'utf8');assert.match(sql,/booking_payment_accounts_one_subject/);assert.match(sql,/payment_ledger_entries/);assert.match(sql,/payment_provider_events/);assert.match(sql,/authorized_manual/);assert.match(sql,/payment:collect/);assert.doesNotMatch(sql,/UPDATE appointments|UPDATE appointment_groups/);});
+test('Rand amounts are exact and reject excess precision or signs',()=>{assert.equal(money('740.5',{positive:true}),'740.50');assert.throws(()=>money('-1',{positive:true}));assert.throws(()=>money('1.001',{positive:true}));});
+test('payment capabilities remain bounded',()=>{assert.deepEqual(CAPABILITIES,{VIEW:'payment:view',COLLECT:'payment:collect',REFUND:'payment:refund'});});
+test('Ozow adapter fails closed until every merchant boundary is configured',()=>{assert.equal(configured({}),false);const provider=createOzowPaymentProvider({env:{},fetchImpl:async()=>{throw new Error('must not call');}});assert.equal(provider.configured(),false);assert.rejects(()=>provider.createPaymentLink({requestKey:'request_123',amount:'10.00',bankReference:'SHILOH'}),/not configured/i);assert.equal(canonicalHash([' SITE ','ZAR','10.00'],' secret '),canonicalHash(['site','zar','10.00'],'secret'));});
+test('linked payment UI supports split balance and does not claim booking confirmation',()=>{const html=renderCalendarPaymentPage({model:{subject:{appointmentId:701,groupId:55},payment:{state:'partially_paid',amountDue:'1240.00',netPaid:'500.00',outstanding:'740.00',requests:[],entries:[]},authority:{canCollect:true,canRefund:false,ozowConfigured:false}}});assert.match(html,/Linked booking #55/);assert.match(html,/R\s?740[,.]00/);assert.match(html,/separate requests for a couple or group/);assert.match(html,/Payment never changes attendance or booking status/);assert.match(calendarPaymentLinkClientScript(),/calendar\/payments\/appointments/);});
