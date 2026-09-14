@@ -12,8 +12,21 @@ const {
   renderCalendarCouplesBookingPage,
   calendarCouplesBookingClientScript,
 } = require('../src/presentation/calendarCouplesBookingUx');
+const {
+  localDateTimeFromInputs,
+  canonicalLocalDateTimeFromInputs,
+} = require('../src/services/calendarCreateBooking');
 
 const root = path.resolve(__dirname, '..');
+
+test('#983 preserves the South African display slot while using an unambiguous database timestamp', () => {
+  assert.equal(localDateTimeFromInputs('2026-09-14', '12:00'), '14/09/2026 12:00');
+  assert.equal(canonicalLocalDateTimeFromInputs('2026-09-14', '12:00'), '2026-09-14 12:00:00');
+  assert.throws(
+    () => canonicalLocalDateTimeFromInputs('2026-09-31', '12:00'),
+    error => error.code === 'CALENDAR_BOOKING_INVALID_SLOT'
+  );
+});
 
 test('#971 validates two complete, distinct CRM V2 guest identities', () => {
   const guests = [
