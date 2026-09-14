@@ -31,7 +31,7 @@ function positiveId(value) {
   return Number.isSafeInteger(number) && number > 0 ? number : null;
 }
 
-function localDateTimeFromInputs(date, time) {
+function bookingSlotPartsFromInputs(date, time) {
   const dateMatch = String(date || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
   const timeMatch = String(time || '').trim().match(/^([01]\d|2[0-3]):([0-5]\d)$/);
   if (!dateMatch || !timeMatch) throw bookingError('CALENDAR_BOOKING_INVALID_SLOT', 'Choose a valid date and start time.');
@@ -48,7 +48,23 @@ function localDateTimeFromInputs(date, time) {
       'Choose a start time in 5-minute increments, for example 09:00.'
     );
   }
-  return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year} ${timeMatch[1]}:${timeMatch[2]}`;
+  return {
+    year,
+    month: String(month).padStart(2, '0'),
+    day: String(day).padStart(2, '0'),
+    hour: timeMatch[1],
+    minute: timeMatch[2],
+  };
+}
+
+function localDateTimeFromInputs(date, time) {
+  const slot = bookingSlotPartsFromInputs(date, time);
+  return `${slot.day}/${slot.month}/${slot.year} ${slot.hour}:${slot.minute}`;
+}
+
+function canonicalLocalDateTimeFromInputs(date, time) {
+  const slot = bookingSlotPartsFromInputs(date, time);
+  return `${slot.year}-${slot.month}-${slot.day} ${slot.hour}:${slot.minute}:00`;
 }
 
 function maskContact(value = '') {
@@ -392,6 +408,7 @@ module.exports = {
   BOOKING_TIME_INCREMENT_MINUTES,
   createCalendarCreateBookingService,
   localDateTimeFromInputs,
+  canonicalLocalDateTimeFromInputs,
   serializeClient,
   normalizeNewClientInput,
   crmV2OutcomeError,
