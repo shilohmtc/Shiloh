@@ -376,7 +376,7 @@ function renderPhoneCalendarDock(model, {
   const availabilityActions = [];
   if (bookingAllowed) {
     bookingActions.push(`<a data-phone-appointment-action href="${escapeHtml(bookingHref(bookingPath, { date, staffId }))}" aria-label="Create appointment">${renderLucideIcon('calendarPlus', { size: 17 })}<span>New appointment</span></a>`);
-    bookingActions.push(`<a data-phone-appointment-action data-calendar-booking-kind="couples" href="${escapeHtml(bookingHref(couplesBookingPath, { date }))}" aria-label="Book a Couples booking for two guests">${renderLucideIcon('couples', { size: 17 })}<span>Couples booking</span><small>2 guests</small></a>`);
+    bookingActions.push(`<a data-phone-appointment-action data-calendar-booking-kind="couples" href="${escapeHtml(bookingHref(couplesBookingPath, { date }))}" aria-label="Book a Couples booking for two guests">${renderLucideIcon('couples', { size: 17 })}<span>Couples booking</span></a>`);
   }
   if (retrospectiveAllowed) {
     bookingActions.push(`<a data-phone-appointment-action href="${escapeHtml(bookingHref(retrospectiveBookingPath, { date, staffId }))}" aria-label="Record past appointment">${renderLucideIcon('history', { size: 17 })}<span>Record past appointment</span></a>`);
