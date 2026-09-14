@@ -1,11 +1,11 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 
-test('Couples Massage keeps two complete client profiles usable on Phone', async ({ page }) => {
+test('Couples booking supports separate canonical treatments and discretionary discount on Phone', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/iframe.html?id=workspace-production-surfaces--couples-massage-booking&viewMode=story', { waitUntil: 'networkidle' });
+  await page.goto('/iframe.html?id=workspace-production-surfaces--couples-booking-treatments-and-discount&viewMode=story', { waitUntil: 'networkidle' });
 
-  await expect(page.getByRole('heading', { name: 'Couples Massage' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Couples booking' })).toBeVisible();
   await expect(page.locator('[data-guest]')).toHaveCount(2);
   await page.route('**/calendar/book/couples/client-search', route => route.fulfill({
     status: 200,
@@ -17,17 +17,31 @@ test('Couples Massage keeps two complete client profiles usable on Phone', async
   await page.locator('[data-client-results="1"] .client-result').click();
   await expect(page.locator('[data-client-id="1"]')).toHaveValue('91');
   await expect(page.locator('[data-dob="1"]')).toHaveValue('1990-01-02');
+
   const values = [
     ['Alex Adams', '082 123 4567', '1990-01-02', 'female'],
     ['Sam Adams', '082 987 6543', '1991-03-04', 'male'],
   ];
   for (let index = 1; index <= 2; index += 1) {
-    await page.locator(`[data-name="${index}"]`).fill(values[index - 1][0]);
-    await page.locator(`[data-mobile="${index}"]`).fill(values[index - 1][1]);
-    await page.locator(`[data-dob="${index}"]`).fill(values[index - 1][2]);
-    await page.locator(`[data-gender="${index}"]`).selectOption(values[index - 1][3]);
-    await page.locator(`[data-staff="${index}"]`).selectOption(String(10 + index));
+    await page.locator('[data-name="' + index + '"]').fill(values[index - 1][0]);
+    await page.locator('[data-mobile="' + index + '"]').fill(values[index - 1][1]);
+    await page.locator('[data-dob="' + index + '"]').fill(values[index - 1][2]);
+    await page.locator('[data-gender="' + index + '"]').selectOption(values[index - 1][3]);
   }
+  await page.locator('[data-service="1"]').selectOption('81');
+  await expect(page.locator('[data-staff="1"] option')).toHaveText(['Choose', 'Abigail', 'Christel']);
+  await page.locator('[data-staff="1"]').selectOption('11');
+  await page.locator('[data-service="2"]').selectOption('82');
+  await expect(page.locator('[data-staff="2"] option')).toHaveText(['Choose', 'Christel', 'Marietjie']);
+  await page.locator('[data-staff="2"]').selectOption('13');
+
+  await page.locator('[data-discount-type]').selectOption('percent');
+  await page.locator('[data-discount-value]').fill('10');
+  await page.locator('[data-discount-reason]').fill('Returning clients');
+  await page.locator('[data-discount-reason]').blur();
+  await expect(page.locator('[data-discount-preview]')).toContainText('Canonical subtotal');
+  await expect(page.locator('[data-discount-preview]')).toContainText('Estimated total');
+
   await page.locator('[data-mobile="2"]').fill('082 123 4567');
   await page.locator('[data-review-couples]').click();
   await expect(page.locator('[data-couples-status]')).toContainText('different mobile numbers');
@@ -36,11 +50,11 @@ test('Couples Massage keeps two complete client profiles usable on Phone', async
   const metrics = await page.evaluate(() => ({
     viewportWidth: innerWidth,
     documentWidth: document.documentElement.scrollWidth,
-    shortTargets: [...document.querySelectorAll('button,input,select,a')]
+    shortTargets: [...document.querySelectorAll('button,input,select,textarea,a')]
       .filter(node => node.getClientRects().length)
       .filter(node => node.getBoundingClientRect().height < 44)
       .map(node => node.textContent.trim() || node.getAttribute('data-name') || node.id),
-    overflowing: [...document.querySelectorAll('input,select,button')]
+    overflowing: [...document.querySelectorAll('input,select,textarea,button')]
       .filter(node => node.getClientRects().length)
       .filter(node => node.getBoundingClientRect().right > innerWidth + 1)
       .map(node => node.outerHTML.slice(0, 80)),
@@ -50,13 +64,16 @@ test('Couples Massage keeps two complete client profiles usable on Phone', async
   expect(metrics.overflowing).toEqual([]);
   const accessibility = await new AxeBuilder({ page }).include('.workspace-surface-story').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
   expect(accessibility.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath('couples-booking-pricing-phone.png'), fullPage: true });
 });
 
-test('Couples Massage remains scannable as two side-by-side guests on Desktop', async ({ page }) => {
+test('Couples booking remains scannable with separate treatments on Desktop', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto('/iframe.html?id=workspace-production-surfaces--couples-massage-booking&viewMode=story', { waitUntil: 'networkidle' });
+  await page.goto('/iframe.html?id=workspace-production-surfaces--couples-booking-treatments-and-discount&viewMode=story', { waitUntil: 'networkidle' });
   const cards = page.locator('[data-guest]');
   await expect(cards).toHaveCount(2);
+  await expect(page.locator('[data-service]')).toHaveCount(2);
+  await expect(page.locator('[data-discount-controls]')).toBeVisible();
   const geometry = await cards.evaluateAll(nodes => ({
     firstTop: nodes[0].getBoundingClientRect().top,
     secondTop: nodes[1].getBoundingClientRect().top,
@@ -68,6 +85,14 @@ test('Couples Massage remains scannable as two side-by-side guests on Desktop', 
   expect(Math.abs(geometry.firstTop - geometry.secondTop)).toBeLessThanOrEqual(1);
   expect(geometry.firstRight).toBeLessThan(geometry.secondLeft);
   expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+  await page.screenshot({ path: testInfo.outputPath('couples-booking-pricing-desktop.png'), fullPage: true });
+});
+
+test('Couples discount controls do not render without canonical pricing authority', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/iframe.html?id=workspace-production-surfaces--couples-booking-without-discount-authority&viewMode=story', { waitUntil: 'networkidle' });
+  await expect(page.locator('[data-discount-controls]')).toHaveCount(0);
+  await expect(page.locator('[data-service]')).toHaveCount(2);
 });
 
 test('linked Couples appointments share one distinctive labelled Calendar treatment', async ({ page }) => {

@@ -52,29 +52,38 @@ test('#971 derives the Couples Massage team from authorized service mappings', a
         { id: 12, displayName: 'Christel' },
         { id: 13, displayName: 'Marietjie' },
       ],
-      services: [{
-        id: 90,
-        name: 'Couples Massage',
-        externalSource: 'shiloh_special',
-        externalId: 'couples-massage-v1',
-        durationMinutes: 90,
-        price: 1080,
-        staffIds: [11, 12],
-      }],
+      services: [
+        {
+          id: 90,
+          name: 'Couples Massage',
+          externalSource: 'shiloh_special',
+          externalId: 'couples-massage-v1',
+          durationMinutes: 90,
+          price: 1080,
+          staffIds: [11, 12],
+        },
+        { id: 81, name: 'Deep Tissue Massage', durationMinutes: 60, price: 850, variablePrice: false, staffIds: [11, 12] },
+        { id: 82, name: 'Hydrating Facial', durationMinutes: 75, price: 720, variablePrice: false, staffIds: [12] },
+      ],
     }),
   };
   const service = createCalendarCouplesBookingService({ db: { query() {} }, standardBooking });
   const options = await service.listOptions(7);
   assert.deepEqual(options.staff.map(person => person.displayName), ['Abigail', 'Christel']);
-  assert.equal(options.service.durationMinutes, 90);
-  assert.equal(options.service.price, 1080);
+  assert.equal(options.groupService.name, 'Couples Massage');
+  assert.deepEqual(options.services.map(service => service.name), ['Deep Tissue Massage', 'Hydrating Facial']);
 });
 
 test('#971 production Storybook surface exposes complete phone-friendly paired booking fields', () => {
   const html = renderCalendarCouplesBookingPage({
     options: {
-      service: { id: 90, name: 'Couples Massage', durationMinutes: 90, price: 1080 },
+      groupService: { id: 90, name: 'Couples Massage' },
+      services: [
+        { id: 81, name: 'Deep Tissue Massage', durationMinutes: 60, price: 850, staffIds: [11, 12] },
+        { id: 82, name: 'Hydrating Facial', durationMinutes: 75, price: 720, staffIds: [12] },
+      ],
       staff: [{ id: 11, displayName: 'Abigail' }, { id: 12, displayName: 'Christel' }],
+      authority: { canApplyDiscount: true },
     },
     prefill: { date: '2026-09-14', time: '10:30' },
   });
@@ -83,8 +92,14 @@ test('#971 production Storybook surface exposes complete phone-friendly paired b
   assert.equal((html.match(/type="date"/g) || []).length, 3);
   assert.equal((html.match(/data-gender=/g) || []).length, 2);
   assert.match(html, /New profiles are saved only when the whole booking succeeds/);
+  assert.equal((html.match(/data-service=/g) || []).length, 2);
+  assert.match(html, /Rand amount/);
+  assert.match(html, /Percentage/);
+  assert.match(html, /data-discount-reason/);
   assert.match(html, /@media\(max-width:700px\)/);
   assert.match(calendarCouplesBookingClientScript(), /Guest 1 and Guest 2 need different mobile numbers/);
+  assert.match(calendarCouplesBookingClientScript(), /serviceIds/);
+  assert.match(calendarCouplesBookingClientScript(), /Canonical subtotal/);
 });
 
 test('#971 schema and Calendar projection retain one group with two appointment children', () => {
@@ -103,4 +118,24 @@ test('#971 schema and Calendar projection retain one group with two appointment 
   assert.ok(service.indexOf('INSERT INTO crm_v2_clients') < service.indexOf('INSERT INTO appointment_groups'));
   assert.ok(service.indexOf('obligations.push(await queueCustomerBookingConfirmation') < service.lastIndexOf("client.query('COMMIT')"));
   assert.match(service, /client\.query\('ROLLBACK'\)/);
+});
+
+test('#985 persists the complete canonical pricing decision on the booking group', () => {
+  const migration = fs.readFileSync(path.join(root, 'migrations/121_couples_booking_pricing_audit.sql'), 'utf8');
+  const service = fs.readFileSync(path.join(root, 'src/services/calendarCouplesBooking.js'), 'utf8');
+  for (const column of [
+    'canonical_subtotal',
+    'discount_type',
+    'discount_value',
+    'discount_amount',
+    'discount_reason',
+    'final_total',
+    'discounted_by_admin_id',
+  ]) {
+    assert.match(migration, new RegExp(`ADD COLUMN IF NOT EXISTS ${column}`));
+    assert.match(service, new RegExp(column));
+  }
+  assert.match(migration, /canonical_subtotal = discount_amount \+ final_total/);
+  assert.match(migration, /final_total = total_price/);
+  assert.match(migration, /service:pricing/);
 });

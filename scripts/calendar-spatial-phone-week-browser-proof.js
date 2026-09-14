@@ -530,7 +530,7 @@ async function main() {
       const targets=Array.from(document.querySelectorAll('.phone-plus-popover>a,.phone-plus-popover button')).filter(visible);
       return {labels:targets.map(node=>node.textContent.trim()),minHeight:Math.min(...targets.map(node=>node.getBoundingClientRect().height))};
     })()`);
-    assert.deepEqual(plusMetrics.labels, ['New appointment', 'Record past appointment', 'Block time', 'Leave']);
+    assert.deepEqual(plusMetrics.labels, ['New appointment', 'Couples booking', 'Record past appointment', 'Block time', 'Leave']);
     assert.ok(plusMetrics.minHeight >= 44, 'Phone + action target is below 44px');
     screenshots.push({ ...(await capture('phone-plus-actions')), viewport: { width: 390, height: 844 }, metrics: plusMetrics });
     await evaluate(cdp, `document.querySelector('.phone-plus-menu>summary').click();true`);

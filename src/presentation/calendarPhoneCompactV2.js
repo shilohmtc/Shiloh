@@ -361,6 +361,7 @@ function staffOperationEnabled(model, operation, staffId) {
 function renderPhoneCalendarDock(model, {
   basePath = '/calendar/read-only',
   bookingPath = '/calendar/book',
+  couplesBookingPath = '/calendar/book/couples',
   bookingAllowed = false,
   retrospectiveBookingPath = '/calendar/book/past',
   retrospectiveAllowed = false,
@@ -371,22 +372,29 @@ function renderPhoneCalendarDock(model, {
   const date = String(model?.dateKey || '');
   const view = ['week', 'agenda', 'month'].includes(model?.view) ? model.view : 'week';
   const todayHref = calendarStaffHref(basePath, { view, date: businessToday(), staffIds: visibleStaffIds, activeStaffId: staffId });
-  const actions = [];
+  const bookingActions = [];
+  const availabilityActions = [];
   if (bookingAllowed) {
-    actions.push(`<a data-phone-appointment-action href="${escapeHtml(bookingHref(bookingPath, { date, staffId }))}" aria-label="Create appointment">New appointment</a>`);
+    bookingActions.push(`<a data-phone-appointment-action href="${escapeHtml(bookingHref(bookingPath, { date, staffId }))}" aria-label="Create appointment">${renderLucideIcon('calendarPlus', { size: 17 })}<span>New appointment</span></a>`);
+    bookingActions.push(`<a data-phone-appointment-action data-calendar-booking-kind="couples" href="${escapeHtml(bookingHref(couplesBookingPath, { date }))}" aria-label="Book a Couples booking for two guests">${renderLucideIcon('couples', { size: 17 })}<span>Couples booking</span></a>`);
   }
   if (retrospectiveAllowed) {
-    actions.push(`<a data-phone-appointment-action href="${escapeHtml(bookingHref(retrospectiveBookingPath, { date, staffId }))}" aria-label="Record past appointment">Record past appointment</a>`);
+    bookingActions.push(`<a data-phone-appointment-action href="${escapeHtml(bookingHref(retrospectiveBookingPath, { date, staffId }))}" aria-label="Record past appointment">${renderLucideIcon('history', { size: 17 })}<span>Record past appointment</span></a>`);
   }
   if (staffId && staffOperationEnabled(model, 'calendar_block:manage', staffId)) {
-    actions.push(`<span class="phone-plus-lane-context lane"><h3 class="sr-only">${escapeHtml(active.displayName || `Staff ${staffId}`)}</h3><button type="button" data-calendar-operation="add-block" data-staff-id="${staffId}" data-date="${escapeHtml(date)}">Block time</button></span>`);
+    availabilityActions.push(`<span class="phone-plus-lane-context lane"><h3 class="sr-only">${escapeHtml(active.displayName || `Staff ${staffId}`)}</h3><button type="button" data-calendar-operation="add-block" data-staff-id="${staffId}" data-date="${escapeHtml(date)}">${renderLucideIcon('block', { size: 17 })}<span>Block time</span></button></span>`);
   }
   if (staffId && staffOperationEnabled(model, 'operational_leave:manage', staffId)) {
-    actions.push(`<span class="phone-plus-lane-context lane"><h3 class="sr-only">${escapeHtml(active.displayName || `Staff ${staffId}`)}</h3><button type="button" data-calendar-operation="add-leave" data-staff-id="${staffId}" data-date="${escapeHtml(date)}">Leave</button></span>`);
+    availabilityActions.push(`<span class="phone-plus-lane-context lane"><h3 class="sr-only">${escapeHtml(active.displayName || `Staff ${staffId}`)}</h3><button type="button" data-calendar-operation="add-leave" data-staff-id="${staffId}" data-date="${escapeHtml(date)}">${renderLucideIcon('leave', { size: 17 })}<span>Leave</span></button></span>`);
   }
+  const actions = [
+    ...bookingActions,
+    ...(bookingActions.length && availabilityActions.length ? ['<div class="phone-plus-divider" role="separator" aria-label="Availability controls"></div>'] : []),
+    ...availabilityActions,
+  ];
   return `<div class="phone-calendar-v2-actions" data-phone-calendar-v2-actions>
     <a class="phone-today-action" href="${escapeHtml(todayHref)}">${renderLucideIcon('today', { size: 15 })}<span>Today</span></a>
-    ${actions.length ? `<details class="phone-plus-menu" data-phone-calendar-menu><summary aria-label="Appointment actions">${renderLucideIcon('plus', { size: 18 })}<span>Appointment</span></summary><div class="phone-plus-popover">${actions.join('')}</div></details>` : ''}
+    ${actions.length ? `<details class="phone-plus-menu" data-phone-calendar-menu><summary aria-label="Booking actions">${renderLucideIcon('plus', { size: 18 })}<span>+ Booking</span></summary><div class="phone-plus-popover">${actions.join('')}</div></details>` : ''}
   </div>`;
 }
 
@@ -444,7 +452,7 @@ body[data-phone-calendar-v2="true"] .workspace-main .positioned-event .event-car
 body[data-phone-calendar-v2="true"] .workspace-main .lane-actions,body[data-phone-calendar-v2="true"] .workspace-main .availability-menu{display:none!important}
 body[data-phone-calendar-v2="true"] .workspace-main .month-day-owners{display:none!important}
 body[data-phone-calendar-v2="true"] .workspace-main .month-grid{border:0!important;border-radius:0!important;overflow:hidden!important}body[data-phone-calendar-v2="true"] .workspace-main .month-weekdays span{padding:6px 1px!important;text-align:center!important;font-size:.56rem!important}body[data-phone-calendar-v2="true"] .workspace-main .month-day{position:relative;min-height:124px!important;padding:0!important}body[data-phone-calendar-v2="true"] .workspace-main .month-day-link{position:absolute!important;inset:0!important;display:block!important;min-height:0!important;padding:0!important;border-radius:0!important}body[data-phone-calendar-v2="true"] .workspace-main .month-day-head{display:grid!important;min-height:48px!important;margin:0!important}body[data-phone-calendar-v2="true"] .workspace-main .month-day-summary{min-height:48px!important;padding:3px 1px!important}body[data-phone-calendar-v2="true"] .workspace-main .month-events{display:grid!important;gap:2px!important;padding:0 2px 3px!important}body[data-phone-calendar-v2="true"] .workspace-main .month-event .event-card{display:block!important;min-height:0!important;padding:3px 2px!important;border-left-width:3px!important;border-radius:4px!important}body[data-phone-calendar-v2="true"] .workspace-main .month-event .event-card-top{display:block!important}body[data-phone-calendar-v2="true"] .workspace-main .month-event .event-time{display:block!important;font-size:.5rem!important;line-height:1!important}body[data-phone-calendar-v2="true"] .workspace-main .month-event .event-time-range{display:none!important}body[data-phone-calendar-v2="true"] .workspace-main .month-event .event-time-start{display:inline!important}body[data-phone-calendar-v2="true"] .workspace-main .month-event .event-card h4{display:block!important;margin:2px 0 0!important;font-size:.52rem!important;line-height:1.05!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}body[data-phone-calendar-v2="true"] .workspace-main .month-event .event-meta,body[data-phone-calendar-v2="true"] .workspace-main .month-event .event-card-actions{display:none!important}body[data-phone-calendar-v2="true"] .workspace-main .month-more{display:block!important;margin:1px 2px 3px!important;padding:2px!important;font-size:.52rem!important;line-height:1!important;text-align:left!important}
-.phone-today-action,.phone-plus-menu>summary{display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:6px 10px;border:1px solid var(--line-strong);border-radius:9px;background:#fff;color:var(--ink);font-size:.69rem;font-weight:800;list-style:none;cursor:pointer}.phone-today-action svg,.phone-plus-menu>summary svg{width:16px;height:16px;flex:0 0 16px}.phone-plus-menu{position:relative}.phone-plus-menu>summary{border-color:var(--leaf-deep);background:var(--leaf-deep);color:#fff}.phone-plus-popover{position:absolute;right:0;top:calc(100% + 4px);z-index:80;display:grid;gap:3px;width:min(210px,calc(100vw - 12px));padding:5px;border:1px solid var(--line);border-radius:11px;background:#fff;box-shadow:0 14px 30px rgba(20,45,35,.22)}.phone-plus-popover>a,.phone-plus-popover button{display:flex!important;align-items:center!important;justify-content:flex-start!important;width:100%!important;min-height:44px!important;padding:8px 10px!important;border:0!important;border-radius:8px!important;background:transparent!important;color:var(--ink)!important;font:inherit!important;font-size:.74rem!important;font-weight:800!important;text-align:left!important}.phone-plus-popover>a:hover,.phone-plus-popover button:hover{background:var(--leaf-soft)!important}.phone-plus-lane-context{display:contents!important}
+.phone-today-action,.phone-plus-menu>summary{display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:6px 10px;border:1px solid var(--line-strong);border-radius:9px;background:#fff;color:var(--ink);font-size:.69rem;font-weight:800;list-style:none;cursor:pointer}.phone-today-action svg,.phone-plus-menu>summary svg{width:16px;height:16px;flex:0 0 16px}.phone-plus-menu{position:relative}.phone-plus-menu>summary{border-color:var(--leaf-deep);background:var(--leaf-deep);color:#fff}.phone-plus-popover{position:absolute;right:0;top:calc(100% + 4px);z-index:80;display:grid;gap:3px;width:min(210px,calc(100vw - 12px));padding:5px;border:1px solid var(--line);border-radius:11px;background:#fff;box-shadow:0 14px 30px rgba(20,45,35,.22)}.phone-plus-popover>a,.phone-plus-popover button{display:flex!important;align-items:center!important;justify-content:flex-start!important;width:100%!important;min-height:44px!important;padding:8px 10px!important;border:0!important;border-radius:8px!important;background:transparent!important;color:var(--ink)!important;font:inherit!important;font-size:.74rem!important;font-weight:800!important;text-align:left!important}.phone-plus-popover>a:hover,.phone-plus-popover button:hover{background:var(--leaf-soft)!important}.phone-plus-popover svg{flex:0 0 17px}.phone-plus-popover>a[data-calendar-booking-kind="couples"]{background:#fbf5f8!important;color:#633f55!important}.phone-plus-popover>a[data-calendar-booking-kind="couples"] small{margin-left:auto;padding:2px 6px;border-radius:999px;background:#ead9e1;font-size:.6rem}.phone-plus-divider{height:1px;margin:4px 5px;background:var(--line)}.phone-plus-lane-context{display:contents!important}
 @container (max-height:44px){body[data-phone-calendar-v2="true"] .workspace-main .positioned-event .event-meta{display:none!important}body[data-phone-calendar-v2="true"] .workspace-main .positioned-event .event-time{display:none!important}body[data-phone-calendar-v2="true"] .workspace-main .positioned-event .event-card h4{margin:0!important}}
 }
 `;
@@ -492,6 +500,7 @@ function decoratePhoneCalendarV2(html, {
   model = {},
   basePath = '/calendar/read-only',
   bookingPath = '/calendar/book',
+  couplesBookingPath = '/calendar/book/couples',
   bookingAllowed = false,
   retrospectiveBookingPath = '/calendar/book/past',
   retrospectiveAllowed = false,
@@ -501,7 +510,7 @@ function decoratePhoneCalendarV2(html, {
   const active = resolveActiveStaff(model);
   const activeStaffId = positiveId(active?.id);
   const controls = renderPhoneCalendarControls(model, { basePath });
-  const actions = renderPhoneCalendarDock(model, { basePath, bookingPath, bookingAllowed, retrospectiveBookingPath, retrospectiveAllowed });
+  const actions = renderPhoneCalendarDock(model, { basePath, bookingPath, couplesBookingPath, bookingAllowed, retrospectiveBookingPath, retrospectiveAllowed });
   const scriptPath = `${String(basePath || '/calendar/read-only').replace(/\/$/, '')}/phone-v2.js`;
   const plannerDate = activePlannerDate(model);
   const bodyAttrs = ` data-phone-calendar-v2="true"${activeStaffId ? ` data-phone-active-staff-id="${activeStaffId}"` : ''}${plannerDate ? ` data-phone-active-date="${escapeHtml(plannerDate)}"` : ''}${bookingAllowed ? ` data-phone-booking-path="${escapeHtml(bookingPath)}"` : ''}`;
