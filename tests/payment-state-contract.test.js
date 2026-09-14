@@ -32,6 +32,13 @@ test('paid and refund truth require verified provider evidence', () => {
   );
 });
 
+test('authorized reception evidence can settle an explicitly recorded in-person payment', () => {
+  assert.equal(
+    transitionPaymentState(STATES.PENDING, STATES.PAID, { evidence: EVIDENCE.AUTHORIZED_MANUAL }),
+    STATES.PAID,
+  );
+});
+
 test('browser redirect or internal code cannot silently assert payment truth', () => {
   assert.throws(() => transitionPaymentState(STATES.LINK_ISSUED, STATES.PAID, { evidence: EVIDENCE.INTERNAL }));
   assert.throws(() => transitionPaymentState(STATES.PAID, STATES.PAID, { evidence: EVIDENCE.INTERNAL }));

@@ -4,6 +4,7 @@ import messagesPresentation from '../src/presentation/workspaceMessagesUx.js';
 import editorPresentation from '../src/presentation/calendarAppointmentCompactEditorUx.js';
 import createBookingPresentation from '../src/presentation/calendarCreateBookingUx.js';
 import couplesBookingPresentation from '../src/presentation/calendarCouplesBookingUx.js';
+import paymentPresentation from '../src/presentation/calendarPaymentsUx.js';
 import passkeyPresentation from '../src/presentation/staffPasskeyUx.js';
 import pwaPresentation from '../src/presentation/workspacePwa.js';
 
@@ -17,6 +18,7 @@ const {
   manageScript: passkeyManageScript,
 } = passkeyPresentation;
 const { renderCalendarCouplesBookingPage, calendarCouplesBookingClientScript } = couplesBookingPresentation;
+const { renderCalendarPaymentPage } = paymentPresentation;
 const {
   workspacePwaIconSvg,
   workspaceIosInstallGuideStyles,
@@ -297,6 +299,18 @@ export const CouplesBookingTreatmentsAndDiscount = {
 
 export const CouplesBookingWithoutDiscountAuthority = {
   render: () => couplesBookingStory(false),
+};
+
+export const LinkedBookingPayment = {
+  render: () => productionSurface(renderCalendarPaymentPage({ model: {
+    subject: { appointmentId: 701, groupId: 55 },
+    payment: {
+      state: 'partially_paid', amountDue: '1240.00', paid: '500.00', refunded: '0.00', netPaid: '500.00', outstanding: '740.00',
+      requests: [{ amount:'740.00', state:'link_issued', provider_payment_url:'https://pay.example.test/secure', created_at:'2026-09-14T09:00:00.000Z' }],
+      entries: [{ entry_type:'payment', amount:'500.00', method:'card_machine', evidence_kind:'authorized_manual', created_at:'2026-09-14T08:55:00.000Z' }],
+    },
+    authority: { canCollect:true, canRefund:true, ozowConfigured:true },
+  } })),
 };
 
 export const PhonePasskeyDevices = {
