@@ -114,32 +114,11 @@ test('Couples booking remains scannable with separate treatments on Desktop', as
 });
 
 test('Group booking adds multiple guests and reviews an optional-note discount on Phone', async ({ page }, testInfo) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/iframe.html?id=workspace-production-surfaces--group-booking-multiple-guests-and-discount&viewMode=story', { waitUntil: 'networkidle' });
-  await expect(page.getByRole('heading', { name: 'Group booking' })).toBeVisible();
-  await expect(page.locator('[data-guest]')).toHaveCount(3);
-  await page.locator('[data-add-guest]').click();
-  await expect(page.locator('[data-guest]')).toHaveCount(4);
-  await page.locator('[data-guest="4"] [data-remove-guest]').click();
-  await expect(page.locator('[data-guest]')).toHaveCount(3);
-
   const guests = [
     ['Alex Adams', '082 111 1111', '81', '11'],
     ['Sam Adams', '082 222 2222', '84', '12'],
     ['Taylor Adams', '082 333 3333', '82', '13'],
   ];
-  for (let index = 0; index < guests.length; index += 1) {
-    const card = page.locator('[data-guest]').nth(index);
-    await card.locator('[data-name]').fill(guests[index][0]);
-    await card.locator('[data-mobile]').fill(guests[index][1]);
-    await card.locator('[data-service]').selectOption(guests[index][2]);
-    await card.locator('[data-staff]').selectOption(guests[index][3]);
-    await expect(card.locator('[data-dob]')).not.toHaveAttribute('required', '');
-    await expect(card.locator('[data-gender]')).not.toHaveAttribute('required', '');
-  }
-  await page.locator('[data-discount-type]').selectOption('percent');
-  await page.locator('[data-discount-value]').fill('10');
-  await expect(page.locator('[data-discount-reason]')).toHaveValue('');
   await page.route('**/calendar/staff-auth/csrf', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ csrfToken: 'storybook-csrf' }) }));
   await page.route('**/calendar/book/group/prepare', route => route.fulfill({
     status: 200,
@@ -155,6 +134,27 @@ test('Group booking adds multiple guests and reviews an optional-note discount o
       pricing: { subtotal: 2090, discountAmount: 209, discountReason: null, total: 1881 },
     } }),
   }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/iframe.html?id=workspace-production-surfaces--group-booking-multiple-guests-and-discount&viewMode=story', { waitUntil: 'networkidle' });
+  await expect(page.getByRole('heading', { name: 'Group booking' })).toBeVisible();
+  await expect(page.locator('[data-guest]')).toHaveCount(3);
+  await page.locator('[data-add-guest]').click();
+  await expect(page.locator('[data-guest]')).toHaveCount(4);
+  await page.locator('[data-guest="4"] [data-remove-guest]').click();
+  await expect(page.locator('[data-guest]')).toHaveCount(3);
+
+  for (let index = 0; index < guests.length; index += 1) {
+    const card = page.locator('[data-guest]').nth(index);
+    await card.locator('[data-name]').fill(guests[index][0]);
+    await card.locator('[data-mobile]').fill(guests[index][1]);
+    await card.locator('[data-service]').selectOption(guests[index][2]);
+    await card.locator('[data-staff]').selectOption(guests[index][3]);
+    await expect(card.locator('[data-dob]')).not.toHaveAttribute('required', '');
+    await expect(card.locator('[data-gender]')).not.toHaveAttribute('required', '');
+  }
+  await page.locator('[data-discount-type]').selectOption('percent');
+  await page.locator('[data-discount-value]').fill('10');
+  await expect(page.locator('[data-discount-reason]')).toHaveValue('');
   await page.locator('[data-review-group]').click();
   await expect(page.locator('[data-group-status]')).toContainText('Review ready');
   await expect(page.locator('[data-group-review]')).toBeVisible();
