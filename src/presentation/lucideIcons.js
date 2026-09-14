@@ -9,6 +9,7 @@ const ICONS = Object.freeze({
   dashboard: LayoutDashboard,
   calendar: CalendarDays,
   clients: Users,
+  users: Users,
   messages: MessageSquare,
   staff: UserRoundPlus,
   services: Sparkles,

@@ -43,11 +43,8 @@ function normalizeDiscount(discount = {}, subtotalCents, canDiscount) {
   if (!Number.isFinite(value) || value <= 0) {
     throw pricingError('COUPLES_INVALID_DISCOUNT', 'Enter a discount greater than zero.');
   }
-  const reason = String(discount?.reason || '').trim().replace(/\s+/g, ' ');
-  if (!reason) {
-    throw pricingError('COUPLES_DISCOUNT_REASON_REQUIRED', 'Enter a reason for the discretionary discount.');
-  }
-  if (reason.length > 160) {
+  const reason = String(discount?.reason || '').trim().replace(/\s+/g, ' ') || null;
+  if (reason && reason.length > 160) {
     throw pricingError('COUPLES_DISCOUNT_REASON_TOO_LONG', 'Keep the discount reason to 160 characters or fewer.');
   }
 
@@ -71,24 +68,26 @@ function normalizeDiscount(discount = {}, subtotalCents, canDiscount) {
 
 function allocateFinalCents(priceCents, discountAmountCents) {
   const subtotalCents = priceCents.reduce((sum, value) => sum + value, 0);
-  if (priceCents.length !== 2 || subtotalCents <= 0) {
-    throw pricingError('COUPLES_INVALID_PRICE', 'Choose two canonically priced treatments.', 409);
+  if (priceCents.length < 2 || subtotalCents <= 0) {
+    throw pricingError('COUPLES_INVALID_PRICE', 'Choose canonically priced treatments.', 409);
   }
-  const firstDiscount = Math.floor((discountAmountCents * priceCents[0]) / subtotalCents);
-  const secondDiscount = discountAmountCents - firstDiscount;
-  return [
-    priceCents[0] - firstDiscount,
-    priceCents[1] - secondDiscount,
-  ];
+  let allocatedDiscount = 0;
+  return priceCents.map((price, index) => {
+    const share = index === priceCents.length - 1
+      ? discountAmountCents - allocatedDiscount
+      : Math.floor((discountAmountCents * price) / subtotalCents);
+    allocatedDiscount += share;
+    return price - share;
+  });
 }
 
-function priceCouplesBooking({ prices = [], discount = null, canDiscount = false } = {}) {
-  if (!Array.isArray(prices) || prices.length !== 2) {
-    throw pricingError('COUPLES_TWO_TREATMENTS_REQUIRED', 'Choose one treatment for each guest.');
+function priceLinkedBooking({ prices = [], discount = null, canDiscount = false, minGuests = 2, maxGuests = 10 } = {}) {
+  if (!Array.isArray(prices) || prices.length < minGuests || prices.length > maxGuests) {
+    throw pricingError('LINKED_GUEST_COUNT_INVALID', `Choose one treatment for each of ${minGuests}–${maxGuests} guests.`);
   }
   const priceCents = prices.map(value => cents(value));
   if (priceCents.some(value => value <= 0)) {
-    throw pricingError('COUPLES_INVALID_PRICE', 'Both selected treatments need a positive fixed canonical price.', 409);
+    throw pricingError('COUPLES_INVALID_PRICE', 'Every selected treatment needs a positive fixed canonical price.', 409);
   }
   const subtotalCents = priceCents.reduce((sum, value) => sum + value, 0);
   const normalized = normalizeDiscount(discount || {}, subtotalCents, canDiscount);
@@ -105,8 +104,16 @@ function priceCouplesBooking({ prices = [], discount = null, canDiscount = false
   };
 }
 
+function priceCouplesBooking({ prices = [], discount = null, canDiscount = false } = {}) {
+  if (!Array.isArray(prices) || prices.length !== 2) {
+    throw pricingError('COUPLES_TWO_TREATMENTS_REQUIRED', 'Choose one treatment for each guest.');
+  }
+  return priceLinkedBooking({ prices, discount, canDiscount, minGuests: 2, maxGuests: 2 });
+}
+
 module.exports = {
   COUPLES_DISCOUNT_CAPABILITY,
+  priceLinkedBooking,
   priceCouplesBooking,
   pricingError,
 };

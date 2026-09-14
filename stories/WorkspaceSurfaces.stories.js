@@ -4,6 +4,7 @@ import messagesPresentation from '../src/presentation/workspaceMessagesUx.js';
 import editorPresentation from '../src/presentation/calendarAppointmentCompactEditorUx.js';
 import createBookingPresentation from '../src/presentation/calendarCreateBookingUx.js';
 import couplesBookingPresentation from '../src/presentation/calendarCouplesBookingUx.js';
+import groupBookingPresentation from '../src/presentation/calendarGroupBookingUx.js';
 import passkeyPresentation from '../src/presentation/staffPasskeyUx.js';
 import pwaPresentation from '../src/presentation/workspacePwa.js';
 
@@ -17,6 +18,7 @@ const {
   manageScript: passkeyManageScript,
 } = passkeyPresentation;
 const { renderCalendarCouplesBookingPage, calendarCouplesBookingClientScript } = couplesBookingPresentation;
+const { renderCalendarGroupBookingPage, calendarGroupBookingClientScript } = groupBookingPresentation;
 const {
   workspacePwaIconSvg,
   workspaceIosInstallGuideStyles,
@@ -297,6 +299,20 @@ export const CouplesBookingTreatmentsAndDiscount = {
 
 export const CouplesBookingWithoutDiscountAuthority = {
   render: () => couplesBookingStory(false),
+};
+
+export const GroupBookingMultipleGuestsAndDiscount = {
+  render: () => interactiveProductionSurface(
+    renderCalendarGroupBookingPage({
+      options: {
+        services: couplesBookingOptions.services,
+        staff,
+        authority: { bookingFlow: 'practitioner_first', canApplyDiscount: true },
+      },
+      prefill: { date: '2026-09-14', time: '10:30' },
+    }),
+    calendarGroupBookingClientScript()
+  ),
 };
 
 export const PhonePasskeyDevices = {
