@@ -7,6 +7,7 @@ const { buildWorkspaceBookingRequestAlertTemplateDefinition } = require('./works
 const { buildReminderActionTemplateDefinition } = require('./reminderActionTemplateProvisioning');
 const { buildDefinition } = require('./clientLifecycleTemplateProvisioning');
 const { buildStaffAuthTemplateSubmissionDefinition } = require('./staffAuthTemplateDefinition');
+const { buildPaymentTemplateDefinition } = require('./paymentTemplateDefinitions');
 
 const definition = (key) => buildDefinition(key);
 
@@ -31,6 +32,15 @@ const SOURCE_DEFINITIONS = Object.freeze({
   birthday_v1: () => ({ language: 'en', category: 'MARKETING', components: null }),
   appointment_followup_legacy: () => ({ language: 'en', category: 'UTILITY', components: null }),
   appointment_reminder_legacy: () => ({ language: 'en', category: 'UTILITY', components: null }),
+  payment_deposit_request: () => buildPaymentTemplateDefinition('payment_deposit_request'),
+  payment_deposit_received: () => buildPaymentTemplateDefinition('payment_deposit_received'),
+  payment_balance_due: () => buildPaymentTemplateDefinition('payment_balance_due'),
+  payment_split_request: () => buildPaymentTemplateDefinition('payment_split_request'),
+  payment_received: () => buildPaymentTemplateDefinition('payment_received'),
+  payment_not_verified: () => buildPaymentTemplateDefinition('payment_not_verified'),
+  payment_refund_update: () => buildPaymentTemplateDefinition('payment_refund_update'),
+  payment_voucher_request: () => buildPaymentTemplateDefinition('payment_voucher_request'),
+  payment_voucher_issued: () => buildPaymentTemplateDefinition('payment_voucher_issued'),
 });
 
 const CONTRACT_LIFECYCLE = Object.freeze({
