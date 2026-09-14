@@ -66,15 +66,20 @@ test('#971 derives the Couples Massage team from authorized service mappings', a
   const service = createCalendarCouplesBookingService({ db: { query() {} }, standardBooking });
   const options = await service.listOptions(7);
   assert.deepEqual(options.staff.map(person => person.displayName), ['Abigail', 'Christel']);
-  assert.equal(options.service.durationMinutes, 90);
-  assert.equal(options.service.price, 1080);
+  assert.equal(options.groupService.name, 'Couples Massage');
+  assert.deepEqual(options.services, []);
 });
 
 test('#971 production Storybook surface exposes complete phone-friendly paired booking fields', () => {
   const html = renderCalendarCouplesBookingPage({
     options: {
-      service: { id: 90, name: 'Couples Massage', durationMinutes: 90, price: 1080 },
+      groupService: { id: 90, name: 'Couples Massage' },
+      services: [
+        { id: 81, name: 'Deep Tissue Massage', durationMinutes: 60, price: 850, staffIds: [11, 12] },
+        { id: 82, name: 'Hydrating Facial', durationMinutes: 75, price: 720, staffIds: [12] },
+      ],
       staff: [{ id: 11, displayName: 'Abigail' }, { id: 12, displayName: 'Christel' }],
+      authority: { canApplyDiscount: true },
     },
     prefill: { date: '2026-09-14', time: '10:30' },
   });
@@ -83,8 +88,14 @@ test('#971 production Storybook surface exposes complete phone-friendly paired b
   assert.equal((html.match(/type="date"/g) || []).length, 3);
   assert.equal((html.match(/data-gender=/g) || []).length, 2);
   assert.match(html, /New profiles are saved only when the whole booking succeeds/);
+  assert.equal((html.match(/data-service=/g) || []).length, 2);
+  assert.match(html, /Rand amount/);
+  assert.match(html, /Percentage/);
+  assert.match(html, /data-discount-reason/);
   assert.match(html, /@media\(max-width:700px\)/);
   assert.match(calendarCouplesBookingClientScript(), /Guest 1 and Guest 2 need different mobile numbers/);
+  assert.match(calendarCouplesBookingClientScript(), /serviceIds/);
+  assert.match(calendarCouplesBookingClientScript(), /Canonical subtotal/);
 });
 
 test('#971 schema and Calendar projection retain one group with two appointment children', () => {
