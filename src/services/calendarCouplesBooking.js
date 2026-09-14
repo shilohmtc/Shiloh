@@ -120,19 +120,39 @@ function createCalendarCouplesBookingService({
   }
 
   async function listOptions(adminId) {
+    const admin = await resolveOperator(adminId);
     const standard = await standardBooking.listBookableOptions(adminId);
-    const service = standard.services.find(item => item.externalSource === COUPLES_EXTERNAL_SOURCE && item.externalId === COUPLES_EXTERNAL_ID);
-    if (!service || service.staffIds.length < 2) {
-      throw couplesError('COUPLES_NOT_CONFIGURED', 'Couples Massage needs at least two eligible practitioners before it can be booked.', 409);
+    const groupService = standard.services.find(
+      item => item.externalSource === COUPLES_EXTERNAL_SOURCE && item.externalId === COUPLES_EXTERNAL_ID
+    );
+    if (!groupService) {
+      throw couplesError('COUPLES_NOT_CONFIGURED', 'The linked Couples booking service is not configured.', 409);
     }
-    if (Number(service.durationMinutes) <= 0 || service.variablePrice === true || service.price == null) {
-      throw couplesError('COUPLES_NOT_CONFIGURED', 'Couples Massage needs one fixed duration and price before it can be booked.', 409);
+    const services = standard.services.filter(item =>
+      !(item.externalSource === COUPLES_EXTERNAL_SOURCE && item.externalId === COUPLES_EXTERNAL_ID)
+      && Number(item.durationMinutes) > 0
+      && item.variablePrice !== true
+      && item.price != null
+      && Number(item.price) > 0
+      && Array.isArray(item.staffIds)
+      && item.staffIds.length > 0
+    );
+    if (!services.length) {
+      throw couplesError(
+        'COUPLES_TREATMENTS_UNAVAILABLE',
+        'No fixed-price canonical treatments are currently available for a linked Couples booking.',
+        409
+      );
     }
-    const eligible = new Set(service.staffIds.map(Number));
+    const eligibleStaffIds = new Set(services.flatMap(service => service.staffIds.map(Number)));
     return {
-      service,
-      staff: standard.staff.filter(person => eligible.has(Number(person.id))),
-      authority: standard.authority,
+      groupService,
+      services,
+      staff: standard.staff.filter(person => eligibleStaffIds.has(Number(person.id))),
+      authority: {
+        ...standard.authority,
+        canApplyDiscount: hasCapability(admin.calendarAuthority, COUPLES_DISCOUNT_CAPABILITY),
+      },
     };
   }
 
