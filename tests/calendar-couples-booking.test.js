@@ -28,13 +28,17 @@ test('#983 preserves the South African display slot while using an unambiguous d
   );
 });
 
-test('#971 validates two complete, distinct CRM V2 guest identities', () => {
+test('couples booking requires distinct minimal CRM identities while profile details remain optional', () => {
   const guests = [
     normalizeGuest({ clientId: 10, name: 'Alex Adams', mobile: '082 123 4567', dateOfBirth: '1990-01-02', gender: 'female' }),
     normalizeGuest({ name: 'Sam Adams', mobile: '082 987 6543', dateOfBirth: '1991-03-04', gender: 'prefer not to say' }),
   ];
   assert.equal(guests[0].mobile, '27821234567');
   assert.equal(guests[1].gender, 'prefer_not_to_say');
+  assert.deepEqual(
+    normalizeGuest({ name: 'New Guest', mobile: '082 555 0199' }),
+    { clientId: null, name: 'New Guest', mobile: '27825550199', dateOfBirth: null, gender: null }
+  );
   assert.doesNotThrow(() => ensureDistinctGuests(guests));
   assert.throws(
     () => ensureDistinctGuests([guests[0], { ...guests[1], mobile: guests[0].mobile }]),
@@ -91,6 +95,9 @@ test('#971 production Storybook surface exposes complete phone-friendly paired b
   assert.match(html, /data-guest="2"/);
   assert.equal((html.match(/type="date"/g) || []).length, 3);
   assert.equal((html.match(/data-gender=/g) || []).length, 2);
+  assert.equal((html.match(/class="optional">Optional/g) || []).length, 4);
+  assert.doesNotMatch(html, /data-dob="[12]" type="date" required/);
+  assert.doesNotMatch(html, /data-gender="[12]" required/);
   assert.match(html, /New profiles are saved only when the whole booking succeeds/);
   assert.equal((html.match(/data-service=/g) || []).length, 2);
   assert.match(html, /Rand amount/);
@@ -98,6 +105,8 @@ test('#971 production Storybook surface exposes complete phone-friendly paired b
   assert.match(html, /data-discount-reason/);
   assert.match(html, /@media\(max-width:700px\)/);
   assert.match(calendarCouplesBookingClientScript(), /Guest 1 and Guest 2 need different mobile numbers/);
+  assert.match(calendarCouplesBookingClientScript(), /Complete name and mobile for both guests/);
+  assert.doesNotMatch(calendarCouplesBookingClientScript(), /Complete name, mobile, birth date and gender/);
   assert.match(calendarCouplesBookingClientScript(), /serviceIds/);
   assert.match(calendarCouplesBookingClientScript(), /Canonical subtotal/);
 });
@@ -118,6 +127,8 @@ test('#971 schema and Calendar projection retain one group with two appointment 
   assert.ok(service.indexOf('INSERT INTO crm_v2_clients') < service.indexOf('INSERT INTO appointment_groups'));
   assert.ok(service.indexOf('obligations.push(await queueCustomerBookingConfirmation') < service.lastIndexOf("client.query('COMMIT')"));
   assert.match(service, /client\.query\('ROLLBACK'\)/);
+  assert.match(service, /CASE WHEN \$3::date IS NOT NULL AND \$4 IS NOT NULL THEN 'registered' ELSE 'minimal' END/);
+  assert.match(service, /date_of_birth=COALESCE\(\$3::date,date_of_birth\)/);
 });
 
 test('#985 persists the complete canonical pricing decision on the booking group', () => {
