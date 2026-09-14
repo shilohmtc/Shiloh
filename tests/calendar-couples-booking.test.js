@@ -52,22 +52,26 @@ test('#971 derives the Couples Massage team from authorized service mappings', a
         { id: 12, displayName: 'Christel' },
         { id: 13, displayName: 'Marietjie' },
       ],
-      services: [{
-        id: 90,
-        name: 'Couples Massage',
-        externalSource: 'shiloh_special',
-        externalId: 'couples-massage-v1',
-        durationMinutes: 90,
-        price: 1080,
-        staffIds: [11, 12],
-      }],
+      services: [
+        {
+          id: 90,
+          name: 'Couples Massage',
+          externalSource: 'shiloh_special',
+          externalId: 'couples-massage-v1',
+          durationMinutes: 90,
+          price: 1080,
+          staffIds: [11, 12],
+        },
+        { id: 81, name: 'Deep Tissue Massage', durationMinutes: 60, price: 850, variablePrice: false, staffIds: [11, 12] },
+        { id: 82, name: 'Hydrating Facial', durationMinutes: 75, price: 720, variablePrice: false, staffIds: [12] },
+      ],
     }),
   };
   const service = createCalendarCouplesBookingService({ db: { query() {} }, standardBooking });
   const options = await service.listOptions(7);
   assert.deepEqual(options.staff.map(person => person.displayName), ['Abigail', 'Christel']);
   assert.equal(options.groupService.name, 'Couples Massage');
-  assert.deepEqual(options.services, []);
+  assert.deepEqual(options.services.map(service => service.name), ['Deep Tissue Massage', 'Hydrating Facial']);
 });
 
 test('#971 production Storybook surface exposes complete phone-friendly paired booking fields', () => {
