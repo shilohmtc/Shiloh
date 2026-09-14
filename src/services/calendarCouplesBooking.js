@@ -35,8 +35,8 @@ function normalizeGuest(value = {}) {
   if (rawClientId && !clientId) throw couplesError('COUPLES_INVALID_CLIENT', 'Select a valid client profile or clear the client selection.');
   const name = crmV2.normalizeName(value.name);
   const mobile = crmV2.normalizeMobile(value.mobile);
-  const dateOfBirth = crmV2.normalizeDateOfBirth(value.dateOfBirth, { required: true });
-  const gender = crmV2.normalizeGender(value.gender, { required: true });
+  const dateOfBirth = crmV2.normalizeDateOfBirth(value.dateOfBirth);
+  const gender = crmV2.normalizeGender(value.gender);
   if (!name) throw couplesError('COUPLES_INVALID_NAME', 'Enter the guest’s first name and surname.');
   if (!mobile) throw couplesError('COUPLES_INVALID_MOBILE', 'Enter a valid South African mobile number for each guest.');
   return { clientId, name, mobile, dateOfBirth, gender };
@@ -370,7 +370,8 @@ function createCalendarCouplesBookingService({
           row = exact.rows.find(item => Number(item.id) === guest.clientId);
           if (!row || exact.rowCount !== 1) throw couplesError('COUPLES_CLIENT_CHANGED', 'A selected client or mobile changed. Nothing was created; select the client again.', 409);
           const updated = await client.query(
-            `UPDATE crm_v2_clients SET name=$2,date_of_birth=$3::date,gender=$4,profile_status='registered',updated_at=NOW(),
+            `UPDATE crm_v2_clients SET name=$2,date_of_birth=COALESCE($3::date,date_of_birth),gender=COALESCE($4,gender),
+                    profile_status=CASE WHEN COALESCE($3::date,date_of_birth) IS NOT NULL AND COALESCE($4,gender) IS NOT NULL THEN 'registered' ELSE 'minimal' END,updated_at=NOW(),
                     provenance=provenance || $5::jsonb WHERE id=$1 RETURNING *`,
             [row.id, guest.name, guest.dateOfBirth, guest.gender, JSON.stringify({ lastCouplesBookingProfileReview: { actorAdminId: Number(admin.id) } })]
           );
@@ -379,7 +380,7 @@ function createCalendarCouplesBookingService({
           if (exact.rowCount) throw couplesError('COUPLES_EXISTING_CLIENT', 'That mobile already belongs to a client. Nothing was created; find and select that client instead.', 409);
           const inserted = await client.query(
             `INSERT INTO crm_v2_clients(name,normalized_mobile,date_of_birth,gender,profile_status,mobile_verified_at,source,status,provenance)
-             VALUES($1,$2,$3::date,$4,'registered',NULL,'staff','active',$5::jsonb) RETURNING *`,
+             VALUES($1,$2,$3::date,$4,CASE WHEN $3::date IS NOT NULL AND $4 IS NOT NULL THEN 'registered' ELSE 'minimal' END,NULL,'staff','active',$5::jsonb) RETURNING *`,
             [guest.name, guest.mobile, guest.dateOfBirth, guest.gender, JSON.stringify({ createdVia: 'calendar_couples_booking', actorAdminId: Number(admin.id) })]
           );
           row = inserted.rows[0];

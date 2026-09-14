@@ -17,17 +17,19 @@ test('Couples booking supports separate canonical treatments and discretionary d
   await page.locator('[data-client-results="1"] .client-result').click();
   await expect(page.locator('[data-client-id="1"]')).toHaveValue('91');
   await expect(page.locator('[data-dob="1"]')).toHaveValue('1990-01-02');
+  await expect(page.locator('[data-dob="2"]')).not.toHaveAttribute('required', '');
+  await expect(page.locator('[data-gender="2"]')).not.toHaveAttribute('required', '');
 
   const values = [
-    ['Alex Adams', '082 123 4567', '1990-01-02', 'female'],
-    ['Sam Adams', '082 987 6543', '1991-03-04', 'male'],
+    ['Alex Adams', '082 123 4567'],
+    ['Sam Adams', '082 987 6543'],
   ];
   for (let index = 1; index <= 2; index += 1) {
     await page.locator('[data-name="' + index + '"]').fill(values[index - 1][0]);
     await page.locator('[data-mobile="' + index + '"]').fill(values[index - 1][1]);
-    await page.locator('[data-dob="' + index + '"]').fill(values[index - 1][2]);
-    await page.locator('[data-gender="' + index + '"]').selectOption(values[index - 1][3]);
   }
+  await expect(page.locator('[data-dob="2"]')).toHaveValue('');
+  await expect(page.locator('[data-gender="2"]')).toHaveValue('');
   await page.locator('[data-service="1"]').selectOption('81');
   await expect(page.locator('[data-staff="1"] option')).toHaveText(['Choose', 'Abigail', 'Christel']);
   await page.locator('[data-staff="1"]').selectOption('11');
@@ -46,6 +48,29 @@ test('Couples booking supports separate canonical treatments and discretionary d
   await page.locator('[data-review-couples]').click();
   await expect(page.locator('[data-couples-status]')).toContainText('different mobile numbers');
   await page.locator('[data-mobile="2"]').fill('082 987 6543');
+  await page.route('**/calendar/staff-auth/csrf', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ csrfToken: 'storybook-csrf' }),
+  }));
+  await page.route('**/calendar/book/couples/prepare', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      review: {
+        guests: [{ name: 'Alex Adams' }, { name: 'Sam Adams' }],
+        assignments: [
+          { service: { name: 'Quick Relief: Back & Neck', price: 520 }, practitioner: { displayName: 'Abigail' } },
+          { service: { name: 'Full Body Swedish', price: 720 }, practitioner: { displayName: 'Marietjie' } },
+        ],
+        startsAt: '2026-09-14T08:30:00.000Z',
+        pricing: { subtotal: 1240, discountAmount: 124, discountReason: 'Returning clients', total: 1116 },
+      },
+    }),
+  }));
+  await page.locator('[data-review-couples]').click();
+  await expect(page.locator('[data-couples-status]')).toContainText('Review ready');
+  await expect(page.locator('[data-couples-review]')).toBeVisible();
 
   const metrics = await page.evaluate(() => ({
     viewportWidth: innerWidth,
