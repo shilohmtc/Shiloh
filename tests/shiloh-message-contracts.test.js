@@ -13,11 +13,11 @@ const {
   resolveMetaTemplateBinding,
 } = require('../src/services/metaTemplateAdapter');
 
-test('Shiloh owns one canonical registry with 20 identities and 15 sendable contracts', () => {
+test('Shiloh owns one canonical registry with 29 identities and 24 sendable contracts', () => {
   const contracts = getShilohMessageContracts();
-  assert.equal(contracts.length, 20);
-  assert.equal(new Set(contracts.map((contract) => contract.id)).size, 20);
-  assert.equal(contracts.filter((contract) => contract.sendable).length, 15);
+  assert.equal(contracts.length, 29);
+  assert.equal(new Set(contracts.map((contract) => contract.id)).size, 29);
+  assert.equal(contracts.filter((contract) => contract.sendable).length, 24);
   assert.ok(contracts.some((contract) => contract.id === 'workspace_booking_request_alert' && contract.lifecycle === 'current' && contract.sendable));
   assert.deepEqual(
     contracts.filter((contract) => contract.lifecycle === 'retired').map((contract) => contract.id).sort(),
