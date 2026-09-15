@@ -201,6 +201,20 @@ function canonicalExceptions(rows = []) {
   }));
 }
 
+function canonicalHolidays(rows = []) {
+  return rows.map(row => ({
+    exceptionDate: dateValue(row.holiday_date),
+    holidayName: String(row.holiday_name || 'Public holiday'),
+    clinicExceptionType: row.clinic_exception_type || null,
+    clinicStartsLocal: row.clinic_exception_type === 'open' ? timeValue(row.clinic_starts_local) : null,
+    clinicEndsLocal: row.clinic_exception_type === 'open' ? timeValue(row.clinic_ends_local) : null,
+    assistantExceptionType: row.assistant_exception_type || null,
+    assistantStartsLocal: row.assistant_exception_type === 'open' ? timeValue(row.assistant_starts_local) : null,
+    assistantEndsLocal: row.assistant_exception_type === 'open' ? timeValue(row.assistant_ends_local) : null,
+    decisionNeeded: !row.clinic_exception_type,
+  }));
+}
+
 function revisionFor(locationId, days) {
   const canonical = {
     locationId: positiveId(locationId),
@@ -298,6 +312,14 @@ function createWorkspaceClinicHoursService({ db = pool, locationResolver = getDe
     return result.rows;
   }
 
+  async function assistantRows(locationId, queryable = db, { lock = false } = {}) {
+    const result = await queryable.query(
+      `/* workspaceClinicHours:assistantRows */ SELECT id, day_of_week, starts_local, ends_local
+         FROM location_assistant_booking_hours WHERE location_id=$1 AND active=TRUE
+        ORDER BY day_of_week, starts_local, id${lock ? '\n        FOR UPDATE' : ''}`, [locationId]);
+    return result.rows;
+  }
+
   async function exceptionRows(locationId, queryable = db) {
     const result = await queryable.query(
       `/* workspaceClinicHours:exceptionRows */
@@ -314,21 +336,63 @@ function createWorkspaceClinicHoursService({ db = pool, locationResolver = getDe
     return result.rows;
   }
 
+  async function holidayRows(locationId, queryable = db) {
+    const result = await queryable.query(`/* workspaceClinicHours:holidayRows */
+      SELECT h.holiday_date, h.name holiday_name,
+             c.exception_type clinic_exception_type, c.starts_local clinic_starts_local, c.ends_local clinic_ends_local,
+             a.exception_type assistant_exception_type, a.starts_local assistant_starts_local, a.ends_local assistant_ends_local
+        FROM public_holidays h
+        LEFT JOIN location_hours_exceptions c ON c.location_id=$1 AND c.exception_date=h.holiday_date
+        LEFT JOIN location_assistant_hours_exceptions a ON a.location_id=$1 AND a.exception_date=h.holiday_date
+       WHERE h.country_code='ZA' AND h.holiday_date >= CURRENT_DATE
+       ORDER BY h.holiday_date LIMIT 16`, [locationId]);
+    return result.rows;
+  }
+
   async function buildModel({ adminId } = {}) {
     const authority = await requireAccess(adminId);
     const location = await requireLocation();
-    const [daysRows, exceptionsRows] = await Promise.all([
-      activeRows(location.id),
-      exceptionRows(location.id),
+    const [daysRows, assistantDayRows, exceptionsRows, holidaysRows] = await Promise.all([
+      activeRows(location.id), assistantRows(location.id), exceptionRows(location.id), holidayRows(location.id),
     ]);
     const days = canonicalDays(daysRows);
+    const assistantDays = canonicalDays(assistantDayRows);
     return {
       authority,
       location: { id: positiveId(location.id), name: String(location.name || 'Shiloh'), timezone: String(location.timezone || 'Africa/Johannesburg') },
       days,
       revision: revisionFor(location.id, days),
+      assistantDays,
+      assistantRevision: revisionFor(location.id, assistantDays),
       exceptions: canonicalExceptions(exceptionsRows),
+      holidays: canonicalHolidays(holidaysRows),
     };
+  }
+
+  async function updateAssistantHours({ adminId, expectedRevision, days } = {}) {
+    const expected = requireExpectedRevision(expectedRevision);
+    const desired = normalizeDayPayload(days);
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      const authority = await requireAccess(adminId, client);
+      const location = await requireLocation(client);
+      const clinicDays = canonicalDays(await activeRows(location.id, client, { lock: true }));
+      for (const day of desired) {
+        const clinic = clinicDays.find(item => item.dayOfWeek === day.dayOfWeek);
+        if (day.open && (!clinic?.open || day.startsLocal < clinic.startsLocal || day.endsLocal > clinic.endsLocal)) {
+          throw new WorkspaceClinicHoursError('WORKSPACE_ASSISTANT_HOURS_OUTSIDE_CLINIC', `${DAY_NAMES[day.dayOfWeek]} Shiloh Assistant hours must stay within clinic operating hours.`, 400);
+        }
+      }
+      const before = canonicalDays(await assistantRows(location.id, client, { lock: true }));
+      if (revisionFor(location.id, before) !== expected) throw new WorkspaceClinicHoursError('WORKSPACE_ASSISTANT_HOURS_STALE_REVISION', 'Shiloh Assistant hours changed. Reload and try again.', 409);
+      await client.query(`/* workspaceClinicHours:deactivateAssistant */ UPDATE location_assistant_booking_hours SET active=FALSE, updated_at=NOW() WHERE location_id=$1 AND active=TRUE`, [location.id]);
+      for (const day of desired) if (day.open) await client.query(`/* workspaceClinicHours:upsertAssistant */ INSERT INTO location_assistant_booking_hours(location_id,day_of_week,starts_local,ends_local,active) VALUES($1,$2,$3::time,$4::time,TRUE) ON CONFLICT(location_id,day_of_week,starts_local,ends_local) DO UPDATE SET active=TRUE,updated_at=NOW()`, [location.id, day.dayOfWeek, day.startsLocal, day.endsLocal]);
+      const after = canonicalDays(await assistantRows(location.id, client, { lock: true }));
+      await client.query(`/* workspaceClinicHours:assistantAudit */ INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata) VALUES($1,'workspace.assistant_hours_updated','location',$2,$3::jsonb)`, [authority.operatorAdminId, location.id, JSON.stringify({ before: auditProjection(before), after: auditProjection(after) })]);
+      await client.query('COMMIT');
+      return { status: 'updated', days: after, revision: revisionFor(location.id, after) };
+    } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
   }
 
   async function updateHours({ adminId, expectedRevision, days } = {}) {
@@ -447,7 +511,19 @@ function createWorkspaceClinicHoursService({ db = pool, locationResolver = getDe
     };
   }
 
-  return { resolveAccess, buildModel, updateHours, upsertException };
+  async function upsertAssistantException({ adminId, exceptionDate, exceptionType, startsLocal, endsLocal } = {}) {
+    const desired = normalizeExceptionPayload({ exceptionDate, exceptionType, startsLocal, endsLocal });
+    const authority = await requireAccess(adminId);
+    const location = await requireLocation();
+    const clinic = await db.query(`SELECT exception_type,starts_local,ends_local FROM location_hours_exceptions WHERE location_id=$1 AND exception_date=$2::date LIMIT 1`, [location.id, desired.exceptionDate]);
+    const boundary = clinic.rows[0];
+    if (!boundary || boundary.exception_type === 'closed') throw new WorkspaceClinicHoursError('WORKSPACE_ASSISTANT_DATE_OUTSIDE_CLINIC', 'Open the clinic for this date before setting Shiloh Assistant hours.', 400);
+    if (desired.exceptionType === 'open' && (desired.startsLocal < timeValue(boundary.starts_local) || desired.endsLocal > timeValue(boundary.ends_local))) throw new WorkspaceClinicHoursError('WORKSPACE_ASSISTANT_DATE_OUTSIDE_CLINIC', 'Shiloh Assistant special hours must stay within the clinic special hours.', 400);
+    await db.query(`/* workspaceClinicHours:upsertAssistantException */ INSERT INTO location_assistant_hours_exceptions(location_id,exception_date,exception_type,starts_local,ends_local,actor_admin_id) VALUES($1,$2::date,$3,$4::time,$5::time,$6) ON CONFLICT(location_id,exception_date) DO UPDATE SET exception_type=EXCLUDED.exception_type,starts_local=EXCLUDED.starts_local,ends_local=EXCLUDED.ends_local,actor_admin_id=EXCLUDED.actor_admin_id,updated_at=NOW()`, [location.id, desired.exceptionDate, desired.exceptionType, desired.startsLocal, desired.endsLocal, authority.operatorAdminId]);
+    return { status: 'updated' };
+  }
+
+  return { resolveAccess, buildModel, updateHours, updateAssistantHours, upsertException, upsertAssistantException };
 }
 
 const service = createWorkspaceClinicHoursService();
@@ -461,10 +537,13 @@ module.exports = {
   normalizeExceptionPayload,
   canonicalDays,
   canonicalExceptions,
+  canonicalHolidays,
   revisionFor,
   createWorkspaceClinicHoursService,
   resolveAccess: service.resolveAccess,
   buildModel: service.buildModel,
   updateHours: service.updateHours,
+  updateAssistantHours: service.updateAssistantHours,
   upsertException: service.upsertException,
+  upsertAssistantException: service.upsertAssistantException,
 };

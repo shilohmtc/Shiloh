@@ -1,6 +1,6 @@
 const { pool } = require('../db/pool');
 const { normalizeMobile } = require('./crmV2ClientService');
-const { checkClinicHours } = require('./clinicHours');
+const { checkAssistantBookingHours: checkClinicHours } = require('./assistantBookingHours');
 const { checkAuthoritativeSchedule } = require('./adminAvailability');
 const { pendingBookingProposalConflicts } = require('./bookingRequestHolds');
 const { sendWhatsAppReplyButtons, sendWhatsAppTemplate } = require('./whatsapp');

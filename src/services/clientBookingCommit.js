@@ -8,7 +8,8 @@ const {
   appointmentIdentityColumns,
 } = require('./whatsappBookingIdentity');
 const { identityAuditMetadata } = require('./whatsappCrmV2IdentityCompat');
-const { getDefaultActiveLocation, checkClinicHours } = require('./clinicHours');
+const { getDefaultActiveLocation } = require('./clinicHours');
+const { checkAssistantBookingHours: checkClinicHours } = require('./assistantBookingHours');
 const { checkAvailability, checkAuthoritativeSchedule, getConflicts } = require('./adminAvailability');
 const logger = require('../lib/logger');
 

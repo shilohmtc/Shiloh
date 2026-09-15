@@ -11,6 +11,7 @@ const { finalizeAppointment } = require('./adminAppointmentFinalization');
 const { canCertifyAppointment } = require('./attendanceFinalizationAuthority');
 const { dateKeyInBusinessTimezone, isOperationalDateKey } = require('./operationalCalendar');
 const bookingRequestResolution = require('./workspaceBookingRequestRouting');
+const workspaceHolidayAttention = require('./workspaceHolidayAttention');
 
 const FINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
 const OWNER_ROLES = new Set(['owner', 'business_admin']);
@@ -21,6 +22,7 @@ const NO_BOOKING_REQUESTS = {
 const NO_DASHBOARD_BACKLOG = {
   async listUnresolvedPastAppointments() { return { staff: [], appointments: [] }; },
 };
+const NO_HOLIDAY_ATTENTION = { async listHolidayDecisions() { return []; } };
 
 class WorkspaceDashboardError extends Error {
   constructor(code, message, httpStatus) {
@@ -159,6 +161,7 @@ function createWorkspaceDashboardService({
   canCertifyAppointmentFn = canCertifyAppointment,
   bookingRequestService = NO_BOOKING_REQUESTS,
   backlogService = NO_DASHBOARD_BACKLOG,
+  holidayAttentionService = NO_HOLIDAY_ATTENTION,
 } = {}) {
   if (!calendarService || typeof calendarService.buildModel !== 'function') {
     throw new Error('Workspace Dashboard requires canonical CalendarReadOnlyUx authority');
@@ -241,7 +244,11 @@ function createWorkspaceDashboardService({
       .filter(item => ['completed', 'no_show'].includes(String(item.status || '').toLowerCase()))
       .sort((a, b) => new Date(b.endsAt).getTime() - new Date(a.endsAt).getTime())
       .slice(0, 6);
-    const bookingRequests = await bookingRequestService.listUnresolvedBookingRequests({ principal, now });
+    const [bookingRequests, holidayDecisions] = await Promise.all([
+      bookingRequestService.listUnresolvedBookingRequests({ principal, now }),
+      authority.mode === 'owner_overview' && holidayAttentionService?.listHolidayDecisions
+        ? holidayAttentionService.listHolidayDecisions({ now }) : [],
+    ]);
 
     let communications = null;
     let communicationsUnavailable = false;
@@ -271,6 +278,7 @@ function createWorkspaceDashboardService({
         : [],
       awaitingFinalization,
       bookingRequests,
+      holidayDecisions,
       recentActivity,
       closures: calendar.timeline?.closures || [],
       communications,
@@ -326,6 +334,7 @@ function createWorkspaceDashboardService({
 const service = createWorkspaceDashboardService({
   bookingRequestService: bookingRequestResolution,
   backlogService: workspaceDashboardBacklog,
+  holidayAttentionService: workspaceHolidayAttention,
 });
 
 module.exports = {

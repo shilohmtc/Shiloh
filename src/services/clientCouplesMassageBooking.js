@@ -1,6 +1,7 @@
 const { pool } = require('../db/pool');
 const { listAvailableSlots } = require('./availabilityService');
-const { getDefaultActiveLocation, checkClinicHours } = require('./clinicHours');
+const { getDefaultActiveLocation } = require('./clinicHours');
+const { checkAssistantBookingHours: checkClinicHours } = require('./assistantBookingHours');
 const { getNextOpenClinicDates, shortDateTitle } = require('./clinicDateChoices');
 const { checkAuthoritativeSchedule, getConflicts } = require('./adminAvailability');
 const {

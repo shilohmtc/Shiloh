@@ -4,6 +4,7 @@ const workspaceClinicHoursHolidayGuard = require('../services/workspaceClinicHou
 const {
   renderClinicHoursPage,
   clinicHoursClientScript,
+  assistantExceptionClientScript,
 } = require('../presentation/workspaceClinicHoursUx');
 const {
   requireStaffSession,
@@ -61,7 +62,7 @@ function createWorkspaceClinicHoursRouter({
   router.use(requireSession);
 
   router.get('/client.js', (_req, res) => {
-    return res.status(200).type('application/javascript').send(clinicHoursClientScript());
+    return res.status(200).type('application/javascript').send(`${clinicHoursClientScript()}\n${assistantExceptionClientScript()}`);
   });
 
   router.get('/', async (req, res) => {
@@ -89,6 +90,11 @@ function createWorkspaceClinicHoursRouter({
     }
   });
 
+  router.post('/assistant', sameOrigin, requireCsrf, async (req, res, next) => {
+    try { return res.status(200).json(await service.updateAssistantHours({ adminId: req.staffBrowserSession?.adminId, expectedRevision: req.body?.expectedRevision, days: req.body?.days })); }
+    catch (error) { const safe=clinicHoursError(error); if(safe.status===503)return next(error); return res.status(safe.status).json({error:safe.message,code:safe.code,requestId:req.id}); }
+  });
+
   router.post('/exceptions', sameOrigin, requireCsrf, async (req, res, next) => {
     try {
       await holidayGuard.requireLoadedZaPublicHoliday(req.body?.exceptionDate);
@@ -105,6 +111,11 @@ function createWorkspaceClinicHoursRouter({
       if (safe.status === 503) return next(error);
       return res.status(safe.status).json({ error: safe.message, code: safe.code, details: error?.details || undefined, requestId: req.id });
     }
+  });
+
+  router.post('/assistant-exceptions', sameOrigin, requireCsrf, async (req, res, next) => {
+    try { await holidayGuard.requireLoadedZaPublicHoliday(req.body?.exceptionDate); return res.status(200).json(await service.upsertAssistantException({adminId:req.staffBrowserSession?.adminId,exceptionDate:req.body?.exceptionDate,exceptionType:req.body?.exceptionType,startsLocal:req.body?.startsLocal,endsLocal:req.body?.endsLocal})); }
+    catch(error){const safe=clinicHoursError(error);if(safe.status===503)return next(error);return res.status(safe.status).json({error:safe.message,code:safe.code,requestId:req.id});}
   });
 
   return router;
