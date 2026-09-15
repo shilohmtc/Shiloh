@@ -248,7 +248,7 @@ async function main() {
       const geometry = await page.evaluate(() => ({
         viewportWidth: window.innerWidth,
         documentWidth: document.documentElement.scrollWidth,
-        targets: [...document.querySelectorAll('button,input,select,a')]
+        targets: [...document.querySelectorAll('button,input:not([type="checkbox"]),select,a,.check-field')]
           .filter(node => node.getClientRects().length > 0)
           .map(node => ({
             label: node.textContent.trim() || node.getAttribute('aria-label') || node.id,
