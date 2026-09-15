@@ -45,7 +45,10 @@ function createWorkspaceMessagesService({
     let activity = [];
     let activityUnavailable = false;
     try {
-      activity = await communicationService.listRecent({ limit: activityLimit });
+      activity = await communicationService.listRecent({
+        limit: activityLimit,
+        scope: authority.clientScope,
+      });
     } catch (_error) {
       activityUnavailable = true;
     }
