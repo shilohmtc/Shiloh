@@ -7,9 +7,7 @@ const {
   resolvePeriod,
   createWorkspaceReportsService,
 } = require('../src/services/workspaceReports');
-const {
-  renderReportsPage,
-} = require('../src/presentation/workspaceReportsUx');
+const { renderReportsPage } = require('../src/presentation/workspaceReportsUx');
 const {
   createWorkspaceReportsHandler,
   setWorkspaceReportsSecurityHeaders,
@@ -81,104 +79,10 @@ function timelineFixture() {
   };
 }
 
-test('Reports authority reuses appointment:view and canonical Calendar scope without granting new authority', () => {
-  const business = evaluateReportAuthority([ownerRow()]);
-  assert.equal(business.reportScope, 'all_business');
-  assert.deepEqual(business.timelineViewer, { calendarScope: 'all_business' });
-
-  const own = evaluateReportAuthority([ownerRow({
-    calendar_scope: 'own_appointments',
-    staff_id: 9,
-  })]);
-  assert.equal(own.reportScope, 'own_staff');
-  assert.equal(own.staffId, 9);
-  assert.deepEqual(own.timelineViewer, { calendarScope: 'own_appointments', staffId: 9 });
-
-  assert.equal(evaluateReportAuthority([ownerRow({ permissions: {} })]), null);
-  assert.equal(evaluateReportAuthority([ownerRow({ calendar_scope: 'none' })]), null);
-  assert.equal(evaluateReportAuthority([ownerRow({ staff_status: 'inactive' })]), null);
-});
-
-test('Reports date windows are inclusive to the selected end date and fail closed above 31 days', () => {
-  const period = resolvePeriod({ from: '2026-08-31', to: '2026-08-31' });
-  assert.equal(period.dayCount, 1);
-  assert.equal(period.startKey, '2026-08-31');
-  assert.equal(period.endKey, '2026-09-01');
-
-  assert.throws(
-    () => resolvePeriod({ from: '2026-08-01', to: '2026-09-01' }),
-    error => error.code === 'WORKSPACE_REPORTS_RANGE_TOO_LARGE'
-      && error.message.includes(String(MAX_REPORT_DAYS)),
-  );
-});
-
-test('Reports V1 derives capacity from SchedulingTimeline and uses SELECT-only aggregate reads', async () => {
-  const db = fakeDb();
-  const calls = [];
-  const service = createWorkspaceReportsService({
-    db,
-    listTimeline: async input => {
-      calls.push(input);
-      return timelineFixture();
-    },
-  });
-
-  const model = await service.buildReport({
-    adminId: 7,
-    from: '2026-08-31',
-    to: '2026-08-31',
-    now: new Date('2026-08-31T10:00:00+02:00'),
-  });
-
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].viewer.calendarScope, 'all_business');
-  assert.equal(model.capacity.length, 1);
-  assert.equal(model.capacity[0].scheduledMinutes, 9 * 60);
-  assert.equal(model.capacity[0].bookedMinutes, 60);
-  assert.equal(model.capacity[0].blockedMinutes, 60);
-  assert.equal(model.capacity[0].leaveMinutes, 0);
-  assert.equal(model.capacity[0].remainingMinutes, 7 * 60);
-  assert.equal(model.services[0].name, 'Sports Massage');
-  assert.equal(model.services[0].appointments, 1);
-  assert.deepEqual(model.clients, { uniqueClients: 2, newClients: 1, returningClients: 1 });
-  assert.equal(model.appointments.statusCounts.cancelled, 1);
-  assert.equal(model.trend.delta, 0);
-
-  for (const { sql } of db.seen) {
-    assert.match(sql, /WorkspaceReports:/);
-    assert.doesNotMatch(sql, /\b(?:INSERT|UPDATE|DELETE|ALTER|DROP|TRUNCATE|CREATE)\b/i);
-  }
-});
-
-test('Own-practitioner report scope rejects another staff filter before timeline data is returned', async () => {
-  const db = fakeDb({ authority: ownerRow({ calendar_scope: 'own_services', staff_id: 2 }) });
-  let timelineCalls = 0;
-  const service = createWorkspaceReportsService({
-    db,
-    listTimeline: async () => { timelineCalls += 1; return timelineFixture(); },
-  });
-
-  await assert.rejects(
-    service.buildReport({
-      adminId: 7,
-      from: '2026-08-31',
-      to: '2026-08-31',
-      staff: '3',
-    }),
-    error => error.code === 'WORKSPACE_REPORTS_STAFF_FORBIDDEN' && error.httpStatus === 403,
-  );
-  assert.equal(timelineCalls, 0);
-});
-
-test('Reports presentation is first-class Workspace navigation, aggregate-only and explicitly non-financial', () => {
-  const model = {
-    authority: { reportScope: 'all_business' },
-    period: {
-      preset: '7d',
-      startKey: '2026-08-25',
-      endInclusiveKey: '2026-08-31',
-      dayCount: 7,
-    },
+function reportModel() {
+  return {
+    authority: { reportScope: 'all_business', displayName: 'Christel' },
+    period: { preset: '7d', startKey: '2026-08-25', endInclusiveKey: '2026-08-31', dayCount: 7 },
     selectedStaffId: null,
     permittedStaff: [{ id: 2, displayName: '<Christel>' }],
     appointments: { operational: 3, allRecorded: 4, statusCounts: { booked: 3, cancelled: 1 } },
@@ -198,27 +102,101 @@ test('Reports presentation is first-class Workspace navigation, aggregate-only a
     closures: 0,
     trend: { delta: 1, currentOperationalAppointments: 3, previousOperationalAppointments: 2 },
   };
-  const html = renderReportsPage(model);
+}
+
+test('Reports authority reuses appointment:view and Calendar visibility without granting new access', () => {
+  const business = evaluateReportAuthority([ownerRow()]);
+  assert.equal(business.reportScope, 'all_business');
+  assert.deepEqual(business.timelineViewer, { calendarScope: 'all_business' });
+
+  const own = evaluateReportAuthority([ownerRow({ calendar_scope: 'own_appointments', staff_id: 9 })]);
+  assert.equal(own.reportScope, 'own_staff');
+  assert.equal(own.staffId, 9);
+  assert.deepEqual(own.timelineViewer, { calendarScope: 'own_appointments', staffId: 9 });
+
+  assert.equal(evaluateReportAuthority([ownerRow({ permissions: {} })]), null);
+  assert.equal(evaluateReportAuthority([ownerRow({ calendar_scope: 'none' })]), null);
+  assert.equal(evaluateReportAuthority([ownerRow({ staff_status: 'inactive' })]), null);
+});
+
+test('Reports dates include the selected end date and remain limited to 31 days', () => {
+  const period = resolvePeriod({ from: '2026-08-31', to: '2026-08-31' });
+  assert.equal(period.dayCount, 1);
+  assert.equal(period.startKey, '2026-08-31');
+  assert.equal(period.endKey, '2026-09-01');
+  assert.throws(
+    () => resolvePeriod({ from: '2026-08-01', to: '2026-09-01' }),
+    error => error.code === 'WORKSPACE_REPORTS_RANGE_TOO_LARGE'
+      && error.message.includes(String(MAX_REPORT_DAYS)),
+  );
+});
+
+test('Reports derive team time from the scheduling timeline and use read-only aggregate queries', async () => {
+  const db = fakeDb();
+  const calls = [];
+  const service = createWorkspaceReportsService({
+    db,
+    listTimeline: async input => { calls.push(input); return timelineFixture(); },
+  });
+
+  const model = await service.buildReport({
+    adminId: 7,
+    from: '2026-08-31',
+    to: '2026-08-31',
+    now: new Date('2026-08-31T10:00:00+02:00'),
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].viewer.calendarScope, 'all_business');
+  assert.equal(model.capacity[0].scheduledMinutes, 9 * 60);
+  assert.equal(model.capacity[0].bookedMinutes, 60);
+  assert.equal(model.capacity[0].blockedMinutes, 60);
+  assert.equal(model.capacity[0].remainingMinutes, 7 * 60);
+  assert.equal(model.services[0].name, 'Sports Massage');
+  assert.deepEqual(model.clients, { uniqueClients: 2, newClients: 1, returningClients: 1 });
+  assert.equal(model.appointments.statusCounts.cancelled, 1);
+
+  for (const { sql } of db.seen) {
+    assert.match(sql, /WorkspaceReports:/);
+    assert.doesNotMatch(sql, /\b(?:INSERT|UPDATE|DELETE|ALTER|DROP|TRUNCATE|CREATE)\b/i);
+  }
+});
+
+test('Own-team-member report access rejects another staff filter before loading timeline data', async () => {
+  const db = fakeDb({ authority: ownerRow({ calendar_scope: 'own_services', staff_id: 2 }) });
+  let timelineCalls = 0;
+  const service = createWorkspaceReportsService({
+    db,
+    listTimeline: async () => { timelineCalls += 1; return timelineFixture(); },
+  });
+
+  await assert.rejects(
+    service.buildReport({ adminId: 7, from: '2026-08-31', to: '2026-08-31', staff: '3' }),
+    error => error.code === 'WORKSPACE_REPORTS_STAFF_FORBIDDEN' && error.httpStatus === 403,
+  );
+  assert.equal(timelineCalls, 0);
+});
+
+test('Reports presentation uses staff-friendly wording and escapes names and treatments', () => {
+  const html = renderReportsPage(reportModel());
   assert.match(html, /data-workspace-reports="true"/);
-  assert.match(html, /Reports/);
-  assert.match(html, /Operational appointments/);
-  assert.match(html, /Remaining capacity/);
-  assert.match(html, /payment, settlement or financial accounting report/i);
-  assert.doesNotMatch(html, /revenue/i);
+  assert.match(html, /A clear view of appointments, team time and clients/);
+  assert.match(html, /All team members/);
+  assert.match(html, /View report/);
+  assert.match(html, /Team booking time/);
+  assert.match(html, /Treatments booked/);
+  assert.match(html, /New and returning clients/);
+  assert.match(html, /Payments and income are shown separately/);
+  assert.doesNotMatch(html, /canonical|business-wide operational scope|practitioner authority|service snapshot|aggregate identity|utilisation/i);
   assert.doesNotMatch(html, /<Christel>|<Massage>/);
   assert.match(html, /&lt;Christel&gt;/);
   assert.match(html, /&lt;Massage&gt;/);
 });
 
-test('Reports route preserves private no-store security and maps forbidden scope without leaking data', async () => {
+test('Reports route keeps private no-store security and returns friendly access errors without leaking details', async () => {
   const headers = {};
   const res = {
-    statusCode: null,
-    body: null,
     setHeader(name, value) { headers[name] = value; },
-    status(code) { this.statusCode = code; return this; },
-    type() { return this; },
-    send(body) { this.body = body; return this; },
   };
   setWorkspaceReportsSecurityHeaders(res);
   assert.equal(headers['Cache-Control'], 'private, no-store, max-age=0');
@@ -250,6 +228,6 @@ test('Reports route preserves private no-store security and maps forbidden scope
   };
   await handler({ staffBrowserSession: { adminId: 7 }, query: {} }, routeRes);
   assert.equal(routeRes.statusCode, 403);
-  assert.match(routeRes.body, /does not permit this report scope/i);
-  assert.doesNotMatch(routeRes.body, /secret detail/);
+  assert.match(routeRes.body, /You do not have access to this report/);
+  assert.doesNotMatch(routeRes.body, /secret detail|scope|authority|canonical/i);
 });
