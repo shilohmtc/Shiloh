@@ -1,6 +1,11 @@
+const {
+  PUBLIC_BRAND_NAME,
+  PUBLIC_BRAND_SUBTITLE,
+} = require('./publicPresentation');
+
 const NAV_ITEMS = [
   ['/', 'Home'],
-  ['/treatments', 'Treatments'],
+  ['/treatments', 'Services'],
   ['/about', 'About'],
   ['/contact', 'Contact'],
   ['/book', 'Book'],
@@ -21,11 +26,11 @@ function renderLinks(currentPath, className = 'site-nav') {
 }
 
 function renderSiteHeader(currentPath) {
-  return `<a class="skip-link" href="#main-content">Skip to content</a><header class="site-header"><div class="site-header-row"><a class="site-brand" href="/" aria-label="Shiloh home"><strong>Shiloh</strong><span>Massage Therapy and Aesthetic Clinic</span></a>${renderLinks(currentPath)}<details class="mobile-nav"><summary>Menu</summary><div class="mobile-nav-panel">${renderLinks(currentPath, 'mobile-nav-links')}</div></details></div></header>`;
+  return `<a class="skip-link" href="#main-content">Skip to content</a><header class="site-header"><div class="site-header-row"><a class="site-brand" href="/" aria-label="Shiloh home"><strong>Shiloh</strong><span>${PUBLIC_BRAND_SUBTITLE}</span></a>${renderLinks(currentPath)}<details class="mobile-nav"><summary>Menu</summary><div class="mobile-nav-panel">${renderLinks(currentPath, 'mobile-nav-links')}</div></details></div></header>`;
 }
 
 function renderSiteFooter() {
-  return `<footer class="site-footer"><div class="site-footer-row"><div><strong>Shiloh Massage Therapy and Aesthetic Clinic</strong><p>Personal massage therapy and aesthetic care in Heidelberg.</p></div><div><b>Visit</b><p>37 Jacobs Street<br>Heidelberg, Gauteng</p></div><div><b>Appointments</b><p><a href="/book">View treatments and book</a><br><a href="/privacy">Privacy policy</a><br>Availability is confirmed when Shiloh completes your booking.</p></div></div></footer>`;
+  return `<footer class="site-footer"><div class="site-footer-row"><div><strong>${PUBLIC_BRAND_NAME}</strong><p>Personal massage and aesthetic services in Heidelberg.</p></div><div><b>Visit</b><p>37 Jacobs Street<br>Heidelberg, Gauteng</p></div><div><b>Appointments</b><p><a href="/book">View services and book</a><br><a href="/privacy">Privacy policy</a><br>Availability is confirmed when Shiloh completes your booking.</p></div></div></footer>`;
 }
 
 module.exports = { NAV_ITEMS, PUBLIC_CHROME_CSS, renderSiteHeader, renderSiteFooter };
