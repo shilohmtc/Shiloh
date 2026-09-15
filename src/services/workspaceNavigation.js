@@ -27,6 +27,12 @@ function resolveStaffAccess(service, adminId) {
   return resolver.call(service, adminId);
 }
 
+function staffDestinationFor(service) {
+  return typeof service?.resolveManageAccess === 'function'
+    ? DESTINATIONS.staff
+    : '/calendar/team';
+}
+
 function createWorkspaceNavigationService({
   clientAccessService = workspaceClients,
   staffAccessService = workspaceStaffAccess,
@@ -45,12 +51,13 @@ function createWorkspaceNavigationService({
       clinicHoursAccessService.resolveAccess(adminId),
     ]);
     const clientsAllowed = clients.status === 'fulfilled' && Boolean(clients.value);
+    const staffAllowed = staff.status === 'fulfilled' && Boolean(staff.value);
     return {
       dashboard: allowedDestination(calendarAllowed, 'dashboard'),
       calendar: allowedDestination(calendarAllowed, 'calendar'),
       clients: allowedDestination(clientsAllowed, 'clients'),
       messages: allowedDestination(clientsAllowed, 'messages'),
-      staff: allowedDestination(staff.status === 'fulfilled' && Boolean(staff.value), 'staff'),
+      staff: staffAllowed ? { allowed: true, href: staffDestinationFor(staffAccessService) } : { allowed: false, href: null },
       services: allowedDestination(services.status === 'fulfilled' && Boolean(services.value), 'services'),
       reports: allowedDestination(reports.status === 'fulfilled' && Boolean(reports.value), 'reports'),
       clinicHours: allowedDestination(clinicHours.status === 'fulfilled' && Boolean(clinicHours.value), 'clinicHours'),
@@ -66,6 +73,7 @@ module.exports = {
   DESTINATIONS,
   allowedDestination,
   resolveStaffAccess,
+  staffDestinationFor,
   createWorkspaceNavigationService,
   ...service,
 };
