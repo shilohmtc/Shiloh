@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { renderBookingPage } = require('../src/services/publicBookingPageEditorial');
 
-test('booking page uses the exact uploaded Inside Shiloh signature artwork', () => {
+test('booking page uses the neutral Inside Shiloh signature treatment', () => {
   const catalogue = [
     { category: 'Massage', name: 'Massage 1', duration: '60 min', price: 'R500' },
     { category: 'Pedicures & Foot Care', name: 'Pedicure 1', duration: '60 min', price: 'R500' },
@@ -14,9 +14,12 @@ test('booking page uses the exact uploaded Inside Shiloh signature artwork', () 
   const signatures = html.match(/class="inside-shiloh-break"/g) || [];
   const artwork = html.match(/src="\/assets\/booking\/inside-shiloh-signature\.png"/g) || [];
   assert.equal(signatures.length, 3);
-  assert.equal(artwork.length, 3);
+  assert.equal(artwork.length, 0);
   assert.match(html, /Inside Shiloh/);
-  assert.match(html, /Clinical care\. Personal touch\. Beautifully you\./);
+  assert.match(html, /Personal care\. Thoughtful touch\./);
+  assert.match(html, /Shiloh Massage &amp; Aesthetic Clinic/);
+  assert.doesNotMatch(html, /Clinical care\. Personal touch\. Beautifully you\./);
+  assert.doesNotMatch(html, /inside-shiloh-signature\.png/);
   assert.doesNotMatch(html, /clinic-collage-bg\.jpg/);
   assert.doesNotMatch(html, /filter:blur\(5px\)/);
   assert.doesNotMatch(html, /class="collage-atmosphere"/);
