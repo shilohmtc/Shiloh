@@ -1,0 +1,61 @@
+name: Workspace Marietjie Services Proof
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  marietjie_services_exact_head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Use Node 24.14.1
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.14.1
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run focused Marietjie Services authority tests
+        run: node --test tests/workspace-marietjie-services-management.test.js tests/workspace-services-v1.test.js tests/workspace-services-stage-b.test.js tests/workspace-services-visibility-p1.test.js
+      - name: Generate existing Workspace Services visual proof
+        run: node scripts/workspace-services-visual-proof.js
+      - name: Build production-backed Storybook catalogue
+        env:
+          STORYBOOK_DISABLE_TELEMETRY: '1'
+        run: npm run build-storybook -- --quiet
+      - name: Start static Storybook
+        run: |
+          python3 -m http.server 6006 --directory storybook-static > /tmp/shiloh-marietjie-services-storybook.log 2>&1 &
+          echo $! > /tmp/shiloh-marietjie-services-storybook.pid
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:6006/index.html > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/shiloh-marietjie-services-storybook.log
+          exit 1
+      - name: Run Marietjie Services Storybook accessibility proof on Desktop and Phone
+        run: npx playwright test --config=playwright.marietjie-services.config.js
+      - name: Run authenticated Marietjie Services Playwright proof on Desktop and Phone
+        run: node scripts/workspace-marietjie-services-authenticated-playwright.js
+      - name: Upload Marietjie Services UX evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: workspace-marietjie-services-proof
+          path: |
+            artifacts/workspace-services-v1-visual-proof
+            artifacts/workspace-marietjie-services-ui
+            artifacts/workspace-marietjie-services-storybook
+            artifacts/workspace-marietjie-services-storybook-report
+          if-no-files-found: error
+          retention-days: 14
