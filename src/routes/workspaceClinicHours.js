@@ -51,11 +51,17 @@ function createWorkspaceClinicHoursRouter({
   env = process.env,
   sessionService,
   service = workspaceClinicHours,
-  readService = workspaceClinicHoursReadView,
+  readService = null,
   holidayGuard = workspaceClinicHoursHolidayGuard,
   renderPage = renderClinicHoursPage,
 } = {}) {
   if (!sessionService) throw new Error('Workspace Clinic hours routes require the existing staff browser session service');
+  const resolvedReadService = readService || (service !== workspaceClinicHours
+    ? {
+        buildModel: service.buildModel.bind(service),
+        canManage: async () => true,
+      }
+    : workspaceClinicHoursReadView);
   const router = express.Router();
   const requireSession = requireStaffSession({ service: sessionService, env });
   const sameOrigin = sameOriginGuard({ env });
@@ -70,7 +76,7 @@ function createWorkspaceClinicHoursRouter({
 
   router.get('/client.js', async (req, res, next) => {
     try {
-      const canManage = await readService.canManage(req.staffBrowserSession?.adminId);
+      const canManage = await resolvedReadService.canManage(req.staffBrowserSession?.adminId);
       const script = canManage
         ? `${clinicHoursTabsClientScript()}\n${clinicHoursClientScript()}\n${assistantExceptionClientScript()}`
         : `${clinicHoursTabsClientScript()}\n${clinicHoursReadOnlyClientScript()}`;
@@ -82,7 +88,7 @@ function createWorkspaceClinicHoursRouter({
 
   router.get('/', async (req, res) => {
     try {
-      const model = await readService.buildModel({ adminId: req.staffBrowserSession?.adminId });
+      const model = await resolvedReadService.buildModel({ adminId: req.staffBrowserSession?.adminId });
       return res.status(200).type('html').send(renderPage(model));
     } catch (error) {
       const safe = clinicHoursError(error);
