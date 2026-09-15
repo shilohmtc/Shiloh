@@ -1,0 +1,58 @@
+name: Workspace Reports UI Proof
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  reports_ui_exact_head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Use Node 24.14.1
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.14.1
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run focused Reports access and presentation tests
+        run: node --test tests/workspace-reports-v1.test.js
+      - name: Build production-backed Storybook catalogue
+        env:
+          STORYBOOK_DISABLE_TELEMETRY: '1'
+        run: npm run build-storybook -- --quiet
+      - name: Start static Storybook
+        run: |
+          python3 -m http.server 6006 --directory storybook-static > /tmp/shiloh-reports-storybook.log 2>&1 &
+          echo $! > /tmp/shiloh-reports-storybook.pid
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:6006/index.html > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/shiloh-reports-storybook.log
+          exit 1
+      - name: Run Reports Storybook accessibility proof on Desktop and Phone
+        run: npx playwright test --config=playwright.reports.config.js
+      - name: Run authenticated Reports Playwright proof on Desktop and Phone
+        run: node scripts/workspace-reports-authenticated-playwright.js
+      - name: Upload Reports UX evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: workspace-reports-ui-proof
+          path: |
+            artifacts/workspace-reports-ui
+            artifacts/workspace-reports-storybook
+            artifacts/workspace-reports-storybook-report
+          if-no-files-found: error
+          retention-days: 14
