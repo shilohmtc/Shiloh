@@ -1,6 +1,6 @@
 const express = require("express");
 const { pool } = require('../db/pool');
-const calendarReadOnlyUxRoutes = require('./calendarReadOnlyUx');
+const calendarReadOnlyUxRoutes = require('./calendarReadOnlyUxPractitionerScope');
 const staffCalendarAccessUxRoutes = require('./staffCalendarAccessUx');
 const { createCalendarCreateBookingRouter } = require('./calendarCreateBooking');
 const { createCalendarRetrospectiveBookingRouter } = require('./calendarRetrospectiveBooking');

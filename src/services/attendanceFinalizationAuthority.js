@@ -5,6 +5,8 @@ function normalizedName(value = '') {
 }
 
 const OWN_APPOINTMENT_FINALIZERS = new Set(['christel', 'abigail', 'marietjie']);
+const ORDINARY_PRACTITIONER_ROLES = new Set(['tenant_practitioner', 'employee_practitioner']);
+const BUSINESS_BACKUP_ROLES = new Set(['owner', 'business_admin', 'booking_operator']);
 
 function permissions(admin) {
   return admin?.permissions && typeof admin.permissions === 'object' && !Array.isArray(admin.permissions)
@@ -28,14 +30,19 @@ function canAccessOwnFinalization(admin) {
 
 function canAccessWorkspaceOwnFinalization(admin) {
   const scope = String(admin?.calendar_scope || '').trim().toLowerCase();
+  const businessRole = String(admin?.business_role || '').trim().toLowerCase();
+  const ordinaryPractitionerWithBusinessRead = scope === 'all_business'
+    && ORDINARY_PRACTITIONER_ROLES.has(businessRole);
   return activeLinkedStaffId(admin) != null
-    && ['own', 'own_services', 'own_appointments'].includes(scope)
+    && (['own', 'own_services', 'own_appointments'].includes(scope) || ordinaryPractitionerWithBusinessRead)
     && permissions(admin)['appointment:view'] === true
     && permissions(admin)['booking:update'] === true;
 }
 
 function canAccessWorkspaceBackupFinalization(admin) {
-  return String(admin?.calendar_scope || '').trim().toLowerCase() === 'all_business'
+  const businessRole = String(admin?.business_role || '').trim().toLowerCase();
+  return BUSINESS_BACKUP_ROLES.has(businessRole)
+    && String(admin?.calendar_scope || '').trim().toLowerCase() === 'all_business'
     && permissions(admin)['appointment:view'] === true
     && permissions(admin)['booking:update'] === true
     && admin?.admin_active !== false
