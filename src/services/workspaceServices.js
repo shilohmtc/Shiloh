@@ -32,12 +32,17 @@ function evaluatePrincipal(rows = [], capability, key) {
   if (!adminId || principal.admin_active !== true) return null;
   if (principal.staff_id != null && principal.staff_status !== 'active') return null;
   if (permissionSet(principal.permissions)[capability] !== true) return null;
+  const linkedStaffId = positiveId(principal.staff_id);
+  const businessRole = String(principal.business_role || '').trim().toLowerCase();
+  const serviceScope = String(principal.service_scope || '').trim().toLowerCase();
+  if (businessRole === 'tenant_practitioner' && !linkedStaffId) return null;
   return {
     key,
     operatorAdminId: adminId,
     displayName: String(principal.display_name || 'Staff').trim() || 'Staff',
-    linkedStaffId: positiveId(principal.staff_id),
-    businessRole: String(principal.business_role || '').trim().toLowerCase(),
+    linkedStaffId,
+    businessRole,
+    serviceScope,
     capability,
   };
 }
@@ -48,6 +53,11 @@ function evaluateServicesReadAuthority(rows = []) {
 
 function evaluateServicesManageAuthority(rows = []) {
   return evaluatePrincipal(rows, SERVICES_MANAGE_CAPABILITY, 'workspace_services_manage_v1');
+}
+
+function isTenantAssignedServicesAuthority(authority) {
+  return authority?.businessRole === 'tenant_practitioner'
+    && positiveId(authority?.linkedStaffId) != null;
 }
 
 function normalizeSearch(value) {
@@ -179,7 +189,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
     if (!id) return [];
     const result = await queryable.query(
       `/* workspaceServices:principal */
-       SELECT a.id, a.staff_id, a.display_name, a.permissions, a.business_role,
+       SELECT a.id, a.staff_id, a.display_name, a.permissions, a.business_role, a.service_scope,
               a.active AS admin_active, s.status AS staff_status
          FROM staff_admin_accounts a
          LEFT JOIN staff s ON s.id=a.staff_id
@@ -230,9 +240,15 @@ function createWorkspaceServicesService({ db = pool } = {}) {
     const safeOffset = normalizeOffset(offset);
     const values = [];
     const where = [];
-    if (authority.businessRole === 'tenant_practitioner' && authority.linkedStaffId) {
+    if (isTenantAssignedServicesAuthority(authority)) {
       values.push(authority.linkedStaffId);
-      where.push(`(visibility.owner_staff_id IS NULL OR visibility.owner_staff_id=$${values.length})`);
+      const linkedStaffParam = `$${values.length}`;
+      where.push(`EXISTS (
+        SELECT 1 FROM staff_services scoped
+         WHERE scoped.service_id=svc.id
+           AND scoped.staff_id=${linkedStaffParam}
+      )`);
+      where.push(`(visibility.owner_staff_id IS NULL OR visibility.owner_staff_id=${linkedStaffParam})`);
     } else if (authority.businessRole !== 'booking_operator') {
       where.push('visibility.owner_staff_id IS NULL');
     }
@@ -315,6 +331,16 @@ function createWorkspaceServicesService({ db = pool } = {}) {
     const id = positiveId(serviceId);
     if (!id) throw new WorkspaceServicesError('WORKSPACE_SERVICES_INVALID_ID', 'Service reference is invalid.', 400);
 
+    const detailValues = [id];
+    let assignmentClause = '';
+    if (isTenantAssignedServicesAuthority(authority)) {
+      detailValues.push(authority.linkedStaffId);
+      assignmentClause = `AND EXISTS (
+        SELECT 1 FROM staff_services scoped
+         WHERE scoped.service_id=svc.id
+           AND scoped.staff_id=$${detailValues.length}
+      )`;
+    }
     const serviceResult = await db.query(
       `/* workspaceServices:detail */
        SELECT svc.id, svc.name, svc.duration_minutes,
@@ -326,8 +352,9 @@ function createWorkspaceServicesService({ db = pool } = {}) {
          LEFT JOIN service_categories sc ON sc.id=svc.category_id
          LEFT JOIN service_visibility_policies visibility ON visibility.service_id=svc.id
         WHERE svc.id=$1
+          ${assignmentClause}
         LIMIT 1`,
-      [id]
+      detailValues
     );
     const service = serviceResult.rows[0];
     if (!service || !serviceVisibilityAllows(authority, service.private_owner_staff_id)) {
@@ -369,6 +396,16 @@ function createWorkspaceServicesService({ db = pool } = {}) {
     const id = positiveId(serviceId);
     if (!id) throw new WorkspaceServicesError('WORKSPACE_SERVICES_INVALID_ID', 'Service reference is invalid.', 400);
     await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, [`workspace-service:${id}`]);
+    const mutationValues = [id];
+    let assignmentClause = '';
+    if (isTenantAssignedServicesAuthority(authority)) {
+      mutationValues.push(authority.linkedStaffId);
+      assignmentClause = `AND EXISTS (
+        SELECT 1 FROM staff_services scoped
+         WHERE scoped.service_id=svc.id
+           AND scoped.staff_id=$${mutationValues.length}
+      )`;
+    }
     const serviceResult = await client.query(
       `/* workspaceServices:mutation-service */
        SELECT svc.id, svc.name, svc.duration_minutes, svc.processing_time_minutes, svc.extra_time_minutes,
@@ -377,8 +414,9 @@ function createWorkspaceServicesService({ db = pool } = {}) {
          FROM services svc
          LEFT JOIN service_visibility_policies visibility ON visibility.service_id=svc.id
         WHERE svc.id=$1
+          ${assignmentClause}
         FOR UPDATE OF svc`,
-      [id]
+      mutationValues
     );
     const service = serviceResult.rows[0];
     if (!service || !serviceVisibilityAllows(authority, service.private_owner_staff_id)) {
@@ -632,6 +670,7 @@ module.exports = {
   permissionSet,
   evaluateServicesReadAuthority,
   evaluateServicesManageAuthority,
+  isTenantAssignedServicesAuthority,
   normalizeSearch,
   normalizeStatus,
   normalizeWritableStatus,
