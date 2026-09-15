@@ -9,7 +9,7 @@ const DESTINATIONS = Object.freeze({
   calendar: '/calendar/read-only?view=week&staff=all',
   clients: '/calendar/clients',
   messages: '/calendar/messages',
-  staff: '/calendar/team',
+  staff: '/calendar/team/staff-access',
   services: '/calendar/services',
   reports: '/calendar/reports',
   clinicHours: '/calendar/clinic-hours',
