@@ -1,5 +1,6 @@
 const express = require('express');
 const workspaceClinicHours = require('../services/workspaceClinicHours');
+const workspaceClinicHoursReadView = require('../services/workspaceClinicHoursReadView');
 const workspaceClinicHoursHolidayGuard = require('../services/workspaceClinicHoursHolidayGuard');
 const {
   renderClinicHoursPage,
@@ -42,10 +43,15 @@ function renderUnavailable(message) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clinic hours unavailable — Shiloh Workspace</title></head><body><main><h1>Clinic hours unavailable</h1><p>${safe}</p><p><a href="/calendar/workspace">Return to Workspace</a></p></main></body></html>`;
 }
 
+function clinicHoursReadOnlyClientScript() {
+  return `(()=>{'use strict';const controls=[...document.querySelectorAll('[data-hours-form] input,[data-hours-form] select,[data-hours-form] button[type="submit"],[data-special-form] input,[data-special-form] select,[data-special-form] button[type="submit"],[data-edit-date]')];for(const control of controls){control.disabled=true;control.setAttribute('aria-disabled','true')}for(const status of document.querySelectorAll('[data-hours-status],[data-special-status]'))status.textContent='View only';const note=document.querySelector('.authority');if(note)note.innerHTML='<strong>View only:</strong> you can see clinic and booking hours, but changing them is restricted to authorised clinic management.';})();`;
+}
+
 function createWorkspaceClinicHoursRouter({
   env = process.env,
   sessionService,
   service = workspaceClinicHours,
+  readService = workspaceClinicHoursReadView,
   holidayGuard = workspaceClinicHoursHolidayGuard,
   renderPage = renderClinicHoursPage,
 } = {}) {
@@ -62,13 +68,21 @@ function createWorkspaceClinicHoursRouter({
   });
   router.use(requireSession);
 
-  router.get('/client.js', (_req, res) => {
-    return res.status(200).type('application/javascript').send(`${clinicHoursTabsClientScript()}\n${clinicHoursClientScript()}\n${assistantExceptionClientScript()}`);
+  router.get('/client.js', async (req, res, next) => {
+    try {
+      const canManage = await readService.canManage(req.staffBrowserSession?.adminId);
+      const script = canManage
+        ? `${clinicHoursTabsClientScript()}\n${clinicHoursClientScript()}\n${assistantExceptionClientScript()}`
+        : `${clinicHoursTabsClientScript()}\n${clinicHoursReadOnlyClientScript()}`;
+      return res.status(200).type('application/javascript').send(script);
+    } catch (error) {
+      return next(error);
+    }
   });
 
   router.get('/', async (req, res) => {
     try {
-      const model = await service.buildModel({ adminId: req.staffBrowserSession?.adminId });
+      const model = await readService.buildModel({ adminId: req.staffBrowserSession?.adminId });
       return res.status(200).type('html').send(renderPage(model));
     } catch (error) {
       const safe = clinicHoursError(error);
@@ -126,5 +140,6 @@ module.exports = {
   isWorkspaceClinicHoursEnabled,
   setClinicHoursSecurityHeaders,
   clinicHoursError,
+  clinicHoursReadOnlyClientScript,
   createWorkspaceClinicHoursRouter,
 };
