@@ -15,7 +15,7 @@ function renderStaffAccessPage(model) {
 }
 
 function renderToggle(toggle) {
-  return `<div class="switch-row"><div class="switch-copy"><strong>${escapeHtml(toggle.label)}</strong><span>${escapeHtml(toggle.description)}</span></div><button class="switch" type="button" role="switch" aria-checked="${toggle.on ? 'true' : 'false'}" data-access-toggle="${escapeHtml(toggle.key)}"><span class="switch-track" aria-hidden="true"></span><span data-switch-state>${toggle.on ? 'On' : 'Off'}</span></button></div>`;
+  return `<div class="switch-row"><div class="switch-copy"><strong>${escapeHtml(toggle.label)}</strong><span>${escapeHtml(toggle.description)}</span></div><button class="switch" type="button" role="switch" aria-label="${escapeHtml(toggle.label)}" aria-checked="${toggle.on ? 'true' : 'false'}" data-access-toggle="${escapeHtml(toggle.key)}"><span class="switch-track" aria-hidden="true"></span><span data-switch-state>${toggle.on ? 'On' : 'Off'}</span></button></div>`;
 }
 
 function renderStaffAccessDetail(model) {
