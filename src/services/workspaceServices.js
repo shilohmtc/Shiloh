@@ -35,7 +35,7 @@ function evaluatePrincipal(rows = [], capability, key) {
   const linkedStaffId = positiveId(principal.staff_id);
   const businessRole = String(principal.business_role || '').trim().toLowerCase();
   const serviceScope = String(principal.service_scope || '').trim().toLowerCase();
-  if (businessRole === 'tenant_practitioner' && (!linkedStaffId || serviceScope !== 'own_services')) return null;
+  if (businessRole === 'tenant_practitioner' && !linkedStaffId) return null;
   return {
     key,
     operatorAdminId: adminId,
@@ -55,9 +55,8 @@ function evaluateServicesManageAuthority(rows = []) {
   return evaluatePrincipal(rows, SERVICES_MANAGE_CAPABILITY, 'workspace_services_manage_v1');
 }
 
-function isTenantOwnServicesAuthority(authority) {
+function isTenantAssignedServicesAuthority(authority) {
   return authority?.businessRole === 'tenant_practitioner'
-    && authority?.serviceScope === 'own_services'
     && positiveId(authority?.linkedStaffId) != null;
 }
 
@@ -241,7 +240,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
     const safeOffset = normalizeOffset(offset);
     const values = [];
     const where = [];
-    if (isTenantOwnServicesAuthority(authority)) {
+    if (isTenantAssignedServicesAuthority(authority)) {
       values.push(authority.linkedStaffId);
       const linkedStaffParam = `$${values.length}`;
       where.push(`EXISTS (
@@ -334,7 +333,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
 
     const detailValues = [id];
     let assignmentClause = '';
-    if (isTenantOwnServicesAuthority(authority)) {
+    if (isTenantAssignedServicesAuthority(authority)) {
       detailValues.push(authority.linkedStaffId);
       assignmentClause = `AND EXISTS (
         SELECT 1 FROM staff_services scoped
@@ -399,7 +398,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
     await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, [`workspace-service:${id}`]);
     const mutationValues = [id];
     let assignmentClause = '';
-    if (isTenantOwnServicesAuthority(authority)) {
+    if (isTenantAssignedServicesAuthority(authority)) {
       mutationValues.push(authority.linkedStaffId);
       assignmentClause = `AND EXISTS (
         SELECT 1 FROM staff_services scoped
@@ -671,7 +670,7 @@ module.exports = {
   permissionSet,
   evaluateServicesReadAuthority,
   evaluateServicesManageAuthority,
-  isTenantOwnServicesAuthority,
+  isTenantAssignedServicesAuthority,
   normalizeSearch,
   normalizeStatus,
   normalizeWritableStatus,
