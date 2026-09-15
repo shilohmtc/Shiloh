@@ -25,9 +25,9 @@ function setWorkspaceReportsSecurityHeaders(res) {
 
 function safeError(error) {
   const status = Number(error?.httpStatus) || 503;
-  if (status === 400) return { status, message: 'The requested report range or filter is invalid.' };
-  if (status === 403) return { status, message: 'Your authenticated Shiloh access does not permit this report scope.' };
-  return { status: 503, message: 'Canonical operational reports are temporarily unavailable.' };
+  if (status === 400) return { status, message: 'Please check the selected dates or team member and try again.' };
+  if (status === 403) return { status, message: 'You do not have access to this report.' };
+  return { status: 503, message: 'Reports are temporarily unavailable. Please try again shortly.' };
 }
 
 function createWorkspaceReportsHandler({
