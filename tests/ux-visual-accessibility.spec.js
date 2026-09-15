@@ -701,7 +701,7 @@ test('public website Storybook exposes catalogue and WhatsApp unavailable states
     '/iframe.html?id=public-website-production-pages--catalogue-unavailable&viewMode=story',
     { waitUntil: 'networkidle' },
   );
-  await expect(page.getByRole('heading', { name: 'Treatments are temporarily unavailable' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Services are temporarily unavailable' })).toBeVisible();
 
   await page.goto(
     '/iframe.html?id=public-website-production-pages--whats-app-unavailable&viewMode=story',

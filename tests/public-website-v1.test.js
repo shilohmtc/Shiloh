@@ -32,12 +32,13 @@ const catalogue = [
   },
 ];
 
-test('public Treatments renders canonical catalogue fields without creating booking authority', () => {
+test('public Services renders canonical timing and price fields without creating booking authority', () => {
   const html = renderTreatments(catalogue);
   assert.match(html, /Deep Tissue Massage/);
   assert.match(html, /60 min/);
   assert.match(html, /R850/);
   assert.match(html, /Pedicures &amp; Foot Care/);
+  assert.doesNotMatch(html, /Focused therapeutic massage/);
   assert.doesNotMatch(html, /wa\.me/);
   assert.doesNotMatch(html, /availability=/);
   assert.match(html, /data-public-treatment-catalogue/);
@@ -53,7 +54,7 @@ test('all public pages and booking share complete navigation and accessible land
   ];
   for (const html of pages) {
     assert.match(html, /href="\/"[^>]*>Home<\/a>/);
-    assert.match(html, /href="\/treatments"/);
+    assert.match(html, /href="\/treatments"[^>]*>Services<\/a>/);
     assert.match(html, /href="\/about"/);
     assert.match(html, /href="\/contact"/);
     assert.match(html, /href="\/book"/);
@@ -114,4 +115,41 @@ test('public presentation escapes canonical catalogue text', () => {
   assert.doesNotMatch(html, /<script>alert/);
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.match(html, /Massage &amp; Care/);
+});
+
+test('public surfaces neutralize therapeutic branding, labels and claim-heavy descriptions', () => {
+  const riskyCatalogue = [
+    {
+      id: 303,
+      name: 'Neo Pelvic Therapy',
+      category: 'Massage Treatments',
+      duration: '30 min',
+      price: 'R500',
+      description: 'Clinical therapeutic care for pain recovery.',
+      bookingNote: 'Medical review required.',
+    },
+  ];
+
+  const pages = [
+    renderHome(riskyCatalogue),
+    renderTreatments(riskyCatalogue),
+    renderAbout(),
+    renderContact(),
+    renderPrivacy(),
+    renderBookingPage('27836835433', riskyCatalogue),
+  ];
+
+  for (const html of pages) {
+    assert.doesNotMatch(html, /\btherapy\b/i);
+    assert.doesNotMatch(html, /\btherapeutic\b/i);
+    assert.doesNotMatch(html, /\bclinical\b/i);
+    assert.doesNotMatch(html, /pain recovery/i);
+    assert.doesNotMatch(html, /Medical review required/i);
+    assert.doesNotMatch(html, /inside-shiloh-signature\.png/);
+  }
+
+  assert.match(renderTreatments(riskyCatalogue), /Neo Pelvic Session/);
+  assert.match(renderTreatments(riskyCatalogue), /Massage Services/);
+  assert.match(renderBookingPage('27836835433', riskyCatalogue), /Neo Pelvic Session/);
+  assert.match(renderBookingPage('27836835433', riskyCatalogue), /Shiloh Massage &amp; Aesthetic Clinic/);
 });

@@ -1,10 +1,20 @@
 const base = require('./publicBookingPage');
 const { PUBLIC_CHROME_CSS, renderSiteHeader, renderSiteFooter } = require('./publicSiteChrome');
+const {
+  PUBLIC_BRAND_NAME,
+  PUBLIC_TAGLINE,
+  neutralizePublicLabel,
+  sanitizePublicCatalogue,
+} = require('./publicPresentation');
 
-const VISUAL_BREAK = `<section class="inside-shiloh-break" aria-label="Inside Shiloh"><img src="/assets/booking/inside-shiloh-signature.png" alt="Inside Shiloh — Clinical care. Personal touch. Beautifully you. Shiloh Massage Therapy &amp; Aesthetic Clinic"></section>`;
+const VISUAL_BREAK = `<section class="inside-shiloh-break" aria-label="Inside Shiloh"><div class="inside-shiloh-break-copy"><span>Inside Shiloh</span><strong>${PUBLIC_TAGLINE}</strong><small>${PUBLIC_BRAND_NAME}</small></div></section>`;
+
+function publicCategories(catalogue = []) {
+  return [...new Set(sanitizePublicCatalogue(catalogue).map((service) => service.category))];
+}
 
 function insertInsideShilohSignatures(html, catalogue = []) {
-  const categories = [...new Set(catalogue.map((service) => service.category))];
+  const categories = publicCategories(catalogue);
   const massageIndex = categories.indexOf('Massage');
   if (massageIndex < 0) return html;
 
@@ -33,12 +43,12 @@ function extractCategorySection(html, index) {
 }
 
 function groupSpecialtyCategories(html, catalogue = []) {
-  const categories = [...new Set(catalogue.map((service) => service.category))];
+  const categories = publicCategories(catalogue);
   const rows = [
     ['Profosma Jet Plasma', 'Plasma Fibroblast Consultation', 'Plasma Fibroblast Prices'],
     ['1. SQT BioMicroneedling', '2. SQT BioMicroneedling'],
     ['HIFU', 'Vaginal Tightening & Rejuvenation', 'Neo Pelvic Therapy'],
-  ];
+  ].map((row) => row.map(neutralizePublicLabel));
 
   for (const row of rows) {
     const indexes = row.map((name) => categories.indexOf(name));
@@ -82,7 +92,7 @@ function renderBookingPage(number, catalogue = []) {
   html = insertInsideShilohSignatures(html, catalogue);
 
   const visualBreakCss = `
-.inside-shiloh-break{width:calc(100% + 280px);margin:26px -140px 32px;border-radius:20px;overflow:hidden;box-shadow:0 10px 30px rgba(36,53,47,.12);border:1px solid rgba(36,53,47,.08);background:#5f584f}.inside-shiloh-break img{display:block;width:100%;height:auto}.catalogue>.inside-shiloh-break:first-child{margin-top:4px;margin-bottom:30px}.catalogue>.inside-shiloh-break:last-child{margin-top:34px;margin-bottom:8px}.specialty-category-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:stretch}.specialty-category-row--three{grid-template-columns:repeat(3,minmax(0,1fr))}.specialty-category-row>.category{min-width:0}.specialty-category-row .service-grid{grid-template-columns:1fr}.specialty-category-row .service-card{height:100%}@media(max-width:1280px){.inside-shiloh-break{width:100%;margin:24px 0 30px}.specialty-category-row--three{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.inside-shiloh-break{border-radius:16px;margin:20px 0 24px}.specialty-category-row,.specialty-category-row--three{grid-template-columns:1fr;gap:0}}
+.inside-shiloh-break{width:calc(100% + 280px);margin:26px -140px 32px;border-radius:20px;overflow:hidden;box-shadow:0 10px 30px rgba(36,53,47,.12);border:1px solid rgba(36,53,47,.08);background:#5f584f;color:#fff}.inside-shiloh-break-copy{min-height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px}.inside-shiloh-break-copy span{font-size:11px;font-weight:850;text-transform:uppercase;letter-spacing:.17em;color:#fff}.inside-shiloh-break-copy strong{font-family:Georgia,"Times New Roman",serif;font-size:clamp(28px,3.4vw,46px);font-weight:500;letter-spacing:-.025em;margin:7px 0 9px}.inside-shiloh-break-copy small{color:#eee7dc;font-size:13px}.catalogue>.inside-shiloh-break:first-child{margin-top:4px;margin-bottom:30px}.catalogue>.inside-shiloh-break:last-child{margin-top:34px;margin-bottom:8px}.specialty-category-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:stretch}.specialty-category-row--three{grid-template-columns:repeat(3,minmax(0,1fr))}.specialty-category-row>.category{min-width:0}.specialty-category-row .service-grid{grid-template-columns:1fr}.specialty-category-row .service-card{height:100%}@media(max-width:1280px){.inside-shiloh-break{width:100%;margin:24px 0 30px}.specialty-category-row--three{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:700px){.inside-shiloh-break{border-radius:16px;margin:20px 0 24px}.inside-shiloh-break-copy{min-height:145px;padding:24px 18px}.specialty-category-row,.specialty-category-row--three{grid-template-columns:1fr;gap:0}}
 `;
   html = html.replace('</style>', `${PUBLIC_CHROME_CSS}${visualBreakCss}</style>`);
   return html;
