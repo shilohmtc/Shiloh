@@ -15,7 +15,7 @@ const catalogue = [
   { category: 'Vaginal Tightening & Rejuvenation', name: 'Vaginal Tightening', duration: '45 min', price: 'R2500' },
 ];
 
-test('specialty rows follow the approved horizontal order', () => {
+test('specialty rows follow the approved horizontal order with public wording', () => {
   const html = renderBookingPage('27823269871', catalogue);
 
   const profosma = html.indexOf('<h2>Profosma Jet Plasma</h2>');
@@ -28,8 +28,9 @@ test('specialty rows follow the approved horizontal order', () => {
 
   const hifu = html.indexOf('<h2>HIFU</h2>');
   const vaginal = html.indexOf('<h2>Vaginal Tightening &amp; Rejuvenation</h2>');
-  const neo = html.indexOf('<h2>Neo Pelvic Therapy</h2>');
+  const neo = html.indexOf('<h2>Neo Pelvic Session</h2>');
   assert.ok(hifu >= 0 && vaginal > hifu && neo > vaginal);
+  assert.doesNotMatch(html, /<h2>Neo Pelvic Therapy<\/h2>/);
 
   assert.match(html, /specialty-category-row--three/);
 });
