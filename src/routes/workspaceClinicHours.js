@@ -5,6 +5,7 @@ const {
   renderClinicHoursPage,
   clinicHoursClientScript,
   assistantExceptionClientScript,
+  clinicHoursTabsClientScript,
 } = require('../presentation/workspaceClinicHoursUx');
 const {
   requireStaffSession,
@@ -62,7 +63,7 @@ function createWorkspaceClinicHoursRouter({
   router.use(requireSession);
 
   router.get('/client.js', (_req, res) => {
-    return res.status(200).type('application/javascript').send(`${clinicHoursClientScript()}\n${assistantExceptionClientScript()}`);
+    return res.status(200).type('application/javascript').send(`${clinicHoursTabsClientScript()}\n${clinicHoursClientScript()}\n${assistantExceptionClientScript()}`);
   });
 
   router.get('/', async (req, res) => {
