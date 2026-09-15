@@ -169,7 +169,7 @@ async function main() {
       assert.match(geometry.text, /Staff booking hours/);
       assert.match(geometry.text, /Day of Reconciliation/);
       assert.match(geometry.text, /Christmas Day/);
-      assert.match(geometry.text, /practitioner leave or practitioner blocks/);
+      assert.match(geometry.text, /Staff leave and blocked-off time will stay exactly as they are/);
       assert.match(geometry.sunday, /Permanent clinic closure/);
       assert.doesNotMatch(geometry.text, /synthetic-clinic-hours-session/);
       if (width === 390) assert.ok(geometry.targets.every(target => target.height >= 43 && target.width >= 43));
