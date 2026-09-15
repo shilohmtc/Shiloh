@@ -11,12 +11,18 @@ const {
 
 function result(rows = []) { return { rows, rowCount: rows.length }; }
 
-function principal({ role = 'owner', staffId = null, permissions = { 'services:view': true, 'services:manage': true } } = {}) {
+function principal({
+  role = 'owner',
+  staffId = null,
+  serviceScope = role === 'tenant_practitioner' ? 'own_services' : 'all_services',
+  permissions = { 'services:view': true, 'services:manage': true },
+} = {}) {
   return {
     id: 71,
     staff_id: staffId,
     display_name: 'Visibility Operator',
     business_role: role,
+    service_scope: serviceScope,
     permissions,
     admin_active: true,
     staff_status: staffId ? 'active' : null,
@@ -76,17 +82,19 @@ function mutationDb({ admin, target } = {}) {
   return { db: { query, async connect() { return client; } }, calls };
 }
 
-test('Workspace Services authority carries canonical business role and linked staff context', () => {
+test('Workspace Services authority carries canonical business role, service scope and linked staff context', () => {
   const tenant = principal({ role: 'tenant_practitioner', staffId: 11 });
   const read = evaluateServicesReadAuthority([tenant]);
   const manage = evaluateServicesManageAuthority([tenant]);
   assert.equal(read.businessRole, 'tenant_practitioner');
+  assert.equal(read.serviceScope, 'own_services');
   assert.equal(read.linkedStaffId, 11);
   assert.equal(manage.businessRole, 'tenant_practitioner');
+  assert.equal(manage.serviceScope, 'own_services');
   assert.equal(manage.linkedStaffId, 11);
 });
 
-test('Workspace Services list preserves global visibility and applies canonical tenant-private matrix', async () => {
+test('Workspace Services list preserves visibility and SQL-scopes tenant practitioners to assigned services', async () => {
   const rows = [serviceRow(1, null), serviceRow(2, 11), serviceRow(3, 12)];
 
   const owner = readDb({ admin: principal({ role: 'owner' }), listRows: rows });
@@ -102,6 +110,7 @@ test('Workspace Services list preserves global visibility and applies canonical 
   const tenantList = await createWorkspaceServicesService({ db: tenant.db }).listServices({ adminId: 71, status: 'all' });
   assert.deepEqual(tenantList.services.map(row => row.id), [1, 2]);
   const tenantSql = tenant.calls.find(call => call.sql.includes('workspaceServices:list'));
+  assert.match(tenantSql.sql, /EXISTS \( SELECT 1 FROM staff_services scoped WHERE scoped\.service_id=svc\.id AND scoped\.staff_id=\$1 \)/);
   assert.match(tenantSql.sql, /visibility\.owner_staff_id=\$1/);
   assert.equal(tenantSql.params[0], 11);
 
@@ -110,21 +119,31 @@ test('Workspace Services list preserves global visibility and applies canonical 
   }
 });
 
-test('tenant-private detail is hidden from unrelated principals and missing linked staff fails closed before subordinate reads', async () => {
-  for (const admin of [principal({ role: 'business_admin' }), principal({ role: 'tenant_practitioner' })]) {
-    const fake = readDb({ admin, detailRow: serviceRow(2, 11) });
-    await assert.rejects(
-      createWorkspaceServicesService({ db: fake.db }).getServiceDetail({ adminId: 71, serviceId: 2 }),
-      error => error instanceof WorkspaceServicesError && error.code === 'WORKSPACE_SERVICE_NOT_FOUND' && error.httpStatus === 404
-    );
-    assert.equal(fake.calls.some(call => call.sql.includes('workspaceServices:staff')), false);
-    assert.equal(fake.calls.some(call => call.sql.includes('workspaceServices:practitioners')), false);
-  }
+test('tenant-private detail is hidden from unrelated principals and missing tenant linkage fails before any service read', async () => {
+  const unrelated = readDb({ admin: principal({ role: 'business_admin' }), detailRow: serviceRow(2, 11) });
+  await assert.rejects(
+    createWorkspaceServicesService({ db: unrelated.db }).getServiceDetail({ adminId: 71, serviceId: 2 }),
+    error => error instanceof WorkspaceServicesError && error.code === 'WORKSPACE_SERVICE_NOT_FOUND' && error.httpStatus === 404
+  );
+  assert.equal(unrelated.calls.some(call => call.sql.includes('workspaceServices:staff')), false);
+  assert.equal(unrelated.calls.some(call => call.sql.includes('workspaceServices:practitioners')), false);
+
+  const missingLink = readDb({ admin: principal({ role: 'tenant_practitioner' }), detailRow: serviceRow(2, 11) });
+  await assert.rejects(
+    createWorkspaceServicesService({ db: missingLink.db }).getServiceDetail({ adminId: 71, serviceId: 2 }),
+    error => error instanceof WorkspaceServicesError && error.code === 'WORKSPACE_SERVICES_FORBIDDEN' && error.httpStatus === 403
+  );
+  assert.equal(missingLink.calls.some(call => call.sql.includes('workspaceServices:detail')), false);
+  assert.equal(missingLink.calls.some(call => call.sql.includes('workspaceServices:staff')), false);
+  assert.equal(missingLink.calls.some(call => call.sql.includes('workspaceServices:practitioners')), false);
 
   const own = readDb({ admin: principal({ role: 'tenant_practitioner', staffId: 11 }), detailRow: serviceRow(2, 11) });
   const detail = await createWorkspaceServicesService({ db: own.db }).getServiceDetail({ adminId: 71, serviceId: 2 });
   assert.equal(detail.service.id, 2);
   assert.equal(Object.prototype.hasOwnProperty.call(detail.service, 'private_owner_staff_id'), false);
+  const ownDetailSql = own.calls.find(call => call.sql.includes('workspaceServices:detail'));
+  assert.match(ownDetailSql.sql, /EXISTS \( SELECT 1 FROM staff_services scoped WHERE scoped\.service_id=svc\.id AND scoped\.staff_id=\$2 \)/);
+  assert.deepEqual(ownDetailSql.params, [2, 11]);
 });
 
 test('crafted mutation against invisible tenant-private service fails before revision, assignment read, mutation or audit', async () => {
