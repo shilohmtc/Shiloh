@@ -1,5 +1,5 @@
 const express = require('express');
-const workspaceReports = require('../services/workspaceReports');
+const workspaceReports = require('../services/workspaceReportsProfileView');
 const {
   renderReportsPage,
   renderReportsUnavailablePage,
