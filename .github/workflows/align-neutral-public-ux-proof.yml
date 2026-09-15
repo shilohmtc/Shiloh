@@ -1,0 +1,39 @@
+name: Align neutral public UX proof
+
+on:
+  push:
+    branches:
+      - compliance/public-neutral-language
+
+permissions:
+  contents: write
+
+jobs:
+  align:
+    if: github.event.head_commit.message == 'Run neutral UX alignment'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: compliance/public-neutral-language
+          fetch-depth: 0
+      - name: Align the public wording expectation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('tests/ux-visual-accessibility.spec.js')
+          text = path.read_text()
+          old = "Treatments are temporarily unavailable"
+          new = "Services are temporarily unavailable"
+          if text.count(old) != 1:
+              raise SystemExit(f'expected exactly one stale UX phrase, found {text.count(old)}')
+          path.write_text(text.replace(old, new))
+          PY
+      - name: Commit the focused proof alignment
+        run: |
+          git config user.name 'shilohmtc'
+          git config user.email 'shilohmtc@gmail.com'
+          git add tests/ux-visual-accessibility.spec.js
+          git diff --cached --check
+          git commit -m 'Align public UX proof with neutral wording'
+          git push origin HEAD:compliance/public-neutral-language
