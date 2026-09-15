@@ -7,7 +7,7 @@ const {
   WorkspaceServicesError,
   evaluateServicesReadAuthority,
   evaluateServicesManageAuthority,
-  isTenantOwnServicesAuthority,
+  isTenantAssignedServicesAuthority,
   serviceRevision,
   createWorkspaceServicesService,
 } = require('../src/services/workspaceServices');
@@ -20,7 +20,7 @@ function marietjiePrincipal(overrides = {}) {
     staff_id: 55,
     display_name: 'Marietjie',
     business_role: 'tenant_practitioner',
-    service_scope: 'own_services',
+    service_scope: 'all_services',
     permissions: { 'services:view': true, 'services:manage': true },
     admin_active: true,
     staff_status: 'active',
@@ -48,35 +48,39 @@ function serviceRow(id = 7, privateOwnerStaffId = null) {
   };
 }
 
-test('126 grants only Marietjie explicit Services view/manage authority and fails closed on identity drift', () => {
+test('126 grants only Marietjie explicit Services view/manage authority while preserving #903 scopes', () => {
   const sql = fs.readFileSync(
     path.join(__dirname, '..', 'migrations', '126_marietjie_workspace_services_manage.sql'),
     'utf8'
   );
   assert.match(sql, /LOWER\(a\.display_name\) = 'marietjie'/);
   assert.match(sql, /a\.business_role = 'tenant_practitioner'/);
-  assert.match(sql, /a\.service_scope = 'own_services'/);
+  assert.match(sql, /a\.calendar_scope = 'all_business'/);
+  assert.match(sql, /a\.service_scope = 'all_services'/);
   assert.match(sql, /staff:services:view/);
   assert.match(sql, /service:pricing/);
   assert.match(sql, /"services:view":true/);
   assert.match(sql, /"services:manage":true/);
   assert.doesNotMatch(sql, /services:create/);
+  assert.doesNotMatch(sql, /SET\s+(?:calendar_scope|service_scope)\s*=/i);
   assert.match(sql, /expected exactly one active Marietjie tenant practitioner/);
 });
 
-test('tenant Services authority requires linked active staff and own-services scope', () => {
+test('tenant Services authority requires linked active staff and is assignment-bounded independently of #903 service scope', () => {
   const principal = marietjiePrincipal();
   const read = evaluateServicesReadAuthority([principal]);
   const manage = evaluateServicesManageAuthority([principal]);
 
   assert.equal(read.linkedStaffId, 55);
   assert.equal(read.businessRole, 'tenant_practitioner');
-  assert.equal(read.serviceScope, 'own_services');
+  assert.equal(read.serviceScope, 'all_services');
   assert.equal(manage.linkedStaffId, 55);
-  assert.equal(isTenantOwnServicesAuthority(read), true);
-  assert.equal(isTenantOwnServicesAuthority(manage), true);
+  assert.equal(isTenantAssignedServicesAuthority(read), true);
+  assert.equal(isTenantAssignedServicesAuthority(manage), true);
 
-  assert.equal(evaluateServicesReadAuthority([marietjiePrincipal({ service_scope: 'all_services' })]), null);
+  const legacyOwnScope = evaluateServicesReadAuthority([marietjiePrincipal({ service_scope: 'own_services' })]);
+  assert.equal(legacyOwnScope.serviceScope, 'own_services');
+  assert.equal(isTenantAssignedServicesAuthority(legacyOwnScope), true);
   assert.equal(evaluateServicesManageAuthority([marietjiePrincipal({ staff_id: null, staff_status: null })]), null);
 });
 
