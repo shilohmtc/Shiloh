@@ -1,8 +1,8 @@
 const workspaceClients = require('./workspaceClients');
 const workspaceStaff = require('./workspaceStaff');
 const workspaceServices = require('./workspaceServices');
-const workspaceReports = require('./workspaceReports');
-const workspaceClinicHours = require('./workspaceClinicHours');
+const workspaceReports = require('./workspaceReportsProfileView');
+const workspaceClinicHours = require('./workspaceClinicHoursReadView');
 
 const DESTINATIONS = Object.freeze({
   dashboard: '/calendar/workspace',
