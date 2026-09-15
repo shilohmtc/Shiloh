@@ -19,6 +19,14 @@ function allowedDestination(allowed, key) {
   return allowed ? { allowed: true, href: DESTINATIONS[key] } : { allowed: false, href: null };
 }
 
+function resolveStaffAccess(service, adminId) {
+  const resolver = typeof service?.resolveManageAccess === 'function'
+    ? service.resolveManageAccess
+    : service?.resolveAccess;
+  if (typeof resolver !== 'function') return Promise.resolve(null);
+  return resolver.call(service, adminId);
+}
+
 function createWorkspaceNavigationService({
   clientAccessService = workspaceClients,
   staffAccessService = workspaceStaffAccess,
@@ -31,7 +39,7 @@ function createWorkspaceNavigationService({
     const calendarAllowed = Boolean(session?.viewer);
     const [clients, staff, services, reports, clinicHours] = await Promise.allSettled([
       clientAccessService.resolveAccess(adminId),
-      staffAccessService.resolveManageAccess(adminId),
+      resolveStaffAccess(staffAccessService, adminId),
       servicesAccessService.resolveAccess(adminId),
       reportsAccessService.resolveAccess(adminId),
       clinicHoursAccessService.resolveAccess(adminId),
@@ -57,6 +65,7 @@ const service = createWorkspaceNavigationService();
 module.exports = {
   DESTINATIONS,
   allowedDestination,
+  resolveStaffAccess,
   createWorkspaceNavigationService,
   ...service,
 };
