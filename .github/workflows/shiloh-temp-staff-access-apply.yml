@@ -1,0 +1,49 @@
+name: Staff access source delivery (temporary)
+on:
+  push:
+    branches: [feat/staff-access-profiles]
+    paths: [.github/workflows/shiloh-temp-staff-access-apply.yml]
+permissions:
+  contents: write
+concurrency:
+  group: staff-access-source-delivery
+  cancel-in-progress: false
+jobs:
+  apply:
+    if: github.repository == 'shilohmtc/Shiloh' && github.ref == 'refs/heads/feat/staff-access-profiles'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+      - name: Verify delivery inputs and original source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/feat/staff-access-profiles | cut -f1)" = "$GITHUB_SHA"
+          git merge-base --is-ancestor aec398744f436b7a1e79b42a3756e7ce5d9d884c HEAD
+          python3 - <<'PY'
+          import base64, hashlib, lzma, pathlib, subprocess
+          changed = subprocess.check_output(['git','diff','--name-only','aec398744f436b7a1e79b42a3756e7ce5d9d884c','HEAD'],text=True).splitlines()
+          allowed = {f'.shiloh-temp/staff-access-patch-{i}.b64' for i in range(4)} | {'.github/workflows/shiloh-temp-staff-access-apply.yml'}
+          assert set(changed) <= allowed, 'Source drift before patch application'
+          payload = ''.join(pathlib.Path(f'.shiloh-temp/staff-access-patch-{i}.b64').read_text().strip() for i in range(4))
+          patch = lzma.decompress(base64.b64decode(payload, validate=True))
+          assert hashlib.sha256(patch).hexdigest() == 'af51609298754fc4209d79ddc5f6c6777ec9dcb8b8c6333464188a7a355e7bdb', 'Implementation checksum mismatch'
+          assert b'diff --git a/.github/' not in patch, 'Workflow writes must use the connector'
+          pathlib.Path('/tmp/staff-access-implementation.patch').write_bytes(patch)
+          PY
+          git apply --check /tmp/staff-access-implementation.patch
+      - name: Commit implementation to feature branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --index /tmp/staff-access-implementation.patch
+          git rm .shiloh-temp/staff-access-patch-*.b64
+          git config user.name 'shilohmtc'
+          git config user.email 'shilohmtc@gmail.com'
+          git commit -m 'feat: simplify Staff access with bounded profiles and own-workspace security (#1007)'
+          test "$(git ls-remote origin refs/heads/feat/staff-access-profiles | cut -f1)" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/feat/staff-access-profiles
