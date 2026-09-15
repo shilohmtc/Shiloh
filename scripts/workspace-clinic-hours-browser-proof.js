@@ -151,16 +151,20 @@ async function main() {
       const geometry = await evaluate(cdp, `({
         width: innerWidth,
         overflow: document.documentElement.scrollWidth > innerWidth,
-        text: document.body.innerText,
+        text: document.body.textContent,
+        tabs: document.querySelectorAll('[data-hours-tab]').length,
+        visiblePanels: Array.from(document.querySelectorAll('[data-view-panel],#special-dates')).filter(node=>!node.hidden).length,
         editButtons: document.querySelectorAll('[data-edit-exception]').length,
         deleteButtons: document.querySelectorAll('[data-delete-exception]').length,
-        sunday: document.querySelector('[data-clinic-day="0"]')?.innerText || '',
+        sunday: document.querySelector('[data-clinic-day="0"]')?.textContent || '',
         targets: Array.from(document.querySelectorAll('button,input,select,a.workspace-nav-item')).filter(node=>{const r=node.getBoundingClientRect();return r.width>0&&r.height>0;}).map(node=>({width:node.getBoundingClientRect().width,height:node.getBoundingClientRect().height}))
       })`);
       assert.equal(geometry.width, width);
       assert.equal(geometry.overflow, false);
       assert.equal(geometry.editButtons, 2);
       assert.equal(geometry.deleteButtons, 0);
+      assert.equal(geometry.tabs, 3);
+      assert.equal(geometry.visiblePanels, 1);
       assert.match(geometry.text, /Clinic-wide authority/);
       assert.match(geometry.text, /Day of Reconciliation/);
       assert.match(geometry.text, /Christmas Day/);
