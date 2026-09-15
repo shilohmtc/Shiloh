@@ -23,6 +23,7 @@ function principal(overrides = {}) {
     id: 41,
     staff_id: 7,
     display_name: 'Synthetic Operator',
+    business_role: 'business_admin',
     permissions: { 'client:lookup': true, 'client:manage': true },
     admin_active: true,
     staff_status: 'active',
@@ -50,6 +51,7 @@ test('client:manage is independent, explicit, active-principal authority', () =>
   const allowed = evaluateClientManageAuthority([principal()]);
   assert.equal(allowed.capability, CLIENT_MANAGE_CAPABILITY);
   assert.equal(allowed.operatorAdminId, 41);
+  assert.deepEqual(allowed.clientScope, { kind: 'clinic', ownerStaffId: null });
   assert.equal(evaluateClientManageAuthority([principal({ permissions: { 'client:lookup': true } })]), null);
   assert.equal(evaluateClientManageAuthority([principal({ admin_active: false })]), null);
   assert.equal(evaluateClientManageAuthority([principal({ staff_status: 'inactive' })]), null);
@@ -112,7 +114,7 @@ test('mutation replay fingerprint is deterministic and operation-bound', () => {
   assert.match(first, /^[a-f0-9]{64}$/);
 });
 
-test('bounded mutation implementation retains transaction, replay, audit and no-hard-delete invariants', () => {
+test('bounded mutation implementation retains transaction, replay, audit and relationship-only archive invariants', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'workspaceClientMutations.js'), 'utf8');
   assert.match(source, /BEGIN ISOLATION LEVEL SERIALIZABLE/);
   assert.match(source, /pg_advisory_xact_lock/);
@@ -122,8 +124,11 @@ test('bounded mutation implementation retains transaction, replay, audit and no-
   assert.match(source, /beforeRevision/);
   assert.match(source, /afterRevision/);
   assert.match(source, /mobileVerificationReset/);
-  assert.match(source, /crm\.archiveClient/);
+  assert.match(source, /UPDATE crm_v2_client_relationships/);
+  assert.match(source, /canonicalClientPreserved:\s*true/);
+  assert.match(source, /otherRelationshipsPreserved:\s*true/);
   assert.match(source, /hardDelete:\s*false/);
+  assert.doesNotMatch(source, /crm\.archiveClient/);
   assert.doesNotMatch(source, /DELETE\s+FROM\s+crm_v2_clients/i);
   assert.deepEqual(EVENT_TYPES, {
     create: 'workspace_client_created',
