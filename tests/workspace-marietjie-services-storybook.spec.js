@@ -41,7 +41,7 @@ for (const viewport of [
       const geometry = await page.evaluate(() => ({
         viewportWidth: window.innerWidth,
         documentWidth: document.documentElement.scrollWidth,
-        targets: [...document.querySelectorAll('.workspace-services-story button,.workspace-services-story input,.workspace-services-story select,.workspace-services-story a')]
+        targets: [...document.querySelectorAll('.workspace-services-story button,.workspace-services-story input:not([type="checkbox"]),.workspace-services-story select,.workspace-services-story a,.workspace-services-story .check-field')]
           .filter(node => node.getClientRects().length > 0)
           .map(node => ({
             label: node.textContent.trim() || node.getAttribute('aria-label') || node.id,
