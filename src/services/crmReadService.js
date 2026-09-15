@@ -1,4 +1,5 @@
 const { pool } = require("../db/pool");
+const { CLIENT_RELATIONSHIP_TYPES, validClientScope, positiveId } = require('./clientRelationshipScope');
 
 function clampLimit(value, fallback = 50, max = 200) {
   const parsed = Number.parseInt(value, 10);
@@ -11,10 +12,60 @@ function parseOffset(value) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
-async function listClients({ q, status, limit, offset }) {
+function scopeSql(scope, relationshipAlias, ownerParam = null) {
+  if (!validClientScope(scope)) return null;
+  if (scope.kind === CLIENT_RELATIONSHIP_TYPES.TENANT_STAFF) {
+    if (!ownerParam) throw new Error('Tenant client scope requires an owner parameter');
+    return `${relationshipAlias}.relationship_type='tenant_staff' AND ${relationshipAlias}.owner_staff_id=${ownerParam}`;
+  }
+  return `${relationshipAlias}.relationship_type='clinic' AND ${relationshipAlias}.owner_staff_id IS NULL`;
+}
+
+function appointmentScopeSql(scope, appointmentExpression, ownerParam = null) {
+  if (!validClientScope(scope)) return null;
+  if (scope.kind === CLIENT_RELATIONSHIP_TYPES.TENANT_STAFF) {
+    if (!ownerParam) throw new Error('Tenant client scope requires an owner parameter');
+    return `EXISTS (
+      SELECT 1
+        FROM appointment_services scope_aps
+        JOIN service_visibility_policies scope_visibility
+          ON scope_visibility.service_id=scope_aps.service_id
+         AND scope_visibility.visibility_scope='tenant_private'
+       WHERE scope_aps.appointment_id=${appointmentExpression}
+         AND scope_visibility.owner_staff_id=${ownerParam}
+    )`;
+  }
+  return `(
+    NOT EXISTS (
+      SELECT 1 FROM appointment_services scope_any
+       WHERE scope_any.appointment_id=${appointmentExpression}
+    )
+    OR EXISTS (
+      SELECT 1
+        FROM appointment_services scope_aps
+        LEFT JOIN service_visibility_policies scope_visibility
+          ON scope_visibility.service_id=scope_aps.service_id
+         AND scope_visibility.visibility_scope='tenant_private'
+       WHERE scope_aps.appointment_id=${appointmentExpression}
+         AND scope_visibility.service_id IS NULL
+    )
+  )`;
+}
+
+async function listClients({ q, status, limit, offset, scope }) {
   const values = [];
   const where = [];
-  if (status) { values.push(status); where.push(`c.status = $${values.length}`); }
+  const scoped = validClientScope(scope);
+  let ownerParam = null;
+  if (scoped && scope.kind === CLIENT_RELATIONSHIP_TYPES.TENANT_STAFF) {
+    values.push(positiveId(scope.ownerStaffId));
+    ownerParam = `$${values.length}`;
+  }
+  if (scoped) where.push(scopeSql(scope, 'relationship', ownerParam));
+  if (status) {
+    values.push(status);
+    where.push(`${scoped ? 'relationship' : 'c'}.status = $${values.length}`);
+  }
   const search = String(q || '').trim().replace(/\s+/g, ' ').slice(0, 120);
   if (search) {
     values.push(`%${search}%`);
@@ -26,35 +77,60 @@ async function listClients({ q, status, limit, offset }) {
   }
   values.push(clampLimit(limit, 25, 50)); const limitParam = `$${values.length}`;
   values.push(parseOffset(offset)); const offsetParam = `$${values.length}`;
+  const appointmentScope = scoped ? appointmentScopeSql(scope, 'a_last.id', ownerParam) : null;
   const result = await pool.query(`
     /* workspaceClients:list:crm_v2 */
     SELECT c.id, c.name, c.normalized_mobile,
            TO_CHAR(c.date_of_birth, 'YYYY-MM-DD') AS date_of_birth,
-           c.gender, c.profile_status, c.mobile_verified_at, c.status,
+           c.gender, c.profile_status, c.mobile_verified_at,
+           ${scoped ? 'relationship.status' : 'c.status'} AS status,
            (SELECT MAX(a_last.starts_at)
               FROM appointments a_last
              WHERE a_last.crm_v2_client_id=c.id
-               AND a_last.client_id IS NULL) AS last_appointment_at
+               AND a_last.client_id IS NULL
+               ${appointmentScope ? `AND ${appointmentScope}` : ''}) AS last_appointment_at
     FROM crm_v2_clients c
+    ${scoped ? 'JOIN crm_v2_client_relationships relationship ON relationship.client_id=c.id' : ''}
     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
     ORDER BY LOWER(c.name), c.id
     LIMIT ${limitParam} OFFSET ${offsetParam}`, values);
   return result.rows;
 }
 
-async function getClient(id) {
+async function getClient(id, { scope } = {}) {
+  const scoped = validClientScope(scope);
+  const values = [id];
+  let ownerParam = null;
+  if (scoped && scope.kind === CLIENT_RELATIONSHIP_TYPES.TENANT_STAFF) {
+    values.push(positiveId(scope.ownerStaffId));
+    ownerParam = `$${values.length}`;
+  }
+  const relationshipFilter = scoped ? scopeSql(scope, 'relationship', ownerParam) : null;
   const result = await pool.query(`
     /* workspaceClients:detail:crm_v2 */
     SELECT c.id, c.name, c.normalized_mobile,
            TO_CHAR(c.date_of_birth, 'YYYY-MM-DD') AS date_of_birth,
-           c.gender, c.profile_status, c.mobile_verified_at, c.status
+           c.gender, c.profile_status, c.mobile_verified_at,
+           ${scoped ? 'relationship.status' : 'c.status'} AS status
       FROM crm_v2_clients c
+      ${scoped ? 'JOIN crm_v2_client_relationships relationship ON relationship.client_id=c.id' : ''}
      WHERE c.id=$1
-     LIMIT 1`, [id]);
+       ${relationshipFilter ? `AND ${relationshipFilter}` : ''}
+     LIMIT 1`, values);
   return result.rows[0] || null;
 }
 
-async function getClientAppointments(id, { limit, offset }) {
+async function getClientAppointments(id, { limit, offset, scope }) {
+  const values = [id];
+  const scoped = validClientScope(scope);
+  let ownerParam = null;
+  if (scoped && scope.kind === CLIENT_RELATIONSHIP_TYPES.TENANT_STAFF) {
+    values.push(positiveId(scope.ownerStaffId));
+    ownerParam = `$${values.length}`;
+  }
+  const appointmentScope = scoped ? appointmentScopeSql(scope, 'a.id', ownerParam) : null;
+  values.push(clampLimit(limit, 20, 50)); const limitParam = `$${values.length}`;
+  values.push(parseOffset(offset)); const offsetParam = `$${values.length}`;
   const result = await pool.query(`
     /* workspaceClients:history:crm_v2_xor */
     SELECT a.id, a.starts_at, a.ends_at, a.status, a.title,
@@ -68,8 +144,9 @@ async function getClientAppointments(id, { limit, offset }) {
      WHERE c.id=$1
        AND a.crm_v2_client_id=$1
        AND a.client_id IS NULL
+       ${appointmentScope ? `AND ${appointmentScope}` : ''}
      ORDER BY a.starts_at DESC
-     LIMIT $2 OFFSET $3`, [id, clampLimit(limit, 20, 50), parseOffset(offset)]);
+     LIMIT ${limitParam} OFFSET ${offsetParam}`, values);
   return result.rows;
 }
 

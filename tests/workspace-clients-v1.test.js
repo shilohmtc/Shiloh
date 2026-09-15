@@ -30,6 +30,7 @@ function authorityRow(overrides = {}) {
     id: 41,
     staff_id: 7,
     display_name: 'Synthetic Operator',
+    business_role: 'business_admin',
     permissions: { 'client:lookup': true },
     admin_active: true,
     staff_status: 'active',
@@ -79,7 +80,7 @@ function fakeReadService({ clients = [canonicalClient()], client = canonicalClie
   return {
     calls: [],
     async listClients(input) { this.calls.push({ method: 'listClients', input }); return clients; },
-    async getClient(id) { this.calls.push({ method: 'getClient', id }); return client; },
+    async getClient(id, input) { this.calls.push({ method: 'getClient', id, input }); return client; },
     async getClientAppointments(id, input) { this.calls.push({ method: 'getClientAppointments', id, input }); return appointments; },
   };
 }
@@ -135,7 +136,10 @@ test('current authenticated admin permission is re-read server-side for every Cl
   assert.match(db.calls[0].sql, /FROM staff_admin_accounts a/);
   assert.deepEqual(db.calls[0].values, [41]);
   assert.equal(model.authority.capability, 'client:lookup');
-  assert.deepEqual(reads.calls[0].input, { q: 'Synthetic Client', status: 'active', limit: 25, offset: 0 });
+  assert.deepEqual(reads.calls[0].input, {
+    q: 'Synthetic Client', status: 'active', limit: 25, offset: 0,
+    scope: { kind: 'clinic', ownerStaffId: null },
+  });
 });
 
 test('list and history pagination are hard-bounded before reads reach the database', async () => {
@@ -151,7 +155,11 @@ test('list and history pagination are hard-bounded before reads reach the databa
   const detail = await service.getClientDetail({ adminId: 41, clientId: 912, historyOffset: -10 });
   assert.equal(detail.appointments.length, CLIENT_HISTORY_PAGE_SIZE);
   assert.equal(detail.hasMore, true);
-  assert.deepEqual(reads.calls[2].input, { limit: CLIENT_HISTORY_PAGE_SIZE + 1, offset: 0 });
+  assert.deepEqual(reads.calls[2].input, {
+    limit: CLIENT_HISTORY_PAGE_SIZE + 1,
+    offset: 0,
+    scope: { kind: 'clinic', ownerStaffId: null },
+  });
 });
 
 test('search and detail resolve canonical CRM V2 clients only', async () => {

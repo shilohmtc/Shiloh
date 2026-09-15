@@ -1,0 +1,58 @@
+name: Workspace Marietjie Clients Proof
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  marietjie_clients_exact_head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Use Node 24.14.1
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.14.1
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run focused client-base authority and existing Clients regressions
+        run: node --test tests/workspace-marietjie-client-base.test.js tests/workspace-clients-v1.test.js tests/workspace-clients-write-v1.test.js
+      - name: Build production-backed Storybook catalogue
+        env:
+          STORYBOOK_DISABLE_TELEMETRY: '1'
+        run: npm run build-storybook -- --quiet
+      - name: Start static Storybook
+        run: |
+          python3 -m http.server 6006 --directory storybook-static > /tmp/shiloh-marietjie-clients-storybook.log 2>&1 &
+          echo $! > /tmp/shiloh-marietjie-clients-storybook.pid
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:6006/index.html > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/shiloh-marietjie-clients-storybook.log
+          exit 1
+      - name: Run Marietjie Clients Storybook accessibility proof on Desktop and Phone
+        run: npx playwright test --config=playwright.marietjie-clients.config.js
+      - name: Run authenticated Marietjie Clients Playwright proof on Desktop and Phone
+        run: node scripts/workspace-marietjie-clients-authenticated-playwright.js
+      - name: Upload Marietjie Clients UX evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: workspace-marietjie-clients-proof
+          path: |
+            artifacts/workspace-marietjie-clients-ui
+            artifacts/workspace-marietjie-clients-storybook
+            artifacts/workspace-marietjie-clients-storybook-report
+          if-no-files-found: error
+          retention-days: 14

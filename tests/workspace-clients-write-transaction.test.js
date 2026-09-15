@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   createWorkspaceClientMutationService,
-  clientRevision,
+  clientRelationshipRevision,
 } = require('../src/services/workspaceClientMutations');
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
@@ -37,12 +37,32 @@ function row(overrides = {}) {
   };
 }
 
-function createFakeDb({ clients = [], authority = principal() } = {}) {
+function relationshipKey(clientId, type, ownerStaffId) {
+  return `${Number(clientId)}:${type}:${ownerStaffId == null ? 'clinic' : Number(ownerStaffId)}`;
+}
+
+function createFakeDb({ clients = [], authority = principal(), relationships = null } = {}) {
+  const tenantOwner = String(authority?.business_role || '').trim().toLowerCase() === 'tenant_practitioner'
+    ? Number(authority?.staff_id) || null
+    : null;
+  const initialRelationships = relationships || clients.map((item, index) => ({
+    id: 5001 + index,
+    client_id: Number(item.id),
+    relationship_type: tenantOwner ? 'tenant_staff' : 'clinic',
+    owner_staff_id: tenantOwner,
+    status: 'active',
+    source: 'synthetic_backfill',
+    created_at: '2026-09-01T08:00:00.000Z',
+    updated_at: '2026-09-01T08:00:00.000Z',
+  }));
   const state = {
     clients: new Map(clients.map(item => [Number(item.id), clone(item)])),
+    relationships: new Map(initialRelationships.map(item => [relationshipKey(item.client_id, item.relationship_type, item.owner_staff_id), clone(item)])),
     events: [],
     nextId: Math.max(1000, ...clients.map(item => Number(item.id) || 0)) + 1,
+    nextRelationshipId: Math.max(5000, ...initialRelationships.map(item => Number(item.id) || 0)) + 1,
     updateCount: 0,
+    relationshipUpdateCount: 0,
     clock: 0,
   };
   let snapshot = null;
@@ -53,19 +73,33 @@ function createFakeDb({ clients = [], authority = principal() } = {}) {
   function rowsForMobile(mobile) {
     return [...state.clients.values()].filter(item => item.normalized_mobile === mobile && item.status === 'active').map(clone);
   }
+  function relationshipFor(clientId, type, ownerStaffId) {
+    return state.relationships.get(relationshipKey(clientId, type, ownerStaffId)) || null;
+  }
   async function query(sql, values = []) {
     const text = String(sql);
     if (/^BEGIN ISOLATION LEVEL SERIALIZABLE/.test(text)) {
-      snapshot = { clients: clone([...state.clients]), events: clone(state.events), nextId: state.nextId, updateCount: state.updateCount };
+      snapshot = {
+        clients: clone([...state.clients]),
+        relationships: clone([...state.relationships]),
+        events: clone(state.events),
+        nextId: state.nextId,
+        nextRelationshipId: state.nextRelationshipId,
+        updateCount: state.updateCount,
+        relationshipUpdateCount: state.relationshipUpdateCount,
+      };
       return { rows: [] };
     }
     if (/^COMMIT/.test(text)) { snapshot = null; return { rows: [] }; }
     if (/^ROLLBACK/.test(text)) {
       if (snapshot) {
         state.clients = new Map(snapshot.clients.map(([id, item]) => [Number(id), item]));
+        state.relationships = new Map(snapshot.relationships);
         state.events = snapshot.events;
         state.nextId = snapshot.nextId;
+        state.nextRelationshipId = snapshot.nextRelationshipId;
         state.updateCount = snapshot.updateCount;
+        state.relationshipUpdateCount = snapshot.relationshipUpdateCount;
       }
       snapshot = null;
       return { rows: [] };
@@ -79,6 +113,45 @@ function createFakeDb({ clients = [], authority = principal() } = {}) {
     }
     if (/INSERT INTO staff_auth_security_events/.test(text)) {
       state.events.push({ event_type: values[0], operator_admin_id: values[1], metadata: JSON.parse(values[2]) });
+      return { rows: [] };
+    }
+    if (/workspaceClientMutations:relationship/.test(text)) {
+      const clientId = Number(values[0]);
+      const tenant = /relationship_type='tenant_staff'/.test(text);
+      const relationship = relationshipFor(clientId, tenant ? 'tenant_staff' : 'clinic', tenant ? Number(values[1]) : null);
+      return { rows: relationship ? [clone(relationship)] : [] };
+    }
+    if (/INSERT INTO crm_v2_client_relationships/.test(text)) {
+      const clientId = Number(values[0]);
+      const tenant = /'tenant_staff'/.test(text);
+      const ownerStaffId = tenant ? Number(values[1]) : null;
+      const source = tenant ? values[2] : values[1];
+      const key = relationshipKey(clientId, tenant ? 'tenant_staff' : 'clinic', ownerStaffId);
+      const existing = state.relationships.get(key);
+      const now = timestamp();
+      const relationship = existing
+        ? { ...existing, status: 'active', source, updated_at: now }
+        : {
+            id: state.nextRelationshipId++,
+            client_id: clientId,
+            relationship_type: tenant ? 'tenant_staff' : 'clinic',
+            owner_staff_id: ownerStaffId,
+            status: 'active',
+            source,
+            created_at: now,
+            updated_at: now,
+          };
+      state.relationships.set(key, relationship);
+      return { rows: [{ id: relationship.id, status: relationship.status }] };
+    }
+    if (/UPDATE crm_v2_client_relationships/.test(text)) {
+      const relationshipId = Number(values[0]);
+      for (const [key, relationship] of state.relationships.entries()) {
+        if (Number(relationship.id) !== relationshipId) continue;
+        state.relationships.set(key, { ...relationship, status: 'archived', updated_at: timestamp() });
+        state.relationshipUpdateCount += 1;
+        break;
+      }
       return { rows: [] };
     }
     if (/FROM crm_v2_clients/.test(text) && /normalized_mobile=\$1 AND status='active'/.test(text)) {
@@ -140,23 +213,31 @@ function createFakeDb({ clients = [], authority = principal() } = {}) {
   return { query, async connect() { return client; }, state };
 }
 
-test('create is canonical, audited, idempotent and replay mismatch fails closed', async () => {
+function activeRevision(client) {
+  return clientRelationshipRevision(client, 'active');
+}
+
+test('create is canonical, relationship-scoped, audited, idempotent and replay mismatch fails closed', async () => {
   const db = createFakeDb();
   const service = createWorkspaceClientMutationService({ db });
   const first = await service.createClient({ adminId: 41, requestId: 'create_123456', name: 'New Client', mobile: '082 555 1234' });
   assert.equal(first.status, 'created');
   assert.equal(first.replayed, false);
   assert.equal(db.state.clients.size, 1);
+  assert.equal(db.state.relationships.size, 1);
+  assert.equal([...db.state.relationships.values()][0].status, 'active');
   assert.equal(db.state.events.length, 1);
   const event = db.state.events[0];
   assert.equal(event.event_type, 'workspace_client_created');
   assert.equal(event.metadata.origin, 'workspace.clients');
+  assert.equal(event.metadata.relationshipType, 'clinic');
   assert.match(event.metadata.changes.mobile.after, /^[a-f0-9]{64}$/);
   assert.doesNotMatch(JSON.stringify(event.metadata), /27825551234|0825551234/);
 
   const replay = await service.createClient({ adminId: 41, requestId: 'create_123456', name: 'New Client', mobile: '082 555 1234' });
   assert.equal(replay.replayed, true);
   assert.equal(db.state.clients.size, 1);
+  assert.equal(db.state.relationships.size, 1);
   assert.equal(db.state.events.length, 1);
 
   await assert.rejects(
@@ -166,11 +247,11 @@ test('create is canonical, audited, idempotent and replay mismatch fails closed'
   assert.equal(db.state.clients.size, 1);
 });
 
-test('mobile edit normalizes, resets verification, audits revisions and stale revision writes nothing', async () => {
+test('mobile edit normalizes, resets verification, audits relationship revisions and stale revision writes nothing', async () => {
   const original = row();
   const db = createFakeDb({ clients: [original] });
   const service = createWorkspaceClientMutationService({ db });
-  const beforeRevision = clientRevision(original);
+  const beforeRevision = activeRevision(original);
   const result = await service.updateClient({
     adminId: 41,
     clientId: 912,
@@ -198,11 +279,11 @@ test('mobile edit normalizes, resets verification, audits revisions and stale re
   assert.equal(db.state.clients.get(912).name, 'Synthetic Client');
 });
 
-test('semantic no-op preserves revision and performs zero CRM row update', async () => {
+test('semantic no-op preserves relationship revision and performs zero CRM row update', async () => {
   const original = row();
   const db = createFakeDb({ clients: [original] });
   const service = createWorkspaceClientMutationService({ db });
-  const revision = clientRevision(original);
+  const revision = activeRevision(original);
   const result = await service.updateClient({
     adminId: 41,
     clientId: 912,
@@ -225,7 +306,7 @@ test('mobile collision and missing manage authority fail closed without client m
   const db = createFakeDb({ clients: [first, second] });
   const service = createWorkspaceClientMutationService({ db });
   await assert.rejects(
-    () => service.updateClient({ adminId: 41, clientId: 912, expectedRevision: clientRevision(first), requestId: 'collision_123', name: 'Synthetic Client', mobile: '083 999 0000', dateOfBirth: '1994-02-18', gender: 'female' }),
+    () => service.updateClient({ adminId: 41, clientId: 912, expectedRevision: activeRevision(first), requestId: 'collision_123', name: 'Synthetic Client', mobile: '083 999 0000', dateOfBirth: '1994-02-18', gender: 'female' }),
     error => error.code === 'WORKSPACE_CLIENT_MOBILE_CONFLICT' && error.httpStatus === 409
   );
   assert.equal(db.state.updateCount, 0);
@@ -234,21 +315,27 @@ test('mobile collision and missing manage authority fail closed without client m
   const deniedDb = createFakeDb({ clients: [first], authority: principal({ permissions: { 'client:lookup': true } }) });
   const denied = createWorkspaceClientMutationService({ db: deniedDb });
   await assert.rejects(
-    () => denied.archiveClient({ adminId: 41, clientId: 912, expectedRevision: clientRevision(first), requestId: 'archive_12345' }),
+    () => denied.archiveClient({ adminId: 41, clientId: 912, expectedRevision: activeRevision(first), requestId: 'archive_12345' }),
     error => error.code === 'WORKSPACE_CLIENT_MANAGE_FORBIDDEN' && error.httpStatus === 403
   );
   assert.equal(deniedDb.state.updateCount, 0);
+  assert.equal(deniedDb.state.relationshipUpdateCount, 0);
 });
 
-test('archive preserves the canonical row and history-compatible identity with no hard delete', async () => {
+test('archive removes only the scoped relationship and preserves canonical identity/history', async () => {
   const original = row();
   const db = createFakeDb({ clients: [original] });
   const service = createWorkspaceClientMutationService({ db });
-  const result = await service.archiveClient({ adminId: 41, clientId: 912, expectedRevision: clientRevision(original), requestId: 'archive_98765' });
+  const result = await service.archiveClient({ adminId: 41, clientId: 912, expectedRevision: activeRevision(original), requestId: 'archive_98765' });
   assert.equal(result.status, 'archived');
   assert.equal(db.state.clients.size, 1);
-  assert.equal(db.state.clients.get(912).status, 'archived');
+  assert.equal(db.state.clients.get(912).status, 'active');
+  assert.equal(db.state.updateCount, 0, 'canonical CRM row must not be archived by a relationship removal');
+  assert.equal(db.state.relationshipUpdateCount, 1);
+  assert.equal([...db.state.relationships.values()][0].status, 'archived');
   assert.equal(db.state.events[0].event_type, 'workspace_client_archived');
+  assert.equal(db.state.events[0].metadata.changes.canonicalClientPreserved, true);
+  assert.equal(db.state.events[0].metadata.changes.otherRelationshipsPreserved, true);
   assert.equal(db.state.events[0].metadata.changes.hardDelete, false);
   assert.equal(db.state.events[0].metadata.changes.appointmentHistoryPreserved, true);
 });

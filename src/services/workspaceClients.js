@@ -1,7 +1,8 @@
 const { pool } = require('../db/pool');
 const crmReadService = require('./crmReadService');
 const { createWorkspaceCommunicationEvidenceService } = require('./workspaceCommunicationEvidence');
-const { evaluateClientManageAuthority, clientRevision } = require('./workspaceClientMutations');
+const { evaluateClientManageAuthority, clientRelationshipRevision } = require('./workspaceClientMutations');
+const { scopeForPrincipal, validClientScope } = require('./clientRelationshipScope');
 
 const CLIENT_LOOKUP_CAPABILITY = 'client:lookup';
 const CLIENT_LIST_PAGE_SIZE = 24;
@@ -32,11 +33,16 @@ function evaluateClientReadAuthority(rows = []) {
   if (!adminId || principal.admin_active !== true) return null;
   if (principal.staff_id != null && principal.staff_status !== 'active') return null;
   if (permissionSet(principal.permissions)[CLIENT_LOOKUP_CAPABILITY] !== true) return null;
+  const clientScope = scopeForPrincipal(principal);
+  if (!validClientScope(clientScope)) return null;
   return {
-    key: 'workspace_client_lookup_v1',
+    key: 'workspace_client_lookup_v2',
     operatorAdminId: adminId,
     displayName: String(principal.display_name || 'Staff').trim() || 'Staff',
     capability: CLIENT_LOOKUP_CAPABILITY,
+    businessRole: String(principal.business_role || '').trim().toLowerCase(),
+    linkedStaffId: positiveId(principal.staff_id),
+    clientScope,
   };
 }
 
@@ -66,7 +72,7 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
     if (!id) return null;
     const result = await db.query(
       `/* workspaceClients:principal */
-       SELECT a.id, a.staff_id, a.display_name, a.permissions,
+       SELECT a.id, a.staff_id, a.display_name, a.permissions, a.business_role,
               a.active AS admin_active, s.status AS staff_status
          FROM staff_admin_accounts a
          LEFT JOIN staff s ON s.id=a.staff_id
@@ -103,6 +109,7 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
       status: safeStatus,
       limit: CLIENT_LIST_PAGE_SIZE + 1,
       offset: safeOffset,
+      scope: authority.clientScope,
     });
     return {
       authority,
@@ -121,8 +128,12 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
     const manageAllowed = authority.manageAllowed === true;
     const id = positiveId(clientId);
     if (!id) throw new WorkspaceClientsError('WORKSPACE_CLIENTS_INVALID_ID', 'Client reference is invalid.', 400);
-    const client = await readService.getClient(id);
+
+    // Relationship scope is applied before profile/history/communication reads.
+    // A crafted direct URL for another client base therefore resolves as 404.
+    const client = await readService.getClient(id, { scope: authority.clientScope });
     if (!client) throw new WorkspaceClientsError('WORKSPACE_CLIENT_NOT_FOUND', 'Client was not found.', 404);
+
     const revisionResult = await db.query(
       `/* workspaceClients:revision */
        SELECT id,name,normalized_mobile,date_of_birth,gender,profile_status,
@@ -133,11 +144,13 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
       [id]
     );
     if (!revisionResult.rows[0]) throw new WorkspaceClientsError('WORKSPACE_CLIENT_NOT_FOUND', 'Client was not found.', 404);
-    client.revision = clientRevision(revisionResult.rows[0]);
+    client.revision = clientRelationshipRevision(revisionResult.rows[0], client.status);
+
     const safeOffset = normalizeOffset(historyOffset);
     const history = await readService.getClientAppointments(id, {
       limit: CLIENT_HISTORY_PAGE_SIZE + 1,
       offset: safeOffset,
+      scope: authority.clientScope,
     });
     let communications = [];
     let communicationsUnavailable = false;
@@ -146,6 +159,7 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
         clientId: client.id,
         waId: client.normalized_mobile,
         limit: 30,
+        scope: authority.clientScope,
       });
     } catch (_) {
       communicationsUnavailable = true;
