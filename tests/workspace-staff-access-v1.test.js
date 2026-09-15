@@ -166,14 +166,15 @@ test('no browser session is unauthorized and Calendar/Clients capabilities do no
   });
 });
 
-test('Staff nav stays disabled until same-origin authority check succeeds', () => {
+test('Staff nav stays disabled until same-origin authority check succeeds and then opens Staff access', () => {
   const html = renderWorkspaceNavigation({ active: 'calendar', calendarHref: '/calendar/read-only', clientsHref: '/calendar/clients' });
   assert.match(html, /data-workspace-destination="staff"/);
   assert.match(html, /class="workspace-link future"[^>]*>Staff/);
   assert.match(html, /\/calendar\/workspace\/nav\.js/);
   const script = navScript();
   assert.match(script, /\/calendar\/team\/access/);
-  assert.match(script, /a\.href='\/calendar\/team'/);
+  assert.match(script, /a\.href='\/calendar\/team\/staff-access'/);
+  assert.match(script, /a\.textContent='Staff access'/);
   assert.doesNotMatch(script, /console\.|localStorage|sessionStorage/);
 });
 

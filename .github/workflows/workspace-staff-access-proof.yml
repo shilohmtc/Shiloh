@@ -1,0 +1,58 @@
+name: Workspace Staff Access Proof
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  staff_access_exact_head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Use Node 24.14.1
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.14.1
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run Staff access authority and boundary regressions
+        run: node --test tests/workspace-staff-access-profiles-v1.test.js tests/workspace-staff-access-v1.test.js tests/workspace-staff-access-policy-boundary.test.js tests/workspace-access-v2.test.js
+      - name: Build production-backed Storybook catalogue
+        env:
+          STORYBOOK_DISABLE_TELEMETRY: '1'
+        run: npm run build-storybook -- --quiet
+      - name: Start static Storybook
+        run: |
+          python3 -m http.server 6006 --directory storybook-static > /tmp/shiloh-staff-access-storybook.log 2>&1 &
+          echo $! > /tmp/shiloh-staff-access-storybook.pid
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:6006/index.html > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/shiloh-staff-access-storybook.log
+          exit 1
+      - name: Run Staff access Storybook accessibility proof on Desktop and Phone
+        run: npx playwright test --config=playwright.staff-access.config.js
+      - name: Run authenticated Staff access Playwright proof on Desktop and Phone
+        run: node scripts/workspace-staff-access-authenticated-playwright.js
+      - name: Upload Staff access UX evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: workspace-staff-access-proof
+          path: |
+            artifacts/workspace-staff-access-ui
+            artifacts/workspace-staff-access-storybook
+            artifacts/workspace-staff-access-storybook-report
+          if-no-files-found: error
+          retention-days: 14
