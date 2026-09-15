@@ -1,5 +1,5 @@
 const workspaceClients = require('./workspaceClients');
-const workspaceStaff = require('./workspaceStaff');
+const workspaceStaffAccess = require('./workspaceStaffAccess');
 const workspaceServices = require('./workspaceServices');
 const workspaceReports = require('./workspaceReportsProfileView');
 const workspaceClinicHours = require('./workspaceClinicHoursReadView');
@@ -21,7 +21,7 @@ function allowedDestination(allowed, key) {
 
 function createWorkspaceNavigationService({
   clientAccessService = workspaceClients,
-  staffAccessService = workspaceStaff,
+  staffAccessService = workspaceStaffAccess,
   servicesAccessService = workspaceServices,
   reportsAccessService = workspaceReports,
   clinicHoursAccessService = workspaceClinicHours,
@@ -31,7 +31,7 @@ function createWorkspaceNavigationService({
     const calendarAllowed = Boolean(session?.viewer);
     const [clients, staff, services, reports, clinicHours] = await Promise.allSettled([
       clientAccessService.resolveAccess(adminId),
-      staffAccessService.resolveAccess(adminId),
+      staffAccessService.resolveManageAccess(adminId),
       servicesAccessService.resolveAccess(adminId),
       reportsAccessService.resolveAccess(adminId),
       clinicHoursAccessService.resolveAccess(adminId),
