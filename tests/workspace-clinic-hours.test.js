@@ -53,7 +53,9 @@ function fakeDatabase({ authority = principal, rows = initialRows } = {}) {
     if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [], rowCount: 0 };
     if (sql.includes('workspaceClinicHours:principal')) return { rows: authority ? [authority] : [], rowCount: authority ? 1 : 0 };
     if (sql.includes('workspaceClinicHours:activeRows')) return { rows: active.map(row => ({ ...row })), rowCount: active.length };
+    if (sql.includes('workspaceClinicHours:assistantRows')) return { rows: active.map(row => ({ ...row })), rowCount: active.length };
     if (sql.includes('workspaceClinicHours:exceptionRows')) return { rows: [], rowCount: 0 };
+    if (sql.includes('workspaceClinicHours:holidayRows')) return { rows: [], rowCount: 0 };
     if (sql.includes('workspaceClinicHours:deactivateWritable')) {
       active = active.filter(row => Number(row.day_of_week) === 0);
       return { rows: [], rowCount: 6 };

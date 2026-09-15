@@ -8,8 +8,10 @@ import groupBookingPresentation from '../src/presentation/calendarGroupBookingUx
 import paymentPresentation from '../src/presentation/calendarPaymentsUx.js';
 import passkeyPresentation from '../src/presentation/staffPasskeyUx.js';
 import pwaPresentation from '../src/presentation/workspacePwa.js';
+import clinicHoursPresentation from '../src/presentation/workspaceClinicHoursUx.js';
 
 const { renderDashboardPage } = dashboardPresentation;
+const { renderClinicHoursPage } = clinicHoursPresentation;
 const { renderClientDetailPageWithCommunications } = clientPresentation;
 const { renderMessagesPage } = messagesPresentation;
 const { calendarAppointmentCompactEditorClientScript } = editorPresentation;
@@ -335,6 +337,18 @@ export const PhonePasskeyDevices = {
       { id: 1, createdAt: '2026-09-13T15:05:00.000Z', lastUsedAt: '2026-09-13T15:42:00.000Z', backedUp: true },
       { id: 2, createdAt: '2026-09-12T06:30:00.000Z', lastUsedAt: null, backedUp: true },
     ],
+  })),
+};
+export const ClinicAndAssistantHours = {
+  render: () => productionSurface(renderClinicHoursPage({
+    authority: { displayName: 'Christel' },
+    location: { id: 1, name: 'Shiloh', timezone: 'Africa/Johannesburg' },
+    revision: 'a'.repeat(64),
+    assistantRevision: 'b'.repeat(64),
+    days: [1,2,3,4,5,6].map(dayOfWeek => ({ dayOfWeek, name: ['','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dayOfWeek], open:true, startsLocal:'08:00', endsLocal:dayOfWeek===6?'14:00':'18:00' })).concat({ dayOfWeek:0, name:'Sunday', open:false, permanent:true }),
+    assistantDays: [1,2,3,4,5,6].map(dayOfWeek => ({ dayOfWeek, name: ['','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dayOfWeek], open:true, startsLocal:'09:00', endsLocal:dayOfWeek===6?'13:00':'16:30' })).concat({ dayOfWeek:0, name:'Sunday', open:false, permanent:true }),
+    holidays: [{ exceptionDate:'2026-09-24', holidayName:'Heritage Day', clinicExceptionType:null, assistantExceptionType:null, decisionNeeded:true }],
+    exceptions: [],
   })),
 };
 export const DeviceManagementDialogs = {

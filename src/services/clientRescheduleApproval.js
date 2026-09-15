@@ -1,5 +1,5 @@
 const { pool } = require('../db/pool');
-const { checkClinicHours } = require('./clinicHours');
+const { checkAssistantBookingHours: checkClinicHours } = require('./assistantBookingHours');
 const { checkAuthoritativeSchedule } = require('./adminAvailability');
 const { pendingBookingProposalConflicts } = require('./bookingRequestHolds');
 const { sendWhatsAppTemplate } = require('./whatsapp');
