@@ -165,7 +165,8 @@ async function main() {
       assert.equal(geometry.deleteButtons, 0);
       assert.equal(geometry.tabs, 3);
       assert.equal(geometry.visiblePanels, 1);
-      assert.match(geometry.text, /Clinic-wide authority/);
+      assert.match(geometry.text, /Good to know/);
+      assert.match(geometry.text, /Staff booking hours/);
       assert.match(geometry.text, /Day of Reconciliation/);
       assert.match(geometry.text, /Christmas Day/);
       assert.match(geometry.text, /practitioner leave or practitioner blocks/);

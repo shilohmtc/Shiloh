@@ -140,8 +140,12 @@ test('#751 presentation is explicit about existing appointments, holiday separat
   const days = canonicalDays(initialRows);
   const html = renderClinicHoursPage({ location, days, revision: revisionFor(location.id, days) });
   assert.match(html, /Clinic hours/);
-  assert.match(html, /Existing appointments are not moved or cancelled/);
-  assert.match(html, /Public holidays and one-off clinic closures remain separate/);
+  assert.match(html, /will not move or cancel appointments already in the Calendar/);
+  assert.match(html, /Public holidays and special dates are managed separately/);
+  assert.match(html, /Staff bookings/);
+  assert.match(html, /Online bookings/);
+  assert.match(html, /Public holidays/);
+  assert.doesNotMatch(html, /Clinic-wide authority|Two clear boundaries|Client-facing availability/);
   assert.match(html, /Sunday cannot be opened here/);
   assert.match(html, /type="time"/);
   assert.match(clinicHoursClientScript(), /staff-auth\/csrf/);
