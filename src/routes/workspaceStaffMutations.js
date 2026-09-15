@@ -4,6 +4,7 @@ const workspaceStaffAccess = require('../services/workspaceStaffAccess');
 const workspaceStaffAccessCompletion = require('../services/workspaceStaffAccessCompletion');
 const workspaceStaffAccessPolicy = require('../services/workspaceStaffAccessPolicy');
 const workspaceAccessV2 = require('../services/workspaceAccessV2');
+const workspaceStaffAccessProfiles = require('../services/workspaceStaffAccessProfiles');
 const { createWorkspaceReceptionDeviceSigninService } = require('../services/workspaceReceptionDeviceSignin');
 const {
   requireStaffSession,
@@ -26,7 +27,7 @@ function sendMutationError(error, req, res, next) {
   const status = mutationStatus(error);
   if (status === 503) return next(error);
   return res.status(status).json({
-    error: error?.message || 'The canonical Staff operation failed closed.',
+    error: error?.message || 'The Staff access operation failed closed.',
     code: error?.code || 'WORKSPACE_STAFF_OPERATION_FAILED',
     requestId: req.id,
   });
@@ -48,6 +49,7 @@ function createWorkspaceStaffMutationRouter({
   accessCompletionService = workspaceStaffAccessCompletion,
   accessPolicyService = workspaceStaffAccessPolicy,
   accessV2Service = workspaceAccessV2,
+  profileService = workspaceStaffAccessProfiles,
   receptionDeviceSigninService = createWorkspaceReceptionDeviceSigninService({ env }),
 } = {}) {
   if (!sessionService) throw new Error('Workspace Staff mutations require the existing staff browser session service');
@@ -75,9 +77,7 @@ function createWorkspaceStaffMutationRouter({
         clientBookable: req.body?.clientBookable,
       });
       return res.status(201).json(result);
-    } catch (error) {
-      return sendMutationError(error, req, res, next);
-    }
+    } catch (error) { return sendMutationError(error, req, res, next); }
   });
 
   router.post('/:id/update', ...mutationChain, async (req, res, next) => {
@@ -92,9 +92,7 @@ function createWorkspaceStaffMutationRouter({
         clientBookable: req.body?.clientBookable,
       });
       return res.status(200).json(result);
-    } catch (error) {
-      return sendMutationError(error, req, res, next);
-    }
+    } catch (error) { return sendMutationError(error, req, res, next); }
   });
 
   router.post('/:id/status', ...mutationChain, async (req, res, next) => {
@@ -107,9 +105,7 @@ function createWorkspaceStaffMutationRouter({
         status: req.body?.status,
       });
       return res.status(200).json(result);
-    } catch (error) {
-      return sendMutationError(error, req, res, next);
-    }
+    } catch (error) { return sendMutationError(error, req, res, next); }
   });
 
   router.post('/:id/access/enable', ...mutationChain, async (req, res, next) => {
@@ -123,9 +119,7 @@ function createWorkspaceStaffMutationRouter({
         identityConfirmed: req.body?.identityConfirmed === true,
       });
       return res.status(200).json(result);
-    } catch (error) {
-      return sendMutationError(error, req, res, next);
-    }
+    } catch (error) { return sendMutationError(error, req, res, next); }
   });
 
   router.post('/:id/access/complete', ...mutationChain, async (req, res, next) => {
@@ -139,9 +133,7 @@ function createWorkspaceStaffMutationRouter({
         identityConfirmed: req.body?.identityConfirmed === true,
       });
       return res.status(200).json(result);
-    } catch (error) {
-      return sendMutationError(error, req, res, next);
-    }
+    } catch (error) { return sendMutationError(error, req, res, next); }
   });
 
   router.post('/:id/access/policy', ...mutationChain, async (req, res, next) => {
@@ -157,9 +149,32 @@ function createWorkspaceStaffMutationRouter({
           : {}),
       });
       return res.status(200).json(result);
-    } catch (error) {
-      return sendMutationError(error, req, res, next);
-    }
+    } catch (error) { return sendMutationError(error, req, res, next); }
+  });
+
+  router.post('/staff-access/:id/profile', ...mutationChain, async (req, res, next) => {
+    try {
+      return res.status(200).json(await profileService.applyProfile({
+        adminId: req.staffBrowserSession?.adminId,
+        principalId: req.params?.id,
+        expectedRevision: req.body?.expectedRevision,
+        requestId: req.body?.requestId,
+        profile: req.body?.profile,
+      }));
+    } catch (error) { return sendMutationError(error, req, res, next); }
+  });
+
+  router.post('/staff-access/:id/toggle', ...mutationChain, async (req, res, next) => {
+    try {
+      return res.status(200).json(await profileService.setToggle({
+        adminId: req.staffBrowserSession?.adminId,
+        principalId: req.params?.id,
+        expectedRevision: req.body?.expectedRevision,
+        requestId: req.body?.requestId,
+        toggle: req.body?.toggle,
+        on: req.body?.on,
+      }));
+    } catch (error) { return sendMutationError(error, req, res, next); }
   });
 
   router.post('/workspace-access/reception', ...mutationChain, async (req, res, next) => {
@@ -201,12 +216,7 @@ function createWorkspaceStaffMutationRouter({
           requestId: req.id,
         });
       }
-      return res.status(201).json({
-        ok: true,
-        setupUrl: result.setupUrl,
-        expiresAt: result.expiresAt,
-        displayName: result.displayName,
-      });
+      return res.status(201).json({ ok: true, setupUrl: result.setupUrl, expiresAt: result.expiresAt, displayName: result.displayName });
     } catch (error) { return next(error); }
   });
 
