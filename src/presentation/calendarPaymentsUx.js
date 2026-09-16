@@ -23,7 +23,15 @@ function calendarPaymentsClientScript() {
 }
 
 function calendarPaymentLinkClientScript() {
-  return `(()=>{'use strict';document.addEventListener('click',event=>{const card=event.target.closest&&event.target.closest('.event-card[data-kind="appointment"][data-canonical="true"]');if(!card)return;window.setTimeout(()=>{const dialog=document.querySelector('[data-appointment-details-dialog]');if(!dialog||!dialog.open||dialog.querySelector('[data-details-payment]'))return;const raw=String(card.dataset.eventId||card.dataset.appointmentId||'');const match=raw.match(/(?:appointment-)?(\\d+)/);if(!match)return;const link=document.createElement('a');link.dataset.detailsPayment='true';link.href='/calendar/payments/appointments/'+match[1];link.textContent='Payments';link.style.cssText='display:inline-flex;align-items:center;justify-content:center;min-height:44px;border:1px solid var(--leaf-deep,#294b3e);border-radius:9px;padding:10px 13px;color:var(--leaf-deep,#294b3e);font-weight:800;text-decoration:none';const actions=dialog.querySelector('.appointment-details-actions');if(actions)actions.insertBefore(link,actions.firstChild);},0);},true);})();`;
+  return `(()=>{'use strict';
+function idFromCard(card){const raw=String(card&&card.dataset&&(card.dataset.eventId||card.dataset.appointmentId)||'');const match=raw.match(/(?:appointment-)?(\\d+)/);return match?match[1]:'';}
+function idFromDialog(dialog){const title=dialog&&dialog.querySelector('[data-details-title]');const match=String(title&&title.textContent||'').match(/#(\\d+)/);return match?match[1]:'';}
+function cardForId(id){return Array.from(document.querySelectorAll('.event-card[data-kind="appointment"][data-canonical="true"]')).find(card=>idFromCard(card)===String(id));}
+function addPaymentLink(card){const dialog=document.querySelector('[data-appointment-details-dialog]');if(!dialog||!dialog.open||dialog.querySelector('[data-details-payment]'))return;const id=idFromCard(card)||idFromDialog(dialog);if(!id)return;const link=document.createElement('a');link.dataset.detailsPayment='true';link.href='/calendar/payments/appointments/'+id;link.textContent='Payments';link.style.cssText='display:inline-flex;align-items:center;justify-content:center;min-height:44px;border:1px solid var(--leaf-deep,#294b3e);border-radius:9px;padding:10px 13px;color:var(--leaf-deep,#294b3e);font-weight:800;text-decoration:none';const actions=dialog.querySelector('.appointment-details-actions');if(actions)actions.insertBefore(link,actions.firstChild);}
+function queue(card){window.setTimeout(()=>addPaymentLink(card||cardForId(idFromDialog(document.querySelector('[data-appointment-details-dialog]')))),0);}
+window.addEventListener('click',event=>{const card=event.target.closest&&event.target.closest('.event-card[data-kind="appointment"][data-canonical="true"]');if(card)queue(card);},true);
+queue();
+})();`;
 }
 
 module.exports = { renderCalendarPaymentPage, calendarPaymentsClientScript, calendarPaymentLinkClientScript };
