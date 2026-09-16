@@ -21,6 +21,14 @@ function permissionSet(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
+function normalizeTemplateKey(value) {
+  const key = String(value || '').trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9_]{1,79}$/.test(key)) {
+    throw new WorkspaceFormsError('WORKSPACE_FORM_INVALID_KEY', 'That form reference is invalid.', 404);
+  }
+  return key;
+}
+
 function evaluateFormsReadAuthority(rows = []) {
   if (!Array.isArray(rows) || rows.length !== 1) return null;
   const row = rows[0];
@@ -155,6 +163,60 @@ function createWorkspaceFormsService({ db = pool } = {}) {
     }));
   }
 
+  async function loadPreviewForm(templateKey) {
+    const key = normalizeTemplateKey(templateKey);
+    const templateResult = await db.query(`/* workspaceForms:preview-template */
+      SELECT t.id,t.template_key,t.title,t.status,
+             tv.id AS template_version_id,tv.version_number,tv.consent_text,tv.settings
+        FROM consultation_form_templates t
+        JOIN LATERAL (
+          SELECT v.* FROM consultation_form_template_versions v
+           WHERE v.template_id=t.id
+           ORDER BY v.version_number DESC LIMIT 1
+        ) tv ON TRUE
+       WHERE t.status='active' AND t.template_key=$1
+       LIMIT 1`, [key]);
+    const row = templateResult.rows[0];
+    if (!row) throw new WorkspaceFormsError('WORKSPACE_FORM_NOT_FOUND', 'That form was not found.', 404);
+
+    const versionId = positiveId(row.template_version_id);
+    const [sectionsResult, servicesResult] = await Promise.all([
+      db.query(`/* workspaceForms:preview-sections */
+        SELECT s.section_key,s.title,sv.version_number,sv.definition,ts.position
+          FROM consultation_form_template_sections ts
+          JOIN consultation_form_section_versions sv ON sv.id=ts.section_version_id
+          JOIN consultation_form_sections s ON s.id=sv.section_id
+         WHERE ts.template_version_id=$1
+         ORDER BY ts.position`, [versionId]),
+      db.query(`/* workspaceForms:preview-services */
+        SELECT svc.id,svc.name
+          FROM consultation_form_service_mappings m
+          JOIN services svc ON svc.id=m.service_id
+         WHERE m.template_version_id=$1 AND m.required=TRUE
+         ORDER BY LOWER(svc.name),svc.id`, [versionId]),
+    ]);
+
+    return {
+      id: positiveId(row.id),
+      templateKey: row.template_key,
+      title: row.title,
+      versionId,
+      version: Number(row.version_number || 0),
+      consentText: String(row.consent_text || ''),
+      settings: row.settings && typeof row.settings === 'object' && !Array.isArray(row.settings) ? row.settings : {},
+      services: servicesResult.rows.map(service => ({ id: positiveId(service.id), name: String(service.name || '') })),
+      sections: sectionsResult.rows.map(section => ({
+        sectionKey: String(section.section_key || ''),
+        title: String(section.title || ''),
+        version: Number(section.version_number || 0),
+        position: Number(section.position || 0),
+        definition: section.definition && typeof section.definition === 'object' && !Array.isArray(section.definition)
+          ? section.definition
+          : {},
+      })),
+    };
+  }
+
   async function assignmentStatusRows(authority) {
     const values = [];
     let scope = '';
@@ -191,10 +253,23 @@ function createWorkspaceFormsService({ db = pool } = {}) {
     };
   }
 
+  async function getFormPreview({ adminId, templateKey } = {}) {
+    const authority = await requireAccess(adminId);
+    const form = await loadPreviewForm(templateKey);
+    return {
+      authority,
+      form,
+      previewOnly: true,
+      deliveryEnabled: false,
+      clientFormEnabled: false,
+    };
+  }
+
   return {
     resolveAccess,
     requireAccess,
     listForms,
+    getFormPreview,
   };
 }
 
@@ -206,6 +281,7 @@ module.exports = {
   WorkspaceFormsError,
   positiveId,
   permissionSet,
+  normalizeTemplateKey,
   evaluateFormsReadAuthority,
   emptyStatusCounts,
   normalizeStatusCounts,
