@@ -16,7 +16,7 @@ SELECT s.id, 1, $json$
   "groups": [
     {
       "key": "sports_context",
-      "title": "Your activity & treatment goals",
+      "title": "Your activity & treatment context",
       "fields": [
         {"key":"doctor_name","type":"text","label":"Doctor name","required":false},
         {"key":"doctor_number","type":"text","label":"Doctor number","required":false},
@@ -30,7 +30,7 @@ SELECT s.id, 1, $json$
       "questions": [
         {"key":"recent_stroke_six_months_to_two_years","type":"yes_no","label":"Have you had a recent stroke within the last 6 months to 2 years?","required":true},
         {"key":"autoimmune_disease_disorder","type":"yes_no","label":"Do you have an auto-immune disease or disorder?","required":true,"follow_up":{"key":"autoimmune_details","type":"text","label":"If yes, please give details."}},
-        {"key":"nervous_muscular_disease_disorder","type":"yes_no","label":"Do you have a nervous or muscular disease or disorder?","required":true,"follow_up":{"key":"nervous_muscular_details","type":"text","label":"If yes, please give details."}},
+        {"key":"nervous_system_disease_disorder","type":"yes_no","label":"Do you have a nervous-system disease or disorder?","required":true,"follow_up":{"key":"nervous_system_details","type":"text","label":"If yes, please give details."}},
         {"key":"kidney_or_liver_disorder","type":"yes_no","label":"Do you have kidney or liver disease or a related disorder?","required":true},
         {"key":"skin_disease_disorder","type":"yes_no","label":"Do you have a skin disease or disorder?","required":true}
       ]
@@ -55,6 +55,10 @@ FROM consultation_form_templates t
 WHERE t.template_key='remedial_sports_massage_consultation'
 ON CONFLICT (template_id, version_number) DO NOTHING;
 
+-- Core already owns the shared medical screening, including heart/high blood
+-- pressure treatment detail, diabetes, cancer/chemo, epilepsy, respiratory and
+-- musculoskeletal conditions, headaches, surgery, pregnancy, ARVs, allergies,
+-- alcohol/drugs, other medication/conditions and the client's treatment goal.
 INSERT INTO consultation_form_template_sections(template_version_id, section_version_id, position)
 SELECT tv.id, sv.id, x.position
 FROM consultation_form_template_versions tv
@@ -90,6 +94,7 @@ BEGIN
    WHERE svc.status='active'
      AND (
        svc.name IN (
+         'Sports Massage Full Body',
          'Full Body Sports Massage',
          'Targeted Area-Specific Sports Massage',
          'Bamboo Sports Massage - Area Specific'
