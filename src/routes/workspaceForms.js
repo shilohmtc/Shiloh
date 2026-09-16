@@ -1,8 +1,10 @@
 const express = require('express');
 const workspaceForms = require('../services/workspaceForms');
+const workspaceFormSubmissions = require('../services/workspaceFormSubmissions');
 const {
   renderFormsPage,
   renderFormPreviewPage,
+  renderSubmissionPage,
   renderFormsUnavailablePage,
 } = require('../presentation/workspaceFormsUx');
 const { requireStaffSession } = require('../middleware/staffBrowserSession');
@@ -22,8 +24,8 @@ function setWorkspaceFormsSecurityHeaders(res) {
 }
 
 function safeError(error) {
-  if (Number(error?.httpStatus) === 403) return { status: 403, message: 'You do not have access to Forms.' };
-  if (Number(error?.httpStatus) === 404) return { status: 404, message: 'That consultation form was not found.' };
+  if (Number(error?.httpStatus) === 403) return { status: 403, message: error.message || 'You do not have access to this form information.' };
+  if (Number(error?.httpStatus) === 404) return { status: 404, message: error.message || 'That consultation form was not found.' };
   return { status: 503, message: 'Forms are temporarily unavailable.' };
 }
 
@@ -31,8 +33,10 @@ function createWorkspaceFormsRouter({
   env = process.env,
   sessionService,
   service = workspaceForms,
+  submissionService = workspaceFormSubmissions,
   renderPage = renderFormsPage,
   renderPreview = renderFormPreviewPage,
+  renderSubmission = renderSubmissionPage,
   renderUnavailable = renderFormsUnavailablePage,
   staffAccessPath = '/calendar/staff',
 } = {}) {
@@ -60,8 +64,25 @@ function createWorkspaceFormsRouter({
 
   router.get('/', async (req, res) => {
     try {
-      const model = await service.listForms({ adminId: req.staffBrowserSession?.adminId });
-      return res.status(200).type('html').send(renderPage(model));
+      const [model, submissions] = await Promise.all([
+        service.listForms({ adminId: req.staffBrowserSession?.adminId }),
+        submissionService.listSubmissions({ adminId: req.staffBrowserSession?.adminId }),
+      ]);
+      return res.status(200).type('html').send(renderPage({ ...model, submissions }));
+    } catch (error) {
+      const safe = safeError(error);
+      return res.status(safe.status).type('html').send(renderUnavailable({ message: safe.message }));
+    }
+  });
+
+  router.get('/submissions/:kind/:reference', async (req, res) => {
+    try {
+      const model = await submissionService.getSubmission({
+        adminId: req.staffBrowserSession?.adminId,
+        kind: req.params.kind,
+        reference: req.params.reference,
+      });
+      return res.status(200).type('html').send(renderSubmission(model));
     } catch (error) {
       const safe = safeError(error);
       return res.status(safe.status).type('html').send(renderUnavailable({ message: safe.message }));
