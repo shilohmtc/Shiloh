@@ -164,7 +164,9 @@ function createConsultationFormTrialService({ db = pool, env = process.env, now 
   }
 
   async function purgeExpired() {
-    await db.query('/* consultationTrial:purge */ DELETE FROM consultation_form_trials WHERE expires_at <= $1', [now()]);
+    // Completed tests are retained as encrypted staff-review evidence; only
+    // unused expired access rows are deleted automatically.
+    await db.query('/* consultationTrial:purge */ DELETE FROM consultation_form_trials WHERE expires_at <= $1 AND submitted_at IS NULL', [now()]);
   }
 
   return { openTrial, submitTrial, verifyStorage, purgeExpired };
