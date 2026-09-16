@@ -51,13 +51,21 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
     const result = await queryable.query(
       `/* bookingPayments:subject */
        SELECT a.id AS appointment_id,a.status AS appointment_status,a.total_price AS appointment_total,
-              a.currency,a.updated_at AS appointment_revision,c.display_name AS client_name,c.normalized_mobile,
+              a.currency,a.updated_at AS appointment_revision,
+              COALESCE(c.display_name,v2.name) AS client_name,
+              COALESCE((SELECT cc.normalized_value
+                          FROM client_contacts cc
+                         WHERE cc.client_id=c.id
+                           AND cc.contact_type IN ('whatsapp','mobile')
+                         ORDER BY cc.is_primary DESC,cc.id
+                         LIMIT 1),v2.normalized_mobile) AS client_mobile,
               g.id AS group_id,g.status AS group_status,COALESCE(g.final_total,g.total_price) AS group_total,
               g.updated_at AS group_revision,
               ARRAY(SELECT ast.staff_id FROM appointment_staff ast WHERE ast.appointment_id=a.id AND ast.staff_id IS NOT NULL ORDER BY ast.position) AS staff_ids,
               ARRAY(SELECT aps.service_id FROM appointment_services aps WHERE aps.appointment_id=a.id AND aps.service_id IS NOT NULL ORDER BY aps.position) AS service_ids
          FROM appointments a
          LEFT JOIN clients c ON c.id=a.client_id
+         LEFT JOIN crm_v2_clients v2 ON v2.id=a.crm_v2_client_id AND v2.status='active'
          LEFT JOIN appointment_group_members gm ON gm.appointment_id=a.id
          LEFT JOIN appointment_groups g ON g.id=gm.group_id
         WHERE a.id=$1
@@ -73,7 +81,7 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
       appointmentId: Number(row.appointment_id), groupId: row.group_id ? Number(row.group_id) : null,
       amountDue: money(amount), currency: String(row.currency || 'ZAR'),
       pricingRevision: new Date(row.group_id ? row.group_revision : row.appointment_revision).toISOString(),
-      clientName: String(row.client_name || ''), clientMobile: String(row.normalized_mobile || ''),
+      clientName: String(row.client_name || ''), clientMobile: String(row.client_mobile || ''),
       staffIds: row.staff_ids.map(Number), serviceIds: row.service_ids.map(Number),
       final: ['cancelled'].includes(String(row.group_id ? row.group_status : row.appointment_status)),
     };
