@@ -208,7 +208,7 @@ async function sendWhatsAppList(to, body, buttonText, rows = [], sectionTitle = 
   }
 }
 
-async function sendWhatsAppTemplate(to, templateName, bodyParameters = [], languageCode = "en", quickReplyPayloads = []) {
+async function sendWhatsAppTemplate(to, templateName, bodyParameters = [], languageCode = "en", quickReplyPayloads = [], urlButtonParameters = []) {
   const { assertTemplateSendAllowed } = require("./metaTemplateContracts");
   await assertTemplateSendAllowed(templateName, languageCode);
   if (!templateName) {
@@ -216,6 +216,9 @@ async function sendWhatsAppTemplate(to, templateName, bodyParameters = [], langu
   }
   if (!Array.isArray(quickReplyPayloads) || quickReplyPayloads.length > 5) {
     throw new Error("WhatsApp template quick replies require zero to five payloads");
+  }
+  if (!Array.isArray(urlButtonParameters) || urlButtonParameters.length > 1) {
+    throw new Error("WhatsApp template URL buttons require zero or one parameter");
   }
 
   const components = [];
@@ -235,6 +238,16 @@ async function sendWhatsAppTemplate(to, templateName, bodyParameters = [], langu
       parameters: [{ type: "payload", payload: safePayload }],
     });
   });
+  if (urlButtonParameters.length) {
+    const parameter = String(urlButtonParameters[0] || '').trim();
+    if (!parameter) throw new Error("WhatsApp template URL button parameter is required");
+    components.push({
+      type: "button",
+      sub_type: "url",
+      index: "0",
+      parameters: [{ type: "text", text: parameter }],
+    });
+  }
 
   try {
     const response = await axios.post(
@@ -257,6 +270,7 @@ async function sendWhatsAppTemplate(to, templateName, bodyParameters = [], langu
         messageId: response.data.messages?.[0]?.id || null,
         templateName,
         quickReplyCount: quickReplyPayloads.length,
+        urlButtonCount: urlButtonParameters.length,
       },
       "WhatsApp template sent"
     );
