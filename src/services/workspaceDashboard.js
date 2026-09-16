@@ -42,7 +42,19 @@ function positiveId(value) {
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
-function viewerMatchesPrincipal(viewer, principal) {
+function sessionPrincipalMatchesCurrent(sessionPrincipal, principal, linkedStaffId) {
+  const sessionAdminId = positiveId(sessionPrincipal?.id);
+  const currentAdminId = positiveId(principal?.id);
+  const sessionStaffId = positiveId(sessionPrincipal?.linkedStaffId ?? sessionPrincipal?.staff_id);
+  const sessionCalendarScope = String(sessionPrincipal?.calendarScope || sessionPrincipal?.calendar_scope || '').trim().toLowerCase();
+  const currentCalendarScope = String(principal?.calendarAuthority?.calendarScope || '').trim().toLowerCase();
+  return Boolean(sessionAdminId)
+    && sessionAdminId === currentAdminId
+    && sessionStaffId === linkedStaffId
+    && sessionCalendarScope === currentCalendarScope;
+}
+
+function viewerMatchesPrincipal(viewer, principal, sessionPrincipal = null) {
   if (!validViewer(viewer) || !principal?.calendarAuthority) return false;
   const sessionScope = String(viewer.calendarScope || '').trim().toLowerCase();
   const authority = principal.calendarAuthority;
@@ -53,13 +65,13 @@ function viewerMatchesPrincipal(viewer, principal) {
   const linkedStaffId = positiveId(authority.linkedStaffId);
   if (!linkedStaffId) return false;
 
-  // Staff browser sessions deliberately retain business_all_staff as a read-only
-  // Calendar envelope for active linked practitioners (#900). The Dashboard must
-  // therefore authorize from the freshly resolved principal and then project an
-  // own_appointments timeline, rather than treating the broader read envelope as
-  // mutation authority. This keeps own-workspace profiles visible while all
-  // appointment changes remain constrained by the current principal and staff id.
-  if (sessionScope === 'business_all_staff') return true;
+  // #900 deliberately gives active linked staff a broad read-only Calendar
+  // envelope. Own-workspace profiles remain safe by binding that envelope to the
+  // current server-derived account principal before projecting an own-only
+  // Dashboard. Browser-supplied viewer data alone can never satisfy this path.
+  if (sessionScope === 'business_all_staff') {
+    return sessionPrincipalMatchesCurrent(sessionPrincipal, principal, linkedStaffId);
+  }
 
   return sessionScope === 'own_staff'
     && positiveId(viewer.staffId || viewer.staff_id) === linkedStaffId;
@@ -186,10 +198,10 @@ function createWorkspaceDashboardService({
   if (!bookingRequestService || typeof bookingRequestService.listUnresolvedBookingRequests !== 'function') throw new Error('Workspace Dashboard requires canonical booking-request resolution');
   if (!backlogService || typeof backlogService.listUnresolvedPastAppointments !== 'function') throw new Error('Workspace Dashboard requires canonical unresolved-past appointment authority');
 
-  async function resolveAuthority(adminId, viewer) {
+  async function resolveAuthority(adminId, viewer, sessionPrincipal = null) {
     const principal = await resolvePrincipal(adminId);
     const authority = dashboardAuthority(principal);
-    if (!authority || !viewerMatchesPrincipal(viewer, principal)) {
+    if (!authority || !viewerMatchesPrincipal(viewer, principal, sessionPrincipal)) {
       throw new WorkspaceDashboardError(
         'WORKSPACE_DASHBOARD_FORBIDDEN',
         'Current staff authority does not permit the operational Dashboard.',
@@ -199,8 +211,8 @@ function createWorkspaceDashboardService({
     return { principal, authority };
   }
 
-  async function buildModel({ adminId, viewer, now = new Date() } = {}) {
-    const { principal, authority } = await resolveAuthority(adminId, viewer);
+  async function buildModel({ adminId, viewer, sessionPrincipal = null, now = new Date() } = {}) {
+    const { principal, authority } = await resolveAuthority(adminId, viewer, sessionPrincipal);
     const requestedDateKey = dateKeyInBusinessTimezone(now);
     const carryOverDateKey = previousClinicDateKey(requestedDateKey);
     const backlogCutoff = new Date(`${requestedDateKey}T00:00:00+02:00`).toISOString();
@@ -297,8 +309,8 @@ function createWorkspaceDashboardService({
     };
   }
 
-  async function finalizeVisit({ adminId, viewer, appointmentId, expectedRevision, outcome, operationalDateKey, now = new Date() } = {}) {
-    const { principal, authority } = await resolveAuthority(adminId, viewer);
+  async function finalizeVisit({ adminId, viewer, sessionPrincipal = null, appointmentId, expectedRevision, outcome, operationalDateKey, now = new Date() } = {}) {
+    const { principal, authority } = await resolveAuthority(adminId, viewer, sessionPrincipal);
     const id = positiveId(appointmentId);
     const targetStatus = String(outcome || '').trim().toLowerCase();
     const revisionTime = new Date(expectedRevision).getTime();
@@ -330,8 +342,8 @@ function createWorkspaceDashboardService({
     throw new WorkspaceDashboardError('WORKSPACE_DASHBOARD_FINALIZE_INVALID', 'This appointment outcome cannot be recorded.', 400);
   }
 
-  async function resolveBookingRequest({ adminId, viewer, appointmentId, expectedRevision, action, startsAt, staffId, serviceId } = {}) {
-    const { principal } = await resolveAuthority(adminId, viewer);
+  async function resolveBookingRequest({ adminId, viewer, sessionPrincipal = null, appointmentId, expectedRevision, action, startsAt, staffId, serviceId } = {}) {
+    const { principal } = await resolveAuthority(adminId, viewer, sessionPrincipal);
     const input = { principal, appointmentId, expectedRevision };
     if (action === 'accept' && typeof bookingRequestService.acceptRequestedAppointment === 'function') return bookingRequestService.acceptRequestedAppointment(input);
     if (action === 'propose' && typeof bookingRequestService.proposeAlternative === 'function') return bookingRequestService.proposeAlternative({ ...input, startsAt, staffId, serviceId });
