@@ -30,6 +30,7 @@ const RECEPTION_PRESET = Object.freeze({
     'services:view',
     'services:manage',
     'services:create',
+    'forms:view',
     'schedule:manage',
     'staff:view',
     'staff:manage',

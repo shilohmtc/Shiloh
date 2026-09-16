@@ -3,6 +3,7 @@ const workspaceStaffAccess = require('./workspaceStaffAccess');
 const workspaceServices = require('./workspaceServices');
 const workspaceReports = require('./workspaceReportsProfileView');
 const workspaceClinicHours = require('./workspaceClinicHoursReadView');
+const workspaceForms = require('./workspaceForms');
 
 const DESTINATIONS = Object.freeze({
   dashboard: '/calendar/workspace',
@@ -11,6 +12,7 @@ const DESTINATIONS = Object.freeze({
   messages: '/calendar/messages',
   staff: '/calendar/team/staff-access',
   services: '/calendar/services',
+  forms: '/calendar/forms',
   reports: '/calendar/reports',
   clinicHours: '/calendar/clinic-hours',
 });
@@ -37,16 +39,18 @@ function createWorkspaceNavigationService({
   clientAccessService = workspaceClients,
   staffAccessService = workspaceStaffAccess,
   servicesAccessService = workspaceServices,
+  formsAccessService = workspaceForms,
   reportsAccessService = workspaceReports,
   clinicHoursAccessService = workspaceClinicHours,
 } = {}) {
   async function resolve({ session } = {}) {
     const adminId = session?.adminId;
     const calendarAllowed = Boolean(session?.viewer);
-    const [clients, staff, services, reports, clinicHours] = await Promise.allSettled([
+    const [clients, staff, services, forms, reports, clinicHours] = await Promise.allSettled([
       clientAccessService.resolveAccess(adminId),
       resolveStaffAccess(staffAccessService, adminId),
       servicesAccessService.resolveAccess(adminId),
+      formsAccessService.resolveAccess(adminId),
       reportsAccessService.resolveAccess(adminId),
       clinicHoursAccessService.resolveAccess(adminId),
     ]);
@@ -59,6 +63,7 @@ function createWorkspaceNavigationService({
       messages: allowedDestination(clientsAllowed, 'messages'),
       staff: staffAllowed ? { allowed: true, href: staffDestinationFor(staffAccessService) } : { allowed: false, href: null },
       services: allowedDestination(services.status === 'fulfilled' && Boolean(services.value), 'services'),
+      forms: allowedDestination(forms.status === 'fulfilled' && Boolean(forms.value), 'forms'),
       reports: allowedDestination(reports.status === 'fulfilled' && Boolean(reports.value), 'reports'),
       clinicHours: allowedDestination(clinicHours.status === 'fulfilled' && Boolean(clinicHours.value), 'clinicHours'),
     };

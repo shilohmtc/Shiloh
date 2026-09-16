@@ -1,5 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+
+process.env.OPENAI_API_KEY ||= 'test-openai-key';
+
 const { extractService } = require('../src/services/bookingIntent');
 const { deterministicConversationReply } = require('../src/services/ai');
 
