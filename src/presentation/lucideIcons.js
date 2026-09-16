@@ -2,7 +2,7 @@ const {
   LayoutDashboard, CalendarDays, Users, MessageSquare, UserRoundPlus, Sparkles,
   ChartNoAxesColumnIncreasing, Clock3, LogOut, LockKeyhole, Plus, CalendarPlus,
   History, CircleSlash, CalendarMinus, ChevronLeft, ChevronRight, CalendarCheck,
-  HeartHandshake,
+  HeartHandshake, FileText,
 } = require('lucide');
 
 const ICONS = Object.freeze({
@@ -13,6 +13,7 @@ const ICONS = Object.freeze({
   messages: MessageSquare,
   staff: UserRoundPlus,
   services: Sparkles,
+  forms: FileText,
   reports: ChartNoAxesColumnIncreasing,
   clinicHours: Clock3,
   logout: LogOut,
