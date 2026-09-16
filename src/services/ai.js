@@ -5,6 +5,7 @@ const { getProfile } = require("./profile");
 const { getActiveCatalogueKnowledge } = require("./activeCatalogueKnowledge");
 const { getPractitionerKnowledge } = require("./practitionerKnowledge");
 const { processClinicFaqMessage, getClinicFaqKnowledge } = require("./clinicFaq");
+const { getHeidelbergGuideKnowledge, buildHeidelbergGuideReply } = require("../config/heidelbergGuide");
 const { buildInstructions } = require("./orchestrator");
 const logger = require("../lib/logger");
 
@@ -63,6 +64,9 @@ async function generateReply(phone, message) {
   const deterministicReply = deterministicConversationReply(message);
   if (deterministicReply) return deterministicReply;
 
+  const localGuideReply = buildHeidelbergGuideReply(message);
+  if (localGuideReply) return localGuideReply;
+
   const [previousResponseId, knowledge, profile, activeCatalogue, practitionerKnowledge] = await Promise.all([
     getSession(phone),
     retrieveKnowledge(message, 5),
@@ -72,7 +76,8 @@ async function generateReply(phone, message) {
   ]);
 
   const clinicFaqKnowledge = getClinicFaqKnowledge(message);
-  const authoritativeKnowledge = [activeCatalogue, practitionerKnowledge, clinicFaqKnowledge, ...knowledge].filter(Boolean);
+  const heidelbergGuideKnowledge = getHeidelbergGuideKnowledge(message);
+  const authoritativeKnowledge = [activeCatalogue, practitionerKnowledge, clinicFaqKnowledge, heidelbergGuideKnowledge, ...knowledge].filter(Boolean);
   const workload = "conversation";
   const request = {
     model: getModelForWorkload(workload),

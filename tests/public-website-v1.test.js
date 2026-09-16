@@ -7,6 +7,7 @@ const {
   renderTreatments,
   renderAbout,
   renderContact,
+  renderVisit,
   renderPrivacy,
 } = require('../src/services/publicWebsite');
 const { renderBookingPage } = require('../src/services/publicBookingPageEditorial');
@@ -50,6 +51,7 @@ test('all public pages and booking share complete navigation and accessible land
     renderTreatments(catalogue),
     renderAbout(),
     renderContact(),
+    renderVisit(),
     renderBookingPage('27836835433', catalogue),
   ];
   for (const html of pages) {
@@ -86,6 +88,11 @@ test('public privacy policy is accessible, specific to Shiloh, and linked site-w
   assert.match(privacy, /13 September 2026/);
   assert.match(privacy, /rel="canonical" href="https:\/\/app\.shilohmtc\.co\.za\/privacy"/);
   assert.match(renderHome(catalogue), /href="\/privacy">Privacy policy<\/a>/);
+
+  assert.match(renderVisit(), /Suikerbosrand Nature Reserve/);
+  assert.match(renderVisit(), /Heidelberg Lodge/);
+  assert.match(renderVisit(), /Picanha Guesthouse/);
+  assert.match(renderVisit(), /current rates, availability and facilities/i);
 
   const websiteRoute = fs.readFileSync(
     path.join(__dirname, '..', 'src', 'routes', 'publicWebsite.js'),

@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   ['/', 'Home'],
   ['/treatments', 'Services'],
   ['/about', 'About'],
+  ['/visit', 'Visit Heidelberg'],
   ['/contact', 'Contact'],
   ['/book', 'Book'],
 ];

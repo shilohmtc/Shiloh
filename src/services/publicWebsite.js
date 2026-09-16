@@ -93,6 +93,15 @@ function renderContact() {
   });
 }
 
+function renderVisit() {
+  return layout({
+    title: 'Visit Heidelberg',
+    description: 'Plan a Heidelberg, Gauteng visit with local places of interest and accommodation starting points near Shiloh.',
+    currentPath: '/visit',
+    body: `<main id="main-content"><section class="page-hero"><div class="shell prose"><div class="eyebrow">Visit Heidelberg</div><h1>Make a little time for Heidelberg.</h1><p class="lede">Coming to Shiloh from out of town? Here are a few local starting points for nature, heritage and a comfortable place to stay.</p><div class="actions"><a class="button primary" href="/book">Book with Shiloh</a><a class="button secondary" href="/contact">Find us</a></div></div></section><section class="section alt"><div class="shell"><div class="section-head"><div><div class="eyebrow">Places of interest</div><h2>Explore the town and its surroundings.</h2></div><p>Check current access, opening times and tour arrangements directly before travelling.</p></div><div class="grid"><article class="card"><h3>Suikerbosrand Nature Reserve</h3><p>A nearby Gauteng nature destination for scenic drives, hiking and outdoor time.</p><a class="card-link" href="https://www.gov.za/about-sa/tourism" rel="noopener noreferrer">Gauteng tourism overview →</a></article><article class="card"><h3>Heidelberg Heritage Museum</h3><p>A restored railway-station precinct with local history and railway heritage experiences.</p><a class="card-link" href="https://visit.gauteng.net/visit/the-heidelberg-heritage-museum-vg" rel="noopener noreferrer">Visit Gauteng →</a></article><article class="card"><h3>Heidelberg heritage</h3><p>Historic buildings and local stories make the town centre worth exploring at an unhurried pace.</p><a class="card-link" href="https://www.sedibeng.gov.za/tourism_vaal.html" rel="noopener noreferrer">Sedibeng tourism routes →</a></article></div></div></section><section class="section"><div class="shell"><div class="section-head"><div><div class="eyebrow">Places to stay</div><h2>Accommodation starting points.</h2></div><p>These are independent venues and directories. Contact them directly to confirm current rates, availability and facilities.</p></div><div class="grid"><article class="card"><h3>Heidelberg Lodge</h3><p>Guesthouse accommodation at 27 Jacobs Street, Heidelberg.</p><a class="card-link" href="https://heidelberglodge.co.za/" rel="noopener noreferrer">View Heidelberg Lodge →</a></article><article class="card"><h3>Suikerbosrand Guesthouse</h3><p>A local Heidelberg guesthouse with direct contact details online.</p><a class="card-link" href="https://www.suikerbosrandguesthouse.co.za/contact-us/" rel="noopener noreferrer">Contact Suikerbosrand Guesthouse →</a></article><article class="card"><h3>Picanha Guesthouse</h3><p>Self-catering accommodation in Heidelberg.</p><a class="card-link" href="https://picanhaguesthouse.co.za/" rel="noopener noreferrer">View Picanha Guesthouse →</a></article><article class="card"><h3>Hello Heidelberg</h3><p>A local accommodation and travel hub with guesthouses, hotels, B&amp;Bs and self-catering options.</p><a class="card-link" href="https://www.helloheidelberg.co.za/accommodation-travel" rel="noopener noreferrer">Browse the local directory →</a></article></div></div></section>${signatureBlock()}</main>`,
+  });
+}
+
 function renderPrivacy() {
   return layout({
     title: 'Privacy Policy',
@@ -108,6 +117,7 @@ module.exports = {
   renderTreatments,
   renderAbout,
   renderContact,
+  renderVisit,
   renderPrivacy,
   serviceGroups,
 };
