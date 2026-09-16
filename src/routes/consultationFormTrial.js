@@ -34,6 +34,10 @@ function createConsultationFormTrialRouter({ env = process.env, service = create
   let windowStart = Date.now();
   let requests = 0;
   router.use(async (req, res, next) => {
+    // Fetch Standard: no-referrer makes a native form POST Origin null.
+    // strict-origin exposes neither paths nor fragments and preserves Origin,
+    // so the exact-origin guard can remain strict rather than allowing null.
+    res.setHeader('Referrer-Policy', 'strict-origin');
     if (!enabled) return res.sendStatus(404);
     // This deliberately serves one tester only; the bound does not affect any other route.
     if (Date.now() - windowStart >= 60000) { windowStart = Date.now(); requests = 0; }
