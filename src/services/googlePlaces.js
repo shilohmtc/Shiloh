@@ -5,6 +5,8 @@ const logger = require('../lib/logger');
 
 const PLACES_URL = 'https://places.googleapis.com/v1/places:searchText';
 const DEFAULT_QUERY = 'guesthouses and hotels near 37 Jacobs Street, Heidelberg, Gauteng, South Africa';
+const DEFAULT_DAILY_LIMIT = 100;
+const QUOTA_TIME_ZONE = 'Africa/Johannesburg';
 const FIELD_MASK = [
   'places.id',
   'places.displayName',
@@ -24,6 +26,39 @@ function getApiKey() {
 
 function isGooglePlacesConfigured() {
   return Boolean(getApiKey());
+}
+
+function getDailyLimit() {
+  const configured = Number(process.env.GOOGLE_PLACES_DAILY_LIMIT || DEFAULT_DAILY_LIMIT);
+  return Number.isInteger(configured) && configured > 0 ? configured : DEFAULT_DAILY_LIMIT;
+}
+
+function getQuotaDate(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: QUOTA_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date).reduce((result, part) => {
+    if (part.type !== 'literal') result[part.type] = part.value;
+    return result;
+  }, {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+let dailyQuotaState = { date: getQuotaDate(), used: 0 };
+
+function reserveDailyQuota() {
+  const date = getQuotaDate();
+  if (dailyQuotaState.date !== date) dailyQuotaState = { date, used: 0 };
+
+  const limit = getDailyLimit();
+  if (dailyQuotaState.used >= limit) {
+    return { allowed: false, date, limit, used: dailyQuotaState.used };
+  }
+
+  dailyQuotaState.used += 1;
+  return { allowed: true, date, limit, used: dailyQuotaState.used };
 }
 
 function isLivePlacesQuery(message = '') {
@@ -55,6 +90,12 @@ function mapPlace(place = {}) {
 
 async function searchGooglePlaces(query = '') {
   if (!isGooglePlacesConfigured()) return { status: 'not_configured', places: [] };
+
+  const quota = reserveDailyQuota();
+  if (!quota.allowed) {
+    logger.warn(quota, 'Google Places daily application quota reached');
+    return { status: 'quota_exhausted', places: [], quota };
+  }
 
   try {
     const response = await axios.post(
@@ -113,10 +154,14 @@ function buildGooglePlacesReply(result, query = '') {
 
 module.exports = {
   DEFAULT_QUERY,
+  DEFAULT_DAILY_LIMIT,
   FIELD_MASK,
+  getDailyLimit,
+  getQuotaDate,
   isGooglePlacesConfigured,
   isLivePlacesQuery,
   normaliseQuery,
+  reserveDailyQuota,
   searchGooglePlaces,
   buildGooglePlacesReply,
 };

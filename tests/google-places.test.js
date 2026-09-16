@@ -3,8 +3,10 @@ const assert = require('node:assert/strict');
 const { renderVisit } = require('../src/services/publicWebsite');
 const {
   buildGooglePlacesReply,
+  getDailyLimit,
   isLivePlacesQuery,
   normaliseQuery,
+  reserveDailyQuota,
 } = require('../src/services/googlePlaces');
 
 test('live places routing is limited to local listing questions', () => {
@@ -37,4 +39,21 @@ test('live place reply clearly labels current results and booking boundary', () 
   assert.match(reply, /current Google Maps results/);
   assert.match(reply, /Example Guesthouse/);
   assert.match(reply, /does not confirm room availability or booking prices/);
+});
+
+test('application-side daily quota blocks lookups after the configured limit', () => {
+  const previous = process.env.GOOGLE_PLACES_DAILY_LIMIT;
+  process.env.GOOGLE_PLACES_DAILY_LIMIT = '2';
+  try {
+    assert.equal(getDailyLimit(), 2);
+    assert.equal(reserveDailyQuota().allowed, true);
+    assert.equal(reserveDailyQuota().allowed, true);
+    const exhausted = reserveDailyQuota();
+    assert.equal(exhausted.allowed, false);
+    assert.equal(exhausted.limit, 2);
+    assert.equal(exhausted.used, 2);
+  } finally {
+    if (previous === undefined) delete process.env.GOOGLE_PLACES_DAILY_LIMIT;
+    else process.env.GOOGLE_PLACES_DAILY_LIMIT = previous;
+  }
 });
