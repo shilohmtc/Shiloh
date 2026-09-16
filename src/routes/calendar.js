@@ -1,6 +1,6 @@
 const express = require("express");
 const { pool } = require('../db/pool');
-const calendarReadOnlyUxRoutes = require('./calendarReadOnlyUx');
+const { createCalendarReadOnlyRouter } = require('./calendarReadOnlyUx');
 const staffCalendarAccessUxRoutes = require('./staffCalendarAccessUx');
 const { createCalendarCreateBookingRouter } = require('./calendarCreateBooking');
 const { createCalendarRetrospectiveBookingRouter } = require('./calendarRetrospectiveBooking');
@@ -31,6 +31,10 @@ const { calendarPhoneCompactV2ClientScript } = require('../presentation/calendar
 const { calendarPhoneAllStaffClientScript } = require('../presentation/calendarPhoneAllStaffUx');
 const { calendarAppointmentDetailsClientScript } = require('../presentation/calendarAppointmentDetailsUx');
 const { calendarPaymentLinkClientScript } = require('../presentation/calendarPaymentsUx');
+const {
+  renderCalendarPageWithScopedAvailabilityFocus,
+  renderCalendarCreateBookingPageWithoutLinkedShortcuts,
+} = require('../presentation/calendarBookingEntryComposition');
 const router = express.Router();
 
 const staffBrowserSessionService = createStaffBrowserSessionService({ db: pool });
@@ -66,7 +70,10 @@ router.use('/client-authority', createOperatorContactAuthorityRouter({ sessionSe
 router.use('/book/past', createCalendarRetrospectiveBookingRouter({ sessionService: staffBrowserSessionService }));
 router.use('/book/couples', createCalendarCouplesBookingRouter({ sessionService: staffBrowserSessionService }));
 router.use('/book/group', createCalendarGroupBookingRouter({ sessionService: staffBrowserSessionService }));
-router.use('/book', createCalendarCreateBookingRouter({ sessionService: staffBrowserSessionService }));
+router.use('/book', createCalendarCreateBookingRouter({
+  sessionService: staffBrowserSessionService,
+  renderPage: renderCalendarCreateBookingPageWithoutLinkedShortcuts,
+}));
 router.use('/payments', createCalendarPaymentsRouter({ sessionService: staffBrowserSessionService }));
 router.use('/operations', createCalendarAppointmentEndTimeRouter({ sessionService: staffBrowserSessionService }));
 router.use('/operations', createCalendarOperationalMutationRouter({ sessionService: staffBrowserSessionService }));
@@ -86,7 +93,9 @@ router.get('/read-only/phone-v2.js', (_req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   return res.status(200).type('application/javascript').send(`${calendarPhoneCompactV2ClientScript()}\n${calendarPhoneAllStaffClientScript()}\n${calendarAppointmentDetailsClientScript()}\n${calendarPaymentLinkClientScript()}`);
 });
-router.use('/read-only', createOptionalCalendarSessionMiddleware({ service: staffBrowserSessionService }), calendarReadOnlyUxRoutes);
+router.use('/read-only', createOptionalCalendarSessionMiddleware({ service: staffBrowserSessionService }), createCalendarReadOnlyRouter({
+  renderPage: renderCalendarPageWithScopedAvailabilityFocus,
+}));
 router.get('/', (_req, res) => res.redirect(302, '/calendar/workspace'));
 
 module.exports=router;
