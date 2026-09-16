@@ -1,5 +1,6 @@
 const express = require('express');
 const { getPublicServiceCatalogue } = require('../services/publicServiceCatalogue');
+const { searchGooglePlaces } = require('../services/googlePlaces');
 const {
   renderHome,
   renderTreatments,
@@ -30,6 +31,10 @@ router.get('/treatments', async (req, res) => {
 router.get('/about', (req, res) => res.status(200).type('html').send(renderAbout()));
 router.get('/contact', (req, res) => res.status(200).type('html').send(renderContact()));
 router.get('/visit', (req, res) => res.status(200).type('html').send(renderVisit()));
+router.get('/visit/places', async (req, res) => {
+  const result = await searchGooglePlaces(req.query.query || 'guesthouses and hotels');
+  return res.status(200).json({ ...result, checkedAt: new Date().toISOString() });
+});
 router.get('/privacy', (req, res) => res.status(200).type('html').send(renderPrivacy()));
 
 module.exports = router;
