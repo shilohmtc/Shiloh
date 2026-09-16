@@ -9,6 +9,7 @@ const CALENDAR_CAPABILITIES = Object.freeze({
   BOOKING_REASSIGN: 'calendar:booking:reassign',
   COUPLES_DISCOUNT: 'appointment:couples:discount',
   GROUP_DISCOUNT: 'appointment:group:discount',
+  AVAILABILITY_MANAGE: 'schedule:availability_manage',
   SCHEDULE_MANAGE: 'schedule:manage',
 });
 
@@ -32,6 +33,7 @@ const OPERATION_CAPABILITIES = Object.freeze({
   'working_schedule:manage': CALENDAR_CAPABILITIES.SCHEDULE_MANAGE,
 });
 
+const AVAILABILITY_OPERATIONS = new Set(['calendar_block:manage', 'operational_leave:manage']);
 const CALENDAR_SCOPES = new Set(['all_business', 'own_services', 'own_appointments', 'own']);
 const SERVICE_SCOPES = new Set(['all_services', 'own_services']);
 
@@ -89,8 +91,14 @@ function evaluateCalendarAuthority(admin = {}, { allowedServiceIds = [] } = {}) 
   };
 }
 
+function operationAllowed(authority, operation) {
+  if (hasCapability(authority, OPERATION_CAPABILITIES[operation])) return true;
+  return AVAILABILITY_OPERATIONS.has(operation)
+    && hasCapability(authority, CALENDAR_CAPABILITIES.AVAILABILITY_MANAGE);
+}
+
 function operationsForAuthority(authority) {
-  return CALENDAR_OPERATIONS.filter((operation) => hasCapability(authority, OPERATION_CAPABILITIES[operation]));
+  return CALENDAR_OPERATIONS.filter((operation) => operationAllowed(authority, operation));
 }
 
 function hasFullAppointmentEditAuthority(authority) {
