@@ -36,6 +36,8 @@ test('#895 visible events are laid out inside their selected practitioner column
   assert.match(script, /laneWidth=\(100\/columnCount\)\/laneCount/);
   assert.match(script, /node\.dataset\.phoneColumnVisible=String\(visible\)/);
   assert.match(script, /phone-staff-column-dividers/);
+  assert.match(script, /--phone-staff-column-tints/);
+  assert.match(script, /applyStaffTone\(node,id\)/);
   assert.match(script, /week-time-grid\{overflow:hidden!important/);
   assert.doesNotMatch(script, /scrollLeft/);
 });
@@ -88,7 +90,8 @@ test('#895 Phone Week polish keeps opening time visible with subtle hourly struc
   assert.match(script, /data-phone-open-label="true"\]\{transform:translateY\(3px\)!important\}/);
   assert.match(script, /time-rail span\{color:var\(--ink\)!important;font-size:clamp\(\.5rem,2vw,\.62rem\)!important;font-weight:850!important/);
   assert.match(script, /phone-staff-column-name\{[^}]*color:var\(--leaf-deep\)[^}]*font-weight:900/);
-  assert.match(script, /time-column\{[^}]*background:#fff!important[^}]*border-right:1px solid var\(--line-strong\)!important/);
+  assert.match(script, /phone-staff-column-name\[data-phone-staff-toned="true"\]\{[^}]*background:var\(--phone-staff-soft\)[^}]*box-shadow:inset 0 3px 0 var\(--phone-staff-accent\)/);
+  assert.match(script, /time-column\{[^}]*background:var\(--phone-staff-column-tints,#fff\)!important[^}]*border-right:1px solid var\(--line-strong\)!important/);
   assert.match(script, /time-column:before\{[^}]*repeating-linear-gradient\(to bottom[^}]*var\(--line\)[^}]*calc\(100% \/ 11\)[^}]*!important/);
   assert.doesNotMatch(script, /time-column:before\{[^}]*background:none!important/);
   assert.match(script, /phone-staff-column-dividers/);
