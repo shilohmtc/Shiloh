@@ -140,6 +140,9 @@ function createWorkspaceOperationalRouter({
       const model = await dashboardService.buildModel({
         adminId: req.staffBrowserSession?.adminId,
         viewer: req.staffBrowserSession?.viewer,
+        ...(req.staffBrowserSession?.accountPrincipal
+          ? { sessionPrincipal: req.staffBrowserSession.accountPrincipal }
+          : {}),
       });
       const dashboardHtml = renderDashboard(model, {
         staffAccessScriptPath: `${staffAccessPath}/client.js`,
@@ -159,6 +162,9 @@ function createWorkspaceOperationalRouter({
       const result = await dashboardService.finalizeVisit({
         adminId: req.staffBrowserSession?.adminId,
         viewer: req.staffBrowserSession?.viewer,
+        ...(req.staffBrowserSession?.accountPrincipal
+          ? { sessionPrincipal: req.staffBrowserSession.accountPrincipal }
+          : {}),
         appointmentId: req.params.appointmentId,
         expectedRevision: req.body?.expectedRevision,
         outcome: req.body?.outcome,
@@ -176,6 +182,9 @@ function createWorkspaceOperationalRouter({
       const result = await dashboardService.resolveBookingRequest({
         adminId: req.staffBrowserSession?.adminId,
         viewer: req.staffBrowserSession?.viewer,
+        ...(req.staffBrowserSession?.accountPrincipal
+          ? { sessionPrincipal: req.staffBrowserSession.accountPrincipal }
+          : {}),
         appointmentId: req.params.appointmentId,
         action,
         expectedRevision: req.body?.expectedRevision,
