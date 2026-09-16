@@ -73,6 +73,19 @@ function createWorkspaceFormSubmissionsService({
     };
   }
 
+  async function auditSensitiveRead(authority, { kind, entityId = null, reference = null, appointmentId = null } = {}) {
+    const actorAdminId = positiveId(authority?.operatorAdminId);
+    if (!actorAdminId) throw new WorkspaceFormSubmissionError('WORKSPACE_FORM_SUBMISSION_AUDIT_UNAVAILABLE', 'This form submission is temporarily unavailable.', 503);
+    await db.query(`/* workspaceFormSubmissions:audit-view */
+      INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata)
+      VALUES($1,'workspace.form_submission_viewed',$2,$3,$4::jsonb)`, [
+      actorAdminId,
+      kind === 'trial' ? 'consultation_form_trial' : 'consultation_form_submission',
+      kind === 'trial' ? null : positiveId(entityId),
+      JSON.stringify({ kind, reference: kind === 'trial' ? reference : null, appointmentId: positiveId(appointmentId) }),
+    ]);
+  }
+
   async function listRealSubmissions(authority) {
     const scope = scopeSql(authority, 1);
     const result = await db.query(`/* workspaceFormSubmissions:list-real */
@@ -254,6 +267,11 @@ function createWorkspaceFormSubmissionsService({
     }
     const row = await realSubmissionRow(authority, submissionId);
     const payload = decryptRow(row);
+    await auditSensitiveRead(authority, {
+      kind: 'client',
+      entityId: row.id,
+      appointmentId: row.appointment_id,
+    });
     return detailModel(authority, row, payload, { reference: String(row.id) });
   }
 
@@ -273,6 +291,7 @@ function createWorkspaceFormSubmissionsService({
     const row = result.rows.find(item => trialReference(item.token_hash) === normalized);
     if (!row) throw new WorkspaceFormSubmissionError('WORKSPACE_FORM_SUBMISSION_NOT_FOUND', 'That test submission was not found.', 404);
     const payload = decryptRow({ ...row, signed_at: row.submitted_at });
+    await auditSensitiveRead(authority, { kind: 'trial', reference: normalized });
     return detailModel(authority, {
       ...row,
       form_title: safeSnapshot(row.template_snapshot).title,
