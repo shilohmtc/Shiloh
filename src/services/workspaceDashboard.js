@@ -50,8 +50,19 @@ function viewerMatchesPrincipal(viewer, principal) {
     return sessionScope === 'business_all_staff';
   }
   if (!['own', 'own_appointments'].includes(authority.calendarScope)) return false;
+  const linkedStaffId = positiveId(authority.linkedStaffId);
+  if (!linkedStaffId) return false;
+
+  // Staff browser sessions deliberately retain business_all_staff as a read-only
+  // Calendar envelope for active linked practitioners (#900). The Dashboard must
+  // therefore authorize from the freshly resolved principal and then project an
+  // own_appointments timeline, rather than treating the broader read envelope as
+  // mutation authority. This keeps own-workspace profiles visible while all
+  // appointment changes remain constrained by the current principal and staff id.
+  if (sessionScope === 'business_all_staff') return true;
+
   return sessionScope === 'own_staff'
-    && positiveId(viewer.staffId || viewer.staff_id) === positiveId(authority.linkedStaffId);
+    && positiveId(viewer.staffId || viewer.staff_id) === linkedStaffId;
 }
 
 function dashboardAuthority(principal) {
