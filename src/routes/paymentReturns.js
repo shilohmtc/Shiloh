@@ -27,7 +27,7 @@ async function appointmentPathForReturn(queryable, requestReference) {
     );
     const appointmentId = Number(result.rows[0]?.appointment_id);
     return Number.isSafeInteger(appointmentId) && appointmentId > 0
-      ? `/calendar/payments/appointments/${appointmentId}`
+      ? `/pay/status/${reference}`
       : '/';
   } catch (_) {
     return '/';

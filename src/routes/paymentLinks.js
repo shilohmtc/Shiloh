@@ -1,5 +1,6 @@
 const express = require('express');
 const { pool } = require('../db/pool');
+const { renderPaymentStatusPage } = require('../presentation/paymentStatusUx');
 
 function safePaymentRequestKey(value) {
   const key = String(value || '').trim();
@@ -12,6 +13,29 @@ function paymentUnavailable(res, status, message) {
 
 function createPaymentLinkRouter({ db = pool } = {}) {
   const router = express.Router();
+
+  router.get('/status/:requestKey', async (req, res, next) => {
+    const requestKey = safePaymentRequestKey(req.params.requestKey);
+    if (!requestKey) return paymentUnavailable(res, 404, 'Payment status not found.');
+    try {
+      const result = await db.query(
+        `SELECT amount,state
+           FROM payment_requests
+          WHERE request_key=$1
+          LIMIT 1`,
+        [requestKey],
+      );
+      const request = result.rows[0];
+      if (!request) return paymentUnavailable(res, 404, 'Payment status not found.');
+      return res.status(200).type('html').set({
+        'Cache-Control': 'no-store',
+        'Referrer-Policy': 'no-referrer',
+        'X-Content-Type-Options': 'nosniff',
+      }).send(renderPaymentStatusPage({ requestKey, request }));
+    } catch (error) {
+      return next(error);
+    }
+  });
 
   router.get('/:requestKey', async (req, res, next) => {
     const requestKey = safePaymentRequestKey(req.params.requestKey);

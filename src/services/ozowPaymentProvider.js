@@ -20,6 +20,18 @@ function canonicalHash(fields, privateKey) {
   return sha512(fields.map(value => String(value ?? '').trim().toLowerCase()).join('') + String(privateKey).trim().toLowerCase());
 }
 
+function notificationField(payload, name) {
+  const key = Object.keys(payload || {}).find(candidate => candidate.toLowerCase() === name.toLowerCase());
+  return key ? payload[key] : '';
+}
+
+// Ozow's notification hash order is fixed and is not the same as object/property order.
+const NOTIFICATION_HASH_FIELDS = Object.freeze([
+  'SiteCode', 'TransactionId', 'TransactionReference', 'Amount', 'Status',
+  'Optional1', 'Optional2', 'Optional3', 'Optional4', 'Optional5',
+  'CurrencyCode', 'IsTest', 'StatusMessage',
+]);
+
 function createOzowPaymentProvider({ env = process.env, fetchImpl = global.fetch } = {}) {
   async function createPaymentLink({ requestKey, amount, bankReference, customerName = '', customerMobile = '' }) {
     if (!configured(env)) throw new OzowConfigurationError();
@@ -64,10 +76,8 @@ function createOzowPaymentProvider({ env = process.env, fetchImpl = global.fetch
 
   function verifyNotification(payload = {}) {
     if (!configured(env)) throw new OzowConfigurationError();
-    const supplied = String(payload.Hash || payload.HashCheck || '').trim().toLowerCase();
-    const ordered = Object.entries(payload)
-      .filter(([key]) => !['Hash', 'HashCheck'].includes(key))
-      .map(([, value]) => value);
+    const supplied = String(notificationField(payload, 'Hash') || notificationField(payload, 'HashCheck')).trim().toLowerCase();
+    const ordered = NOTIFICATION_HASH_FIELDS.map(field => notificationField(payload, field));
     const expected = canonicalHash(ordered, env.OZOW_PRIVATE_KEY);
     if (!supplied || supplied.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(expected))) return false;
     return true;
@@ -76,4 +86,4 @@ function createOzowPaymentProvider({ env = process.env, fetchImpl = global.fetch
   return { configured: () => configured(env), createPaymentLink, verifyNotification };
 }
 
-module.exports = { OzowConfigurationError, configured, canonicalHash, createOzowPaymentProvider };
+module.exports = { OzowConfigurationError, configured, canonicalHash, createOzowPaymentProvider, NOTIFICATION_HASH_FIELDS };
