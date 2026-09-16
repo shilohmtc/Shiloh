@@ -16,6 +16,22 @@ const PRIMARY_MODEL = process.env.OPENAI_MODEL || "gpt-5.6-terra";
 const FAST_MODEL = process.env.OPENAI_FAST_MODEL || "gpt-5.6-luna";
 const REASONING_EFFORT = process.env.OPENAI_REASONING_EFFORT || "low";
 
+function deterministicConversationReply(message = "") {
+  const text = String(message).trim();
+  const nameMatch = text.match(/^(?:my name is|call me)\s+([A-Za-z][A-Za-z' -]{1,60})[.!?]*$/i);
+  if (nameMatch && !/^(?:incorrect|wrong|not correct)$/i.test(nameMatch[1].trim())) {
+    const name = nameMatch[1].trim();
+    return `Thanks, ${name}! I’ll use that name going forward. How can I help you with Shiloh today?`;
+  }
+
+  if (/(?:not sure|unsure)\s+(?:what|which)\s+i\s+need/i.test(text)
+    || /(?:can|could)\s+you\s+help\s+me\s+choose/i.test(text)) {
+    return "Of course — I can help you choose. Are you looking for massage, skincare or a facial, foot care, or an advanced aesthetic treatment?";
+  }
+
+  return null;
+}
+
 function getModelForWorkload(workload = "conversation") {
   return workload === "fast" ? FAST_MODEL : PRIMARY_MODEL;
 }
@@ -43,6 +59,9 @@ function logUsage(response, workload) {
 async function generateReply(phone, message) {
   const directFaq = processClinicFaqMessage(message);
   if (directFaq.handled) return directFaq.reply;
+
+  const deterministicReply = deterministicConversationReply(message);
+  if (deterministicReply) return deterministicReply;
 
   const [previousResponseId, knowledge, profile, activeCatalogue, practitionerKnowledge] = await Promise.all([
     getSession(phone),
@@ -102,4 +121,5 @@ async function generateReply(phone, message) {
 module.exports = {
   generateReply,
   getModelForWorkload,
+  deterministicConversationReply,
 };

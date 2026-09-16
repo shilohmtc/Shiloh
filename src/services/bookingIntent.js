@@ -260,7 +260,14 @@ function extractService(text = "") {
 
   for (const pattern of patterns) {
     const match = value.match(pattern);
-    if (match?.[1]) return match[1].trim().replace(/[.!?]+$/, "");
+    if (match?.[1]) {
+      const service = match[1].trim().replace(/[.!?]+$/, "");
+      // “Appointment” describes the booking action, not a treatment. Leaving
+      // it here makes the verifier reject an otherwise valid generic booking
+      // request before the client has chosen a service.
+      if (/^(?:an?\s+)?appointments?$/i.test(service)) return null;
+      return service;
+    }
   }
 
   return null;
@@ -567,6 +574,7 @@ module.exports = {
   extractDate,
   extractTime,
   extractTherapist,
+  extractService,
   verifyService,
   matchActiveServiceName,
   normalizeServiceName,
