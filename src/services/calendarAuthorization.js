@@ -58,7 +58,7 @@ function conditionedClientIds(permissions) {
   return [...new Set(raw.map(positiveId).filter(Boolean))].sort((a, b) => a - b);
 }
 
-function evaluateCalendarAuthority(admin = {}, { allowedServiceIds = [] } = {}) {
+function evaluateCalendarAuthority(admin = {}, { allowedServiceIds = [], additionalCapabilities = [] } = {}) {
   const operatorAdminId = positiveId(admin.id);
   if (!operatorAdminId || admin.admin_active !== true) return null;
   const calendarScope = String(admin.calendar_scope || '').trim().toLowerCase();
@@ -73,7 +73,11 @@ function evaluateCalendarAuthority(admin = {}, { allowedServiceIds = [] } = {}) 
   if (linkedStaffId && admin.staff_status !== 'active') return null;
 
   const permissions = permissionSet(admin.permissions);
-  const capabilities = Object.values(CALENDAR_CAPABILITIES).filter((capability) => permissions[capability] === true);
+  const authorityCapabilities = [...new Set([
+    ...Object.values(CALENDAR_CAPABILITIES),
+    ...additionalCapabilities.map((capability) => String(capability || '').trim()).filter(Boolean),
+  ])];
+  const capabilities = authorityCapabilities.filter((capability) => permissions[capability] === true);
   const scopedServiceIds = serviceScope === 'own_services'
     ? [...new Set(allowedServiceIds.map(Number).filter((id) => Number.isSafeInteger(id) && id > 0))].sort((a, b) => a - b)
     : null;
@@ -195,7 +199,7 @@ function allowsReassignmentTarget(authority, { appointment, destinationStaffId }
   return positiveId(destinationStaffId) === authority.linkedStaffId;
 }
 
-async function resolveCalendarAuthority(queryable, adminId) {
+async function resolveCalendarAuthority(queryable, adminId, { additionalCapabilities = [] } = {}) {
   if (!queryable || typeof queryable.query !== 'function') throw new Error('Calendar authorization requires a queryable database.');
   const id = positiveId(adminId);
   if (!id) return null;
@@ -229,7 +233,7 @@ async function resolveCalendarAuthority(queryable, adminId) {
     allowedServiceIds = services.rows.map((row) => Number(row.service_id));
   }
 
-  const calendarAuthority = evaluateCalendarAuthority(admin, { allowedServiceIds });
+  const calendarAuthority = evaluateCalendarAuthority(admin, { allowedServiceIds, additionalCapabilities });
   return calendarAuthority ? { ...admin, calendarAuthority } : null;
 }
 

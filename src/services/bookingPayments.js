@@ -40,7 +40,7 @@ function normalizeMethod(value) {
 
 function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvider() } = {}) {
   async function resolveOperator(queryable, adminId, capability) {
-    const operator = await resolveCalendarAuthority(queryable, positiveId(adminId));
+    const operator = await resolveCalendarAuthority(queryable, positiveId(adminId), { additionalCapabilities: Object.values(CAPABILITIES) });
     if (!operator || !hasCapability(operator.calendarAuthority, capability)) {
       throw new BookingPaymentError('PAYMENT_FORBIDDEN', 'Current Shiloh authority does not permit this payment operation.', 403);
     }
