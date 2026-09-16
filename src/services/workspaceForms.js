@@ -21,6 +21,14 @@ function permissionSet(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
+function templateKey(value) {
+  const key = String(value || '').trim();
+  if (!/^[a-z0-9][a-z0-9_]{1,79}$/.test(key)) {
+    throw new WorkspaceFormsError('WORKSPACE_FORM_NOT_FOUND', 'That form was not found.', 404);
+  }
+  return key;
+}
+
 function evaluateFormsReadAuthority(rows = []) {
   if (!Array.isArray(rows) || rows.length !== 1) return null;
   const row = rows[0];
@@ -155,6 +163,62 @@ function createWorkspaceFormsService({ db = pool } = {}) {
     }));
   }
 
+  async function readTemplatePreview(rawTemplateKey) {
+    const key = templateKey(rawTemplateKey);
+    const result = await db.query(
+      `/* workspaceForms:template-preview */
+       SELECT t.id,t.template_key,t.title,t.status,
+              tv.id AS template_version_id,tv.version_number,tv.consent_text,tv.settings,
+              COALESCE((
+                SELECT jsonb_agg(jsonb_build_object(
+                  'id',svc.id,
+                  'name',svc.name
+                ) ORDER BY LOWER(svc.name),svc.id)
+                  FROM consultation_form_service_mappings m
+                  JOIN services svc ON svc.id=m.service_id
+                 WHERE m.template_version_id=tv.id AND m.required=TRUE
+              ),'[]'::jsonb) AS services,
+              COALESCE((
+                SELECT jsonb_agg(jsonb_build_object(
+                  'title',s.title,
+                  'sectionKey',s.section_key,
+                  'version',sv.version_number,
+                  'position',ts.position,
+                  'definition',sv.definition
+                ) ORDER BY ts.position)
+                  FROM consultation_form_template_sections ts
+                  JOIN consultation_form_section_versions sv ON sv.id=ts.section_version_id
+                  JOIN consultation_form_sections s ON s.id=sv.section_id
+                 WHERE ts.template_version_id=tv.id
+              ),'[]'::jsonb) AS sections
+         FROM consultation_form_templates t
+         JOIN LATERAL (
+           SELECT v.* FROM consultation_form_template_versions v
+            WHERE v.template_id=t.id
+            ORDER BY v.version_number DESC LIMIT 1
+         ) tv ON TRUE
+        WHERE t.status='active' AND t.template_key=$1
+        LIMIT 2`,
+      [key]
+    );
+    if (result.rows.length !== 1) {
+      throw new WorkspaceFormsError('WORKSPACE_FORM_NOT_FOUND', 'That form was not found.', 404);
+    }
+    const row = result.rows[0];
+    return {
+      id: positiveId(row.id),
+      templateKey: row.template_key,
+      title: row.title,
+      status: row.status,
+      versionId: positiveId(row.template_version_id),
+      version: Number(row.version_number || 0),
+      consentText: String(row.consent_text || ''),
+      settings: row.settings && typeof row.settings === 'object' && !Array.isArray(row.settings) ? row.settings : {},
+      services: Array.isArray(row.services) ? row.services : [],
+      sections: Array.isArray(row.sections) ? row.sections : [],
+    };
+  }
+
   async function assignmentStatusRows(authority) {
     const values = [];
     let scope = '';
@@ -191,10 +255,22 @@ function createWorkspaceFormsService({ db = pool } = {}) {
     };
   }
 
+  async function getFormPreview({ adminId, templateKey: rawTemplateKey } = {}) {
+    const authority = await requireAccess(adminId);
+    const template = await readTemplatePreview(rawTemplateKey);
+    return {
+      authority,
+      template,
+      deliveryEnabled: false,
+      clientFormEnabled: false,
+    };
+  }
+
   return {
     resolveAccess,
     requireAccess,
     listForms,
+    getFormPreview,
   };
 }
 
@@ -206,6 +282,7 @@ module.exports = {
   WorkspaceFormsError,
   positiveId,
   permissionSet,
+  templateKey,
   evaluateFormsReadAuthority,
   emptyStatusCounts,
   normalizeStatusCounts,
