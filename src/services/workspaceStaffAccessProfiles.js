@@ -28,6 +28,7 @@ const CLINIC_TEAM_DENIED = Object.freeze([
   'services:create',
   'services:manage',
   'service:pricing',
+  'schedule:availability_manage',
   'schedule:manage',
   'staff:manage',
   'staff_access:manage',
@@ -50,6 +51,7 @@ const OWN_WORKSPACE_ACTIONS = Object.freeze([
   'client:manage',
   'services:manage',
   'service:pricing',
+  'schedule:availability_manage',
 ]);
 const OWN_WORKSPACE_DENIED = Object.freeze([
   'appointment:record_past',
@@ -73,6 +75,7 @@ const TOGGLES = Object.freeze({
     Object.freeze({ key: 'finish_own_appointments', label: 'Complete or mark my appointments no-show', description: 'Finish only appointments assigned to this practitioner.', capabilities: Object.freeze(['booking:update']) }),
     Object.freeze({ key: 'manage_my_clients', label: 'Manage my clients', description: 'Add and update this practitioner’s own client relationships.', capabilities: Object.freeze(['client:manage']) }),
     Object.freeze({ key: 'manage_my_services', label: 'Manage my services', description: 'Manage only services assigned and permitted to this practitioner.', capabilities: Object.freeze(['services:manage', 'service:pricing']) }),
+    Object.freeze({ key: 'manage_my_availability', label: 'Manage my availability', description: 'Block time or add leave for this practitioner only. Clinic Hours stay protected.', capabilities: Object.freeze(['schedule:availability_manage']) }),
     Object.freeze({ key: 'view_clinic_hours', label: 'View clinic hours', description: 'See clinic and booking hours without permission to change them.', capabilities: Object.freeze(['schedule:view']) }),
   ]),
 });
