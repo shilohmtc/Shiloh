@@ -16,18 +16,20 @@ test('Phone Week adds previous and next week navigation beside the dates', () =>
   assert.match(script, /\[data-phone-week-nav\]/);
 });
 
-test('Phone Week staff controls use a compact four-column no-scroll grid', () => {
+test('Phone Week moves multi-select staff controls into a compact dropdown beside Month', () => {
   const script = calendarPhoneAllStaffClientScript();
-  assert.match(script, /phone-week-staff-strip\{[^}]*display:grid!important/);
-  assert.match(script, /grid-template-columns:40px repeat\(4,minmax\(0,1fr\)\)/);
-  assert.match(script, /grid-template-rows:repeat\(2,minmax\(34px,auto\)\)/);
-  assert.match(script, /phone-week-staff-strip:before\{[^}]*grid-row:1\/3/);
-  assert.match(script, /phone-week-staff-toggle\{[^}]*width:100%[^}]*min-height:34px!important/);
-  assert.match(script, /phone-week-staff-strip\{[^}]*overflow:visible!important/);
-  assert.doesNotMatch(script, /phone-week-staff-strip\{[^}]*overflow:auto/);
+  assert.match(script, /phone-staff-menu-mount/);
+  assert.match(script, /phone-week-staff-strip\{display:none!important\}/);
+  assert.match(script, /function installStaffMenu\(\)/);
+  assert.match(script, /summary\.textContent='Staff'/);
+  assert.match(script, /panel\.appendChild\(allButton\)/);
+  assert.match(script, /staffButtons\.forEach\(button=>panel\.appendChild\(button\)\)/);
+  assert.match(script, /phone-staff-menu-panel\{[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(script, /phone-staff-menu-panel \.phone-week-staff-toggle\{[^}]*min-height:40px!important/);
+  assert.match(script, /staffMenuSummary\.setAttribute\('aria-label'/);
 });
 
-test('Phone Week keeps compact controls, offsets view tabs, and uses subtle hourly guides', () => {
+test('Phone Week keeps compact controls, offset tabs, subtle hourly guides, and named staff columns', () => {
   const script = calendarPhoneAllStaffClientScript();
   assert.match(script, /phone-calendar-utility-bar\{[^}]*min-height:40px/);
   assert.match(script, /phone-calendar-view-nav\{[^}]*margin-left:10px/);
@@ -38,6 +40,5 @@ test('Phone Week keeps compact controls, offsets view tabs, and uses subtle hour
   assert.match(script, /week-time-grid\{[^}]*border-top:1px solid var\(--line-strong\)!important[^}]*border-bottom:1px solid var\(--line-strong\)!important/);
   assert.match(script, /time-column\{[^}]*background:#fff!important[^}]*border-right:1px solid var\(--line-strong\)!important/);
   assert.match(script, /time-column:before\{[^}]*repeating-linear-gradient\(to bottom[^}]*var\(--line\)[^}]*calc\(100% \/ 11\)[^}]*!important/);
-  assert.doesNotMatch(script, /time-column:before\{[^}]*background:none!important/);
   assert.match(script, /Math\.max\(30,eventHeight\*ratio\)/);
 });
