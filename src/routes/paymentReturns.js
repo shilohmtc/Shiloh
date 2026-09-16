@@ -16,7 +16,7 @@ async function appointmentPathForReturn(queryable, requestReference) {
                 SELECT agm.appointment_id
                   FROM appointment_group_members agm
                  WHERE agm.group_id=bpa.appointment_group_id
-                 ORDER BY agm.position,agm.appointment_id
+                 ORDER BY agm.guest_position,agm.appointment_id
                  LIMIT 1
               )) AS appointment_id
          FROM payment_requests pr
