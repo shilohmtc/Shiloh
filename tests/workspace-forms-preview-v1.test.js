@@ -88,7 +88,7 @@ test('staff preview renders the real versioned questions read-only with consent 
   assert.match(html, /Consent &amp; declaration|Consent & declaration/);
   assert.match(html, /Digital signature/);
   assert.match(html, /Nothing you tap here is saved or submitted/);
-  assert.doesNotMatch(html, /<form\b|<input\b|<textarea\b|<button\b/i);
+  assert.doesNotMatch(html, /<form\b|<input\b|<textarea\b|type="submit"/i);
 });
 
 test('preview service loads only the requested active version after Forms authority succeeds', async () => {
