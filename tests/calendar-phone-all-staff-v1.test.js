@@ -36,7 +36,7 @@ test('#895 visible events are laid out inside their selected practitioner column
   assert.match(script, /laneWidth=\(100\/columnCount\)\/laneCount/);
   assert.match(script, /node\.dataset\.phoneColumnVisible=String\(visible\)/);
   assert.match(script, /phone-staff-column-dividers/);
-  assert.match(script, /week-time-grid\{overflow:hidden!important\}/);
+  assert.match(script, /week-time-grid\{overflow:hidden!important/);
   assert.doesNotMatch(script, /scrollLeft/);
 });
 
@@ -76,18 +76,21 @@ test('#895 Week fits 07:00 to 18:00 into the dynamic phone viewport without vert
   assert.match(script, /function fitWeekGrid\(\)/);
   assert.match(script, /const baseHeight=660/);
   assert.match(script, /--phone-week-grid-height/);
-  assert.match(script, /week-time-grid\{overflow:hidden!important\}/);
+  assert.match(script, /week-time-grid\{overflow:hidden!important/);
   assert.match(script, /phoneAfterClose=String\(hour>18\)/);
   assert.match(script, /if\(hour===18\)node\.style\.transform='translateY\(-100%\)'/);
+  assert.match(script, /Math\.max\(30,eventHeight\*ratio\)/);
 });
 
-test('#895 Phone Week polish keeps opening time visible and strengthens scan hierarchy', () => {
+test('#895 Phone Week polish keeps opening time visible and simplifies the calendar grid', () => {
   const script = calendarPhoneAllStaffClientScript();
   assert.match(script, /phoneOpenLabel=String\(hour===7\)/);
   assert.match(script, /data-phone-open-label="true"\]\{transform:translateY\(3px\)!important\}/);
   assert.match(script, /time-rail span\{color:var\(--ink\)!important;font-size:clamp\(\.5rem,2vw,\.62rem\)!important;font-weight:850!important/);
   assert.match(script, /phone-staff-column-name\{[^}]*color:var\(--leaf-deep\)[^}]*font-weight:900/);
-  assert.match(script, /time-column:before\{[^}]*repeating-linear-gradient\(to bottom/);
+  assert.match(script, /time-column\{[^}]*background:#fff!important[^}]*border-right:1px solid var\(--line-strong\)!important/);
+  assert.match(script, /time-column:before\{[^}]*background:none!important/);
+  assert.match(script, /phone-staff-column-dividers/);
   assert.match(script, /phone-staff-column-header\{[^}]*border-top:1px solid var\(--line-strong\)[^}]*border-bottom:1px solid var\(--line-strong\)/);
 });
 
