@@ -177,7 +177,8 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
   }
 
-  async function createOzowRequest({ adminId, appointmentId, amount, payerName, payerMobile, operationId } = {}) {
+  async function createOzowRequest({ adminId, appointmentId, amount, payerName, payerMobile, payerConfirmed, operationId } = {}) {
+    if (String(payerConfirmed || '').toLowerCase() !== 'true') throw new BookingPaymentError('PAYMENT_PAYER_CONFIRMATION_REQUIRED', 'Confirm the payer name and mobile number before creating a payment link.', 400);
     const normalizedAmount = money(amount, { positive: true }), key = requestKey(operationId);
     const client = await db.connect(); let account; let subject; let row;
     try {
