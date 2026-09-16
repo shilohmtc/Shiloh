@@ -3,6 +3,8 @@ const { pool } = require('../db/pool');
 const { resolveCalendarAuthority, hasCapability, allowsAppointmentTarget } = require('./calendarAuthorization');
 const { createOzowPaymentProvider } = require('./ozowPaymentProvider');
 const { STATES, EVIDENCE, transitionPaymentState } = require('../domain/paymentState');
+const { PAYMENT_TEMPLATE_KEYS, formatRand, sendPaymentTemplate } = require('./paymentWhatsAppNotifications');
+const { sendWhatsAppTemplate } = require('./whatsapp');
 
 const CAPABILITIES = Object.freeze({ VIEW: 'payment:view', COLLECT: 'payment:collect', REFUND: 'payment:refund' });
 
@@ -38,7 +40,7 @@ function normalizeMethod(value) {
   return method;
 }
 
-function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvider() } = {}) {
+function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvider(), sendTemplate = sendWhatsAppTemplate } = {}) {
   async function resolveOperator(queryable, adminId, capability) {
     const operator = await resolveCalendarAuthority(queryable, positiveId(adminId), { additionalCapabilities: Object.values(CAPABILITIES) });
     if (!operator || !hasCapability(operator.calendarAuthority, capability)) {
@@ -59,6 +61,9 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
                            AND cc.contact_type IN ('whatsapp','mobile')
                          ORDER BY cc.is_primary DESC,cc.id
                          LIMIT 1),v2.normalized_mobile) AS client_mobile,
+              COALESCE((SELECT string_agg(aps.service_name_snapshot, ' + ' ORDER BY aps.position)
+                          FROM appointment_services aps
+                         WHERE aps.appointment_id=a.id),a.title,'Shiloh appointment') AS service_name,
               g.id AS group_id,g.status AS group_status,COALESCE(g.final_total,g.total_price) AS group_total,
               g.updated_at AS group_revision,
               ARRAY(SELECT ast.staff_id FROM appointment_staff ast WHERE ast.appointment_id=a.id AND ast.staff_id IS NOT NULL ORDER BY ast.position) AS staff_ids,
@@ -82,6 +87,7 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
       amountDue: money(amount), currency: String(row.currency || 'ZAR'),
       pricingRevision: new Date(row.group_id ? row.group_revision : row.appointment_revision).toISOString(),
       clientName: String(row.client_name || ''), clientMobile: String(row.client_mobile || ''),
+      serviceName: String(row.service_name || 'Shiloh appointment'),
       staffIds: row.staff_ids.map(Number), serviceIds: row.service_ids.map(Number),
       final: ['cancelled'].includes(String(row.group_id ? row.group_status : row.appointment_status)),
     };
@@ -160,7 +166,14 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
         await client.query(`INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata) VALUES($1,'payment.manual_recorded','booking_payment_account',$2,$3::jsonb)`,
           [operator.id, account.id, JSON.stringify({ amount: normalizedAmount, method: normalizedMethod, reference: String(reference || '').trim() || null, operationId: key })]);
       }
-      const result = await position(client, account, subject); await client.query('COMMIT'); return { status: replay.rows[0] ? 'idempotent_replay' : 'recorded', payment: result };
+      const result = await position(client, account, subject); await client.query('COMMIT');
+      if (!replay.rows[0]) await sendPaymentTemplate({
+        templateKey: PAYMENT_TEMPLATE_KEYS.RECEIVED,
+        to: subject.clientMobile,
+        bodyParameters: [subject.clientName || 'there', formatRand(normalizedAmount), String(normalizedMethod).replaceAll('_', ' '), String(reference || `SHILOH ${subject.appointmentId}`), formatRand(result.outstanding)],
+        send: sendTemplate,
+      });
+      return { status: replay.rows[0] ? 'idempotent_replay' : 'recorded', payment: result };
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
   }
 
@@ -179,10 +192,20 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
       await client.query('COMMIT');
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
     if (row.provider_payment_url) return { status: 'idempotent_replay', request: row };
-    const linked = await ozow.createPaymentLink({ requestKey:key, amount:normalizedAmount, bankReference:`SHILOH ${account.id}`, customerName:row.payer_name, customerMobile:row.payer_mobile });
-    transitionPaymentState(STATES.CREATED, STATES.LINK_ISSUED);
-    const updated = await db.query(`UPDATE payment_requests SET provider_request_id=$2,provider_payment_url=$3,state='link_issued',updated_at=NOW() WHERE id=$1 AND state='created' RETURNING *`, [row.id,linked.providerRequestId,linked.paymentUrl]);
-    return { status: 'link_issued', request: updated.rows[0] };
+     const linked = await ozow.createPaymentLink({ requestKey:key, amount:normalizedAmount, bankReference:`SHILOH ${account.id}`, customerName:row.payer_name, customerMobile:row.payer_mobile });
+     transitionPaymentState(STATES.CREATED, STATES.LINK_ISSUED);
+     const updated = await db.query(`UPDATE payment_requests SET provider_request_id=$2,provider_payment_url=$3,state='link_issued',updated_at=NOW() WHERE id=$1 AND state='created' RETURNING *`, [row.id,linked.providerRequestId,linked.paymentUrl]);
+     const request = updated.rows[0];
+     if (request) await sendPaymentTemplate({
+       templateKey: subject.groupId ? PAYMENT_TEMPLATE_KEYS.SPLIT_REQUEST : PAYMENT_TEMPLATE_KEYS.BALANCE_DUE,
+       to: request.payer_mobile || subject.clientMobile,
+       bodyParameters: subject.groupId
+         ? [request.payer_name || subject.clientName || 'there', subject.serviceName, formatRand(request.amount), String(subject.appointmentId)]
+         : [request.payer_name || subject.clientName || 'there', subject.serviceName, String(subject.appointmentId), formatRand(request.amount)],
+       urlButtonParameter: request.request_key,
+       send: sendTemplate,
+     });
+     return { status: 'link_issued', request: updated.rows[0] };
   }
 
   async function recordRefund({ adminId, appointmentId, amount, method, reference, notes, operationId } = {}) {
@@ -200,7 +223,14 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
         await client.query(`INSERT INTO payment_ledger_entries(payment_account_id,entry_type,amount,method,evidence_kind,operation_key,external_reference,actor_admin_id,notes) VALUES($1,'refund',$2,$3,$4,$5,$6,$7,$8)`,[account.id,normalizedAmount,normalizedMethod,EVIDENCE.AUTHORIZED_MANUAL,operationKey,String(reference||'').trim()||null,operator.id,String(notes||'').trim()||null]);
         await client.query(`INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata) VALUES($1,'payment.refund_recorded','booking_payment_account',$2,$3::jsonb)`,[operator.id,account.id,JSON.stringify({amount:normalizedAmount,method:normalizedMethod,operationId:key})]);
       }
-      const result=await position(client,account,subject);await client.query('COMMIT');return{status:replay.rows[0]?'idempotent_replay':'refunded',payment:result};
+      const result=await position(client,account,subject);await client.query('COMMIT');
+      if (!replay.rows[0]) await sendPaymentTemplate({
+        templateKey: PAYMENT_TEMPLATE_KEYS.REFUND_UPDATE,
+        to: subject.clientMobile,
+        bodyParameters: [subject.clientName || 'there', 'Recorded', formatRand(normalizedAmount), String(reference || `SHILOH ${subject.appointmentId}`)],
+        send: sendTemplate,
+      });
+      return{status:replay.rows[0]?'idempotent_replay':'refunded',payment:result};
     }catch(error){try{await client.query('ROLLBACK');}catch(_){}throw error;}finally{client.release();}
   }
 
@@ -211,20 +241,67 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
     if (!eventKey || !requestReference || !ozow.verifyNotification(payload)) throw new BookingPaymentError('PAYMENT_PROVIDER_NOTIFICATION_REJECTED', 'Provider notification could not be verified.', 400);
     const status = String(payload.Status || payload.status || '').trim().toLowerCase();
     const paid = ['complete','completed','paid','successful','success'].includes(status);
+    const cancelled = ['cancelled','canceled','abandoned'].includes(status);
+    const notVerifiedOutcome = ['failed','error','cancelled','canceled','abandoned','expired','declined'].includes(status);
     const client = await db.connect();
+    let paymentReceived = null;
+    let paymentNotVerified = null;
     try {
       await client.query('BEGIN');
       const duplicate = await client.query(`SELECT id FROM payment_provider_events WHERE provider='ozow' AND provider_event_key=$1`, [eventKey]);
       if (duplicate.rows[0]) { await client.query('COMMIT'); return { status:'duplicate' }; }
-      const request = (await client.query(`SELECT * FROM payment_requests WHERE request_key=$1 FOR UPDATE`, [requestReference])).rows[0];
+      const request = (await client.query(
+        `SELECT pr.*,
+                COALESCE(bpa.appointment_id,(
+                  SELECT agm.appointment_id
+                    FROM appointment_group_members agm
+                   WHERE agm.group_id=bpa.appointment_group_id
+                   ORDER BY agm.guest_position,agm.appointment_id
+                   LIMIT 1
+                )) AS appointment_id
+           FROM payment_requests pr
+           JOIN booking_payment_accounts bpa ON bpa.id=pr.payment_account_id
+          WHERE pr.request_key=$1
+          FOR UPDATE OF pr,bpa`,
+        [requestReference],
+      )).rows[0];
       if (!request) { await client.query(`INSERT INTO payment_provider_events(provider,provider_event_key,signature_verified,payload_sha256,outcome) VALUES('ozow',$1,TRUE,$2,'unmatched')`, [eventKey,hash]); await client.query('COMMIT'); return { status:'unmatched' }; }
       if (paid && request.state !== 'paid') {
         transitionPaymentState(request.state, STATES.PAID, { evidence:EVIDENCE.VERIFIED_PROVIDER });
         await client.query(`INSERT INTO payment_ledger_entries(payment_account_id,payment_request_id,entry_type,amount,method,evidence_kind,provider_transaction_id) VALUES($1,$2,'payment',$3,'ozow',$4,$5) ON CONFLICT DO NOTHING`, [request.payment_account_id,request.id,request.amount,EVIDENCE.VERIFIED_PROVIDER,eventKey]);
         await client.query(`UPDATE payment_requests SET state='paid',updated_at=NOW() WHERE id=$1`, [request.id]);
+        const balance = (await client.query(
+          `SELECT bpa.canonical_amount_due,
+                  COALESCE(SUM(ple.amount) FILTER (WHERE ple.entry_type='payment'),0)
+                  - COALESCE(SUM(ple.amount) FILTER (WHERE ple.entry_type='refund'),0) AS net_paid
+             FROM booking_payment_accounts bpa
+             LEFT JOIN payment_ledger_entries ple ON ple.payment_account_id=bpa.id
+            WHERE bpa.id=$1
+            GROUP BY bpa.id`,
+          [request.payment_account_id],
+        )).rows[0];
+        paymentReceived = { request, remaining: Math.max(0, Number(balance?.canonical_amount_due || 0) - Number(balance?.net_paid || 0)) };
+      } else if (!paid && notVerifiedOutcome && ['link_issued', 'pending'].includes(String(request.state))) {
+        const nextState = cancelled ? STATES.CANCELLED : STATES.FAILED;
+        transitionPaymentState(request.state, nextState);
+        await client.query(`UPDATE payment_requests SET state=$2,updated_at=NOW() WHERE id=$1`, [request.id, nextState]);
+        paymentNotVerified = request;
       }
       await client.query(`INSERT INTO payment_provider_events(provider,provider_event_key,payment_request_id,signature_verified,payload_sha256,outcome) VALUES('ozow',$1,$2,TRUE,$3,'accepted')`, [eventKey,request.id,hash]);
-      await client.query('COMMIT'); return { status: paid ? 'paid' : 'accepted' };
+      await client.query('COMMIT');
+      if (paymentReceived) await sendPaymentTemplate({
+        templateKey: PAYMENT_TEMPLATE_KEYS.RECEIVED,
+        to: paymentReceived.request.payer_mobile,
+        bodyParameters: [paymentReceived.request.payer_name || 'there', formatRand(paymentReceived.request.amount), 'Ozow', requestReference, formatRand(paymentReceived.remaining)],
+        send: sendTemplate,
+      });
+      if (paymentNotVerified) await sendPaymentTemplate({
+        templateKey: PAYMENT_TEMPLATE_KEYS.NOT_VERIFIED,
+        to: paymentNotVerified.payer_mobile,
+        bodyParameters: [paymentNotVerified.payer_name || 'there', `Booking #${paymentNotVerified.appointment_id || 'payment'}`, requestReference, formatRand(paymentNotVerified.amount)],
+        send: sendTemplate,
+      });
+      return { status: paid ? 'paid' : 'accepted' };
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
   }
 
