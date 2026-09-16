@@ -51,7 +51,7 @@ test('Forms library cards are tappable staff-preview links without leaking quest
   });
   assert.match(html, /href="\/calendar\/forms\/hot_stone_massage_consultation"/);
   assert.match(html, /Preview form/);
-  assert.match(html, /Tap a form below to preview exactly what the client will see/);
+  assert.match(html, /Preview the exact questionnaire clients will receive/);
   assert.doesNotMatch(html, /blood thinners|pregnant|cancer|doctor number/i);
 });
 
