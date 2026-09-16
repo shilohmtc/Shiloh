@@ -1,6 +1,7 @@
 const path = require('path');
 const express = require('express');
 const clientConsultationForms = require('../services/clientConsultationForms');
+const { createConsultationFormTrialRouter } = require('./consultationFormTrial');
 const {
   renderClientConsultationFormPage,
   renderCompletedPage,
@@ -43,11 +44,17 @@ function createClientConsultationFormsRouter({
   renderForm = renderClientConsultationFormPage,
   renderCompleted = renderCompletedPage,
   renderUnavailable = renderUnavailablePage,
+  trialService,
+  trialLog,
 } = {}) {
   const router = express.Router();
 
-  router.use((req, res, next) => {
+  router.use((_req, res, next) => {
     setClientFormSecurityHeaders(res);
+    return next();
+  });
+  router.use('/test', createConsultationFormTrialRouter({ env, ...(trialService ? { service: trialService } : {}), ...(trialLog ? { log: trialLog } : {}) }));
+  router.use((req, res, next) => {
     if (!service.isClientConsultationFormsEnabled(env)) return res.sendStatus(404);
     try {
       service.parseDataKey(env);
