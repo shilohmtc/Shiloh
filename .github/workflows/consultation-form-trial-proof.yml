@@ -1,0 +1,49 @@
+name: Private Consultation Form Trial Proof
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**/consultationFormTrial*'
+      - 'src/**/clientConsultationForm*'
+      - 'src/middleware/requestContext.js'
+      - 'public/assets/forms/**'
+      - 'migrations/13*'
+      - 'tests/consultation-form-private-trial.test.js'
+      - 'tests/fixtures/consultationFormTrialFixture.js'
+      - 'scripts/consultation-form-trial-browser-proof.js'
+      - '.github/workflows/consultation-form-trial-proof.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  private_trial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Use Node 24.14.1
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.14.1
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run trial boundary and original consultation regressions
+        run: node --test tests/consultation-form-private-trial.test.js tests/client-consultation-forms-v1.test.js
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Prove mobile and desktop open, sign, submit and replay
+        run: node scripts/consultation-form-trial-browser-proof.js
+      - name: Upload synthetic browser evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: consultation-form-trial-proof
+          path: artifacts/consultation-form-trial-proof
+          if-no-files-found: warn
+          retention-days: 7
