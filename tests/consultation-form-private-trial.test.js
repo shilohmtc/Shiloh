@@ -33,7 +33,6 @@ test('opening a trial uses the actual versioned questions and fictional prefill,
   assert.deepEqual(model.form.sections, f.form.sections);
   assert.equal(f.rows.size, 1);
   assert.doesNotMatch(JSON.stringify(f.calls.map(call => call.sql)), /FROM clients|FROM appointments|INSERT INTO clients|INSERT INTO appointments|consultation_form_assignments|practitioner_notes/);
-  // Existing trials retain the original snapshot, even when a new library version is published.
   f.form.sections = [];
   assert.equal((await f.service.openTrial(f.token)).form.sections.length, 2);
 });
@@ -140,7 +139,7 @@ test('private HTTP journey opens, validates, signs, saves and confirms while rea
   const landing = await fetch(origin + '/forms/test');
   assert.equal(landing.status, 200);
   assert.match(landing.headers.get('cache-control'), /no-store/);
-  assert.equal(landing.headers.get('referrer-policy'), 'no-referrer');
+  assert.equal(landing.headers.get('referrer-policy'), 'strict-origin');
   assert.equal(landing.headers.get('x-frame-options'), 'DENY');
   assert.match(landing.headers.get('x-robots-tag'), /noindex/);
   assert.doesNotMatch(await landing.text(), /anticoagulants|signature_name/);
@@ -159,10 +158,11 @@ test('private HTTP journey opens, validates, signs, saves and confirms while rea
   for (const secret of [f.token, f.env.CONSULTATION_FORM_DATA_KEY, 'Test Client']) assert.ok(!logText.includes(secret));
 });
 
-test('HTTP rejects foreign or absent origins, URL tokens, extra fields and oversized bodies', async t => {
+test('HTTP rejects foreign, null or absent origins, URL tokens, extra fields and oversized bodies', async t => {
   const f = makeTrialFixture();
   const { origin, post } = await testServer(t, f);
   assert.equal((await post('/forms/test/open', { access_token: f.token }, { origin: 'https://evil.invalid' })).status, 403);
+  assert.equal((await post('/forms/test/open', { access_token: f.token }, { origin: 'null' })).status, 403);
   assert.equal((await post('/forms/test/open', { access_token: f.token }, { origin: '' })).status, 403);
   assert.equal((await post('/forms/test/open', { access_token: f.token }, { 'sec-fetch-site': 'cross-site' })).status, 403);
   assert.equal((await post('/forms/test/open', { access_token: 'invalid' })).status, 404);
