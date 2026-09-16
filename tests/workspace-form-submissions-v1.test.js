@@ -7,12 +7,14 @@ const root = path.join(__dirname, '..');
 const serviceSource = fs.readFileSync(path.join(root, 'src/services/workspaceFormSubmissions.js'), 'utf8');
 const routeSource = fs.readFileSync(path.join(root, 'src/routes/workspaceForms.js'), 'utf8');
 const presentationSource = fs.readFileSync(path.join(root, 'src/presentation/workspaceFormsUx.js'), 'utf8');
+const trialSource = fs.readFileSync(path.join(root, 'src/services/consultationFormTrial.js'), 'utf8');
 
 const submissions = require('../src/services/workspaceFormSubmissions');
 const ux = require('../src/presentation/workspaceFormsUx');
 
 function authority(overrides = {}) {
   return {
+    operatorAdminId: 1,
     businessRole: 'owner',
     formScope: 'all_business',
     linkedStaffId: 40,
@@ -110,7 +112,7 @@ test('Workspace submission routes remain behind staff browser session and no-sto
   assert.match(routeSource, /renderSubmission/);
 });
 
-test('submission service decrypts only detail views and never returns ciphertext in list models', () => {
+test('submission service decrypts only detail views and audits every sensitive read', () => {
   assert.match(serviceSource, /decryptSubmissionPayload/);
   assert.match(serviceSource, /canReadSensitiveSubmission/);
   assert.match(serviceSource, /WORKSPACE_FORM_SUBMISSION_FORBIDDEN/);
@@ -118,6 +120,13 @@ test('submission service decrypts only detail views and never returns ciphertext
   assert.doesNotMatch(serviceSource.match(/async function listRealSubmissions[\s\S]*?async function listTrialSubmissions/)?.[0] || '', /payload_ciphertext/);
   assert.match(serviceSource, /workspaceFormSubmissions:real-detail/);
   assert.match(serviceSource, /payload_ciphertext/);
+  assert.match(serviceSource, /workspaceFormSubmissions:audit-view/);
+  assert.match(serviceSource, /workspace\.form_submission_viewed/);
+  assert.match(serviceSource, /await auditSensitiveRead\(authority/);
+});
+
+test('completed private tests survive link expiry for Workspace review while unused expired links are purged', () => {
+  assert.match(trialSource, /DELETE FROM consultation_form_trials WHERE expires_at <= \$1 AND submitted_at IS NULL/);
 });
 
 test('presentation keeps signed form detail read-only and never adds mutation controls', () => {
