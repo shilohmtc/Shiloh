@@ -129,9 +129,13 @@ test('preview service loads only the requested active version after Forms author
   assert.deepEqual(templateCall.values, ['hot_stone_massage_consultation']);
 });
 
-test('Forms browser navigation redirects expired sessions to sign-in instead of raw Unauthorized JSON', () => {
+test('Forms browser navigation redirects expired sessions and permits only the guarded Sports assessment mutation', () => {
   assert.match(formsRouteSource, /humanNavigationSigninPath:\s*staffAccessPath/);
   assert.match(formsRouteSource, /staffAccessPath = '\/calendar\/staff'/);
   assert.match(formsRouteSource, /router\.get\('\/:templateKey'/);
-  assert.doesNotMatch(formsRouteSource, /router\.(?:post|put|patch|delete)\(/i);
+  assert.match(formsRouteSource, /router\.post\([\s\S]*?'\/submissions\/client\/:reference\/assessment'/);
+  assert.match(formsRouteSource, /sameOriginGuard\(\{ env \}\)/);
+  assert.match(formsRouteSource, /csrfGuard\(\{ service: sessionService \}\)/);
+  assert.match(formsRouteSource, /practitionerRecordService\.saveRecord/);
+  assert.doesNotMatch(formsRouteSource, /router\.(?:put|patch|delete)\(/i);
 });
