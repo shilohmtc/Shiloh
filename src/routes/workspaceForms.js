@@ -2,6 +2,7 @@ const express = require('express');
 const workspaceForms = require('../services/workspaceForms');
 const {
   renderFormsPage,
+  renderFormPreviewPage,
   renderFormsUnavailablePage,
 } = require('../presentation/workspaceFormsUx');
 const { requireStaffSession } = require('../middleware/staffBrowserSession');
@@ -22,6 +23,7 @@ function setWorkspaceFormsSecurityHeaders(res) {
 
 function safeError(error) {
   if (Number(error?.httpStatus) === 403) return { status: 403, message: 'You do not have access to Forms.' };
+  if (Number(error?.httpStatus) === 404) return { status: 404, message: 'That consultation form was not found.' };
   return { status: 503, message: 'Forms are temporarily unavailable.' };
 }
 
@@ -30,7 +32,9 @@ function createWorkspaceFormsRouter({
   sessionService,
   service = workspaceForms,
   renderPage = renderFormsPage,
+  renderPreview = renderFormPreviewPage,
   renderUnavailable = renderFormsUnavailablePage,
+  staffAccessPath = '/calendar/staff',
 } = {}) {
   if (!sessionService) throw new Error('Workspace Forms requires the existing staff browser session service');
   const router = express.Router();
@@ -40,7 +44,11 @@ function createWorkspaceFormsRouter({
     if (!isWorkspaceFormsEnabled(env)) return res.sendStatus(404);
     return next();
   });
-  router.use(requireStaffSession({ service: sessionService, env }));
+  router.use(requireStaffSession({
+    service: sessionService,
+    env,
+    humanNavigationSigninPath: staffAccessPath,
+  }));
 
   router.get('/access', async (req, res) => {
     try {
@@ -54,6 +62,19 @@ function createWorkspaceFormsRouter({
     try {
       const model = await service.listForms({ adminId: req.staffBrowserSession?.adminId });
       return res.status(200).type('html').send(renderPage(model));
+    } catch (error) {
+      const safe = safeError(error);
+      return res.status(safe.status).type('html').send(renderUnavailable({ message: safe.message }));
+    }
+  });
+
+  router.get('/:templateKey', async (req, res) => {
+    try {
+      const model = await service.getFormPreview({
+        adminId: req.staffBrowserSession?.adminId,
+        templateKey: req.params.templateKey,
+      });
+      return res.status(200).type('html').send(renderPreview(model));
     } catch (error) {
       const safe = safeError(error);
       return res.status(safe.status).type('html').send(renderUnavailable({ message: safe.message }));
