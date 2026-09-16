@@ -12,7 +12,7 @@ test("AI receives authoritative CRM catalogue and practitioner mapping ahead of 
   assert.match(ai, /getActiveCatalogueKnowledge/);
   assert.match(ai, /getPractitionerKnowledge/);
   assert.match(ai, /clinicFaqKnowledge/);
-  assert.match(ai, /\[activeCatalogue, practitionerKnowledge, clinicFaqKnowledge, \.\.\.knowledge\]\.filter\(Boolean\)/);
+  assert.match(ai, /\[activeCatalogue, practitionerKnowledge, clinicFaqKnowledge, heidelbergGuideKnowledge, \.\.\.knowledge\]\.filter\(Boolean\)/);
 });
 
 test("active catalogue knowledge is read-only and active-only", () => {

@@ -87,7 +87,7 @@ test('practitioner CRM knowledge stays ahead of clinic FAQ and legacy retrieval 
   assert.match(ai, /getActiveCatalogueKnowledge\(\)/);
   assert.match(ai, /getPractitionerKnowledge\(\)/);
   assert.match(ai, /clinicFaqKnowledge/);
-  assert.match(ai, /\[activeCatalogue, practitionerKnowledge, clinicFaqKnowledge, \.\.\.knowledge\]\.filter\(Boolean\)/);
+  assert.match(ai, /\[activeCatalogue, practitionerKnowledge, clinicFaqKnowledge, heidelbergGuideKnowledge, \.\.\.knowledge\]\.filter\(Boolean\)/);
 });
 
 test('orchestrator makes mappings authoritative but forbids qualification inference', () => {

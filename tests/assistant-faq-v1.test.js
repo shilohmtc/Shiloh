@@ -106,7 +106,7 @@ test('#884 pure confirmed FAQ answers before provider use while canonical questi
   assert.match(aiSource, /processClinicFaqMessage\(message\)/);
   assert.match(aiSource, /if \(directFaq\.handled\) return directFaq\.reply/);
   assert.match(aiSource, /getClinicFaqKnowledge\(message\)/);
-  assert.match(aiSource, /\[activeCatalogue, practitionerKnowledge, clinicFaqKnowledge, \.\.\.knowledge\]/);
+  assert.match(aiSource, /\[activeCatalogue, practitionerKnowledge, clinicFaqKnowledge, heidelbergGuideKnowledge, \.\.\.knowledge\]/);
 
   const faqIndex = aiSource.indexOf('processClinicFaqMessage(message)');
   const providerIndex = aiSource.indexOf('client.responses.create(request)');
