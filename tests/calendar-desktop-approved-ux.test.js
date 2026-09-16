@@ -11,6 +11,7 @@ const {
   calendarDesktopApprovedClientScript,
 } = require('../src/presentation/calendarDesktopApprovedUx');
 const { workspaceIconClientScript } = require('../src/presentation/workspaceIconClient');
+const { calendarBookingsMenuPolishClientScript } = require('../src/presentation/calendarBookingsMenuPolish');
 const { calendarEventToneCss } = require('../src/presentation/calendarEventVisuals');
 
 const WEEK = ['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-10', '2026-09-11', '2026-09-12'];
@@ -95,6 +96,18 @@ test('one Book menu exposes single, couples, group, retrospective, block and lea
   assert.match(script, /url\.searchParams\.set\('staff',String\(person\.id\)\)/);
   assert.match(script, />='18:00'/);
   assert.match(desktopApprovedStyles(), /desktop-practitioner-lane \.calendar-booking-slots\{display:block!important\}/);
+});
+
+test('Bookings menu polish removes launcher pluses and gives every action a soft semantic tint', () => {
+  const polish = calendarBookingsMenuPolishClientScript();
+  const bundle = workspaceIconClientScript();
+  assert.match(polish, /summary\.innerHTML='<span>Bookings<\/span>'/);
+  assert.match(polish, /setAttribute\('aria-label','Bookings'\)/);
+  for (const tone of ['new', 'couples', 'group', 'past', 'block', 'leave']) {
+    assert.match(polish, new RegExp(`data-calendar-action-tone=\\"${tone}\\"`));
+  }
+  assert.match(bundle, /<span>Bookings<\/span>/);
+  assert.doesNotThrow(() => new Function(polish));
 });
 
 test('appointment, block and leave presentation follows approved accessible treatments', () => {
