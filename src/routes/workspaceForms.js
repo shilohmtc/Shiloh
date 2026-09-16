@@ -2,9 +2,9 @@ const express = require('express');
 const workspaceForms = require('../services/workspaceForms');
 const {
   renderFormsPage,
-  renderFormPreviewPage,
   renderFormsUnavailablePage,
 } = require('../presentation/workspaceFormsUx');
+const { renderFormPreviewPage } = require('../presentation/workspaceFormsPreviewUx');
 const { requireStaffSession } = require('../middleware/staffBrowserSession');
 
 function isWorkspaceFormsEnabled(env = process.env) {
