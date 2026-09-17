@@ -171,8 +171,8 @@ test('a due assignment sends only appointment context plus the opaque URL token,
       SHILOH_CONSULTATION_FORM_DELIVERY_ENABLED: 'true',
     },
     formService: enabledFormService(token),
-    assertSendAllowed: async (contractId, language) => {
-      assert.equal(contractId, 'consultation_form');
+    assertSendAllowed: async (templateName, language) => {
+      assert.equal(templateName, 'shiloh_consultation_form_v1');
       assert.equal(language, 'en');
     },
     loadAuthority: async () => ({
@@ -214,5 +214,6 @@ test('delivery source stays mapping-driven, avoids plaintext health payloads and
   assert.match(deliverySource, /consultation_form\.delivery_uncertain/);
   assert.match(deliverySource, /NOT EXISTS[\s\S]*consultation_form\.delivery_uncertain/);
   assert.doesNotMatch(deliverySource, /payload_ciphertext|decryptSubmissionPayload|consultation_form_submissions/);
+  assert.match(deliverySource, /assertTemplateSendAllowed\(INITIAL_TEMPLATE, TEMPLATE_LANGUAGE\)/);
   assert.match(appSource, /startConsultationFormDeliveryScheduler/);
 });
