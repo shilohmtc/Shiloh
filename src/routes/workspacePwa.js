@@ -14,6 +14,9 @@ const {
   workspacePwaClientScript,
 } = require('../presentation/workspacePwa');
 
+const IOS_APPLE_TOUCH_ICON_HREF = `${PWA_BASE}/apple-touch-icon-180.png?v=ios-optical-v2`;
+const LEGACY_APPLE_TOUCH_ICON_PATTERN = /<link rel="apple-touch-icon" sizes="192x192" href="[^"]+">/;
+
 const HTML_PATH_PREFIXES = Object.freeze([
   '/staff',
   '/staff-auth',
@@ -43,6 +46,13 @@ function sendPwaPng(res, filename) {
   return res.sendFile(path.join(PWA_ICON_ASSET_DIR, filename));
 }
 
+function preferIosAppleTouchIcon(html) {
+  return String(html || '').replace(
+    LEGACY_APPLE_TOUCH_ICON_PATTERN,
+    `<link rel="apple-touch-icon" sizes="180x180" href="${IOS_APPLE_TOUCH_ICON_HREF}">`,
+  );
+}
+
 function shouldDecoratePwaHtmlPath(pathname) {
   const path = String(pathname || '').split('?')[0];
   return HTML_PATH_PREFIXES.some(prefix => path === prefix || path.startsWith(`${prefix}/`));
@@ -61,7 +71,7 @@ function createWorkspacePwaHtmlMiddleware() {
     res.send = function pwaAwareSend(body) {
       const type = String(res.getHeader('Content-Type') || '').toLowerCase();
       if (typeof body === 'string' && type.includes('text/html')) {
-        body = decorateWorkspacePwaHtml(body);
+        body = preferIosAppleTouchIcon(decorateWorkspacePwaHtml(body));
         const csp = res.getHeader('Content-Security-Policy');
         if (csp) res.setHeader('Content-Security-Policy', augmentWorkspacePwaCsp(csp));
       }
@@ -99,6 +109,8 @@ function createWorkspacePwaRouter({ sessionService, env = process.env } = {}) {
     return res.status(200).type('application/javascript').send(workspacePwaClientScript());
   });
 
+  router.get('/apple-touch-icon-180.png', (_req, res) => sendPwaPng(res, 'shiloh-apple-touch-180.png'));
+
   router.get('/icon-192.png', (_req, res) => sendPwaPng(res, 'shiloh-pwa-192.png'));
 
   router.get('/icon-512.png', (_req, res) => sendPwaPng(res, 'shiloh-pwa-512.png'));
@@ -127,8 +139,10 @@ function createWorkspacePwaRouter({ sessionService, env = process.env } = {}) {
 
 module.exports = {
   PWA_BASE,
+  IOS_APPLE_TOUCH_ICON_HREF,
   HTML_PATH_PREFIXES,
   setPublicAssetHeaders,
+  preferIosAppleTouchIcon,
   shouldDecoratePwaHtmlPath,
   isMobilePwaRequest,
   createWorkspacePwaHtmlMiddleware,
