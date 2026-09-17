@@ -2,7 +2,7 @@ const { pool } = require('../db/pool');
 const logger = require('../lib/logger');
 const clientConsultationForms = require('./clientConsultationForms');
 const { sendWhatsAppTemplate } = require('./whatsapp');
-const { assertMessageContractSendAllowed } = require('./metaTemplateContracts');
+const { assertTemplateSendAllowed } = require('./metaTemplateContracts');
 const {
   loadBookingConfirmationAuthority,
   initialDeliveryFailure,
@@ -50,6 +50,13 @@ function identityModel(authority = {}) {
   if (authority.crm_v2_client_id && !authority.client_id) return 'crm_v2';
   if (authority.client_id && !authority.crm_v2_client_id) return 'legacy';
   return 'invalid';
+}
+
+async function preflightTemplateSend(assertFn = assertTemplateSendAllowed) {
+  if (assertFn === assertTemplateSendAllowed) {
+    return assertTemplateSendAllowed(INITIAL_TEMPLATE, TEMPLATE_LANGUAGE);
+  }
+  return assertFn(INITIAL_TEMPLATE, TEMPLATE_LANGUAGE);
 }
 
 async function resolveDeliveryRecipient(authority, {
@@ -106,7 +113,7 @@ function createConsultationFormDeliveryService({
   env = process.env,
   formService = clientConsultationForms,
   sendTemplate = sendWhatsAppTemplate,
-  assertSendAllowed = assertMessageContractSendAllowed,
+  assertSendAllowed = assertTemplateSendAllowed,
   loadAuthority = loadBookingConfirmationAuthority,
   exactPhoneCandidatesFn = exactPhoneCandidates,
   resolveName = resolveClientFacingName,
@@ -234,7 +241,7 @@ function createConsultationFormDeliveryService({
     if (!formService.isClientConsultationFormsEnabled(env)) return { sent: false, reason: 'client_forms_disabled' };
     if (!isConsultationFormDeliveryEnabled(env)) return { sent: false, reason: 'delivery_disabled' };
     formService.parseDataKey(env);
-    if (!contractPreflighted) await assertSendAllowed(INITIAL_CONTRACT, TEMPLATE_LANGUAGE);
+    if (!contractPreflighted) await preflightTemplateSend(assertSendAllowed);
 
     const context = await loadAssignmentContext(id);
     if (!context) return { sent: false, reason: 'assignment_not_due' };
@@ -309,7 +316,7 @@ function createConsultationFormDeliveryService({
     }
 
     try {
-      await assertSendAllowed(INITIAL_CONTRACT, TEMPLATE_LANGUAGE);
+      await preflightTemplateSend(assertSendAllowed);
     } catch (_error) {
       return { enabled: true, deliveryEnabled: true, created: discovered.created, attempted: 0, sent: 0, reason: 'template_not_ready' };
     }
@@ -389,6 +396,7 @@ module.exports = {
   formatAppointmentDate,
   providerMessageId,
   identityModel,
+  preflightTemplateSend,
   resolveDeliveryRecipient,
   createConsultationFormDeliveryService,
   startConsultationFormDeliveryScheduler,
