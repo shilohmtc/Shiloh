@@ -128,6 +128,10 @@ function assertDeliveryFeatureGate(contractId, environment = process.env) {
     && environment.SHILOH_STAFF_BROWSER_AUTH_WHATSAPP_DELIVERY_ENABLED !== 'true') {
     throw new Error('Staff authentication WhatsApp delivery gate is disabled');
   }
+  if ((contractId === 'consultation_form' || contractId === 'consultation_form_reminder')
+    && environment.SHILOH_CONSULTATION_FORM_DELIVERY_ENABLED !== 'true') {
+    throw new Error('Consultation form delivery gate is disabled');
+  }
 }
 
 let cache = null;

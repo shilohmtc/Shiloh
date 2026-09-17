@@ -13,12 +13,14 @@ const {
   resolveMetaTemplateBinding,
 } = require('../src/services/metaTemplateAdapter');
 
-test('Shiloh owns one canonical registry with 29 identities and 24 sendable contracts', () => {
+test('Shiloh owns one canonical registry with 31 identities and 26 sendable contracts', () => {
   const contracts = getShilohMessageContracts();
-  assert.equal(contracts.length, 29);
-  assert.equal(new Set(contracts.map((contract) => contract.id)).size, 29);
-  assert.equal(contracts.filter((contract) => contract.sendable).length, 24);
+  assert.equal(contracts.length, 31);
+  assert.equal(new Set(contracts.map((contract) => contract.id)).size, 31);
+  assert.equal(contracts.filter((contract) => contract.sendable).length, 26);
   assert.ok(contracts.some((contract) => contract.id === 'workspace_booking_request_alert' && contract.lifecycle === 'current' && contract.sendable));
+  assert.ok(contracts.some((contract) => contract.id === 'consultation_form' && contract.lifecycle === 'current' && contract.sendable));
+  assert.ok(contracts.some((contract) => contract.id === 'consultation_form_reminder' && contract.lifecycle === 'current' && contract.sendable));
   assert.deepEqual(
     contracts.filter((contract) => contract.lifecycle === 'retired').map((contract) => contract.id).sort(),
     ['appointment_followup_legacy', 'appointment_reminder_legacy', 'birthday_v1', 'booking_approval_outcome', 'booking_approval_request'],
@@ -71,6 +73,19 @@ test('Meta registration payload is deterministic and retired contracts cannot be
     /Retired Shiloh message contract cannot be registered/,
   );
   assert.equal(buildMetaTemplateContractView('appointment_followup_legacy').name, 'appointment_followup');
+});
+
+test('consultation form contracts are exact copies of the provisioned Meta templates', () => {
+  const form = buildMetaTemplateRegistrationPayload('consultation_form');
+  const reminder = buildMetaTemplateRegistrationPayload('consultation_form_reminder');
+  assert.equal(form.name, 'shiloh_consultation_form_v1');
+  assert.equal(reminder.name, 'shiloh_consultation_form_reminder_v1');
+  assert.equal(form.category, 'UTILITY');
+  assert.equal(reminder.category, 'UTILITY');
+  assert.equal(form.language, 'en');
+  assert.equal(reminder.language, 'en');
+  assert.equal(form.components[3].buttons[0].url, 'https://app.shilohmtc.co.za/forms/f/{{1}}');
+  assert.equal(reminder.components[3].buttons[0].url, 'https://app.shilohmtc.co.za/forms/f/{{1}}');
 });
 
 test('exact approved current Meta readback creates a binding with matching Shiloh spec hash', () => {

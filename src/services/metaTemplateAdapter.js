@@ -21,6 +21,8 @@ const META_TEMPLATE_BINDINGS = Object.freeze([
   { contractId: 'appointment_reminder_actions', templateName: 'shiloh_appointment_reminder_actions_v1', env: 'WHATSAPP_REMINDER_ACTIONS_TEMPLATE' },
   { contractId: 'booking_confirmation', templateName: 'shiloh_booking_confirmation_v1', env: 'WHATSAPP_BOOKING_CONFIRMATION_TEMPLATE' },
   { contractId: 'booking_confirmation_v2', templateName: 'shiloh_booking_confirmation_v2', env: 'WHATSAPP_BOOKING_CONFIRMATION_TEMPLATE' },
+  { contractId: 'consultation_form', templateName: 'shiloh_consultation_form_v1', env: 'WHATSAPP_CONSULTATION_FORM_TEMPLATE', defaultWhenUnset: true },
+  { contractId: 'consultation_form_reminder', templateName: 'shiloh_consultation_form_reminder_v1', env: 'WHATSAPP_CONSULTATION_FORM_REMINDER_TEMPLATE', defaultWhenUnset: true },
   { contractId: 'staff_finalization', templateName: 'shiloh_staff_finalization_v1', env: 'WHATSAPP_STAFF_FINALIZATION_TEMPLATE', defaultWhenUnset: true },
   { contractId: 'birthday_v2', templateName: 'shiloh_birthday_wish_v2', env: 'WHATSAPP_BIRTHDAY_TEMPLATE' },
   { contractId: 'birthday_v1', templateName: 'shiloh_birthday_wish_v1', env: null },
