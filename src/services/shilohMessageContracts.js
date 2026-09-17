@@ -8,8 +8,15 @@ const { buildReminderActionTemplateDefinition } = require('./reminderActionTempl
 const { buildDefinition } = require('./clientLifecycleTemplateProvisioning');
 const { buildStaffAuthTemplateSubmissionDefinition } = require('./staffAuthTemplateDefinition');
 const { buildPaymentTemplateDefinition } = require('./paymentTemplateDefinitions');
+const {
+  TEMPLATE_SPECS: CONSULTATION_TEMPLATE_SPECS,
+  buildConsultationFormTemplateDefinition,
+} = require('./consultationFormTemplateProvisioning');
 
 const definition = (key) => buildDefinition(key);
+const consultationDefinition = (key) => buildConsultationFormTemplateDefinition(
+  CONSULTATION_TEMPLATE_SPECS.find((spec) => spec.key === key),
+);
 
 const SOURCE_DEFINITIONS = Object.freeze({
   booking_update: () => definition('booking_update'),
@@ -27,6 +34,8 @@ const SOURCE_DEFINITIONS = Object.freeze({
   appointment_reminder_actions: () => buildReminderActionTemplateDefinition(),
   booking_confirmation: () => buildBookingConfirmationTemplateDefinition(),
   booking_confirmation_v2: () => buildBookingConfirmationV2TemplateDefinition(),
+  consultation_form: () => consultationDefinition('consultation_form'),
+  consultation_form_reminder: () => consultationDefinition('consultation_form_reminder'),
   staff_finalization: () => buildStaffFinalizationTemplateDefinition(),
   birthday_v2: () => buildBirthdayTemplateDefinition(),
   birthday_v1: () => ({ language: 'en', category: 'MARKETING', components: null }),
