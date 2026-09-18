@@ -9,6 +9,7 @@ This slice connects the existing secure client consultation form to canonical bo
 - Assignment creation is idempotent on `(appointment_id, template_version_id)`.
 - The secure client form feature and `CONSULTATION_FORM_DATA_KEY` must already be available.
 - WhatsApp delivery additionally requires `SHILOH_CONSULTATION_FORM_DELIVERY_ENABLED=true`.
+- Production delivery also requires `SHILOH_CONSULTATION_FORM_DELIVERY_NOT_BEFORE=<ISO-8601 timestamp>`. Only assignments created at or after that cutoff are eligible to send, so enabling delivery does not retroactively message pre-existing queued assignments.
 - The exact Meta template must be approved and match Shiloh's canonical message contract before a send is allowed.
 - Recipient resolution reuses the existing verified booking-confirmation identity boundary. Legacy clients require unique exact phone ownership and an authoritative client-facing name.
 - A fresh high-entropy form token is issued only when an actual delivery attempt is ready. The database keeps only its SHA-256 hash.
@@ -18,6 +19,6 @@ This slice connects the existing secure client consultation form to canonical bo
 
 ## Rollout
 
-The scheduler itself is safe to deploy while dark. Keep `SHILOH_CONSULTATION_FORM_DELIVERY_ENABLED=false` until the consultation form Meta template is `APPROVED` and exact. No database migration is introduced by this slice.
+The scheduler itself is safe to deploy while dark. Keep `SHILOH_CONSULTATION_FORM_DELIVERY_ENABLED=false` until the consultation form Meta template is `APPROVED` and exact. When enabling production delivery, set `SHILOH_CONSULTATION_FORM_DELIVERY_NOT_BEFORE` to the intended go-live instant first; delivery fails closed if the cutoff is missing or invalid. Existing assignments created before that instant remain `not_sent` for explicit review/backfill instead of being sent automatically. No database migration is introduced by this slice.
 
 Reminder delivery is intentionally not enabled here. The reminder template is registered in the canonical contract registry, but a reminder needs an explicit token-rotation policy because plaintext bearer tokens are never persisted.
