@@ -32,6 +32,10 @@ test('client auth tokens are opaque, bounded and first-name presentation is mini
   assert.equal(token.length, 43);
   assert.equal(sessionService.isValidOpaqueToken(token), true);
   assert.equal(sessionService.isValidOpaqueToken('too-short'), false);
+  const code = sessionService.randomCompletionCode(() => Buffer.from([0, 0, 0, 42]));
+  assert.equal(code, '000042');
+  assert.equal(sessionService.isValidCompletionCode(code), true);
+  assert.equal(sessionService.isValidCompletionCode('12 34'), false);
   assert.equal(sessionService.firstName('Christel Botha'), 'Christel');
 });
 
@@ -59,6 +63,8 @@ test('migration creates dedicated client auth tables with CRM V2 ownership only'
   assert.match(sql, /REFERENCES crm_v2_clients\(id\)/);
   assert.match(sql, /browser_token_hash TEXT NOT NULL UNIQUE/);
   assert.match(sql, /whatsapp_token_hash TEXT NOT NULL UNIQUE/);
+  assert.match(sql, /completion_code_hash TEXT UNIQUE/);
+  assert.match(sql, /completion_attempts INTEGER NOT NULL DEFAULT 0/);
   assert.match(sql, /csrf_hash TEXT NOT NULL/);
   assert.doesNotMatch(sql, /staff_admin_accounts|staff_browser_sessions|ADMIN_API_KEY/i);
 });
@@ -80,9 +86,16 @@ test('My Shiloh route uses same-origin, client-only session and CSRF controls', 
   assert.match(source, /serializeClientSessionCookie/);
   assert.match(source, /serializeClientAuthCookie/);
   assert.match(source, /\/my-shiloh\/auth\/start/);
-  assert.match(source, /\/my-shiloh\/auth\/status/);
+  assert.match(source, /\/my-shiloh\/auth\/complete/);
   assert.match(source, /\/my-shiloh\/auth\/logout/);
   assert.doesNotMatch(source, /requireStaffSession|ADMIN_API_KEY|x-admin-key/i);
+});
+
+test('WhatsApp verification returns a one-time finish link that never becomes a session token', () => {
+  const code = '123456';
+  const url = whatsappMiddleware.myShilohCompletionUrl(code);
+  assert.equal(url, 'https://app.shilohmtc.co.za/my-shiloh/#verify=123456');
+  assert.equal(whatsappMiddleware.myShilohCompletionUrl('bad'), null);
 });
 
 test('webhook gives My Shiloh verification an isolated pre-controller boundary', () => {

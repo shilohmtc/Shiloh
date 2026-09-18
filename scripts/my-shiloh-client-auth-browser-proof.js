@@ -11,7 +11,7 @@ fs.mkdirSync(out, { recursive: true });
 
 const SESSION_TOKEN = 'S'.repeat(43);
 const BROWSER_TOKEN = 'B'.repeat(43);
-const WHATSAPP_TOKEN = 'W'.repeat(43);
+const WHATSAPP_TOKEN = 'W'.repeat(43);\nconst COMPLETION_CODE = '654321';
 let verified = false;
 let loggedOut = false;
 
@@ -24,8 +24,8 @@ const fakeService = {
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
     };
   },
-  async exchangeChallenge() {
-    if (!verified) return { ok: true, status: 'pending', expiresAt: new Date(Date.now() + 10 * 60 * 1000) };
+  async completeChallenge({ completionCode }) {
+    if (!verified || completionCode !== COMPLETION_CODE) return { ok: false, code: 'CLIENT_AUTH_INVALID_COMPLETION' };
     return {
       ok: true,
       status: 'authenticated',
@@ -66,7 +66,7 @@ async function runViewport(browser, name, viewport) {
   await page.getByRole('button', { name: 'Continue with WhatsApp' }).click();
   await page.waitForURL('**/fake-whatsapp');
   verified = true;
-  await page.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
+  await page.goto(`${baseUrl}/my-shiloh/#verify=${COMPLETION_CODE}`, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => document.body.textContent.includes('Christel'));
   await page.waitForLoadState('networkidle');
   const heading = await page.locator('#home-title').textContent();

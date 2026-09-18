@@ -37,6 +37,16 @@ function serviceCards(catalogue = []) {
     .join('');
 }
 
+function authFinishForm() {
+  return `<form class="auth-code-form" data-client-auth-code-form>
+    <label for="my-shiloh-code">Already verified in WhatsApp?</label>
+    <div class="auth-code-row">
+      <input id="my-shiloh-code" data-client-auth-code inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" placeholder="123 456" aria-label="One-time My Shiloh sign-in code">
+      <button class="button button--soft" type="submit">Finish sign-in</button>
+    </div>
+  </form>`;
+}
+
 function johannesburgGreeting(now = new Date()) {
   const hour = Number(new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Africa/Johannesburg',
@@ -83,6 +93,7 @@ function renderMyShilohPage({
           <a class="button button--soft" href="/book">Book an appointment</a>
         </div>
         <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
+        ${authFinishForm()}
       </div>`;
 
   const focus = authenticated
@@ -136,6 +147,7 @@ function renderMyShilohPage({
       </div>
       <button class="button button--primary button--wide" type="button" data-client-auth-start>Continue with WhatsApp</button>
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
+      ${authFinishForm()}
       <aside class="privacy-note">
         <span aria-hidden="true">✓</span>
         <div><strong>Privacy first.</strong><p>Client sessions are separate from staff/Admin authority, and personal responses are never written to the PWA cache.</p></div>
@@ -267,6 +279,7 @@ module.exports = {
   escapeHtml,
   whatsappUrl,
   serviceCards,
+  authFinishForm,
   johannesburgGreeting,
   renderMyShilohPage,
   PUBLIC_BRAND_NAME,

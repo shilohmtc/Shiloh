@@ -8,7 +8,7 @@ const CHALLENGE_TTL_MS = 10 * 60 * 1000;
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const CHALLENGE_ISSUE_WINDOW_MS = 10 * 60 * 1000;
 const CHALLENGE_ISSUE_LIMIT = 5;
-const MAX_VERIFY_ATTEMPTS = 5;
+const MAX_VERIFY_ATTEMPTS = 5;\nconst MAX_COMPLETION_ATTEMPTS = 5;
 const TOKEN_BYTES = 32;
 
 function sha256(value) {
@@ -26,8 +26,18 @@ function randomOpaqueToken(randomBytes = crypto.randomBytes) {
   return randomBytes(TOKEN_BYTES).toString('base64url');
 }
 
+function randomCompletionCode(randomBytes = crypto.randomBytes) {
+  const bytes = randomBytes(4);
+  const value = bytes.readUInt32BE(0) % 1000000;
+  return String(value).padStart(6, '0');
+}
+
 function isValidOpaqueToken(value) {
   return /^[A-Za-z0-9_-]{43}$/.test(String(value || ''));
+}
+
+function isValidCompletionCode(value) {
+  return /^\d{6}$/.test(String(value || '').replace(/\s+/g, ''));
 }
 
 function firstName(value = '') {
@@ -212,12 +222,15 @@ function createClientBrowserSessionService({
       }
 
       const crmV2ClientId = Number(ownership.client.id);
+      const completionCode = randomCompletionCode(randomBytes);
       await client.query(
         `UPDATE client_browser_auth_challenges
             SET crm_v2_client_id = $2,
-                verified_at = $3
+                verified_at = $3,
+                completion_code_hash = $4,
+                completion_attempts = 0
           WHERE id = $1`,
-        [challenge.id, crmV2ClientId, current],
+        [challenge.id, crmV2ClientId, current, sha256(completionCode)],
       );
       await audit(client, 'challenge_verified_whatsapp', {
         clientId: crmV2ClientId,
@@ -228,6 +241,7 @@ function createClientBrowserSessionService({
       return {
         ok: true,
         status: 'verified',
+        completionCode,
         client: {
           id: String(ownership.client.id),
           name: ownership.client.name,
@@ -242,8 +256,15 @@ function createClientBrowserSessionService({
     }
   }
 
-  async function exchangeChallenge({ browserToken, requestFingerprintHash = null } = {}) {
-    if (!isValidOpaqueToken(browserToken)) return { ok: false, code: 'CLIENT_AUTH_INVALID_CHALLENGE' };
+  async function completeChallenge({
+    browserToken,
+    completionCode,
+    requestFingerprintHash = null,
+  } = {}) {
+    if (!isValidOpaqueToken(browserToken) || !isValidCompletionCode(completionCode)) {
+      return { ok: false, code: 'CLIENT_AUTH_INVALID_COMPLETION' };
+    }
+    const cleanCode = String(completionCode).replace(/\s+/g, '');
     const current = now();
     const fingerprint = normalizedFingerprint(requestFingerprintHash);
     const client = typeof db.connect === 'function' ? await db.connect() : db;
@@ -251,7 +272,7 @@ function createClientBrowserSessionService({
       await client.query('BEGIN');
       const challengeResult = await client.query(
         `SELECT id, crm_v2_client_id, request_fingerprint_hash, expires_at, verified_at,
-                consumed_at, revoked_at
+                completion_code_hash, completion_attempts, consumed_at, revoked_at
            FROM client_browser_auth_challenges
           WHERE browser_token_hash = $1
           LIMIT 1
@@ -275,12 +296,29 @@ function createClientBrowserSessionService({
         await client.query('COMMIT');
         return { ok: false, code: 'CLIENT_AUTH_EXPIRED' };
       }
-      // Fingerprints are rate-limit/audit evidence only. The browser challenge cookie is
-      // already an independent secret from the WhatsApp token, so a normal mobile
-      // network change must not invalidate a legitimate sign-in.
-      if (!challenge.verified_at || !challenge.crm_v2_client_id) {
+      if (!challenge.verified_at || !challenge.crm_v2_client_id || !challenge.completion_code_hash) {
         await client.query('COMMIT');
-        return { ok: true, status: 'pending', expiresAt: challenge.expires_at };
+        return { ok: false, code: 'CLIENT_AUTH_NOT_VERIFIED' };
+      }
+
+      const nextAttempts = Number(challenge.completion_attempts || 0) + 1;
+      if (!safeHashEqual(sha256(cleanCode), challenge.completion_code_hash)) {
+        const revoke = nextAttempts >= MAX_COMPLETION_ATTEMPTS;
+        await client.query(
+          `UPDATE client_browser_auth_challenges
+              SET completion_attempts = $2,
+                  revoked_at = CASE WHEN $3::boolean THEN $4 ELSE revoked_at END
+            WHERE id = $1`,
+          [challenge.id, Math.min(nextAttempts, MAX_COMPLETION_ATTEMPTS), revoke, current],
+        );
+        await audit(client, revoke ? 'completion_attempt_limit' : 'completion_code_rejected', {
+          challengeId: challenge.id,
+          clientId: challenge.crm_v2_client_id,
+          requestFingerprintHash: fingerprint,
+          metadata: { attempt: Math.min(nextAttempts, MAX_COMPLETION_ATTEMPTS) },
+        });
+        await client.query('COMMIT');
+        return { ok: false, code: 'CLIENT_AUTH_INVALID_COMPLETION' };
       }
 
       const owner = await client.query(
@@ -327,9 +365,10 @@ function createClientBrowserSessionService({
       const sessionId = inserted.rows[0].id;
       await client.query(
         `UPDATE client_browser_auth_challenges
-            SET consumed_at = $2
+            SET consumed_at = $2,
+                completion_attempts = $3
           WHERE id = $1`,
-        [challenge.id, current],
+        [challenge.id, current, Math.min(nextAttempts, MAX_COMPLETION_ATTEMPTS)],
       );
       await audit(client, 'session_issued', {
         clientId: owner.rows[0].id,
@@ -442,7 +481,7 @@ function createClientBrowserSessionService({
   return {
     beginChallenge,
     verifyWhatsAppChallenge,
-    exchangeChallenge,
+    completeChallenge,
     validateSessionToken,
     rotateCsrfToken,
     revokeSession,
@@ -456,10 +495,13 @@ module.exports = {
   CHALLENGE_ISSUE_WINDOW_MS,
   CHALLENGE_ISSUE_LIMIT,
   MAX_VERIFY_ATTEMPTS,
+  MAX_COMPLETION_ATTEMPTS,
   sha256,
   safeHashEqual,
   randomOpaqueToken,
+  randomCompletionCode,
   isValidOpaqueToken,
+  isValidCompletionCode,
   firstName,
   normalizedFingerprint,
   createClientBrowserSessionService,

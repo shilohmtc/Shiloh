@@ -114,24 +114,27 @@ function createMyShilohRouter({
     }
   });
 
-  router.post('/my-shiloh/auth/status', sameOrigin, async (req, res, next) => {
+  router.post('/my-shiloh/auth/complete', sameOrigin, async (req, res, next) => {
     try {
       setNoStoreJson(res);
       const browserToken = clientAuthTokenFromRequest(req, env);
-      if (!browserToken) return res.status(401).json({ error: 'No active sign-in request', requestId: req.id });
-      const result = await sessionService.exchangeChallenge({
+      if (!browserToken) return res.status(401).json({ error: 'Start sign-in from this My Shiloh first', requestId: req.id });
+      const result = await sessionService.completeChallenge({
         browserToken,
+        completionCode: req.body?.code,
         requestFingerprintHash: requestFingerprintHash(req),
       });
-      if (result.ok && result.status === 'pending') {
-        return res.status(202).json({
-          status: 'waiting_for_whatsapp',
-          expiresAt: new Date(result.expiresAt).toISOString(),
-        });
-      }
       if (!result.ok) {
-        res.setHeader('Set-Cookie', serializeExpiredClientAuthCookie({ env }));
-        return res.status(401).json({ error: 'Sign-in request expired or is no longer available', requestId: req.id });
+        if (['CLIENT_AUTH_EXPIRED', 'CLIENT_AUTH_INVALID_CHALLENGE'].includes(result.code)) {
+          res.setHeader('Set-Cookie', serializeExpiredClientAuthCookie({ env }));
+        }
+        const status = result.code === 'CLIENT_AUTH_NOT_VERIFIED' ? 409 : 401;
+        return res.status(status).json({
+          error: result.code === 'CLIENT_AUTH_NOT_VERIFIED'
+            ? 'Verify this sign-in in WhatsApp first'
+            : 'That one-time sign-in code is not valid',
+          requestId: req.id,
+        });
       }
       const sessionSeconds = Math.max(
         1,

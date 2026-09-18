@@ -10,9 +10,19 @@
   const appFrame = document.querySelector('[data-app-frame]');
   const authStartButtons = [...document.querySelectorAll('[data-client-auth-start]')];
   const authLogoutButtons = [...document.querySelectorAll('[data-client-auth-logout]')];
+  const authCodeForms = [...document.querySelectorAll('[data-client-auth-code-form]')];
   const authStatusHosts = [...document.querySelectorAll('[data-auth-status]')];
   let deferredInstallPrompt = null;
-  let authPollTimer = null;\n  let authCheckInFlight = false;
+  let authActionInFlight = false;
+
+  function completionCodeFromHash() {
+    const match = String(window.location.hash || '').match(/^#verify=(\d{6})$/);
+    if (!match) return null;
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+    return match[1];
+  }
+
+  const completionCode = completionCodeFromHash();
 
   function selectedView() {
     const fromHash = String(window.location.hash || '').replace(/^#/, '');
@@ -112,8 +122,11 @@
     }
   }
 
-  function setAuthButtonsDisabled(disabled) {
+  function setAuthControlsDisabled(disabled) {
     for (const button of [...authStartButtons, ...authLogoutButtons]) button.disabled = Boolean(disabled);
+    for (const form of authCodeForms) {
+      form.querySelectorAll('button,input').forEach((control) => { control.disabled = Boolean(disabled); });
+    }
   }
 
   async function postJson(url, body = {}, extraHeaders = {}) {
@@ -131,7 +144,9 @@
   }
 
   async function beginClientAuth() {
-    setAuthButtonsDisabled(true);
+    if (authActionInFlight) return;
+    authActionInFlight = true;
+    setAuthControlsDisabled(true);
     setAuthStatus('Opening WhatsApp for secure verification…', 'working');
     try {
       const response = await postJson('/my-shiloh/auth/start');
@@ -140,44 +155,38 @@
       window.location.href = data.whatsappUrl;
     } catch (error) {
       setAuthStatus(error.message || 'Secure sign-in is unavailable. Please try again.', 'error');
-      setAuthButtonsDisabled(false);
+      setAuthControlsDisabled(false);
+      authActionInFlight = false;
     }
   }
 
-  async function checkClientAuthChallenge({ schedule = true } = {}) {
-    if (appFrame?.dataset.clientAuthenticated === 'true') return;
-    if (document.visibilityState === 'hidden' || authCheckInFlight) return;
-    authCheckInFlight = true;
+  async function completeClientAuth(code) {
+    if (authActionInFlight || appFrame?.dataset.clientAuthenticated === 'true') return;
+    const cleanCode = String(code || '').replace(/\D/g, '');
+    if (!/^\d{6}$/.test(cleanCode)) {
+      setAuthStatus('Enter the 6-digit code Shiloh sent you in WhatsApp.', 'error');
+      return;
+    }
+    authActionInFlight = true;
+    setAuthControlsDisabled(true);
+    setAuthStatus('Finishing your secure sign-in…', 'working');
     try {
-      const response = await postJson('/my-shiloh/auth/status');
-      if (response.status === 401) {
-        setAuthStatus('');
-        return;
-      }
+      const response = await postJson('/my-shiloh/auth/complete', { code: cleanCode });
       const data = await response.json().catch(() => ({}));
-      if (response.status === 202) {
-        setAuthStatus('Waiting for WhatsApp verification… Return here after Shiloh confirms you.', 'waiting');
-        if (schedule) {
-          window.clearTimeout(authPollTimer);
-          authPollTimer = window.setTimeout(() => checkClientAuthChallenge({ schedule: true }), 2500);
-        }
-        return;
-      }
-      if (!response.ok || data.authenticated !== true) {
-        setAuthStatus(data.error || 'That sign-in request is no longer available.', 'error');
-        return;
-      }
+      if (!response.ok || data.authenticated !== true) throw new Error(data.error || 'That one-time code could not be verified.');
       setAuthStatus('Verified. Opening your My Shiloh…', 'success');
       window.location.replace('/my-shiloh/');
-    } catch (_) {
-      setAuthStatus('Secure sign-in will resume when your connection is available.', 'waiting');
-    } finally {
-      authCheckInFlight = false;
+    } catch (error) {
+      setAuthStatus(error.message || 'That one-time code could not be verified.', 'error');
+      setAuthControlsDisabled(false);
+      authActionInFlight = false;
     }
   }
 
   async function logoutClient() {
-    setAuthButtonsDisabled(true);
+    if (authActionInFlight) return;
+    authActionInFlight = true;
+    setAuthControlsDisabled(true);
     setAuthStatus('Signing out securely…', 'working');
     try {
       const csrfResponse = await postJson('/my-shiloh/auth/csrf');
@@ -190,22 +199,25 @@
       window.location.replace('/my-shiloh/');
     } catch (error) {
       setAuthStatus(error.message || 'Could not sign out. Please try again.', 'error');
-      setAuthButtonsDisabled(false);
+      setAuthControlsDisabled(false);
+      authActionInFlight = false;
     }
   }
 
   authStartButtons.forEach((button) => button.addEventListener('click', beginClientAuth));
   authLogoutButtons.forEach((button) => button.addEventListener('click', logoutClient));
+  authCodeForms.forEach((form) => form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const input = form.querySelector('[data-client-auth-code]');
+    completeClientAuth(input?.value || '');
+  }));
 
-  window.addEventListener('pageshow', () => {
-    if (appFrame?.dataset.clientAuthenticated !== 'true') checkClientAuthChallenge({ schedule: true });
-  });
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && appFrame?.dataset.clientAuthenticated !== 'true') {
-      checkClientAuthChallenge({ schedule: true });
+  if (completionCode && appFrame?.dataset.clientAuthenticated !== 'true') {
+    for (const input of document.querySelectorAll('[data-client-auth-code]')) {
+      input.value = completionCode.replace(/^(\d{3})(\d{3})$/, '$1 $2');
     }
-  });
-  if (appFrame?.dataset.clientAuthenticated !== 'true') checkClientAuthChallenge({ schedule: true });
+    completeClientAuth(completionCode);
+  }
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

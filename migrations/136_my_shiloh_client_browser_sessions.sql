@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS client_browser_auth_challenges (
   id BIGSERIAL PRIMARY KEY,
   browser_token_hash TEXT NOT NULL UNIQUE,
   whatsapp_token_hash TEXT NOT NULL UNIQUE,
+  completion_code_hash TEXT UNIQUE,
   crm_v2_client_id BIGINT REFERENCES crm_v2_clients(id) ON DELETE RESTRICT,
   request_fingerprint_hash TEXT,
   issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -13,9 +14,12 @@ CREATE TABLE IF NOT EXISTS client_browser_auth_challenges (
   consumed_at TIMESTAMPTZ,
   revoked_at TIMESTAMPTZ,
   verify_attempts INTEGER NOT NULL DEFAULT 0,
+  completion_attempts INTEGER NOT NULL DEFAULT 0,
   CONSTRAINT client_browser_auth_challenge_browser_hash CHECK (browser_token_hash ~ '^[0-9a-f]{64}$'),
   CONSTRAINT client_browser_auth_challenge_whatsapp_hash CHECK (whatsapp_token_hash ~ '^[0-9a-f]{64}$'),
-  CONSTRAINT client_browser_auth_challenge_attempts CHECK (verify_attempts >= 0 AND verify_attempts <= 5),
+  CONSTRAINT client_browser_auth_challenge_completion_hash CHECK (completion_code_hash IS NULL OR completion_code_hash ~ '^[0-9a-f]{64}$'),
+  CONSTRAINT client_browser_auth_challenge_verify_attempts CHECK (verify_attempts >= 0 AND verify_attempts <= 5),
+  CONSTRAINT client_browser_auth_challenge_completion_attempts CHECK (completion_attempts >= 0 AND completion_attempts <= 5),
   CONSTRAINT client_browser_auth_challenge_expiry CHECK (expires_at > issued_at)
 );
 

@@ -202,3 +202,10 @@ h3{font-size:20px;line-height:1.12}
 .profile-auth-card strong{font-family:Georgia,serif;font-size:20px;font-weight:500;margin:2px 0}
 .profile-auth-card small{color:var(--muted);font-size:11px}
 .profile-signout{margin-top:14px}
+
+.auth-code-form{margin-top:14px;padding:13px;border-radius:16px;background:rgba(255,255,255,.62);border:1px solid var(--line)}
+.auth-code-form label{display:block;margin-bottom:8px;color:var(--muted);font-size:11px;font-weight:800}
+.auth-code-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.auth-code-row input{min-width:0;min-height:46px;border:1px solid rgba(70,87,70,.2);border-radius:13px;padding:10px 13px;background:#fff;color:var(--ink);font:inherit;font-size:17px;font-weight:800;letter-spacing:.08em}
+.auth-code-row .button{min-height:46px}
+@media(max-width:420px){.auth-code-row{grid-template-columns:1fr}.auth-code-row .button{width:100%}}

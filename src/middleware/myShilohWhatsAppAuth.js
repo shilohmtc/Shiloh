@@ -3,6 +3,7 @@
 const { pool } = require('../db/pool');
 const { sendWhatsAppMessage } = require('../services/whatsapp');
 const { createClientBrowserSessionService } = require('../services/clientBrowserSession');
+const { CANONICAL_ORIGIN } = require('./canonicalHostRedirect');
 const logger = require('../lib/logger');
 
 const LOGIN_PREFIX = 'MY SHILOH SIGN IN';
@@ -17,6 +18,12 @@ function extractMyShilohLoginToken(message) {
   const text = String(message.text?.body || '').trim();
   const match = text.match(/^MY SHILOH SIGN IN\s+([A-Za-z0-9_-]{43})$/i);
   return match ? match[1] : null;
+}
+
+function myShilohCompletionUrl(code, origin = CANONICAL_ORIGIN) {
+  const clean = String(code || '').replace(/\s+/g, '');
+  if (!/^\d{6}$/.test(clean)) return null;
+  return `${String(origin || CANONICAL_ORIGIN).replace(/\/$/, '')}/my-shiloh/#verify=${clean}`;
 }
 
 function createMyShilohWhatsAppAuthMiddleware({
@@ -49,9 +56,11 @@ function createMyShilohWhatsAppAuthMiddleware({
       }, 'Processed My Shiloh WhatsApp sign-in challenge');
 
       if (result.ok) {
+        const finishUrl = myShilohCompletionUrl(result.completionCode);
+        const spacedCode = String(result.completionCode || '').replace(/^(\d{3})(\d{3})$/, '$1 $2');
         await sendMessage(
           from,
-          `You're verified 🌿\n\nReturn to My Shiloh — your secure sign-in is ready.`,
+          `You're verified 🌿\n\nFinish your secure My Shiloh sign-in:\n${finishUrl}\n\nOr return to My Shiloh and enter this one-time code: *${spacedCode}*\n\nIt expires with this sign-in request.`,
         );
       } else if (result.code === 'CLIENT_AUTH_PROFILE_UNAVAILABLE') {
         await sendMessage(
@@ -85,6 +94,7 @@ const myShilohWhatsAppAuthMiddleware = createMyShilohWhatsAppAuthMiddleware();
 module.exports = {
   LOGIN_PREFIX,
   extractMyShilohLoginToken,
+  myShilohCompletionUrl,
   createMyShilohWhatsAppAuthMiddleware,
   myShilohWhatsAppAuthMiddleware,
 };
