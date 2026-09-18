@@ -78,7 +78,7 @@ function renderMyShilohPage({
     ? `<div class="hero">
         <p class="eyebrow">Welcome back</p>
         <h1 id="home-title">${escapeHtml(greeting)}, ${firstName}.</h1>
-        <p class="hero-copy">You're securely signed in to My Shiloh. Your personal appointment, forms and payment view can now be added without exposing your information to the public app shell.</p>
+        <p class="hero-copy">You're securely signed in. Shiloh now uses your private client context to bring the right booking, form and payment information forward when you need it.</p>
         <div class="hero-actions">
           <a class="button button--primary" href="/book">Book an appointment</a>
           <a class="button button--soft" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Ask Shiloh</a>
@@ -97,16 +97,16 @@ function renderMyShilohPage({
       </div>`;
 
   const focus = authenticated
-    ? `<section class="focus-card" aria-labelledby="next-visit-title">
+    ? `<section class="focus-card" aria-labelledby="next-visit-title" data-client-experience-home>
         <div class="focus-card__top">
-          <div><p class="eyebrow">Secure connection</p><h2 id="next-visit-title">Your client space is connected.</h2></div>
-          <span class="status-pill">Verified</span>
+          <div><p class="eyebrow">Your Shiloh</p><h2 id="next-visit-title">Bringing your next step into focus.</h2></div>
+          <span class="status-pill">Secure</span>
         </div>
-        <p>Next we can safely place your real upcoming appointment, required forms and payment status here using your authenticated CRM V2 identity.</p>
-        <div class="focus-grid" aria-label="My Shiloh secure client features">
-          <div><span>Identity</span><strong>Verified</strong></div>
-          <div><span>Session</span><strong>Private</strong></div>
-          <div><span>Data</span><strong>Network only</strong></div>
+        <p>Shiloh is checking your authenticated booking, form and payment context now.</p>
+        <div class="focus-grid" aria-label="My Shiloh client context">
+          <div><span>Appointment</span><strong>Checking</strong></div>
+          <div><span>Forms</span><strong>Checking</strong></div>
+          <div><span>Payment</span><strong>Checking</strong></div>
         </div>
       </section>`
     : `<section class="focus-card" aria-labelledby="next-visit-title">
@@ -209,13 +209,13 @@ function renderMyShilohPage({
         <div class="page-intro">
           <p class="eyebrow">Bookings</p>
           <h1 id="bookings-title">Your time with Shiloh.</h1>
-          <p>${authenticated ? 'Your secure identity is connected. Appointment history is the next client-data slice.' : 'Sign in securely to connect this area to your client profile. Booking and changes continue through Shiloh in the meantime.'}</p>
+          <p>${authenticated ? 'Shiloh keeps your booking view grounded in the same secure client context used on Home.' : 'Sign in securely to connect this area to your client profile. Booking and changes continue through Shiloh in the meantime.'}</p>
         </div>
-        <div class="stack">
+        <div class="stack" data-client-experience-bookings>
           <article class="action-card action-card--accent">
             <span class="action-number">01</span>
-            <div><h2>Book something new</h2><p>Browse the live service catalogue, then continue with Shiloh to check real availability.</p></div>
-            <a class="button button--primary" href="/book">Start booking</a>
+            <div><h2>${authenticated ? 'Loading your next booking…' : 'Book something new'}</h2><p>${authenticated ? 'Your secure booking context is loading.' : 'Browse the live service catalogue, then continue with Shiloh to check real availability.'}</p></div>
+            <a class="button button--primary" href="/book">Book an appointment</a>
           </article>
           <article class="action-card">
             <span class="action-number">02</span>
@@ -230,10 +230,10 @@ function renderMyShilohPage({
           <div class="assistant-orbit" aria-hidden="true"><span>S</span></div>
           <p class="eyebrow">Your wellness assistant</p>
           <h1 id="shiloh-title">Shiloh, right where you need it.</h1>
-          <p>Choose a service, manage an appointment, prepare for your visit, or simply ask a question. Your conversation continues on WhatsApp while the authenticated in-app assistant layer is prepared.</p>
+          <p>Shiloh uses the same secure client context behind Home and Bookings, so the conversation can stay personal without making AI the source of booking, form or payment truth.</p>
           <a class="button button--primary button--wide" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Chat with Shiloh</a>
         </div>
-        <div class="prompt-grid" aria-label="Things Shiloh can help with">
+        <div class="prompt-grid" aria-label="Things Shiloh can help with" data-client-experience-prompts>
           <article><span>Choose</span><strong>What would suit me?</strong></article>
           <article><span>Manage</span><strong>Move my appointment</strong></article>
           <article><span>Prepare</span><strong>What do I need before I arrive?</strong></article>
