@@ -665,6 +665,7 @@ for (const viewport of [
       await expect(surface).toBeVisible();
       await expect(surface.getByRole('heading', { level: 1 })).toBeVisible();
       await expect(surface.locator('a[href="/book"]').first()).toBeAttached();
+      await expect(surface.locator('a[href="/my-shiloh/"]').first()).toBeAttached();
 
       const geometry = await surface.evaluate(() => ({
         documentWidth: document.documentElement.scrollWidth,
