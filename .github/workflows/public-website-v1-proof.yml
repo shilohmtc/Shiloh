@@ -42,7 +42,7 @@ jobs:
         run: node scripts/public-website-browser-proof.js
       - name: Upload visual evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: public-website-v1-evidence
           path: artifacts/public-website-v1
