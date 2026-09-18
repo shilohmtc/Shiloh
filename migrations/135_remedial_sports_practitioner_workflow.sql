@@ -41,6 +41,7 @@ UPDATE staff_admin_accounts a
  WHERE a.active=TRUE
    AND a.staff_id=s.id
    AND s.status='active'
+   AND s.resource_type='practitioner'
    AND a.business_role IN ('employee_practitioner','tenant_practitioner')
    AND a.calendar_scope='own_appointments'
    AND (
