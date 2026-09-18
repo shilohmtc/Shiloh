@@ -27,6 +27,50 @@ const COMPLETION_CODE = '654321';
 let verified = false;
 let loggedOut = false;
 
+const fakeExperienceService = {
+  async getExperience({ crmV2ClientId }) {
+    if (Number(crmV2ClientId) !== 912) throw new Error('unexpected client');
+    return {
+      version: 'my_shiloh_client_experience_v1',
+      generatedAt: new Date().toISOString(),
+      client: { firstName: 'Christel' },
+      home: {
+        eyebrow: 'Next visit',
+        headline: "You're set for Thu, 24 Sep.",
+        summary: 'Hot Stone Massage at 10:00 with Marietjie.',
+        status: 'Upcoming',
+        primaryAction: { kind: 'navigate', label: 'View booking', href: '#bookings' },
+        facts: [
+          { label: 'Appointment', value: 'Thu, 24 Sep · 10:00' },
+          { label: 'Forms', value: 'Complete' },
+          { label: 'Payment', value: 'Paid' },
+        ],
+      },
+      bookings: {
+        upcoming: [{
+          id: 901,
+          service: 'Hot Stone Massage',
+          practitioner: 'Marietjie',
+          date: 'Thu, 24 Sep',
+          time: '10:00',
+          status: 'confirmed',
+          forms: 'Complete',
+          payment: 'Paid',
+        }],
+      },
+      assistant: {
+        prompts: [
+          'What do I need before my appointment?',
+          'Can I move my appointment?',
+          'What is my appointment status?',
+          'Has my payment been received?',
+        ],
+        contextReady: true,
+      },
+    };
+  },
+};
+
 const fakeService = {
   async beginChallenge() {
     return {
@@ -83,6 +127,11 @@ async function runViewport(browser, name, viewport) {
   await page.waitForLoadState('networkidle');
   const heading = await page.locator('#home-title').textContent();
   if (!/Christel/.test(heading || '')) throw new Error('authenticated greeting missing');
+  await page.waitForFunction(() => document.body.textContent.includes('Hot Stone Massage'));
+  const experienceText = await page.locator('[data-client-experience-home]').textContent();
+  if (!/Paid/.test(experienceText || '') || !/Complete/.test(experienceText || '')) {
+    throw new Error('authenticated client experience missing');
+  }
 
   const cookies = await context.cookies(baseUrl);
   const sessionCookie = cookies.find((cookie) => cookie.name === 'shiloh_client_session');
@@ -113,6 +162,7 @@ let baseUrl;
     whatsappResolver: async () => '27830000000',
     catalogueProvider: async () => [],
     authUrlBuilder: () => '/fake-whatsapp',
+    experienceService: fakeExperienceService,
   }));
 
   server = app.listen(0, '127.0.0.1');
