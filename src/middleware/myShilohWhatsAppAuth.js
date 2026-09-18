@@ -39,15 +39,10 @@ function createMyShilohWhatsAppAuthMiddleware({
 
     const from = String(message?.from || '').trim();
     if (!from) return res.sendStatus(200);
-    const occurredAt = /^\d+$/.test(String(message?.timestamp || ''))
-      ? new Date(Number(message.timestamp) * 1000)
-      : new Date();
-
     try {
       const result = await service.verifyWhatsAppChallenge({
         whatsappToken: token,
         senderMobile: from,
-        occurredAt,
       });
       log.info({
         from: maskPhone(from),
