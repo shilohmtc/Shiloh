@@ -116,5 +116,5 @@ test('guest and authenticated My Shiloh renders are clearly distinct without exp
   assert.match(signed, /Signed in securely via WhatsApp/);
   assert.match(signed, /Sign out/);
   assert.doesNotMatch(signed, /27830000000/);
-  assert.doesNotMatch(signed, /date_of_birth|gender|health answer/i);
+  assert.doesNotMatch(signed, /normalized_mobile|date_of_birth|gender|health answer/i);
 });

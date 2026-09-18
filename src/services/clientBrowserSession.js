@@ -275,19 +275,9 @@ function createClientBrowserSessionService({
         await client.query('COMMIT');
         return { ok: false, code: 'CLIENT_AUTH_EXPIRED' };
       }
-      const expectedFingerprint = normalizedFingerprint(challenge.request_fingerprint_hash);
-      if (expectedFingerprint && fingerprint && !safeHashEqual(expectedFingerprint, fingerprint)) {
-        await client.query(
-          `UPDATE client_browser_auth_challenges SET revoked_at = $2 WHERE id = $1`,
-          [challenge.id, current],
-        );
-        await audit(client, 'challenge_fingerprint_mismatch', {
-          challengeId: challenge.id,
-          requestFingerprintHash: fingerprint,
-        });
-        await client.query('COMMIT');
-        return { ok: false, code: 'CLIENT_AUTH_INVALID_CHALLENGE' };
-      }
+      // Fingerprints are rate-limit/audit evidence only. The browser challenge cookie is
+      // already an independent secret from the WhatsApp token, so a normal mobile
+      // network change must not invalidate a legitimate sign-in.
       if (!challenge.verified_at || !challenge.crm_v2_client_id) {
         await client.query('COMMIT');
         return { ok: true, status: 'pending', expiresAt: challenge.expires_at };

@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
-const { chromium } = require('@playwright/test');
+const { chromium } = require('@playwright/test');\n\nfunction chromeExecutable() {\n  const candidates = [\n    process.env.CHROME_BIN,\n    '/usr/bin/google-chrome',\n    '/usr/bin/google-chrome-stable',\n    '/usr/bin/chromium',\n    '/usr/bin/chromium-browser',\n  ];\n  return candidates.find((candidate) => candidate && fs.existsSync(candidate)) || null;\n}
 const { createMyShilohRouter } = require('../src/routes/myShiloh');
 
 const out = path.join(__dirname, '..', 'artifacts', 'my-shiloh-client-auth-v1');
@@ -107,7 +107,7 @@ let baseUrl;
   await new Promise((resolve) => server.once('listening', resolve));
   baseUrl = `http://127.0.0.1:${server.address().port}`;
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, executablePath: chromeExecutable() || undefined });
   try {
     await runViewport(browser, 'phone', { width: 390, height: 844 });
     await runViewport(browser, 'desktop', { width: 1280, height: 900 });

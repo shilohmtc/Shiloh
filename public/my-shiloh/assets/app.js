@@ -12,7 +12,7 @@
   const authLogoutButtons = [...document.querySelectorAll('[data-client-auth-logout]')];
   const authStatusHosts = [...document.querySelectorAll('[data-auth-status]')];
   let deferredInstallPrompt = null;
-  let authPollTimer = null;
+  let authPollTimer = null;\n  let authCheckInFlight = false;
 
   function selectedView() {
     const fromHash = String(window.location.hash || '').replace(/^#/, '');
@@ -146,7 +146,8 @@
 
   async function checkClientAuthChallenge({ schedule = true } = {}) {
     if (appFrame?.dataset.clientAuthenticated === 'true') return;
-    if (document.visibilityState === 'hidden') return;
+    if (document.visibilityState === 'hidden' || authCheckInFlight) return;
+    authCheckInFlight = true;
     try {
       const response = await postJson('/my-shiloh/auth/status');
       if (response.status === 401) {
@@ -170,6 +171,8 @@
       window.location.replace('/my-shiloh/');
     } catch (_) {
       setAuthStatus('Secure sign-in will resume when your connection is available.', 'waiting');
+    } finally {
+      authCheckInFlight = false;
     }
   }
 

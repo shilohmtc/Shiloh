@@ -9,10 +9,12 @@ const catalogue = [
   { id: 104, name: 'SQT BioMicroneedling', category: 'Aesthetic Services', duration: '60 min', price: 'R1 250' },
 ];
 
-function productionSurface() {
+function productionSurface(client = null) {
   const page = renderMyShilohPage({
     whatsappNumber: '27830000000',
     catalogue,
+    client,
+    now: new Date('2026-09-18T18:00:00.000Z'),
   });
   const body = String(page).match(/<body[^>]*>([\s\S]*?)<\/body>/)?.[1] || '';
   const root = document.createElement('div');
@@ -29,5 +31,13 @@ export default {
 };
 
 export const GuestHome = {
-  render: productionSurface,
+  render: () => productionSurface(),
+};
+
+export const AuthenticatedHome = {
+  render: () => productionSurface({
+    id: '912',
+    name: 'Christel Botha',
+    firstName: 'Christel',
+  }),
 };
