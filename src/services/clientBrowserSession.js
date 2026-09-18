@@ -151,12 +151,12 @@ function createClientBrowserSessionService({
   async function verifyWhatsAppChallenge({
     whatsappToken,
     senderMobile,
-    occurredAt = null,
     requestFingerprintHash = null,
   } = {}) {
     if (!isValidOpaqueToken(whatsappToken)) return { ok: false, code: 'CLIENT_AUTH_INVALID_CHALLENGE' };
-    const current = occurredAt ? new Date(occurredAt) : now();
-    if (Number.isNaN(current.getTime())) return { ok: false, code: 'CLIENT_AUTH_INVALID_CHALLENGE' };
+    // Challenge age is authoritative only from Shiloh's server clock. Provider
+    // message timestamps are transport evidence, never authentication time authority.
+    const current = now();
 
     const client = typeof db.connect === 'function' ? await db.connect() : db;
     try {
