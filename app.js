@@ -43,6 +43,7 @@ const auditReadRoutes = require("./src/routes/auditRead");
 const calendarRoutes = require("./src/routes/calendar");
 const walkinRoutes = require("./src/routes/walkin");
 const bookRoutes = require("./src/routes/book");
+const { router: myShilohRoutes } = require("./src/routes/myShiloh");
 const publicWebsiteRoutes = require("./src/routes/publicWebsite");
 const serviceRoutes = require("./src/routes/services");
 const { createClientConsultationFormsRouter } = require("./src/routes/clientConsultationForms");
@@ -73,7 +74,7 @@ app.use(requestContext);
 app.use("/assets/service-images", express.static(path.join(__dirname, "public", "service-images"), { maxAge: "30d", immutable: true }));
 app.get("/health", async (req, res) => { const ok = await checkDatabase(); return res.status(ok ? 200 : 503).json({ status: ok ? "ok" : "degraded", database: ok ? "ok" : "unavailable", timestamp: new Date().toISOString() }); });
 const paymentProviderRouter = createPaymentProviderRouter();
-app.use("/payments", createPaymentReturnRouter()); app.use("/payments/providers", paymentProviderRouter); app.use("/", paymentProviderRouter); app.use("/pay", createPaymentLinkRouter()); app.use("/audit-read", auditReadRoutes); app.use("/admin", adminRoutes); app.use("/calendar", calendarRoutes); app.use("/forms", createClientConsultationFormsRouter()); app.use("/", publicWebsiteRoutes); app.use("/", serviceRoutes); app.use("/", walkinRoutes); app.use("/", bookRoutes); app.use("/", webhookRoutes);
+app.use("/payments", createPaymentReturnRouter()); app.use("/payments/providers", paymentProviderRouter); app.use("/", paymentProviderRouter); app.use("/pay", createPaymentLinkRouter()); app.use("/audit-read", auditReadRoutes); app.use("/admin", adminRoutes); app.use("/calendar", calendarRoutes); app.use("/forms", createClientConsultationFormsRouter()); app.use("/", myShilohRoutes); app.use("/", publicWebsiteRoutes); app.use("/", serviceRoutes); app.use("/", walkinRoutes); app.use("/", bookRoutes); app.use("/", webhookRoutes);
 app.use((err, req, res, next) => {
   const log = req.log || logger;
   const route = `${req.baseUrl || ""}${req.route?.path || ""}` || "unmatched";
