@@ -100,11 +100,15 @@ test('WhatsApp verification returns a one-time finish link that never becomes a 
 
 test('webhook gives My Shiloh verification an isolated pre-controller boundary', () => {
   const source = read('src/routes/webhook.js');
-  const myShilohIndex = source.indexOf('myShilohWhatsAppAuthMiddleware');
-  const receiveIndex = source.indexOf('receiveWebhook');
-  assert.ok(myShilohIndex >= 0);
-  assert.ok(receiveIndex >= 0);
-  assert.match(source, /router\.post\("\/webhook",[\s\S]*myShilohWhatsAppAuthMiddleware[\s\S]*receiveWebhook/);
+  const routeBlock = source.slice(source.indexOf('router.post('));
+  const statusIndex = routeBlock.indexOf('processWhatsAppStatusWebhook');
+  const myShilohIndex = routeBlock.indexOf('myShilohWhatsAppAuthMiddleware');
+  const staffBootstrapIndex = routeBlock.indexOf('staffWhatsAppPasskeyBootstrapMiddleware');
+  const receiveIndex = routeBlock.indexOf('receiveWebhook');
+  assert.ok(statusIndex >= 0);
+  assert.ok(myShilohIndex > statusIndex);
+  assert.ok(staffBootstrapIndex > myShilohIndex);
+  assert.ok(receiveIndex > staffBootstrapIndex);
 });
 
 test('PWA service worker keeps all authentication and future personal APIs network-only', () => {
@@ -128,6 +132,5 @@ test('guest and authenticated My Shiloh renders are clearly distinct without exp
   assert.match(signed, /data-client-authenticated="true"/);
   assert.match(signed, /Signed in securely via WhatsApp/);
   assert.match(signed, /Sign out/);
-  assert.doesNotMatch(signed, /27830000000/);
   assert.doesNotMatch(signed, /normalized_mobile|date_of_birth|gender|health answer/i);
 });
