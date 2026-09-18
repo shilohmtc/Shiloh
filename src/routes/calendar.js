@@ -23,6 +23,7 @@ const { createWorkspaceStaffMutationRouter } = require('./workspaceStaffMutation
 const { createWorkspaceServicesRouter } = require('./workspaceServices');
 const { createWorkspaceServicesMutationRouter } = require('./workspaceServicesMutations');
 const { createWorkspaceFormsRouter } = require('./workspaceForms');
+const { createWorkspaceFormClinicalMutationRouter } = require('./workspaceFormClinicalMutations');
 const { createWorkspaceReportsRouter } = require('./workspaceReports');
 const { createWorkspaceClinicHoursRouter } = require('./workspaceClinicHours');
 const { createWorkspaceOperationalRouter } = require('./workspaceOperational');
@@ -86,6 +87,7 @@ router.use('/team', createWorkspaceStaffMutationRouter({ sessionService: staffBr
 router.use('/services', createWorkspaceServicesRouter({ sessionService: staffBrowserSessionService }));
 router.use('/services', createWorkspaceServicesMutationRouter({ sessionService: staffBrowserSessionService }));
 router.use('/forms', createWorkspaceFormsRouter({ sessionService: staffBrowserSessionService }));
+router.use('/forms', createWorkspaceFormClinicalMutationRouter({ sessionService: staffBrowserSessionService }));
 router.use('/reports', createWorkspaceReportsRouter({ sessionService: staffBrowserSessionService }));
 router.use('/clinic-hours', createWorkspaceClinicHoursRouter({ sessionService: staffBrowserSessionService }));
 router.use('/workspace', createWorkspaceOperationalRouter({ sessionService: staffBrowserSessionService }));

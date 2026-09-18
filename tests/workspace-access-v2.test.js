@@ -17,7 +17,7 @@ const { operatorCanResolve } = require('../src/services/clientBookingApproval');
 const { createWorkspaceStaffMutationRouter } = require('../src/routes/workspaceStaffMutations');
 
 const ENV = { SHILOH_CALENDAR_READONLY_UX_ENABLED: 'true', SHILOH_STAFF_BROWSER_SESSION_CALENDAR_BRIDGE_ENABLED: 'true' };
-const practitioner = (id, staffId, name, permissions = { 'appointment:view': true }) => ({
+const practitioner = (id, staffId, name, permissions = { 'appointment:view': true, 'forms:view': true, 'forms:clinical_manage': true }) => ({
   id, staff_id: staffId, display_name: name, role: 'practitioner', active: true, permissions,
   business_role: 'employee_practitioner', calendar_scope: 'own_appointments', service_scope: 'own_services',
   staff_display_name: name, staff_status: 'active', staff_resource_type: 'practitioner', staff_business_role: 'employee_practitioner',
@@ -90,7 +90,7 @@ test('Practitioner preset revokes broader target policy without changing identit
   Object.assign(target, { role: 'receptionist', business_role: 'booking_operator', calendar_scope: 'all_business', service_scope: 'all_services' });
   const fake = fakeDb([target]); const service = createWorkspaceAccessV2Service({ db: fake.db, accessService: accessAuthority });
   const result = await service.applyPreset({ adminId: 1, principalId: 20, expectedRevision: principalRevision(target), requestId: 'request_788_preset', preset: 'employee_practitioner_v1' });
-  assert.equal(result.status, 'updated'); assert.deepEqual(fake.state.rows.get(20).permissions, { 'appointment:view': true });
+  assert.equal(result.status, 'updated'); assert.deepEqual(fake.state.rows.get(20).permissions, { 'appointment:view': true, 'forms:view': true, 'forms:clinical_manage': true });
   const update = fake.state.calls.find(call => call.sql.startsWith('UPDATE staff_admin_accounts SET role=')); assert.doesNotMatch(update.sql, /whatsapp|normalized|totp|recovery/i);
   assert.equal(fake.state.audits[0].metadata.identityChanged, false);
   const calls = fake.state.calls.length;
@@ -101,14 +101,14 @@ test('Practitioner preset revokes broader target policy without changing identit
 
 test('copy previews before save and copies explicit compatible policy only', async () => {
   const target = practitioner(20, 7, 'Naomi');
-  const source = practitioner(21, 8, 'ILince', { 'appointment:view': true, 'booking:update': true, 'protected:condition': [88], 'staff:manage': false });
+  const source = practitioner(21, 8, 'ILince', { 'appointment:view': true, 'booking:update': true, 'forms:view': true, 'forms:clinical_manage': true, 'protected:condition': [88], 'staff:manage': false });
   const fake = fakeDb([target, source]); const service = createWorkspaceAccessV2Service({ db: fake.db, accessService: accessAuthority });
   const input = { adminId: 1, principalId: 20, sourcePrincipalId: 21, expectedRevision: principalRevision(target), expectedSourceRevision: principalRevision(source) };
   const preview = await service.previewCopy(input);
-  assert.deepEqual(preview.before.capabilities, ['appointment:view']); assert.deepEqual(preview.after.capabilities, ['appointment:view', 'booking:update']);
+  assert.deepEqual(preview.before.capabilities, ['appointment:view', 'forms:clinical_manage', 'forms:view']); assert.deepEqual(preview.after.capabilities, ['appointment:view', 'booking:update', 'forms:clinical_manage', 'forms:view']);
   assert.equal(preview.identityCopied, false); assert.equal(preview.credentialsCopied, false);
   const result = await service.copyAccess({ ...input, requestId: 'request_788_copy' });
-  assert.equal(result.status, 'updated'); assert.deepEqual(fake.state.rows.get(20).permissions, { 'appointment:view': true, 'booking:update': true });
+  assert.equal(result.status, 'updated'); assert.deepEqual(fake.state.rows.get(20).permissions, { 'appointment:view': true, 'booking:update': true, 'forms:clinical_manage': true, 'forms:view': true });
   assert.equal(fake.state.rows.get(20).display_name, 'Naomi'); assert.equal(fake.state.rows.get(20).staff_id, 7);
   assert.equal(fake.state.audits[0].metadata.sourcePrincipalId, 21); assert.equal(fake.state.audits[0].metadata.credentialMaterialChanged, false);
 });
@@ -121,7 +121,7 @@ test('copy ambiguity fails before policy writes', async () => {
 });
 
 test('stale and unauthorized changes write nothing; reciprocal copy locks use canonical ID order', async () => {
-  const source = practitioner(10, 8, 'ILince', { 'appointment:view': true, 'booking:update': true }); const target = practitioner(20, 7, 'Naomi');
+  const source = practitioner(10, 8, 'ILince', { 'appointment:view': true, 'booking:update': true, 'forms:view': true, 'forms:clinical_manage': true }); const target = practitioner(20, 7, 'Naomi');
   const fake = fakeDb([source, target]); const service = createWorkspaceAccessV2Service({ db: fake.db, accessService: accessAuthority });
   await assert.rejects(service.applyPreset({ adminId: 1, principalId: 20, expectedRevision: '0'.repeat(64), requestId: 'request_788_stale', preset: 'employee_practitioner_v1' }), error => error.code === 'WORKSPACE_ACCESS_STALE');
   await assert.rejects(service.applyPreset({ adminId: 2, principalId: 20, expectedRevision: principalRevision(target), requestId: 'request_788_denied', preset: 'employee_practitioner_v1' }), error => error.httpStatus === 403);

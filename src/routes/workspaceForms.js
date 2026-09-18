@@ -1,12 +1,18 @@
 const express = require('express');
 const workspaceForms = require('../services/workspaceForms');
 const workspaceFormSubmissions = require('../services/workspaceFormSubmissions');
+const workspacePractitionerFormRecords = require('../services/workspacePractitionerFormRecords');
 const {
   renderFormsPage,
   renderFormPreviewPage,
   renderSubmissionPage,
   renderFormsUnavailablePage,
 } = require('../presentation/workspaceFormsUx');
+const {
+  decorateSportsSubmissionHtml,
+  renderPractitionerRecordPage,
+  workspaceSportsAssessmentClientScript,
+} = require('../presentation/workspaceSportsFormUx');
 const { requireStaffSession } = require('../middleware/staffBrowserSession');
 
 function isWorkspaceFormsEnabled(env = process.env) {
@@ -34,9 +40,13 @@ function createWorkspaceFormsRouter({
   sessionService,
   service = workspaceForms,
   submissionService = workspaceFormSubmissions,
+  practitionerRecordService = workspacePractitionerFormRecords,
   renderPage = renderFormsPage,
   renderPreview = renderFormPreviewPage,
   renderSubmission = renderSubmissionPage,
+  renderPractitionerRecord = renderPractitionerRecordPage,
+  decorateSubmission = decorateSportsSubmissionHtml,
+  assessmentClientScript = workspaceSportsAssessmentClientScript,
   renderUnavailable = renderFormsUnavailablePage,
   staffAccessPath = '/calendar/staff',
 } = {}) {
@@ -62,6 +72,10 @@ function createWorkspaceFormsRouter({
     }
   });
 
+  router.get('/assessment-client.js', (_req, res) => {
+    return res.status(200).type('application/javascript').send(assessmentClientScript());
+  });
+
   router.get('/', async (req, res) => {
     try {
       const [model, submissions] = await Promise.all([
@@ -75,6 +89,20 @@ function createWorkspaceFormsRouter({
     }
   });
 
+  router.get('/submissions/client/:reference/assessment', async (req, res) => {
+    try {
+      const model = await practitionerRecordService.getRecord({
+        adminId: req.staffBrowserSession?.adminId,
+        submissionId: req.params.reference,
+      });
+      return res.status(200).type('html').send(renderPractitionerRecord(model));
+    } catch (error) {
+      const safe = safeError(error);
+      return res.status(safe.status).type('html').send(renderUnavailable({ message: safe.message }));
+    }
+  });
+
+
   router.get('/submissions/:kind/:reference', async (req, res) => {
     try {
       const model = await submissionService.getSubmission({
@@ -82,7 +110,8 @@ function createWorkspaceFormsRouter({
         kind: req.params.kind,
         reference: req.params.reference,
       });
-      return res.status(200).type('html').send(renderSubmission(model));
+      const html = renderSubmission(model);
+      return res.status(200).type('html').send(decorateSubmission(html, model));
     } catch (error) {
       const safe = safeError(error);
       return res.status(safe.status).type('html').send(renderUnavailable({ message: safe.message }));

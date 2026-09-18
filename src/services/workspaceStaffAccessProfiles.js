@@ -13,6 +13,8 @@ const CLINIC_TEAM_VIEW = Object.freeze([
   'staff:view',
   'reports:view_all',
   'schedule:view',
+  'forms:view',
+  'forms:clinical_manage',
 ]);
 const CLINIC_TEAM_ACTIONS = Object.freeze(['booking:update']);
 const CLINIC_TEAM_DENIED = Object.freeze([
@@ -41,6 +43,8 @@ const OWN_WORKSPACE_VIEW = Object.freeze([
   'services:view',
   'staff:services:view',
   'schedule:view',
+  'forms:view',
+  'forms:clinical_manage',
 ]);
 const OWN_WORKSPACE_ACTIONS = Object.freeze([
   'appointment:create',
