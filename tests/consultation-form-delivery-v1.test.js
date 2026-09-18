@@ -28,6 +28,42 @@ test('consultation form appointment delivery is dark by default and requires an 
   assert.throws(() => assertDeliveryFeatureGate('consultation_form_reminder', {}), /delivery gate is disabled/i);
 });
 
+test('consultation delivery requires a valid forward-only go-live cutoff', () => {
+  assert.equal(delivery.parseDeliveryNotBefore({}), null);
+  assert.equal(
+    delivery.parseDeliveryNotBefore({ SHILOH_CONSULTATION_FORM_DELIVERY_NOT_BEFORE: '2026-09-18T18:30:00.000Z' }).toISOString(),
+    '2026-09-18T18:30:00.000Z'
+  );
+  assert.throws(
+    () => delivery.parseDeliveryNotBefore({ SHILOH_CONSULTATION_FORM_DELIVERY_NOT_BEFORE: 'not-a-date' }),
+    /valid ISO-8601 timestamp/i
+  );
+});
+
+test('enabled delivery remains fail-closed until the go-live cutoff is configured', async () => {
+  const sqlSeen = [];
+  const service = delivery.createConsultationFormDeliveryService({
+    db: {
+      async query(sql) {
+        sqlSeen.push(sql);
+        if (sql.includes('consultationFormDelivery:discover')) return { rowCount: 0, rows: [] };
+        throw new Error(`Unexpected query: ${sql}`);
+      },
+    },
+    env: {
+      SHILOH_CLIENT_CONSULTATION_FORMS_ENABLED: 'true',
+      SHILOH_CONSULTATION_FORM_DELIVERY_ENABLED: 'true',
+    },
+    formService: enabledFormService(),
+  });
+  const result = await service.runOnce();
+  assert.equal(result.deliveryEnabled, true);
+  assert.equal(result.reason, 'delivery_not_before_unconfigured');
+  assert.equal(result.attempted, 0);
+  assert.equal(result.sent, 0);
+  assert.equal(sqlSeen.length, 1);
+});
+
 test('consultation Meta bindings use the exact provisioned templates by default', () => {
   assert.equal(configuredMetaTemplateName('consultation_form', {}), 'shiloh_consultation_form_v1');
   assert.equal(configuredMetaTemplateName('consultation_form_reminder', {}), 'shiloh_consultation_form_reminder_v1');
@@ -171,6 +207,7 @@ test('a due assignment sends only appointment context plus the opaque URL token,
     env: {
       SHILOH_CLIENT_CONSULTATION_FORMS_ENABLED: 'true',
       SHILOH_CONSULTATION_FORM_DELIVERY_ENABLED: 'true',
+      SHILOH_CONSULTATION_FORM_DELIVERY_NOT_BEFORE: '2026-09-17T07:00:00.000Z',
     },
     formService: enabledFormService(token),
     assertSendAllowed: async (templateName, language) => {
@@ -213,6 +250,9 @@ test('a due assignment sends only appointment context plus the opaque URL token,
 test('delivery source stays mapping-driven, avoids plaintext health payloads and suppresses uncertain automatic retries', () => {
   assert.match(deliverySource, /consultation_form_service_mappings/);
   assert.match(deliverySource, /status='not_sent'/);
+  assert.match(deliverySource, /DELIVERY_NOT_BEFORE_FLAG/);
+  assert.match(deliverySource, /a\.created_at >= \$2::timestamptz/);
+  assert.match(deliverySource, /a\.created_at >= \$3::timestamptz/);
   assert.match(deliverySource, /consultation_form\.delivery_uncertain/);
   assert.match(deliverySource, /NOT EXISTS[\s\S]*consultation_form\.delivery_uncertain/);
   assert.doesNotMatch(deliverySource, /payload_ciphertext|decryptSubmissionPayload|consultation_form_submissions/);
