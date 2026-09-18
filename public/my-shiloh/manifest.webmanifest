@@ -1,0 +1,31 @@
+{
+  "name": "My Shiloh",
+  "short_name": "Shiloh",
+  "description": "Your calm client space for Shiloh bookings, forms, payments and support.",
+  "id": "/my-shiloh/",
+  "start_url": "/my-shiloh/",
+  "scope": "/my-shiloh/",
+  "display": "standalone",
+  "background_color": "#f7f3ec",
+  "theme_color": "#465746",
+  "icons": [
+    {
+      "src": "/my-shiloh/assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Bookings",
+      "short_name": "Bookings",
+      "url": "/my-shiloh/#bookings"
+    },
+    {
+      "name": "Shiloh",
+      "short_name": "Shiloh",
+      "url": "/my-shiloh/#shiloh"
+    }
+  ]
+}
