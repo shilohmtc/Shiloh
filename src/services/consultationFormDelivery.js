@@ -188,7 +188,7 @@ function createConsultationFormDeliveryService({
             SELECT 1 FROM crm_audit_events e
              WHERE e.action='consultation_form.delivery_uncertain'
                AND e.entity_type='consultation_form_assignment'
-               AND e.entity_id=a.id::text
+               AND e.entity_id=a.id
           )
         ORDER BY ap.starts_at,a.id
         LIMIT ${BATCH_SIZE}`,
@@ -234,7 +234,7 @@ function createConsultationFormDeliveryService({
     await db.query(
       `INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
        VALUES($1,'consultation_form_assignment',$2,$3::jsonb)`,
-      [action, String(assignmentId), JSON.stringify(metadata)]
+      [action, positiveId(assignmentId), JSON.stringify(metadata)]
     );
   }
 

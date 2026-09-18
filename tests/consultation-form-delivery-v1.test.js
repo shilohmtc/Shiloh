@@ -175,6 +175,33 @@ test('assignment discovery can run without sending while the separate delivery s
   assert.match(sqlSeen[0], /ap\.starts_at>\$1::timestamptz AND ap\.starts_at<=\$2::timestamptz/);
 });
 
+test('due scan compares BIGINT audit entity IDs without text casts', async () => {
+  const seen = [];
+  const service = delivery.createConsultationFormDeliveryService({
+    db: {
+      async query(sql, values = []) {
+        seen.push({ sql, values });
+        if (sql.includes('consultationFormDelivery:due')) return { rowCount: 0, rows: [] };
+        throw new Error(`Unexpected query: ${sql}`);
+      },
+    },
+    env: {
+      SHILOH_CONSULTATION_FORM_DELIVERY_NOT_BEFORE: '2026-09-18T18:30:00.000Z',
+    },
+    formService: enabledFormService(),
+    now: () => new Date('2026-09-18T19:00:00.000Z'),
+  });
+
+  const result = await service.dueAssignmentIds({
+    deliveryNotBefore: new Date('2026-09-18T18:30:00.000Z'),
+  });
+
+  assert.deepEqual(result, []);
+  assert.equal(seen.length, 1);
+  assert.match(seen[0].sql, /e\.entity_id=a\.id\b/);
+  assert.doesNotMatch(seen[0].sql, /e\.entity_id=a\.id::text/);
+});
+
 test('a due assignment sends only appointment context plus the opaque URL token, never health answers', async () => {
   const token = Buffer.alloc(32, 23).toString('base64url');
   const sends = [];
@@ -244,7 +271,9 @@ test('a due assignment sends only appointment context plus the opaque URL token,
   assert.doesNotMatch(JSON.stringify(sends), /allerg|medical|answer|signature/i);
   const audit = sqlSeen.find((entry) => /INSERT INTO crm_audit_events/.test(entry.sql));
   assert.ok(audit);
-  assert.equal(String(audit.values[3] || '').includes(token), false);
+  assert.equal(typeof audit.values[1], 'number');
+  assert.equal(audit.values[1], 7);
+  assert.equal(String(audit.values[2] || '').includes(token), false);
 });
 
 test('delivery source stays mapping-driven, avoids plaintext health payloads and suppresses uncertain automatic retries', () => {
