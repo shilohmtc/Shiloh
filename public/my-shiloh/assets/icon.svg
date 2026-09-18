@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">My Shiloh</title>
+  <rect width="512" height="512" rx="116" fill="#465746"/>
+  <circle cx="256" cy="256" r="166" fill="#526652"/>
+  <path d="M146 320c72-10 96-79 111-169 39 72 92 113 157 127-49 18-83 54-103 104-47-44-98-67-165-62Z" fill="none" stroke="#fffaf1" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M252 153c-20 61-55 102-111 125" fill="none" stroke="#fffaf1" stroke-width="18" stroke-linecap="round"/>
+</svg>
