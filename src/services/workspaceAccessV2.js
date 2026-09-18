@@ -19,7 +19,7 @@ const {
 const ACCESS_V2_LOCK_BASE = 788000000000;
 const PRACTITIONER_PRESET_KEY = 'employee_practitioner_v1';
 const RECEPTION_PRESET_KEY = 'reception_shared_operational_v1';
-const PRACTITIONER_COPY_CAPABILITIES = Object.freeze(['appointment:view', 'booking:update']);
+const PRACTITIONER_COPY_CAPABILITIES = Object.freeze(['appointment:view', 'booking:update', 'forms:view', 'forms:clinical_manage']);
 const PRACTITIONER_COPY_CAPABILITY_SET = new Set(PRACTITIONER_COPY_CAPABILITIES);
 
 const CAPABILITY_GROUPS = Object.freeze([
@@ -29,6 +29,7 @@ const CAPABILITY_GROUPS = Object.freeze([
   ]) }),
   Object.freeze({ key: 'clients', label: 'Clients', capabilities: Object.freeze(['client:lookup', 'client:manage', 'client:delete']) }),
   Object.freeze({ key: 'messages', label: 'Messages', capabilities: Object.freeze(['client:notify']) }),
+  Object.freeze({ key: 'forms', label: 'Forms', capabilities: Object.freeze(['forms:view', 'forms:clinical_manage']) }),
   Object.freeze({ key: 'services', label: 'Services', capabilities: Object.freeze(['services:view', 'services:create', 'services:manage', 'staff:services:view']) }),
   Object.freeze({ key: 'schedule', label: 'Clinic schedule & hours', capabilities: Object.freeze(['schedule:manage']) }),
   Object.freeze({ key: 'staff', label: 'Staff', capabilities: Object.freeze(['staff:view', 'staff:manage']) }),
@@ -69,7 +70,7 @@ function practitionerShape(row, staff) {
       || row.role !== 'practitioner' || row.business_role !== 'employee_practitioner'
       || row.calendar_scope !== 'own_appointments' || row.service_scope !== 'own_services') return false;
   const capabilities = enabledCapabilities(row.permissions);
-  return capabilities.includes('appointment:view')
+  return ['appointment:view', 'forms:view', 'forms:clinical_manage'].every(key => capabilities.includes(key))
     && capabilities.every(key => PRACTITIONER_COPY_CAPABILITY_SET.has(key));
 }
 
@@ -285,7 +286,7 @@ function createWorkspaceAccessV2Service({ db = pool, accessService = workspaceSt
       let config;
       if (preset === PRACTITIONER_PRESET_KEY) {
         requirePractitionerTarget(row);
-        config = { role: 'practitioner', businessRole: 'employee_practitioner', calendarScope: 'own_appointments', serviceScope: 'own_services', permissions: { 'appointment:view': true } };
+        config = { role: 'practitioner', businessRole: 'employee_practitioner', calendarScope: 'own_appointments', serviceScope: 'own_services', permissions: { 'appointment:view': true, 'forms:view': true, 'forms:clinical_manage': true } };
       } else {
         if (!isReceptionIdentity(row)) throw new WorkspaceStaffError('WORKSPACE_ACCESS_RECEPTION_TARGET_INVALID', 'The Reception preset is reserved for the canonical Shiloh Reception principal.', 409);
         config = { role: RECEPTION_ACCESS_PRESET.role, businessRole: RECEPTION_ACCESS_PRESET.businessRole, calendarScope: RECEPTION_ACCESS_PRESET.calendarScope, serviceScope: RECEPTION_ACCESS_PRESET.serviceScope, permissions: receptionPermissions() };
