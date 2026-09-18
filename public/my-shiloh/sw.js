@@ -1,7 +1,7 @@
 'use strict';
 
-const SHELL_CACHE = 'my-shiloh-shell-v1';
-const STATIC_CACHE = 'my-shiloh-static-v1';
+const SHELL_CACHE = 'my-shiloh-shell-v2';
+const STATIC_CACHE = 'my-shiloh-static-v2';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',
@@ -38,9 +38,10 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
   if (!url.pathname.startsWith('/my-shiloh/')) return;
 
-  // Personal client APIs must remain network-only. This service worker never
-  // persists appointment, form, payment or profile responses.
-  if (url.pathname.startsWith('/my-shiloh/api/')) return;
+  // Authentication and personal client APIs are always network-only. This
+  // service worker never persists session, appointment, form, payment or profile responses.
+  if (url.pathname.startsWith('/my-shiloh/auth/')
+      || url.pathname.startsWith('/my-shiloh/api/')) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(

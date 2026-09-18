@@ -221,6 +221,15 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Run My Shiloh client authentication browser proof
+        run: node scripts/my-shiloh-client-auth-browser-proof.js
+      - name: Upload My Shiloh client authentication browser proof
+        uses: actions/upload-artifact@v7
+        with:
+          name: my-shiloh-client-auth-v1
+          path: artifacts/my-shiloh-client-auth-v1
+          if-no-files-found: error
+          retention-days: 14
       - name: Run authenticated Workspace client notification browser proof
         run: node scripts/workspace-client-notifications-browser-proof.js
       - name: Upload authenticated Workspace client notification browser proof
