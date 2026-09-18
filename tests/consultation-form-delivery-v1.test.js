@@ -135,6 +135,8 @@ test('assignment discovery can run without sending while the separate delivery s
   assert.equal(sqlSeen.length, 1);
   assert.match(sqlSeen[0], /consultation_form_service_mappings/);
   assert.match(sqlSeen[0], /ON CONFLICT \(appointment_id,template_version_id\) DO NOTHING/);
+  assert.match(sqlSeen[0], /'not_sent',\$1::timestamptz,\$1::timestamptz/);
+  assert.match(sqlSeen[0], /ap\.starts_at>\$1::timestamptz AND ap\.starts_at<=\$2::timestamptz/);
 });
 
 test('a due assignment sends only appointment context plus the opaque URL token, never health answers', async () => {
