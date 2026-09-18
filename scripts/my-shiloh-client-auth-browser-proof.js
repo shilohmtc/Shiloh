@@ -3,7 +3,18 @@
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
-const { chromium } = require('@playwright/test');\n\nfunction chromeExecutable() {\n  const candidates = [\n    process.env.CHROME_BIN,\n    '/usr/bin/google-chrome',\n    '/usr/bin/google-chrome-stable',\n    '/usr/bin/chromium',\n    '/usr/bin/chromium-browser',\n  ];\n  return candidates.find((candidate) => candidate && fs.existsSync(candidate)) || null;\n}
+const { chromium } = require('@playwright/test');
+
+function chromeExecutable() {
+  const candidates = [
+    process.env.CHROME_BIN,
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+  ];
+  return candidates.find((candidate) => candidate && fs.existsSync(candidate)) || null;
+}
 const { createMyShilohRouter } = require('../src/routes/myShiloh');
 
 const out = path.join(__dirname, '..', 'artifacts', 'my-shiloh-client-auth-v1');
@@ -11,7 +22,8 @@ fs.mkdirSync(out, { recursive: true });
 
 const SESSION_TOKEN = 'S'.repeat(43);
 const BROWSER_TOKEN = 'B'.repeat(43);
-const WHATSAPP_TOKEN = 'W'.repeat(43);\nconst COMPLETION_CODE = '654321';
+const WHATSAPP_TOKEN = 'W'.repeat(43);
+const COMPLETION_CODE = '654321';
 let verified = false;
 let loggedOut = false;
 
