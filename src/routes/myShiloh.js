@@ -6,6 +6,7 @@ const { pool } = require('../db/pool');
 const { getPublicServiceCatalogue } = require('../services/publicServiceCatalogue');
 const { resolveWhatsAppNumber } = require('../services/publicWhatsApp');
 const { createClientBrowserSessionService, SESSION_TTL_MS, CHALLENGE_TTL_MS } = require('../services/clientBrowserSession');
+const { createMyShilohExperienceOrchestrator } = require('../services/myShilohExperienceOrchestrator');
 const { renderMyShilohPage } = require('../presentation/myShilohPwa');
 const {
   sameOriginGuard,
@@ -54,6 +55,7 @@ function createMyShilohRouter({
   whatsappResolver = resolveWhatsAppNumber,
   catalogueProvider = getPublicServiceCatalogue,
   authUrlBuilder = defaultAuthUrlBuilder,
+  experienceService = createMyShilohExperienceOrchestrator(),
 } = {}) {
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
@@ -187,6 +189,21 @@ function createMyShilohRouter({
         serializeExpiredClientAuthCookie({ env }),
       ]);
       return res.status(204).send();
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.get('/my-shiloh/api/experience', requireSession, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const experience = await experienceService.getExperience({
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+      });
+      if (!experience) {
+        return res.status(404).json({ error: 'Client profile unavailable', requestId: req.id });
+      }
+      return res.status(200).json(experience);
     } catch (error) {
       return next(error);
     }
