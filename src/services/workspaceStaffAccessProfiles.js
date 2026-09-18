@@ -14,8 +14,9 @@ const CLINIC_TEAM_VIEW = Object.freeze([
   'reports:view_all',
   'schedule:view',
   'forms:view',
+  'forms:clinical_manage',
 ]);
-const CLINIC_TEAM_ACTIONS = Object.freeze(['booking:update', 'forms:clinical_manage']);
+const CLINIC_TEAM_ACTIONS = Object.freeze(['booking:update']);
 const CLINIC_TEAM_DENIED = Object.freeze([
   'appointment:create',
   'appointment:record_past',
@@ -43,6 +44,7 @@ const OWN_WORKSPACE_VIEW = Object.freeze([
   'staff:services:view',
   'schedule:view',
   'forms:view',
+  'forms:clinical_manage',
 ]);
 const OWN_WORKSPACE_ACTIONS = Object.freeze([
   'appointment:create',
@@ -54,7 +56,6 @@ const OWN_WORKSPACE_ACTIONS = Object.freeze([
   'services:manage',
   'service:pricing',
   'schedule:availability_manage',
-  'forms:clinical_manage',
 ]);
 const OWN_WORKSPACE_DENIED = Object.freeze([
   'appointment:record_past',
