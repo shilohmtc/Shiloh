@@ -1,13 +1,23 @@
 const express = require('express');
 const workspaceForms = require('../services/workspaceForms');
 const workspaceFormSubmissions = require('../services/workspaceFormSubmissions');
+const workspacePractitionerFormRecords = require('../services/workspacePractitionerFormRecords');
 const {
   renderFormsPage,
   renderFormPreviewPage,
   renderSubmissionPage,
   renderFormsUnavailablePage,
 } = require('../presentation/workspaceFormsUx');
-const { requireStaffSession } = require('../middleware/staffBrowserSession');
+const {
+  decorateSportsSubmissionHtml,
+  renderPractitionerRecordPage,
+  workspaceSportsAssessmentClientScript,
+} = require('../presentation/workspaceSportsFormUx');
+const {
+  requireStaffSession,
+  sameOriginGuard,
+  csrfGuard,
+} = require('../middleware/staffBrowserSession');
 
 function isWorkspaceFormsEnabled(env = process.env) {
   return String(env.SHILOH_CALENDAR_READONLY_UX_ENABLED || '').trim().toLowerCase() === 'true'
@@ -29,14 +39,26 @@ function safeError(error) {
   return { status: 503, message: 'Forms are temporarily unavailable.' };
 }
 
+function safeJsonError(error) {
+  const status = Number(error?.httpStatus);
+  if ([403, 404, 409, 422].includes(status)) {
+    return { status, message: String(error.message || 'The practitioner assessment could not be saved.') };
+  }
+  return { status: 503, message: 'The practitioner assessment is temporarily unavailable.' };
+}
+
 function createWorkspaceFormsRouter({
   env = process.env,
   sessionService,
   service = workspaceForms,
   submissionService = workspaceFormSubmissions,
+  practitionerRecordService = workspacePractitionerFormRecords,
   renderPage = renderFormsPage,
   renderPreview = renderFormPreviewPage,
   renderSubmission = renderSubmissionPage,
+  renderPractitionerRecord = renderPractitionerRecordPage,
+  decorateSubmission = decorateSportsSubmissionHtml,
+  assessmentClientScript = workspaceSportsAssessmentClientScript,
   renderUnavailable = renderFormsUnavailablePage,
   staffAccessPath = '/calendar/staff',
 } = {}) {
@@ -62,6 +84,10 @@ function createWorkspaceFormsRouter({
     }
   });
 
+  router.get('/assessment-client.js', (_req, res) => {
+    return res.status(200).type('application/javascript').send(assessmentClientScript());
+  });
+
   router.get('/', async (req, res) => {
     try {
       const [model, submissions] = await Promise.all([
@@ -75,6 +101,38 @@ function createWorkspaceFormsRouter({
     }
   });
 
+  router.get('/submissions/client/:reference/assessment', async (req, res) => {
+    try {
+      const model = await practitionerRecordService.getRecord({
+        adminId: req.staffBrowserSession?.adminId,
+        submissionId: req.params.reference,
+      });
+      return res.status(200).type('html').send(renderPractitionerRecord(model));
+    } catch (error) {
+      const safe = safeError(error);
+      return res.status(safe.status).type('html').send(renderUnavailable({ message: safe.message }));
+    }
+  });
+
+  router.post(
+    '/submissions/client/:reference/assessment',
+    sameOriginGuard({ env }),
+    csrfGuard({ service: sessionService }),
+    async (req, res) => {
+      try {
+        const result = await practitionerRecordService.saveRecord({
+          adminId: req.staffBrowserSession?.adminId,
+          submissionId: req.params.reference,
+          body: req.body,
+        });
+        return res.status(200).json({ ok: true, revision: result.revision });
+      } catch (error) {
+        const safe = safeJsonError(error);
+        return res.status(safe.status).json({ error: safe.message, requestId: req.id });
+      }
+    }
+  );
+
   router.get('/submissions/:kind/:reference', async (req, res) => {
     try {
       const model = await submissionService.getSubmission({
@@ -82,7 +140,8 @@ function createWorkspaceFormsRouter({
         kind: req.params.kind,
         reference: req.params.reference,
       });
-      return res.status(200).type('html').send(renderSubmission(model));
+      const html = renderSubmission(model);
+      return res.status(200).type('html').send(decorateSubmission(html, model));
     } catch (error) {
       const safe = safeError(error);
       return res.status(safe.status).type('html').send(renderUnavailable({ message: safe.message }));
@@ -109,5 +168,6 @@ module.exports = {
   isWorkspaceFormsEnabled,
   setWorkspaceFormsSecurityHeaders,
   safeError,
+  safeJsonError,
   createWorkspaceFormsRouter,
 };
