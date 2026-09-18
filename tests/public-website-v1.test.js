@@ -11,6 +11,7 @@ const {
   renderPrivacy,
 } = require('../src/services/publicWebsite');
 const { renderBookingPage } = require('../src/services/publicBookingPageEditorial');
+const { renderSiteHeader } = require('../src/services/publicSiteChrome');
 
 const catalogue = [
   {
@@ -59,11 +60,33 @@ test('all public pages and booking share complete navigation and accessible land
     assert.match(html, /href="\/treatments"[^>]*>Services<\/a>/);
     assert.match(html, /href="\/about"/);
     assert.match(html, /href="\/contact"/);
+    assert.match(html, /href="\/my-shiloh\/"[^>]*>My Shiloh<\/a>|href="\/my-shiloh\/"[^>]*><span>My Shiloh<\/span>/);
     assert.match(html, /href="\/book"/);
     assert.match(html, /id="main-content"/);
     assert.match(html, /Skip to content/);
     assert.match(html, /name="viewport"/);
   }
+});
+
+
+test('public navigation gives returning clients a distinct My Shiloh entry without weakening Book', () => {
+  const html = renderSiteHeader('/');
+  const clientAt = html.indexOf('href="/my-shiloh/"');
+  const bookAt = html.indexOf('href="/book"');
+  assert.ok(clientAt >= 0);
+  assert.ok(bookAt > clientAt);
+  assert.match(html, /class="site-client"[^>]*>My Shiloh<\/a>/);
+  assert.match(html, /class="site-book"[^>]*>Book<\/a>/);
+  assert.match(html, /class="mobile-client"[^>]*><span>My Shiloh<\/span><small>My bookings &amp; profile<\/small><\/a>/);
+});
+
+test('home includes an understated returning-client My Shiloh entry point', () => {
+  const html = renderHome(catalogue);
+  assert.match(html, /class="client-portal"/);
+  assert.match(html, /Already part of Shiloh\?/);
+  assert.match(html, /href="\/my-shiloh\/"[^>]*>Open My Shiloh<\/a>/);
+  assert.match(html, /No app-store download required/);
+  assert.match(html, /appointment, form and payment views will live here as the client experience grows/i);
 });
 
 test('public pages include search and sharing metadata', () => {
