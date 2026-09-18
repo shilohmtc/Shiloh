@@ -13,11 +13,7 @@ const {
   renderPractitionerRecordPage,
   workspaceSportsAssessmentClientScript,
 } = require('../presentation/workspaceSportsFormUx');
-const {
-  requireStaffSession,
-  sameOriginGuard,
-  csrfGuard,
-} = require('../middleware/staffBrowserSession');
+const { requireStaffSession } = require('../middleware/staffBrowserSession');
 
 function isWorkspaceFormsEnabled(env = process.env) {
   return String(env.SHILOH_CALENDAR_READONLY_UX_ENABLED || '').trim().toLowerCase() === 'true'
@@ -37,14 +33,6 @@ function safeError(error) {
   if (Number(error?.httpStatus) === 403) return { status: 403, message: error.message || 'You do not have access to this form information.' };
   if (Number(error?.httpStatus) === 404) return { status: 404, message: error.message || 'That consultation form was not found.' };
   return { status: 503, message: 'Forms are temporarily unavailable.' };
-}
-
-function safeJsonError(error) {
-  const status = Number(error?.httpStatus);
-  if ([403, 404, 409, 422].includes(status)) {
-    return { status, message: String(error.message || 'The practitioner assessment could not be saved.') };
-  }
-  return { status: 503, message: 'The practitioner assessment is temporarily unavailable.' };
 }
 
 function createWorkspaceFormsRouter({
@@ -114,24 +102,6 @@ function createWorkspaceFormsRouter({
     }
   });
 
-  router.post(
-    '/submissions/client/:reference/assessment',
-    sameOriginGuard({ env }),
-    csrfGuard({ service: sessionService }),
-    async (req, res) => {
-      try {
-        const result = await practitionerRecordService.saveRecord({
-          adminId: req.staffBrowserSession?.adminId,
-          submissionId: req.params.reference,
-          body: req.body,
-        });
-        return res.status(200).json({ ok: true, revision: result.revision });
-      } catch (error) {
-        const safe = safeJsonError(error);
-        return res.status(safe.status).json({ error: safe.message, requestId: req.id });
-      }
-    }
-  );
 
   router.get('/submissions/:kind/:reference', async (req, res) => {
     try {
@@ -168,6 +138,5 @@ module.exports = {
   isWorkspaceFormsEnabled,
   setWorkspaceFormsSecurityHeaders,
   safeError,
-  safeJsonError,
   createWorkspaceFormsRouter,
 };
