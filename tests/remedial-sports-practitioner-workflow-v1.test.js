@@ -8,6 +8,8 @@ const libraryMigration = fs.readFileSync(path.join(root, 'migrations/134_expande
 const practitionerMigration = fs.readFileSync(path.join(root, 'migrations/135_remedial_sports_practitioner_workflow.sql'), 'utf8');
 const serviceSource = fs.readFileSync(path.join(root, 'src/services/workspacePractitionerFormRecords.js'), 'utf8');
 const routeSource = fs.readFileSync(path.join(root, 'src/routes/workspaceForms.js'), 'utf8');
+const mutationRouteSource = fs.readFileSync(path.join(root, 'src/routes/workspaceFormClinicalMutations.js'), 'utf8');
+const calendarRouteSource = fs.readFileSync(path.join(root, 'src/routes/calendar.js'), 'utf8');
 const uxSource = fs.readFileSync(path.join(root, 'src/presentation/workspaceSportsFormUx.js'), 'utf8');
 
 const records = require('../src/services/workspacePractitionerFormRecords');
@@ -155,15 +157,20 @@ test('assessment browser client uses staff CSRF boundary and no browser persiste
   assert.doesNotMatch(script, /signature|health answer|payload_ciphertext/i);
 });
 
-test('assessment routes remain staff-session, same-origin and CSRF guarded before clinical mutation', () => {
+test('assessment read surface stays GET-only and clinical saves use the separate guarded mutation router', () => {
   assert.match(routeSource, /requireStaffSession/);
   assert.match(routeSource, /router\.get\('\/assessment-client\.js'/);
   assert.match(routeSource, /router\.get\('\/submissions\/client\/:reference\/assessment'/);
-  assert.match(routeSource, /router\.post\([\s\S]*?'\/submissions\/client\/:reference\/assessment'/);
-  assert.match(routeSource, /sameOriginGuard\(\{ env \}\)/);
-  assert.match(routeSource, /csrfGuard\(\{ service: sessionService \}\)/);
-  assert.match(routeSource, /practitionerRecordService\.saveRecord/);
+  assert.doesNotMatch(routeSource, /router\.(?:post|put|patch|delete)\(/i);
   assert.match(routeSource, /decorateSubmission\(html, model\)/);
+
+  assert.match(mutationRouteSource, /router\.post\([\s\S]*?'\/submissions\/client\/:reference\/assessment'/);
+  assert.match(mutationRouteSource, /sameOriginGuard\(\{ env \}\)/);
+  assert.match(mutationRouteSource, /requireStaffSession\(\{ service: sessionService, env \}\)/);
+  assert.match(mutationRouteSource, /csrfGuard\(\{ service: sessionService \}\)/);
+  assert.match(mutationRouteSource, /practitionerRecordService\.saveRecord/);
+  assert.match(calendarRouteSource, /createWorkspaceFormClinicalMutationRouter/);
+  assert.match(calendarRouteSource, /router\.use\('\/forms', createWorkspaceFormClinicalMutationRouter/);
 });
 
 test('clinical record service scopes to exact Sports template, encrypts writes and audits without clinical payload', () => {
