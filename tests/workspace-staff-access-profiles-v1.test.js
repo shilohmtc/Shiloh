@@ -36,7 +36,7 @@ test('Clinic team profile is broad view plus own completion, never broad mutatio
   const config = canonicalProfileConfig(PROFILE_CLINIC_TEAM);
   assert.equal(config.calendarScope, 'own_appointments');
   assert.equal(config.serviceScope, 'own_services');
-  for (const capability of ['appointment:view', 'client:lookup', 'services:view', 'staff:view', 'reports:view_all', 'schedule:view', 'booking:update']) {
+  for (const capability of ['appointment:view', 'client:lookup', 'services:view', 'staff:view', 'reports:view_all', 'schedule:view', 'booking:update', 'forms:view', 'forms:clinical_manage']) {
     assert.equal(config.permissions[capability], true, capability);
   }
   for (const forbidden of ['appointment:create', 'calendar:booking:reschedule', 'calendar:booking:cancel', 'calendar:booking:reassign', 'client:manage', 'services:manage', 'schedule:manage', 'staff:manage', 'staff_access:manage']) {
@@ -49,7 +49,7 @@ test('Own workspace profile keeps Marietjie work-scoped and explicitly blocks cl
   assert.equal(config.businessRole, 'tenant_practitioner');
   assert.equal(config.calendarScope, 'own_appointments');
   assert.equal(config.serviceScope, 'own_services');
-  for (const capability of ['appointment:view', 'appointment:create', 'appointment:adjust_end', 'booking:update', 'calendar:booking:reschedule', 'calendar:booking:cancel', 'client:lookup', 'client:manage', 'services:view', 'services:manage', 'service:pricing', 'schedule:view']) {
+  for (const capability of ['appointment:view', 'appointment:create', 'appointment:adjust_end', 'booking:update', 'calendar:booking:reschedule', 'calendar:booking:cancel', 'client:lookup', 'client:manage', 'services:view', 'services:manage', 'service:pricing', 'schedule:view', 'forms:view', 'forms:clinical_manage']) {
     assert.equal(config.permissions[capability], true, capability);
   }
   for (const forbidden of ['calendar:booking:reassign', 'schedule:manage', 'client:delete', 'services:create', 'staff:view', 'staff:manage', 'staff_access:manage', 'staff_auth:reset']) {
@@ -67,6 +67,8 @@ test('Friendly switches can only change profile-safe actions and reassert protec
   assert.equal(next['client:manage'], true);
   assert.equal(next['appointment:view'], true);
   assert.equal(next['schedule:view'], true);
+  assert.equal(next['forms:view'], true);
+  assert.equal(next['forms:clinical_manage'], true);
   assert.notEqual(next['schedule:manage'], true);
   assert.notEqual(next['calendar:booking:reassign'], true);
   assert.notEqual(next['client:delete'], true);
