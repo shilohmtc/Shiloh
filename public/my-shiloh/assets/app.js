@@ -12,6 +12,9 @@
   const authLogoutButtons = [...document.querySelectorAll('[data-client-auth-logout]')];
   const authCodeForms = [...document.querySelectorAll('[data-client-auth-code-form]')];
   const authStatusHosts = [...document.querySelectorAll('[data-auth-status]')];
+  const experienceHome = document.querySelector('[data-client-experience-home]');
+  const experienceBookings = document.querySelector('[data-client-experience-bookings]');
+  const experiencePrompts = document.querySelector('[data-client-experience-prompts]');
   let deferredInstallPrompt = null;
   let authActionInFlight = false;
 
@@ -106,6 +109,106 @@
     if (installTrigger) installTrigger.hidden = true;
     deferredInstallPrompt = null;
   });
+
+  function safeExperienceHref(value) {
+    const href = String(value || '');
+    if (href === '/book' || /^\/pay\/[A-Za-z0-9_-]{8,100}$/.test(href) || /^#[a-z-]+$/.test(href)) return href;
+    return '#shiloh';
+  }
+
+  function renderClientExperience(experience) {
+    if (!experience || experience.version !== 'my_shiloh_client_experience_v1') return;
+
+    if (experienceHome && experience.home) {
+      const eyebrow = experienceHome.querySelector('.eyebrow');
+      const heading = experienceHome.querySelector('h2');
+      const summary = experienceHome.querySelector(':scope > p');
+      const status = experienceHome.querySelector('.status-pill');
+      if (eyebrow) eyebrow.textContent = String(experience.home.eyebrow || 'Your Shiloh');
+      if (heading) heading.textContent = String(experience.home.headline || 'Your Shiloh is ready.');
+      if (summary) summary.textContent = String(experience.home.summary || '');
+      if (status) status.textContent = String(experience.home.status || 'Ready');
+
+      const facts = Array.isArray(experience.home.facts) ? experience.home.facts.slice(0, 3) : [];
+      experienceHome.querySelectorAll('.focus-grid > div').forEach((item, index) => {
+        const fact = facts[index];
+        if (!fact) return;
+        const label = item.querySelector('span');
+        const value = item.querySelector('strong');
+        if (label) label.textContent = String(fact.label || '');
+        if (value) value.textContent = String(fact.value || '');
+      });
+
+      let action = experienceHome.querySelector('[data-client-experience-primary]');
+      if (!action) {
+        action = document.createElement('a');
+        action.className = 'button button--primary experience-primary';
+        action.dataset.clientExperiencePrimary = '';
+        experienceHome.appendChild(action);
+      }
+      action.textContent = String(experience.home.primaryAction?.label || 'Ask Shiloh');
+      action.href = safeExperienceHref(experience.home.primaryAction?.href);
+    }
+
+    const upcoming = Array.isArray(experience.bookings?.upcoming) ? experience.bookings.upcoming[0] : null;
+    if (experienceBookings) {
+      const primary = experienceBookings.querySelector('.action-card');
+      if (primary) {
+        const heading = primary.querySelector('h2');
+        const copy = primary.querySelector('p');
+        const action = primary.querySelector('.button');
+        if (upcoming) {
+          if (heading) heading.textContent = String(upcoming.service || 'Upcoming appointment');
+          if (copy) copy.textContent = [upcoming.date, upcoming.time, upcoming.practitioner].filter(Boolean).join(' · ');
+          if (action) {
+            action.textContent = 'Ask Shiloh about this booking';
+            action.href = '#shiloh';
+          }
+        } else {
+          if (heading) heading.textContent = 'Book something new';
+          if (copy) copy.textContent = 'There is no upcoming appointment linked to your secure client profile right now.';
+          if (action) {
+            action.textContent = 'Start booking';
+            action.href = '/book';
+          }
+        }
+      }
+    }
+
+    if (experiencePrompts) {
+      const prompts = Array.isArray(experience.assistant?.prompts) ? experience.assistant.prompts.slice(0, 4) : [];
+      experiencePrompts.querySelectorAll('article strong').forEach((node, index) => {
+        if (prompts[index]) node.textContent = String(prompts[index]);
+      });
+    }
+  }
+
+  function renderExperienceUnavailable() {
+    if (!experienceHome) return;
+    const heading = experienceHome.querySelector('h2');
+    const summary = experienceHome.querySelector(':scope > p');
+    const status = experienceHome.querySelector('.status-pill');
+    if (heading) heading.textContent = 'Your private details are temporarily unavailable.';
+    if (summary) summary.textContent = 'You can still book or continue with Shiloh while this reconnects.';
+    if (status) status.textContent = 'Reconnect';
+  }
+
+  async function loadClientExperience() {
+    if (appFrame?.dataset.clientAuthenticated !== 'true') return;
+    try {
+      const response = await fetch('/my-shiloh/api/experience', {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok) throw new Error('experience unavailable');
+      const experience = await response.json();
+      renderClientExperience(experience);
+    } catch (_error) {
+      renderExperienceUnavailable();
+    }
+  }
 
   function syncNetworkState() {
     if (!offlineBanner) return;
@@ -218,6 +321,8 @@
     }
     completeClientAuth(completionCode);
   }
+
+  loadClientExperience();
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

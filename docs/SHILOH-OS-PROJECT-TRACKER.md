@@ -1,6 +1,6 @@
 # Shiloh OS — Project Tracker
 
-Updated: 2026-08-22
+Updated: 2026-09-18 (My Shiloh AI-backbone direction; older workstream evidence below remains historical where not superseded)
 Purpose: concise operational dashboard. Master is the detailed current ledger; historical implementation detail remains in Git history/reconciliation files. Do not redo completed or superseded work.
 
 ## Canonical status system
@@ -46,6 +46,7 @@ Practitioner-approved client rescheduling is **provider-verified and production-
 
 | ID | Workstream | State | Evidence / next action |
 |---|---|---|---|
+| MY-SHILOH-AI-BACKBONE | Client Experience / Shiloh AI | 🔵 ACTIVE | Product direction ratified in `docs/MY-SHILOH-AI-BACKBONE-ROADMAP-2026-09-18.md`: WhatsApp is the front door, My Shiloh is the client's home, and Shiloh is the orchestration backbone. Current controlled unit is authenticated CRM V2 client context + one shared experience orchestrator consumed by Home, Bookings and Shiloh suggestions. Domain services remain booking/forms/payment/scheduling authority; no separate My Shiloh business logic or second AI brain. |
 | DEPLOY-CONVERGENCE | GitHub ↔ Render | 🟢 VERIFIED | Current application authority is #416 / `bcc327bc21dd...`; exact application deploy `dep-da4ouhdckfvc73cnn8hg` reached LIVE. Migration 074 applied/checksum-verified, migration 072 remained checksum-valid/unreplayed, controlled Juvan remained BOUND, Google Calendar health passed, repeated `/health` 200 and bounded post-cutover error query clean. |
 | PRACTITIONER-CALENDAR-CONFLICT | Booking & Admin UX | 🟢 VERIFIED LIVE | #395 / `485ed97d8812...`; CI #1228 passed, focused 30/30, full 856/856. `dep-da4a75lckfvc738ghpmg` reached LIVE on exact merge. Unrelated practitioner Calendar events no longer block another assigned practitioner; shared/clinic-wide conflicts and all standing fail-closed guards remain blocking. #416 does not alter this rule. Do not redo. |
 | CRM-ONBOARDING-NORMALIZED-PHONE-AMBIGUITY | CRM & Identity | 🟢 VERIFIED LIVE / COMPLETE | #399 / `26ace1027e10...`; migration 072 replaces only the migration-067 trigger function's ambiguous local identifier with `v_normalized_phone`. CI #1236 passed 860/860 plus four focused cases. `dep-da4me5qd0e5s73bobfm0` reached LIVE; #416 startup reverified migration 072 `applied=false / checksumVerified=true`. Do not redo. |
