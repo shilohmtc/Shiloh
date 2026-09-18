@@ -11,6 +11,7 @@ const { exactPhoneCandidates } = require('./clientVerifiedIdentity');
 const { resolveClientFacingName } = require('./clientFacingNameAuthority');
 
 const DELIVERY_FLAG = 'SHILOH_CONSULTATION_FORM_DELIVERY_ENABLED';
+const DELIVERY_NOT_BEFORE_FLAG = 'SHILOH_CONSULTATION_FORM_DELIVERY_NOT_BEFORE';
 const INITIAL_TEMPLATE = 'shiloh_consultation_form_v1';
 const INITIAL_CONTRACT = 'consultation_form';
 const TEMPLATE_LANGUAGE = 'en';
@@ -27,6 +28,16 @@ function positiveId(value) {
 
 function isConsultationFormDeliveryEnabled(env = process.env) {
   return String(env[DELIVERY_FLAG] || '').trim().toLowerCase() === 'true';
+}
+
+function parseDeliveryNotBefore(env = process.env) {
+  const raw = String(env[DELIVERY_NOT_BEFORE_FLAG] || '').trim();
+  if (!raw) return null;
+  const value = new Date(raw);
+  if (Number.isNaN(value.getTime())) {
+    throw new Error(`${DELIVERY_NOT_BEFORE_FLAG} must be a valid ISO-8601 timestamp`);
+  }
+  return value;
 }
 
 function formatAppointmentDate(value) {
@@ -150,7 +161,8 @@ function createConsultationFormDeliveryService({
     return { created: result.rowCount || 0 };
   }
 
-  async function dueAssignmentIds() {
+  async function dueAssignmentIds({ deliveryNotBefore = parseDeliveryNotBefore(env) } = {}) {
+    if (!deliveryNotBefore) return [];
     const current = now();
     const result = await db.query(
       `/* consultationFormDelivery:due */
@@ -162,6 +174,7 @@ function createConsultationFormDeliveryService({
         WHERE a.status='not_sent'
           AND ap.status IN ('scheduled','confirmed')
           AND ap.starts_at>$1
+          AND a.created_at >= $2::timestamptz
           AND EXISTS (
             SELECT 1
               FROM appointment_services aps
@@ -179,12 +192,13 @@ function createConsultationFormDeliveryService({
           )
         ORDER BY ap.starts_at,a.id
         LIMIT ${BATCH_SIZE}`,
-      [current]
+      [current, deliveryNotBefore]
     );
     return result.rows.map((row) => positiveId(row.id)).filter(Boolean);
   }
 
-  async function loadAssignmentContext(assignmentId) {
+  async function loadAssignmentContext(assignmentId, { deliveryNotBefore = parseDeliveryNotBefore(env) } = {}) {
+    if (!deliveryNotBefore) return null;
     const result = await db.query(
       `/* consultationFormDelivery:context */
        SELECT a.id AS assignment_id,a.appointment_id,a.template_version_id,a.status AS assignment_status,
@@ -208,9 +222,10 @@ function createConsultationFormDeliveryService({
           AND a.status='not_sent'
           AND ap.status IN ('scheduled','confirmed')
           AND ap.starts_at>$2
+          AND a.created_at >= $3::timestamptz
           AND mapped.service_name IS NOT NULL
         LIMIT 1`,
-      [assignmentId, now()]
+      [assignmentId, now(), deliveryNotBefore]
     );
     return result.rows[0] || null;
   }
@@ -240,10 +255,15 @@ function createConsultationFormDeliveryService({
     if (!id) return { sent: false, reason: 'assignment_invalid' };
     if (!formService.isClientConsultationFormsEnabled(env)) return { sent: false, reason: 'client_forms_disabled' };
     if (!isConsultationFormDeliveryEnabled(env)) return { sent: false, reason: 'delivery_disabled' };
+    let deliveryNotBefore;
+    try { deliveryNotBefore = parseDeliveryNotBefore(env); } catch (_error) {
+      return { sent: false, reason: 'delivery_not_before_invalid' };
+    }
+    if (!deliveryNotBefore) return { sent: false, reason: 'delivery_not_before_unconfigured' };
     formService.parseDataKey(env);
     if (!contractPreflighted) await preflightTemplateSend(assertSendAllowed);
 
-    const context = await loadAssignmentContext(id);
+    const context = await loadAssignmentContext(id, { deliveryNotBefore });
     if (!context) return { sent: false, reason: 'assignment_not_due' };
     const authority = await loadAuthority(context.appointment_id, db);
     const recipient = await resolveDeliveryRecipient(authority, {
@@ -314,6 +334,13 @@ function createConsultationFormDeliveryService({
     if (!isConsultationFormDeliveryEnabled(env)) {
       return { enabled: true, deliveryEnabled: false, created: discovered.created, attempted: 0, sent: 0, reason: 'delivery_disabled' };
     }
+    let deliveryNotBefore;
+    try { deliveryNotBefore = parseDeliveryNotBefore(env); } catch (_error) {
+      return { enabled: true, deliveryEnabled: true, created: discovered.created, attempted: 0, sent: 0, reason: 'delivery_not_before_invalid' };
+    }
+    if (!deliveryNotBefore) {
+      return { enabled: true, deliveryEnabled: true, created: discovered.created, attempted: 0, sent: 0, reason: 'delivery_not_before_unconfigured' };
+    }
 
     try {
       await preflightTemplateSend(assertSendAllowed);
@@ -321,7 +348,7 @@ function createConsultationFormDeliveryService({
       return { enabled: true, deliveryEnabled: true, created: discovered.created, attempted: 0, sent: 0, reason: 'template_not_ready' };
     }
 
-    const due = await dueAssignmentIds();
+    const due = await dueAssignmentIds({ deliveryNotBefore });
     const results = [];
     for (const assignmentId of due) {
       try {
@@ -380,11 +407,13 @@ function startConsultationFormDeliveryScheduler() {
     scanMinutes: SCAN_INTERVAL_MS / 60000,
     clientFormsEnabled: clientConsultationForms.isClientConsultationFormsEnabled(process.env),
     deliveryEnabled: isConsultationFormDeliveryEnabled(process.env),
+    deliveryNotBeforeConfigured: Boolean(String(process.env[DELIVERY_NOT_BEFORE_FLAG] || '').trim()),
   }, 'Consultation form appointment delivery scheduler started');
 }
 
 module.exports = {
   DELIVERY_FLAG,
+  DELIVERY_NOT_BEFORE_FLAG,
   INITIAL_TEMPLATE,
   INITIAL_CONTRACT,
   TEMPLATE_LANGUAGE,
@@ -393,6 +422,7 @@ module.exports = {
   BATCH_SIZE,
   positiveId,
   isConsultationFormDeliveryEnabled,
+  parseDeliveryNotBefore,
   formatAppointmentDate,
   providerMessageId,
   identityModel,
