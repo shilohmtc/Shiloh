@@ -37,12 +37,109 @@ function serviceCards(catalogue = []) {
     .join('');
 }
 
-function renderMyShilohPage({ whatsappNumber = null, catalogue = [] } = {}) {
+function johannesburgGreeting(now = new Date()) {
+  const hour = Number(new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Johannesburg',
+    hour: '2-digit',
+    hourCycle: 'h23',
+  }).format(now));
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function renderMyShilohPage({
+  whatsappNumber = null,
+  catalogue = [],
+  client = null,
+  now = new Date(),
+} = {}) {
   const askShiloh = whatsappUrl(whatsappNumber);
   const manageBooking = whatsappUrl(
     whatsappNumber,
     'Hi Shiloh, I am in My Shiloh and would like help with an appointment.',
   );
+  const authenticated = Boolean(client?.id && client?.firstName);
+  const greeting = authenticated ? johannesburgGreeting(now) : null;
+  const clientName = authenticated ? escapeHtml(client.name || client.firstName) : '';
+  const firstName = authenticated ? escapeHtml(client.firstName) : '';
+
+  const hero = authenticated
+    ? `<div class="hero">
+        <p class="eyebrow">Welcome back</p>
+        <h1 id="home-title">${escapeHtml(greeting)}, ${firstName}.</h1>
+        <p class="hero-copy">You're securely signed in to My Shiloh. Your personal appointment, forms and payment view can now be added without exposing your information to the public app shell.</p>
+        <div class="hero-actions">
+          <a class="button button--primary" href="/book">Book an appointment</a>
+          <a class="button button--soft" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Ask Shiloh</a>
+        </div>
+      </div>`
+    : `<div class="hero">
+        <p class="eyebrow">Private client access</p>
+        <h1 id="home-title">Your Shiloh, all in one place.</h1>
+        <p class="hero-copy">Continue with WhatsApp to securely connect this device to your existing Shiloh client profile. No password or email address required.</p>
+        <div class="hero-actions">
+          <button class="button button--primary" type="button" data-client-auth-start>Continue with WhatsApp</button>
+          <a class="button button--soft" href="/book">Book an appointment</a>
+        </div>
+        <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
+      </div>`;
+
+  const focus = authenticated
+    ? `<section class="focus-card" aria-labelledby="next-visit-title">
+        <div class="focus-card__top">
+          <div><p class="eyebrow">Secure connection</p><h2 id="next-visit-title">Your client space is connected.</h2></div>
+          <span class="status-pill">Verified</span>
+        </div>
+        <p>Next we can safely place your real upcoming appointment, required forms and payment status here using your authenticated CRM V2 identity.</p>
+        <div class="focus-grid" aria-label="My Shiloh secure client features">
+          <div><span>Identity</span><strong>Verified</strong></div>
+          <div><span>Session</span><strong>Private</strong></div>
+          <div><span>Data</span><strong>Network only</strong></div>
+        </div>
+      </section>`
+    : `<section class="focus-card" aria-labelledby="next-visit-title">
+        <div class="focus-card__top">
+          <div><p class="eyebrow">Secure sign-in</p><h2 id="next-visit-title">Sign in once. No password needed.</h2></div>
+          <span class="status-pill">Private</span>
+        </div>
+        <p>My Shiloh sends a one-time sign-in request to WhatsApp. Shiloh verifies the sender number against the canonical CRM V2 client profile before this browser receives a private session.</p>
+        <div class="focus-grid" aria-label="My Shiloh sign-in features">
+          <div><span>Password</span><strong>None</strong></div>
+          <div><span>Identity</span><strong>WhatsApp</strong></div>
+          <div><span>Session</span><strong>Revocable</strong></div>
+        </div>
+      </section>`;
+
+  const profile = authenticated
+    ? `<div class="page-intro">
+        <p class="eyebrow">Profile</p>
+        <h1 id="profile-title">Your Shiloh, remembered.</h1>
+        <p>Signed in securely via WhatsApp. Only the minimum identity needed for this screen is shown here.</p>
+      </div>
+      <div class="profile-auth-card">
+        <div class="profile-avatar" aria-hidden="true">${firstName.charAt(0).toUpperCase()}</div>
+        <div><span>Signed in as</span><strong>${clientName}</strong><small>Verified with WhatsApp</small></div>
+      </div>
+      <div class="profile-list" aria-label="Secure profile areas">
+        <div><span>Personal details</span><strong>Coming next</strong></div>
+        <div><span>Consultation forms</span><strong>When required</strong></div>
+        <div><span>Packages &amp; vouchers</span><strong>Private</strong></div>
+        <div><span>Receipts &amp; payments</span><strong>Private</strong></div>
+      </div>
+      <button class="button button--soft button--wide profile-signout" type="button" data-client-auth-logout>Sign out</button>
+      <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>`
+    : `<div class="page-intro">
+        <p class="eyebrow">Profile</p>
+        <h1 id="profile-title">Your Shiloh, remembered.</h1>
+        <p>Sign in with WhatsApp to connect My Shiloh to your existing client profile. Your phone number is verified by the WhatsApp sender itself — you never retype it here.</p>
+      </div>
+      <button class="button button--primary button--wide" type="button" data-client-auth-start>Continue with WhatsApp</button>
+      <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
+      <aside class="privacy-note">
+        <span aria-hidden="true">✓</span>
+        <div><strong>Privacy first.</strong><p>Client sessions are separate from staff/Admin authority, and personal responses are never written to the PWA cache.</p></div>
+      </aside>`;
 
   return `<!doctype html>
 <html lang="en">
@@ -65,7 +162,7 @@ function renderMyShilohPage({ whatsappNumber = null, catalogue = [] } = {}) {
 </head>
 <body>
   <a class="skip-link" href="#main-content">Skip to content</a>
-  <div class="app-frame" data-app-frame>
+  <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}">
     <header class="topbar">
       <a class="brand" href="#home" aria-label="My Shiloh home">
         <span class="brand-mark" aria-hidden="true">
@@ -80,32 +177,8 @@ function renderMyShilohPage({ whatsappNumber = null, catalogue = [] } = {}) {
 
     <main id="main-content" class="app-main">
       <section class="view is-active" id="home" data-view="home" aria-labelledby="home-title">
-        <div class="hero">
-          <p class="eyebrow">Your Shiloh space</p>
-          <h1 id="home-title">A calmer way to care for you.</h1>
-          <p class="hero-copy">Bookings, forms, payments and Shiloh support are coming together in one private, beautifully simple place.</p>
-          <div class="hero-actions">
-            <a class="button button--primary" href="/book">Book an appointment</a>
-            <a class="button button--soft" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Ask Shiloh</a>
-          </div>
-        </div>
-
-        <section class="focus-card" aria-labelledby="next-visit-title">
-          <div class="focus-card__top">
-            <div>
-              <p class="eyebrow">Next visit</p>
-              <h2 id="next-visit-title">Your appointment will live here.</h2>
-            </div>
-            <span class="status-pill">Private</span>
-          </div>
-          <p>Once secure client sign-in is switched on, this card will show your next appointment, practitioner, forms and payment status automatically.</p>
-          <div class="focus-grid" aria-label="My Shiloh client features">
-            <div><span>Appointment</span><strong>One glance</strong></div>
-            <div><span>Forms</span><strong>Only when needed</strong></div>
-            <div><span>Payment</span><strong>Clear status</strong></div>
-          </div>
-        </section>
-
+        ${hero}
+        ${focus}
         <section class="section-block" aria-labelledby="discover-title">
           <div class="section-heading">
             <div><p class="eyebrow">Discover</p><h2 id="discover-title">Start with what you need.</h2></div>
@@ -113,7 +186,6 @@ function renderMyShilohPage({ whatsappNumber = null, catalogue = [] } = {}) {
           </div>
           <div class="service-scroll">${serviceCards(catalogue)}</div>
         </section>
-
         <section class="quiet-card">
           <div class="quiet-icon" aria-hidden="true">S</div>
           <div><p class="eyebrow">Shiloh is close</p><h2>Need help choosing?</h2><p>Tell Shiloh what you feel like booking and continue the conversation on WhatsApp.</p></div>
@@ -125,7 +197,7 @@ function renderMyShilohPage({ whatsappNumber = null, catalogue = [] } = {}) {
         <div class="page-intro">
           <p class="eyebrow">Bookings</p>
           <h1 id="bookings-title">Your time with Shiloh.</h1>
-          <p>My Shiloh will bring upcoming and previous appointments into one timeline. For now, booking and changes continue through Shiloh's existing live booking journey.</p>
+          <p>${authenticated ? 'Your secure identity is connected. Appointment history is the next client-data slice.' : 'Sign in securely to connect this area to your client profile. Booking and changes continue through Shiloh in the meantime.'}</p>
         </div>
         <div class="stack">
           <article class="action-card action-card--accent">
@@ -146,7 +218,7 @@ function renderMyShilohPage({ whatsappNumber = null, catalogue = [] } = {}) {
           <div class="assistant-orbit" aria-hidden="true"><span>S</span></div>
           <p class="eyebrow">Your wellness assistant</p>
           <h1 id="shiloh-title">Shiloh, right where you need it.</h1>
-          <p>Choose a service, manage an appointment, prepare for your visit, or simply ask a question. Your conversation continues securely on WhatsApp while the in-app assistant layer is prepared.</p>
+          <p>Choose a service, manage an appointment, prepare for your visit, or simply ask a question. Your conversation continues on WhatsApp while the authenticated in-app assistant layer is prepared.</p>
           <a class="button button--primary button--wide" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Chat with Shiloh</a>
         </div>
         <div class="prompt-grid" aria-label="Things Shiloh can help with">
@@ -158,22 +230,7 @@ function renderMyShilohPage({ whatsappNumber = null, catalogue = [] } = {}) {
       </section>
 
       <section class="view" id="profile" data-view="profile" aria-labelledby="profile-title" hidden>
-        <div class="page-intro">
-          <p class="eyebrow">Profile</p>
-          <h1 id="profile-title">Your Shiloh, remembered.</h1>
-          <p>Personal details will only appear after the dedicated client-session layer is active. Until then, My Shiloh intentionally keeps this surface free of client information.</p>
-        </div>
-        <div class="profile-list" aria-label="Future secure profile areas">
-          <div><span>Personal details</span><strong>Secure access</strong></div>
-          <div><span>Consultation forms</span><strong>When required</strong></div>
-          <div><span>Packages &amp; vouchers</span><strong>One balance</strong></div>
-          <div><span>Receipts &amp; payments</span><strong>Clear history</strong></div>
-          <div><span>Preferences</span><strong>Your choices</strong></div>
-        </div>
-        <aside class="privacy-note">
-          <span aria-hidden="true">✓</span>
-          <div><strong>Privacy first.</strong><p>No admin credential, staff session or client health data is exposed to this PWA shell.</p></div>
-        </aside>
+        ${profile}
       </section>
     </main>
 
@@ -185,7 +242,7 @@ function renderMyShilohPage({ whatsappNumber = null, catalogue = [] } = {}) {
     </nav>
   </div>
 
-  <div class="install-sheet" data-install-trigger hidden>
+  <div class="install-sheet" data-install-sheet hidden>
     <button class="install-sheet__backdrop" type="button" data-install-close aria-label="Close install help"></button>
     <section class="install-sheet__panel" role="dialog" aria-modal="true" aria-labelledby="install-title">
       <button class="install-sheet__close" type="button" data-install-close aria-label="Close">×</button>
@@ -210,6 +267,7 @@ module.exports = {
   escapeHtml,
   whatsappUrl,
   serviceCards,
+  johannesburgGreeting,
   renderMyShilohPage,
   PUBLIC_BRAND_NAME,
   PUBLIC_TAGLINE,
