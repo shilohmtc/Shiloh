@@ -131,14 +131,14 @@ function createConsultationFormDeliveryService({
        INSERT INTO consultation_form_assignments(
          appointment_id,template_version_id,client_id,crm_v2_client_id,status,created_at,updated_at
        )
-       SELECT DISTINCT ap.id,m.template_version_id,ap.client_id,ap.crm_v2_client_id,'not_sent',$1,$1
+       SELECT DISTINCT ap.id,m.template_version_id,ap.client_id,ap.crm_v2_client_id,'not_sent',$1::timestamptz,$1::timestamptz
          FROM appointments ap
          JOIN appointment_services aps ON aps.appointment_id=ap.id
          JOIN consultation_form_service_mappings m ON m.service_id=aps.service_id AND m.required=TRUE
          JOIN consultation_form_template_versions tv ON tv.id=m.template_version_id
          JOIN consultation_form_templates t ON t.id=tv.template_id AND t.status='active'
         WHERE ap.status IN ('scheduled','confirmed')
-          AND ap.starts_at>$1 AND ap.starts_at<=$2
+          AND ap.starts_at>$1::timestamptz AND ap.starts_at<=$2::timestamptz
           AND (
             (ap.client_id IS NOT NULL AND ap.crm_v2_client_id IS NULL)
             OR (ap.client_id IS NULL AND ap.crm_v2_client_id IS NOT NULL)
