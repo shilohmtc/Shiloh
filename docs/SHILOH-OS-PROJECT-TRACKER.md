@@ -1,7 +1,15 @@
 # Shiloh OS — Project Tracker
 
-Updated: 2026-09-18 (My Shiloh AI-backbone direction; older workstream evidence below remains historical where not superseded)
+Updated: 2026-09-19 (Shiloh-first reconciliation; older evidence below remains historical where not superseded)
 Purpose: concise operational dashboard. Master is the detailed current ledger; historical implementation detail remains in Git history/reconciliation files. Do not redo completed or superseded work.
+
+## Current operational baseline
+
+- **Application:** PR #1042 / `b781a5a6b4ea94387b5bb4803cecbd8ca074159d` is the latest application baseline before this documentation reconciliation.
+- **Production:** Render deploy `dep-dan3k817lnhs73dr1f10` is LIVE on that application commit; relevant workflows passed, 137/137 migrations matched, and the bounded post-deploy application-error check was clean.
+- **My Shiloh:** Phases 0–4 are verified live through authenticated consultation-form action #1042. Exactly five typed read tools are live; package and voucher tools remain planned.
+- **Next:** normal-account end-to-end My Shiloh acceptance, then a controlled low-value Ozow production transaction. WhatsApp ↔ My Shiloh contextual actions follow.
+- **Interpretation:** where the preserved historical ledger below calls #416 or another older PR “current”, this section and the Master’s 2026-09-19 short-form baseline supersede that wording.
 
 ## Canonical status system
 
@@ -24,7 +32,7 @@ Engineering Governance includes **#340** mandatory copy-ready specialist handoff
 
 Control & Reconciliation uses reconciled authoritative evidence, not specialist-chat narrative, for continuity. **Keep ownership with the appropriate monitoring/provider workstream**; do not route blocked work to implementation merely to keep work moving.
 
-## Production baseline
+## Historical production baseline — 2026-08-22 (preserved)
 
 **Current application:** PR **#416 / `bcc327bc21dd1e72b6930eadcde86532f7c27a4f`**, *Implement verified-client identity authority*. PR #416 implements the PR #413 ratified verified-client contract across CRM onboarding and Booking/Admin while preserving unrelated booking, Calendar, provider and controlled-Juvan authority. PR #399 remains durable authority for the CRM normalized-phone ambiguity repair and migration 072; PR #395 remains durable authority for practitioner Google Calendar conflict classification.
 
@@ -46,8 +54,8 @@ Practitioner-approved client rescheduling is **provider-verified and production-
 
 | ID | Workstream | State | Evidence / next action |
 |---|---|---|---|
-| MY-SHILOH-AI-BACKBONE | Client Experience / Shiloh AI | 🔵 ACTIVE | Phases 1–3 are VERIFIED LIVE. Phase 4 cancellation is VERIFIED LIVE under #1040. Current controlled unit is confirmed reschedule request: Shiloh can prepare only an exact canonical available slot; authenticated CSRF confirmation consumes a one-time proposal and submits that slot into the existing practitioner-approval workflow. The current appointment remains unchanged until practitioner approval; no My Shiloh direct reschedule mutation path is introduced. |ntext/orchestrator (#1037), Phase 2 in-app Shiloh (#1038), and Phase 3 typed read tools (#1039 / `3c7fc0ea...`) are VERIFIED LIVE. Current Phase 4 controlled unit is explicit next-appointment cancellation: AI prepares only; a durable one-time proposal + authenticated CSRF confirmation revalidates CRM V2 ownership, appointment revision/status/start boundary, linked/group exclusion and practitioner locks before the shared canonical cancellation owner executes. Rescheduling remains separately bound to the existing practitioner-approval workflow and is not included in this unit. |
-| DEPLOY-CONVERGENCE | GitHub ↔ Render | 🟢 VERIFIED | Current application authority is #416 / `bcc327bc21dd...`; exact application deploy `dep-da4ouhdckfvc73cnn8hg` reached LIVE. Migration 074 applied/checksum-verified, migration 072 remained checksum-valid/unreplayed, controlled Juvan remained BOUND, Google Calendar health passed, repeated `/health` 200 and bounded post-cutover error query clean. |
+| MY-SHILOH-AI-BACKBONE | Client Experience / Shiloh AI | 🟢 VERIFIED LIVE / NEXT ACCEPTANCE | Phases 0–4 are live through #1042: PWA, secure WhatsApp-backed sign-in, website entry points, shared client context, in-app Shiloh, five typed read tools, confirmed cancellation, confirmed reschedule request and authenticated consultation-form action. Next: a real normal-account end-to-end acceptance journey. Package/voucher tools remain planned. |
+| DEPLOY-CONVERGENCE | GitHub ↔ Render | 🟢 VERIFIED | Application PR #1042 / `b781a5a6b4ea94387b5bb4803cecbd8ca074159d` deployed as `dep-dan3k817lnhs73dr1f10` and reached LIVE. Relevant workflows passed, 137/137 migrations matched, and the bounded application-error check was clean. |
 | PRACTITIONER-CALENDAR-CONFLICT | Booking & Admin UX | 🟢 VERIFIED LIVE | #395 / `485ed97d8812...`; CI #1228 passed, focused 30/30, full 856/856. `dep-da4a75lckfvc738ghpmg` reached LIVE on exact merge. Unrelated practitioner Calendar events no longer block another assigned practitioner; shared/clinic-wide conflicts and all standing fail-closed guards remain blocking. #416 does not alter this rule. Do not redo. |
 | CRM-ONBOARDING-NORMALIZED-PHONE-AMBIGUITY | CRM & Identity | 🟢 VERIFIED LIVE / COMPLETE | #399 / `26ace1027e10...`; migration 072 replaces only the migration-067 trigger function's ambiguous local identifier with `v_normalized_phone`. CI #1236 passed 860/860 plus four focused cases. `dep-da4me5qd0e5s73bobfm0` reached LIVE; #416 startup reverified migration 072 `applied=false / checksumVerified=true`. Do not redo. |
 | CRM-IMPORTED-CONTACT-PROVENANCE-AUDIT | CRM & Identity + Production/DevOps observer | 🟢 VERIFIED READ-ONLY / COMPLETE | Q1–Q11 executed at 2026-08-22 11:11:35 UTC over TLSv1.3 in explicit READ ONLY transaction and ended with ROLLBACK. Current snapshot: 794 active Goldie-origin clients; 553 phone/no-history imported-contact-only; 223 phone+history; 18 history/no-phone; 776 unique one-client phone groups; 0 multi-client phone groups; 3 WhatsApp contacts; 4 verified_at proxy/anomaly; 0 completed onboarding sessions. Linda exact-phone trace remains separately blocked/no display-name lookup. Do not rerun audit merely for reconciliation. |
@@ -99,7 +107,7 @@ Practitioner-approved client rescheduling is **provider-verified and production-
 | VISUAL-CALENDAR | Booking & Admin UX | ⏸️ DEFERRED | Explicitly held; existing Google Calendar integration unchanged. |
 | GBP-PROVIDER | Production / DevOps + Control & Reconciliation | 🟠 WAITING PROVIDER | General Requests/min remains 0; usable GBP read/write API access remains **not confirmed/usable**. **Do not treat as quota-increase work or start OAuth/API integration.** Production / DevOps owns provider/config verification and Control & Reconciliation tracks the dependency. Reopen only when authoritative Google evidence shows a **usable general request quota greater than 0** or equivalent explicit usable-access approval. |
 | GCONTACTS | CRM & Identity | ⚪ READY / LOW PRIORITY | CRM remains authoritative. |
-| OZOW | Production / business | 🟠 WAITING | Merchant configuration + explicit business rules required. |
+| OZOW | Payments / Production | 🔵 READY FOR CONTROLLED PROOF | Ozow account approval is complete and the provider-independent payment foundation is live. Configure/confirm the approved production callbacks, then run one controlled low-value transaction and verify callback authenticity, ledger/balance update, WhatsApp receipt, duplicate suppression and refund handling. Apple Pay/Google Pay remain a separate Ozow Card Payments activation. |
 | PRIVACY-DESTRUCTIVE | Control + CRM | 🟠 WAITING | Fail closed pending authority/evidence. |
 
 ## Couples Massage self-service — verified live
@@ -287,7 +295,7 @@ Post-revocation Render deploy `dep-da47v6n40ujc73d1qeug` reached LIVE on the the
 
 Booking confirmation v2 is live behind the exact centralized contract gate; v1 remains the explicit rollback. Genuine v2 handset delivery is not yet evidenced and may arise only from a natural booking. Booking update activation is complete but natural delivery evidence remains open. Google Calendar remains synchronized/fail-closed under #302/#395, and #416 startup logged the provider health check passed. Attendance stays own-practitioner only and #558 stays HOLD. Christel catalogue correction remains authoritative. Abigail is no longer eligible for service #31 Jaw Release; Christel remains the verified current mapping. Couples & Packages remains the client navigation owner; Couples Massage is now self-service under the exact #380 dual-practitioner contract. GBP, Ozow and privacy gates remain unchanged. Goldie description source identity is verified, while recovery and publication approvals remain fail-closed.
 
-## Exact continuation
+## Historical continuation record — 2026-08-22 (preserved)
 
 **Authoritative current state:** PR #416 / `bcc327bc21dd1e72b6930eadcde86532f7c27a4f` is current accepted application code. Final CI #1269 / run 32571765659 / job 97028094203 passed on Node 24.14.1 with 881/881 tests, 0 failed/cancelled/skipped. Exact application deploy `dep-da4ouhdckfvc73cnn8hg` reached LIVE on #416 merge. Startup applied/checksum-verified migration 074, left migration 072 checksum-valid/unreplayed, preserved controlled Juvan BOUND state, logged Google Calendar provider health passed, logged Shiloh started, returned repeated `/health` 200, and the bounded post-cutover error query returned no error-level logs. PR #399 remains durable authority for normalized-phone ambiguity repair/migration 072; PR #395 remains durable authority for practitioner Calendar conflict classification.
 
