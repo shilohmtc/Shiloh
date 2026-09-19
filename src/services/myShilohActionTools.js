@@ -14,6 +14,7 @@ const ACTION_TOOL_NAMES = Object.freeze({
   PREPARE_CANCELLATION: 'prepare_my_cancellation',
   PREPARE_RESCHEDULE: 'prepare_my_reschedule',
   PREPARE_CONSULTATION_FORM: 'prepare_my_consultation_form',
+  OPEN_PROFILE: 'open_my_personal_details',
 });
 
 const ACTION_TOOL_DEFINITIONS = Object.freeze([
@@ -61,6 +62,19 @@ const CONSULTATION_FORM_TOOL_DEFINITION = Object.freeze({
   },
 });
 
+const PROFILE_TOOL_DEFINITION = Object.freeze({
+  type: 'function',
+  name: ACTION_TOOL_NAMES.OPEN_PROFILE,
+  description: 'Open the authenticated client’s Personal details area in My Shiloh. Use when they ask to view, correct or update their profile details. The verified WhatsApp number remains non-editable.',
+  strict: true,
+  parameters: {
+    type: 'object',
+    properties: {},
+    required: [],
+    additionalProperties: false,
+  },
+});
+
 function createMyShilohActionTools({
   actionService = createMyShilohClientActionService(),
   formActionService = createMyShilohConsultationFormActionService(),
@@ -78,11 +92,30 @@ function createMyShilohActionTools({
   function handles(name) {
     return name === ACTION_TOOL_NAMES.PREPARE_CANCELLATION
       || name === ACTION_TOOL_NAMES.PREPARE_RESCHEDULE
-      || name === ACTION_TOOL_NAMES.PREPARE_CONSULTATION_FORM;
+      || name === ACTION_TOOL_NAMES.PREPARE_CONSULTATION_FORM
+      || name === ACTION_TOOL_NAMES.OPEN_PROFILE;
   }
 
   async function execute(name, args = {}, { sessionId, crmV2ClientId } = {}) {
     if (!handles(name)) return { modelResult: { ok: false, error: 'unknown_action_tool' }, clientAction: null };
+    if (name === ACTION_TOOL_NAMES.OPEN_PROFILE) {
+      return {
+        modelResult: {
+          ok: true,
+          prepared: true,
+          action: 'profile_details',
+          message: 'The signed-in Personal details area is ready to open. No profile value has been changed.',
+        },
+        clientAction: {
+          type: 'profile_details',
+          title: 'Update your personal details',
+          detail: 'Review your full name, date of birth and gender in your private Profile area.',
+          note: 'Your verified WhatsApp number cannot be changed here. The clinic team must verify a replacement number.',
+          label: 'Open personal details',
+          href: '#profile',
+        },
+      };
+    }
     const result = name === ACTION_TOOL_NAMES.PREPARE_CONSULTATION_FORM
       ? await formActionService.prepareFormAction({ sessionId, crmV2ClientId })
       : name === ACTION_TOOL_NAMES.PREPARE_RESCHEDULE
@@ -161,7 +194,7 @@ function createMyShilohActionTools({
   }
 
   return {
-    definitions: [...ACTION_TOOL_DEFINITIONS, CONSULTATION_FORM_TOOL_DEFINITION],
+    definitions: [...ACTION_TOOL_DEFINITIONS, CONSULTATION_FORM_TOOL_DEFINITION, PROFILE_TOOL_DEFINITION],
     handles,
     execute,
   };
@@ -171,5 +204,6 @@ module.exports = {
   ACTION_TOOL_NAMES,
   ACTION_TOOL_DEFINITIONS,
   CONSULTATION_FORM_TOOL_DEFINITION,
+  PROFILE_TOOL_DEFINITION,
   createMyShilohActionTools,
 };

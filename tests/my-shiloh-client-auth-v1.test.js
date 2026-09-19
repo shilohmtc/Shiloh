@@ -118,7 +118,7 @@ test('PWA service worker keeps all authentication and future personal APIs netwo
   assert.doesNotMatch(source, /cache\.put\([^\n]*auth/);
 });
 
-test('guest and authenticated My Shiloh renders are clearly distinct without exposing phone or health data', () => {
+test('guest and authenticated My Shiloh renders are distinct without server-rendering private profile values', () => {
   const guest = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue: [] });
   assert.match(guest, /Continue with WhatsApp/);
   assert.match(guest, /Back from WhatsApp\?/);
@@ -137,7 +137,7 @@ test('guest and authenticated My Shiloh renders are clearly distinct without exp
   assert.match(signed, /Your personal Shiloh space is open and ready/);
   assert.doesNotMatch(signed, /canonical CRM|client context|staff\/Admin authority|PWA cache|booking authority|Revocable/i);
   assert.match(signed, /Sign out/);
-  assert.doesNotMatch(signed, /normalized_mobile|date_of_birth|gender|health answer/i);
+  assert.doesNotMatch(signed, /normalized_mobile|date_of_birth|health answer|1990-05-14/i);
 });
 
 test('returning from WhatsApp makes the manual code fallback prominent and usable', () => {
