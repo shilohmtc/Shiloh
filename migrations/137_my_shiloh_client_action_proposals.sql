@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS client_action_proposals (
   revoked_at TIMESTAMPTZ,
   outcome TEXT CHECK (outcome IS NULL OR outcome IN (
     'confirmed','declined','appointment_changed','appointment_started',
-    'already_cancelled','ownership_changed','failed'
+    'already_cancelled','ownership_changed','complex_booking','failed'
   )),
   CONSTRAINT client_action_proposal_expiry CHECK (expires_at > issued_at)
 );
