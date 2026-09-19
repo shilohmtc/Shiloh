@@ -144,6 +144,7 @@ test('returning from WhatsApp makes the manual code fallback prominent and usabl
   const client = read('public/my-shiloh/assets/app.js');
   const styles = read('public/my-shiloh/assets/app.css');
   assert.match(client, /whatsappHandoffStarted = true;[\s\S]*window\.location\.href = data\.whatsappUrl/);
+  assert.match(client, /whatsappHandoffStarted = true;[\s\S]*authActionInFlight = false;[\s\S]*setAuthCodeControlsDisabled\(false\);[\s\S]*window\.setTimeout\(welcomeBackFromWhatsApp, 1500\);[\s\S]*window\.location\.href = data\.whatsappUrl/);
   assert.match(client, /visibilitychange/);
   assert.match(client, /authActionInFlight = false;[\s\S]*setAuthControlsDisabled\(false\);[\s\S]*classList\.add\('is-waiting'\)/);
   assert.match(client, /Welcome back\. Enter the 6-digit code Shiloh sent you in WhatsApp\./);
