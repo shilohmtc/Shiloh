@@ -3,10 +3,15 @@
 const crypto = require('crypto');
 const { pool } = require('../db/pool');
 const { cancelOwnedAppointmentInTransaction } = require('./clientAppointmentCancellation');
+const { authoritativeSlotsForIntent } = require('./clientBookingAvailability');
+const clientRescheduleApproval = require('./clientRescheduleApproval');
+const { reconcileStalePendingRescheduleHolds } = require('./clientRescheduleHoldReconciliation');
 
 const ACTION_TOKEN_BYTES = 32;
 const ACTION_TTL_MS = 10 * 60 * 1000;
 const ACTION_TYPE_CANCEL = 'cancel_appointment';
+const ACTION_TYPE_RESCHEDULE = 'request_reschedule';
+const RESCHEDULE_START_GUARD_MS = 60 * 1000;
 
 function positiveId(value) {
   const id = Number(value);
@@ -49,6 +54,34 @@ function localAppointmentDisplay(startsAt) {
   };
 }
 
+function exactDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function johannesburgSlotParts(value) {
+  const date = exactDate(value);
+  if (!date) return null;
+  const dateParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Johannesburg',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const timeParts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Africa/Johannesburg',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const dateMap = Object.fromEntries(dateParts.map(part => [part.type, part.value]));
+  const timeMap = Object.fromEntries(timeParts.map(part => [part.type, part.value]));
+  return {
+    date: `${dateMap.year}-${dateMap.month}-${dateMap.day}`,
+    time: `${timeMap.hour}:${timeMap.minute}`,
+  };
+}
+
 function cancellationPolicy(startsAt, now = new Date()) {
   const hours = (new Date(startsAt).getTime() - new Date(now).getTime()) / 3600000;
   return hours < 24
@@ -64,6 +97,11 @@ function proposalOutcome(status) {
     already_cancelled: 'already_cancelled',
     ownership_changed: 'ownership_changed',
     complex_booking: 'complex_booking',
+    pending_approval: 'pending_approval',
+    already_pending: 'already_pending',
+    notification_failed: 'notification_failed',
+    feature_disabled: 'feature_disabled',
+    slot_unavailable: 'slot_unavailable',
   }[status] || 'failed';
 }
 
