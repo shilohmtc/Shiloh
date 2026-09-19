@@ -152,6 +152,7 @@ function actionDb() {
               ends_at: END,
               status: 'confirmed',
               updated_at: REVISION,
+              group_id: null,
               services: ['Hot Stone Massage'],
               practitioners: ['Marietjie'],
             }],
@@ -196,6 +197,9 @@ function actionDb() {
             }],
           };
         }
+        if (/FROM appointment_group_members/.test(sql)) return { rowCount: 0, rows: [] };
+        if (/SELECT DISTINCT staff_id/.test(sql)) return { rowCount: 1, rows: [{ staff_id: 13 }] };
+        if (/pg_advisory_xact_lock/.test(sql)) return { rowCount: 1, rows: [] };
         if (/UPDATE appointments/.test(sql)) return { rowCount: 1, rows: [] };
         if (/UPDATE appointment_lifecycle/.test(sql)) return { rowCount: 1, rows: [] };
         if (/INSERT INTO appointment_status_history/.test(sql)) return { rowCount: 1, rows: [] };
@@ -238,6 +242,43 @@ test('prepare returns the one-time token only to the client action, never the mo
   assert.equal(confirmed.status, 'cancelled');
   assert.equal(confirmed.appointment.service, 'Hot Stone Massage');
   assert.ok(db.calls.some(call => /SET consumed_at=/.test(call.sql) && call.params[2] === 'confirmed'));
+});
+
+test('My Shiloh cancellation fails closed when the appointment becomes linked to a group', async () => {
+  const calls = [];
+  const db = {
+    async query(sql, params = []) {
+      calls.push({ sql, params });
+      if (/FROM appointments[\s\S]*FOR UPDATE/.test(sql)) {
+        return {
+          rowCount: 1,
+          rows: [{
+            id: 901,
+            status: 'confirmed',
+            client_id: null,
+            crm_v2_client_id: 912,
+            starts_at: START,
+            ends_at: END,
+            updated_at: REVISION,
+          }],
+        };
+      }
+      if (/FROM appointment_group_members/.test(sql)) return { rowCount: 1, rows: [{ group_id: 44 }] };
+      throw new Error(`Unexpected linked cancellation query: ${sql}`);
+    },
+  };
+  const result = await cancelOwnedAppointmentInTransaction(db, {
+    appointmentId: 901,
+    crmV2ClientId: 912,
+    expectedRevision: REVISION,
+    requireFutureStart: true,
+    allowedStatuses: ['scheduled', 'confirmed'],
+    lockAssignedStaff: true,
+    disallowLinkedGroup: true,
+    now: NOW,
+  });
+  assert.equal(result.status, 'complex_booking');
+  assert.equal(calls.some(call => /UPDATE appointments/.test(call.sql)), false);
 });
 
 test('late cancellation policy is shown without asserting a fee was charged', () => {
