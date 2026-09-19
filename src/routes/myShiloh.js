@@ -269,24 +269,48 @@ function createMyShilohRouter({
       if (result.ok && result.status === 'cancelled') {
         return res.status(200).json({
           status: 'cancelled',
+          actionType: result.actionType || 'cancel_appointment',
           appointment: result.appointment,
         });
       }
-      const status = result.status === 'appointment_started' ? 409
-        : result.status === 'already_cancelled' ? 409
-          : result.status === 'appointment_changed' || result.status === 'ownership_changed' || result.status === 'complex_booking' ? 409
-            : 401;
+      if (result.ok && ['pending_approval', 'already_pending'].includes(result.status)) {
+        return res.status(200).json({
+          status: result.status,
+          actionType: result.actionType || 'request_reschedule',
+          appointment: result.appointment,
+          message: result.status === 'pending_approval'
+            ? 'Your reschedule request has been sent for practitioner approval. Your current appointment remains confirmed and unchanged until it is approved.'
+            : 'A reschedule request is already awaiting practitioner approval. Your current appointment remains confirmed and unchanged.',
+        });
+      }
+
+      const unavailable = [
+        'past_time','clinic_hours','staff_schedule','crm_conflict',
+        'reschedule_hold_conflict','booking_proposal_hold_conflict',
+        'invalid_time','invalid_duration','slot_unavailable',
+      ].includes(result.status);
+      const complex = ['complex_booking','complex_practitioner_setup','complex_service_setup'].includes(result.status);
+      const changed = ['appointment_changed','appointment_not_found','client_identity_changed','ownership_changed'].includes(result.status);
+      const status = result.status === 'notification_failed' || result.status === 'feature_disabled'
+        ? 503
+        : result.status === 'appointment_started' || result.status === 'already_cancelled' || unavailable || complex || changed
+          ? 409
+          : 401;
       const error = result.status === 'appointment_started'
-        ? 'This appointment has already started and cannot be cancelled here.'
+        ? 'This appointment is starting or has already started. Your current appointment is unchanged.'
         : result.status === 'already_cancelled'
           ? 'This appointment is already cancelled.'
-          : result.status === 'appointment_changed'
-            ? 'This appointment changed after the confirmation was prepared. Please ask Shiloh to check it again.'
-            : result.status === 'ownership_changed'
-              ? 'The appointment ownership changed. Nothing was cancelled.'
-              : result.status === 'complex_booking'
-                ? 'This linked or group booking needs help from the clinic team. Nothing was cancelled.'
-                : 'That cancellation confirmation is no longer valid.';
+          : unavailable
+            ? 'That requested time is no longer safely available. Your current appointment is unchanged; please ask Shiloh to check availability again.'
+            : result.status === 'notification_failed'
+              ? 'Shiloh could not safely send the practitioner approval request. Your current appointment is unchanged and no pending change is being held.'
+              : result.status === 'feature_disabled'
+                ? 'Reschedule approval is temporarily unavailable. Your current appointment is unchanged.'
+                : complex
+                  ? 'This linked, group, or complex appointment needs help from the clinic team. Nothing was changed.'
+                  : changed
+                    ? 'This appointment changed after the confirmation was prepared. Nothing was changed; please ask Shiloh to check it again.'
+                    : 'That confirmation is no longer valid.';
       return res.status(status).json({ error, status: result.status || 'invalid', requestId: req.id });
     } catch (error) {
       return next(error);
