@@ -272,21 +272,36 @@ function createMyShilohRouter({
           appointment: result.appointment,
         });
       }
+      if (result.ok && result.status === 'pending_approval') {
+        return res.status(200).json({
+          status: 'pending_approval',
+          appointment: result.appointment,
+          message: result.reply || 'Your reschedule request was sent for practitioner approval.',
+        });
+      }
       const status = result.status === 'appointment_started' ? 409
         : result.status === 'already_cancelled' ? 409
-          : result.status === 'appointment_changed' || result.status === 'ownership_changed' || result.status === 'complex_booking' ? 409
+          : ['appointment_changed','ownership_changed','complex_booking','slot_unavailable','approval_request_failed',
+             'clinic_hours','staff_schedule','crm_conflict','reschedule_hold_conflict',
+             'booking_proposal_hold_conflict','notification_failed','already_pending'].includes(String(result.status || '')) ? 409
             : 401;
       const error = result.status === 'appointment_started'
-        ? 'This appointment has already started and cannot be cancelled here.'
+        ? 'This appointment has already started and cannot be changed here.'
         : result.status === 'already_cancelled'
           ? 'This appointment is already cancelled.'
           : result.status === 'appointment_changed'
             ? 'This appointment changed after the confirmation was prepared. Please ask Shiloh to check it again.'
             : result.status === 'ownership_changed'
-              ? 'The appointment ownership changed. Nothing was cancelled.'
+              ? 'The appointment ownership changed. Nothing was changed.'
               : result.status === 'complex_booking'
-                ? 'This linked or group booking needs help from the clinic team. Nothing was cancelled.'
-                : 'That cancellation confirmation is no longer valid.';
+                ? 'This linked or complex booking needs help from the clinic team. Nothing was changed.'
+                : ['slot_unavailable','clinic_hours','staff_schedule','crm_conflict','reschedule_hold_conflict','booking_proposal_hold_conflict'].includes(String(result.status || ''))
+                  ? 'That replacement time is no longer safely available. Your current appointment is unchanged.'
+                  : result.status === 'already_pending'
+                    ? 'A reschedule request is already awaiting practitioner approval for this appointment.'
+                    : result.status === 'notification_failed' || result.status === 'approval_request_failed'
+                      ? 'The reschedule approval request could not be sent safely. Your current appointment is unchanged.'
+                      : 'That confirmation is no longer valid.';
       return res.status(status).json({ error, status: result.status || 'invalid', requestId: req.id });
     } catch (error) {
       return next(error);
