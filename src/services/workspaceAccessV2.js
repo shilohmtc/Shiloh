@@ -36,7 +36,7 @@ const CAPABILITY_GROUPS = Object.freeze([
   Object.freeze({ key: 'access', label: 'Access', capabilities: Object.freeze(['staff_access:manage']) }),
   Object.freeze({ key: 'reports_finance', label: 'Reports & finance', capabilities: Object.freeze(['service:pricing']) }),
   Object.freeze({ key: 'security', label: 'Security', capabilities: Object.freeze(['staff_auth:reset']) }),
-  Object.freeze({ key: 'other', label: 'Other operational access', capabilities: Object.freeze(['walkin:create', 'loyalty:redeem', 'overflow:visible']) }),
+  Object.freeze({ key: 'other', label: 'Other operational access', capabilities: Object.freeze(['walkin:create', 'loyalty:view', 'loyalty:redeem', 'loyalty:manage', 'overflow:visible']) }),
 ]);
 
 function enabledCapabilities(value) {

@@ -130,6 +130,14 @@ function renderMyShilohPage({
       </section>`
     : '';
 
+  const rewards = authenticated
+    ? `<section class="quiet-card">
+        <div class="quiet-icon" aria-hidden="true">R</div>
+        <div><p class="eyebrow">Shiloh Rewards</p><h2>Your care gives a little back.</h2><p>See your 5% reward balance and choose when to use it.</p></div>
+        <a class="circle-link" href="/my-shiloh/rewards" aria-label="View Shiloh Rewards">→</a>
+      </section>`
+    : '';
+
   const profile = authenticated
     ? `<div class="page-intro">
         <p class="eyebrow">Profile</p>
@@ -144,6 +152,7 @@ function renderMyShilohPage({
         <div><span>Personal details</span><strong>Coming next</strong></div>
         <div><span>Consultation forms</span><strong>When required</strong></div>
         <div><span>Gift vouchers</span><strong><a href="/my-shiloh/gift-vouchers">Create or view</a></strong></div>
+        <div><span>Shiloh Rewards</span><strong><a href="/my-shiloh/rewards">View balance</a></strong></div>
         <div><span>Receipts &amp; payments</span><strong>Private</strong></div>
       </div>
       <button class="button button--soft button--wide profile-signout" type="button" data-client-auth-logout>Sign out</button>
@@ -199,6 +208,7 @@ function renderMyShilohPage({
       <section class="view is-active" id="home" data-view="home" aria-labelledby="home-title">
         ${hero}
         ${focus}
+        ${rewards}
         ${giftVoucher}
         <section class="section-block" aria-labelledby="discover-title">
           <div class="section-heading">

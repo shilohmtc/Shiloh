@@ -27,6 +27,7 @@ const { createWorkspaceFormClinicalMutationRouter } = require('./workspaceFormCl
 const { createWorkspaceReportsRouter } = require('./workspaceReports');
 const { createWorkspaceClinicHoursRouter } = require('./workspaceClinicHours');
 const { createWorkspaceGiftVoucherRouter } = require('./workspaceGiftVouchers');
+const { createWorkspaceRewardsRouter } = require('./workspaceRewards');
 const { createWorkspaceOperationalRouter } = require('./workspaceOperational');
 const { createWorkspaceMessagesRouter } = require('./workspaceMessages');
 const { createWorkspacePwaRouter, createWorkspacePwaHtmlMiddleware } = require('./workspacePwa');
@@ -92,6 +93,7 @@ router.use('/forms', createWorkspaceFormClinicalMutationRouter({ sessionService:
 router.use('/reports', createWorkspaceReportsRouter({ sessionService: staffBrowserSessionService }));
 router.use('/clinic-hours', createWorkspaceClinicHoursRouter({ sessionService: staffBrowserSessionService }));
 router.use('/vouchers', createWorkspaceGiftVoucherRouter({ sessionService: staffBrowserSessionService }));
+router.use('/rewards', createWorkspaceRewardsRouter({ sessionService: staffBrowserSessionService }));
 router.use('/workspace', createWorkspaceOperationalRouter({ sessionService: staffBrowserSessionService }));
 router.use('/messages', createWorkspaceMessagesRouter({ sessionService: staffBrowserSessionService }));
 router.get('/read-only/phone-v2.js', (_req, res) => {

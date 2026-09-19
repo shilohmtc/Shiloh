@@ -5,6 +5,7 @@ const workspaceReports = require('./workspaceReportsProfileView');
 const workspaceClinicHours = require('./workspaceClinicHoursReadView');
 const workspaceForms = require('./workspaceForms');
 const giftVouchers = require('./giftVouchers').createGiftVoucherService();
+const shilohRewards = require('./shilohRewards').createShilohRewardsService();
 
 const DESTINATIONS = Object.freeze({
   dashboard: '/calendar/workspace',
@@ -17,6 +18,7 @@ const DESTINATIONS = Object.freeze({
   reports: '/calendar/reports',
   clinicHours: '/calendar/clinic-hours',
   vouchers: '/calendar/vouchers',
+  rewards: '/calendar/rewards',
 });
 
 function allowedDestination(allowed, key) {
@@ -45,11 +47,12 @@ function createWorkspaceNavigationService({
   reportsAccessService = workspaceReports,
   clinicHoursAccessService = workspaceClinicHours,
   voucherAccessService = giftVouchers,
+  rewardsAccessService = shilohRewards,
 } = {}) {
   async function resolve({ session } = {}) {
     const adminId = session?.adminId;
     const calendarAllowed = Boolean(session?.viewer);
-    const [clients, staff, services, forms, reports, clinicHours, vouchers] = await Promise.allSettled([
+    const [clients, staff, services, forms, reports, clinicHours, vouchers, rewards] = await Promise.allSettled([
       clientAccessService.resolveAccess(adminId),
       resolveStaffAccess(staffAccessService, adminId),
       servicesAccessService.resolveAccess(adminId),
@@ -57,6 +60,7 @@ function createWorkspaceNavigationService({
       reportsAccessService.resolveAccess(adminId),
       clinicHoursAccessService.resolveAccess(adminId),
       voucherAccessService.resolveAccess(adminId),
+      rewardsAccessService.resolveAccess(adminId),
     ]);
     const clientsAllowed = clients.status === 'fulfilled' && Boolean(clients.value);
     const staffAllowed = staff.status === 'fulfilled' && Boolean(staff.value);
@@ -71,6 +75,7 @@ function createWorkspaceNavigationService({
       reports: allowedDestination(reports.status === 'fulfilled' && Boolean(reports.value), 'reports'),
       clinicHours: allowedDestination(clinicHours.status === 'fulfilled' && Boolean(clinicHours.value), 'clinicHours'),
       vouchers: allowedDestination(vouchers.status === 'fulfilled' && Boolean(vouchers.value), 'vouchers'),
+      rewards: allowedDestination(rewards.status === 'fulfilled' && Boolean(rewards.value), 'rewards'),
     };
   }
 

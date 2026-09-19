@@ -40,6 +40,7 @@ test('My Shiloh read-tool schemas are strict and expose no client selector', () 
       TOOL_NAMES.UPCOMING_BOOKINGS,
       TOOL_NAMES.FORM_STATUS,
       TOOL_NAMES.PAYMENT_STATUS,
+      TOOL_NAMES.REWARDS_STATUS,
       TOOL_NAMES.FIND_AVAILABLE_SLOTS,
     ],
   );
@@ -114,6 +115,12 @@ test('typed client read tools return presentation-safe canonical facts only', as
         ],
       };
     },
+    rewardsService: {
+      async getClientBalance(clientId) {
+        calls.push(['rewards', clientId]);
+        return { balance:132.5, unlocked:true, unlockThreshold:100, earnRate:5 };
+      },
+    },
     now: () => new Date('2026-09-19T05:00:00.000Z'),
   });
 
@@ -142,6 +149,12 @@ test('typed client read tools return presentation-safe canonical facts only', as
   assert.equal(payment.payment.securePaymentAvailable, true);
   assert.equal(JSON.stringify(payment).includes('PAYREQ_SECRET'), false);
   assert.equal(JSON.stringify(payment).includes('providerSecret'), false);
+
+  const rewards = await tools.execute(TOOL_NAMES.REWARDS_STATUS, {}, { crmV2ClientId: 912 });
+  assert.equal(rewards.balance, '132.50');
+  assert.equal(rewards.unlocked, true);
+  assert.equal(rewards.earnRatePercent, 5);
+  assert.equal(rewards.expiry, 'none');
 
   const availability = await tools.execute(TOOL_NAMES.FIND_AVAILABLE_SLOTS, {
     service: 'Hot Stone Massage',

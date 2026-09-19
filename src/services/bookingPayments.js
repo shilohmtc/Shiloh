@@ -6,6 +6,8 @@ const { STATES, EVIDENCE, transitionPaymentState } = require('../domain/paymentS
 const { PAYMENT_TEMPLATE_KEYS, formatRand, sendPaymentTemplate } = require('./paymentWhatsAppNotifications');
 const { sendWhatsAppTemplate } = require('./whatsapp');
 const { issueVerifiedVoucher } = require('./giftVouchers');
+const { createShilohRewardsService } = require('./shilohRewards');
+const logger = require('../lib/logger');
 
 const CAPABILITIES = Object.freeze({ VIEW: 'payment:view', COLLECT: 'payment:collect', REFUND: 'payment:refund' });
 
@@ -41,7 +43,11 @@ function normalizeMethod(value) {
   return method;
 }
 
-function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvider(), sendTemplate = sendWhatsAppTemplate } = {}) {
+function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvider(), sendTemplate = sendWhatsAppTemplate, rewards = createShilohRewardsService({ db }) } = {}) {
+  async function syncRewardsAfterPayment() {
+    try { await rewards.syncEligibleEarnings(); }
+    catch (error) { logger.error({ err:error }, 'Shiloh Rewards payment sync failed'); }
+  }
   async function resolveOperator(queryable, adminId, capability) {
     const operator = await resolveCalendarAuthority(queryable, positiveId(adminId), { additionalCapabilities: Object.values(CAPABILITIES) });
     if (!operator || !hasCapability(operator.calendarAuthority, capability)) {
@@ -53,7 +59,7 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
   async function loadSubject(queryable, appointmentId, { lock = false } = {}) {
     const result = await queryable.query(
       `/* bookingPayments:subject */
-       SELECT a.id AS appointment_id,a.status AS appointment_status,a.total_price AS appointment_total,
+       SELECT a.id AS appointment_id,a.crm_v2_client_id,a.status AS appointment_status,a.total_price AS appointment_total,
               a.currency,a.updated_at AS appointment_revision,
               COALESCE(c.display_name,v2.name) AS client_name,
               COALESCE((SELECT cc.normalized_value
@@ -85,6 +91,7 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
     if (amount == null) throw new BookingPaymentError('PAYMENT_PRICE_UNRESOLVED', 'Set the booking’s canonical charged price before taking payment.', 409);
     return {
       appointmentId: Number(row.appointment_id), groupId: row.group_id ? Number(row.group_id) : null,
+      crmV2ClientId: row.crm_v2_client_id ? Number(row.crm_v2_client_id) : null,
       amountDue: money(amount), currency: String(row.currency || 'ZAR'),
       pricingRevision: new Date(row.group_id ? row.group_revision : row.appointment_revision).toISOString(),
       clientName: String(row.client_name || ''), clientMobile: String(row.client_mobile || ''),
@@ -122,17 +129,18 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
   }
 
   async function position(queryable, account, subject) {
-    if (!account) return { amountDue: subject.amountDue, paid: '0.00', refunded: '0.00', netPaid: '0.00', outstanding: subject.amountDue, state: 'unpaid', requests: [], entries: [] };
-    const [totals, requests, entries] = await Promise.all([
+    if (!account) return { amountDue: subject.amountDue, paid: '0.00', refunded: '0.00', netPaid: '0.00', rewardsApplied: '0.00', outstanding: subject.amountDue, state: 'unpaid', requests: [], entries: [] };
+    const [totals, rewardsApplied, requests, entries] = await Promise.all([
       queryable.query(`SELECT COALESCE(SUM(amount) FILTER (WHERE entry_type='payment'),0) paid,COALESCE(SUM(amount) FILTER (WHERE entry_type='refund'),0) refunded FROM payment_ledger_entries WHERE payment_account_id=$1`, [account.id]),
+      queryable.query(`SELECT COALESCE(SUM(amount),0) AS amount FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1 AND state='applied'`, [account.id]),
       queryable.query(`SELECT id,request_key,provider,provider_request_id,provider_payment_url,amount,state,payer_name,payer_mobile,expires_at,created_at FROM payment_requests WHERE payment_account_id=$1 ORDER BY id DESC`, [account.id]),
       queryable.query(`SELECT id,entry_type,amount,method,evidence_kind,external_reference,notes,created_at FROM payment_ledger_entries WHERE payment_account_id=$1 ORDER BY id DESC`, [account.id]),
     ]);
-    const paid = Number(totals.rows[0].paid), refunded = Number(totals.rows[0].refunded), net = paid - refunded;
-    const due = Number(account.canonical_amount_due), outstanding = Math.max(0, due - net);
+    const paid = Number(totals.rows[0].paid), refunded = Number(totals.rows[0].refunded), net = paid - refunded, loyalty = Number(rewardsApplied.rows[0].amount || 0);
+    const due = Number(account.canonical_amount_due), outstanding = Math.max(0, due - net - loyalty);
     return {
-      amountDue: due.toFixed(2), paid: paid.toFixed(2), refunded: refunded.toFixed(2), netPaid: net.toFixed(2), outstanding: outstanding.toFixed(2),
-      state: net > due ? 'overpaid' : outstanding === 0 ? (refunded > 0 ? 'partially_refunded' : 'paid') : net > 0 ? 'partially_paid' : 'unpaid',
+      amountDue: due.toFixed(2), paid: paid.toFixed(2), refunded: refunded.toFixed(2), netPaid: net.toFixed(2), rewardsApplied: loyalty.toFixed(2), outstanding: outstanding.toFixed(2),
+      state: net + loyalty > due ? 'overpaid' : outstanding === 0 ? (refunded > 0 ? 'partially_refunded' : 'paid') : net + loyalty > 0 ? 'partially_paid' : 'unpaid',
       requests: requests.rows, entries: entries.rows,
     };
   }
@@ -141,14 +149,44 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
     const operator = await resolveOperator(db, adminId, CAPABILITIES.VIEW);
     const subject = await loadSubject(db, appointmentId); assertTarget(operator, subject);
     const account = await accountFor(db, subject);
-    return { subject, payment: await position(db, account, subject), authority: {
+    let rewardWallet=null;
+    if(subject.crmV2ClientId){try{rewardWallet=await rewards.getClientBalance(subject.crmV2ClientId);}catch(error){logger.error({err:error,appointmentId:subject.appointmentId},'Shiloh Rewards balance unavailable on payment page');}}
+    return { subject, payment: await position(db, account, subject), rewards: rewardWallet, authority: {
       canCollect: hasCapability(operator.calendarAuthority, CAPABILITIES.COLLECT),
       canRefund: hasCapability(operator.calendarAuthority, CAPABILITIES.REFUND),
       ozowConfigured: ozow.configured(),
     } };
   }
 
-  async function recordManual({ adminId, appointmentId, amount, method, reference, notes, operationId } = {}) {
+  async function resolvePayer(queryable, subject, payerMobile) {
+    const digits=String(payerMobile||'').replace(/[^0-9]/g,'');
+    if(digits){const row=(await queryable.query(`SELECT id FROM crm_v2_clients WHERE normalized_mobile=$1 AND status='active' LIMIT 1`,[digits])).rows[0];if(row)return Number(row.id);}
+    return subject.groupId ? null : subject.crmV2ClientId;
+  }
+
+  async function resolveRefundPayer(queryable, account, subject, payerMobile) {
+    if (String(payerMobile || '').trim()) {
+      const payerClientId = await resolvePayer(queryable, subject, payerMobile);
+      if (!payerClientId) throw new BookingPaymentError('PAYMENT_PAYER_CLIENT_REQUIRED', 'Choose the payer whose mobile number matches an active Shiloh client before recording the refund.', 409);
+      return payerClientId;
+    }
+    const payers = await queryable.query(
+      `SELECT DISTINCT payer_crm_v2_client_id
+         FROM payment_ledger_entries
+        WHERE payment_account_id=$1
+          AND entry_type='payment'
+          AND payer_crm_v2_client_id IS NOT NULL
+        LIMIT 2`,
+      [account.id],
+    );
+    if (payers.rows.length === 1) return Number(payers.rows[0].payer_crm_v2_client_id);
+    if (payers.rows.length > 1 || subject.groupId) {
+      throw new BookingPaymentError('PAYMENT_REFUND_PAYER_REQUIRED', 'Choose which payer is receiving this refund so their rewards stay accurate.', 409);
+    }
+    return subject.crmV2ClientId;
+  }
+
+  async function recordManual({ adminId, appointmentId, amount, method, reference, notes, payerMobile, operationId } = {}) {
     const normalizedAmount = money(amount, { positive: true }), normalizedMethod = normalizeMethod(method), key = requestKey(operationId);
     const client = await db.connect();
     try {
@@ -162,12 +200,15 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
       if (!replay.rows[0]) {
         const current = await position(client, account, subject);
         if (Number(normalizedAmount) > Number(current.outstanding)) throw new BookingPaymentError('PAYMENT_EXCEEDS_OUTSTANDING', 'The amount is greater than the booking balance.', 409);
-        await client.query(`INSERT INTO payment_ledger_entries(payment_account_id,entry_type,amount,method,evidence_kind,operation_key,external_reference,actor_admin_id,notes) VALUES($1,'payment',$2,$3,$4,$5,$6,$7,$8)`,
-          [account.id, normalizedAmount, normalizedMethod, EVIDENCE.AUTHORIZED_MANUAL, operationKey, String(reference || '').trim() || null, operator.id, String(notes || '').trim() || null]);
+        const payerClientId=await resolvePayer(client,subject,payerMobile||subject.clientMobile);
+        if(subject.groupId&&!payerClientId)throw new BookingPaymentError('PAYMENT_PAYER_CLIENT_REQUIRED','Choose a payer whose mobile number matches an active Shiloh client before recording a group payment.',409);
+        await client.query(`INSERT INTO payment_ledger_entries(payment_account_id,entry_type,amount,method,evidence_kind,operation_key,external_reference,actor_admin_id,notes,payer_crm_v2_client_id) VALUES($1,'payment',$2,$3,$4,$5,$6,$7,$8,$9)`,
+          [account.id, normalizedAmount, normalizedMethod, EVIDENCE.AUTHORIZED_MANUAL, operationKey, String(reference || '').trim() || null, operator.id, String(notes || '').trim() || null,payerClientId]);
         await client.query(`INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata) VALUES($1,'payment.manual_recorded','booking_payment_account',$2,$3::jsonb)`,
           [operator.id, account.id, JSON.stringify({ amount: normalizedAmount, method: normalizedMethod, reference: String(reference || '').trim() || null, operationId: key })]);
       }
       const result = await position(client, account, subject); await client.query('COMMIT');
+      await syncRewardsAfterPayment();
       if (!replay.rows[0]) await sendPaymentTemplate({
         templateKey: PAYMENT_TEMPLATE_KEYS.RECEIVED,
         to: subject.clientMobile,
@@ -190,7 +231,11 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
       if (Number(normalizedAmount) > Number(current.outstanding)) throw new BookingPaymentError('PAYMENT_EXCEEDS_OUTSTANDING', 'The requested amount is greater than the booking balance.', 409);
       const existing = await client.query(`SELECT * FROM payment_requests WHERE request_key=$1`, [key]); row = existing.rows[0];
       if (row && (Number(row.payment_account_id) !== Number(account.id) || Number(row.amount) !== Number(normalizedAmount))) throw new BookingPaymentError('PAYMENT_IDEMPOTENCY_MISMATCH', 'That operation identifier was already used for another payment request.', 409);
-      if (!row) row = (await client.query(`INSERT INTO payment_requests(payment_account_id,request_key,provider,amount,payer_name,payer_mobile,created_by_admin_id) VALUES($1,$2,'ozow',$3,$4,$5,$6) RETURNING *`, [account.id,key,normalizedAmount,String(payerName || subject.clientName).trim() || null,String(payerMobile || subject.clientMobile).trim() || null,operator.id])).rows[0];
+      if (!row) {
+        const payerClientId=await resolvePayer(client,subject,payerMobile||subject.clientMobile);
+        if(subject.groupId&&!payerClientId)throw new BookingPaymentError('PAYMENT_PAYER_CLIENT_REQUIRED','Choose a payer whose mobile number matches an active Shiloh client before creating a group payment link.',409);
+        row = (await client.query(`INSERT INTO payment_requests(payment_account_id,request_key,provider,amount,payer_name,payer_mobile,created_by_admin_id,payer_crm_v2_client_id) VALUES($1,$2,'ozow',$3,$4,$5,$6,$7) RETURNING *`, [account.id,key,normalizedAmount,String(payerName || subject.clientName).trim() || null,String(payerMobile || subject.clientMobile).trim() || null,operator.id,payerClientId])).rows[0];
+      }
       await client.query('COMMIT');
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
     if (row.provider_payment_url) return { status: 'idempotent_replay', request: row };
@@ -210,7 +255,7 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
      return { status: 'link_issued', request: updated.rows[0] };
   }
 
-  async function recordRefund({ adminId, appointmentId, amount, method, reference, notes, operationId } = {}) {
+  async function recordRefund({ adminId, appointmentId, amount, method, reference, notes, payerMobile, operationId } = {}) {
     const normalizedAmount=money(amount,{positive:true}), normalizedMethod=normalizeMethod(method), key=requestKey(operationId);
     const client=await db.connect();
     try{
@@ -222,10 +267,11 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
       if(!replay.rows[0]){
         const current=await position(client,account,subject);
         if(Number(normalizedAmount)>Number(current.netPaid))throw new BookingPaymentError('PAYMENT_REFUND_EXCEEDS_NET_PAID','The refund is greater than the net amount received.',409);
-        await client.query(`INSERT INTO payment_ledger_entries(payment_account_id,entry_type,amount,method,evidence_kind,operation_key,external_reference,actor_admin_id,notes) VALUES($1,'refund',$2,$3,$4,$5,$6,$7,$8)`,[account.id,normalizedAmount,normalizedMethod,EVIDENCE.AUTHORIZED_MANUAL,operationKey,String(reference||'').trim()||null,operator.id,String(notes||'').trim()||null]);
+        const payerClientId=await resolveRefundPayer(client,account,subject,payerMobile);
+        await client.query(`INSERT INTO payment_ledger_entries(payment_account_id,entry_type,amount,method,evidence_kind,operation_key,external_reference,actor_admin_id,notes,payer_crm_v2_client_id) VALUES($1,'refund',$2,$3,$4,$5,$6,$7,$8,$9)`,[account.id,normalizedAmount,normalizedMethod,EVIDENCE.AUTHORIZED_MANUAL,operationKey,String(reference||'').trim()||null,operator.id,String(notes||'').trim()||null,payerClientId]);
         await client.query(`INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata) VALUES($1,'payment.refund_recorded','booking_payment_account',$2,$3::jsonb)`,[operator.id,account.id,JSON.stringify({amount:normalizedAmount,method:normalizedMethod,operationId:key})]);
       }
-      const result=await position(client,account,subject);await client.query('COMMIT');
+      const result=await position(client,account,subject);await client.query('COMMIT');await syncRewardsAfterPayment();
       if (!replay.rows[0]) await sendPaymentTemplate({
         templateKey: PAYMENT_TEMPLATE_KEYS.REFUND_UPDATE,
         to: subject.clientMobile,
@@ -281,7 +327,7 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
         if (request.gift_voucher_order_id) {
           voucherIssued = await issueVerifiedVoucher(client, request, eventKey);
         } else {
-          await client.query(`INSERT INTO payment_ledger_entries(payment_account_id,payment_request_id,entry_type,amount,method,evidence_kind,provider_transaction_id) VALUES($1,$2,'payment',$3,'ozow',$4,$5) ON CONFLICT DO NOTHING`, [request.payment_account_id,request.id,request.amount,EVIDENCE.VERIFIED_PROVIDER,eventKey]);
+          await client.query(`INSERT INTO payment_ledger_entries(payment_account_id,payment_request_id,entry_type,amount,method,evidence_kind,provider_transaction_id,payer_crm_v2_client_id) VALUES($1,$2,'payment',$3,'ozow',$4,$5,$6) ON CONFLICT DO NOTHING`, [request.payment_account_id,request.id,request.amount,EVIDENCE.VERIFIED_PROVIDER,eventKey,request.payer_crm_v2_client_id]);
         }
         await client.query(`UPDATE payment_requests SET state='paid',updated_at=NOW() WHERE id=$1`, [request.id]);
         if (!request.gift_voucher_order_id) {
@@ -306,6 +352,7 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
       }
       await client.query(`INSERT INTO payment_provider_events(provider,provider_event_key,payment_request_id,signature_verified,payload_sha256,outcome) VALUES('ozow',$1,$2,TRUE,$3,'accepted')`, [eventKey,request.id,hash]);
       await client.query('COMMIT');
+      await syncRewardsAfterPayment();
       if (paymentReceived) await sendPaymentTemplate({
         templateKey: PAYMENT_TEMPLATE_KEYS.RECEIVED,
         to: paymentReceived.request.payer_mobile,
