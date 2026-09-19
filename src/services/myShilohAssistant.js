@@ -157,6 +157,9 @@ function createMyShilohAssistantService({
     if (preparedAction?.type === 'reschedule_appointment') {
       safeReply = 'I’ve prepared that new time for your next appointment. Please review the confirmation card below. Your current appointment is still unchanged.';
     }
+    if (preparedAction?.type === 'consultation_form') {
+      safeReply = 'You have a consultation form waiting. Use the Complete form button below to open it securely inside My Shiloh.';
+    }
     if (!safeReply) {
       throw new MyShilohAssistantError(
         'MY_SHILOH_ASSISTANT_EMPTY',

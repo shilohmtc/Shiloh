@@ -166,6 +166,14 @@ First controlled unit: **next-appointment cancellation** — VERIFIED LIVE.
 
 Current controlled unit: **confirmed reschedule request**.
 
+Next bounded unit: **authenticated consultation-form action**.
+
+- Shiloh may prepare a fixed **Complete form** action when exactly one pending form is present for the authenticated client.
+- The browser supplies no client, appointment, form, practitioner or service identifier; My Shiloh resolves the target from the validated session.
+- Opening revalidates session ownership, assignment identity, active template, appointment status, expiry and completion through the existing consultation-form authority.
+- Multiple pending, expired, completed, unavailable or complex form states fail closed to a safe clinic-assistance message.
+- The AI receives neither the assignment ID nor the issued form access token.
+
 - Shiloh must first use canonical availability and the client must choose an exact returned slot.
 - AI may prepare that exact slot only; it cannot move the appointment.
 - The authenticated UI shows current vs requested date/time and requires explicit CSRF-protected confirmation.

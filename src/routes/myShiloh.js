@@ -9,6 +9,13 @@ const { createClientBrowserSessionService, SESSION_TTL_MS, CHALLENGE_TTL_MS } = 
 const { createMyShilohExperienceOrchestrator } = require('../services/myShilohExperienceOrchestrator');
 const { createMyShilohAssistantService, MyShilohAssistantError } = require('../services/myShilohAssistant');
 const { createMyShilohClientActionService } = require('../services/myShilohClientActions');
+const { createMyShilohConsultationFormActionService } = require('../services/myShilohConsultationFormActions');
+const clientConsultationForms = require('../services/clientConsultationForms');
+const {
+  renderClientConsultationFormPage,
+  renderCompletedPage,
+  renderUnavailablePage,
+} = require('../presentation/clientConsultationFormUx');
 const { renderMyShilohPage } = require('../presentation/myShilohPwa');
 const {
   sameOriginGuard,
@@ -60,6 +67,8 @@ function createMyShilohRouter({
   experienceService = createMyShilohExperienceOrchestrator(),
   assistantService = createMyShilohAssistantService(),
   actionService = createMyShilohClientActionService(),
+  formActionService = createMyShilohConsultationFormActionService(),
+  formService = clientConsultationForms,
 } = {}) {
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
@@ -323,6 +332,38 @@ function createMyShilohRouter({
       return res.status(200).json({ status: 'unchanged' });
     } catch (error) {
       return next(error);
+    }
+  });
+
+  router.get('/my-shiloh/forms/complete', requireSession, async (req, res) => {
+    const unavailable = (status, message) => res.status(status).type('html').send(renderUnavailable({ message }));
+    try {
+      if (!formService.isClientConsultationFormsEnabled(env)) {
+        return unavailable(404, 'Consultation forms are not available in My Shiloh right now.');
+      }
+      formService.parseDataKey(env);
+      const opened = await formActionService.openForSession({
+        sessionId: req.myShilohClientSession.sessionId,
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+      });
+      if (!opened.ok) {
+        const message = opened.code === 'CLIENT_FORM_MULTIPLE_PENDING'
+          ? 'More than one consultation form is waiting. Please ask the clinic team to open the correct form.'
+          : opened.code === 'CLIENT_FORM_SESSION_INVALID'
+            ? 'Your secure My Shiloh session has expired. Please sign in again.'
+            : 'There is no consultation form available for your secure client profile right now.';
+        return unavailable(opened.code === 'CLIENT_FORM_SESSION_INVALID' ? 401 : 404, message);
+      }
+      if (opened.model.completed) return res.status(200).type('html').send(renderCompletedPage());
+      return res.status(200).type('html').send(renderClientConsultationFormPage({
+        ...opened.model,
+        accessToken: opened.accessToken,
+      }));
+    } catch (error) {
+      const status = Number(error?.httpStatus) === 410 ? 410
+        : Number(error?.httpStatus) === 409 ? 409
+          : Number(error?.httpStatus) === 503 ? 503 : 404;
+      return unavailable(status, error?.message || 'This consultation form is not available.');
     }
   });
 
