@@ -261,6 +261,7 @@ function createMyShilohClientActionService({
         crmV2ClientId: clientId,
         expectedRevision: proposal.appointment_revision,
         requireFutureStart: true,
+        allowedStatuses: ['scheduled', 'confirmed'],
         now: current,
         changedBy: `client_session:${session}`,
         reason: 'Client cancellation confirmed in My Shiloh',
