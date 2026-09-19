@@ -75,6 +75,8 @@ function createMyShilohClientActionService({
   now = () => new Date(),
   randomBytes = crypto.randomBytes,
   ttlMs = ACTION_TTL_MS,
+  availability = listAvailableSlots,
+  createRescheduleRequest = createPendingRescheduleRequest,
 } = {}) {
   if (!db || typeof db.query !== 'function') throw new Error('My Shiloh client action database is required');
 
@@ -190,7 +192,7 @@ function createMyShilohClientActionService({
 
     const local = johannesburgDateTime(proposedStartsAt);
     if (!local) return null;
-    const result = await listAvailableSlots({
+    const result = await availability({
       staffId: Number(appointment.staff_id),
       serviceId: Number(appointment.service_id),
       date: local.date,
@@ -480,7 +482,7 @@ function createMyShilohClientActionService({
             );
             return { ok: false, status: 'approval_request_failed' };
           }
-          requestResult = await createPendingRescheduleRequest(phone, {
+          requestResult = await createRescheduleRequest(phone, {
             appointment_id: Number(proposal.appointment_id),
             preferred_date: local.date,
             preferred_time: local.time,
