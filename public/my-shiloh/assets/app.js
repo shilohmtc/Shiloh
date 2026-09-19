@@ -320,28 +320,33 @@
   }
 
   function renderClientAction(action) {
-    if (!shilohMessages || !['cancel_appointment', 'reschedule_appointment'].includes(action?.type)) return null;
-    if (!/^[A-Za-z0-9_-]{43}$/.test(String(action.token || ''))) return null;
+    if (!shilohMessages || !['cancel_appointment', 'reschedule_appointment', 'consultation_form'].includes(action?.type)) return null;
+    if (action.type !== 'consultation_form' && !/^[A-Za-z0-9_-]{43}$/.test(String(action.token || ''))) return null;
+    if (action.type === 'consultation_form' && String(action.href || '') !== '/my-shiloh/forms/complete') return null;
 
     shilohMessages.querySelector('[data-client-action-card]')?.remove();
 
     const card = document.createElement('section');
     card.className = 'client-action-card';
     card.dataset.clientActionCard = '';
-    card.setAttribute('aria-label', action.type === 'reschedule_appointment'
-      ? 'Confirm appointment reschedule request'
-      : 'Confirm appointment cancellation');
+    card.setAttribute('aria-label', action.type === 'consultation_form'
+      ? 'Open consultation form'
+      : action.type === 'reschedule_appointment'
+        ? 'Confirm appointment reschedule request'
+        : 'Confirm appointment cancellation');
 
     const eyebrow = document.createElement('span');
     eyebrow.className = 'client-action-card__eyebrow';
-    eyebrow.textContent = 'Confirmation required';
+    eyebrow.textContent = action.type === 'consultation_form' ? 'Action available' : 'Confirmation required';
 
     const heading = document.createElement('h3');
-    heading.textContent = String(action.title || 'Cancel this appointment?');
+    heading.textContent = String(action.title || (action.type === 'consultation_form' ? 'Complete your consultation form' : 'Cancel this appointment?'));
 
     const detail = document.createElement('p');
     detail.className = 'client-action-card__detail';
-    detail.textContent = action.type === 'reschedule_appointment'
+    detail.textContent = action.type === 'consultation_form'
+      ? String(action.detail || 'A consultation form is waiting for you in My Shiloh.')
+      : action.type === 'reschedule_appointment'
       ? [
         action.service,
         action.practitioner,
@@ -356,33 +361,45 @@
 
     const policy = document.createElement('p');
     policy.className = 'client-action-card__policy';
-    policy.textContent = String(action.type === 'reschedule_appointment' ? action.note || '' : action.policy || '');
+    policy.textContent = String(action.type === 'consultation_form'
+      ? 'Your secure session will resolve the authorized form when you open it.'
+      : action.type === 'reschedule_appointment' ? action.note || '' : action.policy || '');
 
     const payment = document.createElement('p');
     payment.className = 'client-action-card__note';
-    payment.textContent = String(action.type === 'reschedule_appointment'
+    payment.textContent = String(action.type === 'consultation_form'
+      ? 'The form is opened only for your signed-in My Shiloh profile.'
+      : action.type === 'reschedule_appointment'
       ? 'Submitting this request does not move the appointment immediately. The assigned practitioner still needs to approve it.'
       : action.paymentNote || '');
 
     const actions = document.createElement('div');
     actions.className = 'client-action-card__actions';
 
-    const keep = document.createElement('button');
-    keep.type = 'button';
-    keep.className = 'button button--soft';
-    keep.textContent = String(action.declineLabel || 'Keep appointment');
+    if (action.type === 'consultation_form') {
+      const open = document.createElement('a');
+      open.className = 'button button--primary';
+      open.href = '/my-shiloh/forms/complete';
+      open.textContent = String(action.label || 'Complete form');
+      open.addEventListener('click', () => { card.remove(); });
+      actions.append(open);
+    } else {
+      const keep = document.createElement('button');
+      keep.type = 'button';
+      keep.className = 'button button--soft';
+      keep.textContent = String(action.declineLabel || 'Keep appointment');
 
-    const confirm = document.createElement('button');
-    confirm.type = 'button';
-    confirm.className = action.type === 'reschedule_appointment'
-      ? 'button button--primary'
-      : 'button button--danger';
-    confirm.textContent = String(action.confirmLabel || (action.type === 'reschedule_appointment' ? 'Request reschedule' : 'Cancel appointment'));
+      const confirm = document.createElement('button');
+      confirm.type = 'button';
+      confirm.className = action.type === 'reschedule_appointment'
+        ? 'button button--primary'
+        : 'button button--danger';
+      confirm.textContent = String(action.confirmLabel || (action.type === 'reschedule_appointment' ? 'Request reschedule' : 'Cancel appointment'));
 
-    keep.addEventListener('click', () => declineClientAction(action, card));
-    confirm.addEventListener('click', () => confirmClientAction(action, card));
-
-    actions.append(keep, confirm);
+      keep.addEventListener('click', () => declineClientAction(action, card));
+      confirm.addEventListener('click', () => confirmClientAction(action, card));
+      actions.append(keep, confirm);
+    }
     card.append(eyebrow, heading, detail, policy, payment, actions);
     shilohMessages.appendChild(card);
     card.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
