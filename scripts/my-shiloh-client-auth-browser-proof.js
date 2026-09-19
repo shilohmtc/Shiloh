@@ -25,6 +25,7 @@ const BROWSER_TOKEN = 'B'.repeat(43);
 const WHATSAPP_TOKEN = 'W'.repeat(43);
 const COMPLETION_CODE = '654321';
 const ACTION_TOKEN = 'A'.repeat(43);
+const RESCHEDULE_TOKEN = 'R'.repeat(43);
 let verified = false;
 let loggedOut = false;
 const assistantCalls = [];
@@ -86,6 +87,26 @@ const fakeAssistantService = {
     if (/payment/i.test(message)) {
       return { reply: 'Yes — your payment is recorded as paid for this booking.', contextVersion: 'my_shiloh_client_context_v1' };
     }
+    if (/move|reschedule/i.test(message)) {
+      return {
+        reply: 'I prepared the new time for you. Please review the confirmation card below — your current appointment is unchanged.',
+        contextVersion: 'my_shiloh_client_context_v1',
+        action: {
+          type: 'reschedule_appointment',
+          token: RESCHEDULE_TOKEN,
+          title: 'Request this new time?',
+          service: 'Hot Stone Massage',
+          practitioner: 'Marietjie',
+          currentDate: 'Thursday, 24 September 2026',
+          currentTime: '10:00',
+          proposedDate: 'Friday, 25 September 2026',
+          proposedTime: '09:00',
+          note: 'Your current appointment stays confirmed until Marietjie approves the new time.',
+          confirmLabel: 'Request reschedule',
+          declineLabel: 'Keep current time',
+        },
+      };
+    }
     if (/cancel/i.test(message)) {
       return {
         reply: 'I prepared the cancellation for you. Please review the confirmation card below — nothing has changed yet.',
@@ -115,9 +136,23 @@ const fakeAssistantService = {
 const fakeActionService = {
   async confirmAction({ sessionId, crmV2ClientId, actionToken }) {
     confirmedActions.push({ sessionId, crmV2ClientId, actionToken });
-    if (Number(sessionId) !== 55 || Number(crmV2ClientId) !== 912 || actionToken !== ACTION_TOKEN) {
+    if (Number(sessionId) !== 55 || Number(crmV2ClientId) !== 912) {
       return { ok: false, status: 'ownership_changed' };
     }
+    if (actionToken === RESCHEDULE_TOKEN) {
+      return {
+        ok: true,
+        status: 'pending_approval',
+        reply: 'Reschedule request sent for practitioner approval.',
+        appointment: {
+          service: 'Hot Stone Massage',
+          practitioner: 'Marietjie',
+          proposedDate: 'Friday, 25 September 2026',
+          proposedTime: '09:00',
+        },
+      };
+    }
+    if (actionToken !== ACTION_TOKEN) return { ok: false, status: 'ownership_changed' };
     return {
       ok: true,
       status: 'cancelled',
@@ -217,11 +252,28 @@ async function runViewport(browser, name, viewport) {
   await page.locator('[data-shiloh-chat-form]').getByRole('button', { name: 'Send' }).click();
   await page.waitForFunction(() => document.body.textContent.includes('payment is recorded as paid'));
 
+  await page.locator('[data-shiloh-chat-input]').fill('Move my appointment to Friday at 09:00');
+  await page.locator('[data-shiloh-chat-form]').getByRole('button', { name: 'Send' }).click();
+  await page.waitForFunction(() => document.body.textContent.includes('Request this new time?'));
+  const rescheduleCardText = await page.locator('[data-client-action-card]').textContent();
+  if (!/Current:.*10:00/.test(rescheduleCardText || '') || !/Requested:.*09:00/.test(rescheduleCardText || '')) {
+    throw new Error('reschedule confirmation card did not show current and requested times');
+  }
+  await page.getByRole('button', { name: 'Request reschedule' }).click();
+  await page.waitForFunction(() => document.body.textContent.includes('practitioner approval'));
+  if (!confirmedActions.some((call) => call.sessionId === 55 && call.crmV2ClientId === 912 && call.actionToken === RESCHEDULE_TOKEN)) {
+    throw new Error('reschedule confirmation was not bound to the authenticated session');
+  }
+  const pageTextAfterRequest = await page.locator('body').textContent();
+  if (/Your appointment has been rescheduled/i.test(pageTextAfterRequest || '')) {
+    throw new Error('My Shiloh claimed a reschedule before practitioner approval');
+  }
+
   await page.locator('[data-shiloh-chat-input]').fill('Cancel my appointment');
   await page.locator('[data-shiloh-chat-form]').getByRole('button', { name: 'Send' }).click();
   await page.waitForFunction(() => document.body.textContent.includes('Cancel this appointment?'));
   await page.getByRole('button', { name: 'Keep appointment' }).click();
-  await page.waitForFunction(() => document.body.textContent.includes('appointment is unchanged'));
+  await page.locator('[data-client-action-card]').waitFor({ state: 'detached' });
   if (!declinedActions.some((call) => call.sessionId === 55 && call.crmV2ClientId === 912 && call.actionToken === ACTION_TOKEN)) {
     throw new Error('cancellation decline was not bound to the authenticated session');
   }

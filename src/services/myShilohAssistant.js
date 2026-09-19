@@ -154,6 +154,9 @@ function createMyShilohAssistantService({
     if (preparedAction?.type === 'cancel_appointment') {
       safeReply = 'I’ve prepared the cancellation for your next appointment. Please review the confirmation card below. Nothing has changed yet.';
     }
+    if (preparedAction?.type === 'reschedule_appointment') {
+      safeReply = 'I’ve prepared that new time for your next appointment. Please review the confirmation card below. Your current appointment is still unchanged.';
+    }
     if (!safeReply) {
       throw new MyShilohAssistantError(
         'MY_SHILOH_ASSISTANT_EMPTY',

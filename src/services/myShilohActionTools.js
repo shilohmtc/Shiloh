@@ -1,9 +1,14 @@
 'use strict';
 
-const { ACTION_TYPE_CANCEL, createMyShilohClientActionService } = require('./myShilohClientActions');
+const {
+  ACTION_TYPE_CANCEL,
+  ACTION_TYPE_RESCHEDULE,
+  createMyShilohClientActionService,
+} = require('./myShilohClientActions');
 
 const ACTION_TOOL_NAMES = Object.freeze({
   PREPARE_CANCELLATION: 'prepare_my_cancellation',
+  PREPARE_RESCHEDULE: 'prepare_my_reschedule',
 });
 
 const ACTION_TOOL_DEFINITIONS = Object.freeze([
@@ -19,22 +24,50 @@ const ACTION_TOOL_DEFINITIONS = Object.freeze([
       additionalProperties: false,
     },
   },
+  {
+    type: 'function',
+    name: ACTION_TOOL_NAMES.PREPARE_RESCHEDULE,
+    description: 'Prepare a reschedule request for the authenticated client’s next appointment using an exact startsAt returned by find_available_slots. This never moves the appointment; client confirmation is still required and practitioner approval remains authoritative.',
+    strict: true,
+    parameters: {
+      type: 'object',
+      properties: {
+        startsAt: {
+          type: 'string',
+          description: 'Exact ISO 8601 slot start returned by find_available_slots.',
+        },
+      },
+      required: ['startsAt'],
+      additionalProperties: false,
+    },
+  },
 ]);
 
 function createMyShilohActionTools({
   actionService = createMyShilohClientActionService(),
 } = {}) {
-  if (!actionService || typeof actionService.prepareCancellation !== 'function') {
+  if (
+    !actionService
+    || typeof actionService.prepareCancellation !== 'function'
+    || typeof actionService.prepareReschedule !== 'function'
+  ) {
     throw new Error('My Shiloh client action service is required');
   }
 
   function handles(name) {
-    return name === ACTION_TOOL_NAMES.PREPARE_CANCELLATION;
+    return name === ACTION_TOOL_NAMES.PREPARE_CANCELLATION
+      || name === ACTION_TOOL_NAMES.PREPARE_RESCHEDULE;
   }
 
-  async function execute(name, _args = {}, { sessionId, crmV2ClientId } = {}) {
+  async function execute(name, args = {}, { sessionId, crmV2ClientId } = {}) {
     if (!handles(name)) return { modelResult: { ok: false, error: 'unknown_action_tool' }, clientAction: null };
-    const result = await actionService.prepareCancellation({ sessionId, crmV2ClientId });
+    const result = name === ACTION_TOOL_NAMES.PREPARE_RESCHEDULE
+      ? await actionService.prepareReschedule({
+        sessionId,
+        crmV2ClientId,
+        proposedStartsAt: args.startsAt,
+      })
+      : await actionService.prepareCancellation({ sessionId, crmV2ClientId });
     if (!result.ok) {
       if (result.code === 'CLIENT_ACTION_NO_UPCOMING_APPOINTMENT') {
         return {
@@ -42,6 +75,16 @@ function createMyShilohActionTools({
             ok: false,
             error: 'no_upcoming_appointment',
             message: 'There is no upcoming appointment available to cancel.',
+          },
+          clientAction: null,
+        };
+      }
+      if (result.code === 'CLIENT_ACTION_SLOT_UNAVAILABLE' || result.code === 'CLIENT_ACTION_RESCHEDULE_SLOT_INVALID') {
+        return {
+          modelResult: {
+            ok: false,
+            error: 'slot_unavailable',
+            message: 'That replacement time is no longer available. Check availability again before preparing another request.',
           },
           clientAction: null,
         };
@@ -67,7 +110,9 @@ function createMyShilohActionTools({
     }
     return {
       modelResult: result.modelResult,
-      clientAction: result.clientAction?.type === ACTION_TYPE_CANCEL ? result.clientAction : null,
+      clientAction: [ACTION_TYPE_CANCEL, ACTION_TYPE_RESCHEDULE].includes(result.clientAction?.type)
+        ? result.clientAction
+        : null,
     };
   }
 
