@@ -128,7 +128,7 @@ Acceptance:
 - no provider payloads are exposed;
 - phone and desktop browser proof passes.
 
-### Phase 2 — Authenticated In-App Shiloh Conversation — ACTIVE
+### Phase 2 — Authenticated In-App Shiloh Conversation — VERIFIED LIVE
 
 Reuse the existing Shiloh/OpenAI intelligence instead of building a separate assistant.
 
@@ -144,9 +144,9 @@ Add:
 
 WhatsApp and My Shiloh should feel like the same Shiloh relationship, even when the UI surface differs.
 
-### Phase 3 — Read Tools
+### Phase 3 — Read Tools — ACTIVE
 
-Give Shiloh explicit, typed read tools over canonical services, for example:
+Give Shiloh explicit, typed read tools over canonical services. Initial controlled set:
 
 - `get_my_next_appointment`
 - `get_my_upcoming_bookings`
