@@ -5,6 +5,7 @@ const { checkAuthoritativeSchedule } = require("./adminAvailability");
 const logger = require("../lib/logger");
 const { fullLabelDescription } = require('../presentation/whatsappListRowPresentation');
 const { CRM_V2_LEGACY_ONLY_BOUNDARY_REPLY, resolveFinalBookingIdentity, identityFromAppointment } = require('./whatsappBookingIdentity');
+const { cancelOwnedAppointmentInTransaction } = require('./clientAppointmentCancellation');
 
 let initialized = false;
 const APPOINTMENT_CHOICE_PAGE_SIZE = 8;
@@ -158,13 +159,22 @@ async function cancelCanonical(phone,a){const db=await pool.connect();try{
  const identity=identityFromAppointment(a);
  const authority=await resolveFinalBookingIdentity({db,phone,identity});
  if(authority.status!=='ready'){await db.query('ROLLBACK');return{status:'identity_changed',reply:'The exact canonical client identity changed before cancellation, so the appointment was not changed.'};}
- const locked=await db.query(`SELECT status,client_id,crm_v2_client_id FROM appointments WHERE id=$1 AND client_id IS NOT DISTINCT FROM $2::bigint AND crm_v2_client_id IS NOT DISTINCT FROM $3::bigint FOR UPDATE`,[a.id,identity.legacyClientId||null,identity.crmV2ClientId||null]);
- if(!locked.rows[0]||locked.rows[0].status==='cancelled'){await db.query('ROLLBACK');return{status:'already_cancelled'};}
- await db.query(`UPDATE appointments SET status='cancelled',updated_at=NOW() WHERE id=$1`,[a.id]);
- await db.query(`UPDATE appointment_lifecycle SET status='cancelled',updated_at=NOW() WHERE appointment_id=$1`,[a.id]);
- await db.query(`INSERT INTO appointment_status_history(appointment_id,from_status,to_status,changed_by,reason) VALUES($1,$2,'cancelled',$3,'Client cancellation confirmed in WhatsApp')`,[a.id,locked.rows[0].status,`client:${normalizePhone(phone)}`]);
- await db.query(`INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata) VALUES('client.appointment_cancelled','appointment',$1,$2::jsonb)`,[a.id,JSON.stringify({phone:normalizePhone(phone),identityModel:identity.identityModel,clientId:identity.legacyClientId,crmV2ClientId:identity.crmV2ClientId,identityResolution:authority.audit?.identityResolution||null,schedulingAuthority:'shiloh_canonical'})]);
- await db.query('COMMIT');return{status:'cancelled'};
+ const result=await cancelOwnedAppointmentInTransaction(db,{
+   appointmentId:a.id,
+   legacyClientId:identity.legacyClientId||null,
+   crmV2ClientId:identity.crmV2ClientId||null,
+   changedBy:`client:${normalizePhone(phone)}`,
+   reason:'Client cancellation confirmed in WhatsApp',
+   auditMetadata:{
+     phone:normalizePhone(phone),
+     identityResolution:authority.audit?.identityResolution||null,
+     source:'whatsapp',
+   },
+ });
+ if(result.status==='cancelled'){await db.query('COMMIT');return{status:'cancelled'};}
+ await db.query('ROLLBACK');
+ if(result.status==='ownership_changed')return{status:'identity_changed',reply:'The exact canonical client identity changed before cancellation, so the appointment was not changed.'};
+ return result;
  }catch(e){try{await db.query('ROLLBACK');}catch(_){}throw e;}finally{db.release();}}
 
 async function rescheduleCanonical(phone,a,date,time){
