@@ -1,6 +1,5 @@
 'use strict';
 
-const { generateReply } = require('./ai');
 const { clearSession } = require('./memory');
 const clientContext = require('./myShilohClientContext');
 
@@ -78,8 +77,13 @@ function createMessageLimiter({
   return { allow, clear };
 }
 
+async function defaultAi(...args) {
+  const { generateReply } = require('./ai');
+  return generateReply(...args);
+}
+
 function createMyShilohAssistantService({
-  ai = generateReply,
+  ai = defaultAi,
   contextService = clientContext,
   clearConversationSession = clearSession,
   limiter = createMessageLimiter(),
@@ -163,6 +167,7 @@ module.exports = {
   conversationKey,
   firstName,
   createMessageLimiter,
+  defaultAi,
   createMyShilohAssistantService,
   ...service,
 };
