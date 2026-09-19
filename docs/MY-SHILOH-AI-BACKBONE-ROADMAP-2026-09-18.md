@@ -107,7 +107,7 @@ Profile remains account/security/preferences and durable client settings. It is 
 - Website entry points into My Shiloh.
 - PWA private APIs excluded from service-worker cache.
 
-### Phase 1 — Authenticated Client Context + Experience Orchestrator — ACTIVE
+### Phase 1 — Authenticated Client Context + Experience Orchestrator — VERIFIED LIVE
 
 Build:
 
@@ -128,7 +128,7 @@ Acceptance:
 - no provider payloads are exposed;
 - phone and desktop browser proof passes.
 
-### Phase 2 — Authenticated In-App Shiloh Conversation
+### Phase 2 — Authenticated In-App Shiloh Conversation — ACTIVE
 
 Reuse the existing Shiloh/OpenAI intelligence instead of building a separate assistant.
 
@@ -136,6 +136,8 @@ Add:
 
 - authenticated My Shiloh conversation endpoint;
 - trusted client context passed server-side only;
+- session-scoped conversation continuity using the existing Shiloh conversation-memory service;
+- no chat transcript persistence in browser storage or service-worker caches;
 - same business knowledge, catalogue and practitioner authority as WhatsApp;
 - bounded personal context, never wholesale CRM rows;
 - no domain mutations from model text alone.
