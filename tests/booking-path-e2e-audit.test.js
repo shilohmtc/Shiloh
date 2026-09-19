@@ -88,9 +88,12 @@ test('booking-path audit covers Google decommission plus legacy integrity monito
 });
 
 test('booking-path audit covers client cancellation and rescheduling against canonical calendars', () => {
-  const changes = source('src/services/appointmentChange.js');
-  assert.match(changes, /client\.appointment_cancelled/);
-  assert.match(changes, /client\.appointment_rescheduled/);
+  const appointmentChange = source('src/services/appointmentChange.js');
+  const cancellationOwner = source('src/services/clientAppointmentCancellation.js');
+  const changes = `${appointmentChange}\n${cancellationOwner}`;
+  assert.match(appointmentChange, /cancelOwnedAppointmentInTransaction/);
+  assert.match(cancellationOwner, /client\.appointment_cancelled/);
+  assert.match(appointmentChange, /client\.appointment_rescheduled/);
   assert.match(changes, /pg_advisory_xact_lock/);
   assert.doesNotMatch(changes, /cancelBookingEvent|updateBookingEvent|checkCalendarAvailability|appointment_calendar_events/);
 });

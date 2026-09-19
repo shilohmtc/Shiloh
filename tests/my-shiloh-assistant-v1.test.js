@@ -86,7 +86,10 @@ test('My Shiloh instructions keep AI read-only and canonical client context abov
   assert.match(instructions, /authenticated My Shiloh client assistant/);
   assert.match(instructions, /AUTHENTICATED CLIENT CONTEXT/);
   assert.match(instructions, /server-derived and authoritative/);
-  assert.match(instructions, /No mutation tools are available in this phase/);
+  assert.match(instructions, /prepare_my_cancellation/);
+  assert.match(instructions, /only prepares a confirmation card; it does not cancel anything/i);
+  assert.match(instructions, /The AI has no tool that can press the confirmation button or execute the cancellation/i);
+  assert.match(instructions, /Never tell them the appointment is cancelled merely because preparation succeeded/i);
   assert.match(instructions, /use the matching read tool/i);
   assert.match(instructions, /availability check, not a reservation or booking/i);
   assert.match(instructions, /Never infer health information/);

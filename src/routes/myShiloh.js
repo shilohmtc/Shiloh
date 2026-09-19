@@ -8,6 +8,7 @@ const { resolveWhatsAppNumber } = require('../services/publicWhatsApp');
 const { createClientBrowserSessionService, SESSION_TTL_MS, CHALLENGE_TTL_MS } = require('../services/clientBrowserSession');
 const { createMyShilohExperienceOrchestrator } = require('../services/myShilohExperienceOrchestrator');
 const { createMyShilohAssistantService, MyShilohAssistantError } = require('../services/myShilohAssistant');
+const { createMyShilohClientActionService } = require('../services/myShilohClientActions');
 const { renderMyShilohPage } = require('../presentation/myShilohPwa');
 const {
   sameOriginGuard,
@@ -58,6 +59,7 @@ function createMyShilohRouter({
   authUrlBuilder = defaultAuthUrlBuilder,
   experienceService = createMyShilohExperienceOrchestrator(),
   assistantService = createMyShilohAssistantService(),
+  actionService = createMyShilohClientActionService(),
 } = {}) {
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
@@ -188,6 +190,14 @@ function createMyShilohRouter({
       await assistantService.clearConversation({
         sessionId: req.myShilohClientSession.sessionId,
       });
+      try {
+        await actionService.revokeSessionActions({
+          sessionId: req.myShilohClientSession.sessionId,
+          crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+        });
+      } catch (_) {
+        // Session revocation remains authoritative even if proposal cleanup is unavailable.
+      }
       setNoStoreJson(res);
       res.setHeader('Set-Cookie', [
         serializeExpiredClientSessionCookie({ env }),
@@ -230,6 +240,7 @@ function createMyShilohRouter({
       return res.status(200).json({
         reply: result.reply,
         contextVersion: result.contextVersion,
+        action: result.action || null,
       });
     } catch (error) {
       if (error instanceof MyShilohAssistantError) {
@@ -239,6 +250,63 @@ function createMyShilohRouter({
           requestId: req.id,
         });
       }
+      return next(error);
+    }
+  });
+
+  router.post('/my-shiloh/api/actions/confirm', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const keys = Object.keys(req.body && typeof req.body === 'object' ? req.body : {});
+      if (keys.some((key) => key !== 'actionToken')) {
+        return res.status(422).json({ error: 'Please reload My Shiloh and try again', requestId: req.id });
+      }
+      const result = await actionService.confirmAction({
+        sessionId: req.myShilohClientSession.sessionId,
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+        actionToken: req.body?.actionToken,
+      });
+      if (result.ok && result.status === 'cancelled') {
+        return res.status(200).json({
+          status: 'cancelled',
+          appointment: result.appointment,
+        });
+      }
+      const status = result.status === 'appointment_started' ? 409
+        : result.status === 'already_cancelled' ? 409
+          : result.status === 'appointment_changed' || result.status === 'ownership_changed' || result.status === 'complex_booking' ? 409
+            : 401;
+      const error = result.status === 'appointment_started'
+        ? 'This appointment has already started and cannot be cancelled here.'
+        : result.status === 'already_cancelled'
+          ? 'This appointment is already cancelled.'
+          : result.status === 'appointment_changed'
+            ? 'This appointment changed after the confirmation was prepared. Please ask Shiloh to check it again.'
+            : result.status === 'ownership_changed'
+              ? 'The appointment ownership changed. Nothing was cancelled.'
+              : result.status === 'complex_booking'
+                ? 'This linked or group booking needs help from the clinic team. Nothing was cancelled.'
+                : 'That cancellation confirmation is no longer valid.';
+      return res.status(status).json({ error, status: result.status || 'invalid', requestId: req.id });
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/my-shiloh/api/actions/decline', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const keys = Object.keys(req.body && typeof req.body === 'object' ? req.body : {});
+      if (keys.some((key) => key !== 'actionToken')) {
+        return res.status(422).json({ error: 'Please reload My Shiloh and try again', requestId: req.id });
+      }
+      await actionService.declineAction({
+        sessionId: req.myShilohClientSession.sessionId,
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+        actionToken: req.body?.actionToken,
+      });
+      return res.status(200).json({ status: 'unchanged' });
+    } catch (error) {
       return next(error);
     }
   });

@@ -252,6 +252,121 @@
     });
   }
 
+  async function freshCsrfToken() {
+    const response = await postJson('/my-shiloh/auth/csrf');
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.csrfToken) throw new Error('Secure confirmation could not be started.');
+    return data.csrfToken;
+  }
+
+  function setActionCardBusy(card, busy) {
+    card?.querySelectorAll('button').forEach((button) => { button.disabled = Boolean(busy); });
+  }
+
+  async function confirmClientAction(action, card) {
+    if (!action || !/^[A-Za-z0-9_-]{43}$/.test(String(action.token || ''))) return;
+    setActionCardBusy(card, true);
+    try {
+      const csrfToken = await freshCsrfToken();
+      const response = await postJson('/my-shiloh/api/actions/confirm', {
+        actionToken: action.token,
+      }, {
+        'x-shiloh-csrf-token': csrfToken,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.status !== 'cancelled') {
+        throw new Error(data.error || 'That cancellation could not be confirmed.');
+      }
+      card?.remove();
+      const appointment = data.appointment || {};
+      const details = [appointment.service, appointment.date, appointment.time].filter(Boolean).join(' · ');
+      appendShilohMessage('shiloh', details
+        ? `Your appointment has been cancelled. ${details}`
+        : 'Your appointment has been cancelled.');
+      await loadClientExperience();
+    } catch (error) {
+      card?.remove();
+      appendShilohMessage('shiloh', error.message || 'That cancellation could not be confirmed. Nothing else was changed.');
+    }
+  }
+
+  async function declineClientAction(action, card) {
+    if (!action || !/^[A-Za-z0-9_-]{43}$/.test(String(action.token || ''))) {
+      card?.remove();
+      return;
+    }
+    setActionCardBusy(card, true);
+    try {
+      const csrfToken = await freshCsrfToken();
+      await postJson('/my-shiloh/api/actions/decline', {
+        actionToken: action.token,
+      }, {
+        'x-shiloh-csrf-token': csrfToken,
+      });
+    } catch (_) {
+      // Declining locally is safe; an unconsumed proposal also expires automatically.
+    }
+    card?.remove();
+    appendShilohMessage('shiloh', 'No problem — your appointment is unchanged.');
+  }
+
+  function renderClientAction(action) {
+    if (!shilohMessages || action?.type !== 'cancel_appointment') return null;
+    if (!/^[A-Za-z0-9_-]{43}$/.test(String(action.token || ''))) return null;
+
+    shilohMessages.querySelector('[data-client-action-card]')?.remove();
+
+    const card = document.createElement('section');
+    card.className = 'client-action-card';
+    card.dataset.clientActionCard = '';
+    card.setAttribute('aria-label', 'Confirm appointment cancellation');
+
+    const eyebrow = document.createElement('span');
+    eyebrow.className = 'client-action-card__eyebrow';
+    eyebrow.textContent = 'Confirmation required';
+
+    const heading = document.createElement('h3');
+    heading.textContent = String(action.title || 'Cancel this appointment?');
+
+    const detail = document.createElement('p');
+    detail.className = 'client-action-card__detail';
+    detail.textContent = [
+      action.service,
+      action.practitioner,
+      [action.date, action.time].filter(Boolean).join(' · '),
+    ].filter(Boolean).join(' · ');
+
+    const policy = document.createElement('p');
+    policy.className = 'client-action-card__policy';
+    policy.textContent = String(action.policy || '');
+
+    const payment = document.createElement('p');
+    payment.className = 'client-action-card__note';
+    payment.textContent = String(action.paymentNote || '');
+
+    const actions = document.createElement('div');
+    actions.className = 'client-action-card__actions';
+
+    const keep = document.createElement('button');
+    keep.type = 'button';
+    keep.className = 'button button--soft';
+    keep.textContent = String(action.declineLabel || 'Keep appointment');
+
+    const confirm = document.createElement('button');
+    confirm.type = 'button';
+    confirm.className = 'button button--danger';
+    confirm.textContent = String(action.confirmLabel || 'Cancel appointment');
+
+    keep.addEventListener('click', () => declineClientAction(action, card));
+    confirm.addEventListener('click', () => confirmClientAction(action, card));
+
+    actions.append(keep, confirm);
+    card.append(eyebrow, heading, detail, policy, payment, actions);
+    shilohMessages.appendChild(card);
+    card.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    return card;
+  }
+
   function appendShilohMessage(role, message, { pending = false } = {}) {
     if (!shilohMessages) return null;
     const bubble = document.createElement('div');
@@ -297,6 +412,7 @@
         throw new Error(data.error || 'Shiloh could not answer that just now.');
       }
       appendShilohMessage('shiloh', data.reply);
+      if (data.action) renderClientAction(data.action);
     } catch (error) {
       pending?.remove();
       appendShilohMessage('shiloh', error.message || 'Shiloh could not answer that just now. Please try again.');

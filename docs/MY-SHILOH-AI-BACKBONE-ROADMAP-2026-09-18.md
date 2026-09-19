@@ -144,7 +144,7 @@ Add:
 
 WhatsApp and My Shiloh should feel like the same Shiloh relationship, even when the UI surface differs.
 
-### Phase 3 — Read Tools — ACTIVE
+### Phase 3 — Read Tools — VERIFIED LIVE
 
 Give Shiloh explicit, typed read tools over canonical services. Initial controlled set:
 
@@ -158,9 +158,20 @@ Give Shiloh explicit, typed read tools over canonical services. Initial controll
 
 Every tool automatically receives the authenticated client identity from server authority.
 
-### Phase 4 — Confirmed Client Actions
+### Phase 4 — Confirmed Client Actions — ACTIVE
 
 Add bounded action tools only after the read model is stable.
+
+First controlled unit: **next-appointment cancellation**.
+
+- AI may prepare a cancellation proposal only.
+- The proposal is session/client/appointment/revision bound, random-token protected, one-time and short-lived.
+- The model never receives the confirmation token.
+- The authenticated UI shows the exact appointment, cancellation policy and payment/refund separation.
+- Only an explicit CSRF-protected client button can confirm.
+- Confirmation rechecks exact CRM V2 ownership, appointment revision, future-start boundary, cancellable status, linked/group booking exclusion and assigned-practitioner locks before the shared canonical cancellation owner executes.
+- Linked/group bookings fail closed to clinic assistance.
+- WhatsApp cancellation delegates to the same canonical cancellation mutation owner after its existing phone identity authority check.
 
 Examples:
 
