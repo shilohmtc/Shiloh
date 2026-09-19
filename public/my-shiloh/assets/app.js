@@ -15,8 +15,14 @@
   const experienceHome = document.querySelector('[data-client-experience-home]');
   const experienceBookings = document.querySelector('[data-client-experience-bookings]');
   const experiencePrompts = document.querySelector('[data-client-experience-prompts]');
+  const shilohMessages = document.querySelector('[data-shiloh-messages]');
+  const shilohChatForm = document.querySelector('[data-shiloh-chat-form]');
+  const shilohChatInput = document.querySelector('[data-shiloh-chat-input]');
+  const shilohChatSend = document.querySelector('[data-shiloh-chat-send]');
+  const shilohPromptButtons = [...document.querySelectorAll('[data-shiloh-prompt]')];
   let deferredInstallPrompt = null;
   let authActionInFlight = false;
+  let shilohMessageInFlight = false;
 
   function completionCodeFromHash() {
     const match = String(window.location.hash || '').match(/^#verify=(\d{6})$/);
@@ -245,6 +251,72 @@
       body: JSON.stringify(body),
     });
   }
+
+  function appendShilohMessage(role, message, { pending = false } = {}) {
+    if (!shilohMessages) return null;
+    const bubble = document.createElement('div');
+    bubble.className = `chat-bubble chat-bubble--${role === 'user' ? 'user' : 'shiloh'}`;
+    if (pending) bubble.dataset.pending = 'true';
+
+    if (role !== 'user') {
+      const label = document.createElement('span');
+      label.textContent = 'Shiloh';
+      bubble.appendChild(label);
+    }
+
+    const copy = document.createElement('p');
+    copy.textContent = String(message || '');
+    bubble.appendChild(copy);
+    shilohMessages.appendChild(bubble);
+    bubble.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    return bubble;
+  }
+
+  function setShilohBusy(busy) {
+    shilohMessageInFlight = Boolean(busy);
+    if (shilohChatInput) shilohChatInput.disabled = Boolean(busy);
+    if (shilohChatSend) shilohChatSend.disabled = Boolean(busy);
+    for (const button of shilohPromptButtons) button.disabled = Boolean(busy);
+  }
+
+  async function sendShilohMessage(value) {
+    if (shilohMessageInFlight || appFrame?.dataset.clientAuthenticated !== 'true') return;
+    const message = String(value || '').trim();
+    if (!message || message.length > 1000) return;
+
+    appendShilohMessage('user', message);
+    if (shilohChatInput) shilohChatInput.value = '';
+    setShilohBusy(true);
+    const pending = appendShilohMessage('shiloh', 'Thinking about that…', { pending: true });
+
+    try {
+      const response = await postJson('/my-shiloh/api/shiloh/message', { message });
+      const data = await response.json().catch(() => ({}));
+      pending?.remove();
+      if (!response.ok || !data.reply) {
+        throw new Error(data.error || 'Shiloh could not answer that just now.');
+      }
+      appendShilohMessage('shiloh', data.reply);
+    } catch (error) {
+      pending?.remove();
+      appendShilohMessage('shiloh', error.message || 'Shiloh could not answer that just now. Please try again.');
+    } finally {
+      setShilohBusy(false);
+      shilohChatInput?.focus();
+    }
+  }
+
+  shilohChatForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    sendShilohMessage(shilohChatInput?.value || '');
+  });
+
+  shilohPromptButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const prompt = button.querySelector('strong')?.textContent || '';
+      sendShilohMessage(prompt);
+    });
+  });
 
   async function beginClientAuth() {
     if (authActionInFlight) return;
