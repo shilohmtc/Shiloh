@@ -23,6 +23,7 @@
   let deferredInstallPrompt = null;
   let authActionInFlight = false;
   let shilohMessageInFlight = false;
+  let whatsappHandoffStarted = false;
 
   function completionCodeFromHash() {
     const match = String(window.location.hash || '').match(/^#verify=(\d{6})$/);
@@ -172,7 +173,7 @@
           }
         } else {
           if (heading) heading.textContent = 'Book something new';
-          if (copy) copy.textContent = 'There is no upcoming appointment linked to your secure client profile right now.';
+          if (copy) copy.textContent = 'You don’t have an upcoming appointment at the moment.';
           if (action) {
             action.textContent = 'Start booking';
             action.href = '/book';
@@ -236,6 +237,14 @@
     for (const form of authCodeForms) {
       form.querySelectorAll('button,input').forEach((control) => { control.disabled = Boolean(disabled); });
     }
+  }
+
+  function welcomeBackFromWhatsApp() {
+    if (appFrame?.dataset.clientAuthenticated === 'true' || !whatsappHandoffStarted) return;
+    authActionInFlight = false;
+    setAuthControlsDisabled(false);
+    for (const form of authCodeForms) form.classList.add('is-waiting');
+    setAuthStatus('Welcome back. Enter the 6-digit code Shiloh sent you in WhatsApp.', 'waiting');
   }
 
   async function postJson(url, body = {}, extraHeaders = {}) {
@@ -362,13 +371,13 @@
     const policy = document.createElement('p');
     policy.className = 'client-action-card__policy';
     policy.textContent = String(action.type === 'consultation_form'
-      ? 'Your secure session will resolve the authorized form when you open it.'
+      ? 'Open your form to continue safely.'
       : action.type === 'reschedule_appointment' ? action.note || '' : action.policy || '');
 
     const payment = document.createElement('p');
     payment.className = 'client-action-card__note';
     payment.textContent = String(action.type === 'consultation_form'
-      ? 'The form is opened only for your signed-in My Shiloh profile.'
+      ? 'Only you can open this form after signing in.'
       : action.type === 'reschedule_appointment'
       ? 'Submitting this request does not move the appointment immediately. The assigned practitioner still needs to approve it.'
       : action.paymentNote || '');
@@ -482,6 +491,7 @@
       const response = await postJson('/my-shiloh/auth/start');
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.whatsappUrl) throw new Error(data.error || 'Secure sign-in is unavailable.');
+      whatsappHandoffStarted = true;
       window.location.href = data.whatsappUrl;
     } catch (error) {
       setAuthStatus(error.message || 'Secure sign-in is unavailable. Please try again.', 'error');
@@ -504,6 +514,7 @@
       const response = await postJson('/my-shiloh/auth/complete', { code: cleanCode });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data.authenticated !== true) throw new Error(data.error || 'That one-time code could not be verified.');
+      whatsappHandoffStarted = false;
       setAuthStatus('Verified. Opening your My Shiloh…', 'success');
       window.location.replace('/my-shiloh/');
     } catch (error) {
@@ -541,6 +552,12 @@
     const input = form.querySelector('[data-client-auth-code]');
     completeClientAuth(input?.value || '');
   }));
+
+  window.addEventListener('pageshow', welcomeBackFromWhatsApp);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') welcomeBackFromWhatsApp();
+  });
+  welcomeBackFromWhatsApp();
 
   if (completionCode && appFrame?.dataset.clientAuthenticated !== 'true') {
     for (const input of document.querySelectorAll('[data-client-auth-code]')) {

@@ -121,6 +121,10 @@ test('PWA service worker keeps all authentication and future personal APIs netwo
 test('guest and authenticated My Shiloh renders are clearly distinct without exposing phone or health data', () => {
   const guest = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue: [] });
   assert.match(guest, /Continue with WhatsApp/);
+  assert.match(guest, /Back from WhatsApp\?/);
+  assert.match(guest, /Enter your 6-digit code/);
+  assert.match(guest, /Open My Shiloh/);
+  assert.doesNotMatch(guest, /canonical CRM|client context|staff\/Admin authority|PWA cache|booking authority|Revocable/i);
   assert.match(guest, /data-client-authenticated="false"/);
   const signed = renderMyShilohPage({
     whatsappNumber: '27830000000',
@@ -130,7 +134,19 @@ test('guest and authenticated My Shiloh renders are clearly distinct without exp
   });
   assert.match(signed, /Good evening, Christel/);
   assert.match(signed, /data-client-authenticated="true"/);
-  assert.match(signed, /Signed in securely via WhatsApp/);
+  assert.match(signed, /Your personal Shiloh space is open and ready/);
+  assert.doesNotMatch(signed, /canonical CRM|client context|staff\/Admin authority|PWA cache|booking authority|Revocable/i);
   assert.match(signed, /Sign out/);
   assert.doesNotMatch(signed, /normalized_mobile|date_of_birth|gender|health answer/i);
+});
+
+test('returning from WhatsApp makes the manual code fallback prominent and usable', () => {
+  const client = read('public/my-shiloh/assets/app.js');
+  const styles = read('public/my-shiloh/assets/app.css');
+  assert.match(client, /whatsappHandoffStarted = true;[\s\S]*window\.location\.href = data\.whatsappUrl/);
+  assert.match(client, /visibilitychange/);
+  assert.match(client, /authActionInFlight = false;[\s\S]*setAuthControlsDisabled\(false\);[\s\S]*classList\.add\('is-waiting'\)/);
+  assert.match(client, /Welcome back\. Enter the 6-digit code Shiloh sent you in WhatsApp\./);
+  assert.doesNotMatch(client, /localStorage|sessionStorage/);
+  assert.match(styles, /\.auth-code-form\.is-waiting/);
 });

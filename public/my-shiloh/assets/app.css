@@ -226,8 +226,12 @@ h3{font-size:20px;line-height:1.12}
 .client-action-card__policy{margin:0 0 8px;font-size:12px;color:#6c433e}
 .client-action-card__note{margin:0;color:var(--muted);font-size:10px}
 .client-action-card__actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:15px}
-.auth-code-form{margin-top:14px;padding:13px;border-radius:16px;background:rgba(255,255,255,.62);border:1px solid var(--line)}
-.auth-code-form label{display:block;margin-bottom:8px;color:var(--muted);font-size:11px;font-weight:800}
+.auth-code-form{margin-top:18px;padding:16px;border-radius:18px;background:rgba(255,255,255,.78);border:1px solid rgba(161,122,75,.24);box-shadow:0 8px 24px rgba(48,61,52,.06);transition:border-color .2s ease,box-shadow .2s ease,transform .2s ease}
+.auth-code-form.is-waiting{border-color:var(--gold);box-shadow:0 12px 30px rgba(161,122,75,.16);transform:translateY(-2px)}
+.auth-code-heading{margin-bottom:12px}
+.auth-code-heading span{display:block;margin-bottom:3px;color:var(--gold);font-size:9px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
+.auth-code-heading strong{display:block;font-family:Georgia,serif;font-size:20px;font-weight:500}
+.auth-code-heading p{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:1.45}
 .auth-code-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
 .auth-code-row input{min-width:0;min-height:46px;border:1px solid rgba(70,87,70,.2);border-radius:13px;padding:10px 13px;background:#fff;color:var(--ink);font:inherit;font-size:17px;font-weight:800;letter-spacing:.08em}
 .auth-code-row .button{min-height:46px}

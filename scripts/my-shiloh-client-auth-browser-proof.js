@@ -225,7 +225,16 @@ async function runViewport(browser, name, viewport) {
   await page.getByRole('button', { name: 'Continue with WhatsApp' }).click();
   await page.waitForURL('**/fake-whatsapp');
   verified = true;
-  await page.goto(`${baseUrl}/my-shiloh/#verify=${COMPLETION_CODE}`, { waitUntil: 'networkidle' });
+  if (name === 'phone') {
+    await page.goBack({ waitUntil: 'networkidle' });
+    const codeInput = page.locator('[data-view="home"] [data-client-auth-code]');
+    await codeInput.waitFor({ state: 'visible' });
+    if (await codeInput.isDisabled()) throw new Error('manual WhatsApp code remained disabled after returning to My Shiloh');
+    await codeInput.fill(COMPLETION_CODE.replace(/^(\d{3})(\d{3})$/, '$1 $2'));
+    await page.locator('[data-view="home"] [data-client-auth-code-form]').getByRole('button', { name: 'Open My Shiloh' }).click();
+  } else {
+    await page.goto(`${baseUrl}/my-shiloh/#verify=${COMPLETION_CODE}`, { waitUntil: 'networkidle' });
+  }
   await page.waitForFunction(() => document.body.textContent.includes('Christel'));
   await page.waitForLoadState('networkidle');
   const heading = await page.locator('#home-title').textContent();

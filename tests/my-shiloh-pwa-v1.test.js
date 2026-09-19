@@ -85,8 +85,9 @@ test('service worker caches the shell only and leaves authentication and persona
   assert.match(worker, /offline\.html/);
 });
 
-test('offline page explicitly avoids implying that private client data is cached', () => {
+test('offline page explains privacy without technical wording', () => {
   const html = read('public/my-shiloh/offline.html');
-  assert.match(html, /private information is never stored in the offline shell/i);
+  assert.match(html, /personal details are not shown while you’re offline/i);
+  assert.doesNotMatch(html, /cache|offline shell|session|client data/i);
   assert.match(html, /Reconnect/);
 });
