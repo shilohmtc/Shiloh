@@ -41,6 +41,24 @@ function paymentState({ amountDue, paid, refunded }) {
   };
 }
 
+function appointmentFromRow(row) {
+  if (!row) return null;
+  return {
+    id: Number(row.id),
+    startsAt: new Date(row.starts_at).toISOString(),
+    endsAt: new Date(row.ends_at).toISOString(),
+    status: String(row.status || ''),
+    totalPrice: decimal(row.total_price),
+    currency: String(row.currency || 'ZAR'),
+    services: Array.isArray(row.services)
+      ? row.services.map(item => String(item?.name || '')).filter(Boolean)
+      : [],
+    practitioners: Array.isArray(row.practitioners)
+      ? row.practitioners.map(item => String(item?.name || '')).filter(Boolean)
+      : [],
+  };
+}
+
 function createMyShilohClientContextService({
   db = pool,
   now = () => new Date(),
@@ -93,22 +111,42 @@ function createMyShilohClientContextService({
         LIMIT 1`,
       [id, [...UPCOMING_APPOINTMENT_STATUSES], now()],
     );
-    const row = result.rows[0];
-    if (!row) return null;
-    return {
-      id: Number(row.id),
-      startsAt: new Date(row.starts_at).toISOString(),
-      endsAt: new Date(row.ends_at).toISOString(),
-      status: String(row.status || ''),
-      totalPrice: decimal(row.total_price),
-      currency: String(row.currency || 'ZAR'),
-      services: Array.isArray(row.services)
-        ? row.services.map(item => String(item?.name || '')).filter(Boolean)
-        : [],
-      practitioners: Array.isArray(row.practitioners)
-        ? row.practitioners.map(item => String(item?.name || '')).filter(Boolean)
-        : [],
-    };
+    return appointmentFromRow(result.rows[0]);
+  }
+
+  async function loadUpcomingAppointments(crmV2ClientId, { limit = 5 } = {}) {
+    const id = positiveId(crmV2ClientId);
+    const boundedLimit = Math.min(Math.max(Number(limit) || 5, 1), 10);
+    if (!id) return [];
+    const result = await db.query(
+      `/* myShilohClientContext:upcoming-appointments */
+       SELECT a.id,a.starts_at,a.ends_at,a.status,a.total_price,a.currency,
+              COALESCE((
+                SELECT jsonb_agg(jsonb_build_object(
+                  'name', aps.service_name_snapshot,
+                  'position', aps.position
+                ) ORDER BY aps.position,aps.id)
+                  FROM appointment_services aps
+                 WHERE aps.appointment_id=a.id
+              ),'[]'::jsonb) AS services,
+              COALESCE((
+                SELECT jsonb_agg(jsonb_build_object(
+                  'name', ast.staff_name_snapshot,
+                  'position', ast.position
+                ) ORDER BY ast.position,ast.id)
+                  FROM appointment_staff ast
+                 WHERE ast.appointment_id=a.id
+              ),'[]'::jsonb) AS practitioners
+         FROM appointments a
+        WHERE a.crm_v2_client_id=$1
+          AND a.client_id IS NULL
+          AND a.status = ANY($2::text[])
+          AND a.ends_at>$3::timestamptz
+        ORDER BY a.starts_at,a.id
+        LIMIT $4`,
+      [id, [...UPCOMING_APPOINTMENT_STATUSES], now(), boundedLimit],
+    );
+    return result.rows.map(appointmentFromRow);
   }
 
   async function loadForms(crmV2ClientId, appointmentId) {
@@ -212,6 +250,7 @@ function createMyShilohClientContextService({
   return {
     loadClient,
     loadNextAppointment,
+    loadUpcomingAppointments,
     loadForms,
     loadPayment,
     getContext,
@@ -226,6 +265,7 @@ module.exports = {
   positiveId,
   decimal,
   paymentState,
+  appointmentFromRow,
   createMyShilohClientContextService,
   ...service,
 };

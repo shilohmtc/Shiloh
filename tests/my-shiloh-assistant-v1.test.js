@@ -19,6 +19,19 @@ const {
 const root = path.join(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
+function fakeReadTools() {
+  return {
+    definitions: [{
+      type: 'function',
+      name: 'get_my_next_appointment',
+      description: 'test tool',
+      strict: true,
+      parameters: { type: 'object', properties: {}, required: [], additionalProperties: false },
+    }],
+    async execute() { return { ok: true }; },
+  };
+}
+
 function sampleContext() {
   return {
     version: 'my_shiloh_client_context_v1',
@@ -73,7 +86,9 @@ test('My Shiloh instructions keep AI read-only and canonical client context abov
   assert.match(instructions, /authenticated My Shiloh client assistant/);
   assert.match(instructions, /AUTHENTICATED CLIENT CONTEXT/);
   assert.match(instructions, /server-derived and authoritative/);
-  assert.match(instructions, /No such mutation tools are available in this phase/);
+  assert.match(instructions, /No mutation tools are available in this phase/);
+  assert.match(instructions, /use the matching read tool/i);
+  assert.match(instructions, /availability check, not a reservation or booking/i);
   assert.match(instructions, /Never infer health information/);
   assert.match(instructions, /Never claim that you booked, rescheduled, cancelled, paid, refunded/);
 });
@@ -100,6 +115,7 @@ test('authenticated assistant reuses Shiloh AI with server context and a separat
         return sampleContext();
       },
     },
+    readTools: fakeReadTools(),
     clearConversationSession: async (key) => { cleared.push(key); },
   });
 
@@ -117,6 +133,9 @@ test('authenticated assistant reuses Shiloh AI with server context and a separat
   assert.equal(calls[0][2].surface, 'my_shiloh');
   assert.equal(calls[0][2].profileOverride.name, 'Christel');
   assert.equal(calls[0][2].clientContext.client.id, 912);
+  assert.equal(calls[0][2].tools[0].name, 'get_my_next_appointment');
+  assert.equal(typeof calls[0][2].toolExecutor, 'function');
+  assert.equal(calls[0][2].maxToolRounds, 4);
 
   await service.clearConversation({ sessionId: 55 });
   assert.deepEqual(cleared, ['myshiloh:55']);
@@ -128,6 +147,7 @@ test('assistant rate limiter is per secure session and fails closed after the bo
   const service = createMyShilohAssistantService({
     ai: async () => 'ok',
     contextService: { async getContext() { return sampleContext(); } },
+    readTools: fakeReadTools(),
     limiter,
     clearConversationSession: async () => true,
   });
