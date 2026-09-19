@@ -234,6 +234,10 @@
 
   function setAuthControlsDisabled(disabled) {
     for (const button of [...authStartButtons, ...authLogoutButtons]) button.disabled = Boolean(disabled);
+    setAuthCodeControlsDisabled(disabled);
+  }
+
+  function setAuthCodeControlsDisabled(disabled) {
     for (const form of authCodeForms) {
       form.querySelectorAll('button,input').forEach((control) => { control.disabled = Boolean(disabled); });
     }
@@ -492,6 +496,11 @@
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.whatsappUrl) throw new Error(data.error || 'Secure sign-in is unavailable.');
       whatsappHandoffStarted = true;
+      authActionInFlight = false;
+      setAuthCodeControlsDisabled(false);
+      for (const form of authCodeForms) form.classList.add('is-waiting');
+      setAuthStatus('WhatsApp is opening. Return here and enter the 6-digit code from Shiloh.', 'waiting');
+      window.setTimeout(welcomeBackFromWhatsApp, 1500);
       window.location.href = data.whatsappUrl;
     } catch (error) {
       setAuthStatus(error.message || 'Secure sign-in is unavailable. Please try again.', 'error');
