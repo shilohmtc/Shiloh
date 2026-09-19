@@ -73,6 +73,63 @@ function logUsage(response, workload) {
   );
 }
 
+async function runReadToolLoop({
+  responsesClient,
+  response,
+  instructions,
+  tools,
+  toolExecutor,
+  workload = 'conversation',
+  maxToolRounds = 4,
+} = {}) {
+  const enabledTools = Array.isArray(tools) && typeof toolExecutor === 'function' ? tools : [];
+  let current = response;
+  let rounds = 0;
+
+  while (enabledTools.length && functionCalls(current).length) {
+    if (rounds >= Math.max(1, Number(maxToolRounds) || 4)) {
+      logger.warn({ responseId: current?.id, rounds }, "OpenAI tool round limit reached");
+      return { response: current, limitReached: true, rounds };
+    }
+
+    const outputs = [];
+    for (const call of functionCalls(current)) {
+      const args = parseToolArguments(call.arguments);
+      let result;
+      if (!args) {
+        result = { ok: false, error: 'invalid_tool_arguments' };
+      } else {
+        try {
+          result = await toolExecutor(call.name, args);
+        } catch (toolError) {
+          logger.warn({ err: toolError, toolName: call.name }, "Shiloh read tool failed");
+          result = { ok: false, error: 'tool_unavailable' };
+        }
+      }
+      outputs.push({
+        type: 'function_call_output',
+        call_id: call.call_id,
+        output: JSON.stringify(result),
+      });
+    }
+
+    current = await responsesClient.responses.create({
+      model: getModelForWorkload(workload),
+      previous_response_id: current.id,
+      input: outputs,
+      instructions,
+      tools: enabledTools,
+      parallel_tool_calls: false,
+      reasoning: { effort: REASONING_EFFORT },
+      store: true,
+    });
+    logUsage(current, workload);
+    rounds += 1;
+  }
+
+  return { response: current, limitReached: false, rounds };
+}
+
 async function generateReply(phone, message, {
   conversationKey = phone,
   profileOverride,
@@ -139,46 +196,18 @@ async function generateReply(phone, message, {
     let response = await client.responses.create(request);
     logUsage(response, workload);
 
-    let rounds = 0;
-    while (enabledTools.length && functionCalls(response).length) {
-      if (rounds >= Math.max(1, Number(maxToolRounds) || 4)) {
-        logger.warn({ responseId: response.id, rounds }, "OpenAI tool round limit reached");
-        return "I couldn't finish checking that safely just now. Please try again.";
-      }
-
-      const outputs = [];
-      for (const call of functionCalls(response)) {
-        const args = parseToolArguments(call.arguments);
-        let result;
-        if (!args) {
-          result = { ok: false, error: 'invalid_tool_arguments' };
-        } else {
-          try {
-            result = await toolExecutor(call.name, args);
-          } catch (toolError) {
-            logger.warn({ err: toolError, toolName: call.name }, "Shiloh read tool failed");
-            result = { ok: false, error: 'tool_unavailable' };
-          }
-        }
-        outputs.push({
-          type: 'function_call_output',
-          call_id: call.call_id,
-          output: JSON.stringify(result),
-        });
-      }
-
-      response = await client.responses.create({
-        model: getModelForWorkload(workload),
-        previous_response_id: response.id,
-        input: outputs,
-        instructions,
-        tools: enabledTools,
-        parallel_tool_calls: false,
-        reasoning: { effort: REASONING_EFFORT },
-        store: true,
-      });
-      logUsage(response, workload);
-      rounds += 1;
+    const toolRun = await runReadToolLoop({
+      responsesClient: client,
+      response,
+      instructions,
+      tools: enabledTools,
+      toolExecutor,
+      workload,
+      maxToolRounds,
+    });
+    response = toolRun.response;
+    if (toolRun.limitReached) {
+      return "I couldn't finish checking that safely just now. Please try again.";
     }
 
     if (response.id) {
@@ -214,4 +243,5 @@ module.exports = {
   deterministicConversationReply,
   functionCalls,
   parseToolArguments,
+  runReadToolLoop,
 };
