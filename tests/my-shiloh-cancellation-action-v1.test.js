@@ -293,8 +293,8 @@ test('late cancellation policy is shown without asserting a fee was charged', ()
 });
 
 test('prepare cancellation tool is strict, argument-free and cannot confirm the action', async () => {
-  assert.equal(ACTION_TOOL_DEFINITIONS.length, 1);
-  const definition = ACTION_TOOL_DEFINITIONS[0];
+  assert.equal(ACTION_TOOL_DEFINITIONS.length, 2);
+  const definition = ACTION_TOOL_DEFINITIONS.find(tool => tool.name === ACTION_TOOL_NAMES.PREPARE_CANCELLATION);
   assert.equal(definition.name, ACTION_TOOL_NAMES.PREPARE_CANCELLATION);
   assert.equal(definition.strict, true);
   assert.deepEqual(definition.parameters.properties, {});
@@ -304,6 +304,7 @@ test('prepare cancellation tool is strict, argument-free and cannot confirm the 
   const token = 'A'.repeat(43);
   const tools = createMyShilohActionTools({
     actionService: {
+      async prepareReschedule() { return { ok: false }; },
       async prepareCancellation() {
         return {
           ok: true,
