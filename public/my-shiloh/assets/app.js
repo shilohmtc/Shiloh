@@ -274,19 +274,33 @@
         'x-shiloh-csrf-token': csrfToken,
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || data.status !== 'cancelled') {
-        throw new Error(data.error || 'That cancellation could not be confirmed.');
+      if (!response.ok) {
+        throw new Error(data.error || 'That confirmation could not be completed safely.');
       }
       card?.remove();
       const appointment = data.appointment || {};
-      const details = [appointment.service, appointment.date, appointment.time].filter(Boolean).join(' · ');
-      appendShilohMessage('shiloh', details
-        ? `Your appointment has been cancelled. ${details}`
-        : 'Your appointment has been cancelled.');
-      await loadClientExperience();
+
+      if (action.type === 'cancel_appointment' && data.status === 'cancelled') {
+        const details = [appointment.service, appointment.date, appointment.time].filter(Boolean).join(' · ');
+        appendShilohMessage('shiloh', details
+          ? `Your appointment has been cancelled. ${details}`
+          : 'Your appointment has been cancelled.');
+        await loadClientExperience();
+        return;
+      }
+
+      if (action.type === 'request_reschedule' && ['pending_approval', 'already_pending'].includes(data.status)) {
+        appendShilohMessage(
+          'shiloh',
+          String(data.message || 'Your requested new time is awaiting practitioner approval. Your current appointment remains unchanged.'),
+        );
+        return;
+      }
+
+      throw new Error('That confirmation returned an unexpected result. Your current appointment has not been intentionally changed.');
     } catch (error) {
       card?.remove();
-      appendShilohMessage('shiloh', error.message || 'That cancellation could not be confirmed. Nothing else was changed.');
+      appendShilohMessage('shiloh', error.message || 'That confirmation could not be completed. Nothing else was changed.');
     }
   }
 
@@ -311,38 +325,68 @@
   }
 
   function renderClientAction(action) {
-    if (!shilohMessages || action?.type !== 'cancel_appointment') return null;
+    if (!shilohMessages || !['cancel_appointment', 'request_reschedule'].includes(action?.type)) return null;
     if (!/^[A-Za-z0-9_-]{43}$/.test(String(action.token || ''))) return null;
 
     shilohMessages.querySelector('[data-client-action-card]')?.remove();
 
+    const cancelling = action.type === 'cancel_appointment';
     const card = document.createElement('section');
-    card.className = 'client-action-card';
+    card.className = `client-action-card${cancelling ? ' client-action-card--danger' : ''}`;
     card.dataset.clientActionCard = '';
-    card.setAttribute('aria-label', 'Confirm appointment cancellation');
+    card.setAttribute(
+      'aria-label',
+      cancelling ? 'Confirm appointment cancellation' : 'Confirm reschedule request',
+    );
 
     const eyebrow = document.createElement('span');
     eyebrow.className = 'client-action-card__eyebrow';
     eyebrow.textContent = 'Confirmation required';
 
     const heading = document.createElement('h3');
-    heading.textContent = String(action.title || 'Cancel this appointment?');
+    heading.textContent = String(action.title || (cancelling ? 'Cancel this appointment?' : 'Request this new time?'));
 
     const detail = document.createElement('p');
     detail.className = 'client-action-card__detail';
-    detail.textContent = [
-      action.service,
-      action.practitioner,
-      [action.date, action.time].filter(Boolean).join(' · '),
-    ].filter(Boolean).join(' · ');
+    detail.textContent = [action.service, action.practitioner].filter(Boolean).join(' · ');
 
-    const policy = document.createElement('p');
-    policy.className = 'client-action-card__policy';
-    policy.textContent = String(action.policy || '');
+    const context = document.createElement('div');
+    context.className = 'client-action-card__context';
 
-    const payment = document.createElement('p');
-    payment.className = 'client-action-card__note';
-    payment.textContent = String(action.paymentNote || '');
+    if (cancelling) {
+      const timing = document.createElement('p');
+      timing.textContent = [action.date, action.time].filter(Boolean).join(' · ');
+      context.appendChild(timing);
+
+      const policy = document.createElement('p');
+      policy.className = 'client-action-card__policy';
+      policy.textContent = String(action.policy || '');
+      context.appendChild(policy);
+
+      const payment = document.createElement('p');
+      payment.className = 'client-action-card__note';
+      payment.textContent = String(action.paymentNote || '');
+      context.appendChild(payment);
+    } else {
+      const current = document.createElement('p');
+      const currentLabel = document.createElement('strong');
+      currentLabel.textContent = 'Current: ';
+      current.append(currentLabel, document.createTextNode(
+        [action.currentDate, action.currentTime].filter(Boolean).join(' · '),
+      ));
+
+      const requested = document.createElement('p');
+      const requestedLabel = document.createElement('strong');
+      requestedLabel.textContent = 'Requested: ';
+      requested.append(requestedLabel, document.createTextNode(
+        [action.requestedDate, action.requestedTime].filter(Boolean).join(' · '),
+      ));
+
+      const approval = document.createElement('p');
+      approval.className = 'client-action-card__note';
+      approval.textContent = String(action.approvalNote || 'Your current appointment remains confirmed until the practitioner approves the requested change.');
+      context.append(current, requested, approval);
+    }
 
     const actions = document.createElement('div');
     actions.className = 'client-action-card__actions';
@@ -350,18 +394,18 @@
     const keep = document.createElement('button');
     keep.type = 'button';
     keep.className = 'button button--soft';
-    keep.textContent = String(action.declineLabel || 'Keep appointment');
+    keep.textContent = String(action.declineLabel || (cancelling ? 'Keep appointment' : 'Keep current time'));
 
     const confirm = document.createElement('button');
     confirm.type = 'button';
-    confirm.className = 'button button--danger';
-    confirm.textContent = String(action.confirmLabel || 'Cancel appointment');
+    confirm.className = cancelling ? 'button button--danger' : 'button button--primary';
+    confirm.textContent = String(action.confirmLabel || (cancelling ? 'Cancel appointment' : 'Request change'));
 
     keep.addEventListener('click', () => declineClientAction(action, card));
     confirm.addEventListener('click', () => confirmClientAction(action, card));
 
     actions.append(keep, confirm);
-    card.append(eyebrow, heading, detail, policy, payment, actions);
+    card.append(eyebrow, heading, detail, context, actions);
     shilohMessages.appendChild(card);
     card.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
     return card;
