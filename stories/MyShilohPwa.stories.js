@@ -34,6 +34,20 @@ export const GuestHome = {
   render: () => productionSurface(),
 };
 
+export const WhatsAppCodeReturn = {
+  render: () => {
+    const surface = productionSurface();
+    const form = surface.querySelector('[data-view="home"] [data-client-auth-code-form]');
+    const status = surface.querySelector('[data-view="home"] [data-auth-status]');
+    form?.classList.add('is-waiting');
+    if (status) {
+      status.dataset.state = 'waiting';
+      status.textContent = 'Welcome back. Enter the 6-digit code Shiloh sent you in WhatsApp.';
+    }
+    return surface;
+  },
+};
+
 export const AuthenticatedHome = {
   render: () => productionSurface({
     id: '912',
