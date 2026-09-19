@@ -273,7 +273,7 @@ async function runViewport(browser, name, viewport) {
   await page.locator('[data-shiloh-chat-form]').getByRole('button', { name: 'Send' }).click();
   await page.waitForFunction(() => document.body.textContent.includes('Cancel this appointment?'));
   await page.getByRole('button', { name: 'Keep appointment' }).click();
-  await page.waitForFunction(() => document.body.textContent.includes('appointment is unchanged'));
+  await page.locator('[data-client-action-card]').waitFor({ state: 'detached' });
   if (!declinedActions.some((call) => call.sessionId === 55 && call.crmV2ClientId === 912 && call.actionToken === ACTION_TOKEN)) {
     throw new Error('cancellation decline was not bound to the authenticated session');
   }
