@@ -1,6 +1,6 @@
 # My Shiloh — AI Backbone Roadmap
 
-Date: 18 September 2026  
+Date: 19 September 2026  
 Status: ACTIVE product and engineering direction
 
 ## Product doctrine
@@ -146,64 +146,28 @@ WhatsApp and My Shiloh should feel like the same Shiloh relationship, even when 
 
 ### Phase 3 — Read Tools — VERIFIED LIVE
 
-Give Shiloh explicit, typed read tools over canonical services. Initial controlled set:
+Shiloh has five explicit typed read tools over canonical services:
 
 - `get_my_next_appointment`
 - `get_my_upcoming_bookings`
 - `get_my_form_status`
 - `get_my_payment_status`
 - `find_available_slots`
-- `get_my_package_status`
-- `get_my_vouchers`
 
-Every tool automatically receives the authenticated client identity from server authority.
+Every tool receives authenticated client identity from server authority. Package-status and voucher tools are planned extensions, not current live capability.
 
-### Phase 4 — Confirmed Client Actions — ACTIVE
+### Phase 4 — Confirmed Client Actions — VERIFIED LIVE
 
-Add bounded action tools only after the read model is stable.
+Three bounded actions are live:
 
-First controlled unit: **next-appointment cancellation** — VERIFIED LIVE.
+- **Cancel next appointment (#1040):** AI prepares a one-time proposal; the authenticated CSRF-protected UI shows the exact appointment and requires explicit confirmation; canonical cancellation authority revalidates and executes. Linked/group bookings fail closed to clinic assistance, and refunds remain separate.
+- **Request an exact reschedule slot (#1041):** Shiloh uses canonical availability; the client chooses and explicitly confirms an exact returned slot; the request enters the existing practitioner-approval workflow. The current appointment remains unchanged until approval.
+- **Complete one pending consultation form (#1042):** when exactly one valid pending form exists, Shiloh may prepare **Complete form**. The server resolves ownership and assignment from the session, revalidates the existing form authority, and never exposes internal assignment IDs or access tokens to AI. Ambiguous, expired, completed or unavailable states fail closed.
 
-Current controlled unit: **confirmed reschedule request**.
+Consequential mutations continue to require explicit authenticated confirmation and canonical domain guards. AI may propose; domain authority decides and executes.
 
-Next bounded unit: **authenticated consultation-form action**.
+### Phase 5 — WhatsApp ↔ My Shiloh Deep Linking and Adoption — NEXT
 
-- Shiloh may prepare a fixed **Complete form** action when exactly one pending form is present for the authenticated client.
-- The browser supplies no client, appointment, form, practitioner or service identifier; My Shiloh resolves the target from the validated session.
-- Opening revalidates session ownership, assignment identity, active template, appointment status, expiry and completion through the existing consultation-form authority.
-- Multiple pending, expired, completed, unavailable or complex form states fail closed to a safe clinic-assistance message.
-- The AI receives neither the assignment ID nor the issued form access token.
-
-- Shiloh must first use canonical availability and the client must choose an exact returned slot.
-- AI may prepare that exact slot only; it cannot move the appointment.
-- The authenticated UI shows current vs requested date/time and requires explicit CSRF-protected confirmation.
-- Confirmation consumes the one-time proposal and submits the exact reviewed slot into the existing practitioner-approval workflow.
-- The current appointment remains confirmed and unchanged until the assigned practitioner approves.
-- Existing practitioner approval revalidates client identity, appointment state, clinic hours, staff schedule, CRM conflicts, reschedule holds and booking-proposal holds before any move.
-- My Shiloh must never display “rescheduled” merely because the client submitted the request.
-
-- AI may prepare a cancellation proposal only.
-- The proposal is session/client/appointment/revision bound, random-token protected, one-time and short-lived.
-- The model never receives the confirmation token.
-- The authenticated UI shows the exact appointment, cancellation policy and payment/refund separation.
-- Only an explicit CSRF-protected client button can confirm.
-- Confirmation rechecks exact CRM V2 ownership, appointment revision, future-start boundary, cancellable status, linked/group booking exclusion and assigned-practitioner locks before the shared canonical cancellation owner executes.
-- Linked/group bookings fail closed to clinic assistance.
-- WhatsApp cancellation delegates to the same canonical cancellation mutation owner after its existing phone identity authority check.
-
-Examples:
-
-- prepare reschedule;
-- confirm reschedule;
-- prepare cancellation;
-- confirm cancellation;
-- open/issue an authenticated form access path;
-- open an existing payment request;
-- prepare a new payment request under approved payment rules.
-
-Consequential mutations require explicit confirmation UI and canonical domain guards. AI may propose; domain authority decides and executes.
-
-### Phase 5 — WhatsApp ↔ My Shiloh Deep Linking and Adoption
 
 Do not force app installation.
 
