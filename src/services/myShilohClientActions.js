@@ -59,6 +59,25 @@ function cancellationPolicy(startsAt, now = new Date()) {
     : "Shiloh's 24-hour cancellation policy applies.";
 }
 
+function johannesburgDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Johannesburg',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const map = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return {
+    date: `${map.year}-${map.month}-${map.day}`,
+    time: `${map.hour}:${map.minute}`,
+  };
+}
+
 function proposalOutcome(status) {
   return {
     cancelled: 'confirmed',
@@ -160,25 +179,6 @@ function createMyShilohClientActionService({
       [clientId, now()],
     );
     return result.rows[0] || null;
-  }
-
-  function johannesburgDateTime(value) {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return null;
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Africa/Johannesburg',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    }).formatToParts(date);
-    const map = Object.fromEntries(parts.map(part => [part.type, part.value]));
-    return {
-      date: `${map.year}-${map.month}-${map.day}`,
-      time: `${map.hour}:${map.minute}`,
-    };
   }
 
   async function exactAvailableSlot(appointment, proposedStartsAt) {
