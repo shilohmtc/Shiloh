@@ -29,6 +29,8 @@ async function cancelOwnedAppointmentInTransaction(db, {
   expectedRevision = null,
   requireFutureStart = false,
   allowedStatuses = null,
+  lockAssignedStaff = false,
+  disallowLinkedGroup = false,
   now = new Date(),
   changedBy = 'client',
   reason = 'Client cancellation confirmed',
@@ -57,6 +59,30 @@ async function cancelOwnedAppointmentInTransaction(db, {
   if (!sameRevision(appointment.updated_at, expectedRevision)) return { status: 'appointment_changed' };
   if (requireFutureStart && new Date(appointment.starts_at).getTime() <= new Date(now).getTime()) {
     return { status: 'appointment_started' };
+  }
+  if (disallowLinkedGroup) {
+    const linked = await db.query(
+      `SELECT group_id
+         FROM appointment_group_members
+        WHERE appointment_id=$1
+        LIMIT 1`,
+      [id],
+    );
+    if (linked.rowCount) return { status: 'complex_booking' };
+  }
+  if (lockAssignedStaff) {
+    const assigned = await db.query(
+      `SELECT DISTINCT staff_id
+         FROM appointment_staff
+        WHERE appointment_id=$1
+          AND staff_id IS NOT NULL
+        ORDER BY staff_id`,
+      [id],
+    );
+    for (const row of assigned.rows) {
+      const staffId = positiveId(row.staff_id);
+      if (staffId) await db.query('SELECT pg_advisory_xact_lock($1::bigint)', [staffId]);
+    }
   }
 
   await db.query(
