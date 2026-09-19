@@ -483,7 +483,7 @@ async function main() {
         if (openDrawer) {
           assert.equal(metrics.drawerOpen, true);
           assert.deepEqual(metrics.primary, ['Dashboard', 'Calendar', 'Clients', 'Messages']);
-          assert.deepEqual(metrics.secondary, ['Staff', 'Services', 'Reports', 'Clinic hours']);
+          assert.deepEqual(metrics.secondary, ['Staff', 'Services', 'Reports', 'Clinic hours', 'Gift vouchers']);
           assert.ok(metrics.navWidth >= 170 && metrics.navWidth <= 190, `${name} drawer width is not compact: ${metrics.navWidth}px`);
           assert.equal(metrics.moreVisible, false);
           assert.equal(metrics.moreOpen, false);
@@ -498,7 +498,7 @@ async function main() {
           assert.deepEqual(metrics.secondary, []);
         }
       } else {
-        assert.deepEqual([...metrics.primary, ...metrics.secondary], ['Dashboard', 'Calendar', 'Clients', 'Messages', 'Staff', 'Services', 'Reports', 'Clinic hours']);
+        assert.deepEqual([...metrics.primary, ...metrics.secondary], ['Dashboard', 'Calendar', 'Clients', 'Messages', 'Staff', 'Services', 'Reports', 'Clinic hours', 'Gift vouchers']);
         assert.equal(metrics.moreVisible, false);
         assert.equal(metrics.accountFooterVisible, true, `${name} does not show the Desktop account footer`);
       }
