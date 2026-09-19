@@ -46,6 +46,16 @@ function createMyShilohActionTools({
           clientAction: null,
         };
       }
+      if (result.code === 'CLIENT_ACTION_COMPLEX_BOOKING') {
+        return {
+          modelResult: {
+            ok: false,
+            error: 'complex_booking',
+            message: 'This is a linked/group booking and cannot be cancelled through this self-service confirmation. The clinic team must help with it.',
+          },
+          clientAction: null,
+        };
+      }
       return {
         modelResult: {
           ok: false,
