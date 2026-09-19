@@ -24,10 +24,14 @@ const SESSION_TOKEN = 'S'.repeat(43);
 const BROWSER_TOKEN = 'B'.repeat(43);
 const WHATSAPP_TOKEN = 'W'.repeat(43);
 const COMPLETION_CODE = '654321';
+const ACTION_TOKEN = 'A'.repeat(43);
 let verified = false;
 let loggedOut = false;
 const assistantCalls = [];
 const clearedAssistantSessions = [];
+const confirmedActions = [];
+const declinedActions = [];
+const revokedActionSessions = [];
 
 const fakeExperienceService = {
   async getExperience({ crmV2ClientId }) {
@@ -82,10 +86,56 @@ const fakeAssistantService = {
     if (/payment/i.test(message)) {
       return { reply: 'Yes — your payment is recorded as paid for this booking.', contextVersion: 'my_shiloh_client_context_v1' };
     }
+    if (/cancel/i.test(message)) {
+      return {
+        reply: 'I prepared the cancellation for you. Please review the confirmation card below — nothing has changed yet.',
+        contextVersion: 'my_shiloh_client_context_v1',
+        action: {
+          type: 'cancel_appointment',
+          token: ACTION_TOKEN,
+          title: 'Cancel this appointment?',
+          service: 'Hot Stone Massage',
+          practitioner: 'Marietjie',
+          date: 'Thursday, 24 September 2026',
+          time: '10:00',
+          policy: "Shiloh's 24-hour cancellation policy applies.",
+          paymentNote: 'Cancelling an appointment does not automatically issue a refund.',
+          confirmLabel: 'Cancel appointment',
+          declineLabel: 'Keep appointment',
+        },
+      };
+    }
     return { reply: 'Your Hot Stone Massage is on Thursday at 10:00 with Marietjie.', contextVersion: 'my_shiloh_client_context_v1' };
   },
   async clearConversation({ sessionId }) {
     clearedAssistantSessions.push(Number(sessionId));
+  },
+};
+
+const fakeActionService = {
+  async confirmAction({ sessionId, crmV2ClientId, actionToken }) {
+    confirmedActions.push({ sessionId, crmV2ClientId, actionToken });
+    if (Number(sessionId) !== 55 || Number(crmV2ClientId) !== 912 || actionToken !== ACTION_TOKEN) {
+      return { ok: false, status: 'ownership_changed' };
+    }
+    return {
+      ok: true,
+      status: 'cancelled',
+      appointment: {
+        service: 'Hot Stone Massage',
+        practitioner: 'Marietjie',
+        date: 'Thursday, 24 September 2026',
+        time: '10:00',
+      },
+    };
+  },
+  async declineAction({ sessionId, crmV2ClientId, actionToken }) {
+    declinedActions.push({ sessionId, crmV2ClientId, actionToken });
+    return { ok: true };
+  },
+  async revokeSessionActions({ sessionId, crmV2ClientId }) {
+    revokedActionSessions.push({ sessionId, crmV2ClientId });
+    return { ok: true };
   },
 };
 
@@ -166,6 +216,25 @@ async function runViewport(browser, name, viewport) {
   await page.locator('[data-shiloh-chat-input]').fill('Has my payment been received?');
   await page.locator('[data-shiloh-chat-form]').getByRole('button', { name: 'Send' }).click();
   await page.waitForFunction(() => document.body.textContent.includes('payment is recorded as paid'));
+
+  await page.locator('[data-shiloh-chat-input]').fill('Cancel my appointment');
+  await page.locator('[data-shiloh-chat-form]').getByRole('button', { name: 'Send' }).click();
+  await page.waitForFunction(() => document.body.textContent.includes('Cancel this appointment?'));
+  await page.getByRole('button', { name: 'Keep appointment' }).click();
+  await page.waitForFunction(() => document.body.textContent.includes('appointment is unchanged'));
+  if (!declinedActions.some((call) => call.sessionId === 55 && call.crmV2ClientId === 912 && call.actionToken === ACTION_TOKEN)) {
+    throw new Error('cancellation decline was not bound to the authenticated session');
+  }
+
+  await page.locator('[data-shiloh-chat-input]').fill('Cancel my appointment');
+  await page.locator('[data-shiloh-chat-form]').getByRole('button', { name: 'Send' }).click();
+  await page.waitForFunction(() => document.body.textContent.includes('Cancel this appointment?'));
+  await page.getByRole('button', { name: 'Cancel appointment' }).click();
+  await page.waitForFunction(() => document.body.textContent.includes('Your appointment has been cancelled'));
+  if (!confirmedActions.some((call) => call.sessionId === 55 && call.crmV2ClientId === 912 && call.actionToken === ACTION_TOKEN)) {
+    throw new Error('cancellation confirmation was not bound to the authenticated session');
+  }
+
   const browserStorage = await page.evaluate(() => ({
     local: localStorage.length,
     session: sessionStorage.length,
@@ -182,6 +251,9 @@ async function runViewport(browser, name, viewport) {
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.waitForFunction(() => document.body.textContent.includes('Continue with WhatsApp'));
   if (!clearedAssistantSessions.includes(55)) throw new Error('assistant conversation was not cleared on logout');
+  if (!revokedActionSessions.some((call) => call.sessionId === 55 && call.crmV2ClientId === 912)) {
+    throw new Error('outstanding client actions were not revoked on logout');
+  }
   await page.screenshot({ path: path.join(out, `${name}.png`), fullPage: true });
   await context.close();
 }
@@ -201,6 +273,7 @@ let baseUrl;
     authUrlBuilder: () => '/fake-whatsapp',
     experienceService: fakeExperienceService,
     assistantService: fakeAssistantService,
+    actionService: fakeActionService,
   }));
 
   server = app.listen(0, '127.0.0.1');
