@@ -81,11 +81,11 @@ async function cancelOwnedAppointmentInTransaction(db, {
     `INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
      VALUES('client.appointment_cancelled','appointment',$1,$2::jsonb)`,
     [id, JSON.stringify({
+      ...((auditMetadata && typeof auditMetadata === 'object' && !Array.isArray(auditMetadata)) ? auditMetadata : {}),
       identityModel: identity.crmV2ClientId ? 'crm_v2' : 'legacy',
       clientId: identity.legacyClientId,
       crmV2ClientId: identity.crmV2ClientId,
       schedulingAuthority: 'shiloh_canonical',
-      ...((auditMetadata && typeof auditMetadata === 'object' && !Array.isArray(auditMetadata)) ? auditMetadata : {}),
     })],
   );
 
