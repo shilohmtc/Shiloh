@@ -2,6 +2,7 @@
 
 const { clearSession } = require('./memory');
 const clientContext = require('./myShilohClientContext');
+const { createMyShilohReadTools } = require('./myShilohReadTools');
 
 const MAX_MESSAGE_CHARS = 1000;
 const MESSAGE_WINDOW_MS = 60 * 1000;
@@ -85,6 +86,7 @@ async function defaultAi(...args) {
 function createMyShilohAssistantService({
   ai = defaultAi,
   contextService = clientContext,
+  readTools = createMyShilohReadTools({ contextService }),
   clearConversationSession = clearSession,
   limiter = createMessageLimiter(),
 } = {}) {
@@ -92,6 +94,9 @@ function createMyShilohAssistantService({
     throw new Error('My Shiloh client context service is required');
   }
   if (typeof ai !== 'function') throw new Error('Shiloh AI service is required');
+  if (!readTools || !Array.isArray(readTools.definitions) || typeof readTools.execute !== 'function') {
+    throw new Error('My Shiloh read tools are required');
+  }
 
   async function reply({ sessionId, crmV2ClientId, message } = {}) {
     const key = conversationKey(sessionId);
@@ -122,6 +127,11 @@ function createMyShilohAssistantService({
       profileOverride: { name: firstName(context.client.name) },
       clientContext: context,
       surface: 'my_shiloh',
+      tools: readTools.definitions,
+      toolExecutor: (name, args) => readTools.execute(name, args, {
+        crmV2ClientId: clientId,
+      }),
+      maxToolRounds: 4,
     });
 
     const safeReply = String(replyText || '').trim();
