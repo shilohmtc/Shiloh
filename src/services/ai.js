@@ -38,6 +38,21 @@ function getModelForWorkload(workload = "conversation") {
   return workload === "fast" ? FAST_MODEL : PRIMARY_MODEL;
 }
 
+function functionCalls(response) {
+  return Array.isArray(response?.output)
+    ? response.output.filter(item => item?.type === 'function_call' && item.name && item.call_id)
+    : [];
+}
+
+function parseToolArguments(value) {
+  try {
+    const parsed = JSON.parse(String(value || '{}'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch (_) {
+    return null;
+  }
+}
+
 function logUsage(response, workload) {
   const usage = response?.usage;
   if (!usage) return;
@@ -63,6 +78,9 @@ async function generateReply(phone, message, {
   profileOverride,
   clientContext = null,
   surface = "whatsapp",
+  tools = [],
+  toolExecutor = null,
+  maxToolRounds = 4,
 } = {}) {
   const directFaq = processClinicFaqMessage(message);
   if (directFaq.handled) return directFaq.reply;
@@ -93,27 +111,75 @@ async function generateReply(phone, message, {
   const heidelbergGuideKnowledge = getHeidelbergGuideKnowledge(message);
   const authoritativeKnowledge = [activeCatalogue, practitionerKnowledge, clinicFaqKnowledge, heidelbergGuideKnowledge, ...knowledge].filter(Boolean);
   const workload = "conversation";
+  const instructions = buildInstructions({
+    profile,
+    knowledge: authoritativeKnowledge,
+    clientContext,
+    surface,
+  });
+  const enabledTools = Array.isArray(tools) && typeof toolExecutor === 'function' ? tools : [];
   const request = {
     model: getModelForWorkload(workload),
     input: message,
-    instructions: buildInstructions({
-      profile,
-      knowledge: authoritativeKnowledge,
-      clientContext,
-      surface,
-    }),
+    instructions,
     reasoning: { effort: REASONING_EFFORT },
     store: true,
   };
+
+  if (enabledTools.length) {
+    request.tools = enabledTools;
+    request.parallel_tool_calls = false;
+  }
 
   if (previousResponseId) {
     request.previous_response_id = previousResponseId;
   }
 
   try {
-    const response = await client.responses.create(request);
-
+    let response = await client.responses.create(request);
     logUsage(response, workload);
+
+    let rounds = 0;
+    while (enabledTools.length && functionCalls(response).length) {
+      if (rounds >= Math.max(1, Number(maxToolRounds) || 4)) {
+        logger.warn({ responseId: response.id, rounds }, "OpenAI tool round limit reached");
+        return "I couldn't finish checking that safely just now. Please try again.";
+      }
+
+      const outputs = [];
+      for (const call of functionCalls(response)) {
+        const args = parseToolArguments(call.arguments);
+        let result;
+        if (!args) {
+          result = { ok: false, error: 'invalid_tool_arguments' };
+        } else {
+          try {
+            result = await toolExecutor(call.name, args);
+          } catch (toolError) {
+            logger.warn({ err: toolError, toolName: call.name }, "Shiloh read tool failed");
+            result = { ok: false, error: 'tool_unavailable' };
+          }
+        }
+        outputs.push({
+          type: 'function_call_output',
+          call_id: call.call_id,
+          output: JSON.stringify(result),
+        });
+      }
+
+      response = await client.responses.create({
+        model: getModelForWorkload(workload),
+        previous_response_id: response.id,
+        input: outputs,
+        instructions,
+        tools: enabledTools,
+        parallel_tool_calls: false,
+        reasoning: { effort: REASONING_EFFORT },
+        store: true,
+      });
+      logUsage(response, workload);
+      rounds += 1;
+    }
 
     if (response.id) {
       await saveSession(conversationKey, response.id);
@@ -146,4 +212,6 @@ module.exports = {
   generateReply,
   getModelForWorkload,
   deterministicConversationReply,
+  functionCalls,
+  parseToolArguments,
 };
