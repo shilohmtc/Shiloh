@@ -1,7 +1,21 @@
 # Shiloh OS — Master Project Status
 
-Updated: 2026-08-22
+Updated: 2026-09-19
 Purpose: permanent current-state source of truth. Historical implementation detail remains in Git history and dated reconciliation files; do not redo accepted or superseded work.
+
+## Current Shiloh-first baseline — 2026-09-19
+
+This short-form baseline supersedes older wording that calls an earlier pull request “current”. The detailed August ledger below is preserved as historical evidence and must not be discarded or replayed.
+
+- **Shiloh-first operating model:** WhatsApp is the front door, My Shiloh is the client home, and Shiloh AI is the shared experience backbone. Canonical services remain the authority for identity, bookings, availability, forms, payments, permissions and audit history.
+- **Current application baseline before this reconciliation:** PR **#1042** / `b781a5a6b4ea94387b5bb4803cecbd8ca074159d`, *Add authenticated My Shiloh consultation-form action*.
+- **Production:** Render deploy `dep-dan3k817lnhs73dr1f10` reached **LIVE** on that exact application commit. The relevant GitHub workflows passed, all 137 tracked migrations matched the production ledger, and the bounded post-deploy window showed no application errors.
+- **My Shiloh verified live:** PWA foundation (#1032), WhatsApp-backed sign-in (#1034), website entry points (#1035), shared authenticated context/orchestrator (#1037), in-app Shiloh conversation (#1038), five typed read tools (#1039), confirmed cancellation (#1040), confirmed reschedule request (#1041), and authenticated consultation-form action (#1042).
+- **Typed read tools actually live:** `get_my_next_appointment`, `get_my_upcoming_bookings`, `get_my_form_status`, `get_my_payment_status`, and `find_available_slots`. Package-status and voucher tools remain planned; documentation must not describe them as live before implementation and verification.
+- **Confirmed actions:** AI may prepare; the authenticated client UI requires explicit confirmation where consequential; canonical domain authority revalidates and executes. Reschedule requests do not move the appointment until practitioner approval. Linked/group cases continue to fail closed where the existing authority does not safely support them.
+- **Consultation forms:** secure assignment, delivery, reminder, client completion and protected staff review are live. The exact Meta form and reminder templates are APPROVED / UTILITY / duplicate-free.
+- **Payments:** the provider-independent ledger, ordinary and linked/group balances, split payments, discounts without a mandatory reason, manual cash/card/EFT capture, refunds, verified callbacks, return pages and WhatsApp payment receipts are implemented. Ozow production callback configuration and a controlled low-value live transaction remain the next provider proof. Apple Pay/Google Pay depend on separate Ozow Card Payments activation; they do not invalidate the provider-independent foundation.
+- **Next controlled sequence:** reconcile governance documents and clearly superseded PRs; complete a real normal-account My Shiloh acceptance journey; then run the controlled low-value Ozow production proof. After that, add contextual WhatsApp → My Shiloh actions before expanding package/voucher tools.
 
 ## Authority and continuation protocol
 
@@ -13,7 +27,7 @@ Earlier dated reconciliations remain durable where not superseded. Preserve in p
 
 Obtain explicit approval before the first new substantial controlled action. After that approval, continue the approved controlled unit through normal engineering/deploy/verification/reconciliation boundaries. Stop for material scope/risk expansion, contradictory authority, or a genuine fail-closed human/provider/evidence/safety/capability gate.
 
-## Current production baseline
+## Historical production baseline — 2026-08-22 (preserved)
 
 Current accepted **application** code is **PR #416 / `bcc327bc21dd1e72b6930eadcde86532f7c27a4f`**, **Implement verified-client identity authority**. It implements the PR #413 ratified verified-client contract across CRM onboarding and Booking/Admin, while preserving PR #409 Admin presentation behavior, PR #399 CRM normalized-phone ambiguity repair, PR #395 practitioner Calendar conflict classification, PR #388 guarded Juvan booking cleanup, PR #387 provider-log redaction, PR #385 Meta-template reconciliation, PR #383/#384 booking-confirmation-v2 activation/evidence, PR #382 reschedule-template activation and the accepted #380 Couples Massage lineage.
 
