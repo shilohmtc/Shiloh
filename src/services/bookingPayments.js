@@ -5,6 +5,7 @@ const { createOzowPaymentProvider } = require('./ozowPaymentProvider');
 const { STATES, EVIDENCE, transitionPaymentState } = require('../domain/paymentState');
 const { PAYMENT_TEMPLATE_KEYS, formatRand, sendPaymentTemplate } = require('./paymentWhatsAppNotifications');
 const { sendWhatsAppTemplate } = require('./whatsapp');
+const { issueVerifiedVoucher } = require('./giftVouchers');
 
 const CAPABILITIES = Object.freeze({ VIEW: 'payment:view', COLLECT: 'payment:collect', REFUND: 'payment:refund' });
 
@@ -261,17 +262,30 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
                    LIMIT 1
                 )) AS appointment_id
            FROM payment_requests pr
-           JOIN booking_payment_accounts bpa ON bpa.id=pr.payment_account_id
+           LEFT JOIN booking_payment_accounts bpa ON bpa.id=pr.payment_account_id
           WHERE pr.request_key=$1
-          FOR UPDATE OF pr,bpa`,
+          FOR UPDATE OF pr`,
         [requestReference],
       )).rows[0];
       if (!request) { await client.query(`INSERT INTO payment_provider_events(provider,provider_event_key,signature_verified,payload_sha256,outcome) VALUES('ozow',$1,TRUE,$2,'unmatched')`, [eventKey,hash]); await client.query('COMMIT'); return { status:'unmatched' }; }
+      if (paid) {
+        const notifiedAmount = String(payload.Amount ?? payload.amount ?? '').trim();
+        const notifiedCurrency = String(payload.CurrencyCode ?? payload.currencyCode ?? '').trim().toUpperCase();
+        if (money(notifiedAmount) !== money(request.amount) || notifiedCurrency !== String(request.currency).toUpperCase()) {
+          throw new BookingPaymentError('PAYMENT_PROVIDER_AMOUNT_MISMATCH', 'Provider payment amount or currency does not match the Shiloh payment request.', 400);
+        }
+      }
+      let voucherIssued = null;
       if (paid && request.state !== 'paid') {
         transitionPaymentState(request.state, STATES.PAID, { evidence:EVIDENCE.VERIFIED_PROVIDER });
-        await client.query(`INSERT INTO payment_ledger_entries(payment_account_id,payment_request_id,entry_type,amount,method,evidence_kind,provider_transaction_id) VALUES($1,$2,'payment',$3,'ozow',$4,$5) ON CONFLICT DO NOTHING`, [request.payment_account_id,request.id,request.amount,EVIDENCE.VERIFIED_PROVIDER,eventKey]);
+        if (request.gift_voucher_order_id) {
+          voucherIssued = await issueVerifiedVoucher(client, request, eventKey);
+        } else {
+          await client.query(`INSERT INTO payment_ledger_entries(payment_account_id,payment_request_id,entry_type,amount,method,evidence_kind,provider_transaction_id) VALUES($1,$2,'payment',$3,'ozow',$4,$5) ON CONFLICT DO NOTHING`, [request.payment_account_id,request.id,request.amount,EVIDENCE.VERIFIED_PROVIDER,eventKey]);
+        }
         await client.query(`UPDATE payment_requests SET state='paid',updated_at=NOW() WHERE id=$1`, [request.id]);
-        const balance = (await client.query(
+        if (!request.gift_voucher_order_id) {
+          const balance = (await client.query(
           `SELECT bpa.canonical_amount_due,
                   COALESCE(SUM(ple.amount) FILTER (WHERE ple.entry_type='payment'),0)
                   - COALESCE(SUM(ple.amount) FILTER (WHERE ple.entry_type='refund'),0) AS net_paid
@@ -280,12 +294,14 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
             WHERE bpa.id=$1
             GROUP BY bpa.id`,
           [request.payment_account_id],
-        )).rows[0];
-        paymentReceived = { request, remaining: Math.max(0, Number(balance?.canonical_amount_due || 0) - Number(balance?.net_paid || 0)) };
+          )).rows[0];
+          paymentReceived = { request, remaining: Math.max(0, Number(balance?.canonical_amount_due || 0) - Number(balance?.net_paid || 0)) };
+        }
       } else if (!paid && notVerifiedOutcome && ['link_issued', 'pending'].includes(String(request.state))) {
         const nextState = cancelled ? STATES.CANCELLED : STATES.FAILED;
         transitionPaymentState(request.state, nextState);
         await client.query(`UPDATE payment_requests SET state=$2,updated_at=NOW() WHERE id=$1`, [request.id, nextState]);
+        if (request.gift_voucher_order_id) await client.query(`UPDATE gift_voucher_orders SET state=$2,updated_at=NOW() WHERE id=$1`, [request.gift_voucher_order_id, nextState]);
         paymentNotVerified = request;
       }
       await client.query(`INSERT INTO payment_provider_events(provider,provider_event_key,payment_request_id,signature_verified,payload_sha256,outcome) VALUES('ozow',$1,$2,TRUE,$3,'accepted')`, [eventKey,request.id,hash]);
@@ -300,6 +316,13 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
         templateKey: PAYMENT_TEMPLATE_KEYS.NOT_VERIFIED,
         to: paymentNotVerified.payer_mobile,
         bodyParameters: [paymentNotVerified.payer_name || 'there', `Booking #${paymentNotVerified.appointment_id || 'payment'}`, requestReference, formatRand(paymentNotVerified.amount)],
+        send: sendTemplate,
+      });
+      if (voucherIssued) await sendPaymentTemplate({
+        templateKey: PAYMENT_TEMPLATE_KEYS.VOUCHER_ISSUED,
+        to: voucherIssued.order.delivery_mobile,
+        bodyParameters: [voucherIssued.order.recipient_name, voucherIssued.voucher.voucher_code, formatRand(voucherIssued.voucher.original_value), voucherIssued.voucher.valid_until ? new Date(`${voucherIssued.voucher.valid_until}T12:00:00Z`).toLocaleDateString('en-ZA', { day:'numeric', month:'long', year:'numeric', timeZone:'UTC' }) : 'No expiry'],
+        urlButtonParameter: requestReference,
         send: sendTemplate,
       });
       return { status: paid ? 'paid' : 'accepted' };

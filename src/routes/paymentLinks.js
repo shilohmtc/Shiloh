@@ -43,7 +43,7 @@ function createPaymentLinkRouter({ db = pool } = {}) {
 
     try {
       const result = await db.query(
-        `SELECT provider,state,provider_payment_url,expires_at
+        `SELECT provider,state,provider_payment_url,expires_at,gift_voucher_order_id
            FROM payment_requests
           WHERE request_key=$1
           LIMIT 1`,
@@ -51,6 +51,9 @@ function createPaymentLinkRouter({ db = pool } = {}) {
       );
       const request = result.rows[0];
       if (!request) return paymentUnavailable(res, 404, 'Payment link not found.');
+      if (request.state === 'paid' && request.gift_voucher_order_id) {
+        return res.redirect(303, `/gift-vouchers/${requestKey}`);
+      }
       if (!request.provider_payment_url || request.provider !== 'ozow') {
         return paymentUnavailable(res, 409, 'This payment link is not ready yet.');
       }

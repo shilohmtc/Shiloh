@@ -122,6 +122,14 @@ function renderMyShilohPage({
         </div>
       </section>`;
 
+  const giftVoucher = authenticated
+    ? `<section class="quiet-card">
+        <div class="quiet-icon" aria-hidden="true">♥</div>
+        <div><p class="eyebrow">Gift vouchers</p><h2>Give someone a little Shiloh.</h2><p>Create a personal English or Afrikaans voucher and pay securely.</p></div>
+        <a class="circle-link" href="/my-shiloh/gift-vouchers" aria-label="Create a Shiloh gift voucher">→</a>
+      </section>`
+    : '';
+
   const profile = authenticated
     ? `<div class="page-intro">
         <p class="eyebrow">Profile</p>
@@ -135,7 +143,7 @@ function renderMyShilohPage({
       <div class="profile-list" aria-label="Secure profile areas">
         <div><span>Personal details</span><strong>Coming next</strong></div>
         <div><span>Consultation forms</span><strong>When required</strong></div>
-        <div><span>Packages &amp; vouchers</span><strong>Private</strong></div>
+        <div><span>Gift vouchers</span><strong><a href="/my-shiloh/gift-vouchers">Create or view</a></strong></div>
         <div><span>Receipts &amp; payments</span><strong>Private</strong></div>
       </div>
       <button class="button button--soft button--wide profile-signout" type="button" data-client-auth-logout>Sign out</button>
@@ -191,6 +199,7 @@ function renderMyShilohPage({
       <section class="view is-active" id="home" data-view="home" aria-labelledby="home-title">
         ${hero}
         ${focus}
+        ${giftVoucher}
         <section class="section-block" aria-labelledby="discover-title">
           <div class="section-heading">
             <div><p class="eyebrow">Discover</p><h2 id="discover-title">Start with what you need.</h2></div>

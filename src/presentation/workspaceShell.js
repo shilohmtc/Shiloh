@@ -21,7 +21,7 @@ function workspaceItem({ key, label, active, href }) {
   return `<span class="workspace-link future" aria-disabled="true" ${destination}>${escapeHtml(label)}</span>`;
 }
 
-function renderWorkspaceNavigation({ active, displayName = '', dashboardHref = null, calendarHref = '/calendar/workspace', clientsHref = null, messagesHref = null, staffHref = null, servicesHref = null, reportsHref = null, clinicHoursHref = null } = {}) {
+function renderWorkspaceNavigation({ active, displayName = '', dashboardHref = null, calendarHref = '/calendar/workspace', clientsHref = null, messagesHref = null, staffHref = null, servicesHref = null, reportsHref = null, clinicHoursHref = null, vouchersHref = null } = {}) {
   const primary = [
     workspaceItem({
       key: 'dashboard',
@@ -73,8 +73,14 @@ function renderWorkspaceNavigation({ active, displayName = '', dashboardHref = n
       active: active === 'clinicHours',
       href: clinicHoursHref,
     }),
+    workspaceItem({
+      key: 'vouchers',
+      label: 'Gift vouchers',
+      active: active === 'vouchers',
+      href: vouchersHref,
+    }),
   ].join('');
-  const moreActive = ['staff', 'services', 'reports', 'clinicHours'].includes(active);
+  const moreActive = ['staff', 'services', 'reports', 'clinicHours', 'vouchers'].includes(active);
   const accountLabel = String(displayName || '').trim();
   const account = `<footer class="workspace-account" data-workspace-account-footer>${accountLabel ? `<span>Signed in as</span><strong>${escapeHtml(accountLabel)}</strong>` : '<span>Signed in</span>'}<button class="workspace-account-signout" type="button" data-shiloh-logout>Sign out</button><span class="workspace-account-status" role="status" aria-live="polite" data-shiloh-calendar-access-status></span></footer>`;
   const nav = `<button class="workspace-menu-toggle" type="button" aria-label="Open Workspace navigation" aria-expanded="false" aria-controls="workspace-navigation-drawer" data-workspace-drawer-toggle><span class="workspace-menu-icon" aria-hidden="true"></span></button><div class="workspace-nav-backdrop" data-workspace-nav-backdrop></div><aside class="workspace-nav" id="workspace-navigation-drawer" data-workspace-navigation-drawer><div class="workspace-drawer-header"><div class="workspace-mark">Shiloh <small>Workspace</small></div><button class="workspace-drawer-close" type="button" aria-label="Close Workspace navigation" data-workspace-drawer-close>×</button></div><div class="workspace-mark workspace-desktop-mark">Shiloh <small>Workspace</small></div><nav class="workspace-links" aria-label="Workspace"><div class="workspace-primary-links">${primary}</div><button class="workspace-link workspace-more-toggle${moreActive ? ' active' : ''}" type="button" aria-expanded="false" aria-controls="workspace-more-menu" data-workspace-more-toggle>More</button><div class="workspace-secondary-links" id="workspace-more-menu" data-workspace-more-menu><span class="workspace-more-heading">More</span>${secondary}<span class="workspace-more-empty">No additional tools are available for this access.</span></div></nav>${account}</aside>`;

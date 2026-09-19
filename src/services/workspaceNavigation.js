@@ -4,6 +4,7 @@ const workspaceServices = require('./workspaceServices');
 const workspaceReports = require('./workspaceReportsProfileView');
 const workspaceClinicHours = require('./workspaceClinicHoursReadView');
 const workspaceForms = require('./workspaceForms');
+const giftVouchers = require('./giftVouchers').createGiftVoucherService();
 
 const DESTINATIONS = Object.freeze({
   dashboard: '/calendar/workspace',
@@ -15,6 +16,7 @@ const DESTINATIONS = Object.freeze({
   forms: '/calendar/forms',
   reports: '/calendar/reports',
   clinicHours: '/calendar/clinic-hours',
+  vouchers: '/calendar/vouchers',
 });
 
 function allowedDestination(allowed, key) {
@@ -42,17 +44,19 @@ function createWorkspaceNavigationService({
   formsAccessService = workspaceForms,
   reportsAccessService = workspaceReports,
   clinicHoursAccessService = workspaceClinicHours,
+  voucherAccessService = giftVouchers,
 } = {}) {
   async function resolve({ session } = {}) {
     const adminId = session?.adminId;
     const calendarAllowed = Boolean(session?.viewer);
-    const [clients, staff, services, forms, reports, clinicHours] = await Promise.allSettled([
+    const [clients, staff, services, forms, reports, clinicHours, vouchers] = await Promise.allSettled([
       clientAccessService.resolveAccess(adminId),
       resolveStaffAccess(staffAccessService, adminId),
       servicesAccessService.resolveAccess(adminId),
       formsAccessService.resolveAccess(adminId),
       reportsAccessService.resolveAccess(adminId),
       clinicHoursAccessService.resolveAccess(adminId),
+      voucherAccessService.resolveAccess(adminId),
     ]);
     const clientsAllowed = clients.status === 'fulfilled' && Boolean(clients.value);
     const staffAllowed = staff.status === 'fulfilled' && Boolean(staff.value);
@@ -66,6 +70,7 @@ function createWorkspaceNavigationService({
       forms: allowedDestination(forms.status === 'fulfilled' && Boolean(forms.value), 'forms'),
       reports: allowedDestination(reports.status === 'fulfilled' && Boolean(reports.value), 'reports'),
       clinicHours: allowedDestination(clinicHours.status === 'fulfilled' && Boolean(clinicHours.value), 'clinicHours'),
+      vouchers: allowedDestination(vouchers.status === 'fulfilled' && Boolean(vouchers.value), 'vouchers'),
     };
   }
 
