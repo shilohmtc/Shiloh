@@ -7,6 +7,7 @@ const { getPublicServiceCatalogue } = require('../services/publicServiceCatalogu
 const { resolveWhatsAppNumber } = require('../services/publicWhatsApp');
 const { createClientBrowserSessionService, SESSION_TTL_MS, CHALLENGE_TTL_MS } = require('../services/clientBrowserSession');
 const { createMyShilohExperienceOrchestrator } = require('../services/myShilohExperienceOrchestrator');
+const { createMyShilohAssistantService, MyShilohAssistantError } = require('../services/myShilohAssistant');
 const { renderMyShilohPage } = require('../presentation/myShilohPwa');
 const {
   sameOriginGuard,
@@ -56,6 +57,7 @@ function createMyShilohRouter({
   catalogueProvider = getPublicServiceCatalogue,
   authUrlBuilder = defaultAuthUrlBuilder,
   experienceService = createMyShilohExperienceOrchestrator(),
+  assistantService = createMyShilohAssistantService(),
 } = {}) {
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
@@ -183,6 +185,9 @@ function createMyShilohRouter({
   router.post('/my-shiloh/auth/logout', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
     try {
       await sessionService.revokeSession(req.myShilohClientSession.sessionId, 'logout');
+      await assistantService.clearConversation({
+        sessionId: req.myShilohClientSession.sessionId,
+      });
       setNoStoreJson(res);
       res.setHeader('Set-Cookie', [
         serializeExpiredClientSessionCookie({ env }),
@@ -205,6 +210,35 @@ function createMyShilohRouter({
       }
       return res.status(200).json(experience);
     } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/my-shiloh/api/shiloh/message', sameOrigin, requireSession, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const extraFields = Object.keys(req.body && typeof req.body === 'object' ? req.body : {})
+        .filter((key) => key !== 'message');
+      if (extraFields.length) {
+        return res.status(422).json({ error: 'Please reload My Shiloh and try again', requestId: req.id });
+      }
+      const result = await assistantService.reply({
+        sessionId: req.myShilohClientSession.sessionId,
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+        message: req.body?.message,
+      });
+      return res.status(200).json({
+        reply: result.reply,
+        contextVersion: result.contextVersion,
+      });
+    } catch (error) {
+      if (error instanceof MyShilohAssistantError) {
+        return res.status(error.httpStatus || 400).json({
+          error: error.message,
+          code: error.code,
+          requestId: req.id,
+        });
+      }
       return next(error);
     }
   });

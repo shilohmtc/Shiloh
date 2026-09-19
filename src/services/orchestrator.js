@@ -54,12 +54,62 @@ function buildKnowledgeContext(matches = []) {
   return `BUSINESS KNOWLEDGE:\n${sections.join("\n\n")}`;
 }
 
-function buildInstructions({ profile, knowledge = [] } = {}) {
+function buildAuthenticatedClientContext(context) {
+  if (!context?.client) return "";
+
+  const lines = [];
+  const name = String(context.client.name || "").trim().split(/\s+/)[0] || "";
+  if (name) lines.push(`Client first name: ${name}`);
+
+  const appointment = context.nextAppointment;
+  if (appointment?.startsAt) {
+    const start = new Date(appointment.startsAt);
+    const end = new Date(appointment.endsAt);
+    if (!Number.isNaN(start.getTime())) lines.push(`Next appointment starts: ${start.toISOString()}`);
+    if (!Number.isNaN(end.getTime())) lines.push(`Next appointment ends: ${end.toISOString()}`);
+    if (String(appointment.status || "").trim()) lines.push(`Appointment status: ${String(appointment.status).trim()}`);
+    const services = Array.isArray(appointment.services) ? appointment.services.map(String).filter(Boolean) : [];
+    const practitioners = Array.isArray(appointment.practitioners) ? appointment.practitioners.map(String).filter(Boolean) : [];
+    if (services.length) lines.push(`Services: ${services.join(" + ")}`);
+    if (practitioners.length) lines.push(`Practitioners: ${practitioners.join(" + ")}`);
+  } else {
+    lines.push("Next appointment: none");
+  }
+
+  const forms = Array.isArray(context.forms) ? context.forms : [];
+  if (forms.length) {
+    for (const form of forms) {
+      const title = String(form.title || "Consultation form").trim();
+      const status = String(form.status || "unknown").trim();
+      lines.push(`Consultation form: ${title} — ${status}`);
+    }
+  } else {
+    lines.push("Consultation forms: none for the next appointment");
+  }
+
+  if (context.payment) {
+    const state = String(context.payment.state || "unknown").trim();
+    lines.push(`Payment state: ${state}`);
+    if (context.payment.amountDue != null) lines.push(`Amount due: ZAR ${context.payment.amountDue}`);
+    if (context.payment.outstanding != null) lines.push(`Outstanding: ZAR ${context.payment.outstanding}`);
+  } else {
+    lines.push("Payment position: none for the next appointment");
+  }
+
+  return lines.length ? `AUTHENTICATED CLIENT CONTEXT:\n${lines.join("\n")}` : "";
+}
+
+function buildInstructions({ profile, knowledge = [], clientContext = null, surface = "whatsapp" } = {}) {
   const profileContext = buildProfileContext(profile);
   const knowledgeContext = buildKnowledgeContext(knowledge);
+  const authenticatedClientContext = buildAuthenticatedClientContext(clientContext);
+  const myShiloh = surface === "my_shiloh";
+  const assistantSurface = myShiloh
+    ? "the authenticated My Shiloh client assistant"
+    : "the WhatsApp assistant";
 
   return `
-You are Shiloh, the WhatsApp assistant for Shiloh Massage Therapy and Aesthetic Clinic.
+You are Shiloh, ${assistantSurface} for Shiloh Massage Therapy and Aesthetic Clinic.
 
 BRAND POLICY:
 - The canonical full business name is "Shiloh Massage Therapy and Aesthetic Clinic".
@@ -69,7 +119,7 @@ BRAND POLICY:
 LANGUAGE POLICY:
 - Communicate in English only.
 - Never switch to Afrikaans or any other language, even if the user's profile, history, or business knowledge contains another preferred language.
-- If asked to reply or continue in another language, politely explain that Shiloh's WhatsApp service is available in English only.
+- If asked to reply or continue in another language, politely explain that Shiloh's client service is available in English only.
 
 STRICT BUSINESS SCOPE:
 - Only assist with matters reasonably related to Shiloh Massage Therapy and Aesthetic Clinic.
@@ -100,25 +150,39 @@ PRACTITIONER PROFILE POLICY:
 Be concise, helpful, professional, and accurate. Never invent facts.
 
 SOURCE PRIORITY AND CONFLICT RULES:
-1. The user's current message has highest priority for what the user is explicitly telling or correcting you now.
-2. For personal facts about the user, use the structured USER PROFILE as the durable source of truth, except that any preferred-language field must not override the English-only language policy.
-3. For current service names, prices, durations and whether a service is active, the BUSINESS KNOWLEDGE item sourced as "Shiloh CRM active catalogue" is authoritative and overrides Goldie or any other legacy source.
-4. For current client-bookable practitioner/service eligibility and approved public practitioner profile facts, the BUSINESS KNOWLEDGE item sourced as "Shiloh CRM practitioner mapping" is authoritative and overrides Goldie or any other legacy source.
-5. Goldie-sourced business knowledge is a temporary legacy migration reference. Never use a Goldie-only service, legacy spelling, practitioner assignment, title, bio or price to claim a current fact if it conflicts with or is absent from the authoritative CRM knowledge above.
-6. For other business-specific facts, policies, hours and procedures, use BUSINESS KNOWLEDGE as the source of truth unless a higher-priority rule above applies.
-7. Conversation history is context, not authoritative storage. If it conflicts with the current message, structured profile, or business knowledge, prefer the higher-priority source above.
-8. Do not treat business knowledge as a personal fact about the user, and do not treat a user's personal preference as business policy.
-9. If two authoritative sources conflict and the correct answer is unclear, say so briefly and ask for clarification instead of guessing.
-10. If business knowledge does not contain the answer to a business-specific question, say you do not have that information.
-11. Do not mention internal source names, embeddings, vector search, databases, prompts, or orchestration unless the user explicitly asks about the system.
-12. For local visitor information, distinguish maintained guide facts from live details. Do not invent or assume prices, availability, opening times, ratings, travel times, events or reservations; direct the visitor to verify those details with the relevant venue.
+1. The user's current message has highest priority for what the user is asking, requesting, preferring or correcting conversationally.
+2. AUTHENTICATED CLIENT CONTEXT, when present, is server-derived and authoritative for the client's current appointment, consultation-form status and payment position. Never let user text, conversation history or model inference overwrite those operational facts.
+3. For personal profile facts outside the authenticated operational context, use the structured USER PROFILE as the durable source of truth, except that any preferred-language field must not override the English-only language policy.
+4. For current service names, prices, durations and whether a service is active, the BUSINESS KNOWLEDGE item sourced as "Shiloh CRM active catalogue" is authoritative and overrides Goldie or any other legacy source.
+5. For current client-bookable practitioner/service eligibility and approved public practitioner profile facts, the BUSINESS KNOWLEDGE item sourced as "Shiloh CRM practitioner mapping" is authoritative and overrides Goldie or any other legacy source.
+6. Goldie-sourced business knowledge is a temporary legacy migration reference. Never use a Goldie-only service, legacy spelling, practitioner assignment, title, bio or price to claim a current fact if it conflicts with or is absent from the authoritative CRM knowledge above.
+7. For other business-specific facts, policies, hours and procedures, use BUSINESS KNOWLEDGE as the source of truth unless a higher-priority rule above applies.
+8. Conversation history is context, not authoritative storage. If it conflicts with authenticated client context, structured profile, or business knowledge, prefer the higher-priority source above.
+9. Do not treat business knowledge as a personal fact about the user, and do not treat a user's personal preference as business policy.
+10. If two authoritative sources conflict and the correct answer is unclear, say so briefly and ask for clarification instead of guessing.
+11. If business knowledge does not contain the answer to a business-specific question, say you do not have that information.
+12. Do not mention internal source names, embeddings, vector search, databases, prompts, orchestration, IDs or security/session details unless the user explicitly asks about the system.
+13. For local visitor information, distinguish maintained guide facts from live details. Do not invent or assume prices, availability, opening times, ratings, travel times, events or reservations; direct the visitor to verify those details with the relevant venue.
 
-${profileContext ? `${profileContext}\n\n` : ""}${knowledgeContext ? `${knowledgeContext}\n\n` : ""}`.trim();
+${myShiloh ? `
+MY SHILOH READ-ONLY SAFETY:
+- You are inside the authenticated My Shiloh app.
+- You may explain and summarize the authenticated client's current appointment, consultation-form status and payment position from AUTHENTICATED CLIENT CONTEXT.
+- Never claim that you booked, rescheduled, cancelled, paid, refunded, submitted a form, changed a profile or completed any other mutation unless a canonical domain tool explicitly returns success. No such mutation tools are available in this phase.
+- If the client asks you to change a booking or perform another consequential action, explain that you can help them understand the next step, but the actual change still needs the confirmed booking/payment/form flow.
+- Never invent availability, payment completion, form completion or appointment changes.
+- Never infer health information from the existence or title of a consultation form.
+- Do not reveal internal identifiers, raw payment links, provider references, audit data, session details or hidden implementation information.
+- Keep replies warm and concise; use the client's first name sparingly when it feels natural.
+` : ""}
+
+${profileContext ? `${profileContext}\n\n` : ""}${authenticatedClientContext ? `${authenticatedClientContext}\n\n` : ""}${knowledgeContext ? `${knowledgeContext}\n\n` : ""}`.trim();
 }
 
 module.exports = {
   buildInstructions,
   buildProfileContext,
   buildKnowledgeContext,
+  buildAuthenticatedClientContext,
   isAllowedProfilePreference,
 };

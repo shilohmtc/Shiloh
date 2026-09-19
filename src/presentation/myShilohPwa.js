@@ -230,15 +230,39 @@ function renderMyShilohPage({
           <div class="assistant-orbit" aria-hidden="true"><span>S</span></div>
           <p class="eyebrow">Your wellness assistant</p>
           <h1 id="shiloh-title">Shiloh, right where you need it.</h1>
-          <p>Shiloh uses the same secure client context behind Home and Bookings, so the conversation can stay personal without making AI the source of booking, form or payment truth.</p>
-          <a class="button button--primary button--wide" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Chat with Shiloh</a>
+          <p>${authenticated
+            ? 'Ask naturally. Shiloh can understand your secure booking, form and payment context while the real Shiloh systems remain in control of what is true.'
+            : 'Sign in to let Shiloh understand your private client context, or continue the conversation on WhatsApp.'}</p>
         </div>
-        <div class="prompt-grid" aria-label="Things Shiloh can help with" data-client-experience-prompts>
+        ${authenticated ? `
+        <section class="assistant-chat" aria-label="Chat with Shiloh">
+          <div class="assistant-chat__messages" data-shiloh-messages aria-live="polite" aria-relevant="additions">
+            <div class="chat-bubble chat-bubble--shiloh">
+              <span>Shiloh</span>
+              <p>Hi ${firstName} 🌿 Ask me anything about your Shiloh visit, booking, forms or payment status.</p>
+            </div>
+          </div>
+          <div class="prompt-grid" aria-label="Suggested questions" data-client-experience-prompts>
+            <button type="button" data-shiloh-prompt><span>Prepare</span><strong>What do I need before my appointment?</strong></button>
+            <button type="button" data-shiloh-prompt><span>Manage</span><strong>Can I move my appointment?</strong></button>
+            <button type="button" data-shiloh-prompt><span>Status</span><strong>What is my appointment status?</strong></button>
+            <button type="button" data-shiloh-prompt><span>Payment</span><strong>What is my payment status?</strong></button>
+          </div>
+          <form class="assistant-composer" data-shiloh-chat-form>
+            <label class="sr-only" for="my-shiloh-message">Message Shiloh</label>
+            <textarea id="my-shiloh-message" data-shiloh-chat-input rows="2" maxlength="1000" placeholder="Ask Shiloh…" autocomplete="off"></textarea>
+            <button class="button button--primary" type="submit" data-shiloh-chat-send>Send</button>
+          </form>
+          <p class="assistant-chat__note">Shiloh can explain and guide you here. Booking, payment and form changes still require their secure confirmed flow.</p>
+          <a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Prefer WhatsApp? Continue there →</a>
+        </section>` : `
+        <a class="button button--primary button--wide" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Chat with Shiloh on WhatsApp</a>
+        <div class="prompt-grid" aria-label="Things Shiloh can help with">
           <article><span>Choose</span><strong>What would suit me?</strong></article>
           <article><span>Manage</span><strong>Move my appointment</strong></article>
           <article><span>Prepare</span><strong>What do I need before I arrive?</strong></article>
           <article><span>Visit</span><strong>Help me plan my visit</strong></article>
-        </div>
+        </div>`}
       </section>
 
       <section class="view" id="profile" data-view="profile" aria-labelledby="profile-title" hidden>

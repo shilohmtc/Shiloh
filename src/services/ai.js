@@ -58,12 +58,19 @@ function logUsage(response, workload) {
   );
 }
 
-async function generateReply(phone, message) {
+async function generateReply(phone, message, {
+  conversationKey = phone,
+  profileOverride,
+  clientContext = null,
+  surface = "whatsapp",
+} = {}) {
   const directFaq = processClinicFaqMessage(message);
   if (directFaq.handled) return directFaq.reply;
 
-  const deterministicReply = deterministicConversationReply(message);
-  if (deterministicReply) return deterministicReply;
+  if (surface === "whatsapp") {
+    const deterministicReply = deterministicConversationReply(message);
+    if (deterministicReply) return deterministicReply;
+  }
 
   if (isLivePlacesQuery(message)) {
     const livePlaces = await searchGooglePlaces(message);
@@ -75,9 +82,9 @@ async function generateReply(phone, message) {
   if (localGuideReply) return localGuideReply;
 
   const [previousResponseId, knowledge, profile, activeCatalogue, practitionerKnowledge] = await Promise.all([
-    getSession(phone),
+    getSession(conversationKey),
     retrieveKnowledge(message, 5),
-    getProfile(phone),
+    profileOverride !== undefined ? Promise.resolve(profileOverride) : getProfile(phone),
     getActiveCatalogueKnowledge(),
     getPractitionerKnowledge(),
   ]);
@@ -89,7 +96,12 @@ async function generateReply(phone, message) {
   const request = {
     model: getModelForWorkload(workload),
     input: message,
-    instructions: buildInstructions({ profile, knowledge: authoritativeKnowledge }),
+    instructions: buildInstructions({
+      profile,
+      knowledge: authoritativeKnowledge,
+      clientContext,
+      surface,
+    }),
     reasoning: { effort: REASONING_EFFORT },
     store: true,
   };
@@ -104,7 +116,7 @@ async function generateReply(phone, message) {
     logUsage(response, workload);
 
     if (response.id) {
-      await saveSession(phone, response.id);
+      await saveSession(conversationKey, response.id);
     }
 
     const reply = response.output_text?.trim();

@@ -26,6 +26,8 @@ const WHATSAPP_TOKEN = 'W'.repeat(43);
 const COMPLETION_CODE = '654321';
 let verified = false;
 let loggedOut = false;
+const assistantCalls = [];
+const clearedAssistantSessions = [];
 
 const fakeExperienceService = {
   async getExperience({ crmV2ClientId }) {
@@ -68,6 +70,22 @@ const fakeExperienceService = {
         contextReady: true,
       },
     };
+  },
+};
+
+const fakeAssistantService = {
+  async reply({ sessionId, crmV2ClientId, message }) {
+    assistantCalls.push({ sessionId, crmV2ClientId, message });
+    if (Number(sessionId) !== 55 || Number(crmV2ClientId) !== 912) {
+      throw new Error('assistant did not receive server-owned client session identity');
+    }
+    if (/payment/i.test(message)) {
+      return { reply: 'Yes — your payment is recorded as paid for this booking.', contextVersion: 'my_shiloh_client_context_v1' };
+    }
+    return { reply: 'Your Hot Stone Massage is on Thursday at 10:00 with Marietjie.', contextVersion: 'my_shiloh_client_context_v1' };
+  },
+  async clearConversation({ sessionId }) {
+    clearedAssistantSessions.push(Number(sessionId));
   },
 };
 
@@ -142,9 +160,28 @@ async function runViewport(browser, name, viewport) {
     throw new Error('client session cookie is visible to browser JavaScript');
   }
 
+  await page.locator('[data-view-target="shiloh"]').click();
+  await page.locator('[data-shiloh-prompt]').first().click();
+  await page.waitForFunction(() => document.body.textContent.includes('Thursday at 10:00 with Marietjie'));
+  await page.locator('[data-shiloh-chat-input]').fill('Has my payment been received?');
+  await page.locator('[data-shiloh-chat-form]').getByRole('button', { name: 'Send' }).click();
+  await page.waitForFunction(() => document.body.textContent.includes('payment is recorded as paid'));
+  const browserStorage = await page.evaluate(() => ({
+    local: localStorage.length,
+    session: sessionStorage.length,
+  }));
+  if (browserStorage.local !== 0 || browserStorage.session !== 0) {
+    throw new Error('in-app Shiloh conversation persisted to browser storage');
+  }
+  if (!assistantCalls.some((call) => call.sessionId === 55 && call.crmV2ClientId === 912)) {
+    throw new Error('in-app Shiloh did not use server-owned identity');
+  }
+  await page.screenshot({ path: path.join(out, `${name}-chat.png`), fullPage: true });
+
   await page.locator('[data-view-target="profile"]').click();
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.waitForFunction(() => document.body.textContent.includes('Continue with WhatsApp'));
+  if (!clearedAssistantSessions.includes(55)) throw new Error('assistant conversation was not cleared on logout');
   await page.screenshot({ path: path.join(out, `${name}.png`), fullPage: true });
   await context.close();
 }
@@ -163,6 +200,7 @@ let baseUrl;
     catalogueProvider: async () => [],
     authUrlBuilder: () => '/fake-whatsapp',
     experienceService: fakeExperienceService,
+    assistantService: fakeAssistantService,
   }));
 
   server = app.listen(0, '127.0.0.1');
