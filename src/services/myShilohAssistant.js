@@ -150,7 +150,10 @@ function createMyShilohAssistantService({
       maxToolRounds: 4,
     });
 
-    const safeReply = String(replyText || '').trim();
+    let safeReply = String(replyText || '').trim();
+    if (preparedAction?.type === 'cancel_appointment') {
+      safeReply = 'I’ve prepared the cancellation for your next appointment. Please review the confirmation card below. Nothing has changed yet.';
+    }
     if (!safeReply) {
       throw new MyShilohAssistantError(
         'MY_SHILOH_ASSISTANT_EMPTY',
