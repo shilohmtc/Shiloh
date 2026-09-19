@@ -65,7 +65,7 @@ function proposalDb() {
             }],
           };
         }
-        if (/UPDATE client_action_proposals[sS]*action_type='reschedule_appointment'/.test(sql)) {
+        if (/UPDATE client_action_proposals[\s\S]*action_type='reschedule_appointment'/.test(sql)) {
           return { rowCount: 0, rows: [] };
         }
         if (/INSERT INTO client_action_proposals/.test(sql)) {
@@ -94,7 +94,7 @@ function proposalDb() {
             }],
           };
         }
-        if (/SET consumed_at=$2,outcome='pending_approval'/.test(sql)) return { rowCount: 1, rows: [] };
+        if (/SET consumed_at=\$2,outcome='pending_approval'/.test(sql)) return { rowCount: 1, rows: [] };
         throw new Error(`Unexpected proposal connection query: ${sql}`);
       },
       release() {},
@@ -104,7 +104,7 @@ function proposalDb() {
       if (/SELECT normalized_mobile/.test(sql)) {
         return { rowCount: 1, rows: [{ normalized_mobile: '27820000000' }] };
       }
-      if (/UPDATE client_action_proposals[sS]*SET outcome=$2/.test(sql)) {
+      if (/UPDATE client_action_proposals[\s\S]*SET outcome=\$2/.test(sql)) {
         return { rowCount: 1, rows: [] };
       }
       throw new Error(`Unexpected proposal direct query: ${sql}`);
