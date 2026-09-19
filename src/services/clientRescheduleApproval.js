@@ -116,7 +116,7 @@ async function pendingRescheduleConflicts({ db = pool, staffId, startsAt, endsAt
 
 function appointmentContextQuery({ lock = false } = {}) {
   return `
-    SELECT a.id,a.client_id,a.crm_v2_client_id,a.location_id,a.starts_at,a.ends_at,a.status,a.source,
+    SELECT a.id,a.client_id,a.crm_v2_client_id,a.location_id,a.starts_at,a.ends_at,a.status,a.source,a.updated_at,
            CASE WHEN a.crm_v2_client_id IS NOT NULL THEN 'crm_v2' ELSE 'legacy' END AS identity_model,
            COALESCE(v2.name,c.display_name,a.source_client_name,'Client') AS client_name,
            ast.staff_id,COALESCE(st.display_name,ast.staff_name_snapshot,'Shiloh practitioner') AS staff_name,
@@ -352,6 +352,12 @@ async function createPendingRescheduleRequest(phone, intent) {
   if (!appointment) {
     return { status: 'appointment_not_found', reply: 'That booking is no longer available to change. Your current appointments were not modified.' };
   }
+  if (
+    intent?.expected_revision
+    && new Date(appointment.updated_at).getTime() !== new Date(intent.expected_revision).getTime()
+  ) {
+    return { status: 'appointment_changed', reply: 'That appointment changed after the request was prepared. Your current booking was not moved; please start the reschedule again.' };
+  }
 
   const proposedStartsAt = localDateTime(intent?.preferred_date, intent?.preferred_time);
   if (!proposedStartsAt) return { status: 'invalid_time', reply: 'I couldn’t safely resolve that requested date and time. Your current appointment is unchanged.' };
@@ -380,6 +386,10 @@ async function createPendingRescheduleRequest(phone, intent) {
       || new Date(locked.ends_at).getTime() !== new Date(appointment.ends_at).getTime()
       || Number(locked.staff_id) !== Number(appointment.staff_id)
       || Number(locked.service_id || 0) !== Number(appointment.service_id || 0)
+      || (
+        intent?.expected_revision
+        && new Date(locked.updated_at).getTime() !== new Date(intent.expected_revision).getTime()
+      )
     ) {
       await db.query('ROLLBACK');
       return { status: 'appointment_changed', reply: 'That appointment changed while I was checking it. Your current booking was not moved; please start the reschedule again.' };
