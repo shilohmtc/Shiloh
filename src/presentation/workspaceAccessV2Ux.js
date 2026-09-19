@@ -25,6 +25,8 @@ const CAPABILITY_LABELS = Object.freeze({
   'staff_auth:reset': 'Reset staff authentication',
   'walkin:create': 'Register walk-in clients',
   'loyalty:redeem': 'Redeem loyalty rewards',
+  'loyalty:view': 'View Shiloh Rewards',
+  'loyalty:manage': 'Adjust Shiloh Rewards',
   'overflow:visible': 'View overflow availability',
 });
 

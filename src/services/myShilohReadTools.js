@@ -2,12 +2,14 @@
 
 const clientContext = require('./myShilohClientContext');
 const { authoritativeSlotsForIntent } = require('./clientBookingAvailability');
+const { createShilohRewardsService } = require('./shilohRewards');
 
 const TOOL_NAMES = Object.freeze({
   NEXT_APPOINTMENT: 'get_my_next_appointment',
   UPCOMING_BOOKINGS: 'get_my_upcoming_bookings',
   FORM_STATUS: 'get_my_form_status',
   PAYMENT_STATUS: 'get_my_payment_status',
+  REWARDS_STATUS: 'get_my_rewards_status',
   FIND_AVAILABLE_SLOTS: 'find_available_slots',
 });
 
@@ -52,6 +54,18 @@ const READ_TOOL_DEFINITIONS = Object.freeze([
     type: 'function',
     name: TOOL_NAMES.PAYMENT_STATUS,
     description: 'Get payment position for the authenticated client’s next appointment from Shiloh’s canonical payment authority.',
+    strict: true,
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: 'function',
+    name: TOOL_NAMES.REWARDS_STATUS,
+    description: 'Get the authenticated client’s Shiloh Rewards balance, unlock status and agreed earning policy from the rewards ledger.',
     strict: true,
     parameters: {
       type: 'object',
@@ -128,6 +142,7 @@ function publicPayment(payment) {
     paid: payment.paid == null ? null : String(payment.paid),
     refunded: payment.refunded == null ? null : String(payment.refunded),
     netPaid: payment.netPaid == null ? null : String(payment.netPaid),
+    rewardsApplied: payment.rewardsApplied == null ? null : String(payment.rewardsApplied),
     outstanding: payment.outstanding == null ? null : String(payment.outstanding),
     securePaymentAvailable: Boolean(payment.activePaymentPath),
   };
@@ -136,6 +151,7 @@ function publicPayment(payment) {
 function createMyShilohReadTools({
   contextService = clientContext,
   availability = authoritativeSlotsForIntent,
+  rewardsService = createShilohRewardsService(),
   now = () => new Date(),
 } = {}) {
   if (!contextService || typeof contextService.loadNextAppointment !== 'function') {
@@ -192,6 +208,20 @@ function createMyShilohReadTools({
         appointmentFound: true,
         appointment: publicAppointment(appointment),
         payment: publicPayment(payment),
+      };
+    }
+
+    if (name === TOOL_NAMES.REWARDS_STATUS) {
+      const reward = await rewardsService.getClientBalance(clientId);
+      return {
+        ok: true,
+        currency: 'ZAR',
+        balance: Number(reward.balance).toFixed(2),
+        unlocked: reward.unlocked === true,
+        unlockThreshold: Number(reward.unlockThreshold).toFixed(2),
+        earnRatePercent: Number(reward.earnRate),
+        expiry: 'none',
+        redemptionRequiresClientConfirmation: true,
       };
     }
 

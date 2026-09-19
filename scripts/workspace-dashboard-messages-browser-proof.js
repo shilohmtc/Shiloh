@@ -498,7 +498,7 @@ async function main() {
           assert.deepEqual(metrics.secondary, []);
         }
       } else {
-        assert.deepEqual([...metrics.primary, ...metrics.secondary], ['Dashboard', 'Calendar', 'Clients', 'Messages', 'Staff', 'Services', 'Reports', 'Clinic hours', 'Gift vouchers']);
+        assert.deepEqual([...metrics.primary, ...metrics.secondary], ['Dashboard', 'Calendar', 'Clients', 'Messages', 'Staff', 'Services', 'Reports', 'Clinic hours', 'Gift vouchers', 'Rewards']);
         assert.equal(metrics.moreVisible, false);
         assert.equal(metrics.accountFooterVisible, true, `${name} does not show the Desktop account footer`);
       }

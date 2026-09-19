@@ -19,6 +19,8 @@ const {
 const { renderMyShilohPage } = require('../presentation/myShilohPwa');
 const { createGiftVoucherService, GiftVoucherError } = require('../services/giftVouchers');
 const { renderClientVoucherPage, renderPublicVoucherPage } = require('../presentation/giftVoucherUx');
+const { createShilohRewardsService, ShilohRewardsError } = require('../services/shilohRewards');
+const { renderClientRewardsPage, clientRewardsScript } = require('../presentation/shilohRewardsUx');
 const {
   sameOriginGuard,
   requestFingerprintHash,
@@ -72,6 +74,7 @@ function createMyShilohRouter({
   formActionService = createMyShilohConsultationFormActionService(),
   formService = clientConsultationForms,
   voucherService = createGiftVoucherService({ db: pool }),
+  rewardsService = createShilohRewardsService({ db: pool }),
 } = {}) {
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
@@ -126,6 +129,28 @@ function createMyShilohRouter({
       if (error instanceof GiftVoucherError) return res.status(error.httpStatus).json({ error:error.message, code:error.code, requestId:req.id });
       return next(error);
     }
+  });
+
+  router.get('/my-shiloh/rewards/client.js', requireSession, (_req, res) => res.status(200).type('application/javascript').send(clientRewardsScript()));
+  router.get('/my-shiloh/rewards', requireSession, async (req, res, next) => {
+    try {
+      const [model, rotated] = await Promise.all([
+        rewardsService.getClientModel({ crmV2ClientId:req.myShilohClientSession.crmV2ClientId }),
+        sessionService.rotateCsrfToken(req.myShilohClientSession.sessionId),
+      ]);
+      if (!rotated.ok) return res.status(401).type('text/plain').send('Unauthorized');
+      setMyShilohPageHeaders(res, { allowInlineStyles:true });
+      return res.status(200).type('html').send(renderClientRewardsPage({ model, csrfToken:rotated.csrfToken }));
+    } catch (error) { return next(error); }
+  });
+
+  router.post('/my-shiloh/api/rewards/redeem', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const allowed=new Set(['appointmentId','amount','operationId']);
+      if(Object.keys(req.body||{}).some(key=>!allowed.has(key)))return res.status(422).json({error:'Please reload My Shiloh and try again',requestId:req.id});
+      return res.status(200).json(await rewardsService.applyCredit({crmV2ClientId:req.myShilohClientSession.crmV2ClientId,clientSessionId:req.myShilohClientSession.sessionId,...req.body}));
+    } catch(error){if(error instanceof ShilohRewardsError)return res.status(error.httpStatus).json({error:error.message,code:error.code,requestId:req.id});return next(error);}
   });
 
   router.get('/my-shiloh/manifest.webmanifest', (_req, res) => {

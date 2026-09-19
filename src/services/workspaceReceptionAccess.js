@@ -23,6 +23,7 @@ const RECEPTION_PRESET = Object.freeze({
     'booking:update',
     'appointment:record_past',
     'appointment:adjust_end',
+    'loyalty:view',
     'loyalty:redeem',
     'service:pricing',
     'appointment:couples:discount',
