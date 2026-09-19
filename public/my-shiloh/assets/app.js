@@ -274,19 +274,26 @@
         'x-shiloh-csrf-token': csrfToken,
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || data.status !== 'cancelled') {
-        throw new Error(data.error || 'That cancellation could not be confirmed.');
+      if (!response.ok || !['cancelled', 'pending_approval'].includes(String(data.status || ''))) {
+        throw new Error(data.error || 'That request could not be confirmed.');
       }
       card?.remove();
       const appointment = data.appointment || {};
-      const details = [appointment.service, appointment.date, appointment.time].filter(Boolean).join(' · ');
-      appendShilohMessage('shiloh', details
-        ? `Your appointment has been cancelled. ${details}`
-        : 'Your appointment has been cancelled.');
+      if (data.status === 'pending_approval') {
+        const details = [appointment.service, appointment.proposedDate, appointment.proposedTime].filter(Boolean).join(' · ');
+        appendShilohMessage('shiloh', data.message || (details
+          ? `Your reschedule request for ${details} has been sent for practitioner approval. Your current appointment stays unchanged until it is approved.`
+          : 'Your reschedule request has been sent for practitioner approval. Your current appointment stays unchanged until it is approved.'));
+      } else {
+        const details = [appointment.service, appointment.date, appointment.time].filter(Boolean).join(' · ');
+        appendShilohMessage('shiloh', details
+          ? `Your appointment has been cancelled. ${details}`
+          : 'Your appointment has been cancelled.');
+      }
       await loadClientExperience();
     } catch (error) {
       card?.remove();
-      appendShilohMessage('shiloh', error.message || 'That cancellation could not be confirmed. Nothing else was changed.');
+      appendShilohMessage('shiloh', error.message || 'That request could not be confirmed. Your current appointment is unchanged.');
     }
   }
 
@@ -307,11 +314,13 @@
       // Declining locally is safe; an unconsumed proposal also expires automatically.
     }
     card?.remove();
-    appendShilohMessage('shiloh', 'No problem — your appointment is unchanged.');
+    appendShilohMessage('shiloh', action.type === 'reschedule_appointment'
+      ? 'No problem — your current appointment time is unchanged.'
+      : 'No problem — your appointment is unchanged.');
   }
 
   function renderClientAction(action) {
-    if (!shilohMessages || action?.type !== 'cancel_appointment') return null;
+    if (!shilohMessages || !['cancel_appointment', 'reschedule_appointment'].includes(action?.type)) return null;
     if (!/^[A-Za-z0-9_-]{43}$/.test(String(action.token || ''))) return null;
 
     shilohMessages.querySelector('[data-client-action-card]')?.remove();
@@ -319,7 +328,9 @@
     const card = document.createElement('section');
     card.className = 'client-action-card';
     card.dataset.clientActionCard = '';
-    card.setAttribute('aria-label', 'Confirm appointment cancellation');
+    card.setAttribute('aria-label', action.type === 'reschedule_appointment'
+      ? 'Confirm appointment reschedule request'
+      : 'Confirm appointment cancellation');
 
     const eyebrow = document.createElement('span');
     eyebrow.className = 'client-action-card__eyebrow';
@@ -330,19 +341,28 @@
 
     const detail = document.createElement('p');
     detail.className = 'client-action-card__detail';
-    detail.textContent = [
-      action.service,
-      action.practitioner,
-      [action.date, action.time].filter(Boolean).join(' · '),
-    ].filter(Boolean).join(' · ');
+    detail.textContent = action.type === 'reschedule_appointment'
+      ? [
+        action.service,
+        action.practitioner,
+        `Current: ${[action.currentDate, action.currentTime].filter(Boolean).join(' · ')}`,
+        `Requested: ${[action.proposedDate, action.proposedTime].filter(Boolean).join(' · ')}`,
+      ].filter(Boolean).join(' · ')
+      : [
+        action.service,
+        action.practitioner,
+        [action.date, action.time].filter(Boolean).join(' · '),
+      ].filter(Boolean).join(' · ');
 
     const policy = document.createElement('p');
     policy.className = 'client-action-card__policy';
-    policy.textContent = String(action.policy || '');
+    policy.textContent = String(action.type === 'reschedule_appointment' ? action.note || '' : action.policy || '');
 
     const payment = document.createElement('p');
     payment.className = 'client-action-card__note';
-    payment.textContent = String(action.paymentNote || '');
+    payment.textContent = String(action.type === 'reschedule_appointment'
+      ? 'Submitting this request does not move the appointment immediately. The assigned practitioner still needs to approve it.'
+      : action.paymentNote || '');
 
     const actions = document.createElement('div');
     actions.className = 'client-action-card__actions';
@@ -354,8 +374,10 @@
 
     const confirm = document.createElement('button');
     confirm.type = 'button';
-    confirm.className = 'button button--danger';
-    confirm.textContent = String(action.confirmLabel || 'Cancel appointment');
+    confirm.className = action.type === 'reschedule_appointment'
+      ? 'button button--primary'
+      : 'button button--danger';
+    confirm.textContent = String(action.confirmLabel || (action.type === 'reschedule_appointment' ? 'Request reschedule' : 'Cancel appointment'));
 
     keep.addEventListener('click', () => declineClientAction(action, card));
     confirm.addEventListener('click', () => confirmClientAction(action, card));
