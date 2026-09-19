@@ -78,6 +78,7 @@ h3{font-size:20px;line-height:1.12}
 .button:active{transform:translateY(1px)}
 .button--primary{background:var(--leaf-dark);color:#fff;box-shadow:0 9px 24px rgba(46,64,51,.18)}
 .button--soft{background:#fff;color:var(--leaf-dark);border:1px solid var(--line)}
+.button--danger{background:#7b433d;color:#fff;box-shadow:0 9px 24px rgba(91,52,47,.16)}
 .button--wide{width:100%}
 .focus-card{
   position:relative;overflow:hidden;margin:14px 0 28px;padding:21px;border-radius:24px;
@@ -218,9 +219,16 @@ h3{font-size:20px;line-height:1.12}
 .assistant-composer .button{min-width:84px}
 .assistant-chat__note{margin:10px 2px 5px;color:var(--muted);font-size:10px}
 .assistant-whatsapp-fallback{display:inline-flex;margin:4px 2px 0}
+.client-action-card{justify-self:stretch;max-width:100%;padding:17px;border-radius:20px;background:linear-gradient(145deg,#fff7f2,#fffdf9);border:1px solid rgba(123,67,61,.18);box-shadow:0 10px 26px rgba(91,52,47,.08)}
+.client-action-card__eyebrow{display:block;margin-bottom:7px;color:#7b433d;text-transform:uppercase;letter-spacing:.1em;font-size:9px;font-weight:900}
+.client-action-card h3{margin:0 0 8px;font-size:22px}
+.client-action-card__detail{margin:0 0 10px;font-size:12px;font-weight:800;color:var(--ink)}
+.client-action-card__policy{margin:0 0 8px;font-size:12px;color:#6c433e}
+.client-action-card__note{margin:0;color:var(--muted);font-size:10px}
+.client-action-card__actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:15px}
 .auth-code-form{margin-top:14px;padding:13px;border-radius:16px;background:rgba(255,255,255,.62);border:1px solid var(--line)}
 .auth-code-form label{display:block;margin-bottom:8px;color:var(--muted);font-size:11px;font-weight:800}
 .auth-code-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
 .auth-code-row input{min-width:0;min-height:46px;border:1px solid rgba(70,87,70,.2);border-radius:13px;padding:10px 13px;background:#fff;color:var(--ink);font:inherit;font-size:17px;font-weight:800;letter-spacing:.08em}
 .auth-code-row .button{min-height:46px}
-@media(max-width:420px){.auth-code-row{grid-template-columns:1fr}.auth-code-row .button{width:100%}.assistant-composer{grid-template-columns:1fr}.assistant-composer .button{width:100%}}
+@media(max-width:420px){.auth-code-row{grid-template-columns:1fr}.auth-code-row .button{width:100%}.assistant-composer{grid-template-columns:1fr}.assistant-composer .button{width:100%}.client-action-card__actions{grid-template-columns:1fr}.client-action-card__actions .button{width:100%}}
