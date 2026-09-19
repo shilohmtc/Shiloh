@@ -28,6 +28,7 @@ async function cancelOwnedAppointmentInTransaction(db, {
   crmV2ClientId = null,
   expectedRevision = null,
   requireFutureStart = false,
+  allowedStatuses = null,
   now = new Date(),
   changedBy = 'client',
   reason = 'Client cancellation confirmed',
@@ -50,6 +51,9 @@ async function cancelOwnedAppointmentInTransaction(db, {
   const appointment = locked.rows[0];
   if (!appointment) return { status: 'ownership_changed' };
   if (String(appointment.status || '') === 'cancelled') return { status: 'already_cancelled' };
+  if (Array.isArray(allowedStatuses) && allowedStatuses.length && !allowedStatuses.includes(String(appointment.status || ''))) {
+    return { status: 'appointment_changed' };
+  }
   if (!sameRevision(appointment.updated_at, expectedRevision)) return { status: 'appointment_changed' };
   if (requireFutureStart && new Date(appointment.starts_at).getTime() <= new Date(now).getTime()) {
     return { status: 'appointment_started' };
