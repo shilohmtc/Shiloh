@@ -3,6 +3,7 @@
 const { clearSession } = require('./memory');
 const clientContext = require('./myShilohClientContext');
 const { createMyShilohReadTools } = require('./myShilohReadTools');
+const { createMyShilohActionTools } = require('./myShilohActionTools');
 
 const MAX_MESSAGE_CHARS = 1000;
 const MESSAGE_WINDOW_MS = 60 * 1000;
@@ -87,6 +88,7 @@ function createMyShilohAssistantService({
   ai = defaultAi,
   contextService = clientContext,
   readTools = createMyShilohReadTools({ contextService }),
+  actionTools = createMyShilohActionTools(),
   clearConversationSession = clearSession,
   limiter = createMessageLimiter(),
 } = {}) {
@@ -96,6 +98,9 @@ function createMyShilohAssistantService({
   if (typeof ai !== 'function') throw new Error('Shiloh AI service is required');
   if (!readTools || !Array.isArray(readTools.definitions) || typeof readTools.execute !== 'function') {
     throw new Error('My Shiloh read tools are required');
+  }
+  if (!actionTools || !Array.isArray(actionTools.definitions) || typeof actionTools.execute !== 'function' || typeof actionTools.handles !== 'function') {
+    throw new Error('My Shiloh action tools are required');
   }
 
   async function reply({ sessionId, crmV2ClientId, message } = {}) {
@@ -122,15 +127,26 @@ function createMyShilohAssistantService({
       );
     }
 
+    let preparedAction = null;
     const replyText = await ai(key, cleanMessage, {
       conversationKey: key,
       profileOverride: { name: firstName(context.client.name) },
       clientContext: context,
       surface: 'my_shiloh',
-      tools: readTools.definitions,
-      toolExecutor: (name, args) => readTools.execute(name, args, {
-        crmV2ClientId: clientId,
-      }),
+      tools: [...readTools.definitions, ...actionTools.definitions],
+      toolExecutor: async (name, args) => {
+        if (actionTools.handles(name)) {
+          const result = await actionTools.execute(name, args, {
+            sessionId: positiveId(sessionId),
+            crmV2ClientId: clientId,
+          });
+          if (result.clientAction) preparedAction = result.clientAction;
+          return result.modelResult;
+        }
+        return readTools.execute(name, args, {
+          crmV2ClientId: clientId,
+        });
+      },
       maxToolRounds: 4,
     });
 
@@ -146,6 +162,7 @@ function createMyShilohAssistantService({
     return {
       reply: safeReply,
       contextVersion: String(context.version || 'my_shiloh_client_context_v1'),
+      action: preparedAction,
     };
   }
 
