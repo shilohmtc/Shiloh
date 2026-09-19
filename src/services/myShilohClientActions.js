@@ -63,6 +63,7 @@ function proposalOutcome(status) {
     appointment_started: 'appointment_started',
     already_cancelled: 'already_cancelled',
     ownership_changed: 'ownership_changed',
+    complex_booking: 'complex_booking',
   }[status] || 'failed';
 }
 
@@ -98,6 +99,7 @@ function createMyShilohClientActionService({
     const result = await queryable.query(
       `/* myShilohClientActions:cancellation-candidate */
        SELECT a.id,a.starts_at,a.ends_at,a.status,a.updated_at,
+              (SELECT gm.group_id FROM appointment_group_members gm WHERE gm.appointment_id=a.id LIMIT 1) AS group_id,
               COALESCE((
                 SELECT jsonb_agg(aps.service_name_snapshot ORDER BY aps.position,aps.id)
                   FROM appointment_services aps
@@ -137,6 +139,11 @@ function createMyShilohClientActionService({
       if (!appointment) {
         await client.query('ROLLBACK');
         return { ok: false, code: 'CLIENT_ACTION_NO_UPCOMING_APPOINTMENT' };
+      }
+
+      if (appointment.group_id) {
+        await client.query('ROLLBACK');
+        return { ok: false, code: 'CLIENT_ACTION_COMPLEX_BOOKING' };
       }
 
       const token = randomActionToken(randomBytes);
@@ -262,6 +269,8 @@ function createMyShilohClientActionService({
         expectedRevision: proposal.appointment_revision,
         requireFutureStart: true,
         allowedStatuses: ['scheduled', 'confirmed'],
+        lockAssignedStaff: true,
+        disallowLinkedGroup: true,
         now: current,
         changedBy: `client_session:${session}`,
         reason: 'Client cancellation confirmed in My Shiloh',
