@@ -58,8 +58,8 @@ function buildAuthenticatedClientContext(context) {
   if (!context?.client) return "";
 
   const lines = [];
-  const name = String(context.client.name || "").trim();
-  if (name) lines.push(`Client name: ${name}`);
+  const name = String(context.client.name || "").trim().split(/\s+/)[0] || "";
+  if (name) lines.push(`Client first name: ${name}`);
 
   const appointment = context.nextAppointment;
   if (appointment?.startsAt) {
