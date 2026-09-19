@@ -274,7 +274,7 @@ function createMyShilohRouter({
       }
       const status = result.status === 'appointment_started' ? 409
         : result.status === 'already_cancelled' ? 409
-          : result.status === 'appointment_changed' || result.status === 'ownership_changed' ? 409
+          : result.status === 'appointment_changed' || result.status === 'ownership_changed' || result.status === 'complex_booking' ? 409
             : 401;
       const error = result.status === 'appointment_started'
         ? 'This appointment has already started and cannot be cancelled here.'
@@ -284,7 +284,9 @@ function createMyShilohRouter({
             ? 'This appointment changed after the confirmation was prepared. Please ask Shiloh to check it again.'
             : result.status === 'ownership_changed'
               ? 'The appointment ownership changed. Nothing was cancelled.'
-              : 'That cancellation confirmation is no longer valid.';
+              : result.status === 'complex_booking'
+                ? 'This linked or group booking needs help from the clinic team. Nothing was cancelled.'
+                : 'That cancellation confirmation is no longer valid.';
       return res.status(status).json({ error, status: result.status || 'invalid', requestId: req.id });
     } catch (error) {
       return next(error);
