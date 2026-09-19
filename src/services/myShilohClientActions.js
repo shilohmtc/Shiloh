@@ -2,7 +2,7 @@
 
 const crypto = require('crypto');
 const { pool } = require('../db/pool');
-const { cancelOwnedAppointmentInTransaction } = require('./clientAppointmentCancellation');
+const { cancelOwnedAppointmentInTransaction, sameRevision } = require('./clientAppointmentCancellation');
 const { authoritativeSlotsForIntent } = require('./clientBookingAvailability');
 const clientRescheduleApproval = require('./clientRescheduleApproval');
 const { reconcileStalePendingRescheduleHolds } = require('./clientRescheduleHoldReconciliation');
@@ -103,6 +103,21 @@ function proposalOutcome(status) {
     feature_disabled: 'feature_disabled',
     slot_unavailable: 'slot_unavailable',
   }[status] || 'failed';
+}
+
+function rescheduleProposalOutcome(status) {
+  if (status === 'pending_approval') return 'pending_approval';
+  if (status === 'already_pending') return 'already_pending';
+  if (status === 'notification_failed') return 'notification_failed';
+  if (status === 'feature_disabled') return 'feature_disabled';
+  if (status === 'appointment_started') return 'appointment_started';
+  if (['appointment_changed', 'appointment_not_found', 'client_identity_changed'].includes(status)) return 'appointment_changed';
+  if (['complex_practitioner_setup', 'complex_service_setup'].includes(status)) return 'complex_booking';
+  if ([
+    'past_time','clinic_hours','staff_schedule','crm_conflict',
+    'reschedule_hold_conflict','booking_proposal_hold_conflict','invalid_time','invalid_duration',
+  ].includes(status)) return 'slot_unavailable';
+  return 'failed';
 }
 
 function createMyShilohClientActionService({
