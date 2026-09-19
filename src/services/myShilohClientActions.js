@@ -110,8 +110,16 @@ function createMyShilohClientActionService({
   now = () => new Date(),
   randomBytes = crypto.randomBytes,
   ttlMs = ACTION_TTL_MS,
+  availability = authoritativeSlotsForIntent,
+  rescheduleApproval = clientRescheduleApproval,
+  reconcileRescheduleHolds = reconcileStalePendingRescheduleHolds,
 } = {}) {
   if (!db || typeof db.query !== 'function') throw new Error('My Shiloh client action database is required');
+  if (typeof availability !== 'function') throw new Error('Canonical client availability service is required');
+  if (!rescheduleApproval || typeof rescheduleApproval.createPendingRescheduleRequest !== 'function') {
+    throw new Error('Canonical client reschedule approval service is required');
+  }
+  if (typeof reconcileRescheduleHolds !== 'function') throw new Error('Reschedule hold reconciliation is required');
 
   async function requireActiveSession(queryable, sessionId, crmV2ClientId) {
     const session = positiveId(sessionId);
@@ -158,6 +166,178 @@ function createMyShilohClientActionService({
       [clientId, now()],
     );
     return result.rows[0] || null;
+  }
+
+  async function rescheduleCandidate(queryable, crmV2ClientId) {
+    const clientId = positiveId(crmV2ClientId);
+    if (!clientId) return null;
+    const result = await queryable.query(
+      `/* myShilohClientActions:reschedule-candidate */
+       SELECT a.id,a.starts_at,a.ends_at,a.status,a.updated_at,a.location_id,
+              v2.normalized_mobile,
+              (SELECT gm.group_id FROM appointment_group_members gm WHERE gm.appointment_id=a.id LIMIT 1) AS group_id,
+              (SELECT COUNT(*)::int FROM appointment_staff x WHERE x.appointment_id=a.id) AS staff_count,
+              (SELECT COUNT(*)::int FROM appointment_services x WHERE x.appointment_id=a.id) AS service_count,
+              (SELECT ast.staff_id FROM appointment_staff ast WHERE ast.appointment_id=a.id ORDER BY ast.position,ast.id LIMIT 1) AS staff_id,
+              (SELECT ast.staff_name_snapshot FROM appointment_staff ast WHERE ast.appointment_id=a.id ORDER BY ast.position,ast.id LIMIT 1) AS staff_name,
+              (SELECT aps.service_id FROM appointment_services aps WHERE aps.appointment_id=a.id ORDER BY aps.position,aps.id LIMIT 1) AS service_id,
+              (SELECT aps.service_name_snapshot FROM appointment_services aps WHERE aps.appointment_id=a.id ORDER BY aps.position,aps.id LIMIT 1) AS service_name,
+              (SELECT request.id
+                 FROM appointment_reschedule_requests request
+                WHERE request.appointment_id=a.id
+                  AND request.status='pending'
+                ORDER BY request.id DESC
+                LIMIT 1) AS pending_request_id
+         FROM appointments a
+         JOIN crm_v2_clients v2 ON v2.id=a.crm_v2_client_id AND v2.status='active'
+        WHERE a.crm_v2_client_id=$1
+          AND a.client_id IS NULL
+          AND a.status IN ('scheduled','confirmed')
+          AND a.starts_at>$2
+        ORDER BY a.starts_at,a.id
+        LIMIT 1`,
+      [clientId, new Date(now().getTime() + RESCHEDULE_START_GUARD_MS)],
+    );
+    return result.rows[0] || null;
+  }
+
+  async function exactRescheduleSlot(appointment, proposedStartsAt) {
+    const requested = exactDate(proposedStartsAt);
+    const parts = johannesburgSlotParts(requested);
+    if (!requested || !parts || requested.getTime() <= now().getTime()) return null;
+    const result = await availability({
+      service_text: String(appointment.service_name || ''),
+      preferred_date: parts.date,
+      preferred_time: parts.time,
+      therapist_text: String(appointment.staff_name || ''),
+      service_verified: true,
+      status: 'collecting',
+    }, {
+      now: now(),
+    });
+    if (result?.status !== 'available' || !Array.isArray(result.slots)) return null;
+    return result.slots.find(slot => (
+      new Date(slot.starts_at).getTime() === requested.getTime()
+      && Number(slot.staff_id) === Number(appointment.staff_id)
+      && Number(slot.service_id) === Number(appointment.service_id)
+    )) || null;
+  }
+
+  async function prepareReschedule({ sessionId, crmV2ClientId, proposedStartsAt } = {}) {
+    const session = positiveId(sessionId);
+    const clientId = positiveId(crmV2ClientId);
+    const requestedStart = exactDate(proposedStartsAt);
+    if (!session || !clientId || !requestedStart) {
+      return { ok: false, code: 'CLIENT_ACTION_INVALID_RESCHEDULE' };
+    }
+
+    const client = typeof db.connect === 'function' ? await db.connect() : db;
+    const release = client !== db && typeof client.release === 'function';
+    try {
+      await client.query('BEGIN');
+      if (!await requireActiveSession(client, session, clientId)) {
+        await client.query('ROLLBACK');
+        return { ok: false, code: 'CLIENT_ACTION_SESSION_INVALID' };
+      }
+
+      const appointment = await rescheduleCandidate(client, clientId);
+      if (!appointment) {
+        await client.query('ROLLBACK');
+        return { ok: false, code: 'CLIENT_ACTION_NO_UPCOMING_APPOINTMENT' };
+      }
+      if (
+        appointment.group_id
+        || Number(appointment.staff_count) !== 1
+        || Number(appointment.service_count) !== 1
+        || !positiveId(appointment.staff_id)
+        || !positiveId(appointment.service_id)
+      ) {
+        await client.query('ROLLBACK');
+        return { ok: false, code: 'CLIENT_ACTION_COMPLEX_BOOKING' };
+      }
+      if (appointment.pending_request_id) {
+        await client.query('ROLLBACK');
+        return { ok: false, code: 'CLIENT_ACTION_ALREADY_PENDING' };
+      }
+
+      const slot = await exactRescheduleSlot(appointment, requestedStart);
+      if (!slot) {
+        await client.query('ROLLBACK');
+        return { ok: false, code: 'CLIENT_ACTION_SLOT_UNAVAILABLE' };
+      }
+
+      const proposedStart = new Date(slot.starts_at);
+      const proposedEnd = new Date(slot.ends_at);
+      const currentDisplay = localAppointmentDisplay(appointment.starts_at);
+      const requestedDisplay = localAppointmentDisplay(proposedStart);
+      const issuedAt = now();
+      const expiresAt = new Date(issuedAt.getTime() + ttlMs);
+      const token = randomActionToken(randomBytes);
+
+      await client.query(
+        `UPDATE client_action_proposals
+            SET revoked_at=$2
+          WHERE session_id=$1
+            AND action_type='request_reschedule'
+            AND consumed_at IS NULL
+            AND revoked_at IS NULL`,
+        [session, issuedAt],
+      );
+      await client.query(
+        `INSERT INTO client_action_proposals
+           (session_id,crm_v2_client_id,appointment_id,action_type,token_hash,
+            appointment_revision,action_payload,issued_at,expires_at)
+         VALUES($1,$2,$3,'request_reschedule',$4,$5,$6::jsonb,$7,$8)`,
+        [
+          session,
+          clientId,
+          Number(appointment.id),
+          sha256(token),
+          appointment.updated_at,
+          JSON.stringify({
+            proposedStartsAt: proposedStart.toISOString(),
+            proposedEndsAt: proposedEnd.toISOString(),
+          }),
+          issuedAt,
+          expiresAt,
+        ],
+      );
+      await client.query('COMMIT');
+
+      return {
+        ok: true,
+        modelResult: {
+          ok: true,
+          prepared: true,
+          action: ACTION_TYPE_RESCHEDULE,
+          service: String(appointment.service_name || 'Shiloh appointment'),
+          practitioner: String(appointment.staff_name || 'Shiloh practitioner'),
+          current: { date: currentDisplay.date, time: currentDisplay.time },
+          requested: { date: requestedDisplay.date, time: requestedDisplay.time },
+          message: 'A reschedule request confirmation card is ready. The current appointment has not changed.',
+        },
+        clientAction: {
+          type: ACTION_TYPE_RESCHEDULE,
+          token,
+          title: 'Request this new time?',
+          service: String(appointment.service_name || 'Shiloh appointment'),
+          practitioner: String(appointment.staff_name || 'Shiloh practitioner'),
+          currentDate: currentDisplay.date,
+          currentTime: currentDisplay.time,
+          requestedDate: requestedDisplay.date,
+          requestedTime: requestedDisplay.time,
+          approvalNote: `Your current appointment stays confirmed until ${String(appointment.staff_name || 'the practitioner')} approves the requested change.`,
+          confirmLabel: 'Request change',
+          declineLabel: 'Keep current time',
+          expiresAt: expiresAt.toISOString(),
+        },
+      };
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+      throw error;
+    } finally {
+      if (release) client.release();
+    }
   }
 
   async function prepareCancellation({ sessionId, crmV2ClientId } = {}) {
@@ -384,6 +564,7 @@ function createMyShilohClientActionService({
 
   return {
     prepareCancellation,
+    prepareReschedule,
     confirmAction,
     declineAction,
     revokeSessionActions,
@@ -396,10 +577,14 @@ module.exports = {
   ACTION_TOKEN_BYTES,
   ACTION_TTL_MS,
   ACTION_TYPE_CANCEL,
+  ACTION_TYPE_RESCHEDULE,
+  RESCHEDULE_START_GUARD_MS,
   positiveId,
   sha256,
   randomActionToken,
   validActionToken,
+  exactDate,
+  johannesburgSlotParts,
   localAppointmentDisplay,
   cancellationPolicy,
   proposalOutcome,
