@@ -21,6 +21,7 @@ const { createGiftVoucherService, GiftVoucherError } = require('../services/gift
 const { renderClientVoucherPage, renderPublicVoucherPage } = require('../presentation/giftVoucherUx');
 const { createShilohRewardsService, ShilohRewardsError } = require('../services/shilohRewards');
 const { renderClientRewardsPage, clientRewardsScript } = require('../presentation/shilohRewardsUx');
+const { createMyShilohProfileService, MyShilohProfileError } = require('../services/myShilohProfile');
 const {
   sameOriginGuard,
   requestFingerprintHash,
@@ -75,6 +76,7 @@ function createMyShilohRouter({
   formService = clientConsultationForms,
   voucherService = createGiftVoucherService({ db: pool }),
   rewardsService = createShilohRewardsService({ db: pool }),
+  profileService = createMyShilohProfileService({ db: pool }),
 } = {}) {
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
@@ -297,6 +299,43 @@ function createMyShilohRouter({
       }
       return res.status(200).json(experience);
     } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.get('/my-shiloh/api/profile', requireSession, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const profile = await profileService.loadProfile({
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+      });
+      if (!profile) return res.status(404).json({ error: 'Your profile is unavailable', requestId: req.id });
+      return res.status(200).json({ profile });
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/my-shiloh/api/profile/update', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const allowed = new Set(['expectedRevision', 'name', 'dateOfBirth', 'gender']);
+      if (Object.keys(req.body && typeof req.body === 'object' ? req.body : {}).some((key) => !allowed.has(key))) {
+        return res.status(422).json({ error: 'Please reload My Shiloh and try again', requestId: req.id });
+      }
+      const result = await profileService.updateProfile({
+        sessionId: req.myShilohClientSession.sessionId,
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+        expectedRevision: req.body?.expectedRevision,
+        name: req.body?.name,
+        dateOfBirth: req.body?.dateOfBirth,
+        gender: req.body?.gender,
+      });
+      return res.status(200).json(result);
+    } catch (error) {
+      if (error instanceof MyShilohProfileError) {
+        return res.status(error.httpStatus).json({ error: error.message, code: error.code, requestId: req.id });
+      }
       return next(error);
     }
   });

@@ -153,8 +153,42 @@ function renderMyShilohPage({
         <div class="profile-avatar" aria-hidden="true">${firstName.charAt(0).toUpperCase()}</div>
         <div><span>Signed in as</span><strong>${clientName}</strong><small>Verified with WhatsApp</small></div>
       </div>
+      <section class="profile-editor" aria-labelledby="personal-details-title">
+        <div class="profile-editor__heading">
+          <div><p class="eyebrow">Personal details</p><h2 id="personal-details-title">Keep your details up to date.</h2></div>
+          <span class="status-pill">Private</span>
+        </div>
+        <form data-client-profile-form>
+          <div class="profile-fields">
+            <label class="profile-field profile-field--wide" for="profile-name">
+              <span>Full name</span>
+              <input id="profile-name" name="name" maxlength="120" autocomplete="name" required disabled>
+            </label>
+            <label class="profile-field" for="profile-date-of-birth">
+              <span>Date of birth</span>
+              <input id="profile-date-of-birth" name="dateOfBirth" type="date" min="1900-01-01" autocomplete="bday" disabled>
+            </label>
+            <label class="profile-field" for="profile-gender">
+              <span>Gender</span>
+              <select id="profile-gender" name="gender" disabled>
+                <option value="">Choose an option</option>
+                <option value="female">Female</option>
+                <option value="male">Male</option>
+                <option value="non_binary">Non-binary</option>
+                <option value="prefer_not_to_say">Prefer not to say</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+          </div>
+          <div class="profile-mobile">
+            <div><span>Verified WhatsApp number</span><strong data-client-profile-mobile>Checking…</strong></div>
+            <p>Your sign-in number cannot be changed here. Please ask the clinic team if it needs to be updated.</p>
+          </div>
+          <p class="profile-editor__status" data-client-profile-status role="status" aria-live="polite">Loading your details…</p>
+          <button class="button button--primary button--wide" type="submit" disabled>Save personal details</button>
+        </form>
+      </section>
       <div class="profile-list" aria-label="Secure profile areas">
-        <div><span>Personal details</span><strong>Coming next</strong></div>
         <div><span>Consultation forms</span><strong>When required</strong></div>
         <div><span>Gift vouchers</span><strong><a href="/my-shiloh/gift-vouchers">Create or view</a></strong></div>
         <div><span>Shiloh Rewards</span><strong><a href="/my-shiloh/rewards">View balance</a></strong></div>

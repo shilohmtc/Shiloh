@@ -20,10 +20,14 @@
   const shilohChatInput = document.querySelector('[data-shiloh-chat-input]');
   const shilohChatSend = document.querySelector('[data-shiloh-chat-send]');
   const shilohPromptButtons = [...document.querySelectorAll('[data-shiloh-prompt]')];
+  const clientProfileForm = document.querySelector('[data-client-profile-form]');
+  const clientProfileStatus = document.querySelector('[data-client-profile-status]');
+  const clientProfileMobile = document.querySelector('[data-client-profile-mobile]');
   let deferredInstallPrompt = null;
   let authActionInFlight = false;
   let shilohMessageInFlight = false;
   let whatsappHandoffStarted = false;
+  let clientProfileRevision = null;
 
   function completionCodeFromHash() {
     const match = String(window.location.hash || '').match(/^#verify=(\d{6})$/);
@@ -217,6 +221,50 @@
     }
   }
 
+  function setClientProfileStatus(message = '', state = '') {
+    if (!clientProfileStatus) return;
+    clientProfileStatus.textContent = message;
+    clientProfileStatus.dataset.state = state;
+  }
+
+  function setClientProfileBusy(busy) {
+    if (!clientProfileForm) return;
+    clientProfileForm.querySelectorAll('button,input,select').forEach((control) => {
+      control.disabled = Boolean(busy);
+    });
+  }
+
+  function renderClientProfile(profile) {
+    if (!clientProfileForm || !profile || !/^[a-f0-9]{64}$/.test(String(profile.revision || ''))) return false;
+    clientProfileForm.elements.name.value = String(profile.name || '');
+    clientProfileForm.elements.dateOfBirth.value = String(profile.dateOfBirth || '');
+    clientProfileForm.elements.gender.value = String(profile.gender || '');
+    if (clientProfileMobile) clientProfileMobile.textContent = String(profile.mobile || 'Verified with WhatsApp');
+    clientProfileRevision = profile.revision;
+    setClientProfileBusy(false);
+    setClientProfileStatus('Your details are ready.', 'success');
+    return true;
+  }
+
+  async function loadClientProfile() {
+    if (!clientProfileForm || appFrame?.dataset.clientAuthenticated !== 'true') return;
+    setClientProfileBusy(true);
+    try {
+      const response = await fetch('/my-shiloh/api/profile', {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !renderClientProfile(data.profile)) {
+        throw new Error(data.error || 'Your personal details could not be loaded.');
+      }
+    } catch (error) {
+      setClientProfileStatus(error.message || 'Your personal details could not be loaded.', 'error');
+    }
+  }
+
   function syncNetworkState() {
     if (!offlineBanner) return;
     offlineBanner.hidden = window.navigator.onLine !== false;
@@ -271,6 +319,34 @@
     if (!response.ok || !data.csrfToken) throw new Error('Secure confirmation could not be started.');
     return data.csrfToken;
   }
+
+  clientProfileForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!clientProfileRevision) return;
+    setClientProfileBusy(true);
+    setClientProfileStatus('Saving your personal details…', 'working');
+    const form = new FormData(clientProfileForm);
+    try {
+      const csrfToken = await freshCsrfToken();
+      const response = await postJson('/my-shiloh/api/profile/update', {
+        expectedRevision: clientProfileRevision,
+        name: form.get('name'),
+        dateOfBirth: form.get('dateOfBirth') || null,
+        gender: form.get('gender') || null,
+      }, {
+        'x-shiloh-csrf-token': csrfToken,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !renderClientProfile(data.profile)) {
+        throw new Error(data.error || 'Your personal details could not be saved.');
+      }
+      setClientProfileStatus(data.status === 'unchanged' ? 'Your details are already up to date.' : 'Your personal details have been saved.', 'success');
+      if (data.status === 'updated') window.setTimeout(() => window.location.replace('/my-shiloh/#profile'), 700);
+    } catch (error) {
+      setClientProfileBusy(false);
+      setClientProfileStatus(error.message || 'Your personal details could not be saved.', 'error');
+    }
+  });
 
   function setActionCardBusy(card, busy) {
     card?.querySelectorAll('button').forEach((button) => { button.disabled = Boolean(busy); });
@@ -333,31 +409,34 @@
   }
 
   function renderClientAction(action) {
-    if (!shilohMessages || !['cancel_appointment', 'reschedule_appointment', 'consultation_form'].includes(action?.type)) return null;
-    if (action.type !== 'consultation_form' && !/^[A-Za-z0-9_-]{43}$/.test(String(action.token || ''))) return null;
+    if (!shilohMessages || !['cancel_appointment', 'reschedule_appointment', 'consultation_form', 'profile_details'].includes(action?.type)) return null;
+    if (!['consultation_form', 'profile_details'].includes(action.type) && !/^[A-Za-z0-9_-]{43}$/.test(String(action.token || ''))) return null;
     if (action.type === 'consultation_form' && String(action.href || '') !== '/my-shiloh/forms/complete') return null;
+    if (action.type === 'profile_details' && String(action.href || '') !== '#profile') return null;
 
     shilohMessages.querySelector('[data-client-action-card]')?.remove();
 
     const card = document.createElement('section');
     card.className = 'client-action-card';
     card.dataset.clientActionCard = '';
-    card.setAttribute('aria-label', action.type === 'consultation_form'
-      ? 'Open consultation form'
+    card.setAttribute('aria-label', ['consultation_form', 'profile_details'].includes(action.type)
+      ? (action.type === 'profile_details' ? 'Open personal details' : 'Open consultation form')
       : action.type === 'reschedule_appointment'
         ? 'Confirm appointment reschedule request'
         : 'Confirm appointment cancellation');
 
     const eyebrow = document.createElement('span');
     eyebrow.className = 'client-action-card__eyebrow';
-    eyebrow.textContent = action.type === 'consultation_form' ? 'Action available' : 'Confirmation required';
+    eyebrow.textContent = ['consultation_form', 'profile_details'].includes(action.type) ? 'Action available' : 'Confirmation required';
 
     const heading = document.createElement('h3');
-    heading.textContent = String(action.title || (action.type === 'consultation_form' ? 'Complete your consultation form' : 'Cancel this appointment?'));
+    heading.textContent = String(action.title || (action.type === 'profile_details' ? 'Update your personal details' : action.type === 'consultation_form' ? 'Complete your consultation form' : 'Cancel this appointment?'));
 
     const detail = document.createElement('p');
     detail.className = 'client-action-card__detail';
-    detail.textContent = action.type === 'consultation_form'
+    detail.textContent = action.type === 'profile_details'
+      ? String(action.detail || 'Review your private profile details in My Shiloh.')
+      : action.type === 'consultation_form'
       ? String(action.detail || 'A consultation form is waiting for you in My Shiloh.')
       : action.type === 'reschedule_appointment'
       ? [
@@ -374,13 +453,17 @@
 
     const policy = document.createElement('p');
     policy.className = 'client-action-card__policy';
-    policy.textContent = String(action.type === 'consultation_form'
+    policy.textContent = String(action.type === 'profile_details'
+      ? action.note || 'Your verified WhatsApp number cannot be changed here.'
+      : action.type === 'consultation_form'
       ? 'Open your form to continue safely.'
       : action.type === 'reschedule_appointment' ? action.note || '' : action.policy || '');
 
     const payment = document.createElement('p');
     payment.className = 'client-action-card__note';
-    payment.textContent = String(action.type === 'consultation_form'
+    payment.textContent = String(action.type === 'profile_details'
+      ? 'Nothing changes until you review and save the form.'
+      : action.type === 'consultation_form'
       ? 'Only you can open this form after signing in.'
       : action.type === 'reschedule_appointment'
       ? 'Submitting this request does not move the appointment immediately. The assigned practitioner still needs to approve it.'
@@ -389,11 +472,16 @@
     const actions = document.createElement('div');
     actions.className = 'client-action-card__actions';
 
-    if (action.type === 'consultation_form') {
+    if (['consultation_form', 'profile_details'].includes(action.type)) {
       const open = document.createElement('a');
       open.className = 'button button--primary';
-      open.href = '/my-shiloh/forms/complete';
-      open.textContent = String(action.label || 'Complete form');
+      if (action.type === 'profile_details') {
+        open.href = '#profile';
+        open.textContent = String(action.label || 'Open personal details');
+      } else {
+        open.href = '/my-shiloh/forms/complete';
+        open.textContent = String(action.label || 'Complete form');
+      }
       open.addEventListener('click', () => { card.remove(); });
       actions.append(open);
     } else {
@@ -576,6 +664,7 @@
   }
 
   loadClientExperience();
+  loadClientProfile();
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

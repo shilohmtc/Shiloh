@@ -160,6 +160,9 @@ function createMyShilohAssistantService({
     if (preparedAction?.type === 'consultation_form') {
       safeReply = 'You have a consultation form waiting. Use the Complete form button below to open it securely inside My Shiloh.';
     }
+    if (preparedAction?.type === 'profile_details') {
+      safeReply = 'You can update your personal details securely in your Profile. Use the button below to open them.';
+    }
     if (!safeReply) {
       throw new MyShilohAssistantError(
         'MY_SHILOH_ASSISTANT_EMPTY',
