@@ -162,7 +162,17 @@ Every tool automatically receives the authenticated client identity from server 
 
 Add bounded action tools only after the read model is stable.
 
-First controlled unit: **next-appointment cancellation**.
+First controlled unit: **next-appointment cancellation** — VERIFIED LIVE.
+
+Current controlled unit: **confirmed reschedule request**.
+
+- Shiloh must first use canonical availability and the client must choose an exact returned slot.
+- AI may prepare that exact slot only; it cannot move the appointment.
+- The authenticated UI shows current vs requested date/time and requires explicit CSRF-protected confirmation.
+- Confirmation consumes the one-time proposal and submits the exact reviewed slot into the existing practitioner-approval workflow.
+- The current appointment remains confirmed and unchanged until the assigned practitioner approves.
+- Existing practitioner approval revalidates client identity, appointment state, clinic hours, staff schedule, CRM conflicts, reschedule holds and booking-proposal holds before any move.
+- My Shiloh must never display “rescheduled” merely because the client submitted the request.
 
 - AI may prepare a cancellation proposal only.
 - The proposal is session/client/appointment/revision bound, random-token protected, one-time and short-lived.
