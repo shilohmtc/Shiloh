@@ -17,6 +17,8 @@ const {
   renderUnavailablePage,
 } = require('../presentation/clientConsultationFormUx');
 const { renderMyShilohPage } = require('../presentation/myShilohPwa');
+const { createGiftVoucherService, GiftVoucherError } = require('../services/giftVouchers');
+const { renderClientVoucherPage, renderPublicVoucherPage } = require('../presentation/giftVoucherUx');
 const {
   sameOriginGuard,
   requestFingerprintHash,
@@ -32,7 +34,7 @@ const {
 
 const ROOT = path.join(__dirname, '..', '..', 'public', 'my-shiloh');
 
-function setMyShilohPageHeaders(res) {
+function setMyShilohPageHeaders(res, { allowInlineStyles = false } = {}) {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
@@ -40,7 +42,7 @@ function setMyShilohPageHeaders(res) {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+    `default-src 'self'; style-src 'self'${allowInlineStyles ? " 'unsafe-inline'" : ''}; script-src 'self'; connect-src 'self'; img-src 'self' data:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
   );
 }
 
@@ -69,6 +71,7 @@ function createMyShilohRouter({
   actionService = createMyShilohClientActionService(),
   formActionService = createMyShilohConsultationFormActionService(),
   formService = clientConsultationForms,
+  voucherService = createGiftVoucherService({ db: pool }),
 } = {}) {
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
@@ -84,6 +87,46 @@ function createMyShilohRouter({
       res.setHeader('X-Content-Type-Options', 'nosniff');
     },
   }));
+
+  router.use('/gift-vouchers/assets', express.static(path.join(__dirname, '..', '..', 'public', 'gift-vouchers'), {
+    maxAge: '30d', immutable: true, fallthrough: false,
+    setHeaders(res) { res.setHeader('X-Content-Type-Options', 'nosniff'); },
+  }));
+
+  router.get('/gift-vouchers/:requestKey', async (req, res, next) => {
+    try {
+      const voucher = await voucherService.getPublicVoucher({ requestKey: req.params.requestKey });
+      if (!voucher) return res.status(404).type('text/plain').send('Voucher not found.');
+      setMyShilohPageHeaders(res, { allowInlineStyles: true });
+      return res.status(200).type('html').send(renderPublicVoucherPage({ voucher }));
+    } catch (error) { return next(error); }
+  });
+
+  router.get('/my-shiloh/gift-vouchers/client.js', requireSession, (_req, res) => res.status(200).type('application/javascript').sendFile(path.join(ROOT, 'assets', 'gift-vouchers.js')));
+  router.get('/my-shiloh/gift-vouchers', requireSession, async (req, res, next) => {
+    try {
+      const [model, rotated] = await Promise.all([
+        voucherService.getClientModel({ crmV2ClientId: req.myShilohClientSession.crmV2ClientId }),
+        sessionService.rotateCsrfToken(req.myShilohClientSession.sessionId),
+      ]);
+      if (!rotated.ok) return res.status(401).type('text/plain').send('Unauthorized');
+      setMyShilohPageHeaders(res, { allowInlineStyles: true });
+      return res.status(200).type('html').send(renderClientVoucherPage({ model, csrfToken: rotated.csrfToken }));
+    } catch (error) { return next(error); }
+  });
+
+  router.post('/my-shiloh/api/gift-vouchers', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const allowed = new Set(['recipientName','fromName','personalMessage','language','deliveryRecipient','deliveryMobile','amount']);
+      if (Object.keys(req.body || {}).some((key) => !allowed.has(key))) return res.status(422).json({ error:'Please reload My Shiloh and try again', requestId:req.id });
+      const result = await voucherService.createOrder({ crmV2ClientId:req.myShilohClientSession.crmV2ClientId, ...req.body });
+      return res.status(201).json(result);
+    } catch (error) {
+      if (error instanceof GiftVoucherError) return res.status(error.httpStatus).json({ error:error.message, code:error.code, requestId:req.id });
+      return next(error);
+    }
+  });
 
   router.get('/my-shiloh/manifest.webmanifest', (_req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=3600');

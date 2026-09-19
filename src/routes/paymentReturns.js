@@ -20,13 +20,13 @@ async function appointmentPathForReturn(queryable, requestReference) {
                  LIMIT 1
               )) AS appointment_id
          FROM payment_requests pr
-         JOIN booking_payment_accounts bpa ON bpa.id=pr.payment_account_id
+         LEFT JOIN booking_payment_accounts bpa ON bpa.id=pr.payment_account_id
         WHERE pr.request_key=$1
         LIMIT 1`,
       [reference]
     );
     const appointmentId = Number(result.rows[0]?.appointment_id);
-    return Number.isSafeInteger(appointmentId) && appointmentId > 0
+    return (Number.isSafeInteger(appointmentId) && appointmentId > 0) || result.rows[0]
       ? `/pay/status/${reference}`
       : '/';
   } catch (_) {
