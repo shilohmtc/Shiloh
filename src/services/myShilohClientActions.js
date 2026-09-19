@@ -455,17 +455,25 @@ function createMyShilohClientActionService({
 
     const client = typeof db.connect === 'function' ? await db.connect() : db;
     const release = client !== db && typeof client.release === 'function';
+    let transactionOpen = false;
     try {
       await client.query('BEGIN');
+      transactionOpen = true;
       if (!await requireActiveSession(client, session, clientId)) {
         await client.query('ROLLBACK');
+        transactionOpen = false;
         return { ok: false, code: 'CLIENT_ACTION_SESSION_INVALID' };
       }
 
       const proposalResult = await client.query(
-        `SELECT p.id,p.appointment_id,p.action_type,p.appointment_revision,p.expires_at,
+        `SELECT p.id,p.appointment_id,p.action_type,p.appointment_revision,p.action_payload,p.expires_at,
                 p.consumed_at,p.revoked_at,
-                a.starts_at,
+                a.starts_at,a.ends_at,a.updated_at AS current_revision,a.status AS appointment_status,
+                a.crm_v2_client_id AS appointment_crm_v2_client_id,
+                v2.normalized_mobile,
+                (SELECT gm.group_id FROM appointment_group_members gm WHERE gm.appointment_id=a.id LIMIT 1) AS group_id,
+                (SELECT COUNT(*)::int FROM appointment_staff x WHERE x.appointment_id=a.id) AS staff_count,
+                (SELECT COUNT(*)::int FROM appointment_services x WHERE x.appointment_id=a.id) AS service_count,
                 COALESCE((
                   SELECT jsonb_agg(aps.service_name_snapshot ORDER BY aps.position,aps.id)
                     FROM appointment_services aps
@@ -478,6 +486,7 @@ function createMyShilohClientActionService({
                 ),'[]'::jsonb) AS practitioners
            FROM client_action_proposals p
            JOIN appointments a ON a.id=p.appointment_id
+           LEFT JOIN crm_v2_clients v2 ON v2.id=a.crm_v2_client_id AND v2.status='active'
           WHERE p.token_hash=$1
             AND p.session_id=$2
             AND p.crm_v2_client_id=$3
@@ -489,52 +498,166 @@ function createMyShilohClientActionService({
       const current = now();
       if (!proposal || proposal.consumed_at || proposal.revoked_at || new Date(proposal.expires_at).getTime() <= current.getTime()) {
         await client.query('ROLLBACK');
+        transactionOpen = false;
         return { ok: false, code: 'CLIENT_ACTION_INVALID' };
       }
-      if (proposal.action_type !== ACTION_TYPE_CANCEL) {
+
+      if (proposal.action_type === ACTION_TYPE_CANCEL) {
+        const result = await cancelOwnedAppointmentInTransaction(client, {
+          appointmentId: proposal.appointment_id,
+          crmV2ClientId: clientId,
+          expectedRevision: proposal.appointment_revision,
+          requireFutureStart: true,
+          allowedStatuses: ['scheduled', 'confirmed'],
+          lockAssignedStaff: true,
+          disallowLinkedGroup: true,
+          now: current,
+          changedBy: `client_session:${session}`,
+          reason: 'Client cancellation confirmed in My Shiloh',
+          auditMetadata: {
+            source: 'my_shiloh',
+            clientSessionId: session,
+            actionProposalId: Number(proposal.id),
+          },
+        });
+        await client.query(
+          `UPDATE client_action_proposals
+              SET consumed_at=$2,
+                  outcome=$3
+            WHERE id=$1`,
+          [Number(proposal.id), current, proposalOutcome(result.status)],
+        );
+        await client.query('COMMIT');
+        transactionOpen = false;
+
+        const display = localAppointmentDisplay(proposal.starts_at);
+        return {
+          ok: result.status === 'cancelled',
+          status: result.status,
+          actionType: ACTION_TYPE_CANCEL,
+          appointment: {
+            service: firstText(proposal.services, 'Shiloh appointment'),
+            practitioner: firstText(proposal.practitioners, 'Shiloh practitioner'),
+            date: display.date,
+            time: display.time,
+          },
+        };
+      }
+
+      if (proposal.action_type !== ACTION_TYPE_RESCHEDULE) {
         await client.query('ROLLBACK');
+        transactionOpen = false;
         return { ok: false, code: 'CLIENT_ACTION_UNSUPPORTED' };
       }
 
-      const result = await cancelOwnedAppointmentInTransaction(client, {
-        appointmentId: proposal.appointment_id,
-        crmV2ClientId: clientId,
-        expectedRevision: proposal.appointment_revision,
-        requireFutureStart: true,
-        allowedStatuses: ['scheduled', 'confirmed'],
-        lockAssignedStaff: true,
-        disallowLinkedGroup: true,
-        now: current,
-        changedBy: `client_session:${session}`,
-        reason: 'Client cancellation confirmed in My Shiloh',
-        auditMetadata: {
-          source: 'my_shiloh',
-          clientSessionId: session,
-          actionProposalId: Number(proposal.id),
-        },
-      });
+      const proposedStart = exactDate(proposal.action_payload?.proposedStartsAt);
+      const proposedEnd = exactDate(proposal.action_payload?.proposedEndsAt);
+      const slotParts = johannesburgSlotParts(proposedStart);
+      let preflightStatus = null;
+      if (
+        Number(proposal.appointment_crm_v2_client_id) !== clientId
+        || !proposal.normalized_mobile
+      ) {
+        preflightStatus = 'ownership_changed';
+      } else if (!sameRevision(proposal.current_revision, proposal.appointment_revision)) {
+        preflightStatus = 'appointment_changed';
+      } else if (!['scheduled', 'confirmed'].includes(String(proposal.appointment_status || ''))) {
+        preflightStatus = 'appointment_changed';
+      } else if (new Date(proposal.starts_at).getTime() <= current.getTime() + RESCHEDULE_START_GUARD_MS) {
+        preflightStatus = 'appointment_started';
+      } else if (
+        proposal.group_id
+        || Number(proposal.staff_count) !== 1
+        || Number(proposal.service_count) !== 1
+      ) {
+        preflightStatus = 'complex_booking';
+      } else if (
+        !proposedStart
+        || !proposedEnd
+        || !slotParts
+        || proposedStart.getTime() <= current.getTime()
+        || proposedEnd.getTime() <= proposedStart.getTime()
+      ) {
+        preflightStatus = 'slot_unavailable';
+      }
+
+      if (preflightStatus) {
+        await client.query(
+          `UPDATE client_action_proposals
+              SET consumed_at=$2,
+                  outcome=$3
+            WHERE id=$1`,
+          [Number(proposal.id), current, proposalOutcome(preflightStatus)],
+        );
+        await client.query('COMMIT');
+        transactionOpen = false;
+        return {
+          ok: false,
+          status: preflightStatus,
+          actionType: ACTION_TYPE_RESCHEDULE,
+        };
+      }
+
       await client.query(
         `UPDATE client_action_proposals
-            SET consumed_at=$2,
-                outcome=$3
+            SET consumed_at=$2
           WHERE id=$1`,
-        [Number(proposal.id), current, proposalOutcome(result.status)],
+        [Number(proposal.id), current],
       );
       await client.query('COMMIT');
+      transactionOpen = false;
 
-      const display = localAppointmentDisplay(proposal.starts_at);
+      let requestResult;
+      try {
+        await reconcileRescheduleHolds();
+        requestResult = await rescheduleApproval.createPendingRescheduleRequest(
+          String(proposal.normalized_mobile),
+          {
+            action: 'reschedule',
+            appointment_id: Number(proposal.appointment_id),
+            preferred_date: slotParts.date,
+            preferred_time: slotParts.time,
+            expected_revision: new Date(proposal.appointment_revision).toISOString(),
+            status: 'awaiting_confirmation',
+          },
+        );
+      } catch (error) {
+        await db.query(
+          `UPDATE client_action_proposals
+              SET outcome='failed'
+            WHERE id=$1 AND consumed_at IS NOT NULL`,
+          [Number(proposal.id)],
+        );
+        throw error;
+      }
+
+      const outcome = rescheduleProposalOutcome(requestResult?.status);
+      await db.query(
+        `UPDATE client_action_proposals
+            SET outcome=$2
+          WHERE id=$1 AND consumed_at IS NOT NULL`,
+        [Number(proposal.id), outcome],
+      );
+
+      const currentDisplay = localAppointmentDisplay(proposal.starts_at);
+      const requestedDisplay = localAppointmentDisplay(proposedStart);
       return {
-        ok: result.status === 'cancelled',
-        status: result.status,
+        ok: ['pending_approval', 'already_pending'].includes(String(requestResult?.status || '')),
+        status: String(requestResult?.status || 'failed'),
+        actionType: ACTION_TYPE_RESCHEDULE,
         appointment: {
           service: firstText(proposal.services, 'Shiloh appointment'),
           practitioner: firstText(proposal.practitioners, 'Shiloh practitioner'),
-          date: display.date,
-          time: display.time,
+          currentDate: currentDisplay.date,
+          currentTime: currentDisplay.time,
+          requestedDate: requestedDisplay.date,
+          requestedTime: requestedDisplay.time,
         },
       };
     } catch (error) {
-      try { await client.query('ROLLBACK'); } catch (_) {}
+      if (transactionOpen) {
+        try { await client.query('ROLLBACK'); } catch (_) {}
+      }
       throw error;
     } finally {
       if (release) client.release();
