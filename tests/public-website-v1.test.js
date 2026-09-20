@@ -48,11 +48,39 @@ test('public Services renders canonical timing and price fields without creating
   assert.match(html, /href="\/book\?service=202#service-202"/);
 });
 
-test('home and Services preserve canonical service IDs into booking', () => {
-  for (const html of [renderHome(catalogue), renderTreatments(catalogue)]) {
-    assert.match(html, /data-service-id="101"/);
-    assert.match(html, /href="\/book\?service=101#service-101"/);
-  }
+test('Home discovers live categories while Services preserves canonical service IDs into booking', () => {
+  const home = renderHome(catalogue);
+  const services = renderTreatments(catalogue);
+
+  assert.match(home, /data-public-service-discovery/);
+  assert.match(home, /data-public-service-category="Massage"/);
+  assert.match(home, /data-public-service-category="Pedicures &amp; Foot Care"/);
+  assert.match(home, /Deep Tissue Massage/);
+  assert.match(home, /Signature Pedicure/);
+  assert.match(home, /href="\/treatments#category-massage"/);
+  assert.match(home, /href="\/book#choose-with-shiloh">Not sure\? Ask Shiloh<\/a>/);
+  assert.doesNotMatch(home, /href="\/book\?service=101#service-101"/);
+
+  assert.match(services, /data-service-id="101"/);
+  assert.match(services, /href="\/book\?service=101#service-101"/);
+  assert.match(services, /data-public-category-navigation/);
+  assert.match(services, /href="#category-massage"/);
+  assert.match(services, /id="category-pedicures-and-foot-care"/);
+});
+
+test('service discovery is catalogue-derived and does not create a second availability authority', () => {
+  const html = renderHome([
+    ...catalogue,
+    { id: 303, name: 'Hydrating Facial', category: 'Aesthetic Care', duration: '60 min', price: 'R720' },
+    { id: 404, name: 'Brow Shape', category: 'Aesthetic Care', duration: '30 min', price: 'R280' },
+  ]);
+
+  assert.match(html, /data-public-service-category="Aesthetic Care"/);
+  assert.match(html, /2 services/);
+  assert.match(html, /Hydrating Facial/);
+  assert.match(html, /Brow Shape/);
+  assert.doesNotMatch(html, /available today|guaranteed|recommended practitioner/i);
+  assert.doesNotMatch(html, /wa\.me/);
 });
 
 test('all public pages and booking share complete navigation and accessible landmarks', () => {
