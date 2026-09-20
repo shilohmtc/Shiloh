@@ -58,6 +58,10 @@ function problemReportsClientScript() {
 
 function enhancedProblemReportsClientScript() {
   return problemReportsClientScript()
+    .replace(
+      "const form=document.querySelector('[data-problem-report-form]');",
+      "const form=document.querySelector('[data-problem-report-form]');if(form){const q=new URLSearchParams(location.search),category=q.get('category'),description=q.get('description'),expected=q.get('expectedBehavior');if(['booking','messages','profile','payments','other'].includes(category||''))form.elements.category.value=category;if(description)form.elements.description.value=description.slice(0,2000);if(expected)form.elements.expectedBehavior.value=expected.slice(0,1000);}",
+    )
     .replace("Thank you. Saved as '+b.report.reference+'.", "Thank you — your report has been logged as '+b.report.reference+'. Our technical support team will investigate the issue and let you know once it has been resolved. 🌿")
     .replace("out.textContent='Saved.';setTimeout(()=>location.reload(),500)", "out.textContent='Saved. The reporter will see the update and receive a WhatsApp message.';setTimeout(()=>location.reload(),800)");
 }
