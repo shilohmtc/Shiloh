@@ -18,9 +18,16 @@ test('public booking page is a real landing page and does not auto-redirect to W
   assert.doesNotMatch(html, /window\.location|location\.href/i);
 });
 
-test('public booking page fails closed when the WhatsApp number is unavailable', () => {
+test('public booking page fails closed with warm help when WhatsApp is unavailable', () => {
   assert.equal(buildWhatsAppBookingUrl(''), null);
-  const html = renderBookingPage(null);
-  assert.match(html, /WhatsApp booking is temporarily unavailable/);
+  const html = renderBookingPage(
+    null,
+    [{ id: 7, name: 'Full Body Swedish', category: 'Massage', duration: '60 min', price: 'R590' }],
+    7,
+  );
+  assert.match(html, /WhatsApp is taking a short pause/);
+  assert.match(html, /Your choice is safe here/);
+  assert.match(html, /mailto:info@shilohmtc\.co\.za\?subject=Help%20with%20Full%20Body%20Swedish/);
+  assert.match(html, /email Shiloh for help/);
   assert.doesNotMatch(html, /https:\/\/wa\.me\//);
 });

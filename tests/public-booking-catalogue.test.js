@@ -2,7 +2,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { buildWhatsAppBookingUrl, renderBookingPage, renderCatalogue } = require('../src/services/publicBookingPage');
+const {
+  buildWhatsAppBookingUrl,
+  resolveSelectedPublicService,
+  renderBookingPage,
+  renderCatalogue,
+} = require('../src/services/publicBookingPage');
 
 test('service booking handoff preselects the canonical service name', () => {
   const url = buildWhatsAppBookingUrl('+27 82 326 9871', 'Full Body Swedish');
@@ -34,4 +39,44 @@ test('public page uses only committed Phase 1 image references and does not clai
   assert.doesNotMatch(html, /treatment-room\.webp|consultation-room\.webp|pedicure-lounge\.webp|clinic-collage\.webp/);
   assert.match(html, /Availability is confirmed when Shiloh completes your booking/);
   assert.doesNotMatch(html, /available today|available now/i);
+});
+
+
+test('canonical service ID carries the public selection into booking and WhatsApp', () => {
+  const catalogue = [
+    {
+      id: 42,
+      name: 'Neo Pelvic Therapy',
+      category: 'Massage Treatments',
+      duration: '30 min',
+      price: 'R500',
+    },
+  ];
+  const selected = resolveSelectedPublicService(catalogue, '42');
+  assert.equal(selected.id, 42);
+  assert.equal(selected.name, 'Neo Pelvic Session');
+
+  const html = renderBookingPage('+27 82 326 9871', catalogue, '42');
+  assert.match(html, /Your choice is saved/);
+  assert.match(html, /id="service-42" class="service-card selected"/);
+  assert.match(html, /data-selected-service="true"/);
+  assert.match(html, /Continue with this service/);
+  const selectedUrl = html.match(/class="cta" href="([^"]+)"/)?.[1];
+  assert.ok(selectedUrl);
+  assert.match(
+    decodeURIComponent(selectedUrl.replaceAll('&#039;', "'")),
+    /I'd like to book Neo Pelvic Session\./,
+  );
+  assert.doesNotMatch(html, /\btherapy\b/i);
+});
+
+test('unknown or unsafe service IDs never create a selected booking state', () => {
+  const catalogue = [
+    { id: 42, name: 'Full Body Swedish', category: 'Massage', duration: '60 min', price: 'R590' },
+  ];
+  assert.equal(resolveSelectedPublicService(catalogue, '<script>'), null);
+  assert.equal(resolveSelectedPublicService(catalogue, '999'), null);
+  const html = renderBookingPage('+27 82 326 9871', catalogue, '<script>');
+  assert.doesNotMatch(html, /Your choice is saved/);
+  assert.doesNotMatch(html, /data-selected-service="true"/);
 });

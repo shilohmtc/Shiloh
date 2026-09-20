@@ -3,6 +3,7 @@ const path = require('node:path');
 const { chromium } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { renderHome, renderTreatments } = require('../src/services/publicWebsite');
+const { renderBookingPage } = require('../src/services/publicBookingPageEditorial');
 
 const catalogue = [
   {
@@ -91,6 +92,23 @@ async function run() {
       path: path.join(evidenceDir, 'phone-home-390x844.png'),
       fullPage: true,
     });
+
+    await phone.setContent(
+      withPreviewBase(renderBookingPage('27830000000', catalogue, catalogue[0].id)),
+      { waitUntil: 'networkidle' },
+    );
+    if (!(await phone.locator('.selection-summary').isVisible()))
+      throw new Error('Phone booking must show the saved service summary');
+    if (!(await phone.locator('#service-1.selected[data-selected-service="true"]').isVisible()))
+      throw new Error('Phone booking must highlight the canonical selected service');
+    const phoneWhatsAppUrl = await phone.locator('.mobile-book').getAttribute('href');
+    if (!decodeURIComponent(phoneWhatsAppUrl || '').includes('Deep Tissue Massage'))
+      throw new Error('Phone WhatsApp handoff must preserve the selected service');
+    await assertAccessible(phone, 'Phone booking selection');
+    await phone.screenshot({
+      path: path.join(evidenceDir, 'phone-booking-selection-390x844.png'),
+      fullPage: true,
+    });
     await phoneContext.close();
 
     const desktopContext = await browser.newContext({
@@ -123,17 +141,41 @@ async function run() {
       catalogue.length
     )
       throw new Error('Treatments must render the exact supplied catalogue fixture');
-    if ((await desktop.locator('.treatment-card a[href="/book"]').count()) !== catalogue.length)
-      throw new Error('Every treatment CTA must route to /book');
+    if (
+      (await desktop.locator('.treatment-card a[href^="/book?service="]').count()) !==
+      catalogue.length
+    )
+      throw new Error('Every treatment CTA must preserve its canonical service ID');
+    if (
+      (await desktop.locator('.treatment-card a[href="/book?service=1#service-1"]').count()) !== 1
+    )
+      throw new Error('Deep Tissue Massage must link to its canonical booking selection');
     await assertAccessible(desktop, 'Desktop treatments');
     await desktop.screenshot({
       path: path.join(evidenceDir, 'desktop-treatments-1440x1000.png'),
       fullPage: true,
     });
+
+    await desktop.setContent(
+      withPreviewBase(renderBookingPage('27830000000', catalogue, catalogue[0].id)),
+      { waitUntil: 'networkidle' },
+    );
+    if (!(await desktop.locator('.selection-summary').isVisible()))
+      throw new Error('Desktop booking must show the saved service summary');
+    if (!(await desktop.locator('#service-1.selected[data-selected-service="true"]').isVisible()))
+      throw new Error('Desktop booking must highlight the canonical selected service');
+    const desktopWhatsAppUrl = await desktop.locator('.cta').getAttribute('href');
+    if (!decodeURIComponent(desktopWhatsAppUrl || '').includes('Deep Tissue Massage'))
+      throw new Error('Desktop WhatsApp handoff must preserve the selected service');
+    await assertAccessible(desktop, 'Desktop booking selection');
+    await desktop.screenshot({
+      path: path.join(evidenceDir, 'desktop-booking-selection-1440x1000.png'),
+      fullPage: true,
+    });
     await desktopContext.close();
 
     console.log(
-      'Public Website V1 browser proof passed: Phone 390x844 + Desktop 1440x1000 + accessibility.',
+      'Public Website V1 browser proof passed: Phone 390x844 + Desktop 1440x1000 + booking continuity + accessibility.',
     );
   } finally {
     await browser.close();

@@ -743,6 +743,11 @@ test('public website Storybook exposes catalogue and WhatsApp unavailable states
     '/iframe.html?id=public-website-production-pages--whats-app-unavailable&viewMode=story',
     { waitUntil: 'networkidle' },
   );
-  await expect(page.getByRole('status')).toHaveText('WhatsApp booking is temporarily unavailable');
+  await expect(page.getByRole('status')).toContainText('WhatsApp is taking a short pause.');
+  await expect(page.getByRole('status')).toContainText('Your choice is safe here.');
+  await expect(page.getByRole('link', { name: 'email Shiloh for help' })).toHaveAttribute(
+    'href',
+    /^mailto:info@shilohmtc\.co\.za\?/,
+  );
   await expect(page.locator('a[href^="https://wa.me/"]')).toHaveCount(0);
 });
