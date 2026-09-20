@@ -36,6 +36,12 @@ test('#791 manifest installs one canonical Shiloh Workspace delivery shell', () 
   assert.doesNotMatch(JSON.stringify(manifest), /token|secret|credential|permission|capability|scope.*all_business/i);
 });
 
+test('approved Workspace logo assets are served from the same public path used by Storybook', () => {
+  const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  assert.match(appSource, /app\.use\("\/assets\/pwa", express\.static\(path\.join\(__dirname, "public", "assets", "pwa"\)/);
+  assert.ok(fs.existsSync(path.join(__dirname, '..', 'public', 'assets', 'pwa', 'shiloh-pwa-192.png')));
+});
+
 test('#791 PWA metadata decorates existing HTML idempotently and only expands CSP for manifest/worker self', () => {
   const source = '<!doctype html><html><head><title>Workspace</title></head><body></body></html>';
   const once = decorateWorkspacePwaHtml(source);
