@@ -679,6 +679,7 @@ const publicWebsiteStories = [
   ['treatments', 'treatments'],
   ['about', 'about'],
   ['contact', 'contact'],
+  ['visit', 'visit'],
   ['privacy', 'privacy'],
   ['book', 'book'],
 ];
