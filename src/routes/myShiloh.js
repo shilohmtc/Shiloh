@@ -22,6 +22,7 @@ const { renderClientVoucherPage, renderPublicVoucherPage } = require('../present
 const { createShilohRewardsService, ShilohRewardsError } = require('../services/shilohRewards');
 const { renderClientRewardsPage, clientRewardsScript } = require('../presentation/shilohRewardsUx');
 const { createMyShilohProfileService, MyShilohProfileError } = require('../services/myShilohProfile');
+const { createMyShilohWelcomeVoucherService, MyShilohWelcomeVoucherError } = require('../services/myShilohWelcomeVoucher');
 const { createProblemReportService, ProblemReportError } = require('../services/problemReports');
 const {
   sameOriginGuard,
@@ -78,6 +79,7 @@ function createMyShilohRouter({
   voucherService = createGiftVoucherService({ db: pool }),
   rewardsService = createShilohRewardsService({ db: pool }),
   profileService = createMyShilohProfileService({ db: pool }),
+  welcomeVoucherService = createMyShilohWelcomeVoucherService({ db: pool }),
   problemReportService = createProblemReportService({ db: pool }),
 } = {}) {
   const router = express.Router();
@@ -318,6 +320,42 @@ function createMyShilohRouter({
     }
   });
 
+  router.get('/my-shiloh/api/welcome-voucher', requireSession, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      return res.status(200).json(await welcomeVoucherService.getClientModel({
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+      }));
+    } catch (error) {
+      if (error instanceof MyShilohWelcomeVoucherError) {
+        return res.status(error.httpStatus).json({ error:error.message, code:error.code, resolution:error.resolution, requestId:req.id });
+      }
+      return next(error);
+    }
+  });
+
+  router.post('/my-shiloh/api/welcome-voucher/redeem', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const payload = req.body && typeof req.body === 'object' ? req.body : {};
+      const allowed = new Set(['appointmentId', 'operationId']);
+      if (Object.keys(payload).some((key) => !allowed.has(key))) {
+        return res.status(422).json({ error:'Please reload My Shiloh and try again', resolution:['Reload My Shiloh.', 'Choose the booking again.'], requestId:req.id });
+      }
+      return res.status(200).json(await welcomeVoucherService.applyToBooking({
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+        sessionId: req.myShilohClientSession.sessionId,
+        appointmentId: payload.appointmentId,
+        operationId: payload.operationId,
+      }));
+    } catch (error) {
+      if (error instanceof MyShilohWelcomeVoucherError) {
+        return res.status(error.httpStatus).json({ error:error.message, code:error.code, resolution:error.resolution, requestId:req.id });
+      }
+      return next(error);
+    }
+  });
+
   router.post('/my-shiloh/api/profile/update', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
     try {
       setNoStoreJson(res);
@@ -333,7 +371,10 @@ function createMyShilohRouter({
         dateOfBirth: req.body?.dateOfBirth,
         gender: req.body?.gender,
       });
-      return res.status(200).json(result);
+      const welcomeVoucher = await welcomeVoucherService.getClientModel({
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+      });
+      return res.status(200).json({ ...result, welcomeVoucher });
     } catch (error) {
       if (error instanceof MyShilohProfileError) {
         return res.status(error.httpStatus).json({ error: error.message, code: error.code, requestId: req.id });

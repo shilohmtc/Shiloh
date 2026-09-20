@@ -16,22 +16,23 @@ function decimal(value) {
   return Number.isFinite(number) ? number.toFixed(2) : null;
 }
 
-function paymentState({ amountDue, paid, refunded, rewardsApplied = 0 }) {
+function paymentState({ amountDue, paid, refunded, rewardsApplied = 0, welcomeVoucherApplied = 0 }) {
   if (amountDue == null) {
-    return { state: 'unknown', amountDue: null, paid: null, refunded: null, netPaid: null, rewardsApplied: null, outstanding: null };
+    return { state: 'unknown', amountDue: null, paid: null, refunded: null, netPaid: null, rewardsApplied: null, welcomeVoucherApplied: null, outstanding: null };
   }
   const due = Number(amountDue);
   const received = Number(paid || 0);
   const returned = Number(refunded || 0);
   const net = received - returned;
   const rewards = Number(rewardsApplied || 0);
-  const outstanding = Math.max(0, due - net - rewards);
+  const welcome = Number(welcomeVoucherApplied || 0);
+  const outstanding = Math.max(0, due - net - rewards - welcome);
   return {
-    state: net + rewards > due
+    state: net + rewards + welcome > due
       ? 'overpaid'
       : outstanding === 0
         ? (returned > 0 ? 'partially_refunded' : 'paid')
-        : net + rewards > 0
+        : net + rewards + welcome > 0
           ? 'partially_paid'
           : 'unpaid',
     amountDue: due.toFixed(2),
@@ -39,6 +40,7 @@ function paymentState({ amountDue, paid, refunded, rewardsApplied = 0 }) {
     refunded: returned.toFixed(2),
     netPaid: net.toFixed(2),
     rewardsApplied: rewards.toFixed(2),
+    welcomeVoucherApplied: welcome.toFixed(2),
     outstanding: outstanding.toFixed(2),
   };
 }
@@ -183,7 +185,8 @@ function createMyShilohClientContextService({
        SELECT bpa.id,bpa.canonical_amount_due,bpa.currency,
               COALESCE(SUM(ple.amount) FILTER (WHERE ple.entry_type='payment'),0) AS paid,
               COALESCE(SUM(ple.amount) FILTER (WHERE ple.entry_type='refund'),0) AS refunded,
-              (SELECT COALESCE(SUM(bla.amount),0) FROM booking_loyalty_allocations bla WHERE bla.booking_payment_account_id=bpa.id AND bla.state='applied') AS rewards_applied
+              (SELECT COALESCE(SUM(bla.amount),0) FROM booking_loyalty_allocations bla WHERE bla.booking_payment_account_id=bpa.id AND bla.state='applied') AS rewards_applied,
+              (SELECT COALESCE(SUM(wva.amount),0) FROM booking_welcome_voucher_allocations wva WHERE wva.booking_payment_account_id=bpa.id AND wva.state='applied') AS welcome_voucher_applied
          FROM booking_payment_accounts bpa
          LEFT JOIN appointment_group_members gm
            ON gm.group_id=bpa.appointment_group_id
@@ -224,6 +227,7 @@ function createMyShilohClientContextService({
         paid: account.paid,
         refunded: account.refunded,
         rewardsApplied: account.rewards_applied,
+        welcomeVoucherApplied: account.welcome_voucher_applied,
       }),
       currency: String(account.currency || 'ZAR'),
       activePaymentPath: /^[A-Za-z0-9_-]{8,100}$/.test(requestKey) ? `/pay/${requestKey}` : null,

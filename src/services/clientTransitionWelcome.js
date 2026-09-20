@@ -95,6 +95,9 @@ function buildRegisteredClientPrompt() {
     '',
     'There’s no need to register again. 😊',
     '',
+    '🎁 Open My Shiloh to unlock your once-off *R100 welcome voucher* by confirming your full profile:',
+    'https://app.shilohmtc.co.za/my-shiloh/#welcome-voucher',
+    '',
     '*How would you like to proceed?*',
   ].join('\n');
 }
@@ -104,6 +107,8 @@ function buildNewClientPrompt() {
     '🌿 *It looks like you’re new to Shiloh.*',
     '',
     'Before I can make or manage appointments for you, I’ll help you complete a quick registration.',
+    '',
+    '🎁 Complete it in My Shiloh to unlock a once-off *R100 welcome voucher* for a qualifying treatment.',
     '',
     '*Let’s get you registered.*',
     '',

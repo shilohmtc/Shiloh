@@ -123,6 +123,12 @@ h3{font-size:20px;line-height:1.12}
 }
 .quiet-card h2{font-size:21px;margin:0 0 4px}
 .quiet-card p:last-child{margin:0;color:var(--muted);font-size:12px}
+.welcome-voucher{display:grid;grid-template-columns:auto minmax(0,1fr);gap:18px;margin:22px 0 26px;padding:20px;border:1px solid rgba(138,102,47,.22);border-radius:24px;background:linear-gradient(145deg,#fff9ec,#fffdfa 55%,var(--sage-2));box-shadow:0 14px 34px rgba(48,61,52,.08)}
+.welcome-voucher__value{display:grid;place-items:center;width:78px;height:78px;border-radius:50%;background:var(--leaf);color:#fff;font-family:Georgia,serif;font-size:25px;box-shadow:inset 0 0 0 5px rgba(255,255,255,.16)}
+.welcome-voucher__body h2{margin:2px 0 7px;font-size:25px}.welcome-voucher__body>p{margin:0 0 13px;color:var(--muted);font-size:13px}.welcome-voucher__body small{display:block;margin-top:10px;color:var(--muted);font-size:10px}
+.welcome-voucher__steps{display:grid;gap:7px;margin:12px 0;padding:0;list-style:none}.welcome-voucher__steps li{display:flex;gap:8px;align-items:center;font-size:12px;font-weight:750}.welcome-voucher__steps li::before{content:'○';color:var(--gold);font-size:17px}.welcome-voucher__steps li.is-complete::before{content:'✓';color:var(--leaf-dark)}
+.welcome-voucher__bookings{display:grid;gap:8px}.welcome-voucher__booking{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:11px;border-radius:14px;background:#fff;border:1px solid var(--line)}.welcome-voucher__booking strong,.welcome-voucher__booking span{display:block}.welcome-voucher__booking span{margin-top:3px;color:var(--muted);font-size:10px}.welcome-voucher__booking .button{min-height:40px;padding:8px 12px;font-size:11px}
+.welcome-voucher details{margin-top:12px;color:var(--muted);font-size:11px}.welcome-voucher summary{cursor:pointer;font-weight:850;color:var(--leaf-dark)}.welcome-voucher details ul{padding-left:18px}.welcome-voucher__status{min-height:18px;margin-top:10px!important;font-weight:750}.welcome-voucher__status[data-state="error"]{color:#8a413b}.welcome-voucher__status[data-state="success"]{color:var(--leaf-dark)}
 .quiet-icon{display:grid;place-items:center;width:45px;height:45px;border-radius:50%;background:#faf7f0 url('/my-shiloh/assets/icon-192.png') center/cover no-repeat;color:transparent;font-size:0}
 .circle-link{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#fff;text-decoration:none;font-size:20px}
 .page-intro{padding:28px 1px 18px}
@@ -250,4 +256,5 @@ h3{font-size:20px;line-height:1.12}
 .auth-code-row input{min-width:0;min-height:46px;border:1px solid rgba(70,87,70,.2);border-radius:13px;padding:10px 13px;background:#fff;color:var(--ink);font:inherit;font-size:17px;font-weight:800;letter-spacing:.08em}
 .auth-code-row .button{min-height:46px}
 @media(max-width:480px){.profile-fields{grid-template-columns:1fr}.profile-field--wide{grid-column:auto}}
+@media(max-width:520px){.welcome-voucher{grid-template-columns:1fr}.welcome-voucher__value{width:64px;height:64px;font-size:21px}.welcome-voucher__booking{grid-template-columns:1fr}.welcome-voucher__booking .button{width:100%}}
 @media(max-width:420px){.auth-code-row{grid-template-columns:1fr}.auth-code-row .button{width:100%}.assistant-composer{grid-template-columns:1fr}.assistant-composer .button{width:100%}.client-action-card__actions{grid-template-columns:1fr}.client-action-card__actions .button{width:100%}}
