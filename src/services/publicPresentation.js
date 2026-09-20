@@ -32,6 +32,16 @@ function sanitizePublicCatalogue(catalogue = []) {
   return Array.isArray(catalogue) ? catalogue.map(toPublicService) : [];
 }
 
+function normalizePublicServiceId(value = '') {
+  const id = String(value ?? '').trim();
+  return /^[1-9]\d*$/.test(id) ? id : '';
+}
+
+function publicBookingPathForService(service = {}) {
+  const id = normalizePublicServiceId(service.id);
+  return id ? `/book?service=${encodeURIComponent(id)}#service-${encodeURIComponent(id)}` : '/book';
+}
+
 module.exports = {
   PUBLIC_BRAND_NAME,
   PUBLIC_BRAND_SUBTITLE,
@@ -39,4 +49,6 @@ module.exports = {
   neutralizePublicLabel,
   toPublicService,
   sanitizePublicCatalogue,
+  normalizePublicServiceId,
+  publicBookingPathForService,
 };

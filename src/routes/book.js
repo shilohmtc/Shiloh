@@ -17,7 +17,10 @@ router.get('/book', async (req, res) => {
     getPublicServiceCatalogue(),
   ]);
   const ready = Boolean(number && catalogue);
-  return res.status(ready ? 200 : 503).type('html').send(renderBookingPage(number, catalogue || []));
+  return res
+    .status(ready ? 200 : 503)
+    .type('html')
+    .send(renderBookingPage(number, catalogue || [], req.query.service));
 });
 
 router.get('/book/health', async (req, res) => {

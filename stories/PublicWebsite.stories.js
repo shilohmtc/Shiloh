@@ -77,10 +77,14 @@ export const Book = {
   render: () => productionPage(renderBookingPage('27830000000', catalogue)),
 };
 
+export const BookWithSelection = {
+  render: () => productionPage(renderBookingPage('27830000000', catalogue, 101)),
+};
+
 export const CatalogueUnavailable = {
   render: () => productionPage(renderTreatments([])),
 };
 
 export const WhatsAppUnavailable = {
-  render: () => productionPage(renderBookingPage(null, catalogue)),
+  render: () => productionPage(renderBookingPage(null, catalogue, 101)),
 };

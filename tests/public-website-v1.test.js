@@ -44,6 +44,15 @@ test('public Services renders canonical timing and price fields without creating
   assert.doesNotMatch(html, /wa\.me/);
   assert.doesNotMatch(html, /availability=/);
   assert.match(html, /data-public-treatment-catalogue/);
+  assert.match(html, /href="\/book\?service=101#service-101"/);
+  assert.match(html, /href="\/book\?service=202#service-202"/);
+});
+
+test('home and Services preserve canonical service IDs into booking', () => {
+  for (const html of [renderHome(catalogue), renderTreatments(catalogue)]) {
+    assert.match(html, /data-service-id="101"/);
+    assert.match(html, /href="\/book\?service=101#service-101"/);
+  }
 });
 
 test('all public pages and booking share complete navigation and accessible landmarks', () => {
@@ -133,6 +142,7 @@ test('routing reuses canonical catalogue and leaves /book and /health intact', (
   const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
   assert.match(websiteRoute, /getPublicServiceCatalogue/);
   assert.match(bookRoute, /router\.get\('\/book'/);
+  assert.match(bookRoute, /renderBookingPage\(number, catalogue \|\| \[\], req\.query\.service\)/);
   assert.match(app, /publicWebsiteRoutes/);
   assert.match(app, /app\.get\("\/health"/);
   assert.doesNotMatch(websiteRoute, /INSERT|UPDATE|DELETE|pool\.query/);
