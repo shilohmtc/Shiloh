@@ -2,8 +2,31 @@
 
 const GUIDE_SOURCE = 'Shiloh Heidelberg visitor guide, source-checked 2026-09-16';
 
+const SHILOH_PUBLIC_LOCATION = Object.freeze({
+  streetAddress: '37 Jacobs Street',
+  locality: 'Heidelberg',
+  region: 'Gauteng',
+  country: 'South Africa',
+});
+
+const SHILOH_TOWN_CENTRE_NEIGHBOURS = Object.freeze([
+  'Grill King Family Restaurant',
+  'Heidelberg Crown Hotel',
+  'The Daily',
+  'Rasam Tandoori',
+  'So Easy Soap Dispensary',
+  'Le Petit Délavé Laundromat',
+  'Suikerbos Car Wash',
+  'Platō Coffee',
+]);
+
 const HEIDELBERG_GUIDE_CONTENT = [
-  'Shiloh is at 37 Jacobs Street, Heidelberg, Gauteng, South Africa.',
+  `Shiloh is at ${SHILOH_PUBLIC_LOCATION.streetAddress}, ${SHILOH_PUBLIC_LOCATION.locality}, ${SHILOH_PUBLIC_LOCATION.region}, ${SHILOH_PUBLIC_LOCATION.country}.`,
+  '',
+  'SHILOH IN HEIDELBERG TOWN CENTRE',
+  '- Shiloh is situated in the heart of Heidelberg’s newly renovated town centre.',
+  `- Nearby independent businesses include ${SHILOH_TOWN_CENTRE_NEIGHBOURS.join(', ')}.`,
+  '- Neighbouring businesses are independent from Shiloh. Their details may change and should be confirmed directly.',
   '',
   'PLACES OF INTEREST',
   '- Suikerbosrand Nature Reserve: a Gauteng nature destination near Heidelberg for scenic drives, hiking and outdoor time. Confirm current access, routes and opening arrangements before travelling.',
@@ -68,4 +91,12 @@ function buildHeidelbergGuideReply(message = '') {
   return null;
 }
 
-module.exports = { GUIDE_SOURCE, HEIDELBERG_GUIDE_CONTENT, isHeidelbergGuideQuery, getHeidelbergGuideKnowledge, buildHeidelbergGuideReply };
+module.exports = {
+  GUIDE_SOURCE,
+  SHILOH_PUBLIC_LOCATION,
+  SHILOH_TOWN_CENTRE_NEIGHBOURS,
+  HEIDELBERG_GUIDE_CONTENT,
+  isHeidelbergGuideQuery,
+  getHeidelbergGuideKnowledge,
+  buildHeidelbergGuideReply,
+};
