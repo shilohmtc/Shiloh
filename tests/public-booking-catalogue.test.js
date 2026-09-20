@@ -63,7 +63,10 @@ test('canonical service ID carries the public selection into booking and WhatsAp
   assert.match(html, /Continue with this service/);
   const selectedUrl = html.match(/class="cta" href="([^"]+)"/)?.[1];
   assert.ok(selectedUrl);
-  assert.match(decodeURIComponent(selectedUrl), /I'd like to book Neo Pelvic Session\./);
+  assert.match(
+    decodeURIComponent(selectedUrl.replaceAll('&#039;', "'")),
+    /I'd like to book Neo Pelvic Session\./,
+  );
   assert.doesNotMatch(html, /\btherapy\b/i);
 });
 
