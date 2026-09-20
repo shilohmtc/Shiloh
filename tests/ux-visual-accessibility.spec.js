@@ -703,6 +703,21 @@ for (const viewport of [
       await expect(surface.locator('a[href="/book"]').first()).toBeAttached();
       await expect(surface.locator('a[href="/my-shiloh/"]').first()).toBeAttached();
 
+      if (name === 'home') {
+        await expect(surface.locator('[data-public-service-discovery]')).toBeVisible();
+        await expect(surface.locator('[data-public-service-category]')).toHaveCount(3);
+        await expect(surface.getByRole('link', { name: 'Not sure? Ask Shiloh' })).toHaveAttribute(
+          'href',
+          '/book#choose-with-shiloh',
+        );
+      }
+
+      if (name === 'treatments') {
+        await expect(surface.locator('[data-public-category-navigation]')).toBeVisible();
+        await expect(surface.locator('[data-public-category-navigation] a')).toHaveCount(3);
+        await expect(surface.locator('#category-massage')).toBeVisible();
+      }
+
       const geometry = await surface.evaluate(() => ({
         documentWidth: document.documentElement.scrollWidth,
         viewportWidth: window.innerWidth,
