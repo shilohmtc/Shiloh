@@ -20,7 +20,7 @@ const {
 test('#956 installed icon has balanced optical proportions and an explicit Apple touch asset', () => {
   const svg = workspacePwaIconSvg(192);
   assert.equal(PWA_VERSION, 'official-brand-v1');
-  assert.match(svg, /<image width="192" height="192" href="\/calendar\/pwa\/icon-192\.png/);
+  assert.match(svg, /<image width="192" height="192" href="\/assets\/pwa\/shiloh-pwa-192\.png/);
   assert.match(workspacePwaHeadMarkup(), /rel="apple-touch-icon" sizes="180x180"/);
   assert.match(workspacePwaHeadMarkup(), /rel="icon"[^>]+image\/png/);
 });
