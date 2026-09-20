@@ -277,7 +277,8 @@ function renderMyShilohPage({
   <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}">
     <header class="topbar">
       <a class="brand" href="#home" aria-label="My Shiloh home">
-        <img class="brand-logo" src="/my-shiloh/assets/logo-compact.webp" alt="My Shiloh" width="858" height="336">
+        <span class="brand-mark brand-mark--header" aria-hidden="true"><img src="/my-shiloh/assets/icon-192.png" alt=""></span>
+        <span class="brand-copy"><strong>Shiloh</strong><small>My Shiloh</small></span>
       </a>
       <button class="install-button" type="button" data-install-trigger hidden>Install app</button>
     </header>

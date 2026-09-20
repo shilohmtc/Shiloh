@@ -32,6 +32,9 @@ test('My Shiloh renders the approved four-tab PWA shell with public-safe service
   const html = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue });
   assert.match(html, /<title>My Shiloh<\/title>/);
   assert.match(html, /rel="manifest" href="\/my-shiloh\/manifest\.webmanifest"/);
+  assert.match(html, /brand-mark--header/);
+  assert.match(html, /<strong>Shiloh<\/strong><small>My Shiloh<\/small>/);
+  assert.doesNotMatch(html, /class="brand-logo"/);
   assert.match(html, /data-view-target="home"/);
   assert.match(html, /data-view-target="bookings"/);
   assert.match(html, /data-view-target="shiloh"/);
@@ -77,7 +80,7 @@ test('PWA manifest is standalone and scoped to My Shiloh', () => {
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v8/);
+  assert.match(worker, /my-shiloh-shell-v9/);
   assert.match(worker, /\/my-shiloh\/auth\//);
   assert.match(worker, /\/my-shiloh\/api\//);
   assert.match(worker, /return;/);

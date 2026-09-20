@@ -43,13 +43,16 @@ button{color:inherit}
   backdrop-filter:blur(18px);
   border-bottom:1px solid rgba(37,51,44,.06);
 }
-.brand{display:flex;align-items:center;text-decoration:none}
-.brand-logo{display:block;width:146px;height:57px;object-fit:contain;object-position:left center}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+.brand-copy{display:grid;gap:3px;line-height:1}
+.brand-copy strong{font-family:Georgia,"Times New Roman",serif;font-size:24px;font-weight:500;letter-spacing:-.025em;color:var(--ink)}
+.brand-copy small{font-size:8px;font-weight:900;letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
 .brand-mark{
   display:grid;place-items:center;width:42px;height:42px;border-radius:15px;overflow:hidden;
   color:#fff;background:#faf7f0;box-shadow:0 8px 22px rgba(46,64,51,.18);
 }
 .brand-mark img{display:block;width:100%;height:100%;object-fit:cover}
+.brand-mark--header{width:46px;height:46px;border-radius:14px;box-shadow:0 6px 18px rgba(46,64,51,.14)}
 .brand-mark svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
 .brand-mark--large{width:64px;height:64px;border-radius:20px}
 .install-button{
