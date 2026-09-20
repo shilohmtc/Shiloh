@@ -22,6 +22,7 @@ const { renderClientVoucherPage, renderPublicVoucherPage } = require('../present
 const { createShilohRewardsService, ShilohRewardsError } = require('../services/shilohRewards');
 const { renderClientRewardsPage, clientRewardsScript } = require('../presentation/shilohRewardsUx');
 const { createMyShilohProfileService, MyShilohProfileError } = require('../services/myShilohProfile');
+const { createProblemReportService, ProblemReportError } = require('../services/problemReports');
 const {
   sameOriginGuard,
   requestFingerprintHash,
@@ -77,6 +78,7 @@ function createMyShilohRouter({
   voucherService = createGiftVoucherService({ db: pool }),
   rewardsService = createShilohRewardsService({ db: pool }),
   profileService = createMyShilohProfileService({ db: pool }),
+  problemReportService = createProblemReportService({ db: pool }),
 } = {}) {
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
@@ -334,6 +336,25 @@ function createMyShilohRouter({
       return res.status(200).json(result);
     } catch (error) {
       if (error instanceof MyShilohProfileError) {
+        return res.status(error.httpStatus).json({ error: error.message, code: error.code, requestId: req.id });
+      }
+      return next(error);
+    }
+  });
+
+  router.post('/my-shiloh/api/problem-reports', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const report = await problemReportService.createReport({
+        source: 'my_shiloh',
+        reporterType: 'client',
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+        payload: req.body,
+        requestId: req.id,
+      });
+      return res.status(201).json({ report: { reference: report.reference, status: report.status } });
+    } catch (error) {
+      if (error instanceof ProblemReportError) {
         return res.status(error.httpStatus).json({ error: error.message, code: error.code, requestId: req.id });
       }
       return next(error);

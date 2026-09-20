@@ -188,6 +188,25 @@ function renderMyShilohPage({
           <button class="button button--primary button--wide" type="submit" disabled>Save personal details</button>
         </form>
       </section>
+      <section class="profile-editor" aria-labelledby="report-problem-title">
+        <div class="profile-editor__heading">
+          <div><p class="eyebrow">Help</p><h2 id="report-problem-title">Report a problem.</h2></div>
+          <span class="status-pill">Private</span>
+        </div>
+        <p class="problem-report-copy">Tell us if something in My Shiloh looks wrong or does not work as expected. JP will see your report privately.</p>
+        <form data-client-problem-report-form>
+          <div class="profile-fields">
+            <label class="profile-field profile-field--wide" for="client-problem-category"><span>What does it relate to?</span><select id="client-problem-category" name="category" required><option value="">Choose one</option><option value="booking">Booking</option><option value="messages">Messages</option><option value="profile">Personal details</option><option value="payments">Payments</option><option value="other">Something else</option></select></label>
+            <label class="profile-field profile-field--wide" for="client-problem-description"><span>What happened?</span><textarea id="client-problem-description" name="description" minlength="10" maxlength="2000" required></textarea></label>
+            <label class="profile-field profile-field--wide" for="client-problem-expected"><span>What did you expect? (optional)</span><textarea id="client-problem-expected" name="expectedBehavior" maxlength="1000"></textarea></label>
+            <label class="profile-field" for="client-problem-booking"><span>Booking number (optional)</span><input id="client-problem-booking" name="relatedAppointmentId" inputmode="numeric"></label>
+            <label class="profile-field" for="client-problem-screenshot"><span>Screenshot (optional)</span><input id="client-problem-screenshot" name="screenshot" type="file" accept="image/jpeg,image/png,image/webp"></label>
+          </div>
+          <p class="problem-report-copy">JPG, PNG or WebP under 1 MB. Please do not include passwords, sign-in codes, card details or private medical information.</p>
+          <p class="profile-editor__status" data-client-problem-report-status role="status" aria-live="polite"></p>
+          <button class="button button--soft button--wide" type="submit">Send report</button>
+        </form>
+      </section>
       <div class="profile-list" aria-label="Secure profile areas">
         <div><span>Consultation forms</span><strong>When required</strong></div>
         <div><span>Gift vouchers</span><strong><a href="/my-shiloh/gift-vouchers">Create or view</a></strong></div>
