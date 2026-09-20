@@ -35,7 +35,7 @@ function workspacePwaManifest() {
 
 function workspacePwaIconSvg(size = 192) {
   const dimension = Number(size) === 512 ? 512 : 192;
-  const png = dimension === 512 ? ICON_URLS[1] : ICON_URLS[0];
+  const png = `/assets/pwa/shiloh-pwa-${dimension}.png?v=${PWA_VERSION}`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${dimension} ${dimension}" role="img" aria-label="Shiloh"><image width="${dimension}" height="${dimension}" href="${png}"/></svg>`;
 }
 

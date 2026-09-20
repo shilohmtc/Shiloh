@@ -462,20 +462,25 @@ test('device management confirmations use accessible Shiloh dialogs on Desktop a
   }
 });
 
-test('PWA icon uses balanced optical proportions', async ({ page }) => {
+test('PWA icon uses the approved raster asset at full canvas', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/iframe.html?id=workspace-production-surfaces--pwa-icon-optical-scale&viewMode=story', { waitUntil: 'networkidle' });
 
-  const proportions = await page.locator('.pwa-icon').evaluate((svg) => {
-    const inner = svg.querySelectorAll('rect')[1];
-    const circle = svg.querySelector('circle');
+  const icon = await page.locator('.pwa-icon').evaluate((svg) => {
+    const image = svg.querySelector('image');
     return {
-      innerRatio: Number(inner.getAttribute('width')) / 192,
-      markRatio: Number(circle.getAttribute('r')) * 2 / 192,
+      viewBox: svg.getAttribute('viewBox'),
+      width: image?.getAttribute('width'),
+      height: image?.getAttribute('height'),
+      href: image?.getAttribute('href'),
     };
   });
-  expect(proportions.innerRatio).toBeGreaterThanOrEqual(0.87);
-  expect(proportions.markRatio).toBeGreaterThanOrEqual(0.39);
+  expect(icon).toEqual({
+    viewBox: '0 0 192 192',
+    width: '192',
+    height: '192',
+    href: '/assets/pwa/shiloh-pwa-192.png?v=official-brand-v1',
+  });
 });
 
 test('iPhone install invitation opens an accessible three-step guide without overflow', async ({ page }) => {
