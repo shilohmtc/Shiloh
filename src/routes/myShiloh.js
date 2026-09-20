@@ -361,6 +361,20 @@ function createMyShilohRouter({
     }
   });
 
+  router.get('/my-shiloh/api/problem-reports', requireSession, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const result = await problemReportService.listForReporter({
+        reporterType: 'client',
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+      });
+      return res.status(200).json({ reports: result.reports });
+    } catch (error) {
+      if (error instanceof ProblemReportError) return res.status(error.httpStatus).json({ error: error.message, code: error.code, requestId: req.id });
+      return next(error);
+    }
+  });
+
   router.post('/my-shiloh/api/shiloh/message', sameOrigin, requireSession, async (req, res, next) => {
     try {
       setNoStoreJson(res);

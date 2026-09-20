@@ -4,6 +4,7 @@ const { buildStaffFinalizationTemplateDefinition, buildStaffFinalizationActionTe
 const { buildBookingConfirmationTemplateDefinition } = require('./bookingConfirmationTemplateProvisioning');
 const { buildBookingConfirmationV2TemplateDefinition } = require('./bookingConfirmationV2TemplateProvisioning');
 const { buildWorkspaceBookingRequestAlertTemplateDefinition } = require('./workspaceBookingRequestAlertTemplateProvisioning');
+const { buildProblemReportResolvedTemplateDefinition } = require('./problemReportResolvedTemplateProvisioning');
 const { buildReminderActionTemplateDefinition } = require('./reminderActionTemplateProvisioning');
 const { buildDefinition } = require('./clientLifecycleTemplateProvisioning');
 const { buildStaffAuthTemplateSubmissionDefinition } = require('./staffAuthTemplateDefinition');
@@ -21,6 +22,7 @@ const consultationDefinition = (key) => buildConsultationFormTemplateDefinition(
 const SOURCE_DEFINITIONS = Object.freeze({
   booking_update: () => definition('booking_update'),
   workspace_booking_request_alert: () => buildWorkspaceBookingRequestAlertTemplateDefinition(),
+  problem_report_resolved: () => buildProblemReportResolvedTemplateDefinition(),
   staff_auth_otp: () => buildStaffAuthTemplateSubmissionDefinition(),
   staff_finalization_actions: () => buildStaffFinalizationActionTemplateDefinition(),
   appointment_followup_v2: () => definition('appointment_followup_actions'),

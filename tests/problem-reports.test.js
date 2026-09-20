@@ -20,16 +20,28 @@ function fakeDb({ manager = true } = {}) {
       if (sql.includes('problemReports:openCount')) return { rows: [{ count: state.reports.filter((r) => ['new', 'investigating'].includes(r.status)).length }] };
       if (sql.includes('problemReports:appointment')) return { rows: params[0] === 99 ? [{ id: 99 }] : [], rowCount: params[0] === 99 ? 1 : 0 };
       if (sql.includes('problemReports:create')) {
-        const row = { id: state.reports.length + 1, reference_code: params[0], source: params[1], reporter_type: params[2], reporter_name_snapshot: params[5], category: params[6], description: params[7], expected_behavior: params[8], related_appointment_id: params[9], page_path: params[10], request_id: params[11], diagnostic_context: JSON.parse(params[12]), screenshot_mime_type: params[13], status: 'new', resolution_note: null, created_at: new Date('2026-09-20T10:00:00Z'), updated_at: new Date('2026-09-20T10:00:00Z'), resolved_at: null };
+        const row = { id: state.reports.length + 1, reference_code: params[0], source: params[1], reporter_type: params[2], reporter_staff_admin_id: params[3], reporter_crm_v2_client_id: params[4], reporter_name_snapshot: params[5], category: params[6], description: params[7], expected_behavior: params[8], related_appointment_id: params[9], page_path: params[10], request_id: params[11], diagnostic_context: JSON.parse(params[12]), screenshot_mime_type: params[13], status: 'new', resolution_note: null, revision: 0, created_at: new Date('2026-09-20T10:00:00Z'), updated_at: new Date('2026-09-20T10:00:00Z'), resolved_at: null };
         state.reports.push(row);
         return { rows: [row], rowCount: 1 };
       }
       if (sql.includes('problemReports:audit')) return { rows: [], rowCount: 1 };
+      if (sql.includes('problemReports:listForReporter')) {
+        const idField = params[0] === 'staff' ? 'reporter_staff_admin_id' : 'reporter_crm_v2_client_id';
+        const rows = state.reports.filter((report) => report.reporter_type === params[0] && report[idField] === Number(params[1]));
+        return { rows, rowCount: rows.length };
+      }
       if (sql.includes('problemReports:list')) return { rows: state.reports, rowCount: state.reports.length };
       if (sql.includes('problemReports:updateStatus')) {
         const row = state.reports.find((report) => report.reference_code === params[1]);
         if (!row) return { rows: [], rowCount: 0 };
-        row.status = params[2]; row.resolution_note = params[3]; row.updated_at = new Date('2026-09-20T10:05:00Z');
+        row.status = params[2]; row.resolution_note = params[3]; row.revision = Number(row.revision || 0) + 1; row.updated_at = new Date('2026-09-20T10:05:00Z');
+        return { rows: [row], rowCount: 1 };
+      }
+      if (sql.includes('problemReports:reopenFromWhatsapp')) {
+        const field = params[0] === 'staff' ? 'reporter_staff_admin_id' : 'reporter_crm_v2_client_id';
+        const row = state.reports.find((report) => report.reporter_type === params[0] && report[field] === Number(params[1]) && ['fixed', 'closed'].includes(report.status) && (!params[2] || report.reference_code === params[2]));
+        if (!row) return { rows: [], rowCount: 0 };
+        row.status = 'investigating'; row.resolution_note = null; row.revision = Number(row.revision || 0) + 1;
         return { rows: [row], rowCount: 1 };
       }
       if (sql.includes('problemReports:whatsappStaffIdentity')) return { rows: [], rowCount: 0 };
@@ -101,6 +113,20 @@ test('WhatsApp flow verifies exact identity, collects category and saves descrip
   assert.equal(db.state.reports[0].source, 'whatsapp');
 });
 
+test('reporters see only their own safe status fields and can reopen a resolved report', async () => {
+  const db = fakeDb();
+  const service = createProblemReportService({ db, clock: () => new Date('2026-09-20T10:00:00Z'), randomBytes: () => Buffer.from('aabbccdd', 'hex') });
+  const own = await service.createReport({ source: 'my_shiloh', reporterType: 'client', crmV2ClientId: 501, payload: { category: 'messages', description: 'The reminder time did not match my confirmed booking.' } });
+  db.state.reports.push({ ...db.state.reports[0], id: 2, reference_code: 'SH-260920-11223344', reporter_crm_v2_client_id: 999 });
+  const listed = await service.listForReporter({ reporterType: 'client', crmV2ClientId: 501 });
+  assert.equal(listed.reports.length, 1);
+  assert.deepEqual(Object.keys(listed.reports[0]).sort(), ['category', 'createdAt', 'reference', 'resolutionNote', 'resolvedAt', 'revision', 'status', 'updatedAt'].sort());
+  await service.updateStatus({ adminId: 74, reference: own.reference, status: 'fixed', resolutionNote: 'The reminder now uses the confirmed appointment time.' });
+  const reopened = await service.processWhatsAppMessage('27821234567', `Still not working ${own.reference}`);
+  assert.match(reopened.reply, /has been reopened/);
+  assert.equal(db.state.reports[0].status, 'investigating');
+});
+
 test('client and JP pages use friendly wording and keep support copy in JP Workspace', () => {
   const clientHtml = renderMyShilohPage({ client: { id: 501, name: 'Client One', firstName: 'Client' }, whatsappNumber: '27821234567' });
   assert.match(clientHtml, /Report a problem/);
@@ -110,8 +136,9 @@ test('client and JP pages use friendly wording and keep support copy in JP Works
   assert.match(workspaceHtml, /JP only/);
   assert.match(workspaceHtml, /Copy report details/);
   const staffHtml = renderProblemReportsPage({ model: { displayName: 'Marietjie', canManage: false, canSubmit: true, reports: [] }, selectedStatus: 'open' });
-  assert.match(staffHtml, /Tell JP if something in your Workspace/);
+  assert.match(staffHtml, /technical support team/);
   assert.match(staffHtml, /data-problem-report-form/);
+  assert.match(staffHtml, /<h2>Your reports<\/h2>/);
   assert.doesNotMatch(staffHtml, /JP only|Copy report details|<h2>Inbox<\/h2>/);
 });
 
@@ -121,6 +148,13 @@ test('migration grants management only to one canonical JP business admin', () =
   assert.match(sql, /business_role = 'business_admin'/);
   assert.match(sql, /Expected exactly one active canonical Jean-Pierre business_admin/);
   assert.doesNotMatch(sql, /business_role IN \('owner','business_admin'\)/);
+});
+
+test('resolution migration preserves history and queues idempotent WhatsApp updates', () => {
+  const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '142_problem_report_resolution_notifications.sql'), 'utf8');
+  assert.match(sql, /problem_report_status_events/);
+  assert.match(sql, /problem_report_notifications/);
+  assert.match(sql, /UNIQUE\(problem_report_id,event_type,report_revision\)/);
 });
 
 test('page paths drop query strings and WhatsApp sender identity is hashed', () => {

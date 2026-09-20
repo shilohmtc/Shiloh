@@ -25,6 +25,7 @@
   const clientProfileMobile = document.querySelector('[data-client-profile-mobile]');
   const clientProblemReportForm = document.querySelector('[data-client-problem-report-form]');
   const clientProblemReportStatus = document.querySelector('[data-client-problem-report-status]');
+  const clientProblemReportList = document.querySelector('[data-client-problem-report-list]');
   let deferredInstallPrompt = null;
   let authActionInFlight = false;
   let shilohMessageInFlight = false;
@@ -362,6 +363,41 @@
     });
   }
 
+  function problemStatusLabel(status) {
+    return ({ new: 'Received', investigating: 'Investigating', fixed: 'Resolved', closed: 'Closed' })[status] || status;
+  }
+
+  function renderProblemReports(reports) {
+    if (!clientProblemReportList) return;
+    clientProblemReportList.replaceChildren();
+    if (!Array.isArray(reports) || reports.length === 0) {
+      const empty = document.createElement('p'); empty.className = 'problem-report-copy'; empty.textContent = 'You have not reported any problems yet.'; clientProblemReportList.append(empty); return;
+    }
+    for (const report of reports) {
+      const card = document.createElement('div'); card.className = 'profile-mobile';
+      const heading = document.createElement('div');
+      const label = document.createElement('span'); label.textContent = report.reference;
+      const status = document.createElement('strong'); status.textContent = problemStatusLabel(report.status);
+      heading.append(label, status); card.append(heading);
+      if (report.resolutionNote) { const note = document.createElement('p'); note.textContent = `Update: ${report.resolutionNote}`; card.append(note); }
+      clientProblemReportList.append(card);
+    }
+  }
+
+  async function loadProblemReports() {
+    if (!clientProblemReportList) return;
+    try {
+      const response = await fetch('/my-shiloh/api/problem-reports', { credentials: 'same-origin', headers: { accept: 'application/json' } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Your reports could not be loaded.');
+      renderProblemReports(data.reports);
+    } catch (error) {
+      clientProblemReportList.replaceChildren(); const message = document.createElement('p'); message.className = 'problem-report-copy'; message.textContent = error.message; clientProblemReportList.append(message);
+    }
+  }
+
+  loadProblemReports();
+
   clientProblemReportForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const button = clientProblemReportForm.querySelector('button[type="submit"]');
@@ -389,7 +425,8 @@
       if (!response.ok || !data.report?.reference) throw new Error(data.error || 'Your report could not be sent.');
       clientProblemReportForm.reset();
       clientProblemReportStatus.dataset.state = 'success';
-      clientProblemReportStatus.textContent = `Thank you. Your report reference is ${data.report.reference}. JP can now review it.`;
+      clientProblemReportStatus.textContent = `Thank you — your report has been logged as ${data.report.reference}. Our technical support team will investigate the issue and let you know once it has been resolved. 🌿`;
+      await loadProblemReports();
     } catch (error) {
       clientProblemReportStatus.dataset.state = 'error';
       clientProblemReportStatus.textContent = error.message || 'Your report could not be sent. Please try again.';

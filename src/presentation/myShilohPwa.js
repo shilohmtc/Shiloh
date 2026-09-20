@@ -194,6 +194,7 @@ function renderMyShilohPage({
           <span class="status-pill">Private</span>
         </div>
         <p class="problem-report-copy">Tell us if something in My Shiloh looks wrong or does not work as expected. JP will see your report privately.</p>
+        <div class="problem-report-list" data-client-problem-report-list aria-live="polite"><p class="problem-report-copy">Loading your reports…</p></div>
         <form data-client-problem-report-form>
           <div class="profile-fields">
             <label class="profile-field profile-field--wide" for="client-problem-category"><span>What does it relate to?</span><select id="client-problem-category" name="category" required><option value="">Choose one</option><option value="booking">Booking</option><option value="messages">Messages</option><option value="profile">Personal details</option><option value="payments">Payments</option><option value="other">Something else</option></select></label>

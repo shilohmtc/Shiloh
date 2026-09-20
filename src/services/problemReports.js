@@ -104,6 +104,21 @@ function publicReport(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     resolvedAt: row.resolved_at,
+    revision: Number(row.revision || 0),
+  };
+}
+
+function reporterReport(row) {
+  const report = publicReport(row);
+  return {
+    reference: report.reference,
+    category: report.category,
+    status: report.status,
+    resolutionNote: report.resolutionNote,
+    createdAt: report.createdAt,
+    updatedAt: report.updatedAt,
+    resolvedAt: report.resolvedAt,
+    revision: report.revision,
   };
 }
 
@@ -222,6 +237,19 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
     return { canManage: true, reports: result.rows.map(publicReport) };
   }
 
+  async function listForReporter({ reporterType, adminId, crmV2ClientId, limit = 50 } = {}) {
+    if (!['client', 'staff'].includes(reporterType)) throw new ProblemReportError('PROBLEM_REPORT_INVALID', 'Reporter is not valid.');
+    const identity = reporterType === 'staff' ? await staffIdentity(adminId) : await clientIdentity(crmV2ClientId);
+    const safeLimit = Math.min(100, Math.max(1, Number(limit) || 50));
+    const field = reporterType === 'staff' ? 'reporter_staff_admin_id' : 'reporter_crm_v2_client_id';
+    const result = await db.query(
+      `/* problemReports:listForReporter */ SELECT * FROM problem_reports
+       WHERE reporter_type=$1 AND ${field}=$2 ORDER BY created_at DESC,id DESC LIMIT $3`,
+      [reporterType, Number(identity.id), safeLimit],
+    );
+    return { reports: result.rows.map(reporterReport) };
+  }
+
   async function updateStatus({ adminId, reference, status, resolutionNote } = {}) {
     const identity = await staffIdentity(adminId);
     if (!canManage(identity)) throw new ProblemReportError('PROBLEM_REPORT_FORBIDDEN', 'This private inbox is available only in JP’s Workspace.', 403);
@@ -230,10 +258,21 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
     if (['fixed', 'closed'].includes(status) && !note) throw new ProblemReportError('PROBLEM_REPORT_NOTE_REQUIRED', 'Add a short note before marking this report complete.');
     const result = await db.query(
       `/* problemReports:updateStatus */
-       WITH updated AS (
-         UPDATE problem_reports SET status=$3,resolution_note=$4,managed_by_admin_id=$1,
-           resolved_at=CASE WHEN $3 IN ('fixed','closed') THEN NOW() ELSE NULL END,updated_at=NOW()
-         WHERE reference_code=$2 RETURNING *
+       WITH current AS (
+         SELECT * FROM problem_reports WHERE reference_code=$2 FOR UPDATE
+       ), updated AS (
+         UPDATE problem_reports report SET status=$3,resolution_note=$4,managed_by_admin_id=$1,
+           resolved_at=CASE WHEN $3 IN ('fixed','closed') THEN NOW() ELSE NULL END,
+           revision=report.revision+1,updated_at=NOW()
+         FROM current WHERE report.id=current.id
+         RETURNING report.*,current.status AS previous_status,current.resolution_note AS previous_resolution_note
+       ), status_event AS (
+         INSERT INTO problem_report_status_events(problem_report_id,from_status,to_status,resolution_note_snapshot,actor_admin_id,actor_kind)
+         SELECT id,previous_status,status,COALESCE(resolution_note,previous_resolution_note),$1,'staff' FROM updated
+       ), notification AS (
+         INSERT INTO problem_report_notifications(problem_report_id,event_type,report_revision)
+         SELECT id,'resolved',revision FROM updated WHERE status='fixed' AND previous_status<>'fixed'
+         ON CONFLICT(problem_report_id,event_type,report_revision) DO NOTHING
        ), audited AS (
          INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata)
          SELECT $1,'problem_report.status_changed','problem_report',id,
@@ -244,6 +283,38 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
     );
     const row = result.rows[0];
     if (!row) throw new ProblemReportError('PROBLEM_REPORT_NOT_FOUND', 'That report was not found.', 404);
+    return publicReport(row);
+  }
+
+  async function reopenFromWhatsApp({ sender, reference = null } = {}) {
+    const identity = await whatsappIdentity(sender);
+    if (!identity) throw new ProblemReportError('PROBLEM_REPORT_UNAUTHORIZED', 'I could not safely match this WhatsApp number to exactly one active Shiloh profile.', 403);
+    const reporterField = identity.reporterType === 'staff' ? 'reporter_staff_admin_id' : 'reporter_crm_v2_client_id';
+    const reporterId = identity.reporterType === 'staff' ? identity.adminId : identity.crmV2ClientId;
+    const result = await db.query(
+      `/* problemReports:reopenFromWhatsapp */
+       WITH current AS (
+         SELECT * FROM problem_reports
+          WHERE reporter_type=$1 AND ${reporterField}=$2 AND status IN ('fixed','closed')
+            AND ($3::text IS NULL OR reference_code=$3)
+          ORDER BY updated_at DESC,id DESC LIMIT 1 FOR UPDATE
+       ), updated AS (
+         UPDATE problem_reports report SET status='investigating',resolution_note=NULL,resolved_at=NULL,
+           revision=report.revision+1,updated_at=NOW()
+         FROM current WHERE report.id=current.id
+         RETURNING report.*,current.status AS previous_status,current.resolution_note AS previous_resolution_note
+       ), status_event AS (
+         INSERT INTO problem_report_status_events(problem_report_id,from_status,to_status,resolution_note_snapshot,actor_kind)
+         SELECT id,previous_status,'investigating',previous_resolution_note,'reporter' FROM updated
+       ), audited AS (
+         INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
+         SELECT 'problem_report.reopened_by_reporter','problem_report',id,
+           jsonb_build_object('reference',reference_code,'channel','whatsapp') FROM updated
+       ) SELECT * FROM updated`,
+      [identity.reporterType, Number(reporterId), reference ? String(reference).toUpperCase() : null],
+    );
+    const row = result.rows[0];
+    if (!row) throw new ProblemReportError('PROBLEM_REPORT_NOT_FOUND', 'I could not find a resolved report for this WhatsApp profile.', 404);
     return publicReport(row);
   }
 
@@ -289,6 +360,7 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
     const raw = String(text || '').trim();
     const normalized = raw.toLowerCase().replace(/[.!?]+$/g, '').replace(/\s+/g, ' ');
     const trigger = /^(report a problem|report problem|something is wrong|something isn't working|something is not working)$/.test(normalized);
+    const reopenMatch = raw.match(/^still not working(?:\s+(SH-[0-9]{6}-[A-F0-9]{8}))?[.!?]*$/i);
     const categoryMatch = normalized.match(/^problem_report_category_(booking|messages|profile|payments|other)$/);
     const cancel = /^(cancel|stop|problem_report_cancel)$/.test(normalized);
     let intentResult = await db.query(
@@ -298,6 +370,15 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
       [hash],
     );
     let intent = intentResult.rows[0] || null;
+    if (reopenMatch) {
+      try {
+        const report = await reopenFromWhatsApp({ sender, reference: reopenMatch[1] || null });
+        return { handled: true, reply: `Your report *${report.reference}* has been reopened. Our technical support team will investigate again and keep you updated. 🌿` };
+      } catch (error) {
+        if (error instanceof ProblemReportError) return { handled: true, reply: `${error.message} Please open My Shiloh to check your reports or send *Report a problem* to log a new one.` };
+        throw error;
+      }
+    }
     if (!trigger && !categoryMatch && !cancel && !intent) return { handled: false };
     if (cancel) {
       if (!intent) return { handled: false };
@@ -359,12 +440,12 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
         payload: { category: intent.category, description: raw },
       });
       await clearWhatsAppIntent(hash);
-      return { handled: true, reply: `Thank you. Your problem report was saved as *${report.reference}*. JP can now review it privately.` };
+      return { handled: true, reply: `Thank you — your report has been logged as *${report.reference}*. Our technical support team will investigate the issue and let you know once it has been resolved. 🌿` };
     }
     return { handled: false };
   }
 
-  return { resolveWorkspaceAccess, createReport, listForManager, updateStatus, getScreenshot, processWhatsAppMessage };
+  return { resolveWorkspaceAccess, createReport, listForManager, listForReporter, updateStatus, reopenFromWhatsApp, getScreenshot, processWhatsAppMessage };
 }
 
 const service = createProblemReportService();

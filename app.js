@@ -21,6 +21,7 @@ const clientIdentityService = require("./src/services/clientIdentityOnboarding")
 const clientDiscoveryService = require("./src/services/clientDiscoveryMenu");
 const { installClientNavigationPriority } = require("./src/services/clientNavigationPriority");
 const { submitWorkspaceBookingRequestAlertTemplate } = require("./src/services/workspaceBookingRequestAlertTemplateProvisioning");
+const { submitProblemReportResolvedTemplate } = require("./src/services/problemReportResolvedTemplateProvisioning");
 
 observability.initialize();
 validateEnv();
@@ -56,6 +57,7 @@ const { startBookingIntegrityScheduler } = require("./src/services/bookingIntegr
 const { startMandatoryDemoCleanupScheduler } = require("./src/services/demoMandatoryCleanup");
 const { startAttendanceFinalizationReminderScheduler } = require("./src/services/attendanceFinalizationReminders");
 const { startHistoricalFinalizationPromptScheduler } = require("./src/services/historicalFinalizationPrompt");
+const { startProblemReportNotificationScheduler } = require("./src/services/problemReportNotifications");
 const { runConfiguredClientProvenanceAudit } = require("./src/services/clientProvenanceAudit");
 const { runCalendarAccessDiagnostic } = require("./src/services/calendarAccessDiagnostic");
 const { verifyMigrationState } = require("./src/services/migrations");
@@ -109,6 +111,16 @@ async function provisionWorkspaceBookingRequestAlertIfExplicitlyEnabled() {
   }
 }
 
+async function provisionProblemReportResolvedTemplateIfExplicitlyEnabled() {
+  if (String(process.env.META_PROBLEM_REPORT_RESOLVED_PROVISION_ON_START || '').toLowerCase() !== 'true') return;
+  try {
+    const result = await submitProblemReportResolvedTemplate();
+    logger.info(result, 'Problem report resolved template provisioning checked');
+  } catch (error) {
+    logger.error({ err: error, metaError: error.response?.data?.error }, 'Problem report resolved template provisioning failed');
+  }
+}
+
 const PORT = process.env.PORT || 3000; let server;
 async function start() {
   const migrationAuthority = await verifyMigrationState();
@@ -118,7 +130,8 @@ async function start() {
   await ensureBookingConfirmationDeliverySchema(); logger.info({ initialized: true, migrations: ['071_booking_confirmation_template_evidence.sql', '083_initial_booking_confirmation_guarantee.sql', '085_calendar_clean_crm_v2_cutover.sql'], migrationAppliedNow: false, checksumVerified: true, durableRetryColumns: true, crmV2RecipientSnapshots: true }, "Booking confirmation delivery evidence schema verified");
   try { await runConfiguredClientProvenanceAudit(logger); } catch (error) { logger.error({ err: error }, "Read-only CRM provenance audit failed"); }
   await provisionWorkspaceBookingRequestAlertIfExplicitlyEnabled();
-  server = app.listen(PORT, () => { logger.info({ port: PORT }, "Shiloh started"); startConversationSessionCleanupScheduler(); startTemporarySessionCleanupScheduler(); startGoogleBusinessProfileSyncScheduler(); startAppointmentLifecycleScheduler(); startCustomerCareScheduler(); startBookingIntegrityScheduler(); startCustomerBookingConfirmationScheduler(); startConsultationFormDeliveryScheduler(); startMandatoryDemoCleanupScheduler(); startAttendanceFinalizationReminderScheduler(); startHistoricalFinalizationPromptScheduler(); });
+  await provisionProblemReportResolvedTemplateIfExplicitlyEnabled();
+  server = app.listen(PORT, () => { logger.info({ port: PORT }, "Shiloh started"); startConversationSessionCleanupScheduler(); startTemporarySessionCleanupScheduler(); startGoogleBusinessProfileSyncScheduler(); startAppointmentLifecycleScheduler(); startCustomerCareScheduler(); startBookingIntegrityScheduler(); startCustomerBookingConfirmationScheduler(); startConsultationFormDeliveryScheduler(); startMandatoryDemoCleanupScheduler(); startAttendanceFinalizationReminderScheduler(); startHistoricalFinalizationPromptScheduler(); startProblemReportNotificationScheduler(); });
 }
 start().catch(async (error) => {
   observability.captureException(error, { "error.kind": "startup", "error.code": error?.code, "runtime.phase": "startup" });
