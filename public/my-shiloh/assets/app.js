@@ -23,6 +23,12 @@
   const clientProfileForm = document.querySelector('[data-client-profile-form]');
   const clientProfileStatus = document.querySelector('[data-client-profile-status]');
   const clientProfileMobile = document.querySelector('[data-client-profile-mobile]');
+  const welcomeVoucherHost = document.querySelector('[data-welcome-voucher]');
+  const welcomeVoucherCopy = document.querySelector('[data-welcome-voucher-copy]');
+  const welcomeVoucherSteps = document.querySelector('[data-welcome-voucher-steps]');
+  const welcomeVoucherBookings = document.querySelector('[data-welcome-voucher-bookings]');
+  const welcomeVoucherTerms = document.querySelector('[data-welcome-voucher-terms]');
+  const welcomeVoucherStatus = document.querySelector('[data-welcome-voucher-status]');
   const clientProblemReportForm = document.querySelector('[data-client-problem-report-form]');
   const clientProblemReportStatus = document.querySelector('[data-client-problem-report-status]');
   const clientProblemReportList = document.querySelector('[data-client-problem-report-list]');
@@ -268,6 +274,83 @@
     }
   }
 
+  function setWelcomeVoucherStatus(message = '', state = '') {
+    if (!welcomeVoucherStatus) return;
+    welcomeVoucherStatus.textContent = message;
+    welcomeVoucherStatus.dataset.state = state;
+  }
+
+  function welcomeVoucherErrorMessage(data, fallback) {
+    const steps = Array.isArray(data?.resolution) ? data.resolution.filter(Boolean) : [];
+    return [data?.error || fallback, steps.length ? `What to do: ${steps.join(' ')}` : ''].filter(Boolean).join(' ');
+  }
+
+  function renderWelcomeVoucher(model) {
+    if (!welcomeVoucherHost || model?.version !== 'my_shiloh_welcome_voucher_v1') return false;
+    welcomeVoucherSteps.textContent = '';
+    for (const step of model.eligibility?.steps || []) {
+      const item = document.createElement('li');
+      item.textContent = String(step.label || 'Registration step');
+      item.classList.toggle('is-complete', step.complete === true);
+      welcomeVoucherSteps.appendChild(item);
+    }
+    welcomeVoucherTerms.textContent = '';
+    for (const term of model.terms || []) {
+      const item = document.createElement('li'); item.textContent = String(term); welcomeVoucherTerms.appendChild(item);
+    }
+    welcomeVoucherBookings.textContent = '';
+    const voucher = model.voucher;
+    if (!model.eligibility?.complete) {
+      welcomeVoucherCopy.textContent = 'Complete the steps below to unlock your once-off R100 voucher.';
+      const link = document.createElement('a'); link.className = 'button button--primary'; link.href = '#profile'; link.textContent = 'Complete registration'; welcomeVoucherBookings.appendChild(link);
+    } else if (voucher?.state === 'available') {
+      const expiry = new Intl.DateTimeFormat('en-ZA', { day:'numeric', month:'short', year:'numeric' }).format(new Date(voucher.expiresAt));
+      welcomeVoucherCopy.textContent = `Unlocked — R${voucher.amount.toFixed(0)} is ready to use until ${expiry}. Choose a qualifying booking below.`;
+      const bookings = Array.isArray(model.eligibleBookings) ? model.eligibleBookings : [];
+      if (!bookings.length) {
+        const empty = document.createElement('p'); empty.textContent = `No eligible upcoming booking yet. Book a treatment of R${voucher.minimumBookingValue.toFixed(0)} or more, then return here.`; welcomeVoucherBookings.appendChild(empty);
+        const link = document.createElement('a'); link.className = 'button button--soft'; link.href = '/book'; link.textContent = 'Find a qualifying treatment'; welcomeVoucherBookings.appendChild(link);
+      }
+      for (const booking of bookings) {
+        const card = document.createElement('div'); card.className = 'welcome-voucher__booking';
+        const details = document.createElement('div');
+        const title = document.createElement('strong'); title.textContent = String(booking.service || 'Shiloh treatment');
+        const meta = document.createElement('span'); meta.textContent = `${new Intl.DateTimeFormat('en-ZA', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }).format(new Date(booking.startsAt))} · R${Number(booking.total).toFixed(0)}`;
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'button button--primary'; button.textContent = 'Use R100';
+        button.addEventListener('click', async () => {
+          button.disabled = true; setWelcomeVoucherStatus('Applying your voucher…', 'working');
+          try {
+            const csrfToken = await freshCsrfToken();
+            const response = await postJson('/my-shiloh/api/welcome-voucher/redeem', { appointmentId:booking.id, operationId:crypto.randomUUID() }, { 'x-shiloh-csrf-token':csrfToken });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(welcomeVoucherErrorMessage(data, 'Your voucher could not be applied.'));
+            setWelcomeVoucherStatus('R100 applied. Your booking balance has been updated.', 'success');
+            await loadWelcomeVoucher(); await loadClientExperience();
+          } catch (error) { button.disabled = false; setWelcomeVoucherStatus(error.message || 'Your voucher could not be applied. Reload My Shiloh and try again.', 'error'); }
+        });
+        details.append(title, meta); card.append(details, button); welcomeVoucherBookings.appendChild(card);
+      }
+    } else if (voucher?.state === 'redeemed') {
+      welcomeVoucherCopy.textContent = 'Used — your R100 welcome voucher has been applied to your booking.';
+      setWelcomeVoucherStatus('Welcome voucher redeemed.', 'success');
+    } else if (voucher?.state === 'expired') {
+      welcomeVoucherCopy.textContent = 'This welcome voucher has expired.';
+      setWelcomeVoucherStatus('The 60-day validity period has ended.', 'error');
+    } else {
+      welcomeVoucherCopy.textContent = 'Your registration is complete. Your voucher is being prepared.';
+    }
+    return true;
+  }
+
+  async function loadWelcomeVoucher() {
+    if (!welcomeVoucherHost || appFrame?.dataset.clientAuthenticated !== 'true') return;
+    try {
+      const response = await fetch('/my-shiloh/api/welcome-voucher', { method:'GET', credentials:'same-origin', cache:'no-store', headers:{ Accept:'application/json' } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !renderWelcomeVoucher(data)) throw new Error(welcomeVoucherErrorMessage(data, 'Your welcome voucher could not be loaded.'));
+    } catch (error) { setWelcomeVoucherStatus(error.message || 'Your welcome voucher could not be loaded. Reload My Shiloh and try again.', 'error'); }
+  }
+
   function syncNetworkState() {
     if (!offlineBanner) return;
     offlineBanner.hidden = window.navigator.onLine !== false;
@@ -343,6 +426,7 @@
       if (!response.ok || !renderClientProfile(data.profile)) {
         throw new Error(data.error || 'Your personal details could not be saved.');
       }
+      if (data.welcomeVoucher) renderWelcomeVoucher(data.welcomeVoucher);
       setClientProfileStatus(data.status === 'unchanged' ? 'Your details are already up to date.' : 'Your personal details have been saved.', 'success');
       if (data.status === 'updated') window.setTimeout(() => window.location.replace('/my-shiloh/#profile'), 700);
     } catch (error) {
@@ -790,6 +874,7 @@
 
   loadClientExperience();
   loadClientProfile();
+  loadWelcomeVoucher();
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

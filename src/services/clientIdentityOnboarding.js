@@ -463,7 +463,7 @@ async function processActiveSession(phone, text, session) {
       return { handled: true, onboardingComplete: true, resumeBooking: session.booking_requested === true, identityStatus: "verified_complete", clientIdentity: createLegacyIdentity(client.id, { provenance: "legacy_whatsapp_registration" }), client, reply: `Thank you, ${client.display_name}. 🌿 Your Shiloh client registration is complete.` };
     }
     const completed = await completeCrmV2Onboarding(phone, session);
-    return { handled: true, onboardingComplete: true, resumeBooking: completed.session.booking_requested === true, identityStatus: "verified_complete", clientIdentity: completed.clientIdentity, identityAudit: completed.identityAudit, client: completed.client, reply: `Thank you, ${completed.client.name}. 🌿 Your Shiloh client registration is complete.` };
+    return { handled: true, onboardingComplete: true, resumeBooking: completed.session.booking_requested === true, identityStatus: "verified_complete", clientIdentity: completed.clientIdentity, identityAudit: completed.identityAudit, client: completed.client, reply: `Thank you, ${completed.client.name}. 🌿 Your Shiloh client registration is complete.\n\n🎁 Your once-off R100 My Shiloh welcome voucher is ready to unlock:\nhttps://app.shilohmtc.co.za/my-shiloh/#welcome-voucher` };
   } catch (error) {
     if (error.code === "AMBIGUOUS_CONTACT" || error.code === "23505" || error.code === "CRM_V2_IDENTITY_CONFLICT") return { handled: true, identityStatus: "ambiguous", resumeBooking: false, reply: IDENTITY_CONFLICT_REPLY };
     if (error.code === "CRM_V2_AUTHORITY_STALE") return { handled: true, identityStatus: "crm_v2_stale", resumeBooking: false, reply: CRM_V2_STALE_AUTHORITY_REPLY };

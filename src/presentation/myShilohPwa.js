@@ -143,6 +143,30 @@ function renderMyShilohPage({
       </section>`
     : '';
 
+  const welcomeVoucher = authenticated
+    ? `<section class="welcome-voucher" id="welcome-voucher" data-welcome-voucher aria-labelledby="welcome-voucher-title">
+        <div class="welcome-voucher__value" aria-hidden="true">R100</div>
+        <div class="welcome-voucher__body">
+          <p class="eyebrow">My Shiloh welcome</p>
+          <h2 id="welcome-voucher-title">Your R100 welcome voucher.</h2>
+          <p data-welcome-voucher-copy>Checking your registration…</p>
+          <ol class="welcome-voucher__steps" data-welcome-voucher-steps></ol>
+          <div class="welcome-voucher__bookings" data-welcome-voucher-bookings></div>
+          <details><summary>Voucher terms</summary><ul data-welcome-voucher-terms></ul></details>
+          <p class="welcome-voucher__status" data-welcome-voucher-status role="status" aria-live="polite"></p>
+        </div>
+      </section>`
+    : `<section class="welcome-voucher" id="welcome-voucher" aria-labelledby="welcome-voucher-title">
+        <div class="welcome-voucher__value" aria-hidden="true">R100</div>
+        <div class="welcome-voucher__body">
+          <p class="eyebrow">First-time My Shiloh sign-up</p>
+          <h2 id="welcome-voucher-title">Complete your registration. Unlock R100.</h2>
+          <p>Verify with WhatsApp and complete your personal details to receive a once-off R100 voucher for a treatment of R450 or more.</p>
+          <button class="button button--primary" type="button" data-client-auth-start>Claim my R100</button>
+          <small>One per verified client · Valid for 60 days · Terms apply</small>
+        </div>
+      </section>`;
+
   const profile = authenticated
     ? `<div class="page-intro">
         <p class="eyebrow">Profile</p>
@@ -263,6 +287,7 @@ function renderMyShilohPage({
     <main id="main-content" class="app-main">
       <section class="view is-active" id="home" data-view="home" aria-labelledby="home-title">
         ${hero}
+        ${welcomeVoucher}
         ${focus}
         ${rewards}
         ${giftVoucher}
