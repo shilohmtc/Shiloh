@@ -104,28 +104,38 @@ async function updateAppointmentStatus(id, status) {
   return result.rows[0] || null;
 }
 
-async function claimDueReminder() {
-  await ensureTable();
-  const result = await pool.query(
-    `UPDATE appointment_lifecycle lifecycle SET reminder_sent_at=NOW(),updated_at=NOW()
-     WHERE lifecycle.id=(
-       SELECT a.id
-         FROM appointment_lifecycle a
-        WHERE a.status IN ('confirmed','confirmed_by_client')
-          AND a.reminder_sent_at IS NULL
-          AND a.appointment_at>NOW()
-          AND a.appointment_at<=NOW()+($1*INTERVAL '1 hour')
+async function claimDueReminder(db = pool) {
+  if (db === pool) await ensureTable();
+  const result = await db.query(
+    `WITH due AS (
+       SELECT al.id,
+              COALESCE(ap.starts_at,al.appointment_at) AS effective_start,
+              COALESCE(ap.ends_at,al.appointment_ends_at) AS effective_end
+         FROM appointment_lifecycle al
+         LEFT JOIN appointments ap ON ap.id=al.appointment_id
+        WHERE al.status IN ('confirmed','confirmed_by_client')
+          AND al.reminder_sent_at IS NULL
+          AND (al.appointment_id IS NULL OR (ap.id IS NOT NULL AND ap.status IN ('scheduled','confirmed')))
+          AND COALESCE(ap.starts_at,al.appointment_at)>NOW()
+          AND COALESCE(ap.starts_at,al.appointment_at)<=NOW()+($1*INTERVAL '1 hour')
           AND NOT EXISTS (
             SELECT 1
               FROM appointment_change_intents aci
-             WHERE aci.phone = a.phone
+             WHERE aci.phone = al.phone
                AND aci.status = 'collecting'
                AND aci.action IN ('reschedule','cancel')
           )
-        ORDER BY a.appointment_at ASC
-        FOR UPDATE SKIP LOCKED
+        ORDER BY COALESCE(ap.starts_at,al.appointment_at) ASC
+        FOR UPDATE OF al SKIP LOCKED
         LIMIT 1
      )
+     UPDATE appointment_lifecycle lifecycle
+        SET reminder_sent_at=NOW(),
+            appointment_at=due.effective_start,
+            appointment_ends_at=due.effective_end,
+            updated_at=NOW()
+       FROM due
+      WHERE lifecycle.id=due.id
      RETURNING lifecycle.*`, [REMINDER_HOURS]
   );
   return result.rows[0] || null;
@@ -222,4 +232,4 @@ async function processReminders() {
 async function runScan(){if(running)return;running=true;try{await processReminders();}catch(error){logger.error({err:error},"Appointment lifecycle scan failed");}finally{running=false;}}
 function startAppointmentLifecycleScheduler(){if(timer)return;logger.info({scanMinutes:SCAN_MINUTES,reminderHours:REMINDER_HOURS,followupHours:FOLLOWUP_HOURS,reminderTemplateConfigured:Boolean(process.env.WHATSAPP_REMINDER_TEMPLATE),reminderActionsTemplateConfigured:Boolean(process.env.WHATSAPP_REMINDER_ACTIONS_TEMPLATE),followupTemplateConfigured:Boolean(process.env.WHATSAPP_FOLLOWUP_TEMPLATE),followupActionsTemplateConfigured:Boolean(process.env.WHATSAPP_FOLLOWUP_ACTIONS_TEMPLATE)},"Appointment lifecycle scheduler started");setTimeout(runScan,5000).unref();timer=setInterval(runScan,Math.max(SCAN_MINUTES,1)*60*1000);timer.unref();}
 
-module.exports={ensureTable,createAppointment,listAppointments,updateAppointmentStatus,deliverClaimedReminder,deliverClaimedFollowup,processReminders,startAppointmentLifecycleScheduler};
+module.exports={ensureTable,createAppointment,listAppointments,updateAppointmentStatus,claimDueReminder,deliverClaimedReminder,deliverClaimedFollowup,processReminders,startAppointmentLifecycleScheduler};

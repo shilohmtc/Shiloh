@@ -43,6 +43,15 @@ test('successful reschedule writes Shiloh audit evidence without an external mir
   assert.match(source, /authoritativeSlotFlow: true/);
 });
 
+test('successful reschedule atomically refreshes the reminder time and reopens reminder delivery', () => {
+  const applyReschedule = source.match(/async function applyReschedule[\s\S]*?\n}\n\nasync function processAdminBookingUpdateMessage/)?.[0] || '';
+  const canonicalUpdate = applyReschedule.indexOf('UPDATE appointments SET starts_at=$1,ends_at=$2');
+  const lifecycleUpdate = applyReschedule.indexOf('UPDATE appointment_lifecycle');
+  assert.match(applyReschedule, /await transaction\(async \(db\)/);
+  assert.ok(canonicalUpdate >= 0 && lifecycleUpdate > canonicalUpdate);
+  assert.match(applyReschedule, /SET appointment_at=\$1,appointment_ends_at=\$2,reminder_sent_at=NULL/);
+});
+
 test('past-visit Reschedule reuses the same guarded manage-booking state machine', () => {
   assert.match(finalization, /processAdminBookingUpdateMessage/);
   assert.match(finalization, /startPastVisitReschedule/);
