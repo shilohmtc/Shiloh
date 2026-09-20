@@ -1,5 +1,6 @@
 const express = require('express');
 const workspaceReports = require('../services/workspaceReportsProfileView');
+const workspaceWelcomeVoucherCampaign = require('../services/workspaceWelcomeVoucherCampaign');
 const {
   renderReportsPage,
   renderReportsUnavailablePage,
@@ -33,6 +34,9 @@ function safeError(error) {
 function createWorkspaceReportsHandler({
   env = process.env,
   service = workspaceReports,
+  welcomeVoucherCampaignService = service === workspaceReports
+    ? workspaceWelcomeVoucherCampaign
+    : { async buildCampaign() { return null; } },
   renderPage = renderReportsPage,
   renderUnavailable = renderReportsUnavailablePage,
   staffAccessPath = '/calendar/staff',
@@ -49,6 +53,14 @@ function createWorkspaceReportsHandler({
         to: req.query?.to,
         staff: req.query?.staff,
       });
+      try {
+        model.welcomeVoucherCampaign = await welcomeVoucherCampaignService.buildCampaign({
+          adminId: req.staffBrowserSession?.adminId,
+          recentLimit: 12,
+        });
+      } catch (_error) {
+        model.welcomeVoucherCampaign = null;
+      }
       return res.status(200).type('html').send(renderPage(model, {
         staffAccessScriptPath: `${staffAccessPath}/client.js`,
       }));

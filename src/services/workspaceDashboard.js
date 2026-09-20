@@ -12,6 +12,7 @@ const { canCertifyAppointment } = require('./attendanceFinalizationAuthority');
 const { dateKeyInBusinessTimezone, isOperationalDateKey } = require('./operationalCalendar');
 const bookingRequestResolution = require('./workspaceBookingRequestRouting');
 const workspaceHolidayAttention = require('./workspaceHolidayAttention');
+const workspaceWelcomeVoucherCampaign = require('./workspaceWelcomeVoucherCampaign');
 
 const FINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
 const OWNER_ROLES = new Set(['owner', 'business_admin']);
@@ -23,6 +24,7 @@ const NO_DASHBOARD_BACKLOG = {
   async listUnresolvedPastAppointments() { return { staff: [], appointments: [] }; },
 };
 const NO_HOLIDAY_ATTENTION = { async listHolidayDecisions() { return []; } };
+const NO_WELCOME_VOUCHER_CAMPAIGN = { async buildCampaign() { return null; } };
 
 class WorkspaceDashboardError extends Error {
   constructor(code, message, httpStatus) {
@@ -185,6 +187,7 @@ function createWorkspaceDashboardService({
   bookingRequestService = NO_BOOKING_REQUESTS,
   backlogService = NO_DASHBOARD_BACKLOG,
   holidayAttentionService = NO_HOLIDAY_ATTENTION,
+  welcomeVoucherCampaignService = NO_WELCOME_VOUCHER_CAMPAIGN,
 } = {}) {
   if (!calendarService || typeof calendarService.buildModel !== 'function') {
     throw new Error('Workspace Dashboard requires canonical CalendarReadOnlyUx authority');
@@ -197,6 +200,7 @@ function createWorkspaceDashboardService({
   if (typeof canCertifyAppointmentFn !== 'function') throw new Error('Workspace Dashboard requires canonical attendance-certification authority');
   if (!bookingRequestService || typeof bookingRequestService.listUnresolvedBookingRequests !== 'function') throw new Error('Workspace Dashboard requires canonical booking-request resolution');
   if (!backlogService || typeof backlogService.listUnresolvedPastAppointments !== 'function') throw new Error('Workspace Dashboard requires canonical unresolved-past appointment authority');
+  if (!welcomeVoucherCampaignService || typeof welcomeVoucherCampaignService.buildCampaign !== 'function') throw new Error('Workspace Dashboard welcome-voucher campaign service is invalid');
 
   async function resolveAuthority(adminId, viewer, sessionPrincipal = null) {
     const principal = await resolvePrincipal(adminId);
@@ -283,6 +287,18 @@ function createWorkspaceDashboardService({
       communicationsUnavailable = true;
     }
 
+    let welcomeVoucherCampaign = null;
+    let welcomeVoucherCampaignUnavailable = false;
+    try {
+      welcomeVoucherCampaign = await welcomeVoucherCampaignService.buildCampaign({
+        adminId,
+        now,
+        recentLimit: 4,
+      });
+    } catch (_error) {
+      welcomeVoucherCampaignUnavailable = true;
+    }
+
     return {
       generatedAt: now.toISOString(),
       requestedDateKey,
@@ -306,6 +322,8 @@ function createWorkspaceDashboardService({
       closures: calendar.timeline?.closures || [],
       communications,
       communicationsUnavailable,
+      welcomeVoucherCampaign,
+      welcomeVoucherCampaignUnavailable,
     };
   }
 
@@ -358,6 +376,7 @@ const service = createWorkspaceDashboardService({
   bookingRequestService: bookingRequestResolution,
   backlogService: workspaceDashboardBacklog,
   holidayAttentionService: workspaceHolidayAttention,
+  welcomeVoucherCampaignService: workspaceWelcomeVoucherCampaign,
 });
 
 module.exports = {
