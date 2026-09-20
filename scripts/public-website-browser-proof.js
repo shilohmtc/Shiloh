@@ -87,6 +87,15 @@ async function run() {
       .evaluate((node) => getComputedStyle(node).gridTemplateColumns);
     if (phoneColumns.split(' ').filter(Boolean).length !== 1)
       throw new Error(`Phone hero must collapse to one column; got ${phoneColumns}`);
+    if (!(await phone.locator('[data-public-visit-shiloh]').isVisible()))
+      throw new Error('Phone home must show the Heidelberg town-centre story');
+    const phoneLocalColumns = await phone
+      .locator('[data-public-visit-shiloh]')
+      .evaluate((node) => getComputedStyle(node).gridTemplateColumns);
+    if (phoneLocalColumns.split(' ').filter(Boolean).length !== 1)
+      throw new Error(`Phone local story must collapse to one column; got ${phoneLocalColumns}`);
+    if ((await phone.locator('[data-public-visit-shiloh] .neighbour-list li').count()) !== 8)
+      throw new Error('Phone local story must use the approved neighbour authority');
     await assertAccessible(phone, 'Phone home');
     await phone.screenshot({
       path: path.join(evidenceDir, 'phone-home-390x844.png'),
@@ -127,6 +136,13 @@ async function run() {
       .evaluate((node) => getComputedStyle(node).gridTemplateColumns);
     if (desktopColumns.split(' ').filter(Boolean).length !== 2)
       throw new Error(`Desktop hero must retain two columns; got ${desktopColumns}`);
+    const desktopLocalColumns = await desktop
+      .locator('[data-public-visit-shiloh]')
+      .evaluate((node) => getComputedStyle(node).gridTemplateColumns);
+    if (desktopLocalColumns.split(' ').filter(Boolean).length !== 2)
+      throw new Error(`Desktop local story must retain two columns; got ${desktopLocalColumns}`);
+    if ((await desktop.locator('[data-public-visit-shiloh] .neighbour-list li').count()) !== 8)
+      throw new Error('Desktop local story must use the approved neighbour authority');
     await assertAccessible(desktop, 'Desktop home');
     await desktop.screenshot({
       path: path.join(evidenceDir, 'desktop-home-1440x1000.png'),
