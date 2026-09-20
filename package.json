@@ -24,7 +24,7 @@
     "analyze:unused": "knip --production --include files,dependencies,unlisted --max-show-issues 50",
     "audit:production": "npm audit --omit=dev --audit-level=high",
     "lighthouse:ci": "node scripts/lighthouse-production-audit.js",
-    "playwright:install": "playwright install chromium",
+    "playwright:install": "node scripts/install-playwright-chromium.js",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
