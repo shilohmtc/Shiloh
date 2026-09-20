@@ -8,7 +8,7 @@ const {
   PUBLIC_BRAND_NAME,
   PUBLIC_BRAND_SUBTITLE,
   PUBLIC_TAGLINE,
-  sanitizePublicCatalogue,
+  groupPublicCatalogue,
   publicBookingPathForService,
 } = require('./publicPresentation');
 
@@ -35,12 +35,7 @@ function layout({ title, description, currentPath, body }) {
 }
 
 function serviceGroups(catalogue = []) {
-  const groups = new Map();
-  for (const service of catalogue) {
-    if (!groups.has(service.category)) groups.set(service.category, []);
-    groups.get(service.category).push(service);
-  }
-  return groups;
+  return groupPublicCatalogue(catalogue);
 }
 
 function serviceCategoryAnchor(category = '') {
@@ -56,6 +51,27 @@ function serviceCategoryAnchor(category = '') {
 
 function serviceCategoryPresentation(category = '') {
   const label = String(category || '').toLowerCase();
+  if (label === 'body & wellness') {
+    return {
+      visual: 'massage',
+      visualLabel: 'Inside a calm Shiloh service room',
+      copy: 'Explore supportive body and wellness services with clear timing and prices.',
+    };
+  }
+  if (label === 'permanent makeup') {
+    return {
+      visual: 'aesthetic',
+      visualLabel: 'Shiloh botanical mark',
+      copy: 'Explore Shiloh’s permanent makeup choices and continue to book when you are ready.',
+    };
+  }
+  if (label === 'advanced aesthetics') {
+    return {
+      visual: 'aesthetic',
+      visualLabel: 'Shiloh botanical mark',
+      copy: 'Explore Shiloh’s advanced aesthetic choices with clear timing and prices.',
+    };
+  }
   if (/pedicure|foot|feet|nail|gel/.test(label)) {
     return {
       visual: 'foot',
@@ -110,8 +126,7 @@ function townCentreNeighbourList() {
 }
 
 function renderHome(catalogue = []) {
-  const publicCatalogue = sanitizePublicCatalogue(catalogue);
-  const groups = serviceGroups(publicCatalogue);
+  const groups = serviceGroups(catalogue);
   const discoveryMarkup = groups.size
     ? [...groups.entries()].map(([category, services]) => serviceCategoryDiscoveryCard(category, services)).join('')
     : '<article class="card"><h3>Explore our services</h3><p>Our live service list is temporarily unavailable. You can still continue to booking for help.</p><a class="card-link" href="/book">Continue to booking →</a></article>';
@@ -124,7 +139,7 @@ function renderHome(catalogue = []) {
 }
 
 function renderTreatments(catalogue = []) {
-  const groups = serviceGroups(sanitizePublicCatalogue(catalogue));
+  const groups = serviceGroups(catalogue);
   const content = groups.size
     ? [...groups.entries()]
         .map(

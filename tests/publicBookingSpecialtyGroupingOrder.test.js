@@ -15,22 +15,15 @@ const catalogue = [
   { category: 'Vaginal Tightening & Rejuvenation', name: 'Vaginal Tightening', duration: '45 min', price: 'R2500' },
 ];
 
-test('specialty rows follow the approved horizontal order with public wording', () => {
+test('public category order stays stable while service wording remains safe', () => {
   const html = renderBookingPage('27823269871', catalogue);
 
-  const profosma = html.indexOf('<h2>Profosma Jet Plasma</h2>');
-  const consultation = html.indexOf('<h2>Plasma Fibroblast Consultation</h2>');
-  assert.ok(profosma >= 0 && consultation > profosma);
-
-  const prices = html.indexOf('<h2>Plasma Fibroblast Prices</h2>');
-  const ozone = html.indexOf('<h2>Ozone &amp; Far Infrared</h2>');
-  assert.ok(prices >= 0 && ozone > prices);
-
-  const hifu = html.indexOf('<h2>HIFU</h2>');
-  const vaginal = html.indexOf('<h2>Vaginal Tightening &amp; Rejuvenation</h2>');
-  const neo = html.indexOf('<h2>Neo Pelvic Session</h2>');
-  assert.ok(hifu >= 0 && vaginal > hifu && neo > vaginal);
-  assert.doesNotMatch(html, /<h2>Neo Pelvic Therapy<\/h2>/);
-
-  assert.match(html, /specialty-category-row--three/);
+  const massage = html.indexOf('<h2>Massage</h2>');
+  const advanced = html.indexOf('<h2>Advanced Aesthetics</h2>');
+  const wellness = html.indexOf('<h2>Body &amp; Wellness</h2>');
+  assert.ok(massage >= 0 && advanced > massage && wellness > advanced);
+  assert.match(html, /Neo Pelvic Session/);
+  assert.doesNotMatch(html, /Neo Pelvic Therapy/);
+  assert.doesNotMatch(html, /<h2>1\. SQT BioMicroneedling<\/h2>/);
+  assert.doesNotMatch(html, /<h2>Plasma Fibroblast Prices<\/h2>/);
 });

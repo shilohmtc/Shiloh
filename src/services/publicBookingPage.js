@@ -1,6 +1,7 @@
 const {
   PUBLIC_BRAND_NAME,
   sanitizePublicCatalogue,
+  groupPublicCatalogue,
   toPublicService,
   normalizePublicServiceId,
 } = require('./publicPresentation');
@@ -42,10 +43,8 @@ function renderServiceCard(number, service, selectedServiceId = '') {
   return `<article${anchor} class="service-card${selected ? ' selected' : ''}"${selectedAttributes}><div><h3>${escapeHtml(publicService.name)}</h3><div class="meta"><span>${escapeHtml(publicService.duration)}</span><strong>${escapeHtml(publicService.price)}</strong></div></div>${url ? `<a class="book-service" href="${escapeHtml(url)}" rel="noopener">${selected ? 'Continue with this service' : 'Book this service'} <span>→</span></a>` : ''}</article>`;
 }
 function renderCatalogue(number, catalogue, selectedServiceId = '') {
-  const publicCatalogue = sanitizePublicCatalogue(catalogue);
-  if (!publicCatalogue.length) return '<p class="empty">Our service catalogue is temporarily unavailable. Please try again shortly or email Shiloh for help.</p>';
-  const groups = new Map();
-  for (const service of publicCatalogue) { if (!groups.has(service.category)) groups.set(service.category, []); groups.get(service.category).push(service); }
+  const groups = groupPublicCatalogue(catalogue);
+  if (!groups.size) return '<p class="empty">Our service catalogue is temporarily unavailable. Please try again shortly or email Shiloh for help.</p>';
   return [...groups.entries()].map(([category, services], index) => `<section class="category" id="category-${index}"><div class="category-head"><span>Shiloh services</span><h2>${escapeHtml(category)}</h2><small>${services.length} service${services.length === 1 ? '' : 's'}</small></div><div class="service-grid">${services.map((service) => renderServiceCard(number, service, selectedServiceId)).join('')}</div></section>`).join('');
 }
 function renderBookingPage(number, catalogue = [], selectedServiceId = '') {
@@ -62,7 +61,7 @@ function renderBookingPage(number, catalogue = [], selectedServiceId = '') {
     ? `<a class="cta" href="${escapeHtml(whatsappUrl)}" rel="noopener">${selectedService ? 'Continue with this service' : 'Continue with Shiloh on WhatsApp'} <b>→</b></a>`
     : `<div class="cta unavailable booking-fallback" role="status"><strong>WhatsApp is taking a short pause.</strong><span>${selectedService ? 'Your choice is safe here. ' : ''}Please try again shortly, or <a href="${escapeHtml(helpUrl)}">email Shiloh for help</a>.</span></div>`;
   const askCta = generalWhatsAppUrl ? `<a class="ask-shiloh" href="${escapeHtml(generalWhatsAppUrl)}" rel="noopener">Not sure what to choose? <strong>Ask Shiloh</strong> →</a>` : '';
-  const categories = [...new Set(publicCatalogue.map((service) => service.category))];
+  const categories = [...groupPublicCatalogue(publicCatalogue).keys()];
   const categoryNav = categories.length ? `<nav class="category-nav" aria-label="Service categories">${categories.map((name, i) => `<a href="#category-${i}">${escapeHtml(name)}</a>`).join('')}</nav>` : '';
   const mobileCta = whatsappUrl ? `<a class="mobile-book" href="${escapeHtml(whatsappUrl)}" rel="noopener"><span>${selectedService ? 'Your choice is saved' : 'WhatsApp Shiloh'}</span><strong>${selectedService ? `Continue with ${escapeHtml(selectedName)}` : 'Check availability & book'}</strong></a>` : '';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="index,follow"><meta name="description" content="Explore services and book with ${escapeHtml(PUBLIC_BRAND_NAME)} in Heidelberg, Gauteng."><title>Book with Shiloh | Massage & Aesthetic Clinic</title><style>

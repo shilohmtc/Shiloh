@@ -15,11 +15,11 @@ const catalogue = [
   { category: 'Vaginal Tightening & Rejuvenation', name: 'Vaginal Tightening & Rejuvenation', duration: '45 min', price: 'R2500' },
 ];
 
-test('specialty single-treatment categories are grouped horizontally on desktop', () => {
+test('specialty administrative categories become two clear public families', () => {
   const html = renderBookingPage('+27823269871', catalogue);
-  assert.equal((html.match(/class="specialty-category-row/g) || []).length, 3);
-  assert.match(html, /specialty-category-row--three[\s\S]*Profosma Jet Plasma[\s\S]*Plasma Fibroblast Consultation[\s\S]*Plasma Fibroblast Prices/);
-  assert.match(html, /grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
-  assert.match(html, /specialty-category-row--three\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}/);
-  assert.match(html, /@media\(max-width:700px\).*specialty-category-row.*grid-template-columns:1fr/s);
+  assert.equal((html.match(/<h2>Advanced Aesthetics<\/h2>/g) || []).length, 1);
+  assert.equal((html.match(/<h2>Body &amp; Wellness<\/h2>/g) || []).length, 1);
+  assert.doesNotMatch(html, /<h2>(?:\d+\. SQT|Plasma Fibroblast Prices|Profosma Jet Plasma)<\/h2>/);
+  assert.match(html, /<h2>Advanced Aesthetics<\/h2>[\s\S]*Profosma Jet Plasma[\s\S]*SQT 1[\s\S]*SQT 2/);
+  assert.match(html, /<h2>Body &amp; Wellness<\/h2>[\s\S]*Ozone[\s\S]*Neo Pelvic Session/);
 });

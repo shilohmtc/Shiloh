@@ -18,7 +18,7 @@
     "test": "node --test tests/*.test.js",
     "test:browser:appointment-authority": "node scripts/calendar-appointment-authority-browser-proof.js",
     "test:ux": "playwright test --config=playwright.ux.config.js",
-    "test:public-website": "node --test tests/public-website-v1.test.js",
+    "test:public-website": "node --test tests/public-website-v1.test.js tests/public-service-taxonomy.test.js tests/publicBookingPageSpecialtyRows.test.js tests/publicBookingSpecialtyGroupingOrder.test.js",
     "lint": "eslint .",
     "format:check": "prettier --check eslint.config.js knip.json lighthouserc.cjs scripts/lighthouse-production-audit.js .github/dependabot.yml .github/workflows/maintenance-quality.yml .github/workflows/lighthouse.yml",
     "analyze:unused": "knip --production --include files,dependencies,unlisted --max-show-issues 50",
