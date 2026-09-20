@@ -37,7 +37,6 @@ const HEIDELBERG_GUIDE_CONTENT = [
   '- Heidelberg Lodge: guesthouse accommodation at 27 Jacobs Street, Heidelberg. Official website: https://heidelberglodge.co.za/',
   '- Suikerbosrand Guesthouse: local accommodation in Heidelberg. Official contact page: https://www.suikerbosrandguesthouse.co.za/contact-us/',
   '- Picanha Guesthouse: a self-catering guesthouse in Heidelberg. Official website: https://picanhaguesthouse.co.za/',
-  '- Hello Heidelberg accommodation hub: a local directory covering guesthouses, hotels, B&Bs, farm stays and other travel services. Website: https://www.helloheidelberg.co.za/accommodation-travel',
   '',
   'RECOMMENDATION BOUNDARY',
   'These are visitor information starting points, not Shiloh-owned businesses or live booking inventory. Do not claim a room, price, rating, availability, travel time, opening hour, event or reservation unless the relevant provider confirms it. Encourage visitors to contact the venue directly.',
@@ -73,7 +72,6 @@ function buildHeidelbergGuideReply(message = '') {
       '• Heidelberg Lodge — 27 Jacobs Street: https://heidelberglodge.co.za/',
       '• Suikerbosrand Guesthouse: https://www.suikerbosrandguesthouse.co.za/contact-us/',
       '• Picanha Guesthouse — self-catering: https://picanhaguesthouse.co.za/',
-      '• Hello Heidelberg accommodation directory: https://www.helloheidelberg.co.za/accommodation-travel',
       '',
       'Please contact the venue directly to confirm current rates, availability, facilities and check-in details. Would you also like nearby places to visit?',
     ].join('\n');

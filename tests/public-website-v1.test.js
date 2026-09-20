@@ -117,6 +117,29 @@ test('home and Contact share the approved Heidelberg town-centre story', () => {
   }
 });
 
+test('home leads with the Heidelberg location and shared brand chrome', () => {
+  const html = renderHome(catalogue);
+  assert.match(html, /<section class="home-hero">[\s\S]*?<div class="eyebrow">In the heart of Heidelberg<\/div>/);
+  assert.match(html, /Massage and aesthetic services at 37 Jacobs Street/);
+  assert.match(html, /class="site-brand-mark"/);
+  assert.match(html, /class="site-footer-mark"/);
+  assert.match(html, /Contact &amp; directions/);
+});
+
+test('Visit and the assistant use direct accommodation sources without Hello Heidelberg', () => {
+  const visit = renderVisit();
+  const guide = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'config', 'heidelbergGuide.js'),
+    'utf8',
+  );
+
+  assert.match(visit, /Heidelberg Lodge/);
+  assert.match(visit, /Suikerbosrand Guesthouse/);
+  assert.match(visit, /Picanha Guesthouse/);
+  assert.doesNotMatch(visit, /Hello Heidelberg/i);
+  assert.doesNotMatch(guide, /Hello Heidelberg/i);
+});
+
 test('public pages include search and sharing metadata', () => {
   for (const html of [
     renderHome(catalogue),

@@ -6,6 +6,7 @@ const {
   renderTreatments,
   renderAbout,
   renderContact,
+  renderVisit,
   renderPrivacy,
 } = websiteModule;
 const { renderBookingPage } = bookingModule;
@@ -67,6 +68,10 @@ export const About = {
 
 export const Contact = {
   render: () => productionPage(renderContact()),
+};
+
+export const Visit = {
+  render: () => productionPage(renderVisit()),
 };
 
 export const Privacy = {
