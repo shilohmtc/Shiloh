@@ -7,11 +7,14 @@ on:
       - app.js
       - src/routes/book.js
       - src/routes/publicWebsite.js
+      - src/config/publicOrigins.js
+      - src/middleware/canonicalHostRedirect.js
       - src/services/publicBookingPage.js
       - src/services/publicBookingPageEditorial.js
       - src/services/publicSiteChrome.js
       - src/services/publicWebsite.js
       - scripts/public-website-browser-proof.js
+      - tests/canonical-host-redirect.test.js
       - tests/public-website-v1.test.js
       - .github/workflows/public-website-v1-proof.yml
 

@@ -96,7 +96,7 @@ test('public pages include search and sharing metadata', () => {
     renderAbout(),
     renderContact(),
   ]) {
-    assert.match(html, /rel="canonical" href="https:\/\/app\.shilohmtc\.co\.za/);
+    assert.match(html, /rel="canonical" href="https:\/\/shilohmtc\.co\.za/);
     assert.match(html, /property="og:title"/);
     assert.match(html, /name="description"/);
   }
@@ -109,7 +109,7 @@ test('public privacy policy is accessible, specific to Shiloh, and linked site-w
   assert.match(privacy, /OpenAI/);
   assert.match(privacy, /outside South Africa/);
   assert.match(privacy, /13 September 2026/);
-  assert.match(privacy, /rel="canonical" href="https:\/\/app\.shilohmtc\.co\.za\/privacy"/);
+  assert.match(privacy, /rel="canonical" href="https:\/\/shilohmtc\.co\.za\/privacy"/);
   assert.match(renderHome(catalogue), /href="\/privacy">Privacy policy<\/a>/);
 
   assert.match(renderVisit(), /Suikerbosrand Nature Reserve/);
