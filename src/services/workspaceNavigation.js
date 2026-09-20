@@ -6,6 +6,7 @@ const workspaceClinicHours = require('./workspaceClinicHoursReadView');
 const workspaceForms = require('./workspaceForms');
 const giftVouchers = require('./giftVouchers').createGiftVoucherService();
 const shilohRewards = require('./shilohRewards').createShilohRewardsService();
+const problemReports = require('./problemReports');
 
 const DESTINATIONS = Object.freeze({
   dashboard: '/calendar/workspace',
@@ -19,6 +20,7 @@ const DESTINATIONS = Object.freeze({
   clinicHours: '/calendar/clinic-hours',
   vouchers: '/calendar/vouchers',
   rewards: '/calendar/rewards',
+  problemReports: '/calendar/problem-reports',
 });
 
 function allowedDestination(allowed, key) {
@@ -48,11 +50,12 @@ function createWorkspaceNavigationService({
   clinicHoursAccessService = workspaceClinicHours,
   voucherAccessService = giftVouchers,
   rewardsAccessService = shilohRewards,
+  problemReportsAccessService = { resolveWorkspaceAccess: async () => null },
 } = {}) {
   async function resolve({ session } = {}) {
     const adminId = session?.adminId;
     const calendarAllowed = Boolean(session?.viewer);
-    const [clients, staff, services, forms, reports, clinicHours, vouchers, rewards] = await Promise.allSettled([
+    const [clients, staff, services, forms, reports, clinicHours, vouchers, rewards, problemReportAccess] = await Promise.allSettled([
       clientAccessService.resolveAccess(adminId),
       resolveStaffAccess(staffAccessService, adminId),
       servicesAccessService.resolveAccess(adminId),
@@ -61,6 +64,7 @@ function createWorkspaceNavigationService({
       clinicHoursAccessService.resolveAccess(adminId),
       voucherAccessService.resolveAccess(adminId),
       rewardsAccessService.resolveAccess(adminId),
+      problemReportsAccessService.resolveWorkspaceAccess(adminId),
     ]);
     const clientsAllowed = clients.status === 'fulfilled' && Boolean(clients.value);
     const staffAllowed = staff.status === 'fulfilled' && Boolean(staff.value);
@@ -76,13 +80,20 @@ function createWorkspaceNavigationService({
       clinicHours: allowedDestination(clinicHours.status === 'fulfilled' && Boolean(clinicHours.value), 'clinicHours'),
       vouchers: allowedDestination(vouchers.status === 'fulfilled' && Boolean(vouchers.value), 'vouchers'),
       rewards: allowedDestination(rewards.status === 'fulfilled' && Boolean(rewards.value), 'rewards'),
+      problemReports: problemReportAccess.status === 'fulfilled' && problemReportAccess.value?.canSubmit === true
+        ? {
+          allowed: true,
+          href: DESTINATIONS.problemReports,
+          badge: problemReportAccess.value.canManage === true ? Number(problemReportAccess.value.openCount || 0) : 0,
+        }
+        : { allowed: false, href: null },
     };
   }
 
   return { resolve };
 }
 
-const service = createWorkspaceNavigationService();
+const service = createWorkspaceNavigationService({ problemReportsAccessService: problemReports });
 
 module.exports = {
   DESTINATIONS,

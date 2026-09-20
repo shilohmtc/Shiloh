@@ -24,6 +24,7 @@ const { processClientDiscoveryMessage } = require("../services/clientDiscoveryPa
 const { processRetiredAdminAuthorityMessage: processAdminRetiredAuthorityMessage } = require("../services/adminAuthorityRetirement");
 const { hybridizeChoiceInteractive } = require("../presentation/whatsappChoicePresentation");
 const { forceMatchedClientNameConfirmation } = require("../services/identityOnboardingGuard");
+const { processWhatsAppMessage: processProblemReportMessage } = require("../services/problemReports");
 const logger = require("../lib/logger");
 function maskPhone(phone = "") { return phone.length > 4 ? `***${phone.slice(-4)}` : "***"; }
 function isGreetingOnly(text = "") { return /^(hi|hello|hey|good morning|good afternoon|good evening|howzit|hiya)[!. ]*$/i.test(String(text).trim()); }
@@ -62,6 +63,7 @@ async function sendAdminResult(to,result){
 exports.verifyWebhook = (req,res)=>{const mode=req.query["hub.mode"],token=req.query["hub.verify_token"],challenge=req.query["hub.challenge"];if(mode==="subscribe"&&token===process.env.VERIFY_TOKEN){(req.log||logger).info("WhatsApp webhook verified");return res.status(200).send(challenge);}(req.log||logger).warn("WhatsApp webhook verification rejected");return res.sendStatus(403);};
 exports.receiveWebhook=async(req,res)=>{const log=req.log||logger;try{const value=req.body.entry?.[0]?.changes?.[0]?.value;if(!value?.messages)return res.sendStatus(200);const message=value.messages[0];const from=message.from,text=inboundText(message);if(!text){log.info({messageType:message.type},"Ignoring unsupported or unknown WhatsApp message");return res.sendStatus(200);}if(!from){log.warn("Received WhatsApp message without sender");return res.sendStatus(200);}log.info({from:maskPhone(from),messageType:message.type},"Processing incoming WhatsApp message");try{
 const language=await guardEnglishOnly(text);if(!language.allowed){log.info({from:maskPhone(from)},"Rejected non-English WhatsApp message");await sendWhatsAppMessage(from,language.reply);return res.sendStatus(200);}
+const problemReport=await processProblemReportMessage(from,text);if(problemReport.handled){log.info({from:maskPhone(from)},"Handled WhatsApp problem report");await sendAdminResult(from,problemReport);return res.sendStatus(200);}
 const bookingProposal=await processClientBookingProposalMessage(from,text);if(bookingProposal.handled){log.info({from:maskPhone(from),status:bookingProposal.status||null},"Handled client booking proposal response");await sendAdminResult(from,bookingProposal);return res.sendStatus(200);}
 if(/^reschedule_approval_(?:approve|decline)_\d+$/i.test(String(text||'').trim()))await reconcileStalePendingRescheduleHolds();
 const rescheduleApproval=await processRescheduleApprovalDecision(from,text);if(rescheduleApproval.handled){log.info({from:maskPhone(from),status:rescheduleApproval.status||null},"Handled retained appointment-reschedule approval decision");await sendAdminResult(from,rescheduleApproval);return res.sendStatus(200);}

@@ -23,6 +23,8 @@
   const clientProfileForm = document.querySelector('[data-client-profile-form]');
   const clientProfileStatus = document.querySelector('[data-client-profile-status]');
   const clientProfileMobile = document.querySelector('[data-client-profile-mobile]');
+  const clientProblemReportForm = document.querySelector('[data-client-problem-report-form]');
+  const clientProblemReportStatus = document.querySelector('[data-client-problem-report-status]');
   let deferredInstallPrompt = null;
   let authActionInFlight = false;
   let shilohMessageInFlight = false;
@@ -345,6 +347,54 @@
     } catch (error) {
       setClientProfileBusy(false);
       setClientProfileStatus(error.message || 'Your personal details could not be saved.', 'error');
+    }
+  });
+
+  async function screenshotData(file) {
+    if (!file) return null;
+    if (file.size > 1024 * 1024) throw new Error('The screenshot must be smaller than 1 MB.');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Please choose a JPG, PNG or WebP image.');
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('That screenshot could not be read.'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  clientProblemReportForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = clientProblemReportForm.querySelector('button[type="submit"]');
+    const form = new FormData(clientProblemReportForm);
+    button.disabled = true;
+    clientProblemReportStatus.dataset.state = '';
+    clientProblemReportStatus.textContent = 'Sending your report…';
+    try {
+      const file = form.get('screenshot');
+      const csrfToken = await freshCsrfToken();
+      const response = await postJson('/my-shiloh/api/problem-reports', {
+        category: form.get('category'),
+        description: form.get('description'),
+        expectedBehavior: form.get('expectedBehavior'),
+        relatedAppointmentId: form.get('relatedAppointmentId'),
+        screenshotDataUrl: file?.size ? await screenshotData(file) : null,
+        pagePath: window.location.pathname,
+        diagnosticContext: {
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          online: navigator.onLine,
+          userAgent: navigator.userAgent,
+        },
+      }, { 'x-shiloh-csrf-token': csrfToken });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.report?.reference) throw new Error(data.error || 'Your report could not be sent.');
+      clientProblemReportForm.reset();
+      clientProblemReportStatus.dataset.state = 'success';
+      clientProblemReportStatus.textContent = `Thank you. Your report reference is ${data.report.reference}. JP can now review it.`;
+    } catch (error) {
+      clientProblemReportStatus.dataset.state = 'error';
+      clientProblemReportStatus.textContent = error.message || 'Your report could not be sent. Please try again.';
+    } finally {
+      button.disabled = false;
     }
   });
 

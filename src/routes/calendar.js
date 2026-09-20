@@ -30,6 +30,7 @@ const { createWorkspaceGiftVoucherRouter } = require('./workspaceGiftVouchers');
 const { createWorkspaceRewardsRouter } = require('./workspaceRewards');
 const { createWorkspaceOperationalRouter } = require('./workspaceOperational');
 const { createWorkspaceMessagesRouter } = require('./workspaceMessages');
+const { createWorkspaceProblemReportsRouter } = require('./workspaceProblemReports');
 const { createWorkspacePwaRouter, createWorkspacePwaHtmlMiddleware } = require('./workspacePwa');
 const { calendarPhoneCompactV2ClientScript } = require('../presentation/calendarPhoneCompactV2');
 const { calendarPhoneAllStaffClientScript } = require('../presentation/calendarPhoneAllStaffUx');
@@ -94,6 +95,7 @@ router.use('/reports', createWorkspaceReportsRouter({ sessionService: staffBrows
 router.use('/clinic-hours', createWorkspaceClinicHoursRouter({ sessionService: staffBrowserSessionService }));
 router.use('/vouchers', createWorkspaceGiftVoucherRouter({ sessionService: staffBrowserSessionService }));
 router.use('/rewards', createWorkspaceRewardsRouter({ sessionService: staffBrowserSessionService }));
+router.use('/problem-reports', createWorkspaceProblemReportsRouter({ sessionService: staffBrowserSessionService }));
 router.use('/workspace', createWorkspaceOperationalRouter({ sessionService: staffBrowserSessionService }));
 router.use('/messages', createWorkspaceMessagesRouter({ sessionService: staffBrowserSessionService }));
 router.get('/read-only/phone-v2.js', (_req, res) => {
