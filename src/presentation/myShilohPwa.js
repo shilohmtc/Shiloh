@@ -243,8 +243,8 @@ function renderMyShilohPage({
   <meta name="apple-mobile-web-app-title" content="My Shiloh">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="/my-shiloh/manifest.webmanifest">
-  <link rel="icon" href="/my-shiloh/assets/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/my-shiloh/assets/icon.svg">
+  <link rel="icon" href="/my-shiloh/assets/icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="/my-shiloh/assets/icon-192.png">
   <link rel="stylesheet" href="/my-shiloh/assets/app.css">
   <title>My Shiloh</title>
 </head>
@@ -253,10 +253,7 @@ function renderMyShilohPage({
   <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}">
     <header class="topbar">
       <a class="brand" href="#home" aria-label="My Shiloh home">
-        <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 44 44" role="img"><path d="M11 29c6-1 8-7 10-15 3 6 7 10 13 12-4 1-7 4-9 8-4-4-8-6-14-5Z"></path><path d="M20 14c-2 6-5 9-10 11"></path></svg>
-        </span>
-        <span><small>MY</small><strong>SHILOH</strong></span>
+        <img class="brand-logo" src="/my-shiloh/assets/logo-compact.webp" alt="My Shiloh" width="858" height="336">
       </a>
       <button class="install-button" type="button" data-install-trigger hidden>Install app</button>
     </header>
@@ -360,7 +357,7 @@ function renderMyShilohPage({
     <button class="install-sheet__backdrop" type="button" data-install-close aria-label="Close install help"></button>
     <section class="install-sheet__panel" role="dialog" aria-modal="true" aria-labelledby="install-title">
       <button class="install-sheet__close" type="button" data-install-close aria-label="Close">×</button>
-      <span class="brand-mark brand-mark--large" aria-hidden="true">S</span>
+      <span class="brand-mark brand-mark--large" aria-hidden="true"><img src="/my-shiloh/assets/icon-192.png" alt=""></span>
       <p class="eyebrow">Keep My Shiloh close</p>
       <h2 id="install-title">Add My Shiloh to your Home Screen.</h2>
       <ol data-install-steps>

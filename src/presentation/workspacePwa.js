@@ -1,6 +1,6 @@
 'use strict';
 
-const PWA_VERSION = '960-v1';
+const PWA_VERSION = 'official-brand-v1';
 const PWA_BASE = '/calendar/pwa';
 const STATIC_CACHE_PREFIX = 'shiloh-pwa-static-';
 const STATIC_CACHE_NAME = `${STATIC_CACHE_PREFIX}${PWA_VERSION}`;
@@ -35,20 +35,16 @@ function workspacePwaManifest() {
 
 function workspacePwaIconSvg(size = 192) {
   const dimension = Number(size) === 512 ? 512 : 192;
-  const inset = Math.round(dimension * 0.06);
-  const radius = Math.round(dimension * 0.22);
-  const markSize = Math.round(dimension * 0.4);
-  const markX = Math.round((dimension - markSize) / 2);
-  const markY = Math.round(dimension * 0.27);
-  const stemWidth = Math.max(10, Math.round(dimension * 0.085));
-  const stemX = Math.round((dimension - stemWidth) / 2);
-  const stemY = Math.round(dimension * 0.48);
-  const stemHeight = Math.round(dimension * 0.27);
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${dimension} ${dimension}" role="img" aria-label="Shiloh"><rect width="${dimension}" height="${dimension}" rx="${radius}" fill="#17382d"/><rect x="${inset}" y="${inset}" width="${dimension - inset * 2}" height="${dimension - inset * 2}" rx="${Math.round(radius * 0.78)}" fill="#f7f5ef"/><circle cx="${Math.round(dimension / 2)}" cy="${Math.round(dimension * 0.35)}" r="${Math.round(markSize / 2)}" fill="#496b5a"/><rect x="${stemX}" y="${stemY}" width="${stemWidth}" height="${stemHeight}" rx="${Math.round(stemWidth / 2)}" fill="#496b5a"/></svg>`;
+  const png = dimension === 512 ? ICON_URLS[1] : ICON_URLS[0];
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${dimension} ${dimension}" role="img" aria-label="Shiloh"><image width="${dimension}" height="${dimension}" href="${png}"/></svg>`;
+}
+
+function workspaceIosInstallGuideBaseStyles() {
+  return `.shiloh-ios-install{position:fixed;right:max(14px,env(safe-area-inset-right));bottom:max(14px,env(safe-area-inset-bottom));left:max(14px,env(safe-area-inset-left));z-index:130;color:#20322b;font:400 .94rem/1.42 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.shiloh-ios-invite{box-sizing:border-box;display:grid;grid-template-columns:46px minmax(0,1fr);gap:12px;width:min(100%,430px);margin-left:auto;padding:14px;border:1px solid #cfdbd3;border-radius:18px;background:#fffdf9;box-shadow:0 14px 42px rgba(20,45,35,.2)}.shiloh-ios-mark{display:grid;place-items:center;width:46px;height:46px;border-radius:13px;background:#17382d;color:#fff;font-size:1.35rem;font-weight:850}.shiloh-ios-copy{min-width:0}.shiloh-ios-eyebrow{margin:0 0 2px;color:#496b5a;font-size:.68rem;font-weight:850;letter-spacing:.11em}.shiloh-ios-title{display:block;margin:0 0 2px;font-size:1.02rem}.shiloh-ios-description{margin:0;color:#5e7067;font-size:.88rem}.shiloh-ios-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}.shiloh-ios-button{min-height:44px;border:1px solid #496b5a;border-radius:999px;padding:9px 15px;background:#496b5a;color:#fff;font:inherit;font-weight:800;cursor:pointer}.shiloh-ios-button.secondary{background:#fffdf9;color:#294c3c}.shiloh-ios-layer[hidden]{display:none}.shiloh-ios-layer{position:fixed;inset:0;z-index:131;display:grid;align-items:end}.shiloh-ios-backdrop{position:absolute;inset:0;width:100%;height:100%;border:0;background:rgba(14,31,25,.48);cursor:pointer}.shiloh-ios-sheet{position:relative;box-sizing:border-box;width:min(100%,520px);max-height:min(88vh,720px);margin:0 auto;padding:20px 20px max(20px,env(safe-area-inset-bottom));overflow:auto;border-radius:24px 24px 0 0;background:#fffdf9;box-shadow:0 -12px 44px rgba(14,31,25,.24)}.shiloh-ios-sheet-head{display:flex;align-items:start;justify-content:space-between;gap:16px}.shiloh-ios-sheet h2{margin:3px 0 6px;font-size:1.32rem;line-height:1.18}.shiloh-ios-sheet-intro{margin:0;color:#5e7067}.shiloh-ios-close{flex:0 0 44px;width:44px;height:44px;border:1px solid #d6dfd8;border-radius:999px;background:#fff;color:#20322b;font:700 1.4rem/1 system-ui;cursor:pointer}.shiloh-ios-steps{display:grid;gap:12px;margin:20px 0;padding:0;list-style:none;counter-reset:install-step}.shiloh-ios-step{counter-increment:install-step;display:grid;grid-template-columns:38px minmax(0,1fr);gap:12px;align-items:start;padding:13px;border:1px solid #dfe5df;border-radius:14px;background:#f5f8f5}.shiloh-ios-step:before{content:counter(install-step);display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#dfeae3;color:#294c3c;font-weight:850}.shiloh-ios-step strong{display:block;margin-bottom:2px}.shiloh-ios-step span{color:#5e7067;font-size:.88rem}.shiloh-ios-sheet .shiloh-ios-button{width:100%}@media(min-width:560px){.shiloh-ios-install{left:auto}.shiloh-ios-layer{align-items:center;padding:24px}.shiloh-ios-sheet{border-radius:24px}}@media(max-width:360px){.shiloh-ios-invite{grid-template-columns:40px minmax(0,1fr);padding:12px}.shiloh-ios-mark{width:40px;height:40px}.shiloh-ios-actions{display:grid;grid-template-columns:1fr 1fr}.shiloh-ios-button{padding-inline:10px}}`;
 }
 
 function workspaceIosInstallGuideStyles() {
-  return `.shiloh-ios-install{position:fixed;right:max(14px,env(safe-area-inset-right));bottom:max(14px,env(safe-area-inset-bottom));left:max(14px,env(safe-area-inset-left));z-index:130;color:#20322b;font:400 .94rem/1.42 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.shiloh-ios-invite{box-sizing:border-box;display:grid;grid-template-columns:46px minmax(0,1fr);gap:12px;width:min(100%,430px);margin-left:auto;padding:14px;border:1px solid #cfdbd3;border-radius:18px;background:#fffdf9;box-shadow:0 14px 42px rgba(20,45,35,.2)}.shiloh-ios-mark{display:grid;place-items:center;width:46px;height:46px;border-radius:13px;background:#17382d;color:#fff;font-size:1.35rem;font-weight:850}.shiloh-ios-copy{min-width:0}.shiloh-ios-eyebrow{margin:0 0 2px;color:#496b5a;font-size:.68rem;font-weight:850;letter-spacing:.11em}.shiloh-ios-title{display:block;margin:0 0 2px;font-size:1.02rem}.shiloh-ios-description{margin:0;color:#5e7067;font-size:.88rem}.shiloh-ios-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}.shiloh-ios-button{min-height:44px;border:1px solid #496b5a;border-radius:999px;padding:9px 15px;background:#496b5a;color:#fff;font:inherit;font-weight:800;cursor:pointer}.shiloh-ios-button.secondary{background:#fffdf9;color:#294c3c}.shiloh-ios-layer[hidden]{display:none}.shiloh-ios-layer{position:fixed;inset:0;z-index:131;display:grid;align-items:end}.shiloh-ios-backdrop{position:absolute;inset:0;width:100%;height:100%;border:0;background:rgba(14,31,25,.48);cursor:pointer}.shiloh-ios-sheet{position:relative;box-sizing:border-box;width:min(100%,520px);max-height:min(88vh,720px);margin:0 auto;padding:20px 20px max(20px,env(safe-area-inset-bottom));overflow:auto;border-radius:24px 24px 0 0;background:#fffdf9;box-shadow:0 -12px 44px rgba(14,31,25,.24)}.shiloh-ios-sheet-head{display:flex;align-items:start;justify-content:space-between;gap:16px}.shiloh-ios-sheet h2{margin:3px 0 6px;font-size:1.32rem;line-height:1.18}.shiloh-ios-sheet-intro{margin:0;color:#5e7067}.shiloh-ios-close{flex:0 0 44px;width:44px;height:44px;border:1px solid #d6dfd8;border-radius:999px;background:#fff;color:#20322b;font:700 1.4rem/1 system-ui;cursor:pointer}.shiloh-ios-steps{display:grid;gap:12px;margin:20px 0;padding:0;list-style:none;counter-reset:install-step}.shiloh-ios-step{counter-increment:install-step;display:grid;grid-template-columns:38px minmax(0,1fr);gap:12px;align-items:start;padding:13px;border:1px solid #dfe5df;border-radius:14px;background:#f5f8f5}.shiloh-ios-step:before{content:counter(install-step);display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#dfeae3;color:#294c3c;font-weight:850}.shiloh-ios-step strong{display:block;margin-bottom:2px}.shiloh-ios-step span{color:#5e7067;font-size:.88rem}.shiloh-ios-sheet .shiloh-ios-button{width:100%}@media(min-width:560px){.shiloh-ios-install{left:auto}.shiloh-ios-layer{align-items:center;padding:24px}.shiloh-ios-sheet{border-radius:24px}}@media(max-width:360px){.shiloh-ios-invite{grid-template-columns:40px minmax(0,1fr);padding:12px}.shiloh-ios-mark{width:40px;height:40px}.shiloh-ios-actions{display:grid;grid-template-columns:1fr 1fr}.shiloh-ios-button{padding-inline:10px}}`;
+  return `${workspaceIosInstallGuideBaseStyles()}.shiloh-ios-mark{overflow:hidden;background:#faf7f0 url('${ICON_URLS[0]}') center/cover no-repeat;color:transparent;font-size:0}`;
 }
 
 function workspaceIosInstallGuideMarkup({ open = false } = {}) {
@@ -63,8 +59,8 @@ function workspacePwaHeadMarkup() {
     '<meta name="apple-mobile-web-app-capable" content="yes">',
     '<meta name="apple-mobile-web-app-status-bar-style" content="default">',
     '<meta name="apple-mobile-web-app-title" content="Shiloh">',
-    `<link rel="icon" href="${SVG_ICON_URLS[0]}" type="image/svg+xml">`,
-    `<link rel="apple-touch-icon" sizes="192x192" href="${ICON_URLS[0]}">`,
+    `<link rel="icon" href="${ICON_URLS[0]}" type="image/png" sizes="192x192">`,
+    `<link rel="apple-touch-icon" sizes="180x180" href="${PWA_BASE}/apple-touch-icon-180.png?v=${PWA_VERSION}">`,
     `<script src="${PWA_BASE}/client.js?v=${PWA_VERSION}" defer></script>`,
   ].join('');
 }
