@@ -98,6 +98,25 @@ test('home includes an understated returning-client My Shiloh entry point', () =
   assert.match(html, /appointment, form and payment views will live here as the client experience grows/i);
 });
 
+test('home and Contact share the approved Heidelberg town-centre story', () => {
+  const home = renderHome(catalogue);
+  const contact = renderContact();
+
+  assert.match(home, /data-public-visit-shiloh/);
+  assert.match(home, /Come experience the new heart of Heidelberg/);
+  assert.match(home, /Great neighbours make life more beautiful|Businesses near Shiloh/);
+  assert.match(contact, /data-public-town-centre/);
+  assert.match(contact, /Great neighbours make life more beautiful/);
+
+  for (const html of [home, contact]) {
+    assert.match(html, /Grill King Family Restaurant/);
+    assert.match(html, /Heidelberg Crown Hotel/);
+    assert.match(html, /Platō Coffee/);
+    assert.doesNotMatch(html, /opening soon/i);
+    assert.doesNotMatch(html, /Burger King/i);
+  }
+});
+
 test('public pages include search and sharing metadata', () => {
   for (const html of [
     renderHome(catalogue),
