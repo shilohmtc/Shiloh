@@ -223,7 +223,15 @@ async function applyReschedule(admin, a, starts) {
   const st = a.staff[0];
   const problem = await validateWindow(a, st.staff_id, st.display_name || st.staff_name_snapshot, starts, ends);
   if (problem) return { reply: `${problem}\n\nNo change was saved. Choose another available time.` };
-  await pool.query(`UPDATE appointments SET starts_at=$1,ends_at=$2,updated_at=NOW() WHERE id=$3`, [starts, ends, a.id]);
+  await transaction(async (db) => {
+    await db.query(`UPDATE appointments SET starts_at=$1,ends_at=$2,updated_at=NOW() WHERE id=$3`, [starts, ends, a.id]);
+    await db.query(
+      `UPDATE appointment_lifecycle
+          SET appointment_at=$1,appointment_ends_at=$2,reminder_sent_at=NULL,updated_at=NOW()
+        WHERE appointment_id=$3`,
+      [starts, ends, a.id]
+    );
+  });
   const after = await loadAppointment(admin, a.id);
   await audit(admin, a.id, 'appointment.time_updated', { fromStart: a.starts_at, fromEnd: a.ends_at, toStart: starts, toEnd: ends, authoritativeSlotFlow: true });
   return { after };

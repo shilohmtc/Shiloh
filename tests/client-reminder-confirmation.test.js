@@ -33,7 +33,7 @@ test('only reminded future non-final appointments are eligible', () => {
 test('lifecycle reminder claim pauses while the client has an active reschedule or cancel intent', () => {
   assert.match(lifecycle, /appointment_change_intents/);
   assert.match(lifecycle, /NOT EXISTS/);
-  assert.match(lifecycle, /aci\.phone\s*=\s*a\.phone/);
+  assert.match(lifecycle, /aci\.phone\s*=\s*al\.phone/);
   assert.match(lifecycle, /aci\.status\s*=\s*'collecting'/);
   assert.match(lifecycle, /aci\.action\s+IN\s*\('reschedule','cancel'\)/);
 });
