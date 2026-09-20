@@ -78,8 +78,8 @@ function groupSpecialtyCategories(html, catalogue = []) {
   return html;
 }
 
-function renderBookingPage(number, catalogue = []) {
-  let html = base.renderBookingPage(number, catalogue);
+function renderBookingPage(number, catalogue = [], selectedServiceId = '') {
+  let html = base.renderBookingPage(number, catalogue, selectedServiceId);
 
   html = html.replace('<body>', `<body>${renderSiteHeader('/book')}`);
   html = html.replace('<main>', '<main id="main-content">');
