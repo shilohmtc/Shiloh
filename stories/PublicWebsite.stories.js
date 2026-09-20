@@ -39,6 +39,34 @@ const catalogue = [
     description: 'Hydrating facial care.',
     bookingNote: '',
   },
+  {
+    id: 404,
+    name: 'SQT Rejuvenation BioMicroneedling',
+    category: '1. SQT BioMicroneedling',
+    duration: '90 min',
+    price: 'R1 785–R2 585',
+  },
+  {
+    id: 505,
+    name: 'Permanent Makeup – Brows',
+    category: 'Permanent Makeup',
+    duration: '180 min',
+    price: 'R1 950–R2 200',
+  },
+  {
+    id: 606,
+    name: 'Pelvic Floor Strengthening',
+    category: 'Neo Pelvic Therapy',
+    duration: '30 min',
+    price: 'R350–R450',
+  },
+  {
+    id: 707,
+    name: 'Shiloh Consultation',
+    category: 'Services',
+    duration: '30 min',
+    price: 'Price on consultation',
+  },
 ];
 
 function productionPage(pageHtml) {

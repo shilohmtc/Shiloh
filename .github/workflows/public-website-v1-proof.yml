@@ -11,11 +11,16 @@ on:
       - src/middleware/canonicalHostRedirect.js
       - src/services/publicBookingPage.js
       - src/services/publicBookingPageEditorial.js
+      - src/services/publicPresentation.js
       - src/services/publicSiteChrome.js
       - src/services/publicWebsite.js
+      - stories/PublicWebsite.stories.js
       - scripts/public-website-browser-proof.js
       - tests/canonical-host-redirect.test.js
+      - tests/public-service-taxonomy.test.js
       - tests/public-website-v1.test.js
+      - tests/publicBookingPageSpecialtyRows.test.js
+      - tests/publicBookingSpecialtyGroupingOrder.test.js
       - .github/workflows/public-website-v1-proof.yml
 
 permissions:

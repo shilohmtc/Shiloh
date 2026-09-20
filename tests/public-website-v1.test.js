@@ -75,7 +75,7 @@ test('service discovery is catalogue-derived and does not create a second availa
     { id: 404, name: 'Brow Shape', category: 'Aesthetic Care', duration: '30 min', price: 'R280' },
   ]);
 
-  assert.match(html, /data-public-service-category="Aesthetic Care"/);
+  assert.match(html, /data-public-service-category="Facials &amp; Skin"/);
   assert.match(html, /2 services/);
   assert.match(html, /Hydrating Facial/);
   assert.match(html, /Brow Shape/);
@@ -224,7 +224,8 @@ test('public presentation escapes canonical catalogue text', () => {
   ]);
   assert.doesNotMatch(html, /<script>alert/);
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
-  assert.match(html, /Massage &amp; Care/);
+  assert.match(html, /data-service-id="101"/);
+  assert.match(html, /<h2>Massage<\/h2>/);
 });
 
 test('public surfaces neutralize therapeutic branding, labels and claim-heavy descriptions', () => {
@@ -259,7 +260,7 @@ test('public surfaces neutralize therapeutic branding, labels and claim-heavy de
   }
 
   assert.match(renderTreatments(riskyCatalogue), /Neo Pelvic Session/);
-  assert.match(renderTreatments(riskyCatalogue), /Massage Services/);
+  assert.match(renderTreatments(riskyCatalogue), /Body &amp; Wellness/);
   assert.match(renderBookingPage('27836835433', riskyCatalogue), /Neo Pelvic Session/);
   assert.match(renderBookingPage('27836835433', riskyCatalogue), /Shiloh Massage &amp; Aesthetic Clinic/);
 });

@@ -705,7 +705,9 @@ for (const viewport of [
 
       if (name === 'home') {
         await expect(surface.locator('[data-public-service-discovery]')).toBeVisible();
-        await expect(surface.locator('[data-public-service-category]')).toHaveCount(3);
+        await expect(surface.locator('[data-public-service-category]')).toHaveCount(7);
+        await expect(surface.getByRole('heading', { name: 'Advanced Aesthetics' })).toBeVisible();
+        await expect(surface.getByRole('heading', { name: 'Body & Wellness' })).toBeVisible();
         await expect(surface.getByRole('link', { name: 'Not sure? Ask Shiloh' })).toHaveAttribute(
           'href',
           '/book#choose-with-shiloh',
@@ -714,8 +716,10 @@ for (const viewport of [
 
       if (name === 'treatments') {
         await expect(surface.locator('[data-public-category-navigation]')).toBeVisible();
-        await expect(surface.locator('[data-public-category-navigation] a')).toHaveCount(3);
+        await expect(surface.locator('[data-public-category-navigation] a')).toHaveCount(7);
         await expect(surface.locator('#category-massage')).toBeVisible();
+        await expect(surface.locator('#category-advanced-aesthetics')).toBeVisible();
+        await expect(surface.locator('#category-body-and-wellness')).toBeVisible();
       }
 
       const geometry = await surface.evaluate(() => ({

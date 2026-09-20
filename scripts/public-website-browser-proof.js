@@ -30,6 +30,34 @@ const catalogue = [
     price: 'R720',
     description: 'Hydrating facial care.',
   },
+  {
+    id: 4,
+    name: 'SQT Rejuvenation BioMicroneedling',
+    category: '1. SQT BioMicroneedling',
+    duration: '90 min',
+    price: 'R1785-R2585',
+  },
+  {
+    id: 5,
+    name: 'Permanent Makeup - Brows',
+    category: 'Permanent Makeup',
+    duration: '180 min',
+    price: 'R1950-R2200',
+  },
+  {
+    id: 6,
+    name: 'Pelvic Floor Strengthening',
+    category: 'Neo Pelvic Therapy',
+    duration: '30 min',
+    price: 'R350-R450',
+  },
+  {
+    id: 7,
+    name: 'Shiloh Consultation',
+    category: 'Services',
+    duration: '30 min',
+    price: 'Price on consultation',
+  },
 ];
 
 function withPreviewBase(html) {
@@ -143,6 +171,10 @@ async function run() {
       throw new Error(`Desktop local story must retain two columns; got ${desktopLocalColumns}`);
     if ((await desktop.locator('[data-public-visit-shiloh] .neighbour-list li').count()) !== 8)
       throw new Error('Desktop local story must use the approved neighbour authority');
+    if ((await desktop.locator('[data-public-service-category]').count()) !== 7)
+      throw new Error('Desktop home must show the seven public service families');
+    if ((await desktop.getByRole('heading', { name: 'Advanced Aesthetics' }).count()) !== 1)
+      throw new Error('Desktop home must replace administrative aesthetic category labels');
     await assertAccessible(desktop, 'Desktop home');
     await desktop.screenshot({
       path: path.join(evidenceDir, 'desktop-home-1440x1000.png'),
@@ -166,6 +198,10 @@ async function run() {
       (await desktop.locator('.treatment-card a[href="/book?service=1#service-1"]').count()) !== 1
     )
       throw new Error('Deep Tissue Massage must link to its canonical booking selection');
+    if ((await desktop.locator('[data-public-category-navigation] a').count()) !== 7)
+      throw new Error('Desktop treatments must expose the seven public service families');
+    if ((await desktop.getByRole('heading', { name: 'Body & Wellness' }).count()) !== 1)
+      throw new Error('Desktop treatments must use the Body & Wellness public family');
     await assertAccessible(desktop, 'Desktop treatments');
     await desktop.screenshot({
       path: path.join(evidenceDir, 'desktop-treatments-1440x1000.png'),
