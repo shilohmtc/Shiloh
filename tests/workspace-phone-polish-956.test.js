@@ -19,10 +19,10 @@ const {
 
 test('#956 installed icon has balanced optical proportions and an explicit Apple touch asset', () => {
   const svg = workspacePwaIconSvg(192);
-  assert.equal(PWA_VERSION, '960-v1');
-  assert.match(svg, /<rect x="12" y="12" width="168" height="168"/);
-  assert.match(svg, /<circle cx="96" cy="67" r="39"/);
-  assert.match(workspacePwaHeadMarkup(), /rel="apple-touch-icon" sizes="192x192"/);
+  assert.equal(PWA_VERSION, 'official-brand-v1');
+  assert.match(svg, /<image width="192" height="192" href="\/calendar\/pwa\/icon-192\.png/);
+  assert.match(workspacePwaHeadMarkup(), /rel="apple-touch-icon" sizes="180x180"/);
+  assert.match(workspacePwaHeadMarkup(), /rel="icon"[^>]+image\/png/);
 });
 
 test('#956 phone booking controls defeat native intrinsic width and neutral match guidance clears', () => {

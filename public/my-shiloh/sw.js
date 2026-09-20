@@ -1,13 +1,16 @@
 'use strict';
 
-const SHELL_CACHE = 'my-shiloh-shell-v6';
-const STATIC_CACHE = 'my-shiloh-static-v6';
+const SHELL_CACHE = 'my-shiloh-shell-v7';
+const STATIC_CACHE = 'my-shiloh-static-v7';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',
   '/my-shiloh/assets/app.css',
   '/my-shiloh/assets/app.js',
-  '/my-shiloh/assets/icon.svg',
+  '/my-shiloh/assets/icon-192.png',
+  '/my-shiloh/assets/icon-512.png',
+  '/my-shiloh/assets/icon-maskable-512.png',
+  '/my-shiloh/assets/logo-compact.webp',
 ];
 
 self.addEventListener('install', (event) => {
