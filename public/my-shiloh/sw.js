@@ -1,7 +1,7 @@
 'use strict';
 
-const SHELL_CACHE = 'my-shiloh-shell-v9';
-const STATIC_CACHE = 'my-shiloh-static-v9';
+const SHELL_CACHE = 'my-shiloh-shell-v10';
+const STATIC_CACHE = 'my-shiloh-static-v10';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',
