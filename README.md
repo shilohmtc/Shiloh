@@ -6,7 +6,7 @@
 
 Shiloh is the digital operating system for Shiloh Massage Therapy and Aesthetic Clinic—bringing together client care, bookings, CRM, staff operations and the customer-facing WhatsApp AI assistant.
 
-[Visit Shiloh](https://app.shilohmtc.co.za) · [Book an appointment](https://app.shilohmtc.co.za/book)
+[Visit Shiloh](https://shilohmtc.co.za) · [Book an appointment](https://shilohmtc.co.za/book)
 
 ## Shiloh-first model
 

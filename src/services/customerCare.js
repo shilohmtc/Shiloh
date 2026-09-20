@@ -5,7 +5,7 @@ const { processBookingConfirmationV2Action } = require('./bookingConfirmationV2A
 const { resolveClientFacingName } = require('./clientFacingNameAuthority');
 const logger = require('../lib/logger');
 const { createShilohRewardsService } = require('./shilohRewards');
-const { CANONICAL_ORIGIN } = require('../middleware/canonicalHostRedirect');
+const { APP_ORIGIN } = require('../config/publicOrigins');
 
 const LANGUAGE_CODE = process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en';
 let careTimer = null;
@@ -29,7 +29,7 @@ function isMobileIdentityChangeIntent(text=''){
   const n=clean(text).replace(/[.!?]+$/,'');
   return /^(?:i (?:want|would like|need) to )?(?:change|edit|correct|update)(?: my)? (?:phone|mobile|cellphone|whatsapp)(?: number)?$/.test(n);
 }
-function myShilohProfileUrl(origin=CANONICAL_ORIGIN){return `${String(origin||CANONICAL_ORIGIN).replace(/\/$/,'')}/my-shiloh/#profile`;}
+function myShilohProfileUrl(origin=APP_ORIGIN){return `${String(origin||APP_ORIGIN).replace(/\/$/,'')}/my-shiloh/#profile`;}
 
 async function clientForPhone(phone){
   const r=await pool.query(`SELECT DISTINCT c.id,c.date_of_birth FROM clients c JOIN client_contacts cc ON cc.client_id=c.id WHERE cc.normalized_value=$1 AND cc.contact_type IN ('whatsapp','mobile','phone') AND c.status='active' ORDER BY c.id LIMIT 2`,[normalizePhone(phone)]);

@@ -1,5 +1,5 @@
 module.exports = {
-  url: 'https://app.shilohmtc.co.za/book',
+  url: 'https://shilohmtc.co.za/book',
   runs: 2,
   thresholds: {
     performance: 0.9,

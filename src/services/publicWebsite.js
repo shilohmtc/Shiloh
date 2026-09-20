@@ -1,3 +1,4 @@
+const { PUBLIC_SITE_ORIGIN } = require('../config/publicOrigins');
 const { PUBLIC_CHROME_CSS, renderSiteHeader, renderSiteFooter } = require('./publicSiteChrome');
 const {
   PUBLIC_BRAND_NAME,
@@ -24,8 +25,8 @@ const SITE_CSS = `
 `;
 
 function layout({ title, description, currentPath, body }) {
-  const canonical = `https://app.shilohmtc.co.za${currentPath}`;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="index,follow"><meta name="description" content="${escapeHtml(description)}"><link rel="canonical" href="${canonical}"><link rel="icon" type="image/png" sizes="192x192" href="/assets/brand/shiloh-mark-192.png"><link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/shiloh-apple-touch-180.png"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(title)} | Shiloh"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${canonical}"><meta property="og:image" content="https://app.shilohmtc.co.za/assets/brand/shiloh-logo-full.jpg"><title>${escapeHtml(title)} | Shiloh</title><style>${SITE_CSS}</style></head><body>${renderSiteHeader(currentPath)}<aside class="welcome-offer" aria-label="My Shiloh welcome offer"><div class="shell"><div class="welcome-offer__copy"><strong>R100 welcome voucher</strong><span>Complete your first My Shiloh registration to unlock it.</span></div><a href="/my-shiloh/#welcome-voucher">Claim my R100</a></div></aside>${body}${renderSiteFooter()}<a class="mobile-book" href="/book"><span>Ready when you are</span><strong>View services &amp; book →</strong></a></body></html>`;
+  const canonical = `${PUBLIC_SITE_ORIGIN}${currentPath}`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="index,follow"><meta name="description" content="${escapeHtml(description)}"><link rel="canonical" href="${canonical}"><link rel="icon" type="image/png" sizes="192x192" href="/assets/brand/shiloh-mark-192.png"><link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/shiloh-apple-touch-180.png"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(title)} | Shiloh"><meta property="og:description" content="${escapeHtml(description)}"><meta property="og:url" content="${canonical}"><meta property="og:image" content="${PUBLIC_SITE_ORIGIN}/assets/brand/shiloh-logo-full.jpg"><title>${escapeHtml(title)} | Shiloh</title><style>${SITE_CSS}</style></head><body>${renderSiteHeader(currentPath)}<aside class="welcome-offer" aria-label="My Shiloh welcome offer"><div class="shell"><div class="welcome-offer__copy"><strong>R100 welcome voucher</strong><span>Complete your first My Shiloh registration to unlock it.</span></div><a href="/my-shiloh/#welcome-voucher">Claim my R100</a></div></aside>${body}${renderSiteFooter()}<a class="mobile-book" href="/book"><span>Ready when you are</span><strong>View services &amp; book →</strong></a></body></html>`;
 }
 
 function serviceGroups(catalogue = []) {
@@ -118,6 +119,7 @@ function renderPrivacy() {
 }
 
 module.exports = {
+  PUBLIC_SITE_ORIGIN,
   escapeHtml,
   renderHome,
   renderTreatments,

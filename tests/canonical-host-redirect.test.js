@@ -3,16 +3,18 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  CANONICAL_ORIGIN,
+  APP_HOST,
+  PUBLIC_SITE_ORIGIN,
   canonicalHostRedirect,
   requestHostname,
 } = require('../src/middleware/canonicalHostRedirect');
 
-function run({ host, forwardedHost = '', path = '/book', originalUrl = path } = {}) {
+function run({ host, forwardedHost = '', method = 'GET', path = '/book', originalUrl = path } = {}) {
   let nextCalled = false;
   let redirect = null;
   const req = {
     headers: { host, ...(forwardedHost ? { 'x-forwarded-host': forwardedHost } : {}) },
+    method,
     path,
     originalUrl,
   };
@@ -36,12 +38,46 @@ test('redirects legacy Render booking links to the canonical Shiloh origin', () 
   assert.equal(result.nextCalled, false);
   assert.deepEqual(result.redirect, {
     status: 308,
-    location: `${CANONICAL_ORIGIN}/book?service=massage`,
+    location: `${PUBLIC_SITE_ORIGIN}/book?service=massage`,
   });
 });
 
-test('does not redirect the canonical domain or unrelated hosts', () => {
-  assert.equal(run({ host: 'app.shilohmtc.co.za' }).nextCalled, true);
+test('redirects public website pages from the transitional app host to the root domain', () => {
+  const result = run({
+    host: APP_HOST,
+    path: '/treatments',
+    originalUrl: '/treatments?category=massage',
+  });
+
+  assert.equal(result.nextCalled, false);
+  assert.deepEqual(result.redirect, {
+    status: 308,
+    location: `${PUBLIC_SITE_ORIGIN}/treatments?category=massage`,
+  });
+
+  const trailingSlash = run({ host: APP_HOST, path: '/book/', originalUrl: '/book/' });
+  assert.deepEqual(trailingSlash.redirect, {
+    status: 308,
+    location: `${PUBLIC_SITE_ORIGIN}/book/`,
+  });
+});
+
+test('keeps app-only sessions, installed apps, forms and provider callbacks on the app host', () => {
+  for (const path of [
+    '/my-shiloh/',
+    '/calendar',
+    '/admin',
+    '/forms/f/example',
+    '/gift-vouchers/example',
+    '/payments/providers/ozow/notify',
+    '/webhook',
+  ]) {
+    assert.equal(run({ host: APP_HOST, path, originalUrl: path }).nextCalled, true, path);
+  }
+});
+
+test('does not redirect non-idempotent app-host requests or unrelated hosts', () => {
+  assert.equal(run({ host: APP_HOST, method: 'POST', path: '/', originalUrl: '/' }).nextCalled, true);
   assert.equal(run({ host: 'internal-service:10000' }).nextCalled, true);
 });
 

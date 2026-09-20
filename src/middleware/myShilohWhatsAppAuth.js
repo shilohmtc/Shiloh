@@ -1,9 +1,9 @@
 'use strict';
 
 const { pool } = require('../db/pool');
+const { APP_ORIGIN } = require('../config/publicOrigins');
 const { sendWhatsAppMessage } = require('../services/whatsapp');
 const { createClientBrowserSessionService } = require('../services/clientBrowserSession');
-const { CANONICAL_ORIGIN } = require('./canonicalHostRedirect');
 const logger = require('../lib/logger');
 
 const LOGIN_PREFIX = 'MY SHILOH SIGN IN';
@@ -20,10 +20,10 @@ function extractMyShilohLoginToken(message) {
   return match ? match[1] : null;
 }
 
-function myShilohCompletionUrl(code, origin = CANONICAL_ORIGIN) {
+function myShilohCompletionUrl(code, origin = APP_ORIGIN) {
   const clean = String(code || '').replace(/\s+/g, '');
   if (!/^\d{6}$/.test(clean)) return null;
-  return `${String(origin || CANONICAL_ORIGIN).replace(/\/$/, '')}/my-shiloh/#verify=${clean}`;
+  return `${String(origin || APP_ORIGIN).replace(/\/$/, '')}/my-shiloh/#verify=${clean}`;
 }
 
 function createMyShilohWhatsAppAuthMiddleware({
