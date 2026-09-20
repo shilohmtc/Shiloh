@@ -6,8 +6,9 @@ const originalGet=axios.get;
 const env={...process.env};
 test.afterEach(()=>{axios.get=originalGet;process.env={...env};resetTemplateInventoryCache();});
 
-test('complete registry contains all 31 exact expected/current/legacy identities',()=>{
- assert.equal(CONTRACTS.length,31); assert.equal(new Set(CONTRACTS.map(x=>x.contract.name)).size,31);
+test('complete registry contains all 32 exact expected/current/legacy identities',()=>{
+ assert.equal(CONTRACTS.length,32); assert.equal(new Set(CONTRACTS.map(x=>x.contract.name)).size,32);
+ assert.equal(CONTRACTS.find(x=>x.key==='problem_report_resolved').contract.name,'shiloh_problem_report_resolved_v1');
  assert.equal(CONTRACTS.find(x=>x.key==='workspace_booking_request_alert').contract.name,'shiloh_workspace_booking_request_alert_v1');
  assert.equal(CONTRACTS.find(x=>x.key==='birthday_v2').contract.name,'shiloh_birthday_wish_v2');
  assert.equal(CONTRACTS.find(x=>x.key==='birthday_v1').sendable,false);
@@ -81,7 +82,7 @@ test('realistic Meta fixture ignores managed metadata but detects semantic drift
 });
 
 test('every current operational contract validates exactly and drift fails',()=>{
- const current=CONTRACTS.filter(x=>x.sendable);assert.equal(current.length,26);
+ const current=CONTRACTS.filter(x=>x.sendable);assert.equal(current.length,27);
  for(const entry of current){const provider={...entry.contract,components:structuredClone(entry.contract.components)};assert.equal(compareContract(entry,provider).exact,true,entry.key);provider.category=entry.contract.category==='UTILITY'?'MARKETING':'UTILITY';assert.equal(compareContract(entry,provider).exact,false,entry.key);}
 });
 

@@ -27,7 +27,8 @@ function fakeContract(id, lifecycle = 'current', sendable = true) {
 
 test('canonical reconnect scope contains only current sendable contracts', () => {
   const bindings = currentSendableBindings();
-  assert.equal(bindings.length, 26);
+  assert.equal(bindings.length, 27);
+  assert.equal(bindings.some((item) => item.contractId === 'problem_report_resolved'), true);
   assert.equal(bindings.some((item) => item.contractId === 'workspace_booking_request_alert'), true);
   assert.equal(bindings.some((item) => item.contractId === 'birthday_v1'), false);
   assert.equal(bindings.some((item) => item.contractId === 'appointment_followup_legacy'), false);
@@ -39,7 +40,7 @@ test('canonical reconnect scope contains only current sendable contracts', () =>
     assert.equal(contract.lifecycle, 'current');
     assert.equal(contract.sendable, true);
   }
-  assert.equal(META_TEMPLATE_BINDINGS.length, 31);
+  assert.equal(META_TEMPLATE_BINDINGS.length, 32);
 });
 
 test('existing Shiloh_MTC WABA subscription is not rewritten', async () => {
