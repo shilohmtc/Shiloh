@@ -54,6 +54,71 @@ function statusForError(error) {
   return 503;
 }
 
+function bookingRecoveryFor(status) {
+  const key = String(status || 'booking_unavailable');
+  const recovery = {
+    kind: key,
+    title: 'This booking could not be prepared.',
+    message: 'Nothing has been booked or changed.',
+    steps: [
+      'Check the selected date and start time.',
+      'Try another available time or eligible practitioner.',
+      'Report the problem if the same error continues.',
+    ],
+    actions: ['change_time', 'change_date', 'change_practitioner', 'report_problem'],
+  };
+  if (key === 'outside_clinic_hours') {
+    return {
+      ...recovery,
+      title: 'The full treatment does not fit within the clinic’s booking hours.',
+      message: 'Choose an earlier start time or another date. Nothing has been booked.',
+      steps: [
+        'Choose an earlier start time so the full treatment can finish before closing.',
+        'Or choose another date with enough time available.',
+        'Report the problem only if a time that should fit is still rejected.',
+      ],
+      actions: ['change_time', 'change_date', 'report_problem'],
+    };
+  }
+  if (key === 'outside_working_hours') {
+    return {
+      ...recovery,
+      title: 'The practitioner is not available for the full treatment at this time.',
+      message: 'Only this practitioner’s availability is involved. Other staff and Shiloh are not affected.',
+      steps: [
+        'Choose another time or date for this practitioner.',
+        'Or choose another eligible practitioner.',
+        'If these hours look wrong, the practitioner can check My availability or report the problem.',
+      ],
+    };
+  }
+  if (key === 'schedule_exception') {
+    return {
+      ...recovery,
+      title: 'The practitioner is unavailable during part of this treatment.',
+      message: 'A time-off entry or availability change prevents the full appointment from fitting.',
+      steps: [
+        'Choose another time or date.',
+        'Or choose another eligible practitioner.',
+        'The practitioner can check My availability if this does not look right.',
+      ],
+    };
+  }
+  if (key === 'conflict') {
+    return {
+      ...recovery,
+      title: 'This time overlaps another booking or blocked period.',
+      message: 'Nothing has been booked. Choose a time where the full treatment is free.',
+      steps: [
+        'Choose another start time or date.',
+        'Or choose another eligible practitioner.',
+        'Report the problem if the Calendar shows this time as free.',
+      ],
+    };
+  }
+  return recovery;
+}
+
 function customerConfirmationState(result) {
   const delivery = result?.customerConfirmation || {};
   if (delivery.sent === true || delivery.deliveryStatus === 'sent') {
@@ -227,12 +292,21 @@ function createCalendarCreateBookingRouter({
         time: req.body?.time,
       });
       if (result.status !== 'pending_confirmation') {
-        return res.status(409).json({ status: result.status, reply: result.reply || 'Booking cannot be prepared.' });
+        return res.status(409).json({
+          status: result.status,
+          reply: result.reply || 'Booking cannot be prepared.',
+          recovery: bookingRecoveryFor(result.status),
+        });
       }
       return res.status(200).json(result);
     } catch (error) {
       const status = statusForError(error);
-      if (status !== 503) return res.status(status).json({ error: error.message, code: error.code, requestId: req.id });
+      if (status !== 503) return res.status(status).json({
+        error: error.message,
+        code: error.code,
+        requestId: req.id,
+        recovery: bookingRecoveryFor(error.code),
+      });
       return next(error);
     }
   });
@@ -277,6 +351,7 @@ module.exports = {
   createCalendarCreateBookingRouter,
   setBookingSecurityHeaders,
   statusForError,
+  bookingRecoveryFor,
   customerConfirmationState,
   bookingPrefillFromQuery,
   calendarPastHandoffClientScript,

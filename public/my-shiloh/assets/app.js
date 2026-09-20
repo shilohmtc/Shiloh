@@ -469,7 +469,7 @@
       await loadClientExperience();
     } catch (error) {
       card?.remove();
-      appendShilohMessage('shiloh', error.message || 'That request could not be confirmed. Your current appointment is unchanged.');
+      appendClientRecovery(error.message || 'That request could not be confirmed. Your current appointment is unchanged.');
     }
   }
 
@@ -614,6 +614,44 @@
     return bubble;
   }
 
+  function appendClientRecovery(message) {
+    appendShilohMessage('shiloh', `${String(message || 'That did not work.')}\n\nNothing has been changed. Try once more, or report the problem if it continues.`);
+    if (!shilohMessages) return;
+    const card = document.createElement('section');
+    card.className = 'client-action-card';
+    card.setAttribute('aria-label', 'Help resolve this problem');
+    const heading = document.createElement('h3');
+    heading.textContent = 'What would you like to do?';
+    const actions = document.createElement('div');
+    actions.className = 'client-action-card__actions';
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'button button--soft';
+    retry.textContent = 'Try again';
+    retry.addEventListener('click', () => {
+      card.remove();
+      shilohChatInput?.focus();
+    });
+    const report = document.createElement('button');
+    report.type = 'button';
+    report.className = 'button button--primary';
+    report.textContent = 'Report a problem';
+    report.addEventListener('click', () => {
+      if (clientProblemReportForm) {
+        clientProblemReportForm.elements.category.value = 'booking';
+        clientProblemReportForm.elements.description.value = String(message || 'A My Shiloh booking action did not work.').slice(0, 2000);
+        clientProblemReportForm.elements.expectedBehavior.value = 'I expected Shiloh to help me complete this booking action.';
+      }
+      window.location.hash = 'profile';
+      window.setTimeout(() => clientProblemReportForm?.elements.description?.focus(), 0);
+      card.remove();
+    });
+    actions.append(retry, report);
+    card.append(heading, actions);
+    shilohMessages.append(card);
+    card.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+  }
+
   function setShilohBusy(busy) {
     shilohMessageInFlight = Boolean(busy);
     if (shilohChatInput) shilohChatInput.disabled = Boolean(busy);
@@ -642,7 +680,7 @@
       if (data.action) renderClientAction(data.action);
     } catch (error) {
       pending?.remove();
-      appendShilohMessage('shiloh', error.message || 'Shiloh could not answer that just now. Please try again.');
+      appendClientRecovery(error.message || 'Shiloh could not answer that just now. Please try again.');
     } finally {
       setShilohBusy(false);
       shilohChatInput?.focus();
