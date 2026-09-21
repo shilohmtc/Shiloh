@@ -4,7 +4,8 @@ const crypto = require('crypto');
 const { pool } = require('../db/pool');
 const { createOzowPaymentProvider } = require('./ozowPaymentProvider');
 const { resolveCalendarAuthority, hasCapability } = require('./calendarAuthorization');
-const { PAYMENT_TEMPLATE_KEYS, formatRand, normalizeWhatsAppMobile, sendPaymentTemplate } = require('./paymentWhatsAppNotifications');
+const { PAYMENT_TEMPLATE_KEYS, formatRand, normalizeWhatsAppMobile, securePaymentUrl, withActionLink, sendPaymentTemplate } = require('./paymentWhatsAppNotifications');
+const { voucherExpiryTimestamp } = require('../lib/voucherDate');
 const { sendWhatsAppTemplate } = require('./whatsapp');
 
 const CAPABILITIES = Object.freeze({ VIEW: 'voucher:view', REDEEM: 'voucher:redeem', MANAGE: 'voucher:manage' });
@@ -106,7 +107,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     try {
       const linked = await ozow.createPaymentLink({ requestKey: payment.request_key, amount: normalizedAmount, bankReference: `VOUCHER ${order.id}`, customerName: payment.payer_name, customerMobile: payment.payer_mobile });
       payment = (await db.query(`UPDATE payment_requests SET provider_request_id=$2,provider_payment_url=$3,state='link_issued',updated_at=NOW() WHERE id=$1 AND state='created' RETURNING *`, [payment.id, linked.providerRequestId, linked.paymentUrl])).rows[0] || payment;
-      await sendPaymentTemplate({ templateKey: PAYMENT_TEMPLATE_KEYS.VOUCHER_REQUEST, to: payment.payer_mobile, bodyParameters: [payment.payer_name || 'there', recipient, formatRand(normalizedAmount), formatRand(normalizedAmount)], urlButtonParameter: payment.request_key, send: sendTemplate });
+      await sendPaymentTemplate({ templateKey: PAYMENT_TEMPLATE_KEYS.VOUCHER_REQUEST, to: payment.payer_mobile, bodyParameters: [payment.payer_name || 'there', recipient, formatRand(normalizedAmount), withActionLink(formatRand(normalizedAmount), 'Secure payment link', securePaymentUrl(payment.request_key))], urlButtonParameter: payment.request_key, send: sendTemplate });
       return { status: 'awaiting_payment', orderId: Number(order.id), paymentUrl: `/pay/${payment.request_key}` };
     } catch (error) {
       await db.query(`UPDATE gift_voucher_orders SET state='failed',updated_at=NOW() WHERE id=$1 AND state='awaiting_payment'`, [order.id]);
@@ -169,7 +170,8 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
       const replay = (await client.query(`SELECT id FROM gift_voucher_ledger_entries WHERE operation_key=$1`, [`redeem:${operation}`])).rows[0];
       if (!replay) {
         if (voucher.state !== 'active') throw new GiftVoucherError('VOUCHER_NOT_ACTIVE', 'This voucher is not active.', 409);
-        if (voucher.valid_until && new Date(`${voucher.valid_until}T23:59:59Z`).getTime() < Date.now()) throw new GiftVoucherError('VOUCHER_EXPIRED', 'This voucher has expired.', 409);
+        const expiresAt = voucherExpiryTimestamp(voucher.valid_until);
+        if (expiresAt != null && expiresAt < Date.now()) throw new GiftVoucherError('VOUCHER_EXPIRED', 'This voucher has expired.', 409);
         if (Number(normalizedAmount) > Number(voucher.balance)) throw new GiftVoucherError('VOUCHER_EXCEEDS_BALANCE', 'The redemption is greater than the voucher balance.', 409);
         await client.query(`INSERT INTO gift_voucher_ledger_entries(voucher_id,entry_type,amount,operation_key,actor_admin_id,notes) VALUES($1,'redemption',$2,$3,$4,$5)`, [voucher.id, normalizedAmount, `redeem:${operation}`, operator.id, cleanText(notes, 240, 'Notes', { optional: true })]);
         await client.query(`UPDATE gift_vouchers SET balance=balance-$2,state=CASE WHEN balance-$2=0 THEN 'redeemed' ELSE 'active' END,updated_at=NOW() WHERE id=$1`, [voucher.id, normalizedAmount]);

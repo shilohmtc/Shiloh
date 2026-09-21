@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { voucherAmount, voucherCode } = require('../src/services/giftVouchers');
+const { formatVoucherDate, voucherExpiryTimestamp } = require('../src/lib/voucherDate');
 const { renderClientVoucherPage, renderPublicVoucherPage, renderWorkspaceVoucherPage } = require('../src/presentation/giftVoucherUx');
 
 const root = path.join(__dirname, '..');
@@ -42,6 +43,18 @@ test('issued voucher renders approved language artwork and private value state',
   assert.match(html, /SV-ABCDEF123456/);
   assert.match(html, /R/);
   assert.match(html, /Rest well/);
+});
+
+test('voucher dates support PostgreSQL Date objects without rendering Invalid Date', () => {
+  const postgresDate = new Date('2027-09-19T00:00:00.000Z');
+  assert.equal(formatVoucherDate(postgresDate), '19 September 2027');
+  assert.equal(formatVoucherDate('2027-09-19'), '19 September 2027');
+  assert.equal(formatVoucherDate(null), 'No expiry');
+  assert.equal(formatVoucherDate('not-a-date'), 'Expiry unavailable');
+  assert.equal(voucherExpiryTimestamp(postgresDate), Date.UTC(2027, 8, 19, 23, 59, 59, 999));
+  const html = renderPublicVoucherPage({ voucher:{recipient_name:'Naledi',from_name:'Christel',personal_message:'',language:'en',amount:'600.00',voucher_code:'SV-ABCDEF123456',balance:'600.00',state:'active',valid_until:postgresDate} });
+  assert.match(html, /19 September 2027/);
+  assert.doesNotMatch(html, /Invalid Date/);
 });
 
 test('workspace voucher page supports explicit policy and partial redemption', () => {

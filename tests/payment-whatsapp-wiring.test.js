@@ -10,6 +10,9 @@ const {
   PAYMENT_TEMPLATE_KEYS,
   normalizeWhatsAppMobile,
   paymentNotificationsEnabled,
+  securePaymentUrl,
+  secureVoucherUrl,
+  withActionLink,
   sendPaymentTemplate,
 } = require('../src/services/paymentWhatsAppNotifications');
 const { createPaymentLinkRouter } = require('../src/routes/paymentLinks');
@@ -18,6 +21,16 @@ test('payment WhatsApp notifications normalize South African mobile numbers', ()
   assert.equal(normalizeWhatsAppMobile('071 674 2646'), '27716742646');
   assert.equal(normalizeWhatsAppMobile('+27 71 674 2646'), '27716742646');
   assert.equal(normalizeWhatsAppMobile('011 555 0100'), null);
+});
+
+test('voucher notifications include direct secure links as a button fallback', () => {
+  assert.equal(securePaymentUrl('voucher_request_123'), 'https://app.shilohmtc.co.za/pay/voucher_request_123');
+  assert.equal(secureVoucherUrl('voucher_request_123'), 'https://app.shilohmtc.co.za/gift-vouchers/voucher_request_123');
+  assert.equal(
+    withActionLink('R50.00', 'Secure payment link', securePaymentUrl('voucher_request_123')),
+    'R50.00\nSecure payment link: https://app.shilohmtc.co.za/pay/voucher_request_123',
+  );
+  assert.throws(() => securePaymentUrl('unsafe/key'));
 });
 
 test('payment WhatsApp notifications remain off until explicitly enabled', async () => {
