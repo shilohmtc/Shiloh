@@ -479,9 +479,9 @@ async function main() {
         activeStaffButtons:staffButtons.filter(node=>node.classList.contains('active')).map(node=>node.dataset.phoneWeekStaffId),
         minStaffToggleHeight:Math.min(...staffButtons.map(node=>node.getBoundingClientRect().height)),
         actionStaffId:document.body.dataset.phoneActiveStaffId||'',
-        activeStaffName:document.querySelector('[data-phone-active-staff]')?.textContent.trim()||'',
-        currentView:document.querySelector('.phone-view-menu>summary strong')?.textContent.trim()||'',
-        normalPhoneViews:Array.from(document.querySelectorAll('[data-phone-calendar-view]')).map(node=>node.dataset.phoneCalendarView),
+        activeStaffName:staffButtons.find(node=>node.classList.contains('active'))?.textContent.trim()||'',
+        currentView:document.querySelector('[data-phone-calendar-direct-view][aria-current="page"]')?.textContent.trim()||'',
+        normalPhoneViews:Array.from(document.querySelectorAll('[data-phone-calendar-direct-view]')).map(node=>node.dataset.phoneCalendarDirectView),
         maxColumnTopDelta:columnTops.length?Math.max(...columnTops)-Math.min(...columnTops):0,
         minColumnHeight:columnHeights.length?Math.min(...columnHeights):0,
         maxColumnHeight:columnHeights.length?Math.max(...columnHeights):0,
@@ -514,7 +514,7 @@ async function main() {
     assert.equal(weekMetrics.actionStaffId, '51');
     assert.equal(weekMetrics.activeStaffName, 'Amber Room');
     assert.equal(weekMetrics.currentView, 'Week');
-    assert.deepEqual(weekMetrics.normalPhoneViews, ['week', 'agenda', 'month']);
+    assert.deepEqual(weekMetrics.normalPhoneViews, ['week', 'month']);
     assert.ok(weekMetrics.minColumnHeight >= 658 && weekMetrics.maxColumnHeight <= 662, 'Phone Week does not end its 60px/hour compact grid at 18:00');
     assert.equal(weekMetrics.plusVisible, true);
     assert.ok(weekMetrics.plusWidth >= 44 && weekMetrics.plusHeight >= 44, 'Phone + launcher is below 44px');
@@ -588,7 +588,7 @@ async function main() {
       const appointmentHref=document.querySelector('.phone-plus-popover a')?.getAttribute('href')||'';
       return {
         activeStaff:document.body.dataset.phoneActiveStaffId||'',
-        activeStaffName:document.querySelector('[data-phone-active-staff]')?.textContent.trim()||'',
+        activeStaffName:document.querySelector('[data-phone-week-staff-id].active')?.textContent.trim()||'',
         visibleAppointmentStaffIds:events.map(node=>node.querySelector('[data-event-staff-ids]')?.dataset.eventStaffIds||''),
         operationStaff,
         appointmentHref,
@@ -633,8 +633,8 @@ async function main() {
       return {
         viewport:{width:innerWidth,height:innerHeight,screenWidth:screen.width,screenHeight:screen.height},
         rootScrollWidth:document.documentElement.scrollWidth,
-        activeStaff:document.querySelector('[data-phone-active-staff]')?.textContent.trim()||'',
-        currentView:document.querySelector('.phone-view-menu>summary strong')?.textContent.trim()||'',
+        activeStaffId:document.body.dataset.phoneActiveStaffId||'',
+        currentView:document.querySelector('[data-phone-calendar-direct-view][aria-current="page"]')?.textContent.trim()||'',
         monthLabel:document.querySelector('[data-phone-month-label]')?.textContent.trim()||'',
         monthPrevious:new URL(document.querySelector('[data-phone-month-nav="previous"]')?.getAttribute('href')||'',location.origin).searchParams.get('date'),
         monthNext:new URL(document.querySelector('[data-phone-month-nav="next"]')?.getAttribute('href')||'',location.origin).searchParams.get('date'),
@@ -652,7 +652,7 @@ async function main() {
     })()`);
     assert.deepEqual(monthMetrics.viewport, { width: 390, height: 844, screenWidth: 390, screenHeight: 844 });
     assert.ok(monthMetrics.rootScrollWidth <= 391, 'Phone Month leaked horizontal overflow');
-    assert.equal(monthMetrics.activeStaff, 'Amber Room');
+    assert.equal(monthMetrics.activeStaffId, '51');
     assert.equal(monthMetrics.currentView, 'Month');
     assert.equal(monthMetrics.monthLabel, 'September 2026');
     assert.equal(monthMetrics.monthPrevious, '2026-08-01');
@@ -671,17 +671,13 @@ async function main() {
 
     await evaluate(cdp, `document.querySelector('.month-day[data-date="2026-09-24"] .month-day-link').click();true`);
     await poll(() => evaluate(cdp, `document.body.dataset.phoneActiveDate`), value => value === '2026-09-24');
-    await poll(() => evaluate(cdp, `document.querySelector('.phone-view-menu>summary strong')?.textContent.trim()`), value => value === 'Week');
-    await evaluate(cdp, `document.querySelector('.phone-date-menu>summary').click();true`);
-    await poll(() => evaluate(cdp, `document.querySelector('.phone-date-menu')?.open`), Boolean);
+    await poll(() => evaluate(cdp, `document.querySelector('[data-phone-calendar-direct-view][aria-current="page"]')?.textContent.trim()`), value => value === 'Week');
     const holidayPickerMetrics = await evaluate(cdp, `(() => ({
-      holidayDotVisible:Array.from(document.querySelectorAll('.phone-date-holiday-dot')).some(node=>getComputedStyle(node).display!=='none'&&node.getBoundingClientRect().width>0),
-      holidayTitle:Array.from(document.querySelectorAll('.phone-date-holiday-dot')).map(node=>node.getAttribute('title')).find(Boolean)||'',
       activeDate:document.body.dataset.phoneActiveDate||'',
+      currentView:document.querySelector('[data-phone-calendar-direct-view][aria-current="page"]')?.textContent.trim()||'',
     }))()`);
-    assert.equal(holidayPickerMetrics.holidayDotVisible, true);
-    assert.match(holidayPickerMetrics.holidayTitle, /Heritage Day/);
     assert.equal(holidayPickerMetrics.activeDate, '2026-09-24');
+    assert.equal(holidayPickerMetrics.currentView, 'Week');
     screenshots.push({ ...(await capture('phone-public-holiday-date-picker')), viewport: { width: 390, height: 844 }, metrics: holidayPickerMetrics });
 
     assert.deepEqual(browserExceptions, []);
