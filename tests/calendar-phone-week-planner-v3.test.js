@@ -147,7 +147,7 @@ test('Phone Week layout is active-practitioner filtered inside one date lane and
   assert.match(css, /phone-week-staff-toggle/);
   assert.doesNotMatch(css, /\.week-day-date\{display:grid!important/);
   const shellCss = workspaceShellStyles();
-  assert.match(shellCss, /width:min\(80vw,320px\);max-width:calc\(100vw - 16px\)/);
+  assert.match(shellCss, /width:min\(64vw,240px\);max-width:calc\(100vw - 16px\)/);
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'presentation', 'calendarReadOnlyUx.js'), 'utf8');
   assert.match(source, /data-week-date-lane/);
 });
