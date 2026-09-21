@@ -3,7 +3,8 @@ const { pool } = require('../db/pool');
 const { resolveCalendarAuthority, hasCapability, allowsAppointmentTarget } = require('./calendarAuthorization');
 const { createOzowPaymentProvider } = require('./ozowPaymentProvider');
 const { STATES, EVIDENCE, transitionPaymentState } = require('../domain/paymentState');
-const { PAYMENT_TEMPLATE_KEYS, formatRand, sendPaymentTemplate } = require('./paymentWhatsAppNotifications');
+const { PAYMENT_TEMPLATE_KEYS, formatRand, secureVoucherUrl, withActionLink, sendPaymentTemplate } = require('./paymentWhatsAppNotifications');
+const { formatVoucherDate } = require('../lib/voucherDate');
 const { sendWhatsAppTemplate } = require('./whatsapp');
 const { issueVerifiedVoucher } = require('./giftVouchers');
 const { createShilohRewardsService } = require('./shilohRewards');
@@ -369,8 +370,8 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
       if (voucherIssued) await sendPaymentTemplate({
         templateKey: PAYMENT_TEMPLATE_KEYS.VOUCHER_ISSUED,
         to: voucherIssued.order.delivery_mobile,
-        bodyParameters: [voucherIssued.order.recipient_name, voucherIssued.voucher.voucher_code, formatRand(voucherIssued.voucher.original_value), voucherIssued.voucher.valid_until ? new Date(`${voucherIssued.voucher.valid_until}T12:00:00Z`).toLocaleDateString('en-ZA', { day:'numeric', month:'long', year:'numeric', timeZone:'UTC' }) : 'No expiry'],
-        urlButtonParameter: requestReference,
+        bodyParameters: [voucherIssued.order.recipient_name, voucherIssued.voucher.voucher_code, formatRand(voucherIssued.voucher.original_value), withActionLink(formatVoucherDate(voucherIssued.voucher.valid_until), 'Secure voucher link', secureVoucherUrl(request.request_key))],
+        urlButtonParameter: request.request_key,
         send: sendTemplate,
       });
       return { status: paid ? 'paid' : 'accepted' };

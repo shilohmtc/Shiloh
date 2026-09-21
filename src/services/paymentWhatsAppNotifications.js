@@ -1,4 +1,5 @@
 const logger = require('../lib/logger');
+const { APP_ORIGIN } = require('../config/publicOrigins');
 const { configuredMetaTemplateName } = require('./metaTemplateAdapter');
 const { sendWhatsAppTemplate } = require('./whatsapp');
 
@@ -28,6 +29,22 @@ function formatRand(value) {
 
 function paymentNotificationsEnabled(environment = process.env) {
   return String(environment.WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED || '').toLowerCase() === 'true';
+}
+
+function securePaymentUrl(requestKey) {
+  const key = String(requestKey || '').trim();
+  if (!/^[A-Za-z0-9_-]{8,100}$/.test(key)) throw new Error('A route-safe payment request key is required');
+  return `${APP_ORIGIN}/pay/${encodeURIComponent(key)}`;
+}
+
+function secureVoucherUrl(requestKey) {
+  const key = String(requestKey || '').trim();
+  if (!/^[A-Za-z0-9_-]{8,100}$/.test(key)) throw new Error('A route-safe voucher request key is required');
+  return `${APP_ORIGIN}/gift-vouchers/${encodeURIComponent(key)}`;
+}
+
+function withActionLink(value, label, url) {
+  return `${String(value)}\n${label}: ${url}`;
 }
 
 async function sendPaymentTemplate({
@@ -75,5 +92,8 @@ module.exports = {
   normalizeWhatsAppMobile,
   formatRand,
   paymentNotificationsEnabled,
+  securePaymentUrl,
+  secureVoucherUrl,
+  withActionLink,
   sendPaymentTemplate,
 };
