@@ -23,7 +23,7 @@ function workspacePwaManifest() {
     start_url: `${PWA_BASE}/launch`,
     scope: '/calendar/',
     display: 'standalone',
-    background_color: '#f7f5ef',
+    background_color: '#fffcf7',
     theme_color: '#17382d',
     icons: [
       { src: ICON_URLS[0], sizes: '192x192', type: 'image/png', purpose: 'any' },
