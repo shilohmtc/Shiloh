@@ -25,6 +25,12 @@ const SHILOH_UX_TOKENS = Object.freeze({
     raised: '0 10px 28px rgba(28, 49, 40, 0.12)',
   }),
   color: Object.freeze({
+    brandDeepGreen: '#17382d',
+    brandWarmGold: '#b99972',
+    brandSageDeep: '#747b62',
+    brandSageSoft: '#969982',
+    brandSurfaceIvory: '#f9f6f0',
+    brandIconCanvas: '#fffcf7',
     ink: '#203129',
     inkMuted: '#66766e',
     border: '#dce5df',
@@ -64,6 +70,12 @@ function shilohUxTokenCss() {
     `--shiloh-radius-pill:${t.radius.pill};\n` +
     `--shiloh-shadow-soft:${t.shadow.soft};\n` +
     `--shiloh-shadow-raised:${t.shadow.raised};\n` +
+    `--shiloh-brand-deep-green:${t.color.brandDeepGreen};\n` +
+    `--shiloh-brand-warm-gold:${t.color.brandWarmGold};\n` +
+    `--shiloh-brand-sage-deep:${t.color.brandSageDeep};\n` +
+    `--shiloh-brand-sage-soft:${t.color.brandSageSoft};\n` +
+    `--shiloh-brand-surface-ivory:${t.color.brandSurfaceIvory};\n` +
+    `--shiloh-brand-icon-canvas:${t.color.brandIconCanvas};\n` +
     `--shiloh-ink:${t.color.ink};\n` +
     `--shiloh-ink-muted:${t.color.inkMuted};\n` +
     `--shiloh-border:${t.color.border};\n` +
