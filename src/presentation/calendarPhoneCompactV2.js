@@ -406,6 +406,20 @@ function renderPhoneCalendarDock(model, {
   </div>`;
 }
 
+function renderPhoneMonthNavigation(model, { basePath = '/calendar/read-only' } = {}) {
+  if (model?.view !== 'month') return '';
+  const active = resolveActiveStaff(model);
+  const activeStaffId = positiveId(active?.id);
+  const visibleStaffIds = visibleStaffIdsForPhone(model);
+  const date = String(model?.dateKey || model?.period?.startKey || '');
+  const previousDate = String(model?.period?.previousAnchor || '');
+  const nextDate = String(model?.period?.nextAnchor || '');
+  if (!localDate(date) || !localDate(previousDate) || !localDate(nextDate)) return '';
+  const previousHref = calendarStaffHref(basePath, { view: 'month', date: previousDate, staffIds: visibleStaffIds, activeStaffId });
+  const nextHref = calendarStaffHref(basePath, { view: 'month', date: nextDate, staffIds: visibleStaffIds, activeStaffId });
+  return `<nav class="phone-month-navigation" data-phone-month-navigation aria-label="Month navigation"><a class="phone-month-nav" data-phone-month-nav="previous" href="${escapeHtml(previousHref)}" aria-label="Previous month">‹</a><strong data-phone-month-label>${escapeHtml(monthLabel(date, true))}</strong><a class="phone-month-nav" data-phone-month-nav="next" href="${escapeHtml(nextHref)}" aria-label="Next month">›</a></nav>`;
+}
+
 function phoneCalendarV2Styles() {
   const gridHeight = ((GRID_END_MINUTES - GRID_START_MINUTES) / 60) * PHONE_GRID_PIXELS_PER_HOUR;
   const halfHour = PHONE_GRID_PIXELS_PER_HOUR / 2;
@@ -415,6 +429,7 @@ body[data-phone-calendar-v2="true"] .workspace-main .topbar,body[data-phone-cale
 body[data-phone-calendar-v2="true"] .workspace-main>.shell{padding:5px 4px 7px!important}
 .phone-calendar-v2-controls{position:relative;z-index:55;display:grid;grid-template-columns:minmax(76px,.8fr) minmax(68px,.65fr) minmax(0,1.4fr);align-items:center;gap:4px;min-height:44px;margin:0 0 4px 49px}
 .phone-calendar-v2-actions{position:relative;z-index:54;display:grid;grid-template-columns:minmax(88px,.7fr) minmax(132px,1fr);gap:4px;margin:0 0 4px 49px}
+.phone-month-navigation{position:relative;z-index:53;display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:4px;min-height:44px;margin:0 0 3px 45px}.phone-month-nav{display:grid;place-items:center;min-width:44px;min-height:44px;padding:0;border:1px solid var(--line-strong);border-radius:9px;background:#fff;color:var(--leaf-deep);font-size:1.2rem;font-weight:900;line-height:1;text-decoration:none}.phone-month-navigation strong{display:grid;place-items:center;min-width:0;min-height:44px;color:var(--ink);font-size:.74rem;font-weight:900;letter-spacing:.01em}
 .phone-calendar-v2-controls details{position:relative;min-width:0}
 .phone-calendar-v2-controls summary{display:flex;align-items:center;justify-content:center;gap:4px;min-width:0;min-height:44px;padding:5px 7px;border:1px solid var(--line);border-radius:9px;background:#fff;list-style:none;font-size:.69rem;font-weight:800;cursor:pointer;box-shadow:0 2px 7px rgba(32,50,43,.05)}
 .phone-calendar-v2-controls summary::-webkit-details-marker,.phone-plus-menu>summary::-webkit-details-marker{display:none}
@@ -520,12 +535,13 @@ function decoratePhoneCalendarV2(html, {
   const activeStaffId = positiveId(active?.id);
   const controls = renderPhoneCalendarControls(model, { basePath });
   const actions = renderPhoneCalendarDock(model, { basePath, bookingPath, couplesBookingPath, bookingAllowed, retrospectiveBookingPath, retrospectiveAllowed });
+  const monthNavigation = renderPhoneMonthNavigation(model, { basePath });
   const scriptPath = `${String(basePath || '/calendar/read-only').replace(/\/$/, '')}/phone-v2.js`;
   const plannerDate = activePlannerDate(model);
   const bodyAttrs = ` data-phone-calendar-v2="true" data-calendar-phone-pending="true"${activeStaffId ? ` data-phone-active-staff-id="${activeStaffId}"` : ''}${plannerDate ? ` data-phone-active-date="${escapeHtml(plannerDate)}"` : ''}${bookingAllowed ? ` data-phone-booking-path="${escapeHtml(bookingPath)}"` : ''}`;
   output = output.replace('<body ', `<body${bodyAttrs} `);
   output = output.replace('</head>', `<style>${phoneFirstPaintStyles()}${phoneCalendarV2Styles()}</style><script src="${escapeHtml(scriptPath)}" defer></script></head>`);
-  output = output.replace('<div class="shell">', `<div class="shell">${controls}${actions}`);
+  output = output.replace('<div class="shell">', `<div class="shell">${controls}${actions}${monthNavigation}`);
   if (model?.view === 'week') {
     const plannerHeader = renderPhoneWeekPlannerHeader(model, { basePath });
     output = output.replace('<div class="time-grid week-time-grid">', `${plannerHeader}<div class="time-grid week-time-grid">`);
@@ -543,6 +559,7 @@ module.exports = {
   phoneFirstPaintStyles,
   phoneCalendarV2Styles,
   renderPhoneCalendarControls,
+  renderPhoneMonthNavigation,
   renderPhoneCalendarDock,
   resolveActiveStaff,
 };
