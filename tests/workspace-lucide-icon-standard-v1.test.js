@@ -17,6 +17,7 @@ test('#835 pins official Lucide and npm lockfile at one exact version', () => {
 
 test('#835 shared renderer consumes upstream Lucide node data and emits accessible currentColor SVG', () => {
   assert.ok(Array.isArray(ICONS.dashboard));
+  assert.ok(Array.isArray(ICONS.problemReports));
   const svg = renderLucideIcon('dashboard', { className: 'workspace-nav-icon', size: 18 });
   assert.match(svg, /^<svg class="workspace-nav-icon"/);
   assert.match(svg, /aria-hidden="true"/);
@@ -35,6 +36,7 @@ test('#835 Workspace and Calendar icons come from the shared renderer, not handw
   assert.match(workspaceSource, /renderLucideIcon/);
   assert.match(calendarSource, /renderLucideIcon/);
   assert.match(workspaceIconClientScript(), /workspace-nav-icon/);
+  assert.match(workspaceIconClientScript(), /"problemReports":/);
   assert.match(iconSvg('calendarPlus'), /calendar-action-icon/);
 });
 

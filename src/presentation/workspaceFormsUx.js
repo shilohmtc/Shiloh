@@ -92,6 +92,7 @@ function renderFormsPage(model = {}) {
     servicesHref: '/calendar/services',
     reportsHref: '/calendar/reports',
     clinicHoursHref: '/calendar/clinic-hours',
+    formsHref: '/calendar/forms',
   })}<main class="workspace-main"><div class="shell">
     <header class="topbar"><div class="brand"><h1>Forms</h1><p>Consultation forms, secure submissions and completion status in one protected workspace.</p></div><span class="truth-note">Protected Workspace</span></header>
     <section class="status-grid" aria-label="Form completion status">${statusCards}</section>

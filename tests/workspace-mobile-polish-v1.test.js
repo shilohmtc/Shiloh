@@ -41,7 +41,7 @@ test('shared Workspace shell replaces the Phone bottom bar with a hidden left dr
   const css = workspaceShellStyles();
   assert.match(css, /@media\(max-width:700px\)/);
   assert.match(css, /\.workspace-nav\{position:fixed;inset:0 auto 0 0/);
-  assert.match(css, /z-index:80;display:flex;align-items:stretch;width:min\(88vw,360px\);max-width:calc\(100vw - 16px\)/);
+  assert.match(css, /z-index:80;display:flex;align-items:stretch;width:min\(84vw,340px\);max-width:calc\(100vw - 16px\)/);
   assert.doesNotMatch(css, /width:clamp\(176px,48vw,190px\)/);
   assert.match(css, /position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto/);
   assert.match(css, /transform:translateX\(-105%\)/);
@@ -76,6 +76,22 @@ test('mobile polish preserves capability-driven navigation rather than widening 
   assert.doesNotMatch(html, /href="\/calendar\/read-only"/);
   assert.doesNotMatch(html, /href="\/calendar\/team"/);
   assert.doesNotMatch(html, /href="\/calendar\/services"/);
+});
+
+test('Phone drawer keeps Forms before an icon-ready Problem reports utility item', () => {
+  const css = workspaceShellStyles();
+  const html = renderWorkspaceNavigation({
+    active: 'forms',
+    formsHref: '/calendar/forms',
+    problemReportsHref: '/calendar/problem-reports',
+  });
+  const formsIndex = html.indexOf('data-workspace-destination="forms"');
+  const problemReportsIndex = html.indexOf('data-workspace-destination="problemReports"');
+  assert.ok(formsIndex >= 0);
+  assert.ok(problemReportsIndex > formsIndex);
+  assert.match(html, /data-workspace-destination="forms"[^>]*aria-current="page">Forms<\/span>/);
+  assert.match(html, /data-workspace-destination="problemReports" href="\/calendar\/problem-reports">Problem reports<\/a>/);
+  assert.match(css, /\.workspace-link\[data-workspace-destination="problemReports"\]\{margin-top:4px\}/);
 });
 
 test('primary Workspace surfaces all inherit the same phone polish without backend changes', () => {
@@ -114,7 +130,7 @@ test('Phone drawer supports close, backdrop, Escape and contained keyboard focus
 test('Phone drawer keeps its brand, close control and account footer contained', () => {
   const css = workspaceShellStyles();
   const html = renderWorkspaceNavigation({ active: 'dashboard', displayName: 'Jean-Pierre' });
-  assert.match(css, /\.workspace-nav\{position:fixed;inset:0 auto 0 0[^}]*width:min\(88vw,360px\)[^}]*overflow:hidden/);
+  assert.match(css, /\.workspace-nav\{position:fixed;inset:0 auto 0 0[^}]*width:min\(84vw,340px\)[^}]*overflow:hidden/);
   assert.doesNotMatch(css, /width:clamp\(176px,48vw,190px\)/);
   assert.match(css, /\.workspace-drawer-header\{[^}]*min-width:0;flex:0 0 auto/);
   assert.match(css, /\.workspace-links\{[^}]*min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain/);
