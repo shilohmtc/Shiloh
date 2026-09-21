@@ -40,9 +40,9 @@ function serviceCards(catalogue = []) {
 function authFinishForm(inputId = 'my-shiloh-code') {
   return `<form class="auth-code-form" data-client-auth-code-form>
     <div class="auth-code-heading">
-      <span>Back from WhatsApp?</span>
-      <strong>Enter your 6-digit code</strong>
-      <p>Use the code Shiloh sent in your WhatsApp reply.</p>
+      <span>Need another way?</span>
+      <strong>Enter your 6-digit fallback code</strong>
+      <p>Use this only if My Shiloh does not open automatically after you return.</p>
     </div>
     <label class="sr-only" for="${escapeHtml(inputId)}">6-digit code from Shiloh</label>
     <div class="auth-code-row">

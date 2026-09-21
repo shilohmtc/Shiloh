@@ -88,6 +88,24 @@ function createMyShilohRouter({
   const optionalSession = optionalClientSession({ service: sessionService, env });
   const requireCsrf = clientCsrfGuard({ service: sessionService });
 
+  function sendAuthenticatedClient(res, result) {
+    const sessionSeconds = Math.max(
+      1,
+      Math.floor((new Date(result.expiresAt).getTime() - Date.now()) / 1000),
+    );
+    res.setHeader('Set-Cookie', [
+      serializeClientSessionCookie(result.sessionToken, {
+        env,
+        maxAgeSeconds: Math.min(sessionSeconds, Math.floor(SESSION_TTL_MS / 1000)),
+      }),
+      serializeExpiredClientAuthCookie({ env }),
+    ]);
+    return res.status(200).json({
+      authenticated: true,
+      client: { firstName: result.client.firstName },
+    });
+  }
+
   router.use('/my-shiloh/assets', express.static(path.join(ROOT, 'assets'), {
     maxAge: '1h',
     immutable: false,
@@ -225,20 +243,37 @@ function createMyShilohRouter({
           requestId: req.id,
         });
       }
-      const sessionSeconds = Math.max(
-        1,
-        Math.floor((new Date(result.expiresAt).getTime() - Date.now()) / 1000),
-      );
-      res.setHeader('Set-Cookie', [
-        serializeClientSessionCookie(result.sessionToken, {
-          env,
-          maxAgeSeconds: Math.min(sessionSeconds, Math.floor(SESSION_TTL_MS / 1000)),
-        }),
-        serializeExpiredClientAuthCookie({ env }),
-      ]);
-      return res.status(200).json({
-        authenticated: true,
-        client: { firstName: result.client.firstName },
+      return sendAuthenticatedClient(res, result);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/my-shiloh/auth/status', sameOrigin, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const browserToken = clientAuthTokenFromRequest(req, env);
+      if (!browserToken) return res.status(204).send();
+      const result = await sessionService.completeVerifiedChallenge({
+        browserToken,
+        requestFingerprintHash: requestFingerprintHash(req),
+      });
+      if (result.ok) return sendAuthenticatedClient(res, result);
+      if (result.code === 'CLIENT_AUTH_NOT_VERIFIED') {
+        return res.status(202).json({ status: 'waiting_for_whatsapp' });
+      }
+      if (['CLIENT_AUTH_EXPIRED', 'CLIENT_AUTH_INVALID_CHALLENGE'].includes(result.code)) {
+        res.setHeader('Set-Cookie', serializeExpiredClientAuthCookie({ env }));
+        return res.status(410).json({
+          status: 'expired',
+          error: 'This sign-in has expired. Please start again.',
+          requestId: req.id,
+        });
+      }
+      return res.status(409).json({
+        status: 'unavailable',
+        error: 'Your My Shiloh profile is not available yet.',
+        requestId: req.id,
       });
     } catch (error) {
       return next(error);

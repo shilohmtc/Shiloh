@@ -87,15 +87,17 @@ test('My Shiloh route uses same-origin, client-only session and CSRF controls', 
   assert.match(source, /serializeClientAuthCookie/);
   assert.match(source, /\/my-shiloh\/auth\/start/);
   assert.match(source, /\/my-shiloh\/auth\/complete/);
+  assert.match(source, /\/my-shiloh\/auth\/status/);
   assert.match(source, /\/my-shiloh\/auth\/logout/);
   assert.doesNotMatch(source, /requireStaffSession|ADMIN_API_KEY|x-admin-key/i);
 });
 
-test('WhatsApp verification returns a one-time finish link that never becomes a session token', () => {
-  const code = '123456';
-  const url = whatsappMiddleware.myShilohCompletionUrl(code);
-  assert.equal(url, 'https://app.shilohmtc.co.za/my-shiloh/#verify=123456');
-  assert.equal(whatsappMiddleware.myShilohCompletionUrl('bad'), null);
+test('WhatsApp verification returns to the originating My Shiloh context with a code fallback', () => {
+  const source = read('src/middleware/myShilohWhatsAppAuth.js');
+  assert.match(source, /Return to the My Shiloh screen you started from/);
+  assert.match(source, /finish signing you in automatically/);
+  assert.match(source, /one-time code there/);
+  assert.doesNotMatch(source, /#verify=|myShilohCompletionUrl/);
 });
 
 test('webhook gives My Shiloh verification an isolated pre-controller boundary', () => {
@@ -121,8 +123,8 @@ test('PWA service worker keeps all authentication and future personal APIs netwo
 test('guest and authenticated My Shiloh renders are distinct without server-rendering private profile values', () => {
   const guest = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue: [] });
   assert.match(guest, /Continue with WhatsApp/);
-  assert.match(guest, /Back from WhatsApp\?/);
-  assert.match(guest, /Enter your 6-digit code/);
+  assert.match(guest, /Need another way\?/);
+  assert.match(guest, /Enter your 6-digit fallback code/);
   assert.match(guest, /Open My Shiloh/);
   assert.doesNotMatch(guest, /canonical CRM|client context|staff\/Admin authority|PWA cache|booking authority|Revocable/i);
   assert.match(guest, /data-client-authenticated="false"/);
@@ -140,14 +142,16 @@ test('guest and authenticated My Shiloh renders are distinct without server-rend
   assert.doesNotMatch(signed, /normalized_mobile|date_of_birth|health answer|1990-05-14/i);
 });
 
-test('returning from WhatsApp makes the manual code fallback prominent and usable', () => {
+test('returning from WhatsApp auto-completes in the original context with a usable code fallback', () => {
   const client = read('public/my-shiloh/assets/app.js');
   const styles = read('public/my-shiloh/assets/app.css');
   assert.match(client, /whatsappHandoffStarted = true;[\s\S]*window\.location\.href = data\.whatsappUrl/);
-  assert.match(client, /whatsappHandoffStarted = true;[\s\S]*authActionInFlight = false;[\s\S]*setAuthCodeControlsDisabled\(false\);[\s\S]*window\.setTimeout\(welcomeBackFromWhatsApp, 1500\);[\s\S]*window\.location\.href = data\.whatsappUrl/);
+  assert.match(client, /postJson\('\/my-shiloh\/auth\/status'\)/);
+  assert.match(client, /data\.authenticated === true[\s\S]*window\.location\.replace\('\/my-shiloh\/'\)/);
+  assert.match(client, /window\.setTimeout\(welcomeBackFromWhatsApp, 1500\);[\s\S]*window\.location\.href = data\.whatsappUrl/);
   assert.match(client, /visibilitychange/);
-  assert.match(client, /authActionInFlight = false;[\s\S]*setAuthControlsDisabled\(false\);[\s\S]*classList\.add\('is-waiting'\)/);
-  assert.match(client, /Welcome back\. Enter the 6-digit code Shiloh sent you in WhatsApp\./);
+  assert.match(client, /Checking your WhatsApp verification/);
+  assert.match(client, /open automatically/);
   assert.doesNotMatch(client, /localStorage|sessionStorage/);
   assert.match(styles, /\.auth-code-form\.is-waiting/);
 });

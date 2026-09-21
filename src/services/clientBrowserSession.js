@@ -257,15 +257,17 @@ function createClientBrowserSessionService({
     }
   }
 
-  async function completeChallenge({
+  async function finishChallenge({
     browserToken,
-    completionCode,
+    completionCode = null,
     requestFingerprintHash = null,
+    requireCompletionCode = false,
   } = {}) {
-    if (!isValidOpaqueToken(browserToken) || !isValidCompletionCode(completionCode)) {
+    if (!isValidOpaqueToken(browserToken)
+      || (requireCompletionCode && !isValidCompletionCode(completionCode))) {
       return { ok: false, code: 'CLIENT_AUTH_INVALID_COMPLETION' };
     }
-    const cleanCode = String(completionCode).replace(/\s+/g, '');
+    const cleanCode = requireCompletionCode ? String(completionCode).replace(/\s+/g, '') : null;
     const current = now();
     const fingerprint = normalizedFingerprint(requestFingerprintHash);
     const client = typeof db.connect === 'function' ? await db.connect() : db;
@@ -302,8 +304,8 @@ function createClientBrowserSessionService({
         return { ok: false, code: 'CLIENT_AUTH_NOT_VERIFIED' };
       }
 
-      const nextAttempts = Number(challenge.completion_attempts || 0) + 1;
-      if (!safeHashEqual(sha256(cleanCode), challenge.completion_code_hash)) {
+      const nextAttempts = Number(challenge.completion_attempts || 0) + (requireCompletionCode ? 1 : 0);
+      if (requireCompletionCode && !safeHashEqual(sha256(cleanCode), challenge.completion_code_hash)) {
         const revoke = nextAttempts >= MAX_COMPLETION_ATTEMPTS;
         await client.query(
           `UPDATE client_browser_auth_challenges
@@ -376,7 +378,10 @@ function createClientBrowserSessionService({
         challengeId: challenge.id,
         sessionId,
         requestFingerprintHash: fingerprint,
-        metadata: { authMethod: 'whatsapp_challenge' },
+        metadata: {
+          authMethod: 'whatsapp_challenge',
+          completion: requireCompletionCode ? 'fallback_code' : 'automatic_return',
+        },
       });
       await client.query('COMMIT');
       return {
@@ -394,6 +399,14 @@ function createClientBrowserSessionService({
     } finally {
       if (client !== db && typeof client.release === 'function') client.release();
     }
+  }
+
+  async function completeChallenge(options = {}) {
+    return finishChallenge({ ...options, requireCompletionCode: true });
+  }
+
+  async function completeVerifiedChallenge(options = {}) {
+    return finishChallenge({ ...options, completionCode: null, requireCompletionCode: false });
   }
 
   async function validateSessionToken(token) {
@@ -483,6 +496,7 @@ function createClientBrowserSessionService({
     beginChallenge,
     verifyWhatsAppChallenge,
     completeChallenge,
+    completeVerifiedChallenge,
     validateSessionToken,
     rotateCsrfToken,
     revokeSession,
