@@ -612,7 +612,7 @@ test('Workspace navigation drawer remains contained and branded on Phone and Des
     expect(metrics.logoBackground).toContain('/calendar/pwa/icon-192.png');
     if (viewport.name === 'phone') {
       expect(metrics.shortTargets).toEqual([]);
-      const expectedDrawerWidth = Math.min(viewport.width * 0.64, 240);
+      const expectedDrawerWidth = Math.min(viewport.width * 0.6, 220);
       expect(metrics.drawer.width).toBeGreaterThanOrEqual(expectedDrawerWidth - 1);
       expect(metrics.drawer.width).toBeLessThanOrEqual(expectedDrawerWidth + 1);
       expect(viewport.width - metrics.drawer.right).toBeGreaterThanOrEqual(viewport.width - expectedDrawerWidth - 1);
