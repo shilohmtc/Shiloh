@@ -223,7 +223,8 @@ h3{font-size:20px;line-height:1.12}
 .profile-field input:disabled,.profile-field select:disabled{opacity:.7}
 .profile-mobile{margin:14px 0;padding:13px 14px;border-radius:15px;background:var(--sage-2)}
 .profile-mobile strong{display:block;margin-top:3px;font-size:14px}
-.profile-mobile p{margin:7px 0 0;color:var(--muted);font-size:11px}
+.profile-mobile span,.profile-mobile p{color:#626e67}
+.profile-mobile p{margin:7px 0 0;font-size:11px}
 .profile-editor__status{min-height:18px;margin:0 0 10px;color:var(--muted);font-size:11px;font-weight:750}
 .profile-editor__status[data-state="success"]{color:var(--leaf-dark)}
 .profile-editor__status[data-state="error"]{color:#8a413b}
