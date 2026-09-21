@@ -32,7 +32,8 @@ const catalogue = [
 test('My Shiloh renders the approved four-tab PWA shell with public-safe service data', () => {
   const html = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue });
   assert.match(html, /<title>My Shiloh<\/title>/);
-  assert.match(html, /rel="manifest" href="\/my-shiloh\/manifest\.webmanifest"/);\n  assert.match(html, /rel="apple-touch-icon" sizes="180x180" href="\/my-shiloh\/assets\/apple-touch-icon-180\.png/);
+  assert.match(html, /rel="manifest" href="\/my-shiloh\/manifest\.webmanifest"/);
+  assert.match(html, /rel="apple-touch-icon" sizes="180x180" href="\/my-shiloh\/assets\/apple-touch-icon-180\.png/);
   assert.match(html, new RegExp(`app\\.css\\?v=${MY_SHILOH_ASSET_VERSION}`));
   assert.match(html, new RegExp(`app\\.js\\?v=${MY_SHILOH_ASSET_VERSION}`));
   assert.match(html, /brand-mark--header/);

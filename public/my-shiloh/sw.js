@@ -10,7 +10,8 @@ const SHELL = [
   `/my-shiloh/assets/app.js?v=${ASSET_VERSION}`,
   '/my-shiloh/assets/icon-192.png',
   '/my-shiloh/assets/icon-512.png',
-  '/my-shiloh/assets/icon-maskable-512.png',\n  '/my-shiloh/assets/apple-touch-icon-180.png',
+  '/my-shiloh/assets/icon-maskable-512.png',
+  '/my-shiloh/assets/apple-touch-icon-180.png',
 ];
 
 self.addEventListener('install', (event) => {
