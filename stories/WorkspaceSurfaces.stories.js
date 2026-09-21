@@ -5,6 +5,7 @@ import editorPresentation from '../src/presentation/calendarAppointmentCompactEd
 import createBookingPresentation from '../src/presentation/calendarCreateBookingUx.js';
 import couplesBookingPresentation from '../src/presentation/calendarCouplesBookingUx.js';
 import groupBookingPresentation from '../src/presentation/calendarGroupBookingUx.js';
+import multiServiceBookingPresentation from '../src/presentation/calendarMultiServiceBookingUx.js';
 import paymentPresentation from '../src/presentation/calendarPaymentsUx.js';
 import passkeyPresentation from '../src/presentation/staffPasskeyUx.js';
 import pwaPresentation from '../src/presentation/workspacePwa.js';
@@ -22,6 +23,7 @@ const {
 } = passkeyPresentation;
 const { renderCalendarCouplesBookingPage, calendarCouplesBookingClientScript } = couplesBookingPresentation;
 const { renderCalendarGroupBookingPage, calendarGroupBookingClientScript } = groupBookingPresentation;
+const { renderCalendarMultiServiceBookingPage, calendarMultiServiceBookingClientScript } = multiServiceBookingPresentation;
 const { renderCalendarPaymentPage } = paymentPresentation;
 const {
   workspacePwaIconSvg,
@@ -342,6 +344,20 @@ export const GroupBookingMultipleGuestsAndDiscount = {
       prefill: { date: '2026-09-14', time: '10:30' },
     }),
     calendarGroupBookingClientScript()
+  ),
+};
+
+export const MultiServiceClientBooking = {
+  render: () => interactiveProductionSurface(
+    renderCalendarMultiServiceBookingPage({
+      options: {
+        services: couplesBookingOptions.services,
+        staff,
+        authority: { bookingFlow: 'practitioner_first' },
+      },
+      prefill: { date: '2026-09-19' },
+    }),
+    calendarMultiServiceBookingClientScript()
   ),
 };
 

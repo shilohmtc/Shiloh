@@ -91,7 +91,7 @@ test('booking-confirmation E2E mismatch fails before recovery, queue, claim, lif
   const db = { async query(sql) {
     const text = String(sql);
     queries.push(text);
-    if (text.includes('SELECT a.id,a.client_id,a.starts_at')) return { rows: [{
+    if (text.includes('FROM appointments a LEFT JOIN locations l ON l.id=a.location_id')) return { rows: [{
       id: 501, client_id: null, starts_at: '2026-09-10T08:00:00Z', ends_at: '2026-09-10T09:00:00Z',
       source: 'shiloh_calendar', location_name: 'Shiloh', service_name: 'Treatment', staff_name: 'Practitioner',
     }] };

@@ -110,6 +110,7 @@ function eventTitle(item) {
 function eventKindLabel(item) {
   if (item.kind === 'appointment' && item.appointmentGroupType === 'couples_massage') return 'Couples';
   if (item.kind === 'appointment' && item.appointmentGroupType === 'group_booking') return 'Group';
+  if (item.kind === 'appointment' && item.appointmentGroupType === 'multi_service_booking') return 'Linked visit';
   if (item.kind === 'appointment' && ['pending', 'awaiting_client_confirmation'].includes(String(item.bookingRequestState || ''))) return 'Booking request';
   const statusLabel = calendarEventStatusLabel(item);
   if (statusLabel) return statusLabel;
@@ -187,7 +188,7 @@ function appointmentOperationScope(item, model) {
 }
 
 function appointmentOperations(item, model) {
-  if (['couples_massage', 'group_booking'].includes(item.appointmentGroupType)) return [];
+  if (['couples_massage', 'group_booking', 'multi_service_booking'].includes(item.appointmentGroupType)) return [];
   if (['pending', 'awaiting_client_confirmation'].includes(String(item.bookingRequestState || ''))) return [];
   if (!appointmentOperationScope(item, model)) return [];
   return ['appointment:reschedule', 'appointment:cancel', 'appointment:reassign']
@@ -234,9 +235,10 @@ function renderEventCard(item, model) {
   const shared = item.kind === 'appointment' && eventStaffIds(item).length > 1;
   const couples = item.kind === 'appointment' && item.appointmentGroupType === 'couples_massage';
   const group = item.kind === 'appointment' && item.appointmentGroupType === 'group_booking';
+  const multiple = item.kind === 'appointment' && item.appointmentGroupType === 'multi_service_booking';
   const id = `${item.kind || 'event'}-${item.id || 'unknown'}`;
   const meta = renderEventMeta(item, model);
-  return `<article class="event-card event-canonical ${shared ? 'event-shared' : ''} ${couples ? 'event-couples' : ''} ${group ? 'event-group' : ''}" data-event-id="${escapeHtml(id)}" data-kind="${escapeHtml(item.kind || '')}" data-canonical="true" data-event-staff-ids="${escapeHtml(eventStaffIds(item).join(','))}"${couples || group ? ` data-appointment-group-id="${escapeHtml(item.appointmentGroupId)}" data-appointment-group-position="${escapeHtml(item.appointmentGroupPosition)}"` : ''}${calendarEventVisualAttributes(item)}${mutationAttributes(item, model)}>
+  return `<article class="event-card event-canonical ${shared ? 'event-shared' : ''} ${couples ? 'event-couples' : ''} ${group ? 'event-group' : ''} ${multiple ? 'event-multi-service' : ''}" data-event-id="${escapeHtml(id)}" data-kind="${escapeHtml(item.kind || '')}" data-canonical="true" data-event-staff-ids="${escapeHtml(eventStaffIds(item).join(','))}"${couples || group || multiple ? ` data-appointment-group-id="${escapeHtml(item.appointmentGroupId)}" data-appointment-group-position="${escapeHtml(item.appointmentGroupPosition)}"` : ''}${calendarEventVisualAttributes(item)}${mutationAttributes(item, model)}>
     <div class="event-card-top"><div class="event-time"><span class="event-time-range">${escapeHtml(formatRange(item))}</span><span class="event-time-start" aria-hidden="true">${escapeHtml(item.allDay ? 'All day' : formatTime(item.startsAt))}</span></div><span class="kind-pill">${escapeHtml(eventKindLabel(item))}</span></div>
     <h4>${escapeHtml(eventTitle(item))}</h4>
     ${item.kind === 'appointment' ? `<p class="event-client-mobile">${escapeHtml(formatClientMobile(item.clientMobile))}</p>` : ''}

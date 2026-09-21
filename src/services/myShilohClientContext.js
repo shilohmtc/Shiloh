@@ -89,8 +89,18 @@ function createMyShilohClientContextService({
     if (!id) return null;
     const result = await db.query(
       `/* myShilohClientContext:next-appointment */
-       SELECT a.id,a.starts_at,a.ends_at,a.status,a.total_price,a.currency,
+       SELECT a.id,
+              COALESCE(linked_group.starts_at,a.starts_at) AS starts_at,
+              COALESCE(linked_group.ends_at,a.ends_at) AS ends_at,
+              a.status,
+              COALESCE(linked_group.final_total,linked_group.total_price,a.total_price) AS total_price,
+              a.currency,
               COALESCE((
+                SELECT jsonb_agg(jsonb_build_object('name', linked_service.service_name_snapshot,'position', linked_member.guest_position) ORDER BY linked_member.guest_position)
+                  FROM appointment_group_members linked_member
+                  JOIN appointment_services linked_service ON linked_service.appointment_id=linked_member.appointment_id AND linked_service.position=1
+                 WHERE linked_group.group_type='multi_service_booking' AND linked_member.group_id=linked_group.id
+              ),(
                 SELECT jsonb_agg(jsonb_build_object(
                   'name', aps.service_name_snapshot,
                   'position', aps.position
@@ -99,6 +109,11 @@ function createMyShilohClientContextService({
                  WHERE aps.appointment_id=a.id
               ),'[]'::jsonb) AS services,
               COALESCE((
+                SELECT jsonb_agg(jsonb_build_object('name', linked_staff.staff_name_snapshot,'position', linked_member.guest_position) ORDER BY linked_member.guest_position)
+                  FROM appointment_group_members linked_member
+                  JOIN appointment_staff linked_staff ON linked_staff.appointment_id=linked_member.appointment_id AND linked_staff.position=1
+                 WHERE linked_group.group_type='multi_service_booking' AND linked_member.group_id=linked_group.id
+              ),(
                 SELECT jsonb_agg(jsonb_build_object(
                   'name', ast.staff_name_snapshot,
                   'position', ast.position
@@ -107,11 +122,14 @@ function createMyShilohClientContextService({
                  WHERE ast.appointment_id=a.id
               ),'[]'::jsonb) AS practitioners
          FROM appointments a
+         LEFT JOIN appointment_group_members group_seed ON group_seed.appointment_id=a.id
+         LEFT JOIN appointment_groups linked_group ON linked_group.id=group_seed.group_id
         WHERE a.crm_v2_client_id=$1
           AND a.client_id IS NULL
           AND a.status = ANY($2::text[])
           AND a.ends_at>$3::timestamptz
-        ORDER BY a.starts_at,a.id
+          AND (linked_group.group_type IS DISTINCT FROM 'multi_service_booking' OR group_seed.guest_position=1)
+        ORDER BY COALESCE(linked_group.starts_at,a.starts_at),a.id
         LIMIT 1`,
       [id, [...UPCOMING_APPOINTMENT_STATUSES], now()],
     );
@@ -124,8 +142,18 @@ function createMyShilohClientContextService({
     if (!id) return [];
     const result = await db.query(
       `/* myShilohClientContext:upcoming-appointments */
-       SELECT a.id,a.starts_at,a.ends_at,a.status,a.total_price,a.currency,
+       SELECT a.id,
+              COALESCE(linked_group.starts_at,a.starts_at) AS starts_at,
+              COALESCE(linked_group.ends_at,a.ends_at) AS ends_at,
+              a.status,
+              COALESCE(linked_group.final_total,linked_group.total_price,a.total_price) AS total_price,
+              a.currency,
               COALESCE((
+                SELECT jsonb_agg(jsonb_build_object('name', linked_service.service_name_snapshot,'position', linked_member.guest_position) ORDER BY linked_member.guest_position)
+                  FROM appointment_group_members linked_member
+                  JOIN appointment_services linked_service ON linked_service.appointment_id=linked_member.appointment_id AND linked_service.position=1
+                 WHERE linked_group.group_type='multi_service_booking' AND linked_member.group_id=linked_group.id
+              ),(
                 SELECT jsonb_agg(jsonb_build_object(
                   'name', aps.service_name_snapshot,
                   'position', aps.position
@@ -134,6 +162,11 @@ function createMyShilohClientContextService({
                  WHERE aps.appointment_id=a.id
               ),'[]'::jsonb) AS services,
               COALESCE((
+                SELECT jsonb_agg(jsonb_build_object('name', linked_staff.staff_name_snapshot,'position', linked_member.guest_position) ORDER BY linked_member.guest_position)
+                  FROM appointment_group_members linked_member
+                  JOIN appointment_staff linked_staff ON linked_staff.appointment_id=linked_member.appointment_id AND linked_staff.position=1
+                 WHERE linked_group.group_type='multi_service_booking' AND linked_member.group_id=linked_group.id
+              ),(
                 SELECT jsonb_agg(jsonb_build_object(
                   'name', ast.staff_name_snapshot,
                   'position', ast.position
@@ -142,11 +175,14 @@ function createMyShilohClientContextService({
                  WHERE ast.appointment_id=a.id
               ),'[]'::jsonb) AS practitioners
          FROM appointments a
+         LEFT JOIN appointment_group_members group_seed ON group_seed.appointment_id=a.id
+         LEFT JOIN appointment_groups linked_group ON linked_group.id=group_seed.group_id
         WHERE a.crm_v2_client_id=$1
           AND a.client_id IS NULL
           AND a.status = ANY($2::text[])
           AND a.ends_at>$3::timestamptz
-        ORDER BY a.starts_at,a.id
+          AND (linked_group.group_type IS DISTINCT FROM 'multi_service_booking' OR group_seed.guest_position=1)
+        ORDER BY COALESCE(linked_group.starts_at,a.starts_at),a.id
         LIMIT $4`,
       [id, [...UPCOMING_APPOINTMENT_STATUSES], now(), boundedLimit],
     );
