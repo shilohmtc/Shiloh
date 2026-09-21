@@ -11,6 +11,10 @@ const express = require('express');
 const { renderWorkspaceNavigation } = require('../src/presentation/workspaceShell');
 const { DESTINATIONS } = require('../src/services/workspaceNavigation');
 const { calendarPhoneAllStaffClientScript } = require('../src/presentation/calendarPhoneAllStaffUx');
+const {
+  renderPhoneCalendarUtilityBar,
+  renderPhoneWeekPlannerHeader,
+} = require('../src/presentation/calendarPhoneCompactV2');
 
 function chromeExecutable() {
   return [process.env.CHROME_BIN, '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser']
@@ -88,8 +92,19 @@ function workspacePage() {
 function calendarPage() {
   const script = calendarPhoneAllStaffClientScript().replace(/<\/script/gi, '<\\/script');
   const people = [['51','Abigail'],['52','Christel'],['53','Ilince'],['54','Marietjie'],['55','Naomi'],['56','Pieter'],['57','Savanna']];
-  const buttons = people.map(([id,name]) => `<button class="phone-week-staff-toggle" data-phone-week-staff-id="${id}" data-phone-week-staff-rendered="true">${name}</button>`).join('');
-  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{--line:#ddd;--line-strong:#aaa;--leaf:#487;--leaf-deep:#264;--leaf-soft:#eef5ef;--ink:#223;--muted:#667}*{box-sizing:border-box}body{margin:0}.phone-calendar-v2-controls,.phone-calendar-v2-actions{display:grid}.phone-week-date-strip{display:grid;grid-template-columns:repeat(6,1fr)}.phone-week-staff-strip{display:flex;overflow:auto}.phone-week-staff-toggle{min-height:44px}.week-time-grid{display:grid;grid-template-columns:32px 1fr;height:660px}.time-rail,.time-column{height:660px;position:relative}.calendar-view{width:100%}.phone-plus-menu>summary{min-height:44px}</style></head><body data-phone-calendar-v2="true" data-calendar-view="week" data-phone-active-date="2026-09-11"><main class="workspace-main"><div class="shell"><section class="phone-calendar-v2-controls"><a data-phone-calendar-view="week" class="phone-view-option" href="/calendar/read-only?view=week&date=2026-09-11">Week</a><a data-phone-calendar-view="month" class="phone-view-option" href="/calendar/read-only?view=month&date=2026-09-11">Month</a></section><div class="phone-calendar-v2-actions"><a class="phone-today-action" href="/calendar/read-only?view=week&date=2026-09-11">Today</a><details class="phone-plus-menu"><summary>Appointment</summary></details></div><div class="calendar-view week-view"><section class="phone-week-planner-header"><nav class="phone-week-date-strip"><a data-phone-week-date="2026-09-11" href="/calendar/read-only?view=week&date=2026-09-11">Fri 11</a></nav><div class="phone-week-staff-strip">${buttons}</div></section><div class="week-time-grid"><aside class="time-rail"></aside><div class="week-grid"><section data-week-date-lane data-phone-active-day="true" data-date="2026-09-11"><div class="time-column"></div></section></div></div></div></div></main><script>${script}</script></body></html>`;
+  const staff = people.map(([id, displayName]) => ({ id: Number(id), displayName }));
+  const model = {
+    view: 'week',
+    dateKey: '2026-09-11',
+    activeStaffId: 51,
+    visibleStaffIds: staff.map(person => person.id),
+    permittedStaff: staff,
+    timeline: { staff },
+    period: { dateKeys: ['2026-09-07','2026-09-08','2026-09-09','2026-09-10','2026-09-11','2026-09-12'] },
+  };
+  const utilityBar = renderPhoneCalendarUtilityBar(model, { basePath: '/calendar/read-only' });
+  const plannerHeader = renderPhoneWeekPlannerHeader(model, { basePath: '/calendar/read-only' });
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{--line:#ddd;--line-strong:#aaa;--leaf:#487;--leaf-deep:#264;--leaf-soft:#eef5ef;--ink:#223;--muted:#667}*{box-sizing:border-box}body{margin:0}.phone-calendar-utility-bar{display:grid}.phone-week-date-strip{display:grid;grid-template-columns:repeat(9,1fr)}.phone-week-staff-strip{display:grid}.phone-week-staff-toggle{min-height:44px}.week-time-grid{display:grid;grid-template-columns:32px 1fr;height:660px}.time-rail,.time-column{height:660px;position:relative}.calendar-view{width:100%}.phone-plus-menu>summary{min-height:44px}</style></head><body data-phone-calendar-v2="true" data-calendar-view="week" data-phone-active-date="2026-09-11"><main class="workspace-main"><div class="shell">${utilityBar}<div class="calendar-view week-view">${plannerHeader}<div class="week-time-grid"><aside class="time-rail"></aside><div class="week-grid"><section data-week-date-lane data-phone-active-day="true" data-date="2026-09-11"><div class="time-column"></div></section></div></div></div></div></main><script>${script}</script></body></html>`;
 }
 
 async function main() {
