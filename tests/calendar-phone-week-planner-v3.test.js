@@ -11,6 +11,7 @@ const {
   decoratePhoneCalendarV2,
   renderPhoneCalendarControls,
   phoneCalendarV2Styles,
+  phoneFirstPaintStyles,
   calendarPhoneCompactV2ClientScript,
 } = require('../src/presentation/calendarPhoneCompactV2');
 const { renderCalendarPage } = require('../src/presentation/calendarReadOnlyUx');
@@ -104,6 +105,18 @@ test('Phone Week Planner renders Mon-Sat strip and all permitted practitioner to
   assert.match(script, /node\.dataset\.bookingStaffId=activeStaff/);
   assert.match(script, /selectedIds\(\)/);
   assert.doesNotMatch(script, /fetch\(/);
+});
+
+test('Phone Calendar withholds the legacy first paint until compact enhancement is ready', () => {
+  const source = '<!doctype html><html><head></head><body data-calendar-view="week"><div class="workspace-main"><div class="shell"><main class="calendar-view week-view"><div class="time-grid week-time-grid"><div class="week-grid"></div></div></main></div></div></body></html>';
+  const html = decoratePhoneCalendarV2(source, { model: model('week'), basePath: '/calendar/read-only', bookingAllowed: false });
+  const css = phoneFirstPaintStyles();
+  const script = calendarPhoneCompactV2ClientScript();
+  assert.match(html, /data-calendar-phone-pending="true"/);
+  assert.match(css, /@media\(max-width:700px\)/);
+  assert.match(css, /opacity:0;visibility:hidden/);
+  assert.match(css, /1500ms forwards/);
+  assert.match(script, /body\.removeAttribute\('data-calendar-phone-pending'\)/);
 });
 
 test('Phone Month receives one capacity band per date and retains public-holiday annotation separately from closure authority', () => {
