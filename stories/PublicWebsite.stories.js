@@ -41,10 +41,10 @@ const catalogue = [
   },
   {
     id: 404,
-    name: 'SQT Rejuvenation BioMicroneedling',
+    name: '1. SQT Anti-Aging Rejuvenation BioMicroneedling + SQT Revitalizing Beauty BioMicroneedling',
     category: '1. SQT BioMicroneedling',
     duration: '90 min',
-    price: 'R1 785–R2 585',
+    price: 'R1785-R2585',
   },
   {
     id: 505,
@@ -66,6 +66,20 @@ const catalogue = [
     category: 'Services',
     duration: '30 min',
     price: 'Price on consultation',
+  },
+  {
+    id: 808,
+    name: 'Priced according to area',
+    category: 'Plasma Fybroblast Prices',
+    duration: '300 min',
+    price: '1900 - 6500',
+  },
+  {
+    id: 909,
+    name: 'VHC Standard Needling with Vitamins under Local Anesthetic.',
+    category: 'Mikroneedling',
+    duration: '150 min',
+    price: 'R500-R1250',
   },
 ];
 
