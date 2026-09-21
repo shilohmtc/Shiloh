@@ -56,6 +56,8 @@ jobs:
             echo 'Candidate baselines generated. Review the PNGs and commit only approved .png.b64.part* fixtures deliberately.'
             exit 1
           fi
+      - name: Prove Phone Calendar first paint in Chromium
+        run: npx playwright test tests/calendar-phone-first-paint.spec.js --config=.
       - name: Upload UX evidence
         if: always()
         uses: actions/upload-artifact@v7

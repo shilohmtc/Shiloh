@@ -8,6 +8,10 @@ const DESKTOP_GRID_PIXELS_PER_HOUR = 72;
 const GRID_START_MINUTES = 7 * 60;
 const GRID_END_MINUTES = 18 * 60;
 
+function phoneFirstPaintStyles() {
+  return `@keyframes shiloh-calendar-phone-first-paint-fallback{to{opacity:1;visibility:visible}}@media(max-width:700px){body[data-calendar-phone-pending="true"] .workspace-main>.shell{opacity:0;visibility:hidden;animation:shiloh-calendar-phone-first-paint-fallback 0s 1500ms forwards}}`;
+}
+
 function escapeHtml(value = '') {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -465,8 +469,8 @@ body[data-phone-calendar-v2="true"] .workspace-main .month-grid{border:0!importa
 function calendarPhoneCompactV2ClientScript() {
   const scale = PHONE_GRID_PIXELS_PER_HOUR / DESKTOP_GRID_PIXELS_PER_HOUR;
   return `(()=>{'use strict';
-if(innerWidth>700)return;
 const body=document.body;
+if(innerWidth>700){body.removeAttribute('data-calendar-phone-pending');return;}
 const active=String(body.dataset.phoneActiveStaffId||'');
 const bookingPath=String(body.dataset.phoneBookingPath||'');
 const gridStart=${GRID_START_MINUTES},gridEnd=${GRID_END_MINUTES},pxPerHour=${PHONE_GRID_PIXELS_PER_HOUR},scale=${scale};
@@ -497,6 +501,7 @@ document.addEventListener('toggle',event=>{const opened=event.target;if(!opened?
 function laneContext(column){const lane=column.closest('[data-date]');if(!lane)return null;const staffId=Number(lane.dataset.staffId||lane.dataset.bookingStaffId),date=lane.dataset.date;if(!Number.isSafeInteger(staffId)||staffId<1||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(String(date||'')))return null;return{staffId,date};}
 function formatTime(minutes){const h=Math.floor(minutes/60),m=minutes%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
 if(bookingPath){all('.day-view .time-column,.week-view .time-column').forEach(column=>{column.addEventListener('click',event=>{if(event.defaultPrevented||event.button>0||event.target.closest('a,button,.positioned-event,.event-card'))return;const context=laneContext(column);if(!context)return;const rect=column.getBoundingClientRect();if(rect.height<=0)return;const y=Math.max(0,Math.min(rect.height-1,event.clientY-rect.top));const raw=gridStart+(y/pxPerHour)*60;const snapped=Math.max(gridStart,Math.min(gridEnd-30,Math.round(raw/30)*30));const params=new URLSearchParams({date:context.date,time:formatTime(snapped),staff:String(context.staffId)});location.assign(bookingPath+'?'+params.toString());});});}
+body.removeAttribute('data-calendar-phone-pending');
 })();`;
 }
 
@@ -517,9 +522,9 @@ function decoratePhoneCalendarV2(html, {
   const actions = renderPhoneCalendarDock(model, { basePath, bookingPath, couplesBookingPath, bookingAllowed, retrospectiveBookingPath, retrospectiveAllowed });
   const scriptPath = `${String(basePath || '/calendar/read-only').replace(/\/$/, '')}/phone-v2.js`;
   const plannerDate = activePlannerDate(model);
-  const bodyAttrs = ` data-phone-calendar-v2="true"${activeStaffId ? ` data-phone-active-staff-id="${activeStaffId}"` : ''}${plannerDate ? ` data-phone-active-date="${escapeHtml(plannerDate)}"` : ''}${bookingAllowed ? ` data-phone-booking-path="${escapeHtml(bookingPath)}"` : ''}`;
+  const bodyAttrs = ` data-phone-calendar-v2="true" data-calendar-phone-pending="true"${activeStaffId ? ` data-phone-active-staff-id="${activeStaffId}"` : ''}${plannerDate ? ` data-phone-active-date="${escapeHtml(plannerDate)}"` : ''}${bookingAllowed ? ` data-phone-booking-path="${escapeHtml(bookingPath)}"` : ''}`;
   output = output.replace('<body ', `<body${bodyAttrs} `);
-  output = output.replace('</head>', `<style>${phoneCalendarV2Styles()}</style><script src="${escapeHtml(scriptPath)}" defer></script></head>`);
+  output = output.replace('</head>', `<style>${phoneFirstPaintStyles()}${phoneCalendarV2Styles()}</style><script src="${escapeHtml(scriptPath)}" defer></script></head>`);
   output = output.replace('<div class="shell">', `<div class="shell">${controls}${actions}`);
   if (model?.view === 'week') {
     const plannerHeader = renderPhoneWeekPlannerHeader(model, { basePath });
@@ -535,6 +540,7 @@ module.exports = {
   calendarHref,
   calendarPhoneCompactV2ClientScript,
   decoratePhoneCalendarV2,
+  phoneFirstPaintStyles,
   phoneCalendarV2Styles,
   renderPhoneCalendarControls,
   renderPhoneCalendarDock,
