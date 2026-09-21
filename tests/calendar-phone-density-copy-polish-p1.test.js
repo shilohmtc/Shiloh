@@ -27,6 +27,6 @@ test('Calendar removes static canonical-authority helper copy while retaining li
   assert.match(source, /\.operation-status:empty\{display:none\}/);
   assert.doesNotMatch(source, /class=\"panel-hint\"/);
   assert.match(proof, /weekMetrics\.plannerVisible, true/);
-  assert.match(proof, /weekMetrics\.normalPhoneViews, \['week', 'agenda', 'month'\]/);
+  assert.match(proof, /weekMetrics\.normalPhoneViews, \['week', 'month'\]/);
   assert.match(proof, /weekMetrics\.framePaddingBottom, 0/);
 });
