@@ -110,8 +110,11 @@ function createMyShilohRouter({
     maxAge: '1h',
     immutable: false,
     fallthrough: false,
-    setHeaders(res) {
+    setHeaders(res, filePath) {
       res.setHeader('X-Content-Type-Options', 'nosniff');
+      if (['app.css', 'app.js'].includes(path.basename(filePath))) {
+        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+      }
     },
   }));
 

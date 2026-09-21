@@ -1,12 +1,13 @@
 'use strict';
 
-const SHELL_CACHE = 'my-shiloh-shell-v10';
-const STATIC_CACHE = 'my-shiloh-static-v10';
+const ASSET_VERSION = '20260921-1082';
+const SHELL_CACHE = 'my-shiloh-shell-v11';
+const STATIC_CACHE = 'my-shiloh-static-v11';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',
-  '/my-shiloh/assets/app.css',
-  '/my-shiloh/assets/app.js',
+  `/my-shiloh/assets/app.css?v=${ASSET_VERSION}`,
+  `/my-shiloh/assets/app.js?v=${ASSET_VERSION}`,
   '/my-shiloh/assets/icon-192.png',
   '/my-shiloh/assets/icon-512.png',
   '/my-shiloh/assets/icon-maskable-512.png',
@@ -48,6 +49,21 @@ self.addEventListener('fetch', (event) => {
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request).catch(() => caches.match('/my-shiloh/offline.html')),
+    );
+    return;
+  }
+
+  if (url.pathname === '/my-shiloh/assets/app.css'
+      || url.pathname === '/my-shiloh/assets/app.js') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (!response || response.status !== 200) return response;
+          const copy = response.clone();
+          caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy));
+          return response;
+        })
+        .catch(() => caches.match(request)),
     );
     return;
   }
