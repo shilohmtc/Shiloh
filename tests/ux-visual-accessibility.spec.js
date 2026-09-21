@@ -1,6 +1,29 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 
+test('WhatsApp client menu leads with the My Shiloh R100 welcome voucher on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=whatsapp-client-menu--welcome-voucher-first&viewMode=story', { waitUntil: 'networkidle' });
+    await expect(page.getByText('Install My Shiloh on your phone')).toBeVisible();
+    const buttons = page.locator('.wa-action');
+    await expect(buttons).toHaveCount(3);
+    await expect(buttons.nth(0)).toHaveText('Get R100 voucher');
+    await expect(buttons.nth(1)).toHaveText('Browse services');
+    await expect(buttons.nth(2)).toHaveText('Book now');
+    const metrics = await page.evaluate(() => ({
+      viewport: innerWidth,
+      document: document.documentElement.scrollWidth,
+      short: [...document.querySelectorAll('.wa-action')].filter((node) => node.getBoundingClientRect().height < 44).length,
+    }));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
+    expect(metrics.short).toBe(0);
+    const accessibility = await new AxeBuilder({ page }).include('.wa-story').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact))).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`whatsapp-client-menu-voucher-first-${viewport.name}.png`), fullPage: true });
+  }
+});
+
 test('My Shiloh WhatsApp code return is prominent and accessible on Phone and Desktop', async ({page},testInfo)=>{
   for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
     await page.setViewportSize({width:viewport.width,height:viewport.height});
