@@ -43,6 +43,11 @@ test('issued voucher renders approved language artwork and private value state',
   assert.match(html, /SV-ABCDEF123456/);
   assert.match(html, /R/);
   assert.match(html, /Rest well/);
+  assert.match(html, /class="voucher-art af"/);
+  assert.match(html, /\.voucher-art\.af \.fill\.to\{left:15\.1%\}/);
+  assert.match(html, /\.voucher-art\.af \.fill\.from\{left:15\.1%\}/);
+  assert.match(html, /\.voucher-art\.af \.fill\.value\{left:35%\}/);
+  assert.match(html, /\.voucher-art\.af \.fill\.valid\{left:23\.9%\}/);
 });
 
 test('voucher dates support PostgreSQL Date objects without rendering Invalid Date', () => {
