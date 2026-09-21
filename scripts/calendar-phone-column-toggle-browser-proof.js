@@ -7,6 +7,10 @@ const { spawn } = require('node:child_process');
 const { once } = require('node:events');
 const express = require('express');
 const { calendarPhoneAllStaffClientScript } = require('../src/presentation/calendarPhoneAllStaffUx');
+const {
+  renderPhoneCalendarUtilityBar,
+  renderPhoneWeekPlannerHeader,
+} = require('../src/presentation/calendarPhoneCompactV2');
 
 const OUT_DIR = path.join(process.cwd(), 'artifacts', 'calendar-phone-column-toggle-v1');
 const VIEWPORTS = [
@@ -80,14 +84,23 @@ function fixtureHtml() {
   const people = [
     ['51', 'Abigail'], ['52', 'Christel'], ['53', 'Ilince'], ['54', 'Marietjie'], ['55', 'Naomi'], ['56', 'Pieter'], ['57', 'Savanna'],
   ];
-  const buttons = people.map(([id, name]) => `<button class="phone-week-staff-toggle" data-phone-week-staff-id="${id}" data-phone-week-staff-rendered="true" aria-pressed="false">${name}</button>`).join('');
+  const staff = people.map(([id, displayName]) => ({ id: Number(id), displayName }));
+  const model = {
+    view: 'week',
+    dateKey: '2026-09-11',
+    activeStaffId: 51,
+    visibleStaffIds: staff.map(person => person.id),
+    permittedStaff: staff,
+    timeline: { staff },
+    period: { dateKeys: ['2026-09-07','2026-09-08','2026-09-09','2026-09-10','2026-09-11','2026-09-12'] },
+  };
+  const utilityBar = renderPhoneCalendarUtilityBar(model, { basePath: '/' });
+  const plannerHeader = renderPhoneWeekPlannerHeader(model, { basePath: '/' });
   const events = people.map(([id, name], index) => `<div class="positioned-event" data-proof-event="${id}" style="--phone-event-top:${80 + index * 55}px;--phone-event-height:48px"><article class="event-card" data-event-staff-ids="${id}"><span class="event-time">09:${String(index * 5).padStart(2, '0')}</span><h4>Client ${index + 1}</h4><span class="event-meta event-practitioners"><span class="event-practitioner-full">${name}</span><span class="event-practitioner-compact">${name}</span></span></article></div>`).join('');
-  const days = [['2026-09-07','Mon 7'],['2026-09-08','Tue 8'],['2026-09-09','Wed 9'],['2026-09-10','Thu 10'],['2026-09-11','Fri 11'],['2026-09-12','Sat 12']]
-    .map(([date,label]) => `<a class="phone-week-date${date === '2026-09-11' ? ' active' : ''}" data-phone-week-date="${date}" href="/?view=week&date=${date}">${label}</a>`).join('');
   const hours = Array.from({ length: 14 }, (_, i) => `<span>${String(7 + i).padStart(2,'0')}:00</span>`).join('');
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
-:root{--line:#d8dfda;--line-strong:#a9b5ad;--leaf:#43805f;--leaf-deep:#275b45;--leaf-soft:#eef5ef;--panel:#fffdf9;--ink:#20322b;--muted:#69756f}*{box-sizing:border-box}html,body{margin:0;width:100%;min-height:100%;overflow-x:hidden;font-family:Arial,sans-serif;color:var(--ink)}.workspace-main>.shell{padding:4px}.phone-calendar-v2-controls,.phone-calendar-v2-actions{display:grid}.phone-week-date-strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px}.phone-week-date{display:grid;place-items:center;min-height:44px}.phone-week-staff-strip{display:flex;gap:3px;overflow-x:auto}.phone-week-staff-toggle{flex:0 0 auto;min-height:44px;padding:6px 9px;border:1px solid var(--line);border-radius:9px;background:#fff}.phone-plus-menu>summary{display:flex;min-height:44px;padding:8px;border:1px solid var(--leaf-deep);border-radius:9px;background:var(--leaf-deep);color:#fff}.calendar-view{width:100%;background:#fff}.week-time-grid{display:grid;grid-template-columns:32px minmax(0,1fr);height:900px;overflow:auto}.time-rail{position:relative;height:900px}.time-rail span{display:block;height:60px;font-size:10px}.week-grid{min-width:0}.time-column{position:relative;height:900px;background:repeating-linear-gradient(to bottom,transparent 0,transparent 59px,var(--line) 59px,var(--line) 60px)}.positioned-event{position:absolute;top:var(--phone-event-top);height:var(--phone-event-height);left:2px;width:calc(100% - 4px)}.event-card{height:100%;overflow:hidden;border:1px solid var(--line);background:#fff}.event-card h4,.event-meta{display:block;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.phone-view-option,.phone-today-action{display:block}
-</style></head><body data-phone-calendar-v2="true" data-phone-active-date="2026-09-11"><main class="workspace-main"><div class="shell"><section class="phone-calendar-v2-controls"><a data-phone-calendar-view="week" class="phone-view-option" href="/?view=week&date=2026-09-11">Week</a><a data-phone-calendar-view="month" class="phone-view-option" href="/?view=month&date=2026-09-11">Month</a></section><div class="phone-calendar-v2-actions"><a class="phone-today-action" href="/?view=week&date=2026-09-11">Today</a><details class="phone-plus-menu"><summary>Appointment</summary></details></div><div class="calendar-view week-view"><section class="phone-week-planner-header"><nav class="phone-week-date-strip">${days}</nav><div class="phone-week-staff-strip">${buttons}</div></section><div class="week-time-grid"><aside class="time-rail">${hours}</aside><div class="week-grid"><section class="week-day week-date-lane" data-week-date-lane data-phone-active-day="true" data-date="2026-09-11"><div class="time-column">${events}</div></section></div></div></div></div></main><script>${script}</script></body></html>`;
+:root{--line:#d8dfda;--line-strong:#a9b5ad;--leaf:#43805f;--leaf-deep:#275b45;--leaf-soft:#eef5ef;--panel:#fffdf9;--ink:#20322b;--muted:#69756f}*{box-sizing:border-box}html,body{margin:0;width:100%;min-height:100%;overflow-x:hidden;font-family:Arial,sans-serif;color:var(--ink)}.workspace-main>.shell{padding:4px}.phone-calendar-utility-bar{display:grid}.phone-week-date-strip{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:2px}.phone-week-date{display:grid;place-items:center;min-height:44px}.phone-week-staff-strip{display:grid;gap:3px}.phone-week-staff-toggle{min-height:44px;padding:6px 9px;border:1px solid var(--line);border-radius:9px;background:#fff}.phone-plus-menu>summary{display:flex;min-height:44px;padding:8px;border:1px solid var(--leaf-deep);border-radius:9px;background:var(--leaf-deep);color:#fff}.calendar-view{width:100%;background:#fff}.week-time-grid{display:grid;grid-template-columns:32px minmax(0,1fr);height:900px;overflow:auto}.time-rail{position:relative;height:900px}.time-rail span{display:block;height:60px;font-size:10px}.week-grid{min-width:0}.time-column{position:relative;height:900px;background:repeating-linear-gradient(to bottom,transparent 0,transparent 59px,var(--line) 59px,var(--line) 60px)}.positioned-event{position:absolute;top:var(--phone-event-top);height:var(--phone-event-height);left:2px;width:calc(100% - 4px)}.event-card{height:100%;overflow:hidden;border:1px solid var(--line);background:#fff}.event-card h4,.event-meta{display:block;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.phone-calendar-view-link,.phone-calendar-today-link{display:block}
+</style></head><body data-phone-calendar-v2="true" data-calendar-view="week" data-phone-active-date="2026-09-11"><main class="workspace-main"><div class="shell">${utilityBar}<div class="calendar-view week-view">${plannerHeader}<div class="week-time-grid"><aside class="time-rail">${hours}</aside><div class="week-grid"><section class="week-day week-date-lane" data-week-date-lane data-phone-active-day="true" data-date="2026-09-11"><div class="time-column">${events}</div></section></div></div></div></div></main><script>${script}</script></body></html>`;
 }
 
 async function screenshot(cdp, filename) {
