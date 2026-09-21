@@ -141,6 +141,13 @@ test('Phone drawer keeps its brand, close control and account footer contained',
   assert.doesNotMatch(html, /<img[^>]+workspace/);
 });
 
+test('Gift vouchers and Rewards have dedicated drawer icons', () => {
+  const css = workspaceShellStyles();
+  assert.match(css, /data-workspace-destination="vouchers"\]\::before/);
+  assert.match(css, /data-workspace-destination="rewards"\]\::before/);
+  assert.match(css, /mask-image:url\("data:image\/svg\+xml/);
+});
+
 test('Calendar and management controls intentionally collapse for phone use', () => {
   const css = workspaceShellStyles();
   assert.match(css, /\.workspace-main \.controls\{position:static!important;grid-template-columns:1fr!important/);

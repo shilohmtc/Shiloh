@@ -64,11 +64,31 @@ test('voucher dates support PostgreSQL Date objects without rendering Invalid Da
 });
 
 test('workspace voucher page supports explicit policy and partial redemption', () => {
-  const html = renderWorkspaceVoucherPage({model:{policy:{configured:true,mode:'fixed_months',months:12},authority:{canManage:true,canRedeem:true},vouchers:[]},csrfToken:'csrf',displayName:'Christel'});
+  const html = renderWorkspaceVoucherPage({model:{policy:{configured:true,mode:'fixed_months',months:12},authority:{canManage:true,canRedeem:true},vouchers:[{voucher_code:'SV-ABCDEF123456',recipient_name:'Naledi',original_value:'600.00',balance:'400.00',valid_until:'2027-09-19',state:'active'}]},csrfToken:'csrf',displayName:'Christel'});
   assert.match(html, /Voucher validity/);
   assert.match(html, /Fixed number of months/);
   assert.match(html, /Redeem voucher/);
+  assert.match(html, /data-voucher-select/);
+  assert.match(html, /data-voucher-code="SV-ABCDEF123456"/);
+  assert.match(html, /data-label="Valid until"/);
+  assert.ok(html.indexOf('Issued vouchers') < html.indexOf('Voucher validity'));
+  assert.ok(html.indexOf('Issued vouchers') < html.indexOf('Redeem a voucher'));
+  assert.doesNotMatch(html, /table\{display:block;overflow-x:auto\}/);
+});
+
+test('workspace voucher page keeps an accessible empty issued-voucher state', () => {
+  const html = renderWorkspaceVoucherPage({model:{policy:{configured:true,mode:'no_expiry',months:null},authority:{canManage:false,canRedeem:true},vouchers:[]},csrfToken:'csrf'});
   assert.match(html, /No vouchers have been issued yet/);
+  assert.match(html, /aria-live="polite" data-voucher-selection-status/);
+});
+
+test('workspace voucher client selects a code and guides staff to the amount', () => {
+  const script = fs.readFileSync(path.join(root, 'public', 'workspace', 'gift-vouchers.js'), 'utf8');
+  assert.match(script, /closest\('\[data-voucher-select\]'\)/);
+  assert.match(script, /codeInput\.value = code/);
+  assert.match(script, /amountInput\.max = selection\.dataset\.voucherBalance/);
+  assert.match(script, /amountInput\.focus\(\{ preventScroll:true \}\)/);
+  assert.match(script, /scrollIntoView/);
 });
 
 test('Ozow verified callback owns voucher issuance and no unverified return page can issue', () => {

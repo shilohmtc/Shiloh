@@ -11,5 +11,22 @@
     } catch (error) { status.textContent = error.message; button.disabled = false; }
   }
   document.querySelector('[data-policy-form]')?.addEventListener('submit', function(event) { event.preventDefault(); submit(this, '/calendar/vouchers/policy', '[data-policy-status]', (data) => ({ mode:data.mode, months:data.months })); });
-  document.querySelector('[data-redeem-form]')?.addEventListener('submit', function(event) { event.preventDefault(); submit(this, '/calendar/vouchers/redeem', '[data-redeem-status]', (data) => ({ ...data, operationId:crypto.randomUUID() })); });
+  const redeemForm = document.querySelector('[data-redeem-form]');
+  const selectionStatus = document.querySelector('[data-voucher-selection-status]');
+  document.querySelector('[data-issued-vouchers]')?.addEventListener('click', (event) => {
+    const selection = event.target.closest('[data-voucher-select]');
+    if (!selection || !redeemForm) return;
+    document.querySelectorAll('[data-voucher-select]').forEach((control) => control.setAttribute('aria-pressed', String(control === selection)));
+    const code = selection.dataset.voucherCode || '';
+    const codeInput = redeemForm.elements.voucherCode;
+    const amountInput = redeemForm.elements.amount;
+    codeInput.value = code;
+    amountInput.max = selection.dataset.voucherBalance || '';
+    amountInput.value = '';
+    amountInput.placeholder = selection.dataset.voucherBalance ? `Up to R ${selection.dataset.voucherBalance}` : '';
+    if (selectionStatus) selectionStatus.textContent = `${code} selected. Enter the amount to redeem below.`;
+    redeemForm.scrollIntoView({ behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'start' });
+    amountInput.focus({ preventScroll:true });
+  });
+  redeemForm?.addEventListener('submit', function(event) { event.preventDefault(); submit(this, '/calendar/vouchers/redeem', '[data-redeem-status]', (data) => ({ ...data, operationId:crypto.randomUUID() })); });
 })();

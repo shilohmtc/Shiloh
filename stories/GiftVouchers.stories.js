@@ -23,7 +23,10 @@ export const IssuedEnglish = {
 
 export const WorkspaceBalances = {
   render: () => surface(renderWorkspaceVoucherPage({
-    model: { policy:{configured:true,mode:'fixed_months',months:12}, authority:{canManage:true,canRedeem:true}, vouchers:[{voucher_code:'SV-4A7F31B920CC',recipient_name:'Naledi',original_value:'650.00',balance:'400.00',valid_until:'2027-09-19',state:'active'}] },
+    model: { policy:{configured:true,mode:'fixed_months',months:12}, authority:{canManage:true,canRedeem:true}, vouchers:[
+      {voucher_code:'SV-4A7F31B920CC',recipient_name:'Naledi',original_value:'650.00',balance:'400.00',valid_until:'2027-09-19',state:'active'},
+      {voucher_code:'SV-A2F8CBC24FCA',recipient_name:'Chenique Botha',original_value:'500.00',balance:'500.00',valid_until:'2027-11-21',state:'active'},
+    ] },
     csrfToken: 'storybook', displayName: 'Christel',
   })),
 };
