@@ -16,6 +16,19 @@ test('Phone Week adds previous and next week navigation beside the dates', () =>
   assert.match(script, /\[data-phone-week-nav\]/);
 });
 
+test('Phone Month adds a labelled previous and next month navigator above the grid', () => {
+  const script = calendarPhoneAllStaffClientScript();
+  assert.doesNotThrow(() => new vm.Script(script));
+  assert.match(script, /function addMonthNavigation\(\)/);
+  assert.match(script, /function shiftedMonthHref\(offset\)/);
+  assert.match(script, /make\('previous',-1,'Previous month','‹'\)/);
+  assert.match(script, /make\('next',1,'Next month','›'\)/);
+  assert.match(script, /phoneMonthNavigation='true'/);
+  assert.match(script, /phoneMonthLabel='true'/);
+  assert.match(script, /phone-month-nav\{[^}]*min-width:44px;min-height:44px/);
+  assert.match(script, /\[data-phone-month-nav\]/);
+});
+
 test('Phone Week moves multi-select staff controls into a compact dropdown beside Month', () => {
   const script = calendarPhoneAllStaffClientScript();
   assert.match(script, /phone-staff-menu-mount/);

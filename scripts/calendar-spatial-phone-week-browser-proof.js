@@ -634,6 +634,10 @@ async function main() {
         rootScrollWidth:document.documentElement.scrollWidth,
         activeStaff:document.querySelector('[data-phone-active-staff]')?.textContent.trim()||'',
         currentView:document.querySelector('.phone-view-menu>summary strong')?.textContent.trim()||'',
+        monthLabel:document.querySelector('[data-phone-month-label]')?.textContent.trim()||'',
+        monthPrevious:new URL(document.querySelector('[data-phone-month-nav="previous"]')?.getAttribute('href')||'',location.origin).searchParams.get('date'),
+        monthNext:new URL(document.querySelector('[data-phone-month-nav="next"]')?.getAttribute('href')||'',location.origin).searchParams.get('date'),
+        minMonthNavHeight:Math.min(...Array.from(document.querySelectorAll('[data-phone-month-nav]')).map(node=>node.getBoundingClientRect().height)),
         densityCount:document.querySelectorAll('.phone-month-density').length,
         visibleAppointmentCards:Array.from(document.querySelectorAll('.month-events .event-card')).filter(visible).length,
         compactAppointmentLabels:Array.from(document.querySelectorAll('.month-events .event-card')).filter(visible).map(node=>node.textContent.trim()),
@@ -649,6 +653,10 @@ async function main() {
     assert.ok(monthMetrics.rootScrollWidth <= 391, 'Phone Month leaked horizontal overflow');
     assert.equal(monthMetrics.activeStaff, 'Amber Room');
     assert.equal(monthMetrics.currentView, 'Month');
+    assert.equal(monthMetrics.monthLabel, 'September 2026');
+    assert.equal(monthMetrics.monthPrevious, '2026-08-01');
+    assert.equal(monthMetrics.monthNext, '2026-10-01');
+    assert.ok(monthMetrics.minMonthNavHeight >= 44, 'Phone Month navigation target is below 44px');
     assert.equal(monthMetrics.densityCount, 0, 'Phone Month still shows dot-only density indicators');
     assert.ok(monthMetrics.visibleAppointmentCards > 0, 'Phone Month hides appointment details');
     assert.ok(monthMetrics.compactAppointmentLabels.some(label => /Client|Shared/.test(label)), 'Phone Month appointment strips do not identify bookings');
