@@ -127,18 +127,19 @@ function toPublicService(service = {}) {
   const canonicalName = service.canonicalName || service.name || '';
   const canonicalCategory = service.canonicalCategory || service.category || 'Services';
   const canonicalPrice = service.canonicalPrice ?? service.price ?? '';
+  const canonicalDescription = service.canonicalDescription ?? service.description ?? '';
   return {
     ...service,
     canonicalName,
     canonicalCategory,
     canonicalPrice,
+    canonicalDescription,
     name: publicServiceNameFor(canonicalName),
     price: publicServicePriceFor(canonicalPrice),
     category: publicServiceCategoryFor({ ...service, canonicalName, canonicalCategory }),
-    // Public pages intentionally do not publish source descriptions or booking
-    // notes. Those fields can contain clinical/therapeutic claims and remain
-    // available to controlled internal/assistant workflows instead.
-    description: '',
+    // Only the owner-approved CRM customer description is public. Operational
+    // booking notes remain private and available to controlled workflows.
+    description: String(canonicalDescription),
     bookingNote: '',
   };
 }

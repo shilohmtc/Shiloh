@@ -14,6 +14,8 @@ test('public taxonomy hides administrative labels without rewriting canonical id
     category: '1. SQT BioMicroneedling',
     duration: '90 min',
     price: 'R1785',
+    description: 'Owner-approved service information.',
+    bookingNote: 'Private operational note.',
   };
   const service = toPublicService(source);
 
@@ -23,6 +25,9 @@ test('public taxonomy hides administrative labels without rewriting canonical id
   assert.equal(service.canonicalPrice, source.price);
   assert.equal(service.canonicalName, source.name);
   assert.equal(service.canonicalCategory, source.category);
+  assert.equal(service.canonicalDescription, source.description);
+  assert.equal(service.description, source.description);
+  assert.equal(service.bookingNote, '');
   assert.equal(service.category, 'Advanced Aesthetics');
   assert.equal(source.category, '1. SQT BioMicroneedling');
 });

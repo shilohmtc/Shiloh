@@ -45,6 +45,8 @@ const catalogue = [
     category: '1. SQT BioMicroneedling',
     duration: '90 min',
     price: 'R1785-R2585',
+    description:
+      'An SQT BioMicroneedling option focused on rejuvenation and revitalising skincare goals, selected according to the client’s skin assessment and suitability.',
   },
   {
     id: 505,
@@ -52,6 +54,8 @@ const catalogue = [
     category: 'Permanent Makeup',
     duration: '180 min',
     price: 'R1 950–R2 200',
+    description:
+      'A permanent makeup service for brow enhancement, with shape and style planned according to the client’s features and preferences.',
   },
   {
     id: 606,
@@ -59,6 +63,8 @@ const catalogue = [
     category: 'Neo Pelvic Therapy',
     duration: '30 min',
     price: 'R350–R450',
+    description:
+      'A non-invasive pelvic floor therapy session focused on pelvic muscle stimulation and strengthening support. Suitability is assessed before treatment.',
   },
   {
     id: 707,
@@ -73,6 +79,8 @@ const catalogue = [
     category: 'Plasma Fybroblast Prices',
     duration: '300 min',
     price: '1900 - 6500',
+    description:
+      'Plasma fibroblast treatment pricing is determined by the treatment area. A consultation is recommended to confirm the appropriate option and price.',
   },
   {
     id: 909,
@@ -80,6 +88,8 @@ const catalogue = [
     category: 'Mikroneedling',
     duration: '150 min',
     price: 'R500-R1250',
+    description:
+      'An advanced microneedling treatment using a vitamin-focused protocol with local anaesthetic, selected according to the treatment area and client suitability.',
   },
 ];
 

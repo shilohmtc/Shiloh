@@ -721,9 +721,17 @@ for (const viewport of [
         await expect(surface.locator('#category-advanced-aesthetics')).toBeVisible();
         await expect(surface.locator('#category-body-and-wellness')).toBeVisible();
         await expect(surface.getByRole('heading', { name: 'SQT Rejuvenation & Revitalising BioMicroneedling' })).toBeVisible();
+        await expect(surface.getByText(
+          'An SQT BioMicroneedling option focused on rejuvenation and revitalising skincare goals, selected according to the client’s skin assessment and suitability.',
+          { exact: true },
+        )).toBeVisible();
         await expect(surface.getByRole('heading', { name: 'Plasma Fibroblast – By Area' })).toBeVisible();
         await expect(surface.getByText('R1 900–R6 500', { exact: true })).toBeVisible();
         await expect(surface.getByRole('heading', { name: 'VHC Vitamin Microneedling' })).toBeVisible();
+      }
+
+      if (name === 'book') {
+        await expect(surface.getByText('Restorative foot care.', { exact: true })).toBeVisible();
       }
 
       const geometry = await surface.evaluate(() => ({

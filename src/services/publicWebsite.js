@@ -114,7 +114,10 @@ function serviceCategoryDiscoveryCard(category, services) {
 
 function serviceCard(service) {
   const bookingPath = publicBookingPathForService(service);
-  return `<article class="card treatment-card" data-service-id="${escapeHtml(service.id)}"><h3>${escapeHtml(service.name)}</h3><div class="meta"><span class="pill">${escapeHtml(service.duration)}</span><span class="pill price">${escapeHtml(service.price)}</span></div><a class="card-link" href="${escapeHtml(bookingPath)}">Book this service →</a></article>`;
+  const description = service.description
+    ? `<p class="service-description">${escapeHtml(service.description)}</p>`
+    : '';
+  return `<article class="card treatment-card" data-service-id="${escapeHtml(service.id)}"><h3>${escapeHtml(service.name)}</h3><div class="meta"><span class="pill">${escapeHtml(service.duration)}</span><span class="pill price">${escapeHtml(service.price)}</span></div>${description}<a class="card-link" href="${escapeHtml(bookingPath)}">Book this service →</a></article>`;
 }
 
 function signatureBlock() {
