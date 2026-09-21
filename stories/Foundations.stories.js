@@ -36,6 +36,21 @@ export const SemanticColours = {
     </div>`),
 };
 
+export const OfficialBrandColours = {
+  render: () => {
+    const brandColours = Object.entries(SHILOH_UX_TOKENS.color)
+      .filter(([name]) => name.startsWith('brand'));
+    return shell(`
+      <h2>Official brand colours</h2>
+      <p>The approved logo values remain identical in light and dark mode. Icon canvas ivory is reserved for the app icon and matching launch background.</p>
+      <div class="grid">
+        ${brandColours.map(([name, value]) => `
+          <div class="card"><div class="swatch" style="background:${value}"></div><div class="token-name">${name}</div><div class="token-value">${value}</div></div>
+        `).join('')}
+      </div>`);
+  },
+};
+
 export const StaffAccentPalette = {
   render: () => shell(`
     <h2>Unassigned staff accent palette</h2>

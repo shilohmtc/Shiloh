@@ -11,7 +11,10 @@ const {
   renderPrivacy,
 } = require('../src/services/publicWebsite');
 const { renderBookingPage } = require('../src/services/publicBookingPageEditorial');
-const { renderSiteHeader } = require('../src/services/publicSiteChrome');
+const {
+  PUBLIC_BRAND_ASSET_VERSION,
+  renderSiteHeader,
+} = require('../src/services/publicSiteChrome');
 
 const catalogue = [
   {
@@ -153,6 +156,20 @@ test('home leads with the Heidelberg location and shared brand chrome', () => {
   assert.match(html, /class="site-brand-mark"/);
   assert.match(html, /class="site-footer-mark"/);
   assert.match(html, /Contact &amp; directions/);
+  assert.match(html, new RegExp(`shiloh-mark-192\\.png\\?v=${PUBLIC_BRAND_ASSET_VERSION}`));
+});
+
+test('public website brand assets exactly match the approved installed-app artwork', () => {
+  const asset = (...segments) => fs.readFileSync(path.join(__dirname, '..', ...segments));
+  const pairs = [
+    [['public', 'assets', 'brand', 'shiloh-mark-192.png'], ['public', 'assets', 'pwa', 'shiloh-pwa-192.png']],
+    [['public', 'assets', 'brand', 'shiloh-mark-512.png'], ['public', 'assets', 'pwa', 'shiloh-pwa-512.png']],
+    [['public', 'assets', 'brand', 'shiloh-mark-maskable-512.png'], ['public', 'assets', 'pwa', 'shiloh-pwa-maskable-512.png']],
+    [['public', 'assets', 'brand', 'shiloh-apple-touch-180.png'], ['public', 'assets', 'pwa', 'shiloh-apple-touch-180.png']],
+  ];
+  for (const [publicAsset, approvedAsset] of pairs) {
+    assert.deepEqual(asset(...publicAsset), asset(...approvedAsset), publicAsset.join('/'));
+  }
 });
 
 test('Visit and the assistant use direct accommodation sources without Hello Heidelberg', () => {
