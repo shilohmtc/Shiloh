@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const service = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'customerChangeNotification.js'), 'utf8');
 const patch = fs.readFileSync(path.join(__dirname, '..', 'src', 'bootstrap', 'adminBookingCustomerNotificationPatch.js'), 'utf8');
+const operationalRoute = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'calendarOperationalMutations.js'), 'utf8');
 const lifecycle = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'clientLifecycleTemplateProvisioning.js'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
 
@@ -25,6 +26,19 @@ test('all material admin booking mutations map to customer notification kinds', 
   assert.match(service, /time:\s*'appointment\.time_updated'/);
   assert.match(service, /price:\s*'appointment\.price_updated'/);
   assert.match(service, /cancellation:\s*'admin\.appointment_cancelled'/);
+  assert.match(service, /time:\s*Object\.freeze\(\['calendar\.appointment_rescheduled'\]\)/);
+  assert.match(service, /action=ANY\(\$2::text\[\]\)/);
+});
+
+test('authenticated Calendar reschedules queue the latest customer confirmation after the canonical save', () => {
+  const route = operationalRoute.match(/router\.post\('\/appointments\/:appointmentId\/reschedule'[\s\S]*?\n  \}\);/)?.[0] || '';
+  const mutation = route.indexOf('mutationService.reschedule');
+  const notification = route.indexOf('queueCustomerChangeNotification');
+  const response = route.indexOf('res.status(200).json');
+  assert.ok(mutation >= 0 && notification > mutation && response > notification);
+  assert.match(route, /queueCustomerChangeNotification\([\s\S]*?'time'/);
+  assert.match(route, /customerNotification/);
+  assert.match(route, /reason: 'queue_failed'/);
 });
 
 test('delivery is audit-event idempotent and retries provider or send failures', () => {
