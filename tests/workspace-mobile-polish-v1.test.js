@@ -41,8 +41,8 @@ test('shared Workspace shell replaces the Phone bottom bar with a hidden left dr
   const css = workspaceShellStyles();
   assert.match(css, /@media\(max-width:700px\)/);
   assert.match(css, /\.workspace-nav\{position:fixed;inset:0 auto 0 0/);
-  assert.match(css, /z-index:80;display:flex;align-items:stretch;width:min\(82vw,320px\)/);
-  assert.match(css, /width:clamp\(176px,48vw,190px\)/);
+  assert.match(css, /z-index:80;display:flex;align-items:stretch;width:min\(88vw,360px\);max-width:calc\(100vw - 16px\)/);
+  assert.doesNotMatch(css, /width:clamp\(176px,48vw,190px\)/);
   assert.match(css, /position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto/);
   assert.match(css, /transform:translateX\(-105%\)/);
   assert.match(css, /\.workspace-nav\.open\{transform:translateX\(0\)\}/);
@@ -109,6 +109,19 @@ test('Phone drawer supports close, backdrop, Escape and contained keyboard focus
   assert.match(script, /history\.pushState/);
   assert.match(script, /addEventListener\('popstate'/);
   assert.match(script, /pendingDestination/);
+});
+
+test('Phone drawer keeps its brand, close control and account footer contained', () => {
+  const css = workspaceShellStyles();
+  const html = renderWorkspaceNavigation({ active: 'dashboard', displayName: 'Jean-Pierre' });
+  assert.match(css, /\.workspace-nav\{position:fixed;inset:0 auto 0 0[^}]*width:min\(88vw,360px\)[^}]*overflow:hidden/);
+  assert.doesNotMatch(css, /width:clamp\(176px,48vw,190px\)/);
+  assert.match(css, /\.workspace-drawer-header\{[^}]*min-width:0;flex:0 0 auto/);
+  assert.match(css, /\.workspace-links\{[^}]*min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain/);
+  assert.match(css, /\.workspace-account\{margin-top:0\}/);
+  assert.match(css, /\.workspace-brand-icon\{[^}]*url\('\/calendar\/pwa\/icon-192\.png\?v=official-brand-v1'\)[^}]*url\('\/assets\/pwa\/shiloh-pwa-192\.png\?v=official-brand-v1'\)/);
+  assert.match(html, /class="workspace-brand-icon" aria-hidden="true"/);
+  assert.doesNotMatch(html, /<img[^>]+workspace/);
 });
 
 test('Calendar and management controls intentionally collapse for phone use', () => {

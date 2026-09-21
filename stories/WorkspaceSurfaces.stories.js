@@ -37,6 +37,30 @@ function productionSurface(pageHtml) {
   return `<style>${styles}.workspace-surface-story{min-height:100vh}.workspace-surface-story script{display:none}</style><div class="workspace-surface-story" data-story-surface>${body.replace(/<script[\s\S]*?<\/script>/g, '')}</div>`;
 }
 
+function workspaceNavigationOpenStory() {
+  const root = document.createElement('div');
+  root.innerHTML = productionSurface(renderDashboardPage(dashboardModel(), {
+    navigation: {
+      clientsHref: '/calendar/clients',
+      messagesHref: '/calendar/messages',
+      staffHref: '/calendar/team',
+      servicesHref: '/calendar/services',
+      reportsHref: '/calendar/reports',
+      clinicHoursHref: '/calendar/clinic-hours',
+      vouchersHref: '/calendar/gift-vouchers',
+      rewardsHref: '/calendar/rewards',
+      problemReportsHref: '/calendar/problem-reports',
+    },
+  }));
+  const drawer = root.querySelector('[data-workspace-navigation-drawer]');
+  const backdrop = root.querySelector('[data-workspace-nav-backdrop]');
+  const toggle = root.querySelector('[data-workspace-drawer-toggle]');
+  drawer?.classList.add('open');
+  backdrop?.classList.add('open');
+  toggle?.setAttribute('aria-expanded', 'true');
+  return root;
+}
+
 const staff = [
   { id: 11, displayName: 'Abigail' },
   { id: 12, displayName: 'Christel' },
@@ -222,6 +246,7 @@ export default {
 };
 
 export const DashboardOperational = { render: () => productionSurface(renderDashboardPage(dashboardModel())) };
+export const NavigationDrawerOpen = { render: workspaceNavigationOpenStory };
 export const ClientAppointmentHistory = { render: () => productionSurface(renderClientDetailPageWithCommunications(clientModel(), { calendarNavigationAllowed: true, notificationActionAllowed: true })) };
 export const MessagesAttention = { render: () => productionSurface(renderMessagesPage(messagesModel())) };
 export const CompactAppointmentEditor = { render: editorStory };
