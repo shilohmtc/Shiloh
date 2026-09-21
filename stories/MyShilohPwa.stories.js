@@ -69,3 +69,37 @@ export const AuthenticatedHome = {
     firstName: 'Christel',
   }),
 };
+
+export const AuthenticatedProfile = {
+  render: () => {
+    const surface = productionSurface({
+      id: '913',
+      name: 'Jean-Pierre Botha',
+      firstName: 'Jean-Pierre',
+    });
+    surface.querySelectorAll('[data-view]').forEach((view) => {
+      const active = view.dataset.view === 'profile';
+      view.hidden = !active;
+      view.classList.toggle('is-active', active);
+    });
+    surface.querySelectorAll('[data-view-target]').forEach((item) => {
+      if (item.dataset.viewTarget === 'profile') item.setAttribute('aria-current', 'page');
+      else item.removeAttribute('aria-current');
+    });
+    const form = surface.querySelector('[data-client-profile-form]');
+    if (form) {
+      form.elements.name.value = 'Jean-Pierre Botha';
+      form.elements.dateOfBirth.value = '1985-06-14';
+      form.elements.gender.value = 'male';
+      form.querySelectorAll('input,select,button').forEach((control) => { control.disabled = false; });
+    }
+    const mobile = surface.querySelector('[data-client-profile-mobile]');
+    if (mobile) mobile.textContent = '+27 •• ••• 2646';
+    const status = surface.querySelector('[data-client-profile-status]');
+    if (status) {
+      status.dataset.state = 'success';
+      status.textContent = 'Your registration details are complete.';
+    }
+    return surface;
+  },
+};

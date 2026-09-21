@@ -32,13 +32,21 @@ function iso(value) {
   return Number.isNaN(date.getTime()) ? String(value) : date.toISOString();
 }
 
+function dateOnly(value) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+  const text = String(value).trim();
+  const exact = text.match(/^(\d{4}-\d{2}-\d{2})(?:$|T)/);
+  return exact ? exact[1] : null;
+}
+
 function profileRevision(row) {
   if (!row) return null;
   const canonical = {
     id: String(row.id || ''),
     name: String(row.name || ''),
     normalizedMobile: String(row.normalized_mobile || ''),
-    dateOfBirth: row.date_of_birth ? String(row.date_of_birth).slice(0, 10) : null,
+    dateOfBirth: dateOnly(row.date_of_birth),
     gender: row.gender || null,
     profileStatus: String(row.profile_status || ''),
     mobileVerifiedAt: iso(row.mobile_verified_at),
@@ -55,10 +63,18 @@ function maskMobile(value = '') {
 
 function publicProfile(row) {
   if (!row) return null;
+  const dateOfBirth = dateOnly(row.date_of_birth);
+  const registrationComplete = Boolean(
+    String(row.name || '').trim()
+    && dateOfBirth
+    && row.gender
+    && row.profile_status === 'registered',
+  );
   return {
     name: String(row.name || ''),
-    dateOfBirth: row.date_of_birth ? String(row.date_of_birth).slice(0, 10) : null,
+    dateOfBirth,
     gender: row.gender || null,
+    registrationComplete,
     mobile: maskMobile(row.normalized_mobile),
     mobileEditable: false,
     revision: profileRevision(row),
@@ -81,8 +97,8 @@ function normalizeProfile({ name, dateOfBirth, gender } = {}) {
   try {
     return {
       name: cleanName,
-      dateOfBirth: normalizeDateOfBirth(dateOfBirth),
-      gender: normalizeGender(gender),
+      dateOfBirth: normalizeDateOfBirth(dateOfBirth, { required: true }),
+      gender: normalizeGender(gender, { required: true }),
     };
   } catch (error) {
     if (error instanceof CrmV2Error) {
@@ -148,11 +164,7 @@ function createMyShilohProfileService({ db = pool, now = () => new Date() } = {}
       if (profileRevision(current) !== expected) {
         throw new MyShilohProfileError('MY_SHILOH_PROFILE_STALE', 'Your profile changed. Reload it before saving again.', 409);
       }
-      if (current.profile_status === 'registered' && (!requested.dateOfBirth || !requested.gender)) {
-        throw new MyShilohProfileError('MY_SHILOH_PROFILE_INCOMPLETE', 'Date of birth and gender are required for your registered profile.', 422);
-      }
-
-      const currentDob = current.date_of_birth ? String(current.date_of_birth).slice(0, 10) : null;
+      const currentDob = dateOnly(current.date_of_birth);
       const changedFields = [];
       if (String(current.name || '') !== requested.name) changedFields.push('name');
       if (currentDob !== requested.dateOfBirth) changedFields.push('dateOfBirth');
@@ -162,7 +174,7 @@ function createMyShilohProfileService({ db = pool, now = () => new Date() } = {}
         return { status: 'unchanged', profile: publicProfile(current) };
       }
 
-      const profileStatus = requested.dateOfBirth && requested.gender ? 'registered' : 'minimal';
+      const profileStatus = 'registered';
       const provenance = {
         ...(current.provenance || {}),
         lastProfileUpdate: { via: 'my_shiloh', at: now().toISOString() },
@@ -204,6 +216,7 @@ module.exports = {
   REVISION_PATTERN,
   MyShilohProfileError,
   positiveId,
+  dateOnly,
   profileRevision,
   maskMobile,
   publicProfile,

@@ -190,11 +190,11 @@ function renderMyShilohPage({
             </label>
             <label class="profile-field" for="profile-date-of-birth">
               <span>Date of birth</span>
-              <input id="profile-date-of-birth" name="dateOfBirth" type="date" min="1900-01-01" autocomplete="bday" disabled>
+              <input id="profile-date-of-birth" name="dateOfBirth" type="date" min="1900-01-01" autocomplete="bday" required disabled>
             </label>
             <label class="profile-field" for="profile-gender">
               <span>Gender</span>
-              <select id="profile-gender" name="gender" disabled>
+              <select id="profile-gender" name="gender" required disabled>
                 <option value="">Choose an option</option>
                 <option value="female">Female</option>
                 <option value="male">Male</option>
