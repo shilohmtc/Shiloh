@@ -29,7 +29,7 @@ function styles() {
 }
 
 function renderCalendarMultiServiceBookingPage({ options = {}, prefill = {}, clientScriptPath = '/calendar/book/multiple/client.js' } = {}) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Multiple treatments · Shiloh</title><style>${styles()}.eyebrow{color:#8c693f}</style><script src="${escapeHtml(clientScriptPath)}" defer></script></head><body><div class="shell">
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Multiple treatments · Shiloh</title><style>${styles()}.eyebrow{color:#8c693f}.intro .hint{color:#5c6a62}</style><script src="${escapeHtml(clientScriptPath)}" defer></script></head><body><div class="shell">
     <header class="topbar"><div><span class="eyebrow">Calendar</span><h1>Book multiple treatments</h1><p>One client, one linked visit, with the right time and practitioner for every treatment.</p></div><a class="button secondary" href="/calendar/read-only${prefill.date ? `?view=week&amp;date=${escapeHtml(prefill.date)}&amp;staff=all` : ''}">← Back to Calendar</a></header>
     <main>
       <section class="panel intro"><strong>Everything stays together.</strong><div class="hint">Shiloh checks each treatment separately, then creates the whole visit at once. The client receives one combined confirmation and one booking total.</div></section>
