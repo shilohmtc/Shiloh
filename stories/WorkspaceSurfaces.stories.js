@@ -10,7 +10,7 @@ import passkeyPresentation from '../src/presentation/staffPasskeyUx.js';
 import pwaPresentation from '../src/presentation/workspacePwa.js';
 import clinicHoursPresentation from '../src/presentation/workspaceClinicHoursUx.js';
 
-const { renderDashboardPage } = dashboardPresentation;
+const { renderDashboardPage, dashboardClientScript } = dashboardPresentation;
 const { renderClinicHoursPage } = clinicHoursPresentation;
 const { renderClientDetailPageWithCommunications } = clientPresentation;
 const { renderMessagesPage } = messagesPresentation;
@@ -245,7 +245,7 @@ export default {
   parameters: { layout: 'fullscreen' },
 };
 
-export const DashboardOperational = { render: () => productionSurface(renderDashboardPage(dashboardModel())) };
+export const DashboardOperational = { render: () => interactiveProductionSurface(renderDashboardPage(dashboardModel()), dashboardClientScript()) };
 export const NavigationDrawerOpen = { render: workspaceNavigationOpenStory };
 export const ClientAppointmentHistory = { render: () => productionSurface(renderClientDetailPageWithCommunications(clientModel(), { calendarNavigationAllowed: true, notificationActionAllowed: true })) };
 export const MessagesAttention = { render: () => productionSurface(renderMessagesPage(messagesModel())) };
