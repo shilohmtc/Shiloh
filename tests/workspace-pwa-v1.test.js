@@ -50,7 +50,7 @@ test('#791 PWA metadata decorates existing HTML idempotently and only expands CS
   assert.match(once, new RegExp(`${PWA_BASE.replaceAll('/', '\\/')}\\/manifest\\.webmanifest`));
   assert.match(once, /apple-mobile-web-app-capable/);
   assert.match(once, /theme-color/);
-  assert.match(once, /client\.js\?v=official-brand-v1/);
+  assert.match(once, /client\.js\?v=official-brand-v2/);
 
   const original = "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
   const expanded = augmentWorkspacePwaCsp(original);
@@ -62,7 +62,7 @@ test('#791 PWA metadata decorates existing HTML idempotently and only expands CS
 
 test('#791 service worker caches only inert versioned icon assets and never protected Workspace/API responses', () => {
   const worker = workspacePwaServiceWorkerScript();
-  assert.match(STATIC_CACHE_NAME, /^shiloh-pwa-static-official-brand-v1$/);
+  assert.match(STATIC_CACHE_NAME, /^shiloh-pwa-static-official-brand-v2$/);
   assert.match(worker, /cache\.addAll\(STATIC_URLS\)/);
   assert.match(worker, /STATIC_URLS\.includes\(url\.pathname\+url\.search\)/);
   assert.match(worker, /request\.mode==='navigate'.*url\.pathname\.startsWith\('\/calendar\/'\)/s);

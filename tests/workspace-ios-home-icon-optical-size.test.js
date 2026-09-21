@@ -14,9 +14,9 @@ test('iOS Home Screen advertises a dedicated 180px Apple touch icon', () => {
   const html = preferIosAppleTouchIcon(legacy);
 
   assert.match(html, /rel="apple-touch-icon" sizes="180x180"/);
-  assert.match(html, /\/calendar\/pwa\/apple-touch-icon-180\.png\?v=ios-optical-v2/);
+  assert.match(html, /\/calendar\/pwa\/apple-touch-icon-180\.png\?v=official-brand-v2/);
   assert.doesNotMatch(html, /apple-touch-icon" sizes="192x192"/);
-  assert.equal(IOS_APPLE_TOUCH_ICON_HREF, '/calendar/pwa/apple-touch-icon-180.png?v=ios-optical-v2');
+  assert.equal(IOS_APPLE_TOUCH_ICON_HREF, '/calendar/pwa/apple-touch-icon-180.png?v=official-brand-v2');
 });
 
 test('dedicated Apple touch asset is an exact 180x180 PNG', () => {

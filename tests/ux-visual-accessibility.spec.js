@@ -571,7 +571,7 @@ test('PWA icon uses the approved raster asset at full canvas', async ({ page }) 
     viewBox: '0 0 192 192',
     width: '192',
     height: '192',
-    href: '/assets/pwa/shiloh-pwa-192.png?v=official-brand-v1',
+    href: '/assets/pwa/shiloh-pwa-192.png?v=official-brand-v2',
   });
 });
 

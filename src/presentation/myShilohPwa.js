@@ -6,7 +6,7 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 
-const MY_SHILOH_ASSET_VERSION = '20260921-1082';
+const MY_SHILOH_ASSET_VERSION = '20260921-official-brand-v2';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -270,7 +270,7 @@ function renderMyShilohPage({
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="/my-shiloh/manifest.webmanifest">
   <link rel="icon" href="/my-shiloh/assets/icon-192.png" type="image/png" sizes="192x192">
-  <link rel="apple-touch-icon" href="/my-shiloh/assets/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/my-shiloh/assets/apple-touch-icon-180.png?v=${MY_SHILOH_ASSET_VERSION}">
   <link rel="stylesheet" href="/my-shiloh/assets/app.css?v=${MY_SHILOH_ASSET_VERSION}">
   <title>My Shiloh</title>
 </head>

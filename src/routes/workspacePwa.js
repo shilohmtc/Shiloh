@@ -14,7 +14,7 @@ const {
   workspacePwaClientScript,
 } = require('../presentation/workspacePwa');
 
-const IOS_APPLE_TOUCH_ICON_HREF = `${PWA_BASE}/apple-touch-icon-180.png?v=ios-optical-v2`;
+const IOS_APPLE_TOUCH_ICON_HREF = `${PWA_BASE}/apple-touch-icon-180.png?v=official-brand-v2`;
 const LEGACY_APPLE_TOUCH_ICON_PATTERN = /<link rel="apple-touch-icon" sizes="192x192" href="[^"]+">/;
 
 const HTML_PATH_PREFIXES = Object.freeze([

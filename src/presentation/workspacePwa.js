@@ -1,6 +1,6 @@
 'use strict';
 
-const PWA_VERSION = 'official-brand-v1';
+const PWA_VERSION = 'official-brand-v2';
 const PWA_BASE = '/calendar/pwa';
 const STATIC_CACHE_PREFIX = 'shiloh-pwa-static-';
 const STATIC_CACHE_NAME = `${STATIC_CACHE_PREFIX}${PWA_VERSION}`;
