@@ -389,7 +389,7 @@ async function main() {
       visibleInlineManage:Array.from(document.querySelectorAll('.desktop-practitioner-grid .event-operation')).filter(node=>getComputedStyle(node).display!=='none').length,
       bookingSlotCounts:Array.from(document.querySelectorAll('.desktop-practitioner-lane')).map(lane=>lane.querySelectorAll('.calendar-booking-slot').length),
       bookingSlotStaff:Array.from(document.querySelectorAll('.desktop-practitioner-lane')).map(lane=>new URL(lane.querySelector('.calendar-booking-slot')?.href||location.href).searchParams.get('staff')),
-      phoneControlsDisplay:getComputedStyle(document.querySelector('[data-phone-calendar-v2-controls]')).display,
+      phoneControlsDisplay:getComputedStyle(document.querySelector('[data-phone-calendar-utility-bar]')).display,
       verticalFit:document.body.dataset.calendarDesktopVerticalFit||'',
       gridHeight:document.querySelector('.desktop-practitioner-lane .time-column')?.getBoundingClientRect().height||0,
       gridBottom:document.querySelector('.week-time-grid')?.getBoundingClientRect().bottom||0,
