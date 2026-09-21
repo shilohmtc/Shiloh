@@ -15,14 +15,15 @@ test('service booking handoff preselects the canonical service name', () => {
   assert.match(decodeURIComponent(url), /I'd like to book Full Body Swedish\./);
 });
 
-test('catalogue renders public service metadata grouped by category', () => {
-  const html = renderCatalogue('+27823269871', [{ id: 1, name: 'Full Body Swedish', category: 'Massage', duration: '90 min', price: 'R590', description: 'A relaxing full body massage.', bookingNote: '' }]);
+test('catalogue renders approved public service descriptions but not private booking notes', () => {
+  const html = renderCatalogue('+27823269871', [{ id: 1, name: 'Full Body Swedish', category: 'Massage', duration: '90 min', price: 'R590', description: 'A relaxing full body massage.', bookingNote: 'Private operational note.' }]);
   assert.match(html, /Massage/);
   assert.match(html, /Full Body Swedish/);
   assert.match(html, /90 min/);
   assert.match(html, /R590/);
   assert.match(html, /Book this service/);
-  assert.doesNotMatch(html, /A relaxing full body massage/);
+  assert.match(html, /A relaxing full body massage/);
+  assert.doesNotMatch(html, /Private operational note/);
 });
 
 test('public catalogue query is limited to active services with an active client-bookable practitioner', () => {
@@ -31,6 +32,8 @@ test('public catalogue query is limited to active services with an active client
   assert.match(source, /st\.status\s*=\s*'active'/i);
   assert.match(source, /st\.resource_type\s*=\s*'practitioner'/i);
   assert.match(source, /st\.client_bookable\s*=\s*TRUE/i);
+  assert.match(source, /s\.customer_description/i);
+  assert.doesNotMatch(source, /s\.booking_note/i);
 });
 
 test('public page uses only committed Phase 1 image references and does not claim availability early', () => {

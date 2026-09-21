@@ -7,7 +7,7 @@ async function getPublicServiceCatalogue() {
   try {
     const result = await pool.query(`
       SELECT s.id, s.name, s.duration_minutes, s.processing_time_minutes, s.extra_time_minutes,
-             s.price, s.display_price,
+             s.price, s.display_price, s.customer_description,
              sc.name AS category_name
         FROM services s
         LEFT JOIN service_categories sc ON sc.id = s.category_id
@@ -40,6 +40,7 @@ async function getPublicServiceCatalogue() {
         category: row.category_name || 'Services',
         duration: formatDuration(row),
         price: formatPrice(row),
+        description: row.customer_description || '',
       }),
     );
   } catch (error) {

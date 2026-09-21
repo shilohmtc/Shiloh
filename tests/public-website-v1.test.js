@@ -34,13 +34,14 @@ const catalogue = [
   },
 ];
 
-test('public Services renders canonical timing and price fields without creating booking authority', () => {
+test('public Services renders canonical timing, price and approved description fields without creating booking authority', () => {
   const html = renderTreatments(catalogue);
   assert.match(html, /Deep Tissue Massage/);
   assert.match(html, /60 min/);
   assert.match(html, /R850/);
   assert.match(html, /Pedicures &amp; Foot Care/);
-  assert.doesNotMatch(html, /Focused therapeutic massage/);
+  assert.match(html, /Focused therapeutic massage/);
+  assert.match(html, /Foot care with a polished finish/);
   assert.doesNotMatch(html, /wa\.me/);
   assert.doesNotMatch(html, /availability=/);
   assert.match(html, /data-public-treatment-catalogue/);
@@ -220,15 +221,22 @@ test('routing reuses canonical catalogue and leaves /book and /health intact', (
 
 test('public presentation escapes canonical catalogue text', () => {
   const html = renderTreatments([
-    { ...catalogue[0], name: '<script>alert(1)</script>', category: 'Massage & Care' },
+    {
+      ...catalogue[0],
+      name: '<script>alert(1)</script>',
+      category: 'Massage & Care',
+      description: '<img src=x onerror=alert(2)>',
+    },
   ]);
   assert.doesNotMatch(html, /<script>alert/);
+  assert.doesNotMatch(html, /<img src=x/);
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.match(html, /&lt;img src=x onerror=alert\(2\)&gt;/);
   assert.match(html, /data-service-id="101"/);
   assert.match(html, /<h2>Massage<\/h2>/);
 });
 
-test('public surfaces neutralize therapeutic branding, labels and claim-heavy descriptions', () => {
+test('public surfaces preserve approved descriptions while keeping booking notes private', () => {
   const riskyCatalogue = [
     {
       id: 303,
@@ -241,26 +249,21 @@ test('public surfaces neutralize therapeutic branding, labels and claim-heavy de
     },
   ];
 
-  const pages = [
-    renderHome(riskyCatalogue),
-    renderTreatments(riskyCatalogue),
-    renderAbout(),
-    renderContact(),
-    renderPrivacy(),
-    renderBookingPage('27836835433', riskyCatalogue),
-  ];
+  const home = renderHome(riskyCatalogue);
+  const services = renderTreatments(riskyCatalogue);
+  const booking = renderBookingPage('27836835433', riskyCatalogue);
 
-  for (const html of pages) {
-    assert.doesNotMatch(html, /\btherapy\b/i);
-    assert.doesNotMatch(html, /\btherapeutic\b/i);
-    assert.doesNotMatch(html, /\bclinical\b/i);
-    assert.doesNotMatch(html, /pain recovery/i);
+  assert.doesNotMatch(home, /Clinical therapeutic care for pain recovery/);
+  assert.match(services, /Clinical therapeutic care for pain recovery/);
+  assert.match(booking, /Clinical therapeutic care for pain recovery/);
+
+  for (const html of [home, services, booking, renderAbout(), renderContact(), renderPrivacy()]) {
     assert.doesNotMatch(html, /Medical review required/i);
     assert.doesNotMatch(html, /inside-shiloh-signature\.png/);
   }
 
-  assert.match(renderTreatments(riskyCatalogue), /Neo Pelvic Session/);
-  assert.match(renderTreatments(riskyCatalogue), /Body &amp; Wellness/);
-  assert.match(renderBookingPage('27836835433', riskyCatalogue), /Neo Pelvic Session/);
-  assert.match(renderBookingPage('27836835433', riskyCatalogue), /Shiloh Massage &amp; Aesthetic Clinic/);
+  assert.match(services, /Neo Pelvic Session/);
+  assert.match(services, /Body &amp; Wellness/);
+  assert.match(booking, /Neo Pelvic Session/);
+  assert.match(booking, /Shiloh Massage &amp; Aesthetic Clinic/);
 });

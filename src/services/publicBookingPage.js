@@ -40,7 +40,10 @@ function renderServiceCard(number, service, selectedServiceId = '') {
   const selectedAttributes = selected
     ? ` data-selected-service="true" aria-label="${escapeHtml(`${publicService.name}, selected service`)}"`
     : '';
-  return `<article${anchor} class="service-card${selected ? ' selected' : ''}"${selectedAttributes}><div><h3>${escapeHtml(publicService.name)}</h3><div class="meta"><span>${escapeHtml(publicService.duration)}</span><strong>${escapeHtml(publicService.price)}</strong></div></div>${url ? `<a class="book-service" href="${escapeHtml(url)}" rel="noopener">${selected ? 'Continue with this service' : 'Book this service'} <span>→</span></a>` : ''}</article>`;
+  const description = publicService.description
+    ? `<p class="service-description">${escapeHtml(publicService.description)}</p>`
+    : '';
+  return `<article${anchor} class="service-card${selected ? ' selected' : ''}"${selectedAttributes}><div><h3>${escapeHtml(publicService.name)}</h3><div class="meta"><span>${escapeHtml(publicService.duration)}</span><strong>${escapeHtml(publicService.price)}</strong></div>${description}</div>${url ? `<a class="book-service" href="${escapeHtml(url)}" rel="noopener">${selected ? 'Continue with this service' : 'Book this service'} <span>→</span></a>` : ''}</article>`;
 }
 function renderCatalogue(number, catalogue, selectedServiceId = '') {
   const groups = groupPublicCatalogue(catalogue);
