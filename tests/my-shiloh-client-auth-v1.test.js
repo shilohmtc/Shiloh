@@ -94,7 +94,8 @@ test('My Shiloh route uses same-origin, client-only session and CSRF controls', 
 
 test('WhatsApp verification returns to the originating My Shiloh context with a code fallback', () => {
   const source = read('src/middleware/myShilohWhatsAppAuth.js');
-  assert.match(source, /Return to the My Shiloh screen you started from/);
+  assert.match(source, /Switch back to the My Shiloh app or browser screen you started from/);
+  assert.match(source, /WhatsApp cannot reopen it for you/);
   assert.match(source, /finish signing you in automatically/);
   assert.match(source, /one-time code there/);
   assert.doesNotMatch(source, /#verify=|myShilohCompletionUrl/);
@@ -150,6 +151,8 @@ test('returning from WhatsApp auto-completes in the original context with a usab
   assert.match(client, /data\.authenticated === true[\s\S]*window\.location\.replace\('\/my-shiloh\/'\)/);
   assert.match(client, /window\.setTimeout\(welcomeBackFromWhatsApp, 1500\);[\s\S]*window\.location\.href = data\.whatsappUrl/);
   assert.match(client, /visibilitychange/);
+  assert.match(client, /addEventListener\('focus', welcomeBackFromWhatsApp\)/);
+  assert.match(client, /authStatusCheckInFlight = false/);
   assert.match(client, /Checking your WhatsApp verification/);
   assert.match(client, /open automatically/);
   assert.doesNotMatch(client, /localStorage|sessionStorage/);

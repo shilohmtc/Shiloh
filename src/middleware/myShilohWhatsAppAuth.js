@@ -47,7 +47,7 @@ function createMyShilohWhatsAppAuthMiddleware({
         const spacedCode = String(result.completionCode || '').replace(/^(\d{3})(\d{3})$/, '$1 $2');
         await sendMessage(
           from,
-          `You're verified 🌿\n\nReturn to the My Shiloh screen you started from. It will finish signing you in automatically.\n\nIf it does not, enter this one-time code there: *${spacedCode}*\n\nIt expires with this sign-in request.`,
+          `You're verified 🌿\n\nSwitch back to the My Shiloh app or browser screen you started from. WhatsApp cannot reopen it for you, but once you return My Shiloh should finish signing you in automatically.\n\nIf it does not, enter this one-time code there: *${spacedCode}*\n\nIt expires with this sign-in request.`,
         );
       } else if (result.code === 'CLIENT_AUTH_PROFILE_UNAVAILABLE') {
         await sendMessage(

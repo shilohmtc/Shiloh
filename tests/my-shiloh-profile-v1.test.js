@@ -9,6 +9,7 @@ const {
   PROFILE_UPDATE_EVENT,
   MyShilohProfileError,
   profileRevision,
+  dateOnly,
   maskMobile,
   publicProfile,
   normalizeProfile,
@@ -53,6 +54,11 @@ test('profile projection masks the identity mobile and exposes an opaque revisio
   assert.doesNotMatch(JSON.stringify(profile), /27821234567/);
   assert.equal(maskMobile('invalid'), 'Verified with WhatsApp');
   assert.notEqual(profileRevision(row()), profileRevision(row({ gender: 'other' })));
+  assert.equal(profile.registrationComplete, true);
+  assert.equal(dateOnly(new Date('1990-05-14T00:00:00.000Z')), '1990-05-14');
+  assert.equal(dateOnly('Tue May 14 1990'), null);
+  assert.equal(publicProfile(row({ date_of_birth: new Date('1990-05-14T00:00:00.000Z') })).dateOfBirth, '1990-05-14');
+  assert.equal(publicProfile(row({ date_of_birth: null, profile_status: 'registered' })).registrationComplete, false);
 });
 
 test('profile input reuses bounded canonical CRM validation', () => {
@@ -67,6 +73,8 @@ test('profile input reuses bounded canonical CRM validation', () => {
   });
   assert.throws(() => normalizeProfile({ name: 'x', dateOfBirth: '1990-05-14', gender: 'female' }), MyShilohProfileError);
   assert.throws(() => normalizeProfile({ name: 'Christel Botha', dateOfBirth: '2099-01-01', gender: 'female' }), /date of birth/i);
+  assert.throws(() => normalizeProfile({ name: 'Christel Botha', dateOfBirth: '', gender: 'female' }), /date of birth/i);
+  assert.throws(() => normalizeProfile({ name: 'Christel Botha', dateOfBirth: '1990-05-14', gender: '' }), /gender/i);
 });
 
 test('profile update is session-bound, revision-checked, transactional and value-minimised in audit', async () => {
@@ -128,11 +136,18 @@ test('profile UI edits only approved fields and never persists private profile d
   assert.match(presentation, /data-client-profile-form/);
   assert.match(presentation, /Full name/);
   assert.match(presentation, /Date of birth/);
+  assert.match(presentation, /name="dateOfBirth"[^>]*required/);
+  assert.match(presentation, /name="gender"[^>]*required/);
   assert.match(presentation, /Verified WhatsApp number/);
   assert.doesNotMatch(presentation, /name="(?:mobile|phone|whatsapp)"/i);
   assert.match(app, /fetch\('\/my-shiloh\/api\/profile'/);
   assert.match(app, /postJson\('\/my-shiloh\/api\/profile\/update'/);
   assert.match(app, /freshCsrfToken\(\)/);
+  assert.match(app, /registrationComplete/);
+  assert.match(app, /finish registration and unlock your R100 voucher/);
+  const styles = read('public/my-shiloh/assets/app.css');
+  assert.match(styles, /\.profile-field\{[^}]*min-width:0/);
+  assert.match(styles, /\.profile-field input,[^{]+\{[^}]*max-width:100%[^}]*min-width:0/);
   assert.doesNotMatch(app, /localStorage|sessionStorage|indexedDB/i);
   assert.match(worker, /url\.pathname\.startsWith\('\/my-shiloh\/api\/'\)/);
 });

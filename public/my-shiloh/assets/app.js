@@ -253,7 +253,18 @@
     if (clientProfileMobile) clientProfileMobile.textContent = String(profile.mobile || 'Verified with WhatsApp');
     clientProfileRevision = profile.revision;
     setClientProfileBusy(false);
-    setClientProfileStatus('Your details are ready.', 'success');
+    if (profile.registrationComplete === true) {
+      setClientProfileStatus('Your registration details are complete.', 'success');
+    } else {
+      const missing = [
+        !profile.dateOfBirth ? 'date of birth' : '',
+        !profile.gender ? 'gender' : '',
+      ].filter(Boolean);
+      setClientProfileStatus(
+        `Add your ${missing.join(' and ') || 'missing details'} to finish registration and unlock your R100 voucher.`,
+        'error',
+      );
+    }
     return true;
   }
 
@@ -415,6 +426,11 @@
         whatsappHandoffStarted = false;
         setAuthControlsDisabled(false);
         setAuthStatus(data.error || 'This sign-in has expired. Please start again.', 'error');
+        return;
+      }
+      if (!response.ok && whatsappHandoffStarted) {
+        setAuthControlsDisabled(false);
+        setAuthStatus('Automatic sign-in did not finish. Enter the 6-digit fallback code from Shiloh.', 'error');
       }
     } catch (_) {
       if (whatsappHandoffStarted) scheduleAuthStatusCheck(2500);
@@ -425,6 +441,10 @@
 
   function welcomeBackFromWhatsApp() {
     if (appFrame?.dataset.clientAuthenticated === 'true') return;
+    if (whatsappHandoffStarted) {
+      window.clearTimeout(authStatusTimer);
+      authStatusCheckInFlight = false;
+    }
     authActionInFlight = false;
     setAuthControlsDisabled(false);
     if (whatsappHandoffStarted) {
@@ -909,6 +929,7 @@
   }));
 
   window.addEventListener('pageshow', welcomeBackFromWhatsApp);
+  window.addEventListener('focus', welcomeBackFromWhatsApp);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') welcomeBackFromWhatsApp();
   });

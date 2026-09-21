@@ -47,6 +47,9 @@ test('redemption is guarded, client-confirmed and gives recovery steps', () => {
   const routes = read('src/routes/myShiloh.js');
   const app = read('public/my-shiloh/assets/app.js');
   assert.match(service, /profile_status === 'registered'/);
+  assert.match(service, /eligibleVoucher = synced\.progress\.complete \? synced\.voucher : null/);
+  assert.match(service, /loadAuthority\(client, clientId, \{ lock: true \}\)/);
+  assert.match(service, /!registrationProgress\(authority\)\.complete/);
   assert.match(service, /package_session_redemptions/);
   assert.match(service, /appointment_group_members/);
   assert.match(service, /WELCOME_VOUCHER_BALANCE_TOO_LOW/);

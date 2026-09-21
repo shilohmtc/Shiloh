@@ -249,6 +249,23 @@ async function runViewport(browser, name, viewport) {
     throw new Error('authenticated client experience missing');
   }
 
+  await page.locator('[data-view-target="profile"]').click();
+  const profileGeometry = await page.evaluate(() => {
+    const card = document.querySelector('.profile-editor');
+    const date = document.querySelector('#profile-date-of-birth');
+    const cardBox = card?.getBoundingClientRect();
+    const dateBox = date?.getBoundingClientRect();
+    return {
+      viewport: window.innerWidth,
+      document: document.documentElement.scrollWidth,
+      contained: Boolean(cardBox && dateBox && dateBox.left >= cardBox.left && dateBox.right <= cardBox.right),
+    };
+  });
+  if (profileGeometry.document > profileGeometry.viewport || !profileGeometry.contained) {
+    throw new Error('personal details fields overflowed the profile card');
+  }
+  await page.screenshot({ path: path.join(out, `${name}-profile.png`), fullPage: true });
+
   const cookies = await context.cookies(baseUrl);
   const sessionCookie = cookies.find((cookie) => cookie.name === 'shiloh_client_session');
   if (!sessionCookie || sessionCookie.httpOnly !== true || sessionCookie.sameSite !== 'Strict') {

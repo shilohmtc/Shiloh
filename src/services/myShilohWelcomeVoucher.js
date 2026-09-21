@@ -143,11 +143,12 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
   async function getClientModel({ crmV2ClientId } = {}) {
     const clientId = positiveId(crmV2ClientId, 'client');
     const synced = await syncGrant({ crmV2ClientId: clientId });
+    const eligibleVoucher = synced.progress.complete ? synced.voucher : null;
     return {
       version: 'my_shiloh_welcome_voucher_v1',
       eligibility: synced.progress,
-      voucher: publicVoucher(synced.voucher),
-      eligibleBookings: await eligibleBookings(clientId, synced.voucher),
+      voucher: publicVoucher(eligibleVoucher),
+      eligibleBookings: await eligibleBookings(clientId, eligibleVoucher),
       terms: [...WELCOME_VOUCHER_TERMS],
     };
   }
@@ -168,6 +169,10 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
       if (!session) throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_SESSION_EXPIRED', 'Your secure session has expired.', 401, ['Sign in again with WhatsApp.', 'Return to your R100 voucher card.']);
       const replay = (await client.query(`SELECT amount FROM booking_welcome_voucher_allocations WHERE operation_key=$1`, [`welcome:${key}`])).rows[0];
       if (replay) { await client.query('COMMIT'); return { status: 'idempotent_replay', amount: Number(replay.amount) }; }
+      const authority = await loadAuthority(client, clientId, { lock: true });
+      if (!authority || !registrationProgress(authority).complete) {
+        throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_NOT_UNLOCKED', 'Complete your registration to unlock your R100 voucher.', 409, ['Open Profile in My Shiloh.', 'Add your date of birth and gender, then save your personal details.']);
+      }
       const voucher = (await client.query(
         `SELECT * FROM my_shiloh_welcome_vouchers WHERE crm_v2_client_id=$1 FOR UPDATE`,
         [clientId],
