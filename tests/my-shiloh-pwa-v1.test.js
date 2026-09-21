@@ -33,6 +33,7 @@ test('My Shiloh renders the approved four-tab PWA shell with public-safe service
   const html = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue });
   assert.match(html, /<title>My Shiloh<\/title>/);
   assert.match(html, /rel="manifest" href="\/my-shiloh\/manifest\.webmanifest"/);
+  assert.match(html, /rel="apple-touch-icon" sizes="180x180" href="\/my-shiloh\/assets\/apple-touch-icon-180\.png/);
   assert.match(html, new RegExp(`app\\.css\\?v=${MY_SHILOH_ASSET_VERSION}`));
   assert.match(html, new RegExp(`app\\.js\\?v=${MY_SHILOH_ASSET_VERSION}`));
   assert.match(html, /brand-mark--header/);
@@ -84,7 +85,7 @@ test('PWA manifest is standalone and scoped to My Shiloh', () => {
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v11/);
+  assert.match(worker, /my-shiloh-shell-v12/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /url\.pathname === '\/my-shiloh\/assets\/app\.css'[\s\S]*fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);

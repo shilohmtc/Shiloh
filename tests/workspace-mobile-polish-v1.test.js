@@ -136,7 +136,7 @@ test('Phone drawer keeps its brand, close control and account footer contained',
   assert.match(css, /\.workspace-drawer-header \.workspace-brand-icon\{flex-basis:36px;width:36px;height:36px/);
   assert.match(css, /\.workspace-links\{[^}]*min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain/);
   assert.match(css, /\.workspace-account\{margin-top:0\}/);
-  assert.match(css, /\.workspace-brand-icon\{[^}]*url\('\/calendar\/pwa\/icon-192\.png\?v=official-brand-v1'\)[^}]*url\('\/assets\/pwa\/shiloh-pwa-192\.png\?v=official-brand-v1'\)/);
+  assert.match(css, /\.workspace-brand-icon\{[^}]*url\('\/calendar\/pwa\/icon-192\.png\?v=official-brand-v2'\)[^}]*url\('\/assets\/pwa\/shiloh-pwa-192\.png\?v=official-brand-v2'\)/);
   assert.match(html, /class="workspace-brand-icon" aria-hidden="true"/);
   assert.doesNotMatch(html, /<img[^>]+workspace/);
 });

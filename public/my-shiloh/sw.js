@@ -1,8 +1,8 @@
 'use strict';
 
-const ASSET_VERSION = '20260921-1082';
-const SHELL_CACHE = 'my-shiloh-shell-v11';
-const STATIC_CACHE = 'my-shiloh-static-v11';
+const ASSET_VERSION = '20260921-official-brand-v2';
+const SHELL_CACHE = 'my-shiloh-shell-v12';
+const STATIC_CACHE = 'my-shiloh-static-v12';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',
@@ -11,6 +11,7 @@ const SHELL = [
   '/my-shiloh/assets/icon-192.png',
   '/my-shiloh/assets/icon-512.png',
   '/my-shiloh/assets/icon-maskable-512.png',
+  '/my-shiloh/assets/apple-touch-icon-180.png',
 ];
 
 self.addEventListener('install', (event) => {
