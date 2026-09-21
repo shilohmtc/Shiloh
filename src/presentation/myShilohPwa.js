@@ -6,6 +6,8 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 
+const MY_SHILOH_ASSET_VERSION = '20260921-1082';
+
 function escapeHtml(value = '') {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -269,7 +271,7 @@ function renderMyShilohPage({
   <link rel="manifest" href="/my-shiloh/manifest.webmanifest">
   <link rel="icon" href="/my-shiloh/assets/icon-192.png" type="image/png" sizes="192x192">
   <link rel="apple-touch-icon" href="/my-shiloh/assets/icon-192.png">
-  <link rel="stylesheet" href="/my-shiloh/assets/app.css">
+  <link rel="stylesheet" href="/my-shiloh/assets/app.css?v=${MY_SHILOH_ASSET_VERSION}">
   <title>My Shiloh</title>
 </head>
 <body>
@@ -395,7 +397,7 @@ function renderMyShilohPage({
     </section>
   </div>
 
-  <script src="/my-shiloh/assets/app.js" defer></script>
+  <script src="/my-shiloh/assets/app.js?v=${MY_SHILOH_ASSET_VERSION}" defer></script>
 </body>
 </html>`;
 }
@@ -409,4 +411,5 @@ module.exports = {
   renderMyShilohPage,
   PUBLIC_BRAND_NAME,
   PUBLIC_TAGLINE,
+  MY_SHILOH_ASSET_VERSION,
 };
