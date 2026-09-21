@@ -10,6 +10,7 @@ const {
 const {
   decoratePhoneCalendarV2,
   renderPhoneCalendarControls,
+  renderPhoneMonthNavigation,
   phoneCalendarV2Styles,
   phoneFirstPaintStyles,
   calendarPhoneCompactV2ClientScript,
@@ -44,7 +45,7 @@ function model(view = 'week') {
     view,
     dateKey: '2026-09-11',
     period: view === 'month'
-      ? { dateKeys: ['2026-09-11', '2026-09-24'], startKey: '2026-09-01' }
+      ? { dateKeys: ['2026-09-11', '2026-09-24'], startKey: '2026-09-01', previousAnchor: '2026-08-01', nextAnchor: '2026-10-01' }
       : { dateKeys: ['2026-09-07','2026-09-08','2026-09-09','2026-09-10','2026-09-11','2026-09-12'] },
     activeStaffId: 51,
     visibleStaffIds: [51,52,53],
@@ -88,6 +89,16 @@ test('Phone controls expose Week, Agenda and Month, preserve all visible staff, 
   assert.match(html, /staff=51&amp;staff=52&amp;staff=53&amp;activeStaff=52/);
   assert.match(html, /Public holiday — Heritage Day/);
   assert.match(html, /view=week&amp;date=2026-09-24/);
+});
+
+test('Phone Month navigation is server-rendered with canonical adjacent-month anchors', () => {
+  const html = renderPhoneMonthNavigation(model('month'), { basePath: '/calendar/read-only' });
+  assert.match(html, /data-phone-month-navigation/);
+  assert.match(html, /data-phone-month-label>September 2026<\/strong>/);
+  assert.match(html, /data-phone-month-nav="previous"[^>]*date=2026-08-01/);
+  assert.match(html, /data-phone-month-nav="next"[^>]*date=2026-10-01/);
+  assert.match(html, /staff=51&amp;staff=52&amp;staff=53&amp;activeStaff=51/);
+  assert.match(phoneCalendarV2Styles(), /phone-month-nav\{[^}]*min-width:44px;min-height:44px/);
 });
 
 test('Phone Week Planner renders Mon-Sat strip and all permitted practitioner toggles without creating scheduling authority', () => {
