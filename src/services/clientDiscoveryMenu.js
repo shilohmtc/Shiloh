@@ -2,8 +2,9 @@ const { pool } = require('../db/pool');
 const { formatPrice, formatDuration } = require('./serviceCatalogue');
 const { listClientBookableStaff } = require('./clientBookingStaffGuard');
 const { processBookingMessage, getIntent, clearIntent } = require('./bookingIntent');
-const { decorateClientBookingResult } = require('./clientBookingInteractive');
+const { bookingDiscoveryInteractive, decorateClientBookingResult } = require('./clientBookingInteractive');
 const { compactListTitle, fullLabelDescription } = require('../presentation/whatsappListRowPresentation');
+const { publicServiceNameFor } = require('./publicPresentation');
 const {
   MY_SHILOH_WELCOME_VOUCHER_URL,
   clientHomeInteractive,
@@ -26,6 +27,43 @@ function isGreeting(text = '') {
 function isHomeCommand(text = '') {
   const value = clean(text).toLowerCase();
   return isGreeting(text) || ['menu', 'home', 'back', 'client menu', 'main menu'].includes(value);
+}
+
+function welcomeVoucherRequestedService(text = '') {
+  const match = clean(text).match(/\bi(?:'d| would) like to book\s+(.+?)(?:(?:[.!?]\s+I also want to)|(?:\s+and))\s+use my R100 My Shiloh welcome voucher\b/i);
+  return match?.[1] ? clean(match[1]).replace(/[.!?]+$/, '') : null;
+}
+
+function comparableServiceName(value = '') {
+  return clean(value).normalize('NFKC').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function selectClientBookableServiceByName(rows = [], requestedName = '') {
+  const requested = comparableServiceName(requestedName);
+  if (!requested) return null;
+  const matches = rows.filter((row) => [row.name, publicServiceNameFor(row.name)].some((name) => comparableServiceName(name) === requested));
+  return matches.length === 1 ? matches[0] : null;
+}
+
+async function findClientBookableServiceByName(requestedName) {
+  return selectClientBookableServiceByName(await listClientBookableServices(), requestedName);
+}
+
+async function selectedServicePractitioners(sender, requestedName) {
+  const service = await findClientBookableServiceByName(requestedName);
+  if (!service) {
+    return { handled: true, reply: 'That treatment is no longer available for direct client booking. Choose another treatment from Shiloh’s current list.' };
+  }
+  const staged = await processBookingMessage(sender, `Book ${service.name}`);
+  const eligible = await listEligiblePractitionersForService(service.id);
+  if (!eligible.length) {
+    return { handled: true, reply: 'No client-bookable practitioner is currently mapped to that treatment. Nothing has been booked.' };
+  }
+  return {
+    handled: true,
+    intent: staged.intent,
+    interactive: eligiblePractitionersInteractive({ ...service, name: publicServiceNameFor(service.name) }, eligible),
+  };
 }
 
 function isSqtBioMicroneedlingCategory(name = '') {
@@ -438,6 +476,15 @@ async function processClientDiscoveryMessage(sender, text) {
     return { handled: true, reply: welcomeVoucherReply() };
   }
 
+  const voucherTreatment = welcomeVoucherRequestedService(raw);
+  if (voucherTreatment) return selectedServicePractitioners(sender, voucherTreatment);
+
+  if (value === 'client_selected_service_practitioners') {
+    const existing = await getIntent(sender);
+    if (!existing?.service_text) return { handled: true, interactive: bookingDiscoveryInteractive() };
+    return selectedServicePractitioners(sender, existing.service_text);
+  }
+
   if (['client_browse_services', 'browse services', 'services', 'list treatments', 'list services', 'treatments'].includes(value)) {
     const categories = await listClientBookableCategories();
     if (!categories.length) {
@@ -629,6 +676,8 @@ module.exports = {
   practitionerServicePageInteractive,
   practitionersInteractive,
   processClientDiscoveryMessage,
+  selectClientBookableServiceByName,
   servicePageInteractive,
+  welcomeVoucherRequestedService,
   welcomeVoucherReply,
 };

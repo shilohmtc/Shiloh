@@ -7,7 +7,7 @@ const discoveryPath = path.join(__dirname, '..', 'src', 'services', 'clientDisco
 const webhookPath = path.join(__dirname, '..', 'src', 'controllers', 'webhookController.js');
 const source = fs.readFileSync(discoveryPath, 'utf8');
 const webhook = fs.readFileSync(webhookPath, 'utf8');
-const { clientHomeInteractive, isHomeCommand, processClientDiscoveryMessage, servicePageInteractive, welcomeVoucherReply, SERVICE_PAGE_SIZE } = require(discoveryPath);
+const { clientHomeInteractive, isHomeCommand, processClientDiscoveryMessage, selectClientBookableServiceByName, servicePageInteractive, welcomeVoucherReply, welcomeVoucherRequestedService, SERVICE_PAGE_SIZE } = require(discoveryPath);
 
 test('client home uses exactly three genuine WhatsApp reply-button actions', () => {
   const home = clientHomeInteractive();
@@ -40,6 +40,24 @@ test('R100 first action is handled before catalogue or booking queries', async (
   assert.equal(result.handled, true);
   assert.equal(result.reply, welcomeVoucherReply());
   assert.equal(result.interactive, undefined);
+});
+
+test('My Shiloh voucher handoff preserves the selected treatment and bypasses treatment re-selection', () => {
+  const message = "Hi Shiloh 👋 I'd like to book Quick Relief – Back & Neck. I also want to use my R100 My Shiloh welcome voucher. Please help me choose an available time.";
+  assert.equal(welcomeVoucherRequestedService(message), 'Quick Relief – Back & Neck');
+  const service = selectClientBookableServiceByName([
+    { id: 7, name: 'Quick Relief: Back & Neck (45 min)' },
+    { id: 8, name: 'Facial' },
+  ], welcomeVoucherRequestedService(message));
+  assert.equal(service?.id, 7);
+  assert.match(source, /voucherTreatment[\s\S]*selectedServicePractitioners\(sender, voucherTreatment\)/);
+  assert.match(source, /listEligiblePractitionersForService\(service\.id\)/);
+});
+
+test('service-scoped practitioner recovery replaces the misleading full-team fallback', () => {
+  assert.match(source, /client_selected_service_practitioners/);
+  assert.match(source, /selectedServicePractitioners\(sender, existing\.service_text\)/);
+  assert.doesNotMatch(source, /Shiloh’s client-facing treatment team/);
 });
 
 test('client home escape aliases include Back, Menu and Home', () => {
