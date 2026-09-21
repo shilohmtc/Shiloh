@@ -41,7 +41,7 @@ test('shared Workspace shell replaces the Phone bottom bar with a hidden left dr
   const css = workspaceShellStyles();
   assert.match(css, /@media\(max-width:700px\)/);
   assert.match(css, /\.workspace-nav\{position:fixed;inset:0 auto 0 0/);
-  assert.match(css, /z-index:80;display:flex;align-items:stretch;width:min\(64vw,240px\);max-width:calc\(100vw - 16px\)/);
+  assert.match(css, /z-index:80;display:flex;align-items:stretch;width:min\(60vw,220px\);max-width:calc\(100vw - 16px\)/);
   assert.doesNotMatch(css, /width:clamp\(176px,48vw,190px\)/);
   assert.match(css, /position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto/);
   assert.match(css, /transform:translateX\(-105%\)/);
@@ -130,7 +130,7 @@ test('Phone drawer supports close, backdrop, Escape and contained keyboard focus
 test('Phone drawer keeps its brand, close control and account footer contained', () => {
   const css = workspaceShellStyles();
   const html = renderWorkspaceNavigation({ active: 'dashboard', displayName: 'Jean-Pierre' });
-  assert.match(css, /\.workspace-nav\{position:fixed;inset:0 auto 0 0[^}]*width:min\(64vw,240px\)[^}]*overflow:hidden/);
+  assert.match(css, /\.workspace-nav\{position:fixed;inset:0 auto 0 0[^}]*width:min\(60vw,220px\)[^}]*overflow:hidden/);
   assert.doesNotMatch(css, /width:clamp\(176px,48vw,190px\)/);
   assert.match(css, /\.workspace-drawer-header\{[^}]*min-width:0;flex:0 0 auto/);
   assert.match(css, /\.workspace-drawer-header \.workspace-brand-icon\{flex-basis:36px;width:36px;height:36px/);
