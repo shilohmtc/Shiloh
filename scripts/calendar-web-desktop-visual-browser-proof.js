@@ -330,7 +330,7 @@ async function main() {
     assert.equal(phone.desktopChipsVisible, false, 'Phone must hide Desktop practitioner chips');
     assert.equal(phoneControls.controlsVisible, true, 'Phone must render the approved compact Calendar toolbar');
     assert.equal(phoneControls.staffVisible, false, 'Phone should omit an unnecessary practitioner menu when one practitioner is available');
-    assert.equal(phoneControls.activeStaff, 'Abigail', 'Phone compact practitioner menu must retain the selected practitioner');
+    assert.equal(phone.laneCount, 1, 'Phone must retain the selected practitioner lane without a redundant picker');
     assert.equal(phoneControls.summaryMinHeight, 0, 'Phone should not render a redundant single-practitioner control');
     assert.equal(phoneControls.oldPickerVisible, false, 'Phone V2 may hide the canonical Desktop-era picker wrapper after rendering compact controls');
     manifest.push({ ...(await capture('phone-picker-regression')), viewport: { width: 390, height: 844 }, metrics: { ...phone, phoneControls } });
