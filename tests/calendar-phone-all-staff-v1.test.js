@@ -21,6 +21,7 @@ test('#895 staff chips toggle persistent named columns instead of mutually-exclu
   const script = calendarPhoneAllStaffClientScript();
   assert.match(script, /phone-staff-column-header/);
   assert.match(script, /phone-staff-column-name/);
+  assert.match(script, /planner\?\.parentNode\?\.insertBefore\(columnHeader,planner\.nextSibling\)/);
   assert.match(script, /selectedIds=selectedIds\.includes\(id\)\?selectedIds\.filter/);
   assert.match(script, /staffButtons\.forEach\(button=>button\.addEventListener\('click'/);
   assert.match(script, /event\.stopImmediatePropagation\(\)/);
@@ -42,33 +43,27 @@ test('#895 visible events are laid out inside their selected practitioner column
   assert.doesNotMatch(script, /scrollLeft/);
 });
 
-test('#895 week strip carries compact month context and no large duplicate day heading', () => {
+test('#895 client behavior consumes the server-rendered week strip without rebuilding navigation', () => {
   const script = calendarPhoneAllStaffClientScript();
-  assert.match(script, /function addMonthContext\(\)/);
-  assert.match(script, /phone-week-month-context/);
-  assert.match(script, /Intl\.DateTimeFormat\('en-ZA',\{month:'short'\}\)/);
+  assert.doesNotMatch(script, /function addMonthContext\(\)|function addWeekNavigation\(\)/);
+  assert.match(script, /\[data-phone-week-nav\]/);
   assert.doesNotMatch(script, /phone-calendar-day-context/);
   assert.doesNotMatch(script, /formatActiveDate/);
 });
 
-test('#895 Phone Calendar keeps direct Week Month and Appointment hierarchy with contextual Today', () => {
+test('#895 Phone Calendar enhancement no longer constructs or relocates the primary toolbar', () => {
   const script = calendarPhoneAllStaffClientScript();
-  assert.match(script, /phone-calendar-utility-bar/);
-  assert.match(script, /\['week','Week'\],\['month','Month'\]/);
-  assert.match(script, /phone-calendar-today-link/);
-  assert.match(script, /if\(!alreadyToday\)nav\.appendChild\(today\)/);
-  assert.match(script, /phone-calendar-primary-action/);
-  assert.match(script, /\.phone-calendar-v2-controls,\.phone-calendar-v2-actions\{display:none!important\}/);
+  assert.doesNotMatch(script, /function buildUtilityBar\(\)/);
+  assert.doesNotMatch(script, /appendChild\(plus\)|insertBefore\(bar/);
+  assert.doesNotMatch(script, /document\.createElement\('nav'\)/);
+  assert.match(script, /\[data-phone-calendar-direct-view\]/);
 });
 
-test('#895 Today is absent on todays Week and returns away states to todays Week', () => {
+test('#895 server-owned Today links remain part of persisted multi-staff navigation state', () => {
   const script = calendarPhoneAllStaffClientScript();
-  assert.match(script, /function todayWeekHref\(\)/);
-  assert.match(script, /url\.searchParams\.set\('view','week'\)/);
-  assert.match(script, /currentDate=String\(body\.dataset\.phoneActiveDate/);
-  assert.match(script, /alreadyToday=currentView\(\)==='week'/);
-  assert.match(script, /if\(!alreadyToday\)nav\.appendChild\(today\)/);
-  assert.doesNotMatch(script, /aria-disabled/);
+  assert.match(script, /\[data-phone-calendar-today\]/);
+  assert.match(script, /function syncModeLinks\(\)/);
+  assert.doesNotMatch(script, /function todayWeekHref\(\)|createElement\('a'\)/);
 });
 
 test('#895 Week fits 07:00 to 18:00 into the dynamic phone viewport without vertical panning', () => {

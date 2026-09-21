@@ -2,69 +2,87 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 
+const {
+  phoneCalendarV2Styles,
+  renderPhoneCalendarUtilityBar,
+  renderPhoneMonthNavigation,
+  renderPhoneWeekPlannerHeader,
+} = require('../src/presentation/calendarPhoneCompactV2');
 const { calendarPhoneAllStaffClientScript } = require('../src/presentation/calendarPhoneAllStaffUx');
 
-test('Phone Week adds previous and next week navigation beside the dates', () => {
-  const script = calendarPhoneAllStaffClientScript();
-  assert.doesNotThrow(() => new vm.Script(script));
-  assert.match(script, /function addWeekNavigation\(\)/);
-  assert.match(script, /function shiftedWeekHref\(offset\)/);
-  assert.match(script, /date\.setUTCDate\(date\.getUTCDate\(\)\+offset\)/);
-  assert.match(script, /make\('previous',-7,'Previous week','‹'\)/);
-  assert.match(script, /make\('next',7,'Next week','›'\)/);
-  assert.match(script, /data-phone-week-navigation/);
-  assert.match(script, /\[data-phone-week-nav\]/);
+function model(view = 'week') {
+  const staff = [
+    { id: 51, displayName: 'Amber Room' },
+    { id: 52, displayName: 'Birch Room' },
+  ];
+  return {
+    view,
+    dateKey: '2026-09-11',
+    period: view === 'month'
+      ? { dateKeys: [], startKey: '2026-09-01', previousAnchor: '2026-08-01', nextAnchor: '2026-10-01' }
+      : { dateKeys: ['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-10', '2026-09-11', '2026-09-12'] },
+    activeStaffId: 51,
+    visibleStaffIds: [51, 52],
+    permittedStaff: staff,
+    timeline: { staff },
+    mutationCapability: { enabled: false },
+  };
+}
+
+test('Phone Week navigation is server-rendered beside the dates', () => {
+  const html = renderPhoneWeekPlannerHeader(model(), { basePath: '/calendar/read-only' });
+  assert.match(html, /data-phone-week-month-context>Sept<\/span>/);
+  assert.match(html, /data-phone-week-nav="previous"[^>]*date=2026-09-04/);
+  assert.match(html, /data-phone-week-nav="next"[^>]*date=2026-09-18/);
+  assert.match(html, /data-phone-week-navigation="true"/);
+  assert.equal((html.match(/data-phone-week-date=/g) || []).length, 6);
 });
 
-test('Phone Month adds a labelled previous and next month navigator above the grid', () => {
-  const script = calendarPhoneAllStaffClientScript();
-  assert.doesNotThrow(() => new vm.Script(script));
-  assert.match(script, /function addMonthNavigation\(\)/);
-  assert.match(script, /function shiftedMonthHref\(offset\)/);
-  assert.match(script, /make\('previous',-1,'Previous month','‹'\)/);
-  assert.match(script, /make\('next',1,'Next month','›'\)/);
-  assert.match(script, /phoneMonthNavigation='true'/);
-  assert.match(script, /phoneMonthLabel='true'/);
-  assert.match(script, /phone-month-nav\{[^}]*min-width:44px;min-height:44px/);
-  assert.match(script, /phone-month-nav\[data-phone-month-nav="previous"\]\{transform:translateX\(8px\)\}/);
-  assert.match(script, /\[data-phone-month-nav\]/);
+test('Phone Month navigation is server-rendered with accessible adjacent-month links', () => {
+  const html = renderPhoneMonthNavigation(model('month'), { basePath: '/calendar/read-only' });
+  const css = phoneCalendarV2Styles();
+  assert.match(html, /data-phone-month-navigation/);
+  assert.match(html, /data-phone-month-label>September 2026<\/strong>/);
+  assert.match(html, /data-phone-month-nav="previous"[^>]*date=2026-08-01/);
+  assert.match(html, /data-phone-month-nav="next"[^>]*date=2026-10-01/);
+  assert.match(css, /phone-month-nav\{[^}]*min-width:44px;min-height:44px/);
+  assert.match(css, /phone-month-nav\[data-phone-month-nav="previous"\]\{transform:translateX\(8px\)\}/);
 });
 
-test('Phone Week moves multi-select staff controls into a compact dropdown beside Month', () => {
+test('approved Phone toolbar and staff dropdown are emitted directly by the server', () => {
+  const html = renderPhoneCalendarUtilityBar(model(), { basePath: '/calendar/read-only', bookingAllowed: false });
   const script = calendarPhoneAllStaffClientScript();
-  assert.match(script, /phone-staff-menu-mount/);
-  assert.match(script, /phone-week-staff-strip\{display:none!important\}/);
+  assert.match(html, /data-phone-calendar-utility-bar/);
+  assert.match(html, /data-phone-calendar-direct-view="week"/);
+  assert.match(html, /data-phone-calendar-direct-view="month"/);
+  assert.match(html, /data-phone-staff-menu/);
+  assert.match(html, /data-phone-week-staff-all="true"/);
+  assert.match(html, /data-phone-week-staff-id="51"/);
+  assert.doesNotMatch(script, /function buildUtilityBar|function addMonthNavigation|function addWeekNavigation/);
+  assert.doesNotMatch(script, /document\.createElement\('details'\)/);
   assert.match(script, /function installStaffMenu\(\)/);
-  assert.match(script, /summary\.textContent='Staff'/);
-  assert.match(script, /panel\.appendChild\(allButton\)/);
-  assert.match(script, /staffButtons\.forEach\(button=>panel\.appendChild\(button\)\)/);
-  assert.match(script, /phone-staff-menu-panel\{[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
-  assert.match(script, /phone-staff-menu-panel \.phone-week-staff-toggle\{[^}]*min-height:40px!important/);
-  assert.match(script, /staffMenuSummary\.setAttribute\('aria-label'/);
+  assert.match(script, /querySelector\('\[data-phone-staff-menu\]'\)/);
 });
 
-test('Phone Week keeps compact controls, offset tabs, subtle hourly guides, and named staff columns', () => {
+test('Phone toolbar geometry is present before enhancement and behavior remains valid JavaScript', () => {
+  const css = phoneCalendarV2Styles();
   const script = calendarPhoneAllStaffClientScript();
-  assert.match(script, /phone-calendar-utility-bar\{[^}]*min-height:40px/);
-  assert.match(script, /phone-calendar-view-nav\{[^}]*margin-left:10px/);
-  assert.match(script, /phone-calendar-view-link,.phone-calendar-today-link\{[^}]*min-height:38px/);
-  assert.match(script, /phone-week-nav\{[^}]*min-height:36px/);
-  assert.match(script, /phone-week-date\{[^}]*min-height:36px!important/);
+  assert.doesNotThrow(() => new vm.Script(script));
+  assert.match(css, /phone-calendar-utility-bar\{[^}]*min-height:40px/);
+  assert.match(css, /phone-calendar-view-nav\{[^}]*margin-left:10px/);
+  assert.match(css, /phone-calendar-view-link,.phone-calendar-today-link\{[^}]*min-height:38px/);
+  assert.match(css, /body\[data-phone-calendar-v2="true"\] \.phone-calendar-view-link,[^}]*min-height:44px!important/);
+  assert.match(css, /phone-week-nav\{[^}]*min-height:36px/);
+  assert.match(css, /phone-week-date\{[^}]*min-height:36px/);
   assert.match(script, /phone-staff-column-name\{[^}]*min-height:30px/);
-  assert.match(script, /week-time-grid\{[^}]*border-top:1px solid var\(--line-strong\)!important[^}]*border-bottom:1px solid var\(--line-strong\)!important/);
-  assert.match(script, /time-column\{[^}]*background:var\(--phone-staff-column-tints,#fff\)!important[^}]*border-right:1px solid var\(--line-strong\)!important/);
-  assert.match(script, /time-column:before\{[^}]*repeating-linear-gradient\(to bottom[^}]*var\(--line\)[^}]*calc\(100% \/ 11\)[^}]*!important/);
   assert.match(script, /Math\.max\(30,eventHeight\*ratio\)/);
 });
 
-test('Phone Week uses subtle staff identity tints in the dropdown, headers, and column backgrounds', () => {
+test('Phone Week keeps staff identity tints and column geometry as bounded client behavior', () => {
   const script = calendarPhoneAllStaffClientScript();
   assert.match(script, /const staffPalette=\[/);
   assert.match(script, /function staffTone\(id\)/);
   assert.match(script, /function applyStaffTone\(node,id\)/);
-  assert.match(script, /data-phone-staff-toned="true"/);
-  assert.match(script, /phone-staff-menu-panel \.phone-week-staff-toggle\[data-phone-staff-toned="true"\]/);
-  assert.match(script, /phone-staff-column-name\[data-phone-staff-toned="true"\]/);
   assert.match(script, /--phone-staff-column-tints/);
-  assert.match(script, /tints\.length\?'linear-gradient\(to right,'\+tints\.join\(','\)\+'\)'/);
+  assert.match(script, /function layoutStaffGroup\(nodes,columnIndex,columnCount\)/);
 });

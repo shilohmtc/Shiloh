@@ -9,6 +9,11 @@ const { spawn } = require('node:child_process');
 const { once } = require('node:events');
 const express = require('express');
 const { calendarPhoneAllStaffClientScript } = require('../src/presentation/calendarPhoneAllStaffUx');
+const {
+  renderPhoneCalendarUtilityBar,
+  renderPhoneMonthNavigation,
+  renderPhoneWeekPlannerHeader,
+} = require('../src/presentation/calendarPhoneCompactV2');
 
 const OUT_DIR = path.join(process.cwd(), 'artifacts', 'calendar-phone-viewport-fit-v1');
 const TODAY = '2026-09-11';
@@ -84,19 +89,35 @@ async function evaluate(cdp, expression) {
   return result.result?.value;
 }
 
-function weekMarkup() {
+function proofModel(view, date) {
   const people = [
     ['51', 'Abigail'], ['52', 'Christel'], ['53', 'Ilince'], ['54', 'Marietjie'], ['55', 'Naomi'], ['56', 'Pieter'], ['57', 'Savanna'],
   ];
-  const buttons = people.map(([id, name]) => `<button class="phone-week-staff-toggle" data-phone-week-staff-id="${id}" data-phone-week-staff-rendered="true" aria-pressed="false">${name}</button>`).join('');
-  const dates = [['2026-09-07','Mon 7'],['2026-09-08','Tue 8'],['2026-09-09','Wed 9'],['2026-09-10','Thu 10'],['2026-09-11','Fri 11'],['2026-09-12','Sat 12']]
-    .map(([date,label]) => `<a class="phone-week-date${date === TODAY ? ' active' : ''}" data-phone-week-date="${date}" href="/?view=week&date=${date}">${label}</a>`).join('');
+  const staff = people.map(([id, displayName]) => ({ id: Number(id), displayName }));
+  return {
+    view,
+    dateKey: date,
+    activeStaffId: 51,
+    visibleStaffIds: staff.map(person => person.id),
+    permittedStaff: staff,
+    timeline: { staff },
+    period: {
+      startKey: '2026-09-01',
+      previousAnchor: '2026-08-01',
+      nextAnchor: '2026-10-01',
+      dateKeys: ['2026-09-07','2026-09-08','2026-09-09','2026-09-10','2026-09-11','2026-09-12'],
+    },
+  };
+}
+
+function weekMarkup(model) {
+  const people = model.permittedStaff.map(person => [String(person.id), person.displayName]);
   const hours = Array.from({ length: 14 }, (_, i) => {
     const hour = 7 + i;
     return `<span style="--phone-grid-top:${i * 60}px">${String(hour).padStart(2,'0')}:00</span>`;
   }).join('');
   const events = people.slice(0, 3).map(([id, name], index) => `<div class="positioned-event" data-proof-event="${id}" style="--phone-event-top:${120 + index * 75}px;--phone-event-height:60px"><article class="event-card" data-event-staff-ids="${id}"><span class="event-time">${String(9 + index).padStart(2,'0')}:00</span><h4>Client ${index + 1}</h4><span class="event-meta event-practitioners"><span class="event-practitioner-full">${name}</span><span class="event-practitioner-compact">${name}</span></span></article></div>`).join('');
-  return `<section class="phone-week-planner-header"><nav class="phone-week-date-strip">${dates}</nav><div class="phone-week-staff-strip">${buttons}</div></section><div class="week-time-grid"><aside class="time-rail">${hours}</aside><div class="week-grid"><section class="week-day week-date-lane" data-week-date-lane data-phone-active-day="true" data-date="${TODAY}"><div class="time-column">${events}</div></section></div></div>`;
+  return `${renderPhoneWeekPlannerHeader(model, { basePath: '/' })}<div class="week-time-grid"><aside class="time-rail">${hours}</aside><div class="week-grid"><section class="week-day week-date-lane" data-week-date-lane data-phone-active-day="true" data-date="${model.dateKey}"><div class="time-column">${events}</div></section></div></div>`;
 }
 
 function monthMarkup() {
@@ -106,10 +127,13 @@ function monthMarkup() {
 
 function fixtureHtml(view, date) {
   const script = calendarPhoneAllStaffClientScript().replace(/<\/script/gi, '<\\/script');
-  const planner = view === 'month' ? monthMarkup() : weekMarkup();
+  const model = proofModel(view, date);
+  const utilityBar = renderPhoneCalendarUtilityBar(model, { basePath: '/', todayDate: TODAY });
+  const monthNavigation = renderPhoneMonthNavigation(model, { basePath: '/' });
+  const planner = view === 'month' ? monthMarkup() : weekMarkup(model);
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>
-:root{--line:#d8dfda;--line-strong:#a9b5ad;--leaf:#43805f;--leaf-deep:#275b45;--leaf-soft:#eef5ef;--ink:#20322b;--muted:#69756f}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow-x:hidden;font-family:Arial,sans-serif;color:var(--ink)}.workspace-main>.shell{padding:4px}.phone-calendar-v2-controls,.phone-calendar-v2-actions{display:grid}.phone-week-date-strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px}.phone-week-date{display:grid;place-items:center;min-height:44px}.phone-week-staff-strip{display:flex;gap:3px;overflow-x:auto}.phone-week-staff-toggle{flex:0 0 auto;min-height:44px;padding:6px 9px;border:1px solid var(--line);border-radius:9px;background:#fff}.phone-plus-menu>summary{display:flex;min-height:44px;padding:8px;border:1px solid var(--leaf-deep);border-radius:9px;background:var(--leaf-deep);color:#fff}.calendar-view{width:100%;background:#fff}.week-time-grid{display:grid;grid-template-columns:32px minmax(0,1fr);height:900px;overflow:auto}.time-rail{position:relative;height:900px}.time-rail span{position:absolute;top:var(--phone-grid-top);left:0;font-size:10px}.week-grid{min-width:0}.time-column{position:relative;height:900px;background:repeating-linear-gradient(to bottom,transparent 0,transparent 59px,var(--line) 59px,var(--line) 60px)}.positioned-event{position:absolute;top:var(--phone-event-top);height:var(--phone-event-height);left:2px;width:calc(100% - 4px)}.event-card{height:100%;overflow:hidden;border:1px solid var(--line);background:#fff}.event-card h4,.event-meta{display:block;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.phone-view-option,.phone-today-action{display:block}.month-grid{height:500px}.month-weekdays,.month-days{display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}.month-days{height:450px}.month-day{display:grid;place-items:center;min-height:44px;border:1px solid var(--line)}
-</style></head><body data-phone-calendar-v2="true" data-calendar-view="${view}" data-phone-active-date="${date}" data-phone-booking-path="/book"><main class="workspace-main"><div class="shell"><section class="phone-calendar-v2-controls"><a data-phone-calendar-view="week" class="phone-view-option" href="/?view=week&date=${TODAY}">Week</a><a data-phone-calendar-view="month" class="phone-view-option" href="/?view=month&date=${date}">Month</a></section><div class="phone-calendar-v2-actions"><a class="phone-today-action" href="/?view=week&date=${TODAY}">Today</a><details class="phone-plus-menu"><summary>Appointment</summary></details></div><div class="calendar-view ${view}-view">${planner}</div></div></main><script>
+:root{--line:#d8dfda;--line-strong:#a9b5ad;--leaf:#43805f;--leaf-deep:#275b45;--leaf-soft:#eef5ef;--ink:#20322b;--muted:#69756f}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow-x:hidden;font-family:Arial,sans-serif;color:var(--ink)}.workspace-main>.shell{padding:4px}.phone-calendar-utility-bar{display:grid}.phone-week-date-strip{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:2px}.phone-week-date{display:grid;place-items:center;min-height:44px}.phone-week-staff-strip{display:grid;gap:3px}.phone-week-staff-toggle{min-height:44px;padding:6px 9px;border:1px solid var(--line);border-radius:9px;background:#fff}.phone-plus-menu>summary{display:flex;min-height:44px;padding:8px;border:1px solid var(--leaf-deep);border-radius:9px;background:var(--leaf-deep);color:#fff}.calendar-view{width:100%;background:#fff}.week-time-grid{display:grid;grid-template-columns:32px minmax(0,1fr);height:900px;overflow:auto}.time-rail{position:relative;height:900px}.time-rail span{position:absolute;top:var(--phone-grid-top);left:0;font-size:10px}.week-grid{min-width:0}.time-column{position:relative;height:900px;background:repeating-linear-gradient(to bottom,transparent 0,transparent 59px,var(--line) 59px,var(--line) 60px)}.positioned-event{position:absolute;top:var(--phone-event-top);height:var(--phone-event-height);left:2px;width:calc(100% - 4px)}.event-card{height:100%;overflow:hidden;border:1px solid var(--line);background:#fff}.event-card h4,.event-meta{display:block;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.phone-calendar-view-link,.phone-calendar-today-link{display:block}.month-grid{height:500px}.month-weekdays,.month-days{display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}.month-days{height:450px}.month-day{display:grid;place-items:center;min-height:44px;border:1px solid var(--line)}
+</style></head><body data-phone-calendar-v2="true" data-calendar-view="${view}" data-phone-active-date="${date}" data-phone-booking-path="/book"><main class="workspace-main"><div class="shell">${utilityBar}${monthNavigation}<div class="calendar-view ${view}-view">${planner}</div></div></main><script>
 // Mimic the older fixed-60px/hour bubble handler. The fitted handler must intercept it.
 document.addEventListener('click',event=>{const column=event.target.closest?.('.week-view .time-column');if(!column||event.defaultPrevented)return;const rect=column.getBoundingClientRect();const y=Math.max(0,event.clientY-rect.top);const minutes=Math.round((y/60)*2)*30;location.assign('/wrong-booking?time='+minutes);});
 </script><script>${script}</script></body></html>`;

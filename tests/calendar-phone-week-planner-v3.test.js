@@ -9,7 +9,7 @@ const {
 } = require('../src/services/calendarReadOnlyUx');
 const {
   decoratePhoneCalendarV2,
-  renderPhoneCalendarControls,
+  renderPhoneCalendarUtilityBar,
   renderPhoneMonthNavigation,
   phoneCalendarV2Styles,
   phoneFirstPaintStyles,
@@ -80,15 +80,13 @@ test('normal Calendar selectors retire Day while compatibility rendering remains
   assert.match(dayHtml, /data-view="day"/);
 });
 
-test('Phone controls expose Week, Agenda and Month, preserve all visible staff, and annotate canonical public holidays', () => {
-  const html = renderPhoneCalendarControls(model('week'), { basePath: '/calendar/read-only' });
+test('Phone toolbar exposes the approved Week and Month views while preserving visible staff', () => {
+  const html = renderPhoneCalendarUtilityBar(model('week'), { basePath: '/calendar/read-only' });
   assert.doesNotMatch(html, /data-phone-calendar-view="day"/);
   assert.match(html, /data-phone-calendar-view="week"/);
-  assert.match(html, /data-phone-calendar-view="agenda"/);
   assert.match(html, /data-phone-calendar-view="month"/);
-  assert.match(html, /staff=51&amp;staff=52&amp;staff=53&amp;activeStaff=52/);
-  assert.match(html, /Public holiday — Heritage Day/);
-  assert.match(html, /view=week&amp;date=2026-09-24/);
+  assert.match(html, /staff=51&amp;staff=52&amp;staff=53&amp;activeStaff=51/);
+  assert.match(html, /data-phone-week-staff-id="52"/);
 });
 
 test('Phone Month navigation is server-rendered with canonical adjacent-month anchors', () => {

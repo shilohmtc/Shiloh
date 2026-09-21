@@ -419,6 +419,7 @@ function createCalendarReadOnlyHandler({
         bookingEnabled: bookingAllowed,
         bookingPath,
         desktopEnhancementEnabled: true,
+        approvedPhonePresentation: true,
         operationalActions: [
           ...(bookingAllowed ? bookingOperationalActions(model.dateKey, bookingPath, retrospectiveBookingAllowed, retrospectiveBookingPath) : []),
         ],
