@@ -1,6 +1,40 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 
+test('Workspace vouchers stay contained and selectable on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=shiloh-gift-vouchers--workspace-balances&viewMode=story', { waitUntil:'networkidle' });
+    await page.addScriptTag({ url:'/workspace/gift-vouchers.js' });
+
+    const issued = page.getByRole('heading', { name:'Issued vouchers' });
+    const redeem = page.getByRole('heading', { name:'Redeem a voucher' });
+    await expect(issued).toBeVisible();
+    await expect(redeem).toBeVisible();
+    expect(await issued.evaluate((node) => node.getBoundingClientRect().top)).toBeLessThan(await redeem.evaluate((node) => node.getBoundingClientRect().top));
+
+    await page.getByRole('button', { name:/SV-4A7F31B920CC.*Naledi.*Use this voucher/ }).click();
+    await expect(page.getByLabel('Voucher code')).toHaveValue('SV-4A7F31B920CC');
+    await expect(page.getByLabel('Amount to redeem')).toBeFocused();
+    await expect(page.getByLabel('Amount to redeem')).toHaveAttribute('max', '400.00');
+    await expect(page.getByText('SV-4A7F31B920CC selected. Enter the amount to redeem below.')).toBeVisible();
+
+    const metrics = await page.evaluate(() => ({
+      viewport:innerWidth,
+      document:document.documentElement.scrollWidth,
+      tableOverflow:getComputedStyle(document.querySelector('[data-issued-vouchers] table')).overflowX,
+      short:[...document.querySelectorAll('.voucher-shell button,.voucher-shell input,.voucher-shell select,.voucher-shell a')].filter((node) => node.getClientRects().length && node.getBoundingClientRect().height < 44).length,
+    }));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
+    expect(metrics.tableOverflow).not.toBe('auto');
+    expect(metrics.short).toBe(0);
+
+    const accessibility = await new AxeBuilder({ page }).include('.voucher-shell').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`workspace-vouchers-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+  }
+});
+
 test('WhatsApp client menu leads with the My Shiloh R100 welcome voucher on Phone and Desktop', async ({ page }, testInfo) => {
   for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
