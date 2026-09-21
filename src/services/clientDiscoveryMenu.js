@@ -4,6 +4,11 @@ const { listClientBookableStaff } = require('./clientBookingStaffGuard');
 const { processBookingMessage, getIntent, clearIntent } = require('./bookingIntent');
 const { decorateClientBookingResult } = require('./clientBookingInteractive');
 const { compactListTitle, fullLabelDescription } = require('../presentation/whatsappListRowPresentation');
+const {
+  MY_SHILOH_WELCOME_VOUCHER_URL,
+  clientHomeInteractive,
+  welcomeVoucherReply,
+} = require('../presentation/whatsappClientMenu');
 
 const SERVICE_PAGE_SIZE = 9;
 const CATEGORY_PAGE_SIZE = 9;
@@ -21,18 +26,6 @@ function isGreeting(text = '') {
 function isHomeCommand(text = '') {
   const value = clean(text).toLowerCase();
   return isGreeting(text) || ['menu', 'home', 'back', 'client menu', 'main menu'].includes(value);
-}
-
-function clientHomeInteractive() {
-  return {
-    type: 'button',
-    body: '*Shiloh 🌿*\nHow can I help you today?',
-    buttons: [
-      { id: 'client_browse_services', title: 'Browse services' },
-      { id: 'client_practitioners', title: 'Our practitioners' },
-      { id: 'client_book_now', title: 'Book now' },
-    ],
-  };
 }
 
 function isSqtBioMicroneedlingCategory(name = '') {
@@ -441,6 +434,10 @@ async function processClientDiscoveryMessage(sender, text) {
     return { handled: true, interactive: clientHomeInteractive() };
   }
 
+  if (['client_welcome_voucher', 'get r100 voucher', 'install my shiloh', 'my shiloh'].includes(value)) {
+    return { handled: true, reply: welcomeVoucherReply() };
+  }
+
   if (['client_browse_services', 'browse services', 'services', 'list treatments', 'list services', 'treatments'].includes(value)) {
     const categories = await listClientBookableCategories();
     if (!categories.length) {
@@ -613,6 +610,7 @@ async function processClientDiscoveryMessage(sender, text) {
 
 module.exports = {
   CATEGORY_PAGE_SIZE,
+  MY_SHILOH_WELCOME_VOUCHER_URL,
   SERVICE_PAGE_SIZE,
   SQT_CLIENT_CATEGORY_ID,
   SQT_CLIENT_CATEGORY_NAME,
@@ -632,4 +630,5 @@ module.exports = {
   practitionersInteractive,
   processClientDiscoveryMessage,
   servicePageInteractive,
+  welcomeVoucherReply,
 };

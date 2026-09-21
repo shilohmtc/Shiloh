@@ -7,17 +7,39 @@ const discoveryPath = path.join(__dirname, '..', 'src', 'services', 'clientDisco
 const webhookPath = path.join(__dirname, '..', 'src', 'controllers', 'webhookController.js');
 const source = fs.readFileSync(discoveryPath, 'utf8');
 const webhook = fs.readFileSync(webhookPath, 'utf8');
-const { clientHomeInteractive, isHomeCommand, servicePageInteractive, SERVICE_PAGE_SIZE } = require(discoveryPath);
+const { clientHomeInteractive, isHomeCommand, processClientDiscoveryMessage, servicePageInteractive, welcomeVoucherReply, SERVICE_PAGE_SIZE } = require(discoveryPath);
 
 test('client home uses exactly three genuine WhatsApp reply-button actions', () => {
   const home = clientHomeInteractive();
   assert.equal(home.type, 'button');
   assert.deepEqual(home.buttons.map((button) => button.id), [
+    'client_welcome_voucher',
     'client_browse_services',
-    'client_practitioners',
     'client_book_now',
   ]);
+  assert.deepEqual(home.buttons.map((button) => button.title), [
+    'Get R100 voucher',
+    'Browse services',
+    'Book now',
+  ]);
+  assert.match(home.body, /Install \*My Shiloh\* on your phone/);
+  assert.match(home.body, /R100 welcome voucher/);
   assert.ok(home.buttons.every((button) => button.title.length <= 20));
+});
+
+test('R100 first action opens the canonical My Shiloh registration journey', () => {
+  const reply = welcomeVoucherReply();
+  assert.match(reply, /install it on your phone/);
+  assert.match(reply, /complete your registration/);
+  assert.match(reply, /treatment of R450 or more/);
+  assert.match(reply, /https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/#welcome-voucher/);
+});
+
+test('R100 first action is handled before catalogue or booking queries', async () => {
+  const result = await processClientDiscoveryMessage('27820000000', 'client_welcome_voucher');
+  assert.equal(result.handled, true);
+  assert.equal(result.reply, welcomeVoucherReply());
+  assert.equal(result.interactive, undefined);
 });
 
 test('client home escape aliases include Back, Menu and Home', () => {
