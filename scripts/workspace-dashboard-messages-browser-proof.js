@@ -358,6 +358,10 @@ const METRICS_EXPRESSION = `(() => {
   const frame = document.querySelector('.workspace-frame');
   const active = document.querySelector('.workspace-link.active');
   const menuToggle = document.querySelector('[data-workspace-drawer-toggle]');
+  const drawerHeader = document.querySelector('.workspace-drawer-header');
+  const drawerClose = document.querySelector('[data-workspace-drawer-close]');
+  const drawerLinks = document.querySelector('.workspace-links');
+  const drawerLogo = document.querySelector('.workspace-brand-icon');
   return {
     viewport:{width:innerWidth,height:innerHeight,screenWidth:screen.width,screenHeight:screen.height},
     rootScrollWidth:document.documentElement.scrollWidth,
@@ -370,6 +374,10 @@ const METRICS_EXPRESSION = `(() => {
     navHeight:nav?.getBoundingClientRect().height||0,
     navWidth:nav?.getBoundingClientRect().width||0,
     navRight:nav?.getBoundingClientRect().right||0,
+    drawerHeaderRight:drawerHeader?.getBoundingClientRect().right||0,
+    drawerCloseRight:drawerClose?.getBoundingClientRect().right||0,
+    drawerLinksOverflowY:drawerLinks?getComputedStyle(drawerLinks).overflowY:'',
+    drawerLogoBackground:drawerLogo?getComputedStyle(drawerLogo).backgroundImage:'',
     drawerOpen:Boolean(nav?.classList.contains('open')),
     menuHeight:menuToggle?.getBoundingClientRect().height||0,
     menuLeft:menuToggle?.getBoundingClientRect().left||0,
@@ -484,7 +492,11 @@ async function main() {
           assert.equal(metrics.drawerOpen, true);
           assert.deepEqual(metrics.primary, ['Dashboard', 'Calendar', 'Clients', 'Messages']);
           assert.deepEqual(metrics.secondary, ['Staff', 'Services', 'Reports', 'Clinic hours']);
-          assert.ok(metrics.navWidth >= 170 && metrics.navWidth <= 190, `${name} drawer width is not compact: ${metrics.navWidth}px`);
+          assert.ok(metrics.navWidth >= width * 0.84 && metrics.navWidth <= 360, `${name} drawer width is not comfortably contained: ${metrics.navWidth}px`);
+          assert.ok(metrics.drawerHeaderRight <= metrics.navRight, `${name} drawer header escapes its panel`);
+          assert.ok(metrics.drawerCloseRight <= metrics.navRight, `${name} close control escapes its panel`);
+          assert.equal(metrics.drawerLinksOverflowY, 'auto');
+          assert.match(metrics.drawerLogoBackground, /\/calendar\/pwa\/icon-192\.png/);
           assert.equal(metrics.moreVisible, false);
           assert.equal(metrics.moreOpen, false);
           assert.ok(metrics.minNavTargetHeight >= 44, `${name} has a drawer target below 44px`);

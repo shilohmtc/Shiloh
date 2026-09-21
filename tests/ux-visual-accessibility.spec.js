@@ -483,6 +483,66 @@ test('PWA icon uses the approved raster asset at full canvas', async ({ page }) 
   });
 });
 
+test('Workspace navigation drawer remains contained and branded on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name: 'phone', width: 390, height: 844 },
+    { name: 'desktop', width: 1440, height: 1000 },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=workspace-production-surfaces--navigation-drawer-open&viewMode=story', { waitUntil: 'networkidle' });
+
+    const drawer = page.locator('[data-workspace-navigation-drawer]');
+    await expect(drawer).toBeVisible();
+    await expect(drawer.locator('.workspace-brand-icon')).toBeVisible();
+    const metrics = await page.evaluate(() => {
+      const rect = (selector) => {
+        const value = document.querySelector(selector)?.getBoundingClientRect();
+        return value ? { left: value.left, right: value.right, top: value.top, bottom: value.bottom, width: value.width, height: value.height } : null;
+      };
+      const links = document.querySelector('.workspace-links');
+      const logo = document.querySelector('.workspace-brand-icon');
+      return {
+        viewportWidth: innerWidth,
+        documentWidth: document.documentElement.scrollWidth,
+        drawer: rect('[data-workspace-navigation-drawer]'),
+        header: rect('.workspace-drawer-header'),
+        close: rect('[data-workspace-drawer-close]'),
+        account: rect('[data-workspace-account-footer]'),
+        closeDisplay: getComputedStyle(document.querySelector('[data-workspace-drawer-close]')).display,
+        linksOverflowY: links ? getComputedStyle(links).overflowY : '',
+        logoBackground: logo ? getComputedStyle(logo).backgroundImage : '',
+        shortTargets: [...document.querySelectorAll('.workspace-nav a,.workspace-nav button')]
+          .filter((node) => node.getClientRects().length > 0 && node.getBoundingClientRect().height < 44)
+          .map((node) => node.textContent.trim() || node.getAttribute('aria-label')),
+      };
+    });
+    expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+    expect(metrics.logoBackground).toContain('/calendar/pwa/icon-192.png');
+    expect(metrics.shortTargets).toEqual([]);
+    if (viewport.name === 'phone') {
+      expect(metrics.drawer.width).toBeGreaterThanOrEqual(viewport.width * 0.84);
+      expect(metrics.drawer.right).toBeLessThanOrEqual(viewport.width);
+      expect(metrics.header.left).toBeGreaterThanOrEqual(metrics.drawer.left);
+      expect(metrics.header.right).toBeLessThanOrEqual(metrics.drawer.right);
+      expect(metrics.close.left).toBeGreaterThanOrEqual(metrics.drawer.left);
+      expect(metrics.close.right).toBeLessThanOrEqual(metrics.drawer.right);
+      expect(metrics.account.bottom).toBeLessThanOrEqual(metrics.drawer.bottom);
+      expect(metrics.linksOverflowY).toBe('auto');
+    } else {
+      expect(metrics.drawer.width).toBe(188);
+      expect(metrics.closeDisplay).toBe('none');
+    }
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-workspace-navigation-drawer]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
+    expect(serious, `Serious accessibility violations in Workspace drawer on ${viewport.name}: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`workspace-navigation-drawer-${viewport.name}.png`), fullPage: false, animations: 'disabled' });
+  }
+});
+
 test('iPhone install invitation opens an accessible three-step guide without overflow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/iframe.html?id=workspace-production-surfaces--ios-install-guidance&viewMode=story', { waitUntil: 'networkidle' });
