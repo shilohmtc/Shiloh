@@ -38,6 +38,7 @@ function canonicalService(overrides = {}) {
     variable_price: false,
     price: '700.00',
     display_price: 'R700',
+    customer_description: 'A clear, approved description for the public website.',
     status: 'active',
     ...overrides,
   };
@@ -140,7 +141,7 @@ test('service edit mutates only canonical editable columns while preserving inde
   assert.match(update.sql, /price=\$6::numeric/);
   assert.match(update.sql, /display_price=\$7/);
   assert.match(update.sql, /variable_price=\$8/);
-  assert.doesNotMatch(update.sql, /customer_description|booking_note|category_id|client_bookable/i);
+  assert.doesNotMatch(update.sql, /customer_description\s*=|booking_note|category_id|client_bookable/i);
   const audit = fake.calls.find(call => call.sql.startsWith('INSERT INTO crm_audit_events'));
   assert.equal(audit.params[1], 'workspace.service_updated');
   const metadata = JSON.parse(audit.params[3]);
@@ -148,6 +149,35 @@ test('service edit mutates only canonical editable columns while preserving inde
   assert.equal(metadata.after.processingTimeMinutes, 12);
   assert.equal(metadata.before.variablePrice, false);
   assert.equal(metadata.after.variablePrice, true);
+});
+
+test('approved website description updates only canonical customer copy with audit evidence', async () => {
+  const current = canonicalService();
+  const approved = 'A warm, client-friendly description of what to expect from this service.';
+  const fake = transactionalDb(async (sql, params) => {
+    if (sql.startsWith('UPDATE services') && sql.includes('customer_description=')) {
+      assert.deepEqual(params, [9, approved]);
+      assert.doesNotMatch(sql, /booking_note|status=|price=/i);
+      return result([canonicalService({ customer_description: approved })]);
+    }
+    throw new Error(`Unexpected SQL: ${sql}`);
+  }, { service: current, assignments: [11] });
+  const service = createWorkspaceServicesService({ db: fake.db });
+  const response = await service.updateCustomerDescription({
+    adminId: 51,
+    serviceId: 9,
+    expectedRevision: serviceRevision(current, [11]),
+    requestId: 'request_description',
+    customerDescription: `  ${approved}  `,
+  });
+  assert.equal(response.status, 'updated');
+  const audit = fake.calls.find(call => call.sql.startsWith('INSERT INTO crm_audit_events'));
+  assert.equal(audit.params[1], 'workspace.service_description_updated');
+  const metadata = JSON.parse(audit.params[3]);
+  assert.equal(metadata.before.customerDescription, current.customer_description);
+  assert.equal(metadata.after.customerDescription, approved);
+  assert.equal(metadata.publicWebsiteSourceUpdated, true);
+  assert.equal(metadata.bookingNoteUntouched, true);
 });
 
 test('stale service revision fails closed before update or audit', async () => {
@@ -291,6 +321,11 @@ test('Workspace Services manage UX exposes only bounded service/status/practitio
   assert.match(managed, /name="displayPrice"/);
   assert.match(managed, /name="variablePrice"/);
   assert.match(managed, /data-service-status-form/);
+  assert.match(managed, /data-service-description-form/);
+  assert.match(managed, /name="customerDescription"/);
+  assert.match(managed, /Website preview/);
+  assert.match(managed, /Approve and publish wording/);
+  assert.match(managed, /Private booking note/);
   assert.match(managed, /data-service-assign-form/);
   assert.match(managed, /data-service-unassign-form/);
   assert.match(managed, /\/calendar\/services\/manage\.js/);
@@ -298,7 +333,7 @@ test('Workspace Services manage UX exposes only bounded service/status/practitio
 
   const viewOnly = renderServiceDetailPage(model, { ...baseOptions, manageAllowed: false });
   assert.match(viewOnly, /View only/);
-  assert.doesNotMatch(viewOnly, /data-service-edit-form|data-service-status-form|data-service-assign-form|data-service-unassign-form|\/calendar\/services\/manage\.js/);
+  assert.doesNotMatch(viewOnly, /data-service-edit-form|data-service-description-form|data-service-status-form|data-service-assign-form|data-service-unassign-form|\/calendar\/services\/manage\.js/);
 
   const client = workspaceServicesManageClientScript();
   assert.match(client, /AUTH='\/calendar\/staff-auth'/);
@@ -306,5 +341,7 @@ test('Workspace Services manage UX exposes only bounded service/status/practitio
   assert.match(client, /x-shiloh-csrf-token/);
   assert.match(client, /Content-Type':'application\/json/);
   assert.match(client, /window\.location\.reload/);
+  assert.match(client, /\/description/);
+  assert.match(client, /data-description-preview/);
   assert.doesNotMatch(client, /localStorage|sessionStorage|services:view/);
 });

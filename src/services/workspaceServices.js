@@ -124,6 +124,18 @@ function normalizeDisplayPrice(value) {
   return text || null;
 }
 
+function normalizeCustomerDescription(value) {
+  const text = String(value ?? '').trim().replace(/\r\n?/g, '\n');
+  if (text.length < 20 || text.length > 2000) {
+    throw new WorkspaceServicesError(
+      'WORKSPACE_SERVICES_INVALID_DESCRIPTION',
+      'The website description must be between 20 and 2000 characters.',
+      400
+    );
+  }
+  return text;
+}
+
 function normalizeBoolean(value) {
   if (value === true || value === false) return value;
   if (value === 'true' || value === '1' || value === 1) return true;
@@ -167,6 +179,7 @@ function serviceRevision(service, assignedStaffIds = []) {
     variable_price: service?.variable_price === true,
     price: service?.price == null ? null : String(service.price),
     display_price: service?.display_price == null ? null : String(service.display_price),
+    customer_description: service?.customer_description == null ? null : String(service.customer_description),
     status: String(service?.status || ''),
     assigned_staff_ids: [...new Set((assignedStaffIds || []).map(Number).filter(positiveId))].sort((a, b) => a - b),
   };
@@ -409,7 +422,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
     const serviceResult = await client.query(
       `/* workspaceServices:mutation-service */
        SELECT svc.id, svc.name, svc.duration_minutes, svc.processing_time_minutes, svc.extra_time_minutes,
-              svc.variable_price, svc.price, svc.display_price, svc.status,
+              svc.variable_price, svc.price, svc.display_price, svc.customer_description, svc.status,
               visibility.owner_staff_id AS private_owner_staff_id
          FROM services svc
          LEFT JOIN service_visibility_policies visibility ON visibility.service_id=svc.id
@@ -517,7 +530,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
                   updated_at=NOW()
             WHERE id=$1
           RETURNING id, name, duration_minutes, processing_time_minutes, extra_time_minutes,
-                    variable_price, price, display_price, status`,
+                    variable_price, price, display_price, customer_description, status`,
           [
             state.service.id, payload.name, payload.durationMinutes, payload.processingTimeMinutes,
             payload.extraTimeMinutes, payload.price, payload.displayPrice, payload.variablePrice,
@@ -528,6 +541,40 @@ function createWorkspaceServicesService({ db = pool } = {}) {
         return {
           revision: serviceRevision(next, state.assignedStaffIds),
           auditMetadata: { before, after: payload },
+        };
+      },
+    });
+  }
+
+  async function updateCustomerDescription({
+    adminId, serviceId, expectedRevision, requestId, customerDescription,
+  } = {}) {
+    const description = normalizeCustomerDescription(customerDescription);
+    return inMutation({
+      adminId, serviceId, expectedRevision, requestId,
+      action: 'workspace.service_description_updated',
+      execute: async (client, _operator, state) => {
+        const before = state.service.customer_description == null
+          ? null
+          : String(state.service.customer_description);
+        const updated = await client.query(
+          `UPDATE services
+              SET customer_description=$2, updated_at=NOW()
+            WHERE id=$1
+          RETURNING id, name, duration_minutes, processing_time_minutes, extra_time_minutes,
+                    variable_price, price, display_price, customer_description, status`,
+          [state.service.id, description]
+        );
+        const next = updated.rows[0];
+        if (!next) throw new WorkspaceServicesError('WORKSPACE_SERVICE_NOT_FOUND', 'Service was not found.', 404);
+        return {
+          revision: serviceRevision(next, state.assignedStaffIds),
+          auditMetadata: {
+            before: { customerDescription: before },
+            after: { customerDescription: description },
+            publicWebsiteSourceUpdated: true,
+            bookingNoteUntouched: true,
+          },
         };
       },
     });
@@ -544,7 +591,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
               SET status=$2, updated_at=NOW()
             WHERE id=$1
           RETURNING id, name, duration_minutes, processing_time_minutes, extra_time_minutes,
-                    variable_price, price, display_price, status`,
+                    variable_price, price, display_price, customer_description, status`,
           [state.service.id, nextStatus]
         );
         const next = updated.rows[0];
@@ -653,6 +700,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
     listServices,
     getServiceDetail,
     updateService,
+    updateCustomerDescription,
     setServiceStatus,
     assignPractitioner,
     unassignPractitioner,
@@ -679,6 +727,7 @@ module.exports = {
   normalizeMinutes,
   normalizePrice,
   normalizeDisplayPrice,
+  normalizeCustomerDescription,
   normalizeBoolean,
   totalServiceMinutes,
   projectBookingEligibility,

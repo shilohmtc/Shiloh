@@ -78,7 +78,7 @@ for (const proof of proofs) {
   if (!/aria-current="page">Services/.test(proof.html) || !/>Calendar<|>Calendar<\//.test(proof.html) || !/>Clients<|>Clients<\//.test(proof.html) || !/>Staff<|>Staff<\//.test(proof.html)) {
     throw new Error(`${proof.view}/${proof.viewport} lacks shared Workspace navigation`);
   }
-  if (proof.view === 'service-detail' && (!/data-service-edit-form/.test(proof.html) || !/data-service-assign-form/.test(proof.html))) {
+  if (proof.view === 'service-detail' && (!/data-service-edit-form/.test(proof.html) || !/data-service-description-form/.test(proof.html) || !/data-service-assign-form/.test(proof.html))) {
     throw new Error(`${proof.view}/${proof.viewport} lacks Services Stage B management controls`);
   }
   const stem = `${proof.view}-${proof.viewport}`;

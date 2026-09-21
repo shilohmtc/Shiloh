@@ -20,6 +20,9 @@ const stories = [
     assertSurface: async (page) => {
       await expect(page.getByRole('heading', { name: 'Marietjie Signature Massage', exact: true })).toBeVisible();
       await expect(page.locator('[data-service-edit-form]')).toBeVisible();
+      await expect(page.locator('[data-service-description-form]')).toBeVisible();
+      await expect(page.locator('[data-description-preview]')).toContainText('A treatment available in Marietjie’s assigned service set.');
+      await expect(page.getByRole('button', { name: 'Approve and publish wording' })).toBeVisible();
       await expect(page.locator('[data-service-assign-form]')).toBeVisible();
     },
   },
@@ -41,7 +44,7 @@ for (const viewport of [
       const geometry = await page.evaluate(() => ({
         viewportWidth: window.innerWidth,
         documentWidth: document.documentElement.scrollWidth,
-        targets: [...document.querySelectorAll('.workspace-services-story button,.workspace-services-story input:not([type="checkbox"]),.workspace-services-story select,.workspace-services-story a,.workspace-services-story .check-field')]
+        targets: [...document.querySelectorAll('.workspace-services-story button,.workspace-services-story input:not([type="checkbox"]),.workspace-services-story textarea,.workspace-services-story select,.workspace-services-story a,.workspace-services-story .check-field')]
           .filter(node => node.getClientRects().length > 0)
           .map(node => ({
             label: node.textContent.trim() || node.getAttribute('aria-label') || node.id,
