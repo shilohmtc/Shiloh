@@ -948,9 +948,12 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/my-shiloh/sw.js', { scope: '/my-shiloh/' }).catch(() => {
-        // The PWA still works as a normal web app if registration is unavailable.
-      });
+      navigator.serviceWorker.register('/my-shiloh/sw.js', {
+        scope: '/my-shiloh/',
+        updateViaCache: 'none',
+      }).then((registration) => registration.update()).catch(() => {
+          // The PWA still works as a normal web app if registration is unavailable.
+        });
     });
   }
 })();
