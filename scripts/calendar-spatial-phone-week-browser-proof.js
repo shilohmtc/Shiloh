@@ -230,6 +230,9 @@ function createFixture() {
     res.setHeader('Set-Cookie', serializeSessionCookie(SESSION_TOKEN, { env: ENV }));
     return res.redirect(302, `/calendar/read-only?view=week&date=${DATE_KEY}&staff=51&staff=52&staff=53&activeStaff=51`);
   });
+  app.get(['/calendar/pwa/icon-192.png', '/assets/pwa/shiloh-pwa-192.png'], (_req, res) => {
+    res.sendFile(path.join(process.cwd(), 'public', 'assets', 'pwa', 'shiloh-pwa-192.png'));
+  });
   app.get('/calendar/staff/client.js', (_req, res) => res.type('application/javascript').send(staffCalendarAccessClientScript()));
   app.get('/calendar/operations/client.js', (_req, res) => res.type('application/javascript').send(calendarOperationalMutationsClientScript()));
   app.get('/calendar/workspace/nav.js', async (_req, res) => {
@@ -541,21 +544,35 @@ async function main() {
     const drawerMetrics = await evaluate(cdp, `(() => {
       const visible=node=>{if(!node)return false;const style=getComputedStyle(node),rect=node.getBoundingClientRect();return style.display!=='none'&&style.visibility!=='hidden'&&rect.width>0&&rect.height>0&&rect.right>0;};
       const drawer=document.querySelector('[data-workspace-navigation-drawer]');
+      const drawerRect=drawer.getBoundingClientRect();
+      const header=drawer.querySelector('.workspace-drawer-header');
+      const close=drawer.querySelector('[data-workspace-drawer-close]');
+      const links=drawer.querySelector('.workspace-links');
+      const brandIcon=drawer.querySelector('.workspace-brand-icon');
       const destinations=Array.from(drawer.querySelectorAll('[data-workspace-destination]')).filter(visible);
       return {
-        width:drawer.getBoundingClientRect().width,
+        width:drawerRect.width,
+        drawerRight:drawerRect.right,
+        headerRight:header.getBoundingClientRect().right,
+        closeRight:close.getBoundingClientRect().right,
         labels:destinations.map(node=>node.textContent.trim()),
         minHeight:Math.min(...destinations.map(node=>node.getBoundingClientRect().height)),
         moreVisible:visible(drawer.querySelector('[data-workspace-more-toggle]')),
         current:drawer.querySelector('[aria-current="page"]')?.textContent.trim()||'',
+        linksOverflowY:getComputedStyle(links).overflowY,
+        brandBackground:getComputedStyle(brandIcon).backgroundImage,
         rootScrollWidth:document.documentElement.scrollWidth,
       };
     })()`);
-    assert.ok(drawerMetrics.width >= 170 && drawerMetrics.width <= 190, `Phone drawer missed the compact 170–190px target: ${drawerMetrics.width}px`);
+    assert.ok(drawerMetrics.width >= 390 * 0.84 && drawerMetrics.width <= 360, `Phone drawer missed the readable 84vw–360px target: ${drawerMetrics.width}px`);
+    assert.ok(drawerMetrics.headerRight <= drawerMetrics.drawerRight, 'Phone drawer header escapes the drawer');
+    assert.ok(drawerMetrics.closeRight <= drawerMetrics.drawerRight, 'Phone drawer close control escapes the drawer');
     assert.deepEqual(drawerMetrics.labels, ['Dashboard', 'Calendar', 'Clients', 'Messages', 'Staff', 'Services', 'Reports']);
     assert.ok(drawerMetrics.minHeight >= 44, 'Phone drawer destination is below 44px');
     assert.equal(drawerMetrics.moreVisible, false);
     assert.equal(drawerMetrics.current, 'Calendar');
+    assert.equal(drawerMetrics.linksOverflowY, 'auto');
+    assert.match(drawerMetrics.brandBackground, /\/calendar\/pwa\/icon-192\.png/);
     assert.ok(drawerMetrics.rootScrollWidth <= 391);
     screenshots.push({ ...(await capture('phone-narrow-direct-drawer')), viewport: { width: 390, height: 844 }, metrics: drawerMetrics });
     await evaluate(cdp, `document.querySelector('[data-workspace-drawer-close]').click();true`);
