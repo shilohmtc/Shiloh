@@ -117,6 +117,7 @@ test('Phone V2 uses a 30-minute visual grid and a clean 44px touch contract whil
   assert.match(css, /\.workspace-main \.lane-actions,body\[data-phone-calendar-v2="true"\] \.workspace-main \.availability-menu\{display:none!important\}/);
   assert.match(css, /\.phone-calendar-view-link,.phone-calendar-today-link\{[^}]*min-height:38px/);
   assert.match(css, /body\[data-phone-calendar-v2="true"\] \.phone-calendar-view-link,[^}]*min-height:44px!important/);
+  assert.match(css, /body\[data-phone-calendar-v2="true"\] \.phone-staff-menu-panel \.phone-week-staff-toggle\{min-height:44px!important\}/);
   assert.match(css, /\.phone-month-nav\{[^}]*min-width:44px;min-height:44px/);
   assert.match(css, /\.phone-today-action,.phone-plus-menu>summary\{[^}]*min-height:44px/);
   assert.match(css, /\.time-rail\{height:660px!important\}/);
