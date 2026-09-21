@@ -23,3 +23,10 @@ test('yearless written dates now match yearless numeric date semantics', () => {
   const now = new Date('2026-08-16T18:00:00.000Z');
   assert.equal(extractDate('15 Aug', now), extractDate('15/08', now));
 });
+
+test('availability-aware WhatsApp date button payloads preserve their exact ISO date', () => {
+  const now = new Date('2026-09-21T07:30:00.000Z');
+  assert.equal(extractDate('2026-09-23', now), '2026-09-23');
+  assert.equal(extractDate('on 2026-09-23', now), '2026-09-23');
+  assert.equal(extractDate('2026-02-30', now), null);
+});
