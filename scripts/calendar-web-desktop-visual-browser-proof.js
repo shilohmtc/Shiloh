@@ -326,9 +326,9 @@ async function main() {
     await viewport(390, 844, true);
     await navigate(`${origin}/proof?staff=41`);
     const phone = await metrics();
-    const phoneControls = await evaluate(cdp, `(()=>{const visible=(n)=>{if(!n)return false;const s=getComputedStyle(n),r=n.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0};const controls=document.querySelector('[data-phone-calendar-v2-controls]');const staff=document.querySelector('.phone-staff-menu');const summary=staff?.querySelector('summary');return {controlsVisible:visible(controls),staffVisible:visible(staff),activeStaff:document.querySelector('[data-phone-active-staff]')?.textContent?.trim()||'',summaryMinHeight:summary?parseFloat(getComputedStyle(summary).minHeight):0,oldPickerVisible:visible(document.querySelector('.practitioner-control'))};})()`);
+    const phoneControls = await evaluate(cdp, `(()=>{const visible=(n)=>{if(!n)return false;const s=getComputedStyle(n),r=n.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0};const controls=document.querySelector('[data-phone-calendar-utility-bar]');const staff=document.querySelector('.phone-staff-menu');const summary=staff?.querySelector('summary');return {controlsVisible:visible(controls),staffVisible:visible(staff),activeStaff:document.querySelector('[data-phone-active-staff]')?.textContent?.trim()||'',summaryMinHeight:summary?parseFloat(getComputedStyle(summary).minHeight):0,oldPickerVisible:visible(document.querySelector('.practitioner-control'))};})()`);
     assert.equal(phone.desktopChipsVisible, false, 'Phone must hide Desktop practitioner chips');
-    assert.equal(phoneControls.controlsVisible, true, 'Phone must retain Phone V2 compact Calendar controls');
+    assert.equal(phoneControls.controlsVisible, true, 'Phone must render the approved compact Calendar toolbar');
     assert.equal(phoneControls.staffVisible, true, 'Phone must retain the compact practitioner menu');
     assert.equal(phoneControls.activeStaff, 'Abigail', 'Phone compact practitioner menu must retain the selected practitioner');
     assert.ok(phoneControls.summaryMinHeight >= 44, 'Phone practitioner control must preserve the 44px touch target');
