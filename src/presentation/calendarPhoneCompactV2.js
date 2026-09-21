@@ -353,7 +353,7 @@ function renderPhoneCalendarUtilityBar(model, options = {}) {
     const label = option === 'week' ? 'Week' : 'Month';
     return `<a class="phone-calendar-view-link${view === option ? ' active' : ''}" data-phone-calendar-direct-view="${option}" data-phone-calendar-view="${option}" href="${escapeHtml(href)}"${view === option ? ' aria-current="page"' : ''}>${label}</a>`;
   }).join('');
-  const today = businessToday();
+  const today = String(options.todayDate || businessToday());
   const todayHref = calendarStaffHref(basePath, { view: 'week', date: today, staffIds: visibleStaffIds, activeStaffId });
   const todayLink = view === 'week' && date === today
     ? ''
