@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 
 const {
   dateGroupLabel,
+  dashboardClientScript,
   dashboardDateLabel,
   renderDashboardPage,
 } = require('../src/presentation/workspaceDashboardUx');
@@ -109,4 +110,19 @@ test('#854 renders bounded Desktop backlog and stable Phone order without changi
   assert.match(html, /@media\(max-width:850px\)[\s\S]*\[data-dashboard-attention-panel\]\{grid-column:1;grid-row:1\}[\s\S]*\[data-dashboard-today\]\{grid-column:1;grid-row:2\}/);
   assert.match(html, /@media\(max-width:850px\)[\s\S]*\.dashboard-grid:not\(:has\(\[data-dashboard-attention-panel\]\)\)>\[data-dashboard-today\]\{grid-row:1\}/);
   assert.match(html, /\.carryover-group \.appointment-actions \.action-button,\.carryover-group \.appointment-actions \.button\{min-height:44px\}/);
+});
+
+test('visit outcomes use an accessible Shiloh confirmation instead of the browser popup', () => {
+  const html = renderDashboardPage(model());
+  const script = dashboardClientScript();
+
+  assert.match(html, /<dialog class="outcome-dialog" data-dashboard-outcome-dialog/);
+  assert.match(html, /aria-labelledby="dashboard-outcome-title"/);
+  assert.match(html, /aria-describedby="dashboard-outcome-copy"/);
+  assert.match(html, />Not yet<\/button>/);
+  assert.match(script, /Mark this visit as completed\?/);
+  assert.match(script, /Mark this visit as a no-show\?/);
+  assert.match(script, /Mark completed/);
+  assert.match(script, /Mark no-show/);
+  assert.doesNotMatch(script, /Record this visit as/);
 });

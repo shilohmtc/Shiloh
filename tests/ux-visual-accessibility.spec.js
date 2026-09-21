@@ -462,6 +462,41 @@ test('device management confirmations use accessible Shiloh dialogs on Desktop a
   }
 });
 
+test('Dashboard visit outcomes use a polished accessible confirmation on Desktop and Phone', async ({ page }) => {
+  for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=workspace-production-surfaces--dashboard-operational&viewMode=story', { waitUntil: 'networkidle' });
+
+    const carryOver = page.locator('[data-dashboard-carryover-panel]');
+    await carryOver.getByRole('button', { name: 'Completed' }).click();
+
+    const dialog = page.locator('[data-dashboard-outcome-dialog]');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: 'Mark this visit as completed?' })).toBeVisible();
+    await expect(dialog).toContainText('Previous-day client’s appointment');
+    await expect(dialog.getByRole('button', { name: 'Not yet' })).toBeFocused();
+    await expect(dialog.getByRole('button', { name: 'Mark completed' })).toBeVisible();
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-dashboard-outcome-dialog]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
+    expect(serious, `Serious accessibility violations in Dashboard outcome dialog: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+
+    await dialog.getByRole('button', { name: 'Not yet' }).click();
+    await expect(dialog).toBeHidden();
+
+    await carryOver.getByRole('button', { name: 'No-show' }).click();
+    await expect(dialog.getByRole('heading', { name: 'Mark this visit as a no-show?' })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Mark no-show' })).toBeVisible();
+    await page.screenshot({ path: `artifacts/dashboard-outcome-dialog-${viewport.width <= 560 ? 'phone' : 'desktop'}.png` });
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(carryOver.getByRole('button', { name: 'No-show' })).toBeFocused();
+  }
+});
+
 test('PWA icon uses the approved raster asset at full canvas', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/iframe.html?id=workspace-production-surfaces--pwa-icon-optical-scale&viewMode=story', { waitUntil: 'networkidle' });
