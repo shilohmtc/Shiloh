@@ -31,6 +31,7 @@ test('#791 manifest installs one canonical Shiloh Workspace delivery shell', () 
   assert.equal(manifest.scope, '/calendar/');
   assert.equal(manifest.display, 'standalone');
   assert.equal(manifest.theme_color, '#17382d');
+  assert.equal(manifest.background_color, '#fffcf7');
   assert.deepEqual(manifest.icons.map(icon => icon.src), [...ICON_URLS]);
   assert.ok(manifest.icons.some(icon => /maskable/.test(icon.purpose)));
   assert.doesNotMatch(JSON.stringify(manifest), /token|secret|credential|permission|capability|scope.*all_business/i);

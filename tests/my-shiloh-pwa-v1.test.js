@@ -79,6 +79,7 @@ test('PWA manifest is standalone and scoped to My Shiloh', () => {
   assert.equal(manifest.display, 'standalone');
   assert.equal(manifest.scope, '/my-shiloh/');
   assert.equal(manifest.start_url, '/my-shiloh/');
+  assert.equal(manifest.background_color, '#fffcf7');
   assert.ok(manifest.icons.some((icon) => icon.src === '/my-shiloh/assets/icon-192.png' && icon.purpose === 'any'));
   assert.ok(manifest.icons.some((icon) => icon.src === '/my-shiloh/assets/icon-maskable-512.png' && icon.purpose === 'maskable'));
 });
