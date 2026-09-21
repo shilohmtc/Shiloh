@@ -72,16 +72,11 @@ function practitionerRequiredInteractive(intent) {
     body: [
       `*${intent.service_text}*`,
       '',
-      'Please choose your practitioner preference before choosing a date.',
-      ...treatmentTeamLines(),
-      '',
-      'Use *Choose treatment* to reopen this treatment and see only the practitioners currently eligible for it, including an explicit *Any available* option. Or choose a practitioner first to see only their mapped services.',
-      '',
-      'Shiloh will not silently treat a missing practitioner choice as “Any available”.',
+      'Choose from the practitioners currently eligible for this treatment, including an explicit *Any available* option.',
     ].join('\n'),
     buttons: [
-      { id: 'client_browse_services', title: 'Choose treatment' },
-      { id: 'client_practitioners', title: 'Choose practitioner' },
+      { id: 'client_selected_service_practitioners', title: 'See practitioners' },
+      { id: 'client_browse_services', title: 'Change treatment' },
     ],
   };
 }

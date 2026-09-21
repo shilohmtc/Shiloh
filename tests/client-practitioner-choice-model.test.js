@@ -54,14 +54,14 @@ test('Our practitioners chooser labels the three client-facing roles without exp
 test('missing practitioner preference blocks date collection and redirects to CRM-backed discovery', () => {
   const decorated = decorateClientBookingResult({ handled: true, intent: serviceIntent });
   assert.equal(decorated.interactive.type, 'button');
-  assert.match(decorated.interactive.body, /choose your practitioner preference before choosing a date/i);
-  assert.match(decorated.interactive.body, /only the practitioners currently eligible/i);
-  assert.deepEqual(decorated.interactive.buttons.map((button) => button.id), ['client_browse_services', 'client_practitioners']);
+  assert.match(decorated.interactive.body, /practitioners currently eligible for this treatment/i);
+  assert.deepEqual(decorated.interactive.buttons.map((button) => button.id), ['client_selected_service_practitioners', 'client_browse_services']);
+  assert.deepEqual(decorated.interactive.buttons.map((button) => button.title), ['See practitioners', 'Change treatment']);
 });
 
 test('missing practitioner can never silently become Any available at final confirmation', () => {
   const awaiting = decorateClientBookingResult({ handled: true, intent: { ...serviceIntent, preferred_date: '2026-08-13', preferred_time: '14:00', status: 'awaiting_confirmation' } });
-  assert.match(awaiting.interactive.body, /Shiloh will not silently treat a missing practitioner choice as “Any available”/);
+  assert.match(awaiting.interactive.body, /explicit \*Any available\* option/);
   assert.doesNotMatch(source, /therapist_text\s*\|\|\s*['"]Any available practitioner['"]/);
   const explicit = confirmationInteractive({ ...serviceIntent, therapist_text: 'Any available therapist', preferred_date: '2026-08-13', preferred_time: '14:00', status: 'awaiting_confirmation' });
   assert.match(explicit.body, /Practitioner: Any available therapist/);
@@ -85,5 +85,5 @@ test('typed booking entry is redirected into the same four-family discovery list
 test('practitioner requirement copy never labels the treatment team as employees', () => {
   const view = practitionerRequiredInteractive(serviceIntent);
   assert.doesNotMatch(`${bookingDiscoveryInteractive().body}\n${view.body}`, /employees?/i);
-  assert.match(view.body, /client-facing treatment team/i);
+  assert.doesNotMatch(view.body, /Marietjie|Christel|Abigail/);
 });
