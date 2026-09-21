@@ -199,12 +199,13 @@ function createMyShilohRouter({
 
   router.get('/my-shiloh/book', requireSession, async (req, res, next) => {
     try {
-      const [number, catalogue, welcomeVoucher] = await Promise.all([
+      const [number, catalogue, welcomeVoucher, eligibleServiceIds] = await Promise.all([
         whatsappResolver(),
         catalogueProvider(),
         welcomeVoucherService.getClientModel({
           crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
         }),
+        welcomeVoucherService.listEligibleServiceIds(),
       ]);
       const voucher = welcomeVoucher?.voucher;
       if (voucher?.state !== 'available') return res.redirect(303, '/my-shiloh/#welcome-voucher');
@@ -213,6 +214,7 @@ function createMyShilohRouter({
         number,
         catalogue: catalogue || [],
         minimumBookingValue: voucher.minimumBookingValue,
+        eligibleServiceIds,
       }));
     } catch (error) {
       if (error instanceof MyShilohWelcomeVoucherError) {

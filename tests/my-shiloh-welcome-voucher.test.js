@@ -58,6 +58,9 @@ test('redemption is guarded, client-confirmed and gives recovery steps', () => {
   assert.match(service, /package_session_redemptions/);
   assert.match(service, /appointment_group_members/);
   assert.match(service, /WELCOME_VOUCHER_BALANCE_TOO_LOW/);
+  assert.match(service, /WELCOME_VOUCHER_PRACTITIONER_EXCLUDED/);
+  assert.match(service, /business_role='tenant_practitioner'/);
+  assert.ok(WELCOME_VOUCHER_TERMS.some((term) => /Marietjie/i.test(term)));
   assert.match(routes, /requireSession, requireCsrf/);
   assert.match(routes, /resolution:error\.resolution/);
   assert.match(app, /What to do:/);
@@ -92,8 +95,8 @@ test('qualifying treatment page explains the complete application path and filte
     { id:3, name:'Premium treatment', category:'Facials', duration:'75 min', price:'R650' },
     { id:4, name:'Variable treatment', category:'Facials', duration:'60 min', price:'Price on request' },
   ];
-  assert.deepEqual(qualifyingServices(catalogue, 450).map((service) => service.id), [2, 3]);
-  const html = renderMyShilohWelcomeVoucherBooking({ number:'27820000000', catalogue, minimumBookingValue:450 });
+  assert.deepEqual(qualifyingServices(catalogue, 450, [2]).map((service) => service.id), [2]);
+  const html = renderMyShilohWelcomeVoucherBooking({ number:'27820000000', catalogue, minimumBookingValue:450, eligibleServiceIds:[2] });
   assert.match(html, /Choose a qualifying treatment/);
   assert.match(html, /Confirm the booking/);
   assert.match(html, /Apply the R100/);
@@ -102,6 +105,19 @@ test('qualifying treatment page explains the complete application path and filte
   assert.match(html, /Qualifying treatment/);
   assert.doesNotMatch(html, /Short treatment/);
   assert.doesNotMatch(html, /Variable treatment/);
+  assert.doesNotMatch(html, /Premium treatment/);
+  assert.match(html, /does not apply to Marietjie’s services/);
+});
+
+test('welcome voucher catalogue and redemption exclude Marietjie at authoritative boundaries', () => {
+  const service = read('src/services/myShilohWelcomeVoucher.js');
+  const routes = read('src/routes/myShiloh.js');
+  assert.match(service, /listEligibleServiceIds/);
+  assert.match(service, /st\.business_role<>'tenant_practitioner'/);
+  assert.match(service, /LOWER\(BTRIM\(st\.display_name\)\)<>'marietjie'/);
+  assert.match(service, /appointment_staff[\s\S]*welcome_voucher_practitioner_eligible/);
+  assert.match(routes, /welcomeVoucherService\.listEligibleServiceIds\(\)/);
+  assert.match(routes, /eligibleServiceIds/);
 });
 
 test('qualifying treatment WhatsApp handoff carries explicit voucher intent', () => {

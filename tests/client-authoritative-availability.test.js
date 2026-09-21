@@ -11,12 +11,22 @@ const shared = fs.readFileSync(sharedPath, 'utf8');
 const webhook = fs.readFileSync(webhookPath, 'utf8');
 const {
   SLOT_PAGE_SIZE,
+  isAnyPractitionerPreference,
   isFutureSlot,
+  isWelcomeVoucherPreference,
   parseSlotPage,
   parseSlotSelection,
   slotId,
   slotsInteractive,
 } = require(availabilityPath);
+
+test('welcome-voucher Any available remains restricted away from Marietjie', () => {
+  assert.equal(isAnyPractitionerPreference('Any available welcome-voucher practitioner'), true);
+  assert.equal(isWelcomeVoucherPreference('Any available welcome-voucher practitioner'), true);
+  assert.match(source, /st\.business_role <> 'tenant_practitioner'/);
+  assert.match(source, /LOWER\(BTRIM\(st\.display_name\)\) <> 'marietjie'/);
+  assert.match(source, /resolveEligibleStaff\(service\.id, intent\.therapist_text\)/);
+});
 
 test('client availability reuses the canonical shared availability engine', () => {
   assert.match(source, /require\('\.\/availabilityService'\)/);

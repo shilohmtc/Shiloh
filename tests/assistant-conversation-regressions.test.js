@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 process.env.OPENAI_API_KEY ||= 'test-openai-key';
 
-const { extractService } = require('../src/services/bookingIntent');
+const { extractService, extractTherapist } = require('../src/services/bookingIntent');
 const { deterministicConversationReply } = require('../src/services/ai');
 
 test('generic appointment requests ask for a treatment instead of verifying appointment as a service', () => {
@@ -19,6 +19,13 @@ test('My Shiloh welcome-voucher handoff extracts only the chosen treatment', () 
   assert.equal(
     extractService("I'd like to book Full Body Swedish and use my R100 My Shiloh welcome voucher."),
     'Full Body Swedish',
+  );
+});
+
+test('welcome-voucher Any available keeps its restricted practitioner scope', () => {
+  assert.equal(
+    extractTherapist('booking with any welcome-voucher practitioner'),
+    'Any available welcome-voucher practitioner',
   );
 });
 

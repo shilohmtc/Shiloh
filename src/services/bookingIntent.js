@@ -240,6 +240,9 @@ function extractTime(text = "") {
 
 function extractTherapist(text = "") {
   const value = String(text).trim();
+  if (/\bany welcome[- ]voucher practitioner\b/i.test(value)) {
+    return "Any available welcome-voucher practitioner";
+  }
   if (/\b(any therapist|anyone|whoever is available|no preference)\b/i.test(value)) {
     return "Any available therapist";
   }
