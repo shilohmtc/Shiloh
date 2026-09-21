@@ -626,6 +626,7 @@ async function main() {
 
     await navigate(`${origin}/calendar/read-only?view=month&date=${DATE_KEY}&staff=51&staff=52&staff=53&activeStaff=51`, '.month-grid');
     await poll(() => evaluate(cdp, `Array.from(document.querySelectorAll('.month-events .event-card')).filter(node=>{const style=getComputedStyle(node),rect=node.getBoundingClientRect();return style.display!=='none'&&style.visibility!=='hidden'&&rect.width>0&&rect.height>0;}).length`), value => value > 0);
+    await poll(() => evaluate(cdp, `Boolean(document.querySelector('[data-phone-month-navigation]'))`), Boolean);
     const monthMetrics = await evaluate(cdp, `(() => {
       const visible=node=>{if(!node)return false;const style=getComputedStyle(node),rect=node.getBoundingClientRect();return style.display!=='none'&&style.visibility!=='hidden'&&rect.width>0&&rect.height>0;};
       const dayLinks=Array.from(document.querySelectorAll('.month-day-link')).filter(visible);
