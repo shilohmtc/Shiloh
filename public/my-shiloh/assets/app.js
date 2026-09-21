@@ -39,6 +39,7 @@
   let shilohMessageInFlight = false;
   let whatsappHandoffStarted = false;
   let clientProfileRevision = null;
+  let clientRefreshInFlight = false;
 
   function completionCodeFromHash() {
     const match = String(window.location.hash || '').match(/^#verify=(\d{6})$/);
@@ -134,7 +135,7 @@
 
   function safeExperienceHref(value) {
     const href = String(value || '');
-    if (href === '/book' || /^\/pay\/[A-Za-z0-9_-]{8,100}$/.test(href) || /^#[a-z-]+$/.test(href)) return href;
+    if (href === '/book' || href === '/my-shiloh/book' || /^\/pay\/[A-Za-z0-9_-]{8,100}$/.test(href) || /^#[a-z-]+$/.test(href)) return href;
     return '#shiloh';
   }
 
@@ -322,14 +323,14 @@
       const bookings = Array.isArray(model.eligibleBookings) ? model.eligibleBookings : [];
       if (!bookings.length) {
         const empty = document.createElement('p'); empty.textContent = `No eligible upcoming booking yet. Book a treatment of R${voucher.minimumBookingValue.toFixed(0)} or more, then return here.`; welcomeVoucherBookings.appendChild(empty);
-        const link = document.createElement('a'); link.className = 'button button--soft'; link.href = '/book'; link.textContent = 'Find a qualifying treatment'; welcomeVoucherBookings.appendChild(link);
+        const link = document.createElement('a'); link.className = 'button button--soft'; link.href = '/my-shiloh/book'; link.textContent = 'Find a qualifying treatment'; welcomeVoucherBookings.appendChild(link);
       }
       for (const booking of bookings) {
         const card = document.createElement('div'); card.className = 'welcome-voucher__booking';
         const details = document.createElement('div');
         const title = document.createElement('strong'); title.textContent = String(booking.service || 'Shiloh treatment');
         const meta = document.createElement('span'); meta.textContent = `${new Intl.DateTimeFormat('en-ZA', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }).format(new Date(booking.startsAt))} · R${Number(booking.total).toFixed(0)}`;
-        const button = document.createElement('button'); button.type = 'button'; button.className = 'button button--primary'; button.textContent = 'Use R100';
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'button button--primary'; button.textContent = 'Apply R100 to this booking';
         button.addEventListener('click', async () => {
           button.disabled = true; setWelcomeVoucherStatus('Applying your voucher…', 'working');
           try {
@@ -362,6 +363,16 @@
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !renderWelcomeVoucher(data)) throw new Error(welcomeVoucherErrorMessage(data, 'Your welcome voucher could not be loaded.'));
     } catch (error) { setWelcomeVoucherStatus(error.message || 'Your welcome voucher could not be loaded. Reload My Shiloh and try again.', 'error'); }
+  }
+
+  async function refreshAuthenticatedClientState() {
+    if (appFrame?.dataset.clientAuthenticated !== 'true' || clientRefreshInFlight) return;
+    clientRefreshInFlight = true;
+    try {
+      await Promise.all([loadClientExperience(), loadClientProfile(), loadWelcomeVoucher()]);
+    } finally {
+      clientRefreshInFlight = false;
+    }
   }
 
   function syncNetworkState() {
@@ -929,9 +940,14 @@
   }));
 
   window.addEventListener('pageshow', welcomeBackFromWhatsApp);
+  window.addEventListener('pageshow', refreshAuthenticatedClientState);
   window.addEventListener('focus', welcomeBackFromWhatsApp);
+  window.addEventListener('focus', refreshAuthenticatedClientState);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') welcomeBackFromWhatsApp();
+    if (document.visibilityState === 'visible') {
+      welcomeBackFromWhatsApp();
+      refreshAuthenticatedClientState();
+    }
   });
   welcomeBackFromWhatsApp();
 
@@ -942,9 +958,7 @@
     completeClientAuth(completionCode);
   }
 
-  loadClientExperience();
-  loadClientProfile();
-  loadWelcomeVoucher();
+  refreshAuthenticatedClientState();
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

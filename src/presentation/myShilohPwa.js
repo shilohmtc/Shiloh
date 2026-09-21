@@ -6,7 +6,7 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 
-const MY_SHILOH_ASSET_VERSION = '20260921-official-brand-v2';
+const MY_SHILOH_ASSET_VERSION = '20260921-welcome-voucher-v3';
 
 function escapeHtml(value = '') {
   return String(value)

@@ -6,6 +6,11 @@ const { registrationProgress, WELCOME_VOUCHER_TERMS } = require('../src/services
 const { renderMyShilohPage } = require('../src/presentation/myShilohPwa');
 const { renderHome } = require('../src/services/publicWebsite');
 const transition = require('../src/services/clientTransitionWelcome');
+const {
+  qualifyingServices,
+  welcomeVoucherBookingUrl,
+  renderMyShilohWelcomeVoucherBooking,
+} = require('../src/presentation/myShilohWelcomeVoucherBooking');
 
 const root = path.join(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
@@ -67,4 +72,42 @@ test('booking balance calculations include welcome value while reward accrual re
   assert.match(context, /welcome_voucher_applied/);
   assert.match(rewards, /booking_welcome_voucher_allocations/);
   assert.match(rewards, /FROM payment_ledger_entries/);
+});
+
+test('welcome voucher treatment discovery stays inside the installed My Shiloh scope', () => {
+  const app = read('public/my-shiloh/assets/app.js');
+  const routes = read('src/routes/myShiloh.js');
+  assert.match(app, /link\.href = '\/my-shiloh\/book'/);
+  assert.doesNotMatch(app, /Find a qualifying treatment'[\s\S]{0,100}href = '\/book'/);
+  assert.match(app, /refreshAuthenticatedClientState/);
+  assert.match(app, /visibilityState === 'visible'[\s\S]*refreshAuthenticatedClientState/);
+  assert.match(routes, /router\.get\('\/my-shiloh\/book', requireSession/);
+  assert.match(routes, /voucher\?\.state !== 'available'/);
+});
+
+test('qualifying treatment page explains the complete application path and filters prices', () => {
+  const catalogue = [
+    { id:1, name:'Short treatment', category:'Massage', duration:'30 min', price:'R400' },
+    { id:2, name:'Qualifying treatment', category:'Massage', duration:'60 min', price:'R450' },
+    { id:3, name:'Premium treatment', category:'Facials', duration:'75 min', price:'R650' },
+    { id:4, name:'Variable treatment', category:'Facials', duration:'60 min', price:'Price on request' },
+  ];
+  assert.deepEqual(qualifyingServices(catalogue, 450).map((service) => service.id), [2, 3]);
+  const html = renderMyShilohWelcomeVoucherBooking({ number:'27820000000', catalogue, minimumBookingValue:450 });
+  assert.match(html, /Choose a qualifying treatment/);
+  assert.match(html, /Confirm the booking/);
+  assert.match(html, /Apply the R100/);
+  assert.match(html, /Apply R100 to this booking/);
+  assert.match(html, /href="\/my-shiloh\/#welcome-voucher"/);
+  assert.match(html, /Qualifying treatment/);
+  assert.doesNotMatch(html, /Short treatment/);
+  assert.doesNotMatch(html, /Variable treatment/);
+});
+
+test('qualifying treatment WhatsApp handoff carries explicit voucher intent', () => {
+  const url = welcomeVoucherBookingUrl('+27 82 000 0000', 'Full-Body Sports Massage');
+  assert.match(url, /^https:\/\/wa\.me\/27820000000\?text=/);
+  const message = decodeURIComponent(new URL(url).searchParams.get('text'));
+  assert.match(message, /Full-Body Sports Massage/);
+  assert.match(message, /R100 My Shiloh welcome voucher/);
 });
