@@ -71,6 +71,7 @@ test('Phone toolbar geometry is present before enhancement and behavior remains 
   assert.match(css, /phone-calendar-utility-bar\{[^}]*min-height:40px/);
   assert.match(css, /phone-calendar-view-nav\{[^}]*margin-left:10px/);
   assert.match(css, /phone-calendar-view-link,.phone-calendar-today-link\{[^}]*min-height:38px/);
+  assert.match(css, /body\[data-phone-calendar-v2="true"\] \.phone-calendar-view-link,[^}]*min-height:44px!important/);
   assert.match(css, /phone-week-nav\{[^}]*min-height:36px/);
   assert.match(css, /phone-week-date\{[^}]*min-height:36px/);
   assert.match(script, /phone-staff-column-name\{[^}]*min-height:30px/);
