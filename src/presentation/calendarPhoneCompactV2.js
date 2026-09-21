@@ -361,6 +361,7 @@ function staffOperationEnabled(model, operation, staffId) {
 function renderPhoneCalendarDock(model, {
   basePath = '/calendar/read-only',
   bookingPath = '/calendar/book',
+  multiServiceBookingPath = '/calendar/book/multiple',
   couplesBookingPath = '/calendar/book/couples',
   groupBookingPath = '/calendar/book/group',
   bookingAllowed = false,
@@ -377,6 +378,7 @@ function renderPhoneCalendarDock(model, {
   const availabilityActions = [];
   if (bookingAllowed) {
     bookingActions.push(`<a data-phone-appointment-action href="${escapeHtml(bookingHref(bookingPath, { date, staffId }))}" aria-label="Create appointment">${renderLucideIcon('calendarPlus', { size: 17 })}<span>New appointment</span></a>`);
+    bookingActions.push(`<a data-phone-appointment-action data-calendar-booking-kind="multiple" href="${escapeHtml(bookingHref(multiServiceBookingPath, { date }))}" aria-label="Book multiple treatments for one client">${renderLucideIcon('calendarPlus', { size: 17 })}<span>Multiple treatments</span></a>`);
     bookingActions.push(`<a data-phone-appointment-action data-calendar-booking-kind="couples" href="${escapeHtml(bookingHref(couplesBookingPath, { date }))}" aria-label="Book a Couples booking for two guests">${renderLucideIcon('couples', { size: 17 })}<span>Couples booking</span></a>`);
     bookingActions.push(`<a data-phone-appointment-action data-calendar-booking-kind="group" href="${escapeHtml(bookingHref(groupBookingPath, { date }))}" aria-label="Book a Group booking for multiple guests">${renderLucideIcon('users', { size: 17 })}<span>Group booking</span></a>`);
   }

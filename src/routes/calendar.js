@@ -6,6 +6,7 @@ const { createCalendarCreateBookingRouter } = require('./calendarCreateBooking')
 const { createCalendarRetrospectiveBookingRouter } = require('./calendarRetrospectiveBooking');
 const { createCalendarCouplesBookingRouter } = require('./calendarCouplesBooking');
 const { createCalendarGroupBookingRouter } = require('./calendarGroupBooking');
+const { createCalendarMultiServiceBookingRouter } = require('./calendarMultiServiceBooking');
 const { createCalendarPaymentsRouter } = require('./calendarPayments');
 const { createStaffBrowserSessionService } = require('../services/staffBrowserSession');
 const { createStaffBrowserSessionRouter } = require('./staffBrowserSession');
@@ -50,14 +51,27 @@ function stamp(v){return new Date(v).toISOString().replace(/[-:]/g,'').replace(/
 router.get('/:token.ics',async(req,res,next)=>{try{
   const token=String(req.params.token||'');if(!/^[A-Za-z0-9_-]{20,80}$/.test(token))return res.sendStatus(404);
   const r=await pool.query(`
-    SELECT a.id,a.starts_at,a.ends_at,a.status,l.name AS location_name,
+    SELECT a.id,COALESCE(linked.starts_at,a.starts_at) AS starts_at,
+           COALESCE(linked.ends_at,a.ends_at) AS ends_at,a.status,l.name AS location_name,
            c.display_name AS client_name,
-           COALESCE((SELECT aps.service_name_snapshot FROM appointment_services aps WHERE aps.appointment_id=a.id ORDER BY aps.position LIMIT 1),a.title,'Shiloh appointment') AS service_name,
-           COALESCE((SELECT ast.staff_name_snapshot FROM appointment_staff ast WHERE ast.appointment_id=a.id ORDER BY ast.position LIMIT 1),'Shiloh practitioner') AS staff_name
+           COALESCE(linked.service_name,(SELECT aps.service_name_snapshot FROM appointment_services aps WHERE aps.appointment_id=a.id ORDER BY aps.position LIMIT 1),a.title,'Shiloh appointment') AS service_name,
+           COALESCE(linked.staff_name,(SELECT ast.staff_name_snapshot FROM appointment_staff ast WHERE ast.appointment_id=a.id ORDER BY ast.position LIMIT 1),'Shiloh practitioner') AS staff_name
       FROM appointment_calendar_share_tokens t
       JOIN appointments a ON a.id=t.appointment_id
       LEFT JOIN clients c ON c.id=a.client_id
       LEFT JOIN locations l ON l.id=a.location_id
+      LEFT JOIN LATERAL (
+        SELECT ag.starts_at,ag.ends_at,
+               string_agg(aps.service_name_snapshot,' + ' ORDER BY gm.guest_position) AS service_name,
+               string_agg(ast.staff_name_snapshot,' + ' ORDER BY gm.guest_position) AS staff_name
+          FROM appointment_group_members seed
+          JOIN appointment_groups ag ON ag.id=seed.group_id AND ag.group_type='multi_service_booking'
+          JOIN appointment_group_members gm ON gm.group_id=ag.id
+          JOIN appointment_services aps ON aps.appointment_id=gm.appointment_id AND aps.position=1
+          JOIN appointment_staff ast ON ast.appointment_id=gm.appointment_id AND ast.position=1
+         WHERE seed.appointment_id=a.id
+         GROUP BY ag.id
+      ) linked ON TRUE
      WHERE t.token=$1`,[token]);
   const a=r.rows[0];if(!a||a.status==='cancelled')return res.sendStatus(404);
   const now=stamp(new Date());
@@ -75,6 +89,7 @@ router.use('/client-authority', createOperatorContactAuthorityRouter({ sessionSe
 router.use('/book/past', createCalendarRetrospectiveBookingRouter({ sessionService: staffBrowserSessionService }));
 router.use('/book/couples', createCalendarCouplesBookingRouter({ sessionService: staffBrowserSessionService }));
 router.use('/book/group', createCalendarGroupBookingRouter({ sessionService: staffBrowserSessionService }));
+router.use('/book/multiple', createCalendarMultiServiceBookingRouter({ sessionService: staffBrowserSessionService }));
 router.use('/book', createCalendarCreateBookingRouter({
   sessionService: staffBrowserSessionService,
   renderPage: renderCalendarCreateBookingPageWithoutLinkedShortcuts,

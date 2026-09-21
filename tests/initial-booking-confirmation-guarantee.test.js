@@ -168,7 +168,7 @@ function memoryDeliveryDb({
         state.token = params[1];
         return { rows: [{ token: state.token }], rowCount: 1 };
       }
-      if (q.startsWith('SELECT a.id,a.client_id,a.starts_at')) {
+      if (q.includes('FROM appointments a LEFT JOIN locations l ON l.id=a.location_id')) {
         return state.appointment
           ? { rows: [{ ...state.appointment }], rowCount: 1 }
           : { rows: [], rowCount: 0 };

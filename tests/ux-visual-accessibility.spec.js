@@ -211,6 +211,25 @@ test('Group booking remains scannable with three guest cards on Desktop', async 
   await page.screenshot({ path: testInfo.outputPath('group-booking-desktop.png'), fullPage: true });
 });
 
+test('Multiple treatments stays compact and clear for one client on Phone', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/iframe.html?id=workspace-production-surfaces--multi-service-client-booking&viewMode=story', { waitUntil: 'networkidle' });
+  await expect(page.getByRole('heading', { name: 'Book multiple treatments' })).toBeVisible();
+  await expect(page.locator('[data-treatment]')).toHaveCount(2);
+  await page.locator('[data-treatment]').nth(0).locator('[data-service]').selectOption('81');
+  await page.locator('[data-treatment]').nth(0).locator('[data-staff]').selectOption('11');
+  await page.locator('[data-treatment]').nth(0).locator('[data-start-time]').fill('09:00');
+  await page.locator('[data-treatment]').nth(1).locator('[data-service]').selectOption('82');
+  await expect(page.locator('[data-treatment]').nth(1).locator('[data-start-time]')).toHaveValue('09:45');
+  await page.getByRole('button', { name: 'Add treatment' }).click();
+  await expect(page.locator('[data-treatment]')).toHaveCount(3);
+  await expect(page.locator('[data-multiple-status]')).toContainText('Treatment 3 added');
+  const scan = await new AxeBuilder({ page }).analyze();
+  const serious = scan.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
+  expect(serious, `Serious accessibility violations in multiple-treatment booking: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath('multi-service-client-booking-phone.png'), fullPage: true });
+});
+
 test('Couples discount controls do not render without canonical pricing authority', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/iframe.html?id=workspace-production-surfaces--couples-booking-without-discount-authority&viewMode=story', { waitUntil: 'networkidle' });

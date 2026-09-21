@@ -508,10 +508,25 @@ async function practitionerApprovalStatus(appointmentId,db=pool){
 async function sendCustomerBookingConfirmationForAppointment(appointmentId,options={}){
   const db=options.db||pool;
   const r=await db.query(`
-    SELECT a.id,a.client_id,a.starts_at,a.ends_at,a.source,l.name AS location_name,
-           COALESCE((SELECT string_agg(service_name_snapshot,' + ' ORDER BY position) FROM appointment_services WHERE appointment_id=a.id),a.title,'Shiloh appointment') AS service_name,
-           COALESCE((SELECT string_agg(staff_name_snapshot,' + ' ORDER BY position) FROM appointment_staff WHERE appointment_id=a.id),'Shiloh practitioner') AS staff_name
+    SELECT a.id,a.client_id,
+           COALESCE(linked.starts_at,a.starts_at) AS starts_at,
+           COALESCE(linked.ends_at,a.ends_at) AS ends_at,
+           a.source,l.name AS location_name,
+           COALESCE(linked.service_name,(SELECT string_agg(service_name_snapshot,' + ' ORDER BY position) FROM appointment_services WHERE appointment_id=a.id),a.title,'Shiloh appointment') AS service_name,
+           COALESCE(linked.staff_name,(SELECT string_agg(staff_name_snapshot,' + ' ORDER BY position) FROM appointment_staff WHERE appointment_id=a.id),'Shiloh practitioner') AS staff_name
       FROM appointments a LEFT JOIN locations l ON l.id=a.location_id
+      LEFT JOIN LATERAL (
+        SELECT ag.starts_at,ag.ends_at,
+               string_agg(aps.service_name_snapshot,' + ' ORDER BY gm.guest_position) AS service_name,
+               string_agg(ast.staff_name_snapshot,' + ' ORDER BY gm.guest_position) AS staff_name
+          FROM appointment_group_members seed
+          JOIN appointment_groups ag ON ag.id=seed.group_id AND ag.group_type='multi_service_booking'
+          JOIN appointment_group_members gm ON gm.group_id=ag.id
+          JOIN appointment_services aps ON aps.appointment_id=gm.appointment_id AND aps.position=1
+          JOIN appointment_staff ast ON ast.appointment_id=gm.appointment_id AND ast.position=1
+         WHERE seed.appointment_id=a.id
+         GROUP BY ag.id
+      ) linked ON TRUE
      WHERE a.id=$1 AND a.status<>'cancelled'`,[appointmentId]);
   const a=r.rows[0];if(!a)return {sent:false,reason:'appointment_not_found'};
   if(options.controlledE2e===true){
