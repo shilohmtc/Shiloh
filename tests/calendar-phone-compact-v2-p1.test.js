@@ -7,8 +7,7 @@ const {
   calendarPhoneCompactV2ClientScript,
   decoratePhoneCalendarV2,
   phoneCalendarV2Styles,
-  renderPhoneCalendarControls,
-  renderPhoneCalendarDock,
+  renderPhoneCalendarUtilityBar,
 } = require('../src/presentation/calendarPhoneCompactV2');
 
 function model(view = 'day') {
@@ -34,27 +33,27 @@ function model(view = 'day') {
   };
 }
 
-test('Phone V2 controls collapse Calendar navigation to compact date, view and practitioner menus', () => {
-  const html = renderPhoneCalendarControls(model('week'), { basePath: '/calendar/read-only' });
-  assert.match(html, /data-phone-calendar-v2-controls/);
+test('Phone Calendar emits the approved compact toolbar directly', () => {
+  const html = renderPhoneCalendarUtilityBar(model('week'), { basePath: '/calendar/read-only' });
+  assert.match(html, /data-phone-calendar-utility-bar/);
+  assert.doesNotMatch(html, /data-phone-calendar-v2-controls/);
   assert.doesNotMatch(html, /data-phone-calendar-view="day"/);
   assert.match(html, /data-phone-calendar-view="week"/);
-  assert.match(html, /data-phone-calendar-view="agenda"/);
   assert.match(html, /data-phone-calendar-view="month"/);
-  assert.match(html, /data-phone-active-staff="22">Christel/);
-  assert.match(html, /view=week&amp;date=2026-09-05&amp;staff=11&amp;staff=22&amp;activeStaff=11/);
-  assert.match(html, /phone-date-weekdays[\s\S]*>M<[\s\S]*>S</);
+  assert.match(html, /data-phone-staff-menu/);
+  assert.match(html, /data-phone-week-staff-id="22"/);
+  assert.match(html, /view=week&amp;date=2026-09-05&amp;staff=11&amp;staff=22&amp;activeStaff=22/);
 });
 
 test('Phone V2 top launcher binds all approved actions to the explicit active practitioner', () => {
-  const html = renderPhoneCalendarDock(model(), {
+  const html = renderPhoneCalendarUtilityBar(model(), {
     basePath: '/calendar/read-only',
     bookingPath: '/calendar/book',
     bookingAllowed: true,
     retrospectiveAllowed: true,
     retrospectiveBookingPath: '/calendar/book/past',
   });
-  assert.match(html, /data-phone-calendar-v2-actions/);
+  assert.match(html, /data-phone-calendar-utility-bar/);
   assert.match(html, /phone-today-action/);
   assert.match(html, /aria-label="Booking actions"/);
   assert.match(html, />\+ Booking</);
@@ -78,7 +77,7 @@ test('Phone V2 top launcher binds all approved actions to the explicit active pr
 test('Phone V2 action launcher fails closed when mutation and booking authority are absent', () => {
   const restricted = model();
   restricted.mutationCapability = { enabled: false };
-  const html = renderPhoneCalendarDock(restricted, { bookingAllowed: false });
+  const html = renderPhoneCalendarUtilityBar(restricted, { bookingAllowed: false });
   assert.match(html, /phone-today-action/);
   assert.doesNotMatch(html, /add-leave|add-block|Appointment/);
   assert.doesNotMatch(html, /phone-plus-menu/);
@@ -97,6 +96,8 @@ test('Phone V2 decoration is presentation-only and adds Week practitioner contex
   assert.match(html, /data-phone-booking-path="\/calendar\/book"/);
   assert.match(html, /data-phone-week-planner/);
   assert.match(html, /data-phone-week-staff-id="22"/);
+  assert.match(html, /data-phone-calendar-utility-bar/);
+  assert.doesNotMatch(html, /data-phone-calendar-v2-controls|data-phone-calendar-v2-actions/);
   assert.match(html, /\/calendar\/read-only\/phone-v2\.js/);
   assert.match(html, /canonical footer/);
 });
@@ -114,9 +115,8 @@ test('Phone V2 uses a 30-minute visual grid and a clean 44px touch contract whil
   assert.match(css, /\.workspace-main \.day-view \.day-time-grid \.lane\[data-phone-active-practitioner="true"\]\{display:block!important\}/);
   assert.match(css, /\.day-view \.lane-actions\{display:none!important\}/);
   assert.match(css, /\.workspace-main \.lane-actions,body\[data-phone-calendar-v2="true"\] \.workspace-main \.availability-menu\{display:none!important\}/);
-  assert.match(css, /\.phone-calendar-v2-controls summary\{[^}]*min-height:44px/);
-  assert.match(css, /\.phone-date-popover header a\{[^}]*min-height:44px/);
-  assert.match(css, /\.phone-date-cell,\.phone-date-blank\{[^}]*min-height:44px/);
+  assert.match(css, /\.phone-calendar-view-link,.phone-calendar-today-link\{[^}]*min-height:38px/);
+  assert.match(css, /\.phone-month-nav\{[^}]*min-width:44px;min-height:44px/);
   assert.match(css, /\.phone-today-action,.phone-plus-menu>summary\{[^}]*min-height:44px/);
   assert.match(css, /\.time-rail\{height:660px!important\}/);
   assert.doesNotMatch(css, /phone-calendar-v2-dock/);

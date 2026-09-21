@@ -7,7 +7,7 @@ const {
   alignScopedAvailabilityFocus,
   renderCalendarCreateBookingPageWithoutLinkedShortcuts,
 } = require('../src/presentation/calendarBookingEntryComposition');
-const { renderPhoneCalendarDock } = require('../src/presentation/calendarPhoneCompactV2');
+const { renderPhoneCalendarUtilityBar } = require('../src/presentation/calendarPhoneCompactV2');
 
 function ownAvailabilityModel() {
   return {
@@ -39,7 +39,7 @@ test('own availability controls target the linked practitioner even when All sta
   alignScopedAvailabilityFocus(model);
   assert.equal(model.activeStaffId, 54);
 
-  const html = renderPhoneCalendarDock(model, {
+  const html = renderPhoneCalendarUtilityBar(model, {
     bookingPath: '/calendar/book',
     bookingAllowed: true,
   });

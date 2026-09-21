@@ -43,7 +43,8 @@ test('phone navigation never paints the legacy Calendar before compact setup', a
   await expect(page.locator('body')).not.toHaveAttribute('data-calendar-phone-pending');
   await expect(shell).toHaveCSS('visibility', 'visible');
   await expect(shell).toHaveCSS('opacity', '1');
-  await expect(page.locator('[data-phone-calendar-v2-controls]')).toBeVisible();
+  await expect(page.locator('[data-phone-calendar-utility-bar]')).toBeVisible();
+  await expect(page.locator('[data-phone-calendar-v2-controls]')).toHaveCount(0);
 
   const accessibility = await new AxeBuilder({ page }).include('.workspace-main').analyze();
   expect(accessibility.violations).toEqual([]);
