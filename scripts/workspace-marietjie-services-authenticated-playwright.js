@@ -112,6 +112,8 @@ async function main() {
 
   let updateCalls = 0;
   let lastUpdate = null;
+  let descriptionCalls = 0;
+  let lastDescription = null;
   const sessionService = {
     validateSessionToken: async token => token === SESSION_TOKEN
       ? {
@@ -154,6 +156,13 @@ async function main() {
       updateCalls += 1;
       lastUpdate = input;
       return { status: 'updated', serviceId: 7, revision: 'b'.repeat(64) };
+    },
+    async updateCustomerDescription(input) {
+      assert.equal(input.adminId, 81);
+      assert.equal(Number(input.serviceId), 7);
+      descriptionCalls += 1;
+      lastDescription = input;
+      return { status: 'updated', serviceId: 7, revision: 'c'.repeat(64) };
     },
     async setServiceStatus() { throw new Error('status mutation is not part of this proof'); },
     async assignPractitioner() { throw new Error('assignment mutation is not part of this proof'); },
@@ -243,12 +252,14 @@ async function main() {
       assert.equal(detailResponse.status(), 200);
       await page.locator('[data-service-edit-form]').waitFor();
       assert.equal(await page.locator('[data-service-edit-form]').isVisible(), true);
+      assert.equal(await page.locator('[data-service-description-form]').isVisible(), true);
+      assert.equal(await page.locator('[data-description-preview]').isVisible(), true);
       assert.equal(await page.locator('[data-service-assign-form]').isVisible(), true);
 
       const geometry = await page.evaluate(() => ({
         viewportWidth: window.innerWidth,
         documentWidth: document.documentElement.scrollWidth,
-        targets: [...document.querySelectorAll('button,input:not([type="checkbox"]),select,a,.check-field')]
+        targets: [...document.querySelectorAll('button,input:not([type="checkbox"]),textarea,select,a,.check-field')]
           .filter(node => node.getClientRects().length > 0)
           .map(node => ({
             label: node.textContent.trim() || node.getAttribute('aria-label') || node.id,
@@ -272,10 +283,24 @@ async function main() {
       const responsePromise = page.waitForResponse(response =>
         response.url().endsWith('/calendar/services/7/update') && response.request().method() === 'POST'
       );
+      const serviceReload = page.waitForNavigation({ waitUntil: 'networkidle' });
       await page.locator('[data-service-edit-form] input[name="name"]').fill('Marietjie Signature Massage');
       await page.getByRole('button', { name: 'Save service' }).click();
       const mutationResponse = await responsePromise;
       assert.equal(mutationResponse.status(), 200);
+      await serviceReload;
+
+      const descriptionResponsePromise = page.waitForResponse(response =>
+        response.url().endsWith('/calendar/services/7/description') && response.request().method() === 'POST'
+      );
+      const descriptionReload = page.waitForNavigation({ waitUntil: 'networkidle' });
+      const description = `A warm approved ${viewport.name} description that clients can read on the website.`;
+      await page.locator('[data-service-description-form] textarea[name="customerDescription"]').fill(description);
+      assert.equal(await page.locator('[data-description-preview]').textContent(), description);
+      await page.getByRole('button', { name: 'Approve and publish wording' }).click();
+      const descriptionResponse = await descriptionResponsePromise;
+      assert.equal(descriptionResponse.status(), 200);
+      await descriptionReload;
 
       const file = `${viewport.name}-marietjie-services.png`;
       const filePath = path.join(OUT_DIR, file);
@@ -288,12 +313,15 @@ async function main() {
         noHorizontalOverflow: true,
         accessibilitySeriousOrCritical: 0,
         authenticatedManagementMutation: true,
+        authenticatedDescriptionPublication: true,
       });
       await context.close();
     }
 
     assert.equal(updateCalls, 2);
+    assert.equal(descriptionCalls, 2);
     assert.equal(lastUpdate.name, 'Marietjie Signature Massage');
+    assert.match(lastDescription.customerDescription, /approved phone description/);
     const exactHead = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
     fs.writeFileSync(path.join(OUT_DIR, 'manifest.json'), JSON.stringify({
       exactHead,
@@ -306,6 +334,7 @@ async function main() {
       visibleAssignedServices: 2,
       serviceCreationGranted: false,
       managementMutations: updateCalls,
+      descriptionPublicationMutations: descriptionCalls,
       screenshots,
     }, null, 2));
     console.log(`Authenticated Marietjie Services Playwright proof passed at ${exactHead}: Desktop + Phone; assigned-only list; management enabled; zero production reads/writes.`);

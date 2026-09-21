@@ -66,9 +66,25 @@ function createWorkspaceServicesMutationRouter({
         price: req.body?.price,
         displayPrice: req.body?.displayPrice,
         variablePrice: req.body?.variablePrice,
+        customerDescription: req.body?.customerDescription,
         staffIds: req.body?.staffIds,
       });
       return res.status(201).json(result);
+    } catch (error) {
+      return sendMutationError(error, req, res, next);
+    }
+  });
+
+  router.post('/:id/description', ...mutationChain, async (req, res, next) => {
+    try {
+      const result = await service.updateCustomerDescription({
+        adminId: req.staffBrowserSession?.adminId,
+        serviceId: req.params?.id,
+        expectedRevision: req.body?.expectedRevision,
+        requestId: req.body?.requestId,
+        customerDescription: req.body?.customerDescription,
+      });
+      return res.status(200).json(result);
     } catch (error) {
       return sendMutationError(error, req, res, next);
     }

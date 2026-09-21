@@ -6,6 +6,7 @@ const {
   normalizeName,
   normalizePrice,
   normalizeDisplayPrice,
+  normalizeCustomerDescription,
   normalizeBoolean,
 } = require('./workspaceServices');
 
@@ -57,6 +58,7 @@ function normalizeCreatePayload(input = {}) {
     variablePrice,
     price,
     displayPrice,
+    customerDescription: normalizeCustomerDescription(input.customerDescription),
     staffIds: normalizeStaffIds(input.staffIds ?? input.staffId),
   };
 }
@@ -212,15 +214,15 @@ function createWorkspaceServiceCreationService({ db = pool } = {}) {
       const inserted = await client.query(
         `INSERT INTO services(
            name,duration_minutes,processing_time_minutes,extra_time_minutes,
-           variable_price,price,display_price,display_order,status
+           variable_price,price,display_price,customer_description,display_order,status
          )
          VALUES(
-           $1,$2,0,0,$3,$4::numeric,$5,
+           $1,$2,0,0,$3,$4::numeric,$5,$6,
            COALESCE((SELECT MAX(display_order)+1 FROM services),0),'active'
          )
          RETURNING id,name,duration_minutes,processing_time_minutes,extra_time_minutes,
-                   variable_price,price,display_price,status`,
-        [payload.name, payload.durationMinutes, payload.variablePrice, payload.price, payload.displayPrice]
+                   variable_price,price,display_price,customer_description,status`,
+        [payload.name, payload.durationMinutes, payload.variablePrice, payload.price, payload.displayPrice, payload.customerDescription]
       );
       const service = inserted.rows[0];
       for (const staffId of payload.staffIds) {
@@ -250,6 +252,7 @@ function createWorkspaceServiceCreationService({ db = pool } = {}) {
           visibility: privateOwnerStaffId ? 'tenant_private' : 'ordinary',
           privateOwnerStaffId,
           pricing: { variablePrice: payload.variablePrice, hasPrice: payload.price != null, hasDisplayPrice: Boolean(payload.displayPrice) },
+          publicDescription: { approvedAtCreation: true, characterCount: payload.customerDescription.length },
         })]
       );
       await client.query('COMMIT');
@@ -264,6 +267,7 @@ function createWorkspaceServiceCreationService({ db = pool } = {}) {
           variablePrice: service.variable_price === true,
           price: service.price == null ? null : Number(service.price),
           displayPrice: service.display_price || null,
+          customerDescription: service.customer_description,
           status: service.status,
           staffIds: payload.staffIds,
           privateOwnerStaffId,
