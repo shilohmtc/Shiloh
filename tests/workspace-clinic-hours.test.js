@@ -152,6 +152,8 @@ test('#751 presentation is explicit about existing appointments, holiday separat
   assert.match(clinicHoursClientScript(), /x-shiloh-csrf-token/);
   assert.match(html, /data-workspace-destination="clinicHours"/);
   assert.match(html, /data-clinic-hours-mobile-cohesion/);
+  assert.match(html, /\.brand\{min-height:44px;padding-left:52px\}/);
+  assert.match(html, /\.brand h1\{font-size:1\.55rem;line-height:1\.15\}/);
   assert.match(html, /data-hours-tab="clinic"/);
   assert.match(html, /data-hours-tab="assistant"/);
   assert.match(html, /data-hours-tab="holidays"/);
