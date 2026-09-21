@@ -17,6 +17,7 @@ const {
   renderUnavailablePage,
 } = require('../presentation/clientConsultationFormUx');
 const { renderMyShilohPage } = require('../presentation/myShilohPwa');
+const { renderMyShilohWelcomeVoucherBooking } = require('../presentation/myShilohWelcomeVoucherBooking');
 const { createGiftVoucherService, GiftVoucherError } = require('../services/giftVouchers');
 const { renderClientVoucherPage, renderPublicVoucherPage } = require('../presentation/giftVoucherUx');
 const { createShilohRewardsService, ShilohRewardsError } = require('../services/shilohRewards');
@@ -194,6 +195,31 @@ function createMyShilohRouter({
   router.get('/my-shiloh/offline.html', (_req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=3600');
     return res.status(200).type('html').sendFile(path.join(ROOT, 'offline.html'));
+  });
+
+  router.get('/my-shiloh/book', requireSession, async (req, res, next) => {
+    try {
+      const [number, catalogue, welcomeVoucher] = await Promise.all([
+        whatsappResolver(),
+        catalogueProvider(),
+        welcomeVoucherService.getClientModel({
+          crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+        }),
+      ]);
+      const voucher = welcomeVoucher?.voucher;
+      if (voucher?.state !== 'available') return res.redirect(303, '/my-shiloh/#welcome-voucher');
+      setMyShilohPageHeaders(res, { allowInlineStyles: true });
+      return res.status(200).type('html').send(renderMyShilohWelcomeVoucherBooking({
+        number,
+        catalogue: catalogue || [],
+        minimumBookingValue: voucher.minimumBookingValue,
+      }));
+    } catch (error) {
+      if (error instanceof MyShilohWelcomeVoucherError) {
+        return res.redirect(303, '/my-shiloh/#welcome-voucher');
+      }
+      return next(error);
+    }
   });
 
   router.post('/my-shiloh/auth/start', sameOrigin, async (req, res, next) => {
