@@ -493,7 +493,7 @@ test('Workspace navigation drawer remains contained and branded on Phone and Des
 
     const drawer = page.locator('[data-workspace-navigation-drawer]');
     await expect(drawer).toBeVisible();
-    await expect(drawer.locator('.workspace-brand-icon')).toBeVisible();
+    await expect(drawer.locator('.workspace-brand-icon:visible')).toBeVisible();
     const metrics = await page.evaluate(() => {
       const rect = (selector) => {
         const value = document.querySelector(selector)?.getBoundingClientRect();
