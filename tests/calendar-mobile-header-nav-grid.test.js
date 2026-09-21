@@ -26,6 +26,7 @@ test('Phone Month adds a labelled previous and next month navigator above the gr
   assert.match(script, /phoneMonthNavigation='true'/);
   assert.match(script, /phoneMonthLabel='true'/);
   assert.match(script, /phone-month-nav\{[^}]*min-width:44px;min-height:44px/);
+  assert.match(script, /phone-month-nav\[data-phone-month-nav="previous"\]\{transform:translateX\(8px\)\}/);
   assert.match(script, /\[data-phone-month-nav\]/);
 });
 
