@@ -492,7 +492,7 @@ async function main() {
           assert.equal(metrics.drawerOpen, true);
           assert.deepEqual(metrics.primary, ['Dashboard', 'Calendar', 'Clients', 'Messages']);
           assert.deepEqual(metrics.secondary, ['Staff', 'Services', 'Reports', 'Clinic hours']);
-          assert.ok(Math.abs(metrics.navWidth - Math.min(width * 0.64, 240)) <= 1, `${name} drawer width is not compactly contained: ${metrics.navWidth}px`);
+          assert.ok(Math.abs(metrics.navWidth - Math.min(width * 0.6, 220)) <= 1, `${name} drawer width is not compactly contained: ${metrics.navWidth}px`);
           assert.ok(metrics.drawerHeaderRight <= metrics.navRight, `${name} drawer header escapes its panel`);
           assert.ok(metrics.drawerCloseRight <= metrics.navRight, `${name} close control escapes its panel`);
           assert.equal(metrics.drawerLinksOverflowY, 'auto');
