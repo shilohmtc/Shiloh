@@ -109,5 +109,6 @@ test('qualifying treatment WhatsApp handoff carries explicit voucher intent', ()
   assert.match(url, /^https:\/\/wa\.me\/27820000000\?text=/);
   const message = decodeURIComponent(new URL(url).searchParams.get('text'));
   assert.match(message, /Full-Body Sports Massage/);
+  assert.match(message, /Full-Body Sports Massage\./);
   assert.match(message, /R100 My Shiloh welcome voucher/);
 });

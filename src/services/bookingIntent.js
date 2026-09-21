@@ -257,8 +257,8 @@ function extractTherapist(text = "") {
 function extractService(text = "") {
   const value = String(text).trim();
   const patterns = [
-    /\b(?:book|schedule|reserve)\s+(?:me\s+)?(?:an?\s+)?(.+?)(?=\s+(?:for|on|at|with|tomorrow|today|next\s+|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|evening)\b|$)/i,
-    /\b(?:i(?:'d| would)? like|i want)\s+(?:to book\s+)?(?:an?\s+)?(.+?)(?=\s+(?:for|on|at|with|tomorrow|today|next\s+|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|evening)\b|$)/i,
+    /\b(?:book|schedule|reserve)\s+(?:me\s+)?(?:an?\s+)?(.+?)(?=[.!?]|\s+and\s+(?:use|apply|redeem)\b|\s+(?:for|on|at|with|tomorrow|today|next\s+|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|evening)\b|$)/i,
+    /\b(?:i(?:'d| would)? like|i want)\s+(?:to book\s+)?(?:an?\s+)?(.+?)(?=[.!?]|\s+and\s+(?:use|apply|redeem)\b|\s+(?:for|on|at|with|tomorrow|today|next\s+|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|evening)\b|$)/i,
   ];
 
   for (const pattern of patterns) {

@@ -28,7 +28,7 @@ function welcomeVoucherBookingUrl(number, serviceName = '') {
   const digits = String(number || '').replace(/[^0-9]/g, '');
   if (!digits) return null;
   const name = String(serviceName || 'a qualifying treatment').trim();
-  const message = `Hi Shiloh 👋 I'd like to book ${name} and use my R100 My Shiloh welcome voucher. Please help me choose an available time.`;
+  const message = `Hi Shiloh 👋 I'd like to book ${name}. I also want to use my R100 My Shiloh welcome voucher. Please help me choose an available time.`;
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
 

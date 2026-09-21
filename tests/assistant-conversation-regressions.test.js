@@ -11,6 +11,17 @@ test('generic appointment requests ask for a treatment instead of verifying appo
   assert.equal(extractService('I would like to schedule an appointment'), null);
 });
 
+test('My Shiloh welcome-voucher handoff extracts only the chosen treatment', () => {
+  assert.equal(
+    extractService("Hi Shiloh 👋 I'd like to book Full Body Swedish. I also want to use my R100 My Shiloh welcome voucher. Please help me choose an available time."),
+    'Full Body Swedish',
+  );
+  assert.equal(
+    extractService("I'd like to book Full Body Swedish and use my R100 My Shiloh welcome voucher."),
+    'Full Body Swedish',
+  );
+});
+
 test('name updates receive a conversational acknowledgement', () => {
   assert.equal(
     deterministicConversationReply('My name is Jean-Pierre Botha.'),
