@@ -159,7 +159,7 @@ function createFixture() {
     sessions.set(token, row);
     byId.set(row.sessionId, row);
   }
-  const state = { operations: [], requests: [], renders: new Map(), sessions };
+  const state = { operations: [], customerNotifications: [], requests: [], renders: new Map(), sessions };
   const sessionService = {
     async validateSessionToken(token) {
       const row = sessions.get(String(token || ''));
@@ -264,7 +264,17 @@ function createFixture() {
     if (!rotated.ok) return res.status(401).json({ error: 'Unauthorized' });
     return res.status(200).json({ csrfToken: rotated.csrfToken });
   });
-  app.use('/calendar/operations', createCalendarOperationalMutationRouter({ env, sessionService, mutationService }));
+  app.use('/calendar/operations', createCalendarOperationalMutationRouter({
+    env,
+    sessionService,
+    mutationService,
+    customerChangeNotificationService: {
+      async queueCustomerChangeNotification(appointmentId, changeKind) {
+        state.customerNotifications.push({ appointmentId, changeKind });
+        return { queued: true };
+      },
+    },
+  }));
   app.use(
     '/calendar/read-only',
     createOptionalCalendarSessionMiddleware({ service: sessionService, env }),
@@ -524,6 +534,10 @@ async function main() {
     const reschedulePaths = state.requests.filter((item) => item.path.endsWith('/reschedule'));
     assert.equal(reschedulePaths.length, 2);
     assert.equal(new Set(reschedulePaths.map((item) => `${item.method} ${item.path}`)).size, 1);
+    assert.deepEqual(state.customerNotifications, [
+      { appointmentId: 7001, changeKind: 'time' },
+      { appointmentId: 7001, changeKind: 'time' },
+    ]);
 
     await panelOperation('appointment:reassign', `form.elements.destinationStaffId.value='2'`, 'reassign');
 

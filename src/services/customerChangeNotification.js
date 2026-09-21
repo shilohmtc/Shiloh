@@ -15,6 +15,9 @@ const ACTION_BY_KIND = Object.freeze({
   price: 'appointment.price_updated',
   cancellation: 'admin.appointment_cancelled',
 });
+const ACTION_ALIASES_BY_KIND = Object.freeze({
+  time: Object.freeze(['calendar.appointment_rescheduled']),
+});
 const UPDATE_KINDS = new Set(['service', 'practitioner', 'time', 'price']);
 const RETRY_MS = 5 * 60 * 1000;
 let tableReady = false;
@@ -93,13 +96,14 @@ async function ensureCustomerChangeNotificationTable() {
 async function latestAuditEvent(appointmentId, changeKind) {
   const action = ACTION_BY_KIND[changeKind];
   if (!action) return null;
+  const actions = [action, ...(ACTION_ALIASES_BY_KIND[changeKind] || [])];
   const result = await pool.query(
     `SELECT id,action,created_at
        FROM crm_audit_events
-      WHERE entity_type='appointment' AND entity_id=$1 AND action=$2
+      WHERE entity_type='appointment' AND entity_id=$1 AND action=ANY($2::text[])
       ORDER BY id DESC
       LIMIT 1`,
-    [String(appointmentId), action]
+    [String(appointmentId), actions]
   );
   return result.rows[0] || null;
 }
@@ -323,6 +327,7 @@ function startCustomerChangeNotificationScheduler() {
 
 module.exports = {
   ACTION_BY_KIND,
+  ACTION_ALIASES_BY_KIND,
   UPDATE_KINDS,
   ensureCustomerChangeNotificationTable,
   latestAuditEvent,

@@ -12,9 +12,11 @@ const {
   calendarOperationalMutationsClientScript,
 } = require('../presentation/calendarOperationalMutationsUx');
 const workspaceClientNotifications = require('../services/workspaceClientNotifications');
+const customerChangeNotifications = require('../services/customerChangeNotification');
 const { createWorkspaceAppointmentNotesService } = require('../services/workspaceAppointmentNotes');
 const { calendarManageAppointmentNotesClientScript } = require('../presentation/calendarAppointmentNotesUx');
 const { calendarAppointmentCompactEditorClientScript } = require('../presentation/calendarAppointmentCompactEditorUx');
+const logger = require('../lib/logger');
 
 function setOperationalSecurityHeaders(res) {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
@@ -64,6 +66,7 @@ function createCalendarOperationalMutationRouter({
   sessionService,
   mutationService = createCalendarOperationalMutationService({ db: pool }),
   notificationService = workspaceClientNotifications,
+  customerChangeNotificationService = customerChangeNotifications,
   notesService = createWorkspaceAppointmentNotesService({ db: pool }),
   renderClient = calendarOperationalMutationsClientScript,
   renderNotesClient = calendarManageAppointmentNotesClientScript,
@@ -190,7 +193,27 @@ function createCalendarOperationalMutationRouter({
         startsAt: req.body?.startsAt,
         requestId: req.body?.requestId,
       });
-      return res.status(200).json(result);
+      let customerNotification;
+      try {
+        customerNotification = await customerChangeNotificationService.queueCustomerChangeNotification(
+          Number(result.appointmentId || result.entityId || req.params.appointmentId),
+          'time'
+        );
+      } catch (notificationError) {
+        logger.error({
+          err: notificationError,
+          appointmentId: Number(result.appointmentId || result.entityId || req.params.appointmentId),
+          requestId: req.id,
+        }, 'Calendar reschedule saved but customer update confirmation could not be queued');
+        customerNotification = { queued: false, reason: 'queue_failed' };
+      }
+      return res.status(200).json({
+        ...result,
+        customerNotification: {
+          queued: customerNotification?.queued === true,
+          reason: customerNotification?.reason || customerNotification?.attempted?.reason || null,
+        },
+      });
     } catch (error) {
       return sendOperationalError(error, req, res, next);
     }
