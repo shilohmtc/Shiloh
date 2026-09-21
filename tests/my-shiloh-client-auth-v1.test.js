@@ -155,6 +155,7 @@ test('returning from WhatsApp auto-completes in the original context with a usab
   assert.match(client, /authStatusCheckInFlight = false/);
   assert.match(client, /Checking your WhatsApp verification/);
   assert.match(client, /open automatically/);
+  assert.match(client, /updateViaCache: 'none'/);
   assert.doesNotMatch(client, /localStorage|sessionStorage/);
   assert.match(styles, /\.auth-code-form\.is-waiting/);
 });
