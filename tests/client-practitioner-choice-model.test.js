@@ -68,7 +68,7 @@ test('missing practitioner can never silently become Any available at final conf
 });
 
 test('standard discovery keeps Any available explicit and service-scoped', () => {
-  assert.match(discovery, /id: 'client_practitioner_any'/);
+  assert.match(discovery, /welcomeVoucher \? 'client_voucher_practitioner_any' : 'client_practitioner_any'/);
   assert.match(discovery, /Use any eligible practitioner for this service/);
   assert.match(discovery, /listEligiblePractitionersForService/);
   assert.match(discovery, /practitionerEligibleForService/);

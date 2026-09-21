@@ -49,20 +49,23 @@ async function findClientBookableServiceByName(requestedName) {
   return selectClientBookableServiceByName(await listClientBookableServices(), requestedName);
 }
 
-async function selectedServicePractitioners(sender, requestedName) {
+async function selectedServicePractitioners(sender, requestedName, { welcomeVoucher = false } = {}) {
   const service = await findClientBookableServiceByName(requestedName);
   if (!service) {
     return { handled: true, reply: 'That treatment is no longer available for direct client booking. Choose another treatment from Shiloh’s current list.' };
   }
   const staged = await processBookingMessage(sender, `Book ${service.name}`);
-  const eligible = await listEligiblePractitionersForService(service.id);
+  const mapped = await listEligiblePractitionersForService(service.id);
+  const eligible = welcomeVoucher
+    ? mapped.filter((row) => row.business_role !== 'tenant_practitioner' && comparableServiceName(row.display_name) !== 'marietjie')
+    : mapped;
   if (!eligible.length) {
     return { handled: true, reply: 'No client-bookable practitioner is currently mapped to that treatment. Nothing has been booked.' };
   }
   return {
     handled: true,
     intent: staged.intent,
-    interactive: eligiblePractitionersInteractive({ ...service, name: publicServiceNameFor(service.name) }, eligible),
+    interactive: eligiblePractitionersInteractive({ ...service, name: publicServiceNameFor(service.name) }, eligible, { welcomeVoucher }),
   };
 }
 
@@ -219,7 +222,7 @@ async function listServicesForPractitioner(practitionerId) {
 
 async function listEligiblePractitionersForService(serviceId) {
   const result = await pool.query(`
-    SELECT DISTINCT st.id, st.display_name,
+    SELECT DISTINCT st.id, st.display_name, st.business_role,
            CASE LOWER(st.display_name)
              WHEN 'christel' THEN 1
              WHEN 'abigail' THEN 2
@@ -360,15 +363,15 @@ function practitionerServicePageInteractive(rows = [], practitioner, page = 1) {
   };
 }
 
-function eligiblePractitionersInteractive(service, staff = []) {
+function eligiblePractitionersInteractive(service, staff = [], { welcomeVoucher = false } = {}) {
   const rows = [
     {
-      id: 'client_practitioner_any',
+      id: welcomeVoucher ? 'client_voucher_practitioner_any' : 'client_practitioner_any',
       title: 'Any available',
       description: 'Use any eligible practitioner for this service',
     },
     ...staff.slice(0, 9).map((row) => ({
-      id: `client_practitioner_${row.id}`,
+      id: `${welcomeVoucher ? 'client_voucher_practitioner' : 'client_practitioner'}_${row.id}`,
       title: serviceTitle(row.display_name),
       description: `Eligible for ${serviceTitle(service.name)}`.slice(0, 72),
     })),
@@ -431,7 +434,7 @@ async function findClientBookablePractitioner(id) {
 
 async function practitionerEligibleForService(practitionerId, serviceName) {
   const result = await pool.query(`
-    SELECT st.id, st.display_name
+    SELECT st.id, st.display_name, st.business_role
       FROM staff st
       JOIN staff_services ss ON ss.staff_id = st.id
       JOIN services s ON s.id = ss.service_id
@@ -477,7 +480,7 @@ async function processClientDiscoveryMessage(sender, text) {
   }
 
   const voucherTreatment = welcomeVoucherRequestedService(raw);
-  if (voucherTreatment) return selectedServicePractitioners(sender, voucherTreatment);
+  if (voucherTreatment) return selectedServicePractitioners(sender, voucherTreatment, { welcomeVoucher: true });
 
   if (value === 'client_selected_service_practitioners') {
     const existing = await getIntent(sender);
@@ -623,6 +626,23 @@ async function processClientDiscoveryMessage(sender, text) {
       return { handled: true, intent: staged.intent, interactive: categoryPageInteractive(categories, 1) };
     }
     return decorateClientBookingResult(await processBookingMessage(sender, 'booking with any therapist'));
+  }
+
+  if (value === 'client_voucher_practitioner_any') {
+    const existing = await getIntent(sender);
+    if (!existing?.service_text) return { handled: true, interactive: bookingDiscoveryInteractive() };
+    return decorateClientBookingResult(await processBookingMessage(sender, 'booking with any welcome-voucher practitioner'));
+  }
+
+  const voucherPractitionerMatch = value.match(/^client_voucher_practitioner_(\d+)$/);
+  if (voucherPractitionerMatch) {
+    const existing = await getIntent(sender);
+    if (!existing?.service_text) return { handled: true, interactive: bookingDiscoveryInteractive() };
+    const practitioner = await practitionerEligibleForService(voucherPractitionerMatch[1], existing.service_text);
+    if (!practitioner || practitioner.business_role === 'tenant_practitioner' || comparableServiceName(practitioner.display_name) === 'marietjie') {
+      return { handled: true, reply: 'The R100 welcome voucher does not apply to Marietjie’s services. Choose another eligible practitioner.' };
+    }
+    return decorateClientBookingResult(await processBookingMessage(sender, `booking with ${practitioner.display_name}`));
   }
 
   const practitionerMatch = value.match(/^client_practitioner_(\d+)$/);

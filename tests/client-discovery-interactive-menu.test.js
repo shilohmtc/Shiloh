@@ -50,8 +50,12 @@ test('My Shiloh voucher handoff preserves the selected treatment and bypasses tr
     { id: 8, name: 'Facial' },
   ], welcomeVoucherRequestedService(message));
   assert.equal(service?.id, 7);
-  assert.match(source, /voucherTreatment[\s\S]*selectedServicePractitioners\(sender, voucherTreatment\)/);
+  assert.match(source, /voucherTreatment[\s\S]*selectedServicePractitioners\(sender, voucherTreatment, \{ welcomeVoucher: true \}\)/);
   assert.match(source, /listEligiblePractitionersForService\(service\.id\)/);
+  assert.match(source, /welcomeVoucher: true/);
+  assert.match(source, /business_role !== 'tenant_practitioner'/);
+  assert.match(source, /client_voucher_practitioner_any/);
+  assert.match(source, /client_voucher_practitioner_/);
 });
 
 test('service-scoped practitioner recovery replaces the misleading full-team fallback', () => {

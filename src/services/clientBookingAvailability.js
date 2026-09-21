@@ -23,6 +23,8 @@ function slotId(slot) { const time = localTimeParts(slot.starts_at); return `cli
 function isFutureSlot(slot, now = new Date()) { return new Date(slot.starts_at).getTime() > now.getTime(); }
 function daypartForSlot(slot) { const hour = Number(localTimeParts(slot.starts_at).hh); if (hour < 12) return 'morning'; if (hour < 17) return 'afternoon'; return 'evening'; }
 function explicitBookingDate(value = '') { const match=clean(value).toLowerCase().match(/^client_date_(\d{4}-\d{2}-\d{2})$/);return match?.[1]||null; }
+function isAnyPractitionerPreference(value = '') { return ['any available therapist', 'any available welcome-voucher practitioner'].includes(clean(value).toLowerCase()); }
+function isWelcomeVoucherPreference(value = '') { return clean(value).toLowerCase() === 'any available welcome-voucher practitioner'; }
 
 async function resolveService(intent) {
   const verification = await verifyService(clean(intent.service_text));
@@ -33,10 +35,11 @@ async function resolveService(intent) {
 
 async function resolveEligibleStaff(serviceId, therapistText) {
   const therapist = clean(therapistText); const params = [Number(serviceId)]; let therapistClause = '';
-  if (therapist && therapist.toLowerCase() !== 'any available therapist') { params.push(therapist); therapistClause = 'AND LOWER(st.display_name) = LOWER($2)'; }
+  if (therapist && !isAnyPractitionerPreference(therapist)) { params.push(therapist); therapistClause = 'AND LOWER(st.display_name) = LOWER($2)'; }
+  const voucherClause = isWelcomeVoucherPreference(therapist) ? "AND st.business_role <> 'tenant_practitioner' AND LOWER(BTRIM(st.display_name)) <> 'marietjie'" : '';
   const result = await pool.query(`
     SELECT st.id, st.display_name FROM staff st JOIN staff_services ss ON ss.staff_id = st.id
-     WHERE ss.service_id = $1 AND st.status = 'active' AND st.resource_type = 'practitioner' AND st.client_bookable = TRUE ${therapistClause}
+     WHERE ss.service_id = $1 AND st.status = 'active' AND st.resource_type = 'practitioner' AND st.client_bookable = TRUE ${therapistClause} ${voucherClause}
      GROUP BY st.id, st.display_name
      ORDER BY CASE LOWER(st.display_name) WHEN 'christel' THEN 1 WHEN 'abigail' THEN 2 WHEN 'marietjie' THEN 3 ELSE 9 END, st.display_name, st.id
   `, params);
@@ -82,8 +85,8 @@ async function closedDateInteractive(intent,date,status){
 }
 
 async function revalidateSelectedSlot(intent, selection) {
-  const service = await resolveService(intent); if (!service) return null; const staff = await resolveEligibleStaff(service.id, null); const practitioner = staff.find((row) => Number(row.id) === Number(selection.staffId)); if (!practitioner) return null;
-  if (clean(intent.therapist_text) && clean(intent.therapist_text).toLowerCase() !== 'any available therapist' && clean(practitioner.display_name).toLowerCase() !== clean(intent.therapist_text).toLowerCase()) return null;
+  const service = await resolveService(intent); if (!service) return null; const staff = await resolveEligibleStaff(service.id, intent.therapist_text); const practitioner = staff.find((row) => Number(row.id) === Number(selection.staffId)); if (!practitioner) return null;
+  if (clean(intent.therapist_text) && !isAnyPractitionerPreference(intent.therapist_text) && clean(practitioner.display_name).toLowerCase() !== clean(intent.therapist_text).toLowerCase()) return null;
   const result = await listAvailableSlots({ staffId: practitioner.id, serviceId: service.id, date: intent.preferred_date, intervalMinutes: 15 });
   return (result.slots || []).find((slot) => isFutureSlot(slot) && localDateKey(slot.starts_at) === selection.dateKey && `${localTimeParts(slot.starts_at).hh}${localTimeParts(slot.starts_at).mm}` === selection.hhmm) ? practitioner : null;
 }
@@ -119,4 +122,4 @@ async function processClientAvailabilityMessage(sender, text) {
   return { handled: false };
 }
 
-module.exports = { SLOT_PAGE_SIZE, authoritativeSlotsForIntent, daypartForSlot, isFutureSlot, localDateKey, localTimeParts, parseSlotPage, parseSlotSelection, processClientAvailabilityMessage, slotId, slotsInteractive };
+module.exports = { SLOT_PAGE_SIZE, authoritativeSlotsForIntent, daypartForSlot, isAnyPractitionerPreference, isFutureSlot, isWelcomeVoucherPreference, localDateKey, localTimeParts, parseSlotPage, parseSlotSelection, processClientAvailabilityMessage, resolveEligibleStaff, slotId, slotsInteractive };
