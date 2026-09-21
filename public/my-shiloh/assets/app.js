@@ -34,6 +34,8 @@
   const clientProblemReportList = document.querySelector('[data-client-problem-report-list]');
   let deferredInstallPrompt = null;
   let authActionInFlight = false;
+  let authStatusCheckInFlight = false;
+  let authStatusTimer = null;
   let shilohMessageInFlight = false;
   let whatsappHandoffStarted = false;
   let clientProfileRevision = null;
@@ -377,12 +379,59 @@
     }
   }
 
+  function scheduleAuthStatusCheck(delay = 1500) {
+    window.clearTimeout(authStatusTimer);
+    if (appFrame?.dataset.clientAuthenticated === 'true') return;
+    authStatusTimer = window.setTimeout(() => {
+      if (document.visibilityState !== 'hidden') checkClientAuthStatus({ announce: true });
+    }, delay);
+  }
+
+  async function checkClientAuthStatus({ announce = false } = {}) {
+    if (authStatusCheckInFlight || authActionInFlight || appFrame?.dataset.clientAuthenticated === 'true') return;
+    authStatusCheckInFlight = true;
+    try {
+      const response = await postJson('/my-shiloh/auth/status');
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 204) return;
+      if (response.ok && data.authenticated === true) {
+        window.clearTimeout(authStatusTimer);
+        whatsappHandoffStarted = false;
+        setAuthStatus('Verified. Opening your My Shiloh…', 'success');
+        window.location.replace('/my-shiloh/');
+        return;
+      }
+      if (response.status === 202 && data.status === 'waiting_for_whatsapp') {
+        whatsappHandoffStarted = true;
+        setAuthControlsDisabled(false);
+        for (const form of authCodeForms) form.classList.add('is-waiting');
+        if (announce) {
+          setAuthStatus('Checking your WhatsApp verification… My Shiloh will open automatically.', 'waiting');
+        }
+        scheduleAuthStatusCheck();
+        return;
+      }
+      if (response.status === 410) {
+        whatsappHandoffStarted = false;
+        setAuthControlsDisabled(false);
+        setAuthStatus(data.error || 'This sign-in has expired. Please start again.', 'error');
+      }
+    } catch (_) {
+      if (whatsappHandoffStarted) scheduleAuthStatusCheck(2500);
+    } finally {
+      authStatusCheckInFlight = false;
+    }
+  }
+
   function welcomeBackFromWhatsApp() {
-    if (appFrame?.dataset.clientAuthenticated === 'true' || !whatsappHandoffStarted) return;
+    if (appFrame?.dataset.clientAuthenticated === 'true') return;
     authActionInFlight = false;
     setAuthControlsDisabled(false);
-    for (const form of authCodeForms) form.classList.add('is-waiting');
-    setAuthStatus('Welcome back. Enter the 6-digit code Shiloh sent you in WhatsApp.', 'waiting');
+    if (whatsappHandoffStarted) {
+      for (const form of authCodeForms) form.classList.add('is-waiting');
+      setAuthStatus('Welcome back. Checking your WhatsApp verification…', 'waiting');
+    }
+    checkClientAuthStatus({ announce: whatsappHandoffStarted });
   }
 
   async function postJson(url, body = {}, extraHeaders = {}) {
@@ -796,7 +845,7 @@
       authActionInFlight = false;
       setAuthCodeControlsDisabled(false);
       for (const form of authCodeForms) form.classList.add('is-waiting');
-      setAuthStatus('WhatsApp is opening. Return here and enter the 6-digit code from Shiloh.', 'waiting');
+      setAuthStatus('WhatsApp is opening. Verify there, then return here — My Shiloh will open automatically.', 'waiting');
       window.setTimeout(welcomeBackFromWhatsApp, 1500);
       window.location.href = data.whatsappUrl;
     } catch (error) {

@@ -34,7 +34,7 @@ export const GuestHome = {
   render: () => productionSurface(),
 };
 
-export const WhatsAppCodeReturn = {
+export const WhatsAppAutomaticReturn = {
   render: () => {
     const surface = productionSurface();
     const form = surface.querySelector('[data-view="home"] [data-client-auth-code-form]');
@@ -42,7 +42,21 @@ export const WhatsAppCodeReturn = {
     form?.classList.add('is-waiting');
     if (status) {
       status.dataset.state = 'waiting';
-      status.textContent = 'Welcome back. Enter the 6-digit code Shiloh sent you in WhatsApp.';
+      status.textContent = 'Checking your WhatsApp verification… My Shiloh will open automatically.';
+    }
+    return surface;
+  },
+};
+
+export const WhatsAppCodeFallback = {
+  render: () => {
+    const surface = productionSurface();
+    const form = surface.querySelector('[data-view="home"] [data-client-auth-code-form]');
+    const status = surface.querySelector('[data-view="home"] [data-auth-status]');
+    form?.classList.add('is-waiting');
+    if (status) {
+      status.dataset.state = 'waiting';
+      status.textContent = 'Still waiting? Enter the 6-digit fallback code from Shiloh.';
     }
     return surface;
   },

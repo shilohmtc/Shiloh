@@ -194,6 +194,17 @@ const fakeService = {
       client: { id: '912', name: 'Christel Botha', firstName: 'Christel' },
     };
   },
+  async completeVerifiedChallenge() {
+    if (!verified) return { ok: false, code: 'CLIENT_AUTH_NOT_VERIFIED' };
+    return {
+      ok: true,
+      status: 'authenticated',
+      sessionToken: SESSION_TOKEN,
+      csrfToken: 'C'.repeat(43),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      client: { id: '912', name: 'Christel Botha', firstName: 'Christel' },
+    };
+  },
   async validateSessionToken(token) {
     if (loggedOut || token !== SESSION_TOKEN) return { ok: false };
     return {
@@ -224,17 +235,10 @@ async function runViewport(browser, name, viewport) {
   await page.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'Continue with WhatsApp' }).click();
   await page.waitForURL('**/fake-whatsapp');
+  await page.goBack({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => document.body.textContent.includes('Checking your WhatsApp verification'));
+  await page.screenshot({ path: path.join(out, `${name}-auth-return.png`), fullPage: true });
   verified = true;
-  if (name === 'phone') {
-    await page.goBack({ waitUntil: 'networkidle' });
-    const codeInput = page.locator('[data-view="home"] [data-client-auth-code]');
-    await codeInput.waitFor({ state: 'visible' });
-    if (await codeInput.isDisabled()) throw new Error('manual WhatsApp code remained disabled after returning to My Shiloh');
-    await codeInput.fill(COMPLETION_CODE.replace(/^(\d{3})(\d{3})$/, '$1 $2'));
-    await page.locator('[data-view="home"] [data-client-auth-code-form]').getByRole('button', { name: 'Open My Shiloh' }).click();
-  } else {
-    await page.goto(`${baseUrl}/my-shiloh/#verify=${COMPLETION_CODE}`, { waitUntil: 'networkidle' });
-  }
   await page.waitForFunction(() => document.body.textContent.includes('Christel'));
   await page.waitForLoadState('networkidle');
   const heading = await page.locator('#home-title').textContent();
