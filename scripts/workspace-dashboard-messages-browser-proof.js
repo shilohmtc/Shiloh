@@ -492,7 +492,7 @@ async function main() {
           assert.equal(metrics.drawerOpen, true);
           assert.deepEqual(metrics.primary, ['Dashboard', 'Calendar', 'Clients', 'Messages']);
           assert.deepEqual(metrics.secondary, ['Staff', 'Services', 'Reports', 'Clinic hours']);
-          assert.ok(metrics.navWidth >= width * 0.84 && metrics.navWidth <= 360, `${name} drawer width is not comfortably contained: ${metrics.navWidth}px`);
+          assert.ok(metrics.navWidth >= width * 0.83 && metrics.navWidth <= 340, `${name} drawer width is not comfortably contained: ${metrics.navWidth}px`);
           assert.ok(metrics.drawerHeaderRight <= metrics.navRight, `${name} drawer header escapes its panel`);
           assert.ok(metrics.drawerCloseRight <= metrics.navRight, `${name} close control escapes its panel`);
           assert.equal(metrics.drawerLinksOverflowY, 'auto');

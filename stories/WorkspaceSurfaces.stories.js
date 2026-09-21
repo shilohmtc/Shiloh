@@ -49,6 +49,7 @@ function workspaceNavigationOpenStory() {
       clinicHoursHref: '/calendar/clinic-hours',
       vouchersHref: '/calendar/gift-vouchers',
       rewardsHref: '/calendar/rewards',
+      formsHref: '/calendar/forms',
       problemReportsHref: '/calendar/problem-reports',
     },
   }));
