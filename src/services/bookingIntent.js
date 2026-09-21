@@ -166,6 +166,9 @@ function extractDate(text = "", now = new Date()) {
   if (/\btoday\b/i.test(value)) return formatIsoDate(base);
   if (/\btomorrow\b/i.test(value)) return formatIsoDate(addDays(base, 1));
 
+  const iso = value.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (iso) return validIsoFromParts(Number(iso[3]), Number(iso[2]), Number(iso[1]));
+
   const weekday = value.match(
     /\b(?:(next)\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i
   );
