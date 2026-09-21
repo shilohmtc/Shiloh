@@ -22,7 +22,7 @@ function phoneModel() {
 }
 
 function firstPaintHtml() {
-  const source = '<!doctype html><html><head></head><body data-calendar-view="week"><div class="workspace-frame"><div class="workspace-main"><div class="shell"><h1>Calendar</h1><main class="calendar-view week-view"><div class="time-grid week-time-grid"><div class="week-grid"></div></div></main></div></div></div></body></html>';
+  const source = '<!doctype html><html><head><style>:root{--leaf-deep:#17382d;--leaf:#496b5a;--leaf-soft:#dfeae3;--line:#dfe5df;--line-strong:#b8c9bf;--ink:#20322b;--muted:#5e7067}</style></head><body data-calendar-view="week"><div class="workspace-frame"><div class="workspace-main"><div class="shell"><h1>Calendar</h1><main class="calendar-view week-view"><div class="time-grid week-time-grid"><div class="week-grid"></div></div></main></div></div></div></body></html>';
   return decoratePhoneCalendarV2(source, {
     model: phoneModel(),
     basePath: '/calendar/read-only',
