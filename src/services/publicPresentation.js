@@ -15,6 +15,32 @@ const PUBLIC_SERVICE_CATEGORY_ORDER = [
   'More Services',
 ];
 
+// These aliases only shape how established catalogue services read on the
+// public website. Canonical names stay attached to every service for booking
+// identity and internal use.
+const PUBLIC_SERVICE_NAME_ALIASES = new Map([
+  ['Sports Massage Full Body', 'Full-Body Sports Massage'],
+  ['Quick Relief: Back & Neck (45 min)', 'Quick Relief – Back & Neck'],
+  ['Cupping Area Specific', 'Area-Specific Cupping'],
+  ['Bamboo Sports Massage - Area Specific', 'Area-Specific Bamboo Sports Massage'],
+  ['Permanent Makeup - Eyeliner', 'Permanent Makeup – Eyeliner'],
+  ['Permanent Makeup - Brows', 'Permanent Makeup – Brows'],
+  ['Permanent Makeup - Lips', 'Permanent Makeup – Lips'],
+  ['VHC Standard Needling with Vitamins under Local Anesthetic.', 'VHC Vitamin Microneedling'],
+  ['GF Needling with Growth Factors under Local Anesthetic', 'Growth Factor Microneedling'],
+  ['Plasma Fybroblast', 'Plasma Fibroblast Consultation'],
+  ['Priced according to area', 'Plasma Fibroblast – By Area'],
+  [
+    '1. SQT Anti-Aging Rejuvenation BioMicroneedling + SQT Revitalizing Beauty BioMicroneedling',
+    'SQT Rejuvenation & Revitalising BioMicroneedling',
+  ],
+  [
+    '2. SQT Resurfacing BioMicroneedling + SQT Nourishing Hydrating BioMicroneedling',
+    'SQT Resurfacing & Hydrating BioMicroneedling',
+  ],
+  ['HIFU (High-Intensity Focused Ultrasound)', 'HIFU – High-Intensity Focused Ultrasound'],
+]);
+
 function neutralizePublicLabel(value = '') {
   return String(value)
     .replace(/\btherapeutic\b/gi, 'Wellness')
@@ -24,6 +50,37 @@ function neutralizePublicLabel(value = '') {
     .replace(/\bclinical\b/gi, 'Professional')
     .replace(/\btreatments\b/gi, 'Services')
     .replace(/\btreatment\b/gi, 'Service');
+}
+
+function publicServiceNameFor(value = '') {
+  const canonicalName = String(value).trim();
+  return neutralizePublicLabel(PUBLIC_SERVICE_NAME_ALIASES.get(canonicalName) || canonicalName);
+}
+
+function formatRandAmount(value = '') {
+  const normalized = String(value).replace(/[\s,]/g, '');
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
+  const [whole, decimals = ''] = normalized.split('.');
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return `${grouped}${decimals && Number(decimals) !== 0 ? `.${decimals}` : ''}`;
+}
+
+function publicServicePriceFor(value = '') {
+  const price = String(value ?? '').trim();
+  const range = price.match(/^R?\s*([\d\s,.]+)\s*[-–—]\s*R?\s*([\d\s,.]+)$/i);
+  if (range) {
+    const minimum = formatRandAmount(range[1]);
+    const maximum = formatRandAmount(range[2]);
+    if (minimum && maximum) return `R${minimum}–R${maximum}`;
+  }
+
+  const fixed = price.match(/^R\s*([\d\s,.]+)$/i);
+  if (fixed) {
+    const amount = formatRandAmount(fixed[1]);
+    if (amount) return `R${amount}`;
+  }
+
+  return price;
 }
 
 function publicServiceCategoryFor(service = {}) {
@@ -69,11 +126,14 @@ function publicServiceCategoryFor(service = {}) {
 function toPublicService(service = {}) {
   const canonicalName = service.canonicalName || service.name || '';
   const canonicalCategory = service.canonicalCategory || service.category || 'Services';
+  const canonicalPrice = service.canonicalPrice ?? service.price ?? '';
   return {
     ...service,
     canonicalName,
     canonicalCategory,
-    name: neutralizePublicLabel(service.name || ''),
+    canonicalPrice,
+    name: publicServiceNameFor(canonicalName),
+    price: publicServicePriceFor(canonicalPrice),
     category: publicServiceCategoryFor({ ...service, canonicalName, canonicalCategory }),
     // Public pages intentionally do not publish source descriptions or booking
     // notes. Those fields can contain clinical/therapeutic claims and remain
@@ -111,7 +171,10 @@ module.exports = {
   PUBLIC_BRAND_SUBTITLE,
   PUBLIC_TAGLINE,
   PUBLIC_SERVICE_CATEGORY_ORDER,
+  PUBLIC_SERVICE_NAME_ALIASES,
   neutralizePublicLabel,
+  publicServiceNameFor,
+  publicServicePriceFor,
   publicServiceCategoryFor,
   toPublicService,
   sanitizePublicCatalogue,
