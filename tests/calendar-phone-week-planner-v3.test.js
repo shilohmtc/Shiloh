@@ -99,6 +99,7 @@ test('Phone Month navigation is server-rendered with canonical adjacent-month an
   assert.match(html, /data-phone-month-nav="next"[^>]*date=2026-10-01/);
   assert.match(html, /staff=51&amp;staff=52&amp;staff=53&amp;activeStaff=51/);
   assert.match(phoneCalendarV2Styles(), /phone-month-nav\{[^}]*min-width:44px;min-height:44px/);
+  assert.match(phoneCalendarV2Styles(), /phone-month-nav\[data-phone-month-nav="previous"\]\{transform:translateX\(8px\)\}/);
 });
 
 test('Phone Week Planner renders Mon-Sat strip and all permitted practitioner toggles without creating scheduling authority', () => {
