@@ -157,6 +157,7 @@ async function main() {
         editButtons: document.querySelectorAll('[data-edit-exception]').length,
         deleteButtons: document.querySelectorAll('[data-delete-exception]').length,
         sunday: document.querySelector('[data-clinic-day="0"]')?.textContent || '',
+        header: (()=>{const menu=document.querySelector('[data-workspace-drawer-toggle]')?.getBoundingClientRect(),title=document.querySelector('.brand h1')?.getBoundingClientRect();return menu&&title?{menuRight:menu.right,titleLeft:title.left,titleRight:title.right}:null})(),
         targets: Array.from(document.querySelectorAll('button,input,select,a.workspace-nav-item')).filter(node=>{const r=node.getBoundingClientRect();return r.width>0&&r.height>0;}).map(node=>({width:node.getBoundingClientRect().width,height:node.getBoundingClientRect().height}))
       })`);
       assert.equal(geometry.width, width);
@@ -172,7 +173,11 @@ async function main() {
       assert.match(geometry.text, /Staff leave and blocked-off time will stay exactly as they are/);
       assert.match(geometry.sunday, /Permanent clinic closure/);
       assert.doesNotMatch(geometry.text, /synthetic-clinic-hours-session/);
-      if (width === 390) assert.ok(geometry.targets.every(target => target.height >= 43 && target.width >= 43));
+      if (width === 390) {
+        assert.ok(geometry.targets.every(target => target.height >= 43 && target.width >= 43));
+        assert.ok(geometry.header.titleLeft >= geometry.header.menuRight + 8, 'Phone menu must not overlap the Clinic hours heading');
+        assert.ok(geometry.header.titleRight <= width, 'Clinic hours heading must remain inside the Phone viewport');
+      }
       const result = await cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
       const file = `${name}-clinic-hours.png`;
       const filePath = path.join(OUT_DIR, file);
