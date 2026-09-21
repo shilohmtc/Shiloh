@@ -564,7 +564,7 @@ async function main() {
         rootScrollWidth:document.documentElement.scrollWidth,
       };
     })()`);
-    assert.ok(drawerMetrics.width >= 390 * 0.83 && drawerMetrics.width <= 340, `Phone drawer missed the readable 84vw–340px target: ${drawerMetrics.width}px`);
+    assert.ok(drawerMetrics.width >= 390 * 0.79 && drawerMetrics.width <= 390 * 0.81 && drawerMetrics.width <= 320, `Phone drawer missed the readable 80vw–320px target: ${drawerMetrics.width}px`);
     assert.ok(drawerMetrics.headerRight <= drawerMetrics.drawerRight, 'Phone drawer header escapes the drawer');
     assert.ok(drawerMetrics.closeRight <= drawerMetrics.drawerRight, 'Phone drawer close control escapes the drawer');
     assert.deepEqual(drawerMetrics.labels, ['Dashboard', 'Calendar', 'Clients', 'Messages', 'Staff', 'Services', 'Reports']);
