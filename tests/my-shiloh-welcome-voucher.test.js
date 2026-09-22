@@ -67,6 +67,15 @@ test('redemption is guarded, client-confirmed and gives recovery steps', () => {
   assert.ok(WELCOME_VOUCHER_TERMS.some((term) => /amount actually paid/i.test(term)));
 });
 
+test('redeemed welcome voucher leaves Home after showing success in the redemption view', () => {
+  const app = read('public/my-shiloh/assets/app.js');
+  assert.match(app, /welcomeVoucherRedeemedThisView = true/);
+  assert.match(app, /voucher\?\.state === 'redeemed' && !welcomeVoucherRedeemedThisView/);
+  assert.match(app, /welcomeVoucherHost\.hidden = true/);
+  assert.match(app, /Your R100 welcome voucher has been redeemed/);
+  assert.doesNotMatch(app, /DELETE FROM my_shiloh_welcome_vouchers|UPDATE my_shiloh_welcome_vouchers[^\n]*state='cancelled'/i);
+});
+
 test('booking balance calculations include welcome value while reward accrual remains payment-ledger based', () => {
   const payments = read('src/services/bookingPayments.js');
   const context = read('src/services/myShilohClientContext.js');
