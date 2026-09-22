@@ -246,6 +246,9 @@ test('Dashboard presentation makes appointment operations primary and communicat
   assert.match(html, /My day/);
   assert.match(html, /data-dashboard-finalize="completed"/);
   assert.match(html, /data-dashboard-finalize="no_show"/);
+  assert.match(html, /href="\/calendar\/read-only\?view=week&amp;date=2026-09-05&amp;staff=all">Open calendar/);
+  assert.match(html, /href="\/calendar\/read-only\?view=week&amp;date=2026-09-05&amp;staff=all">Open \/ manage/);
+  assert.doesNotMatch(html, /\/calendar\/read-only\?view=day/);
   assert.match(html, /Client notification needs attention/);
   assert.doesNotMatch(html, /Appointment #501 · Failed/);
   assert.ok(html.indexOf('data-dashboard-today') < html.indexOf('data-dashboard-communications-panel'));

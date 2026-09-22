@@ -93,9 +93,10 @@ test('Client History and Workspace converge on the canonical Calendar appointmen
   assert.match(clientHtml, /min-height:44px/);
   assert.doesNotMatch(clientHtml, /<article class="history-row"/);
 
-  const dashboardBase = '<article class="appointment" data-dashboard-appointment="42" data-operational-date-key="2026-09-11"><div class="appointment-actions"><a class="button" href="/calendar/read-only?view=day&amp;date=2026-09-11&amp;staff=all">Open / manage</a></div></article>';
+  const dashboardBase = '<article class="appointment" data-dashboard-appointment="42" data-operational-date-key="2026-09-11"><div class="appointment-actions"><a class="button" href="/calendar/read-only?view=week&amp;date=2026-09-11&amp;staff=all">Open / manage</a></div></article>';
   const dashboardHtml = decorateWorkspaceAppointmentLinks(dashboardBase);
   assert.match(dashboardHtml, /data-appointment-detail-link="42"/);
+  assert.match(dashboardHtml, /view=week&amp;date=2026-09-11/);
   assert.match(dashboardHtml, /staff=all&amp;appointment=42/);
   assert.match(dashboardHtml, />Open \/ manage</);
 });

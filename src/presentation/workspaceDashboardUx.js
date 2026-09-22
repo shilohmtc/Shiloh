@@ -78,7 +78,7 @@ function statusPresentation(status) {
 }
 
 function calendarHref(model, dateKey = model.operationalDateKey) {
-  return `/calendar/read-only?view=day&amp;date=${escapeHtml(dateKey)}${['owner_overview', 'business_overview'].includes(model.mode) ? '&amp;staff=all' : ''}`;
+  return `/calendar/read-only?view=week&amp;date=${escapeHtml(dateKey)}&amp;staff=all`;
 }
 
 function appointmentItem(item, model, { manageLabel = 'Open / manage', idPrefix = 'dashboard-appointment', attention = false } = {}) {
