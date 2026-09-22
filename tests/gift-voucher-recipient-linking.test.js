@@ -86,9 +86,12 @@ test('unverified client profile cannot claim a recipient voucher', async () => {
 
 test('recipient linking never uses names as identity and never steals an existing link', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'giftVouchers.js'), 'utf8');
-  assert.match(source, /o\.recipient_mobile=\$2/);
-  assert.match(source, /v\.recipient_crm_v2_client_id IS NULL/);
-  assert.doesNotMatch(source, /recipient_name\s*=\s*\$2/);
+  const start = source.indexOf('async function linkVerifiedRecipientVouchers');
+  const end = source.indexOf('async function syncRecipientLinks', start);
+  const linking = source.slice(start, end);
+  assert.match(linking, /o\.recipient_mobile=\$2/);
+  assert.match(linking, /v\.recipient_crm_v2_client_id IS NULL/);
+  assert.doesNotMatch(linking, /recipient_name/);
 });
 
 

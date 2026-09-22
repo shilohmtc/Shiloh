@@ -26,15 +26,15 @@ test('Workspace vouchers stay contained and selectable on Phone and Desktop', as
     expect(await issued.evaluate((node) => node.getBoundingClientRect().top)).toBeLessThan(await redeem.evaluate((node) => node.getBoundingClientRect().top));
 
     await page.getByRole('button', { name:/SV-4A7F31B920CC.*Naledi.*Use this voucher/ }).click();
-    await expect(page.getByLabel('Voucher code')).toHaveValue('SV-4A7F31B920CC');
+    await expect(page.locator('[data-redeem-form]').getByLabel('Voucher code')).toHaveValue('SV-4A7F31B920CC');
     await expect(page.getByLabel('Amount to redeem')).toBeFocused();
     await expect(page.getByLabel('Amount to redeem')).toHaveAttribute('max', '400.00');
     await expect(page.getByText('SV-4A7F31B920CC selected. Enter the amount to redeem below.')).toBeVisible();
 
     await expect(page.getByText('This links the voucher to the recipient’s My Shiloh profile. Use 082…; +27 is converted automatically.')).toBeVisible();
     await page.getByLabel('Purchaser’s name').fill('Tinkie');
-    await page.getByLabel('Recipient’s name and surname').fill('Evelyn Example');
-    await page.getByLabel('Recipient’s mobile number').fill('082 123 4567');
+    await page.getByLabel('Recipient’s name and surname', { exact:true }).fill('Evelyn Example');
+    await page.getByLabel('Recipient’s mobile number', { exact:true }).fill('082 123 4567');
     await page.getByLabel('From').fill('Tinkie');
     await page.getByLabel('Voucher value').fill('900');
     await page.getByLabel('Payment received by').selectOption('card_machine');
@@ -61,6 +61,42 @@ test('Workspace vouchers stay contained and selectable on Phone and Desktop', as
     const accessibility = await new AxeBuilder({ page }).include('.voucher-shell').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact))).toEqual([]);
     await page.screenshot({ path:testInfo.outputPath(`workspace-vouchers-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+  }
+});
+
+test('Voucher recipient recovery is explicit and accessible on Phone and Desktop', async ({ page }, testInfo) => {
+  await page.route('**/calendar/vouchers/recipient', async (route) => route.fulfill({
+    status:200,
+    contentType:'application/json',
+    body:JSON.stringify({ status:'recipient_changed', voucherCode:'SV-A2F8CBC24FCA', linkStatus:'waiting' }),
+  }));
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=shiloh-gift-vouchers--workspace-balances&viewMode=story', { waitUntil:'networkidle' });
+    await page.addScriptTag({ url:'/workspace/gift-vouchers.js' });
+    await page.getByRole('button', { name:'Change recipient' }).nth(1).click();
+    const form = page.locator('[data-recipient-form]');
+    await expect(form).toBeVisible();
+    await expect(form.getByLabel('Voucher code', { exact:true })).toHaveValue('SV-A2F8CBC24FCA');
+    await expect(form.getByLabel('New recipient’s name and surname')).toHaveValue('Chenique Botha');
+    await expect(form.getByLabel('New recipient’s mobile number')).toHaveValue('0837654321');
+    await form.getByLabel('New recipient’s name and surname').fill('Evelyn Example');
+    await form.getByLabel('New recipient’s mobile number').fill('082 123 4567');
+    await page.getByLabel('I confirm that I want to change who this voucher is linked to.').check();
+    const accessibility = await new AxeBuilder({ page }).include('.recipient-card').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact))).toEqual([]);
+    const metrics = await page.evaluate(() => ({ viewport:innerWidth, document:document.documentElement.scrollWidth }));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
+    await page.screenshot({ path:testInfo.outputPath(`voucher-recipient-recovery-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+    const requestPromise = page.waitForRequest((request) => request.url().includes('/calendar/vouchers/recipient') && request.method() === 'POST');
+    await page.getByRole('button', { name:'Update recipient' }).click();
+    const request = await requestPromise;
+    expect(request.postDataJSON()).toEqual({
+      voucherCode:'SV-A2F8CBC24FCA',
+      recipientName:'Evelyn Example',
+      recipientMobile:'082 123 4567',
+      confirmed:true,
+    });
   }
 });
 

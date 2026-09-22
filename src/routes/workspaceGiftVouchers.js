@@ -19,6 +19,7 @@ function createWorkspaceGiftVoucherRouter({ env=process.env, sessionService, ser
   const respond=(handler)=>async(req,res,next)=>{try{return res.status(200).json(await handler(req));}catch(error){if(error instanceof GiftVoucherError)return res.status(error.httpStatus).json({error:error.message,code:error.code,requestId:req.id});return next(error);}};
   router.post('/policy',sameOrigin,requireSession,requireCsrf,respond((req)=>service.updatePolicy({adminId:req.staffBrowserSession.adminId,...req.body})));
   router.post('/walk-in',sameOrigin,requireSession,requireCsrf,respond((req)=>service.createWalkInVoucher({adminId:req.staffBrowserSession.adminId,...req.body})));
+  router.post('/recipient',sameOrigin,requireSession,requireCsrf,respond((req)=>service.changeRecipient({adminId:req.staffBrowserSession.adminId,...req.body})));
   router.post('/redeem',sameOrigin,requireSession,requireCsrf,respond((req)=>service.redeem({adminId:req.staffBrowserSession.adminId,...req.body})));
   return router;
 }
