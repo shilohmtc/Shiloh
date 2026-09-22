@@ -1,6 +1,6 @@
 :root{
   --ink:#25332c;
-  --muted:#66726b;
+  --muted:#59645e;
   --cream:#f7f3ec;
   --paper:#fffdf9;
   --sage:#dfe8dc;
@@ -9,7 +9,7 @@
   --leaf-dark:#2e4033;
   --blush:#ecdcd6;
   --sand:#e8dfd2;
-  --gold:#a17a4b;
+  --gold:#8a6338;
   --line:rgba(37,51,44,.11);
   --shadow:0 22px 60px rgba(48,61,52,.12);
   --safe-bottom:env(safe-area-inset-bottom,0px);
@@ -168,7 +168,7 @@ h3{font-size:20px;line-height:1.12}
 }
 .bottom-nav a{
   min-height:57px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-  border-radius:14px;text-decoration:none;color:#7a847e;font-size:9px;font-weight:850;letter-spacing:.02em;
+  border-radius:14px;text-decoration:none;color:var(--muted);font-size:9px;font-weight:850;letter-spacing:.02em;
 }
 .bottom-nav a[aria-current="page"]{color:var(--leaf-dark);background:rgba(223,232,220,.47)}
 .nav-icon{font-size:19px;line-height:1}
