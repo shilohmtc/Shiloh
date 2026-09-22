@@ -3,7 +3,7 @@
   "short_name": "Shiloh",
   "description": "Your calm client space for Shiloh bookings, forms, payments and support.",
   "id": "/my-shiloh/",
-  "start_url": "/my-shiloh/",
+  "start_url": "/my-shiloh/?launch=app",
   "scope": "/my-shiloh/",
   "display": "standalone",
   "background_color": "#fffcf7",
