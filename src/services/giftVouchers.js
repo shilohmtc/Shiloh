@@ -206,7 +206,8 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     const [validity, vouchers] = await Promise.all([
       policy(db),
       db.query(`SELECT v.id,v.voucher_code,v.original_value,v.balance,v.state,v.issued_at,v.valid_until,
-                       o.recipient_name,o.from_name,o.language,o.order_source,o.stock_reference,
+                       v.recipient_crm_v2_client_id,v.recipient_linked_at,
+                       o.recipient_name,o.recipient_mobile,o.from_name,o.language,o.order_source,o.stock_reference,
                        payment.method AS payment_method
                   FROM gift_vouchers v
                   JOIN gift_voucher_orders o ON o.id=v.order_id
