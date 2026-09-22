@@ -21,6 +21,8 @@ test('Workspace vouchers stay contained and selectable on Phone and Desktop', as
     const redeem = page.getByRole('heading', { name:'Redeem a voucher' });
     await expect(issued).toBeVisible();
     await expect(redeem).toBeVisible();
+    await expect(page.getByText(/Naledi · Online · Linked to My Shiloh/)).toBeVisible();
+    await expect(page.getByText(/Chenique Botha · Walk-in · Card · Stock BOOK-0042 · Waiting for recipient/)).toBeVisible();
     expect(await issued.evaluate((node) => node.getBoundingClientRect().top)).toBeLessThan(await redeem.evaluate((node) => node.getBoundingClientRect().top));
 
     await page.getByRole('button', { name:/SV-4A7F31B920CC.*Naledi.*Use this voucher/ }).click();
