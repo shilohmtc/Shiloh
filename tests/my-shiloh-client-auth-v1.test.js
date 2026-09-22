@@ -158,4 +158,7 @@ test('returning from WhatsApp auto-completes in the original context with a usab
   assert.match(client, /updateViaCache: 'none'/);
   assert.doesNotMatch(client, /localStorage|sessionStorage/);
   assert.match(styles, /\.auth-code-form\.is-waiting/);
+  assert.match(styles, /\.assistant-chat__messages\{display:grid;gap:10px;padding:4px 2px 10px\}/);
+  assert.doesNotMatch(styles, /\.assistant-chat__messages\{[^}]*overflow-y:auto/);
+  assert.doesNotMatch(styles, /\.assistant-chat__messages\{[^}]*max-height/);
 });
