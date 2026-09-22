@@ -6,7 +6,7 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 
-const MY_SHILOH_ASSET_VERSION = '20260921-welcome-voucher-v3';
+const MY_SHILOH_ASSET_VERSION = '20260922-install-gate-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -274,15 +274,35 @@ function renderMyShilohPage({
   <link rel="stylesheet" href="/my-shiloh/assets/app.css?v=${MY_SHILOH_ASSET_VERSION}">
   <title>My Shiloh</title>
 </head>
-<body>
-  <a class="skip-link" href="#main-content">Skip to content</a>
-  <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}">
+<body data-my-shiloh-launch="pending">
+  <main class="install-gate" data-install-gate aria-labelledby="install-gate-title">
+    <section class="install-gate__card">
+      <span class="brand-mark brand-mark--install" aria-hidden="true"><img src="/my-shiloh/assets/icon-192.png" alt=""></span>
+      <p class="eyebrow">My Shiloh app</p>
+      <h1 id="install-gate-title">Install My Shiloh to continue.</h1>
+      <p class="install-gate__intro" data-install-platform-intro>My Shiloh works from the app icon on your phone. Install it first, then open the new My Shiloh icon to sign in or register.</p>
+      <ol class="install-gate__steps" data-install-gate-steps>
+        <li><strong>1</strong><span data-install-step="one">Open your browser menu or Share button.</span></li>
+        <li><strong>2</strong><span data-install-step="two">Choose Add to Home Screen or Install app.</span></li>
+        <li><strong>3</strong><span data-install-step="three">Open My Shiloh from its new icon to continue.</span></li>
+      </ol>
+      <button class="button button--primary button--wide install-gate__button" type="button" data-install-trigger hidden>Install My Shiloh</button>
+      <p class="install-gate__status" data-install-status role="status" aria-live="polite"></p>
+      <aside class="install-gate__installed">
+        <strong>Already installed?</strong>
+        <p>Open My Shiloh from your Home Screen or apps list to continue.</p>
+      </aside>
+      <a class="text-link install-gate__help" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Need help? Ask Shiloh on WhatsApp →</a>
+    </section>
+  </main>
+
+  <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}" hidden>
+    <a class="skip-link" href="#main-content">Skip to content</a>
     <header class="topbar">
       <a class="brand" href="#home" aria-label="My Shiloh home">
         <span class="brand-mark brand-mark--header" aria-hidden="true"><img src="/my-shiloh/assets/icon-192.png" alt=""></span>
         <span class="brand-copy"><strong>Shiloh</strong><small>My Shiloh</small></span>
       </a>
-      <button class="install-button" type="button" data-install-trigger hidden>Install app</button>
     </header>
 
     <div class="network-banner" data-offline-banner hidden role="status">You are offline. My Shiloh will reconnect automatically.</div>
@@ -381,21 +401,6 @@ function renderMyShilohPage({
     </nav>
   </div>
 
-  <div class="install-sheet" data-install-sheet hidden>
-    <button class="install-sheet__backdrop" type="button" data-install-close aria-label="Close install help"></button>
-    <section class="install-sheet__panel" role="dialog" aria-modal="true" aria-labelledby="install-title">
-      <button class="install-sheet__close" type="button" data-install-close aria-label="Close">×</button>
-      <span class="brand-mark brand-mark--large" aria-hidden="true"><img src="/my-shiloh/assets/icon-192.png" alt=""></span>
-      <p class="eyebrow">Keep My Shiloh close</p>
-      <h2 id="install-title">Add My Shiloh to your Home Screen.</h2>
-      <ol data-install-steps>
-        <li>Open your browser menu or Share button.</li>
-        <li>Choose Add to Home Screen or Install app.</li>
-        <li>Open My Shiloh from its new icon.</li>
-      </ol>
-      <button class="button button--primary button--wide" type="button" data-install-close>Got it</button>
-    </section>
-  </div>
 
   <script src="/my-shiloh/assets/app.js?v=${MY_SHILOH_ASSET_VERSION}" defer></script>
 </body>

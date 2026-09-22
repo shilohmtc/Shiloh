@@ -38,6 +38,11 @@ test('My Shiloh renders the approved four-tab PWA shell with public-safe service
   assert.match(html, new RegExp(`app\\.js\\?v=${MY_SHILOH_ASSET_VERSION}`));
   assert.match(html, /brand-mark--header/);
   assert.match(html, /<strong>Shiloh<\/strong><small>My Shiloh<\/small>/);
+  assert.match(html, /data-install-gate/);
+  assert.match(html, /Install My Shiloh to continue/);
+  assert.match(html, /data-install-platform-intro/);
+  assert.match(html, /data-install-trigger hidden>Install My Shiloh/);
+  assert.match(html, /data-app-frame[^>]*hidden/);
   assert.doesNotMatch(html, /class="brand-logo"/);
   assert.match(html, /data-view-target="home"/);
   assert.match(html, /data-view-target="bookings"/);
@@ -73,6 +78,23 @@ test('My Shiloh route is no-store, no-index and mounted without reusing staff au
   assert.match(app, /myShilohRoutes/);
 });
 
+test('browser launch is install-only while standalone launch preserves the existing client app authority', () => {
+  const client = read('public/my-shiloh/assets/app.js');
+  assert.match(client, /matchMedia\?\.\('\(display-mode: standalone\)'\)/);
+  assert.match(client, /window\.navigator\.standalone === true/);
+  assert.match(client, /document\.body\.dataset\.myShilohLaunch = installedLaunch \? 'app' : 'install'/);
+  assert.match(client, /if \(installGate\) installGate\.hidden = installedLaunch/);
+  assert.match(client, /if \(appFrame\) appFrame\.hidden = !installedLaunch/);
+  assert.match(client, /if \(!installedLaunch\) return/);
+  assert.match(client, /addEventListener\('beforeinstallprompt'/);
+  assert.match(client, /!isAndroid\(\)/);
+  assert.match(client, /Open as Web App/);
+  assert.match(client, /Install app or Add to Home screen/);
+  assert.match(client, /addEventListener\('appinstalled'/);
+  assert.match(client, /Open the new My Shiloh icon to continue/);
+  assert.match(client, /registerServiceWorker\(\)/);
+});
+
 test('PWA manifest is standalone and scoped to My Shiloh', () => {
   const manifest = JSON.parse(read('public/my-shiloh/manifest.webmanifest'));
   assert.equal(manifest.name, 'My Shiloh');
@@ -86,7 +108,7 @@ test('PWA manifest is standalone and scoped to My Shiloh', () => {
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v13/);
+  assert.match(worker, /my-shiloh-shell-v14/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /url\.pathname === '\/my-shiloh\/assets\/app\.css'[\s\S]*fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);

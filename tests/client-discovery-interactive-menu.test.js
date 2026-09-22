@@ -22,14 +22,16 @@ test('client home uses exactly three genuine WhatsApp reply-button actions', () 
     'Browse services',
     'Book now',
   ]);
-  assert.match(home.body, /Install \*My Shiloh\* on your phone/);
+  assert.match(home.body, /install \*My Shiloh\*/i);
+  assert.match(home.body, /open the new My Shiloh icon/i);
   assert.match(home.body, /R100 welcome voucher/);
   assert.ok(home.buttons.every((button) => button.title.length <= 20));
 });
 
 test('R100 first action opens the canonical My Shiloh registration journey', () => {
   const reply = welcomeVoucherReply();
-  assert.match(reply, /install it on your phone/);
+  assert.match(reply, /install My Shiloh/i);
+  assert.match(reply, /leave the browser and open the new My Shiloh icon/i);
   assert.match(reply, /complete your registration/);
   assert.match(reply, /treatment of R450 or more/);
   assert.match(reply, /https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/#welcome-voucher/);

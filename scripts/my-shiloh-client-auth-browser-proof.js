@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const { chromium } = require('@playwright/test');
+const AxeBuilder = require('@axe-core/playwright').default;
 
 function chromeExecutable() {
   const candidates = [
@@ -19,6 +20,21 @@ const { createMyShilohRouter } = require('../src/routes/myShiloh');
 
 const out = path.join(__dirname, '..', 'artifacts', 'my-shiloh-client-auth-v1');
 fs.mkdirSync(out, { recursive: true });
+
+async function assertAccessible(page, label, selector = 'body') {
+  const results = await new AxeBuilder({ page })
+    .include(selector)
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  const blocking = results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
+  fs.writeFileSync(
+    path.join(out, `${label}-accessibility.json`),
+    JSON.stringify({ violations: results.violations }, null, 2),
+  );
+  if (blocking.length) {
+    throw new Error(`${label} accessibility violations: ${blocking.map((item) => item.id).join(', ')}`);
+  }
+}
 
 const SESSION_TOKEN = 'S'.repeat(43);
 const BROWSER_TOKEN = 'B'.repeat(43);
@@ -227,12 +243,61 @@ const fakeService = {
   },
 };
 
+async function runInstallGateViewport(browser, name, viewport, userAgent, expectedCopy, { simulateInstallPrompt = false } = {}) {
+  const privateRequests = [];
+  const context = await browser.newContext({ viewport, userAgent });
+  const page = await context.newPage();
+  page.on('request', (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (pathname.startsWith('/my-shiloh/auth/') || pathname.startsWith('/my-shiloh/api/')) {
+      privateRequests.push(pathname);
+    }
+  });
+
+  await page.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
+  await page.getByRole('heading', { name: 'Install My Shiloh to continue.' }).waitFor();
+  if (!(await page.locator('[data-install-gate]').isVisible())) throw new Error(`${name} install gate is not visible`);
+  if (await page.locator('[data-app-frame]').isVisible()) throw new Error(`${name} exposed the client app in browser mode`);
+  const intro = await page.locator('[data-install-platform-intro]').textContent();
+  if (!String(intro || '').includes(expectedCopy)) throw new Error(`${name} platform guidance was not selected`);
+
+  if (simulateInstallPrompt) {
+    await page.evaluate(() => {
+      const event = new Event('beforeinstallprompt', { cancelable: true });
+      Object.defineProperty(event, 'prompt', { value: async () => undefined });
+      Object.defineProperty(event, 'userChoice', { value: Promise.resolve({ outcome: 'accepted', platform: 'web' }) });
+      window.dispatchEvent(event);
+    });
+    const install = page.getByRole('button', { name: 'Install My Shiloh' });
+    await install.waitFor();
+    await install.click();
+    await page.waitForFunction(() => document.body.textContent.includes('My Shiloh is installed. Open the new My Shiloh icon to continue.'));
+  }
+
+  await assertAccessible(page, `${name}-install-gate`, '[data-install-gate]');
+  await page.screenshot({ path: path.join(out, `${name}-install-gate.png`), fullPage: true });
+  await page.waitForTimeout(100);
+  if (privateRequests.length) {
+    throw new Error(`${name} browser install gate started private My Shiloh requests: ${privateRequests.join(', ')}`);
+  }
+  await context.close();
+}
+
 async function runViewport(browser, name, viewport) {
   verified = false;
   loggedOut = false;
   const context = await browser.newContext({ viewport });
+  await context.addInitScript(() => {
+    Object.defineProperty(window.navigator, 'standalone', {
+      configurable: true,
+      get: () => true,
+    });
+  });
   const page = await context.newPage();
   await page.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
+  if (await page.locator('[data-install-gate]').isVisible()) throw new Error('install gate remained visible in standalone mode');
+  if (!(await page.locator('[data-app-frame]').isVisible())) throw new Error('client app did not open in standalone mode');
+  await assertAccessible(page, `${name}-guest-home`, '[data-app-frame]');
   await page.getByRole('button', { name: 'Continue with WhatsApp' }).click();
   await page.waitForURL('**/fake-whatsapp');
   await page.goBack({ waitUntil: 'domcontentloaded' });
@@ -264,6 +329,7 @@ async function runViewport(browser, name, viewport) {
   if (profileGeometry.document > profileGeometry.viewport || !profileGeometry.contained) {
     throw new Error('personal details fields overflowed the profile card');
   }
+  await assertAccessible(page, `${name}-profile`, '[data-app-frame]');
   await page.screenshot({ path: path.join(out, `${name}-profile.png`), fullPage: true });
 
   const cookies = await context.cookies(baseUrl);
@@ -372,6 +438,28 @@ let baseUrl;
 
   const browser = await chromium.launch({ headless: true, executablePath: chromeExecutable() || undefined });
   try {
+    await runInstallGateViewport(
+      browser,
+      'iphone-browser',
+      { width: 390, height: 844 },
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1',
+      'On iPhone',
+    );
+    await runInstallGateViewport(
+      browser,
+      'android-browser',
+      { width: 412, height: 915 },
+      'Mozilla/5.0 (Linux; Android 16; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Mobile Safari/537.36',
+      'On Android',
+      { simulateInstallPrompt: true },
+    );
+    await runInstallGateViewport(
+      browser,
+      'desktop-browser',
+      { width: 1280, height: 900 },
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36',
+      'designed to be installed on your phone',
+    );
     await runViewport(browser, 'phone', { width: 390, height: 844 });
     await runViewport(browser, 'desktop', { width: 1280, height: 900 });
   } finally {

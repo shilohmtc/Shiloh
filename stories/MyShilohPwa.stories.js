@@ -9,7 +9,7 @@ const catalogue = [
   { id: 104, name: 'SQT BioMicroneedling', category: 'Aesthetic Services', duration: '60 min', price: 'R1 250' },
 ];
 
-function productionSurface(client = null) {
+function productionSurface(client = null, { launchMode = 'app', platform = 'generic' } = {}) {
   const page = renderMyShilohPage({
     whatsappNumber: '27830000000',
     catalogue,
@@ -19,6 +19,35 @@ function productionSurface(client = null) {
   const body = String(page).match(/<body[^>]*>([\s\S]*?)<\/body>/)?.[1] || '';
   const root = document.createElement('div');
   root.innerHTML = `<link rel="stylesheet" href="/my-shiloh/assets/app.css"><div data-story-surface>${body.replace(/<script[\s\S]*?<\/script>/g, '')}</div>`;
+
+  const gate = root.querySelector('[data-install-gate]');
+  const frame = root.querySelector('[data-app-frame]');
+  if (launchMode === 'install') {
+    if (gate) gate.hidden = false;
+    if (frame) frame.hidden = true;
+    const intro = root.querySelector('[data-install-platform-intro]');
+    const one = root.querySelector('[data-install-step="one"]');
+    const two = root.querySelector('[data-install-step="two"]');
+    const three = root.querySelector('[data-install-step="three"]');
+    const button = root.querySelector('[data-install-trigger]');
+    if (platform === 'iphone') {
+      if (intro) intro.textContent = 'On iPhone, add My Shiloh to your Home Screen first. Then open the new My Shiloh icon to sign in or register.';
+      if (one) one.textContent = 'Tap the Share button in your browser.';
+      if (two) two.textContent = 'Tap Add to Home Screen, then tap Add. Keep Open as Web App switched on if your iPhone shows that option.';
+      if (three) three.textContent = 'Leave the browser and open My Shiloh from the new icon on your Home Screen.';
+      if (button) button.hidden = true;
+    }
+    if (platform === 'android') {
+      if (intro) intro.textContent = 'On Android, install My Shiloh first. Then open it from its new app icon to sign in or register.';
+      if (one) one.textContent = 'Tap Install My Shiloh below when the button appears.';
+      if (two) two.textContent = 'If the button does not appear, open your browser menu and choose Install app or Add to Home screen.';
+      if (three) three.textContent = 'Leave the browser and open My Shiloh from the new icon in your apps list or Home Screen.';
+      if (button) button.hidden = false;
+    }
+  } else {
+    if (gate) gate.hidden = true;
+    if (frame) frame.hidden = false;
+  }
   return root;
 }
 
@@ -28,6 +57,18 @@ export default {
     layout: 'fullscreen',
     a11y: { test: 'error' },
   },
+};
+
+export const BrowserInstallIPhone = {
+  render: () => productionSurface(null, { launchMode: 'install', platform: 'iphone' }),
+};
+
+export const BrowserInstallAndroid = {
+  render: () => productionSurface(null, { launchMode: 'install', platform: 'android' }),
+};
+
+export const BrowserInstallDesktop = {
+  render: () => productionSurface(null, { launchMode: 'install', platform: 'generic' }),
 };
 
 export const GuestHome = {
