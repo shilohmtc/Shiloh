@@ -69,9 +69,24 @@
       selection.addRange(range);
     }
   });
+  const recipientForm = document.querySelector('[data-recipient-form]');
+  const recipientPrompt = document.querySelector('[data-recipient-prompt]');
   const redeemForm = document.querySelector('[data-redeem-form]');
   const selectionStatus = document.querySelector('[data-voucher-selection-status]');
   document.querySelector('[data-issued-vouchers]')?.addEventListener('click', (event) => {
+    const recipientChange = event.target.closest('[data-recipient-change]');
+    if (recipientChange && recipientForm) {
+      recipientForm.hidden = false;
+      if (recipientPrompt) recipientPrompt.hidden = true;
+      recipientForm.elements.voucherCode.value = recipientChange.dataset.voucherCode || '';
+      recipientForm.elements.recipientName.value = recipientChange.dataset.recipientName || '';
+      recipientForm.elements.recipientMobile.value = recipientChange.dataset.recipientMobile || '';
+      recipientForm.elements.confirmed.checked = false;
+      recipientForm.querySelector('[data-recipient-status]').textContent = '';
+      recipientForm.scrollIntoView({ behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'start' });
+      recipientForm.elements.recipientName.focus({ preventScroll:true });
+      return;
+    }
     const selection = event.target.closest('[data-voucher-select]');
     if (!selection || !redeemForm) return;
     document.querySelectorAll('[data-voucher-select]').forEach((control) => control.setAttribute('aria-pressed', String(control === selection)));
@@ -85,6 +100,21 @@
     if (selectionStatus) selectionStatus.textContent = `${code} selected. Enter the amount to redeem below.`;
     redeemForm.scrollIntoView({ behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'start' });
     amountInput.focus({ preventScroll:true });
+  });
+  recipientForm?.addEventListener('submit', function(event) {
+    event.preventDefault();
+    submit(this, '/calendar/vouchers/recipient', '[data-recipient-status]', (data) => ({
+      voucherCode:data.voucherCode,
+      recipientName:data.recipientName,
+      recipientMobile:data.recipientMobile,
+      confirmed:data.confirmed === 'true',
+    }));
+  });
+  document.querySelector('[data-recipient-cancel]')?.addEventListener('click', () => {
+    if (!recipientForm) return;
+    recipientForm.hidden = true;
+    recipientForm.reset();
+    if (recipientPrompt) recipientPrompt.hidden = false;
   });
   redeemForm?.addEventListener('submit', function(event) { event.preventDefault(); submit(this, '/calendar/vouchers/redeem', '[data-redeem-status]', (data) => ({ ...data, operationId:crypto.randomUUID() })); });
 })();

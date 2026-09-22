@@ -7,7 +7,7 @@ const { resolveCalendarAuthority, hasCapability } = require('./calendarAuthoriza
 const { PAYMENT_TEMPLATE_KEYS, formatRand, normalizeWhatsAppMobile, securePaymentUrl, secureVoucherUrl, withActionLink, sendPaymentTemplate } = require('./paymentWhatsAppNotifications');
 const { formatVoucherDate, voucherExpiryTimestamp } = require('../lib/voucherDate');
 const { sendWhatsAppTemplate } = require('./whatsapp');
-const { localMobile } = require('./crmV2ClientService');
+const { localMobile, normalizeMobile } = require('./crmV2ClientService');
 
 const CAPABILITIES = Object.freeze({ VIEW: 'voucher:view', ISSUE: 'voucher:issue', REDEEM: 'voucher:redeem', MANAGE: 'voucher:manage' });
 const WALK_IN_PAYMENT_METHODS = Object.freeze(['cash', 'card_machine', 'manual_eft']);
@@ -205,7 +205,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
 
   async function getWorkspaceModel({ adminId } = {}) {
     const operator = await resolveOperator(db, adminId, CAPABILITIES.VIEW);
-    const [validity, vouchers] = await Promise.all([
+    const [validity, vouchers, recipientChanges] = await Promise.all([
       policy(db),
       db.query(`SELECT v.id,v.voucher_code,v.original_value,v.balance,v.state,v.issued_at,v.valid_until,
                        v.recipient_crm_v2_client_id,v.recipient_linked_at,
@@ -215,8 +215,120 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
                   JOIN gift_voucher_orders o ON o.id=v.order_id
                   LEFT JOIN gift_voucher_payment_entries payment ON payment.order_id=o.id
                  ORDER BY v.id DESC LIMIT 100`),
+      db.query(`SELECT audit.entity_id AS voucher_id,audit.metadata,audit.created_at,admin.display_name AS actor_name,v.voucher_code
+                  FROM crm_audit_events audit
+                  LEFT JOIN staff_admin_accounts admin ON admin.id=audit.actor_admin_id
+                  JOIN gift_vouchers v ON v.id=audit.entity_id
+                 WHERE audit.action='gift_voucher.recipient_changed'
+                   AND audit.entity_type='gift_voucher'
+                 ORDER BY audit.id DESC
+                 LIMIT 20`),
     ]);
-    return { policy: validity, vouchers: vouchers.rows, authority: { canIssue: hasCapability(operator.calendarAuthority, CAPABILITIES.ISSUE), canRedeem: hasCapability(operator.calendarAuthority, CAPABILITIES.REDEEM), canManage: hasCapability(operator.calendarAuthority, CAPABILITIES.MANAGE) } };
+    return {
+      policy: validity,
+      vouchers: vouchers.rows,
+      recipientChanges: recipientChanges.rows,
+      authority: {
+        canIssue: hasCapability(operator.calendarAuthority, CAPABILITIES.ISSUE),
+        canRedeem: hasCapability(operator.calendarAuthority, CAPABILITIES.REDEEM),
+        canManage: hasCapability(operator.calendarAuthority, CAPABILITIES.MANAGE),
+      },
+    };
+  }
+
+  async function changeRecipient({ adminId, voucherCode: code, recipientName, recipientMobile, confirmed = false } = {}) {
+    if (confirmed !== true) throw new GiftVoucherError('VOUCHER_RECIPIENT_CONFIRMATION_REQUIRED', 'Confirm that you want to change this voucher recipient.', 409);
+    const normalizedCode = String(code || '').trim().toUpperCase();
+    if (!/^SV-[A-F0-9]{12}$/.test(normalizedCode)) throw new GiftVoucherError('VOUCHER_INVALID_CODE', 'Enter a valid Shiloh voucher code.');
+    const nextName = cleanText(recipientName, 120, 'Recipient name');
+    const nextLocalMobile = localMobile(recipientMobile);
+    const nextCanonicalMobile = normalizeMobile(recipientMobile);
+    if (!nextLocalMobile || !nextCanonicalMobile) throw new GiftVoucherError('VOUCHER_INVALID_MOBILE', 'Enter the recipient’s valid South African mobile number.');
+
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      const operator = await resolveOperator(client, adminId, CAPABILITIES.MANAGE);
+      const voucher = (await client.query(
+        `SELECT v.id,v.voucher_code,v.balance,v.state,v.valid_until,v.recipient_crm_v2_client_id,
+                o.id AS order_id,o.recipient_name,o.recipient_mobile
+           FROM gift_vouchers v
+           JOIN gift_voucher_orders o ON o.id=v.order_id
+          WHERE v.voucher_code=$1
+          LIMIT 1
+          FOR UPDATE OF v,o`,
+        [normalizedCode],
+      )).rows[0];
+      if (!voucher) throw new GiftVoucherError('VOUCHER_NOT_FOUND', 'Voucher not found.', 404);
+      if (voucher.state !== 'active') throw new GiftVoucherError('VOUCHER_NOT_ACTIVE', 'Only an active voucher can be moved to another recipient.', 409);
+      const expiresAt = voucherExpiryTimestamp(voucher.valid_until);
+      if (expiresAt != null && expiresAt < Date.now()) throw new GiftVoucherError('VOUCHER_EXPIRED', 'This voucher has expired.', 409);
+
+      const matches = await client.query(
+        `SELECT id,name
+           FROM crm_v2_clients
+          WHERE normalized_mobile=$1
+            AND status='active'
+            AND mobile_verified_at IS NOT NULL
+          ORDER BY id
+          LIMIT 2`,
+        [nextCanonicalMobile],
+      );
+      if (matches.rows.length > 1) throw new GiftVoucherError('VOUCHER_RECIPIENT_AMBIGUOUS', 'That mobile number needs a client identity review before this voucher can be linked.', 409);
+      const linkedClient = matches.rows[0] || null;
+
+      const unchanged = String(voucher.recipient_name || '') === nextName
+        && String(voucher.recipient_mobile || '') === nextLocalMobile
+        && Number(voucher.recipient_crm_v2_client_id || 0) === Number(linkedClient?.id || 0);
+      if (unchanged) {
+        await client.query('COMMIT');
+        return { status:'unchanged', voucherCode:normalizedCode, linkStatus: linkedClient ? 'linked' : 'waiting' };
+      }
+
+      await client.query(
+        `UPDATE gift_voucher_orders
+            SET recipient_name=$2,
+                recipient_mobile=$3,
+                updated_at=NOW()
+          WHERE id=$1`,
+        [voucher.order_id, nextName, nextLocalMobile],
+      );
+      await client.query(
+        `UPDATE gift_vouchers
+            SET recipient_crm_v2_client_id=$2,
+                recipient_linked_at=CASE WHEN $2::bigint IS NULL THEN NULL ELSE NOW() END,
+                updated_at=NOW()
+          WHERE id=$1`,
+        [voucher.id, linkedClient ? Number(linkedClient.id) : null],
+      );
+      await client.query(
+        `INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata)
+         VALUES($1,'gift_voucher.recipient_changed','gift_voucher',$2,$3::jsonb)`,
+        [operator.id, voucher.id, JSON.stringify({
+          voucherCode: normalizedCode,
+          fromRecipientName: voucher.recipient_name || null,
+          toRecipientName: nextName,
+          fromMobileLast4: String(voucher.recipient_mobile || '').slice(-4) || null,
+          toMobileLast4: nextLocalMobile.slice(-4),
+          fromCrmV2ClientId: voucher.recipient_crm_v2_client_id == null ? null : Number(voucher.recipient_crm_v2_client_id),
+          toCrmV2ClientId: linkedClient ? Number(linkedClient.id) : null,
+          linkStatus: linkedClient ? 'linked' : 'waiting',
+        })],
+      );
+      await client.query('COMMIT');
+      return {
+        status:'recipient_changed',
+        voucherCode:normalizedCode,
+        recipientName:nextName,
+        recipientMobile:nextLocalMobile,
+        linkStatus:linkedClient ? 'linked' : 'waiting',
+      };
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async function resolveAccess(adminId) {
@@ -364,7 +476,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
   }
 
-  return { syncRecipientLinks, getClientModel, createOrder, createWalkInVoucher, getPublicVoucher, getWorkspaceModel, updatePolicy, redeem, resolveAccess };
+  return { syncRecipientLinks, getClientModel, createOrder, createWalkInVoucher, getPublicVoucher, getWorkspaceModel, changeRecipient, updatePolicy, redeem, resolveAccess };
 }
 
 async function issueVerifiedVoucher(client, request, providerTransactionId) {
