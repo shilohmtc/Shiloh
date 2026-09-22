@@ -4,7 +4,9 @@ const axios = require('axios');
 const logger = require('../lib/logger');
 
 const PLACES_URL = 'https://places.googleapis.com/v1/places:searchText';
+const PLACE_DETAILS_URL = 'https://places.googleapis.com/v1/places';
 const DEFAULT_QUERY = 'guesthouses and hotels near 37 Jacobs Street, Heidelberg, Gauteng, South Africa';
+const SHILOH_QUERY = 'Shiloh Massage Therapy & Aesthetic Clinic, 37 Jacobs Street, Heidelberg, Gauteng, South Africa';
 const DEFAULT_DAILY_LIMIT = 100;
 const QUOTA_TIME_ZONE = 'Africa/Johannesburg';
 const FIELD_MASK = [
@@ -18,6 +20,21 @@ const FIELD_MASK = [
   'places.currentOpeningHours',
   'places.websiteUri',
   'places.types',
+].join(',');
+const SHILOH_SEARCH_FIELD_MASK = [
+  'places.id',
+  'places.displayName',
+  'places.formattedAddress',
+  'places.googleMapsUri',
+].join(',');
+const SHILOH_REVIEW_FIELD_MASK = [
+  'id',
+  'displayName',
+  'formattedAddress',
+  'googleMapsUri',
+  'rating',
+  'userRatingCount',
+  'reviews',
 ].join(',');
 
 function getApiKey() {
@@ -47,6 +64,8 @@ function getQuotaDate(date = new Date()) {
 }
 
 let dailyQuotaState = { date: getQuotaDate(), used: 0 };
+let shilohPlaceIdCache = null;
+let shilohReviewRequest = null;
 
 function reserveDailyQuota() {
   const date = getQuotaDate();
@@ -125,6 +144,125 @@ async function searchGooglePlaces(query = '') {
   }
 }
 
+function mapGoogleReview(review = {}) {
+  const author = review.authorAttribution || {};
+  const text = review.text?.text || review.originalText?.text || '';
+  return {
+    authorName: author.displayName || 'Google reviewer',
+    authorUrl: author.uri || null,
+    authorPhotoUrl: author.photoUri || null,
+    reviewUrl: review.googleMapsUri || null,
+    rating: Number.isFinite(review.rating) ? review.rating : null,
+    text: String(text).trim(),
+    relativePublishTime: review.relativePublishTimeDescription || null,
+    publishTime: review.publishTime || null,
+  };
+}
+
+function isShilohListing(place = {}) {
+  const name = String(place.displayName?.text || '').toLowerCase();
+  const address = String(place.formattedAddress || '').toLowerCase();
+  return name.includes('shiloh') && address.includes('heidelberg');
+}
+
+function reviewResult(status, overrides = {}) {
+  return {
+    status,
+    place: null,
+    reviews: [],
+    ...overrides,
+  };
+}
+
+async function findShilohPlaceId() {
+  const configuredPlaceId = String(process.env.SHILOH_GOOGLE_PLACE_ID || '').trim();
+  if (configuredPlaceId) return configuredPlaceId;
+  if (shilohPlaceIdCache) return shilohPlaceIdCache;
+
+  const quota = reserveDailyQuota();
+  if (!quota.allowed) return null;
+
+  const response = await axios.post(
+    PLACES_URL,
+    {
+      textQuery: SHILOH_QUERY,
+      languageCode: 'en',
+      regionCode: 'ZA',
+      maxResultCount: 3,
+      includePureServiceAreaBusinesses: false,
+    },
+    {
+      timeout: 4500,
+      headers: {
+        'X-Goog-Api-Key': getApiKey(),
+        'X-Goog-FieldMask': SHILOH_SEARCH_FIELD_MASK,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+    },
+  );
+
+  shilohPlaceIdCache = (response.data?.places || []).find(isShilohListing)?.id || null;
+  return shilohPlaceIdCache;
+}
+
+async function requestShilohGoogleReviews() {
+  if (!isGooglePlacesConfigured()) return reviewResult('not_configured');
+
+  try {
+    const placeId = await findShilohPlaceId();
+    if (!placeId) return reviewResult('not_found');
+
+    const quota = reserveDailyQuota();
+    if (!quota.allowed) return reviewResult('quota_exhausted');
+
+    const response = await axios.get(`${PLACE_DETAILS_URL}/${encodeURIComponent(placeId)}`, {
+      timeout: 4500,
+      params: { languageCode: 'en', regionCode: 'ZA' },
+      headers: {
+        'X-Goog-Api-Key': getApiKey(),
+        'X-Goog-FieldMask': SHILOH_REVIEW_FIELD_MASK,
+        Accept: 'application/json',
+      },
+    });
+    const place = response.data || {};
+    if (!isShilohListing(place)) return reviewResult('not_found');
+
+    return reviewResult('live', {
+      place: {
+        id: place.id || placeId,
+        name: place.displayName?.text || 'Shiloh',
+        address: place.formattedAddress || null,
+        mapsUrl: place.googleMapsUri || null,
+        rating: Number.isFinite(place.rating) ? place.rating : null,
+        ratingCount: Number.isFinite(place.userRatingCount) ? place.userRatingCount : null,
+      },
+      reviews: (place.reviews || [])
+        .map(mapGoogleReview)
+        .filter((review) => review.text && review.rating !== null),
+    });
+  } catch (error) {
+    logger.warn({ err: error }, 'Shiloh Google review lookup failed');
+    return reviewResult('error');
+  }
+}
+
+async function getShilohGoogleReviews() {
+  if (shilohReviewRequest) return shilohReviewRequest;
+
+  shilohReviewRequest = requestShilohGoogleReviews()
+    .finally(() => {
+      shilohReviewRequest = null;
+    });
+  return shilohReviewRequest;
+}
+
+function resetGooglePlacesStateForTests() {
+  dailyQuotaState = { date: getQuotaDate(), used: 0 };
+  shilohPlaceIdCache = null;
+  shilohReviewRequest = null;
+}
+
 function formatPlace(place) {
   const details = [
     place.address,
@@ -156,6 +294,8 @@ module.exports = {
   DEFAULT_QUERY,
   DEFAULT_DAILY_LIMIT,
   FIELD_MASK,
+  SHILOH_QUERY,
+  SHILOH_REVIEW_FIELD_MASK,
   getDailyLimit,
   getQuotaDate,
   isGooglePlacesConfigured,
@@ -163,5 +303,8 @@ module.exports = {
   normaliseQuery,
   reserveDailyQuota,
   searchGooglePlaces,
+  mapGoogleReview,
+  getShilohGoogleReviews,
+  resetGooglePlacesStateForTests,
   buildGooglePlacesReply,
 };

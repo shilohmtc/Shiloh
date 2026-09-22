@@ -1,6 +1,6 @@
 const express = require('express');
 const { getPublicServiceCatalogue } = require('../services/publicServiceCatalogue');
-const { searchGooglePlaces } = require('../services/googlePlaces');
+const { getShilohGoogleReviews, searchGooglePlaces } = require('../services/googlePlaces');
 const {
   renderHome,
   renderTreatments,
@@ -33,6 +33,11 @@ router.get('/contact', (req, res) => res.status(200).type('html').send(renderCon
 router.get('/visit', (req, res) => res.status(200).type('html').send(renderVisit()));
 router.get('/visit/places', async (req, res) => {
   const result = await searchGooglePlaces(req.query.query || 'guesthouses and hotels');
+  return res.status(200).json({ ...result, checkedAt: new Date().toISOString() });
+});
+router.get('/reviews/google', async (req, res) => {
+  const result = await getShilohGoogleReviews();
+  res.set('Cache-Control', 'no-store');
   return res.status(200).json({ ...result, checkedAt: new Date().toISOString() });
 });
 router.get('/privacy', (req, res) => res.status(200).type('html').send(renderPrivacy()));

@@ -130,6 +130,32 @@ test('home includes an understated returning-client My Shiloh entry point', () =
   assert.match(html, /appointment, form and payment views will live here as the client experience grows/i);
 });
 
+test('home includes a resilient, accessible Google review carousel without exposing credentials', () => {
+  const html = renderHome(catalogue, {
+    reviewPreview: {
+      place: { rating: 4.9, ratingCount: 87, mapsUrl: 'https://maps.google.com/example' },
+      reviews: [{
+        authorName: 'Test reviewer',
+        rating: 5,
+        text: 'A calm and caring visit.',
+        reviewUrl: 'https://maps.google.com/example/review',
+      }],
+    },
+  });
+  assert.match(html, /data-google-reviews/);
+  assert.match(html, /Loved in Heidelberg/);
+  assert.match(html, /4\.9<\/strong> from 87 Google reviews/);
+  assert.match(html, /A calm and caring visit/);
+  assert.match(html, /data-reviews-previous aria-label="Previous review"/);
+  assert.match(html, /data-reviews-next aria-label="Next review"/);
+  assert.match(html, /fetch\('\/reviews\/google'/);
+  assert.match(html, /prefers-reduced-motion/);
+  assert.match(html, /translate="no">Google Maps<\/span> · Reviews are shown in Google Maps relevance order/);
+  assert.match(html, /View review on Google Maps/);
+  assert.match(html, /cache:'no-store'/);
+  assert.doesNotMatch(html, /GOOGLE_PLACES_API_KEY/);
+});
+
 test('home and Contact share the approved Heidelberg town-centre story', () => {
   const home = renderHome(catalogue);
   const contact = renderContact();
@@ -205,6 +231,8 @@ test('public privacy policy is accessible, specific to Shiloh, and linked site-w
   assert.match(privacy, /Meta and WhatsApp/);
   assert.match(privacy, /OpenAI/);
   assert.match(privacy, /outside South Africa/);
+  assert.match(privacy, /policies\.google\.com\/terms/);
+  assert.match(privacy, /policies\.google\.com\/privacy/);
   assert.match(privacy, /13 September 2026/);
   assert.match(privacy, /rel="canonical" href="https:\/\/shilohmtc\.co\.za\/privacy"/);
   assert.match(renderHome(catalogue), /href="\/privacy">Privacy policy<\/a>/);
@@ -219,6 +247,7 @@ test('public privacy policy is accessible, specific to Shiloh, and linked site-w
     'utf8',
   );
   assert.match(websiteRoute, /router\.get\('\/privacy'/);
+  assert.match(websiteRoute, /router\.get\('\/reviews\/google'/);
 });
 
 test('routing reuses canonical catalogue and leaves /book and /health intact', () => {

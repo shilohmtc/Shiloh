@@ -894,6 +894,11 @@ for (const viewport of [
 
       if (name === 'home') {
         await expect(surface.locator('[data-public-service-discovery]')).toBeVisible();
+        await expect(surface.locator('[data-google-reviews]')).toBeVisible();
+        await expect(surface.locator('[data-reviews-rail] .review-card')).toHaveCount(3);
+        await expect(surface.getByRole('link', { name: 'Read all reviews on Google Maps →' })).toBeVisible();
+        await expect(surface.getByRole('button', { name: 'Previous review' })).toBeVisible();
+        await expect(surface.getByRole('button', { name: 'Next review' })).toBeVisible();
         await expect(surface.locator('[data-public-service-category]')).toHaveCount(7);
         await expect(surface.getByRole('heading', { name: 'Advanced Aesthetics' })).toBeVisible();
         await expect(surface.getByRole('heading', { name: 'Body & Wellness' })).toBeVisible();
