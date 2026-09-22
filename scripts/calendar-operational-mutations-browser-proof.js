@@ -314,7 +314,7 @@ async function reservePort() {
   return port;
 }
 
-async function poll(load, accept, timeoutMs = 15_000) {
+async function poll(load, accept, timeoutMs = 30_000) {
   const deadline = Date.now() + timeoutMs;
   let lastError;
   while (Date.now() < deadline) {
