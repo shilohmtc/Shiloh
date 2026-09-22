@@ -2,6 +2,16 @@ const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 
 test('Workspace vouchers stay contained and selectable on Phone and Desktop', async ({ page }, testInfo) => {
+  await page.route('**/calendar/vouchers/walk-in', async (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      status: 'issued',
+      voucher: { voucher_code:'SV-WALKIN12345' },
+      voucherPath: '/gift-vouchers/storybook-walk-in-voucher-key',
+      whatsappDelivery: { sent:false, reason:'not_requested' },
+    }),
+  }));
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
     await page.setViewportSize({ width:viewport.width, height:viewport.height });
     await page.goto('/iframe.html?id=shiloh-gift-vouchers--workspace-balances&viewMode=story', { waitUntil:'networkidle' });
@@ -19,11 +29,26 @@ test('Workspace vouchers stay contained and selectable on Phone and Desktop', as
     await expect(page.getByLabel('Amount to redeem')).toHaveAttribute('max', '400.00');
     await expect(page.getByText('SV-4A7F31B920CC selected. Enter the amount to redeem below.')).toBeVisible();
 
+    await page.getByLabel('Purchaser’s name').fill('Tinkie');
+    await page.getByLabel('Recipient’s name').fill('Evelyn');
+    await page.getByLabel('From').fill('Tinkie');
+    await page.getByLabel('Voucher value').fill('900');
+    await page.getByLabel('Payment received by').selectOption('card_machine');
+    await page.getByLabel('I confirm that Shiloh has received the full in-person payment shown above.').check();
+    await page.getByRole('button', { name:'Issue preprinted voucher' }).click();
+    await expect(page.getByText('SV-WALKIN12345')).toBeVisible();
+    await expect(page.getByText('Write this code clearly on the physical voucher. It is now active in Shiloh.')).toBeVisible();
+    await expect(page.getByText('No WhatsApp copy was requested.')).toBeVisible();
+
     const metrics = await page.evaluate(() => ({
       viewport:innerWidth,
       document:document.documentElement.scrollWidth,
       tableOverflow:getComputedStyle(document.querySelector('[data-issued-vouchers] table')).overflowX,
-      short:[...document.querySelectorAll('.voucher-shell button,.voucher-shell input,.voucher-shell select,.voucher-shell a')].filter((node) => node.getClientRects().length && node.getBoundingClientRect().height < 44).length,
+      short:[...document.querySelectorAll('.voucher-shell button,.voucher-shell input,.voucher-shell select,.voucher-shell a')].filter((node) => {
+        if (!node.getClientRects().length) return false;
+        const target = ['checkbox','radio'].includes(node.type) ? node.closest('label') : node;
+        return !target || target.getBoundingClientRect().height < 44;
+      }).length,
     }));
     expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
     expect(metrics.tableOverflow).not.toBe('auto');
