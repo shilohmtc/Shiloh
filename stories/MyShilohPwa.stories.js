@@ -103,3 +103,30 @@ export const AuthenticatedProfile = {
     return surface;
   },
 };
+
+
+export const BrowserInstallDoorway = {
+  render: () => {
+    const surface = productionSurface();
+    const gate = surface.querySelector('[data-install-gate]');
+    const frame = surface.querySelector('[data-app-frame]');
+    if (gate) gate.hidden = false;
+    if (frame) frame.hidden = true;
+    const instructions = surface.querySelector('[data-install-gate-instructions]');
+    if (instructions) instructions.textContent = 'On iPhone: tap Share, choose Add to Home Screen, then tap Add.';
+    const action = surface.querySelector('[data-install-gate-action]');
+    if (action) action.textContent = 'Show install steps';
+    return surface;
+  },
+};
+
+export const StandaloneGuestSignIn = {
+  render: () => {
+    const surface = productionSurface();
+    const gate = surface.querySelector('[data-install-gate]');
+    const frame = surface.querySelector('[data-app-frame]');
+    if (gate) gate.hidden = true;
+    if (frame) frame.hidden = false;
+    return surface;
+  },
+};
