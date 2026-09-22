@@ -14,7 +14,12 @@ test('Workspace vouchers stay contained and selectable on Phone and Desktop', as
   }));
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
     await page.setViewportSize({ width:viewport.width, height:viewport.height });
-    await page.goto('/iframe.html?id=shiloh-gift-vouchers--workspace-balances&viewMode=story', { waitUntil:'networkidle' });
+    try {
+      await page.goto('/iframe.html?id=shiloh-gift-vouchers--workspace-balances&viewMode=story', { waitUntil:'domcontentloaded' });
+    } catch (error) {
+      if (!String(error?.message || error).includes('ERR_ABORTED')) throw error;
+    }
+    await expect(page.locator('.voucher-shell')).toBeVisible();
     await page.addScriptTag({ url:'/workspace/gift-vouchers.js' });
 
     const issued = page.getByRole('heading', { name:'Issued vouchers' });
