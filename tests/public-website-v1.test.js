@@ -173,6 +173,8 @@ test('home and Contact share the approved Heidelberg town-centre story', () => {
     assert.match(html, /Platō Coffee/);
     assert.doesNotMatch(html, /opening soon/i);
     assert.doesNotMatch(html, /Burger King/i);
+    assert.equal((html.match(/aria-label="Open [^"]+ in Google Maps \(opens in a new tab\)"/g) || []).length, 8);
+    assert.equal((html.match(/target="_blank" rel="noopener noreferrer"/g) || []).length >= 8, true);
   }
 });
 
@@ -187,12 +189,23 @@ test('home leads with the Heidelberg location and shared brand chrome', () => {
 });
 
 test('home uses the approved editorial photography without presenting it as the clinic interior', () => {
-  const html = renderHome(catalogue);
+  const html = renderHome([
+    ...catalogue,
+    { id: 303, name: 'Hydrating Facial', category: 'Facials & Skin', duration: '60 min', price: 'R720' },
+    { id: 404, name: 'Microneedling', category: 'Advanced Aesthetics', duration: '60 min', price: 'R950' },
+    { id: 505, name: 'Permanent Makeup Brows', category: 'Permanent Makeup', duration: '120 min', price: 'R1800' },
+    { id: 606, name: 'Manicure', category: 'More Services', duration: '45 min', price: 'R380' },
+  ]);
   const assets = [
     'shiloh-editorial-hero-v1.webp',
     'shiloh-editorial-massage-v1.webp',
     'shiloh-editorial-foot-care-v1.webp',
+    'shiloh-editorial-facials-v1.webp',
+    'shiloh-editorial-advanced-aesthetics-v1.webp',
+    'shiloh-editorial-permanent-makeup-v1.webp',
+    'shiloh-editorial-more-services-v1.webp',
     'shiloh-editorial-welcome-v1.webp',
+    'shiloh-location-courtyard-v1.webp',
   ];
 
   for (const filename of assets) {
@@ -205,8 +218,14 @@ test('home uses the approved editorial photography without presenting it as the 
   assert.match(html, /Editorial wellness arrangement in Shiloh’s colour palette/);
   assert.match(html, /Editorial massage preparation in Shiloh’s colour palette/);
   assert.match(html, /Editorial foot-care preparation in Shiloh’s colour palette/);
+  assert.match(html, /Editorial facial and skincare preparation in Shiloh’s colour palette/);
+  assert.match(html, /Editorial advanced aesthetics preparation in Shiloh’s colour palette/);
+  assert.match(html, /Editorial permanent makeup tools in Shiloh’s colour palette/);
+  assert.match(html, /Editorial self-care arrangement in Shiloh’s colour palette/);
   assert.match(html, /Editorial welcome image inspired by Shiloh’s colour palette/);
   assert.match(html, /The Shiloh feeling/);
+  assert.match(html, /class="site-location-band"/);
+  assert.match(html, /Plan your visit to Shiloh at 37 Jacobs Street, Heidelberg/);
   assert.doesNotMatch(html, /assets\/booking\/(?:treatment-room-side|pedicure-side)\.webp/);
 });
 

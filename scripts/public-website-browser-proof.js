@@ -91,7 +91,12 @@ async function assertApprovedPhotography(page, label) {
     ['.hero-visual', 'shiloh-editorial-hero-v1.webp'],
     ['.category-discovery-card__visual--massage', 'shiloh-editorial-massage-v1.webp'],
     ['.category-discovery-card__visual--foot', 'shiloh-editorial-foot-care-v1.webp'],
+    ['.category-discovery-card__visual--facial', 'shiloh-editorial-facials-v1.webp'],
+    ['.category-discovery-card__visual--advanced', 'shiloh-editorial-advanced-aesthetics-v1.webp'],
+    ['.category-discovery-card__visual--permanent-makeup', 'shiloh-editorial-permanent-makeup-v1.webp'],
+    ['.category-discovery-card__visual--other', 'shiloh-editorial-more-services-v1.webp'],
     ['.local-story__image', 'shiloh-editorial-welcome-v1.webp'],
+    ['.site-location-band', 'shiloh-location-courtyard-v1.webp'],
   ];
   for (const [selector, filename] of expected) {
     const image = page.locator(selector).first();
@@ -141,6 +146,8 @@ async function run() {
       throw new Error(`Phone local story must collapse to one column; got ${phoneLocalColumns}`);
     if ((await phone.locator('[data-public-visit-shiloh] .neighbour-list li').count()) !== 8)
       throw new Error('Phone local story must use the approved neighbour authority');
+    if ((await phone.locator('[data-public-visit-shiloh] .neighbour-list a[target="_blank"]').count()) !== 8)
+      throw new Error('Phone local story neighbour chips must link to Google Maps');
     await assertAccessible(phone, 'Phone home');
     await phone.screenshot({
       path: path.join(evidenceDir, 'phone-home-390x844.png'),
@@ -189,6 +196,8 @@ async function run() {
       throw new Error(`Desktop local story must retain two columns; got ${desktopLocalColumns}`);
     if ((await desktop.locator('[data-public-visit-shiloh] .neighbour-list li').count()) !== 8)
       throw new Error('Desktop local story must use the approved neighbour authority');
+    if ((await desktop.locator('[data-public-visit-shiloh] .neighbour-list a[target="_blank"]').count()) !== 8)
+      throw new Error('Desktop local story neighbour chips must link to Google Maps');
     if ((await desktop.locator('[data-public-service-category]').count()) !== 7)
       throw new Error('Desktop home must show the seven public service families');
     if ((await desktop.getByRole('heading', { name: 'Advanced Aesthetics' }).count()) !== 1)
