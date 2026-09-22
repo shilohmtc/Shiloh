@@ -1114,6 +1114,7 @@ test('authenticated My Shiloh browser sessions still show only the install doorw
 test('My Shiloh install guidance appears only after Show install steps is tapped', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/iframe.html?id=client-my-shiloh-pwa--browser-install-doorway&viewMode=story', { waitUntil: 'networkidle' });
+  await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
 
   await expect(page.locator('[data-install-gate-instructions]')).toHaveCount(0);
   const button = page.getByRole('button', { name: 'Show install steps' });
