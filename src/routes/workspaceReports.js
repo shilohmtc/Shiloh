@@ -20,7 +20,7 @@ function setWorkspaceReportsSecurityHeaders(res) {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+    "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
   );
 }
 
