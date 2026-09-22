@@ -89,6 +89,11 @@ function createMyShilohRouter({
   const optionalSession = optionalClientSession({ service: sessionService, env });
   const requireCsrf = clientCsrfGuard({ service: sessionService });
 
+  function optionalSessionForAppLaunch(req, res, next) {
+    if (req.query?.launch !== 'app') return next();
+    return optionalSession(req, res, next);
+  }
+
   function sendAuthenticatedClient(res, result) {
     const sessionSeconds = Math.max(
       1,
@@ -631,7 +636,7 @@ function createMyShilohRouter({
     });
   });
 
-  router.get(['/my-shiloh', '/my-shiloh/'], optionalSession, async (req, res) => {
+  router.get(['/my-shiloh', '/my-shiloh/'], optionalSessionForAppLaunch, async (req, res) => {
     setMyShilohPageHeaders(res);
     const [whatsappNumber, catalogue] = await Promise.all([
       whatsappResolver(),
@@ -640,7 +645,7 @@ function createMyShilohRouter({
     return res.status(200).type('html').send(renderMyShilohPage({
       whatsappNumber,
       catalogue: catalogue || [],
-      client: req.myShilohClientSession?.client || null,
+      client: req.query?.launch === 'app' ? req.myShilohClientSession?.client || null : null,
     }));
   });
 
