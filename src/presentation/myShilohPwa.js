@@ -6,7 +6,7 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 
-const MY_SHILOH_ASSET_VERSION = '20260922-direct-whatsapp-handoff-v1';
+const MY_SHILOH_ASSET_VERSION = '20260922-home-polish-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -111,10 +111,11 @@ function renderMyShilohPage({
         </div>
         <p>Shiloh is bringing together what matters for your next visit.</p>
         <div class="focus-grid" aria-label="Your Shiloh details">
-          <div><span>Appointment</span><strong>Checking</strong></div>
-          <div><span>Forms</span><strong>Checking</strong></div>
-          <div><span>Payment</span><strong>Checking</strong></div>
+          <button class="focus-fact" type="button" data-client-experience-fact data-fact-key="appointment"><span>Appointment</span><strong>Checking</strong><b aria-hidden="true">›</b></button>
+          <button class="focus-fact" type="button" data-client-experience-fact data-fact-key="forms"><span>Forms</span><strong>Checking</strong><b aria-hidden="true">›</b></button>
+          <button class="focus-fact" type="button" data-client-experience-fact data-fact-key="payment"><span>Payment</span><strong>Checking</strong><b aria-hidden="true">›</b></button>
         </div>
+        <p class="focus-card__fact-status" data-client-experience-fact-status role="status" aria-live="polite"></p>
       </section>`
     : `<section class="focus-card" aria-labelledby="next-visit-title">
         <div class="focus-card__top">
