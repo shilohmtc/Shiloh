@@ -91,12 +91,12 @@
     return /android/i.test(window.navigator.userAgent || '');
   }
 
-  function guestBrowserNeedsInstall() {
-    return appFrame?.dataset.clientAuthenticated !== 'true' && !standalone();
+  function browserNeedsInstall() {
+    return !standalone();
   }
 
   function renderInstallGate() {
-    const gated = guestBrowserNeedsInstall();
+    const gated = browserNeedsInstall();
     document.documentElement.dataset.myShilohMode = standalone() ? 'standalone' : 'browser';
     if (installGate) installGate.hidden = !gated;
     if (appFrame) appFrame.hidden = gated;
@@ -140,7 +140,7 @@
   });
 
   renderInstallGate();
-  if (isIos() && !standalone() && !guestBrowserNeedsInstall()) showInstallButton();
+  if (isIos() && !standalone()) showInstallButton();
 
   installGateAction?.addEventListener('click', async () => {
     if (deferredInstallPrompt && isAndroid()) {
@@ -414,7 +414,7 @@
   }
 
   async function refreshAuthenticatedClientState() {
-    if (appFrame?.dataset.clientAuthenticated !== 'true' || clientRefreshInFlight) return;
+    if (!standalone() || appFrame?.dataset.clientAuthenticated !== 'true' || clientRefreshInFlight) return;
     clientRefreshInFlight = true;
     try {
       await Promise.all([loadClientExperience(), loadClientProfile(), loadWelcomeVoucher()]);
@@ -499,7 +499,7 @@
   }
 
   function welcomeBackFromWhatsApp() {
-    if (appFrame?.dataset.clientAuthenticated === 'true') return;
+    if (!standalone() || appFrame?.dataset.clientAuthenticated === 'true') return;
     if (whatsappHandoffStarted) {
       window.clearTimeout(authStatusTimer);
       authStatusCheckInFlight = false;
@@ -872,7 +872,7 @@
   }
 
   async function sendShilohMessage(value) {
-    if (shilohMessageInFlight || appFrame?.dataset.clientAuthenticated !== 'true') return;
+    if (!standalone() || shilohMessageInFlight || appFrame?.dataset.clientAuthenticated !== 'true') return;
     const message = String(value || '').trim();
     if (!message || message.length > 1000) return;
 
@@ -912,7 +912,7 @@
   });
 
   async function beginClientAuth() {
-    if (authActionInFlight) return;
+    if (!standalone() || authActionInFlight) return;
     authActionInFlight = true;
     setAuthControlsDisabled(true);
     setAuthStatus('Opening WhatsApp for secure verification…', 'working');
@@ -935,7 +935,7 @@
   }
 
   async function completeClientAuth(code) {
-    if (authActionInFlight || appFrame?.dataset.clientAuthenticated === 'true') return;
+    if (!standalone() || authActionInFlight || appFrame?.dataset.clientAuthenticated === 'true') return;
     const cleanCode = String(code || '').replace(/\D/g, '');
     if (!/^\d{6}$/.test(cleanCode)) {
       setAuthStatus('Enter the 6-digit code Shiloh sent you in WhatsApp.', 'error');
@@ -959,7 +959,7 @@
   }
 
   async function logoutClient() {
-    if (authActionInFlight) return;
+    if (!standalone() || authActionInFlight) return;
     authActionInFlight = true;
     setAuthControlsDisabled(true);
     setAuthStatus('Signing out securely…', 'working');
@@ -999,7 +999,7 @@
   });
   welcomeBackFromWhatsApp();
 
-  if (completionCode && appFrame?.dataset.clientAuthenticated !== 'true') {
+  if (standalone() && completionCode && appFrame?.dataset.clientAuthenticated !== 'true') {
     for (const input of document.querySelectorAll('[data-client-auth-code]')) {
       input.value = completionCode.replace(/^(\d{3})(\d{3})$/, '$1 $2');
     }
