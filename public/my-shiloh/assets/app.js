@@ -4,8 +4,13 @@
   const viewNames = new Set(['home', 'bookings', 'shiloh', 'profile']);
   const views = [...document.querySelectorAll('[data-view]')];
   const navItems = [...document.querySelectorAll('[data-view-target]')];
+  const installGate = document.querySelector('[data-install-gate]');
   const installTrigger = document.querySelector('[data-install-trigger]');
-  const installSheet = document.querySelector('[data-install-sheet]');
+  const installStatus = document.querySelector('[data-install-status]');
+  const installPlatformIntro = document.querySelector('[data-install-platform-intro]');
+  const installStepOne = document.querySelector('[data-install-step="one"]');
+  const installStepTwo = document.querySelector('[data-install-step="two"]');
+  const installStepThree = document.querySelector('[data-install-step="three"]');
   const offlineBanner = document.querySelector('[data-offline-banner]');
   const appFrame = document.querySelector('[data-app-frame]');
   const authStartButtons = [...document.querySelectorAll('[data-client-auth-start]')];
@@ -42,6 +47,7 @@
   let clientRefreshInFlight = false;
 
   function completionCodeFromHash() {
+    if (!standalone()) return null;
     const match = String(window.location.hash || '').match(/^#verify=(\d{6})$/);
     if (!match) return null;
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
@@ -83,55 +89,93 @@
     return /iphone|ipad|ipod/i.test(window.navigator.userAgent || '');
   }
 
-  function showInstallButton() {
-    if (installTrigger && !standalone()) installTrigger.hidden = false;
+  function isAndroid() {
+    return /android/i.test(window.navigator.userAgent || '');
   }
 
-  function openInstallGuide() {
-    if (!installSheet) return;
-    installSheet.hidden = false;
-    document.body.style.overflow = 'hidden';
-    installSheet.querySelector('.install-sheet__close')?.focus();
+  function setInstallStatus(message = '') {
+    if (installStatus) installStatus.textContent = message;
   }
 
-  function closeInstallGuide() {
-    if (!installSheet) return;
-    installSheet.hidden = true;
-    document.body.style.overflow = '';
-    installTrigger?.focus();
+  function configureInstallGate() {
+    const installedLaunch = standalone();
+    document.body.dataset.myShilohLaunch = installedLaunch ? 'app' : 'install';
+
+    if (installGate) installGate.hidden = installedLaunch;
+    if (appFrame) appFrame.hidden = !installedLaunch;
+
+    if (installedLaunch) return true;
+
+    if (isIos()) {
+      if (installPlatformIntro) installPlatformIntro.textContent = 'On iPhone, add My Shiloh to your Home Screen first. Then open the new My Shiloh icon to sign in or register.';
+      if (installStepOne) installStepOne.textContent = 'Tap the Share button in your browser.';
+      if (installStepTwo) installStepTwo.textContent = 'Tap Add to Home Screen, then tap Add. Keep Open as Web App switched on if your iPhone shows that option.';
+      if (installStepThree) installStepThree.textContent = 'Leave the browser and open My Shiloh from the new icon on your Home Screen.';
+      if (installTrigger) installTrigger.hidden = true;
+    } else if (isAndroid()) {
+      if (installPlatformIntro) installPlatformIntro.textContent = 'On Android, install My Shiloh first. Then open it from its new app icon to sign in or register.';
+      if (installStepOne) installStepOne.textContent = 'Tap Install My Shiloh below when the button appears.';
+      if (installStepTwo) installStepTwo.textContent = 'If the button does not appear, open your browser menu and choose Install app or Add to Home screen.';
+      if (installStepThree) installStepThree.textContent = 'Leave the browser and open My Shiloh from the new icon in your apps list or Home Screen.';
+    } else {
+      if (installPlatformIntro) installPlatformIntro.textContent = 'My Shiloh is designed to be installed on your phone. Open this page on your iPhone or Android phone, install it, then continue from the My Shiloh icon.';
+      if (installStepOne) installStepOne.textContent = 'Open this page on your iPhone or Android phone.';
+      if (installStepTwo) installStepTwo.textContent = 'Use Add to Home Screen or Install app.';
+      if (installStepThree) installStepThree.textContent = 'Open My Shiloh from its new icon to sign in or register.';
+      if (installTrigger) installTrigger.hidden = true;
+    }
+    return false;
   }
+
+  function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/my-shiloh/sw.js', {
+        scope: '/my-shiloh/',
+        updateViaCache: 'none',
+      }).then((registration) => registration.update()).catch(() => {
+        // Installation guidance still works if service-worker registration is unavailable.
+      });
+    });
+  }
+
+  const installedLaunch = configureInstallGate();
 
   window.addEventListener('beforeinstallprompt', (event) => {
+    if (installedLaunch || !isAndroid()) return;
     event.preventDefault();
     deferredInstallPrompt = event;
-    showInstallButton();
+    if (installTrigger) installTrigger.hidden = false;
+    setInstallStatus('Ready to install. Tap Install My Shiloh to continue.');
   });
-
-  if (isIos() && !standalone()) showInstallButton();
 
   installTrigger?.addEventListener('click', async () => {
-    if (deferredInstallPrompt) {
-      deferredInstallPrompt.prompt();
-      await deferredInstallPrompt.userChoice;
-      deferredInstallPrompt = null;
-      if (standalone()) installTrigger.hidden = true;
+    if (!deferredInstallPrompt) {
+      setInstallStatus('Open your browser menu and choose Install app or Add to Home screen.');
       return;
     }
-    openInstallGuide();
-  });
-
-  document.querySelectorAll('[data-install-close]').forEach((button) => {
-    button.addEventListener('click', closeInstallGuide);
-  });
-
-  installSheet?.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closeInstallGuide();
+    const prompt = deferredInstallPrompt;
+    deferredInstallPrompt = null;
+    if (installTrigger) installTrigger.disabled = true;
+    await prompt.prompt();
+    const choice = await prompt.userChoice;
+    if (installTrigger) installTrigger.disabled = false;
+    if (choice?.outcome === 'accepted') {
+      installTrigger.hidden = true;
+      setInstallStatus('My Shiloh is installed. Open the new My Shiloh icon to continue.');
+    } else {
+      setInstallStatus('Installation was not completed. You can try again from your browser menu.');
+    }
   });
 
   window.addEventListener('appinstalled', () => {
     if (installTrigger) installTrigger.hidden = true;
     deferredInstallPrompt = null;
+    setInstallStatus('My Shiloh is installed. Open the new My Shiloh icon to continue.');
   });
+
+  registerServiceWorker();
+  if (!installedLaunch) return;
 
   function safeExperienceHref(value) {
     const href = String(value || '');
@@ -960,14 +1004,4 @@
 
   refreshAuthenticatedClientState();
 
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/my-shiloh/sw.js', {
-        scope: '/my-shiloh/',
-        updateViaCache: 'none',
-      }).then((registration) => registration.update()).catch(() => {
-          // The PWA still works as a normal web app if registration is unavailable.
-        });
-    });
-  }
 })();
