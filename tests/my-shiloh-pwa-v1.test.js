@@ -86,7 +86,7 @@ test('PWA manifest is standalone and scoped to My Shiloh', () => {
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v15/);
+  assert.match(worker, /my-shiloh-shell-v16/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /url\.pathname === '\/my-shiloh\/assets\/app\.css'[\s\S]*fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);
