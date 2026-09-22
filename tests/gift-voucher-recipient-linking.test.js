@@ -90,3 +90,59 @@ test('recipient linking never uses names as identity and never steals an existin
   assert.match(source, /v\.recipient_crm_v2_client_id IS NULL/);
   assert.doesNotMatch(source, /recipient_name\s*=\s*\$2/);
 });
+
+
+test('online voucher keeps recipient identity separate when the purchaser receives the secure link', async () => {
+  const calls = [];
+  const client = {
+    async query(sql, params = []) {
+      calls.push({ sql, params });
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+      if (sql.includes('SELECT id,name,normalized_mobile FROM crm_v2_clients')) {
+        return { rows:[{ id:44, name:'Tinkie Buyer', normalized_mobile:'27831234567' }] };
+      }
+      if (sql.includes('FROM gift_voucher_settings')) {
+        return { rows:[{ validity_mode:'fixed_months', validity_months:2 }] };
+      }
+      if (sql.includes('INSERT INTO gift_voucher_orders')) return { rows:[{ id:501 }] };
+      if (sql.includes('INSERT INTO payment_requests')) {
+        return { rows:[{ id:701, request_key:'request-key', payer_name:'Tinkie Buyer', payer_mobile:'27831234567' }] };
+      }
+      throw new Error(`Unexpected client query: ${sql}`);
+    },
+    release() {},
+  };
+  const db = {
+    async connect() { return client; },
+    async query(sql, params = []) {
+      calls.push({ sql, params });
+      if (sql.includes('UPDATE payment_requests')) {
+        return { rows:[{ id:701, request_key:'request-key', payer_name:'Tinkie Buyer', payer_mobile:'27831234567', provider_payment_url:'https://pay.example' }] };
+      }
+      if (sql.includes('UPDATE gift_voucher_orders SET state=')) return { rows:[] };
+      throw new Error(`Unexpected db query: ${sql}`);
+    },
+  };
+  const service = createGiftVoucherService({
+    db,
+    ozow:{
+      configured:() => true,
+      async createPaymentLink() { return { providerRequestId:'provider-1', paymentUrl:'https://pay.example' }; },
+    },
+  });
+  const result = await service.createOrder({
+    crmV2ClientId:44,
+    recipientName:'Evelyn Example',
+    recipientMobile:'+27 82 123 4567',
+    fromName:'Tinkie',
+    language:'en',
+    deliveryRecipient:'purchaser',
+    amount:'900',
+  });
+  assert.equal(result.status, 'awaiting_payment');
+  const insert = calls.find((call) => call.sql.includes('INSERT INTO gift_voucher_orders'));
+  assert.ok(insert);
+  assert.match(insert.sql, /recipient_mobile/);
+  assert.equal(insert.params[3], '0821234567');
+  assert.equal(insert.params[8], '0831234567');
+});
