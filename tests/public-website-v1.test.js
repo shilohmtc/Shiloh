@@ -223,7 +223,7 @@ test('home uses the approved editorial photography without presenting it as the 
   assert.match(html, /Editorial permanent makeup tools in Shiloh’s colour palette/);
   assert.match(html, /Editorial self-care arrangement in Shiloh’s colour palette/);
   assert.match(html, /Editorial welcome image inspired by Shiloh’s colour palette/);
-  assert.match(html, /The Shiloh feeling/);
+  assert.match(html, /\.hero-visual-card\{display:none\}/);
   assert.match(html, /class="site-location-band"/);
   assert.match(html, /Plan your visit to Shiloh at 37 Jacobs Street, Heidelberg/);
   assert.doesNotMatch(html, /assets\/booking\/(?:treatment-room-side|pedicure-side)\.webp/);
