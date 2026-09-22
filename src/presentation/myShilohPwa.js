@@ -6,7 +6,7 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 
-const MY_SHILOH_ASSET_VERSION = '20260922-client-install-gate-v1';
+const MY_SHILOH_ASSET_VERSION = '20260922-client-install-gate-v2';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -281,7 +281,7 @@ function renderMyShilohPage({
       <span class="brand-mark brand-mark--large install-gate__logo" aria-hidden="true"><img src="/my-shiloh/assets/icon-192.png" alt=""></span>
       <p class="eyebrow">Install My Shiloh</p>
       <h1 id="install-gate-title">Add My Shiloh to your Home Screen to continue.</h1>
-      <p class="install-gate__copy">Once it’s installed, open the <strong>My Shiloh</strong> icon on your phone to sign in, register and use your private client space.</p>
+      <p class="install-gate__copy">Once it’s installed, open the <strong>My Shiloh</strong> icon on your phone to continue.</p>
       <div class="install-gate__device" data-install-gate-instructions role="status" aria-live="polite"></div>
       <button class="button button--primary button--wide" type="button" data-install-gate-action>Install My Shiloh</button>
       <p class="install-gate__status" data-install-gate-status aria-live="polite">Already installed? Open My Shiloh from your Home Screen.</p>

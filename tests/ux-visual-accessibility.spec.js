@@ -1073,3 +1073,36 @@ test('My Shiloh standalone guest state keeps WhatsApp sign-in available', async 
   await expect(page.getByRole('button', { name: 'Continue with WhatsApp' }).first()).toBeVisible();
   await expect(page.getByText('Enter your 6-digit fallback code').first()).toBeVisible();
 });
+
+
+test('authenticated My Shiloh browser sessions still show only the install doorway', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name: 'phone', width: 390, height: 844 },
+    { name: 'desktop', width: 1280, height: 900 },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-browser-install-doorway&viewMode=story', { waitUntil: 'networkidle' });
+
+    const gate = page.locator('[data-install-gate]');
+    const appFrame = page.locator('[data-app-frame]');
+    await expect(gate).toBeVisible();
+    await expect(appFrame).toBeHidden();
+    await expect(page.getByRole('heading', { name: 'Add My Shiloh to your Home Screen to continue.' })).toBeVisible();
+    await expect(page.getByText('Good evening, Christel.')).toBeHidden();
+    await expect(page.getByText('Your R100 welcome voucher.')).toBeHidden();
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-install-gate]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
+    expect(serious, `Serious accessibility violations in authenticated browser install doorway on ${viewport.name}: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+
+    await page.screenshot({
+      path: testInfo.outputPath(`my-shiloh-authenticated-browser-install-doorway-${viewport.name}.png`),
+      fullPage: true,
+      animations: 'disabled',
+      caret: 'hide',
+    });
+  }
+});
