@@ -291,6 +291,14 @@ async function runViewport(browser, name, viewport) {
   }
   await page.getByRole('button', { name: 'Request reschedule' }).click();
   await page.waitForFunction(() => document.body.textContent.includes('practitioner approval'));
+  const chatScroll = await page.locator('[data-shiloh-messages]').evaluate((node) => ({
+    overflowY: getComputedStyle(node).overflowY,
+    maxHeight: getComputedStyle(node).maxHeight,
+    hasInnerScroll: node.scrollHeight > node.clientHeight + 1,
+  }));
+  if (chatScroll.overflowY !== 'visible' || chatScroll.maxHeight !== 'none' || chatScroll.hasInnerScroll) {
+    throw new Error(`Shiloh conversation must use the page's single scroll: ${JSON.stringify(chatScroll)}`);
+  }
   if (!confirmedActions.some((call) => call.sessionId === 55 && call.crmV2ClientId === 912 && call.actionToken === RESCHEDULE_TOKEN)) {
     throw new Error('reschedule confirmation was not bound to the authenticated session');
   }
