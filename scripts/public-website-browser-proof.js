@@ -204,6 +204,17 @@ async function run() {
       throw new Error('Desktop local story neighbour chips must link to Google Maps');
     if ((await desktop.locator('[data-public-service-category]').count()) !== 7)
       throw new Error('Desktop home must show the seven public service families');
+    const desktopCardBalance = await desktop.locator('.category-discovery-grid').evaluate((grid) => {
+      const cards = [...grid.children];
+      const row = cards.slice(-3).map((card) => card.getBoundingClientRect());
+      const bounds = grid.getBoundingClientRect();
+      return {
+        left: row[0].left - bounds.left,
+        right: bounds.right - row[row.length - 1].right,
+      };
+    });
+    if (Math.abs(desktopCardBalance.left - desktopCardBalance.right) > 2)
+      throw new Error(`Desktop final service-card row must be centred; got ${JSON.stringify(desktopCardBalance)}`);
     if ((await desktop.getByRole('heading', { name: 'Advanced Aesthetics' }).count()) !== 1)
       throw new Error('Desktop home must replace administrative aesthetic category labels');
     await assertAccessible(desktop, 'Desktop home');
