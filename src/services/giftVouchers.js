@@ -4,11 +4,12 @@ const crypto = require('crypto');
 const { pool } = require('../db/pool');
 const { createOzowPaymentProvider } = require('./ozowPaymentProvider');
 const { resolveCalendarAuthority, hasCapability } = require('./calendarAuthorization');
-const { PAYMENT_TEMPLATE_KEYS, formatRand, normalizeWhatsAppMobile, securePaymentUrl, withActionLink, sendPaymentTemplate } = require('./paymentWhatsAppNotifications');
-const { voucherExpiryTimestamp } = require('../lib/voucherDate');
+const { PAYMENT_TEMPLATE_KEYS, formatRand, normalizeWhatsAppMobile, securePaymentUrl, secureVoucherUrl, withActionLink, sendPaymentTemplate } = require('./paymentWhatsAppNotifications');
+const { formatVoucherDate, voucherExpiryTimestamp } = require('../lib/voucherDate');
 const { sendWhatsAppTemplate } = require('./whatsapp');
 
-const CAPABILITIES = Object.freeze({ VIEW: 'voucher:view', REDEEM: 'voucher:redeem', MANAGE: 'voucher:manage' });
+const CAPABILITIES = Object.freeze({ VIEW: 'voucher:view', ISSUE: 'voucher:issue', REDEEM: 'voucher:redeem', MANAGE: 'voucher:manage' });
+const WALK_IN_PAYMENT_METHODS = Object.freeze(['cash', 'card_machine', 'manual_eft']);
 
 class GiftVoucherError extends Error {
   constructor(code, message, httpStatus = 400) { super(message); this.code = code; this.httpStatus = httpStatus; }
@@ -27,6 +28,12 @@ function voucherAmount(value) {
   const cents = Math.round(Number(raw) * 100);
   if (!Number.isSafeInteger(cents) || cents < 1 || cents > 999999999999) throw new GiftVoucherError('VOUCHER_INVALID_AMOUNT', 'The voucher value is outside the supported range.');
   return (cents / 100).toFixed(2);
+}
+
+function walkInPaymentMethod(value) {
+  const method = String(value || '').trim();
+  if (!WALK_IN_PAYMENT_METHODS.includes(method)) throw new GiftVoucherError('VOUCHER_INVALID_PAYMENT_METHOD', 'Choose cash, card machine or EFT.');
+  return method;
 }
 
 function requestKey(randomBytes = crypto.randomBytes) { return randomBytes(24).toString('base64url'); }
@@ -58,7 +65,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
       db.query(
         `SELECT o.id,o.recipient_name,o.from_name,o.language,o.delivery_recipient,o.amount,o.state,o.created_at,
                 pr.request_key,pr.provider_payment_url,pr.state AS payment_state,
-                v.voucher_code,v.balance,v.state AS voucher_state,v.valid_until
+                v.voucher_code,v.balance,v.state AS voucher_state,v.valid_until,v.access_key
            FROM gift_voucher_orders o
            LEFT JOIN payment_requests pr ON pr.gift_voucher_order_id=o.id
            LEFT JOIN gift_vouchers v ON v.order_id=o.id
@@ -67,7 +74,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
         [Number(crmV2ClientId)],
       ),
     ]);
-    return { client: { name: client.name }, policy: validity, ozowConfigured: ozow.configured(), orders: orders.rows.map((row) => ({ ...row, voucherPath: row.voucher_code ? publicVoucherPath(row.request_key) : null })) };
+    return { client: { name: client.name }, policy: validity, ozowConfigured: ozow.configured(), orders: orders.rows.map((row) => ({ ...row, voucherPath: row.voucher_code ? publicVoucherPath(row.access_key || row.request_key) : null })) };
   }
 
   async function createOrder({ crmV2ClientId, recipientName, fromName, personalMessage, language, deliveryRecipient, deliveryMobile, amount } = {}) {
@@ -91,9 +98,9 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
       if (!targetMobile) throw new GiftVoucherError('VOUCHER_INVALID_MOBILE', 'Enter a valid South African WhatsApp number for delivery.');
       order = (await client.query(
         `INSERT INTO gift_voucher_orders
-           (purchaser_crm_v2_client_id,recipient_name,from_name,personal_message,language,delivery_recipient,delivery_mobile,amount,validity_mode,validity_months)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-        [buyer.id, recipient, sender, message, selectedLanguage, delivery, targetMobile, normalizedAmount, validity.mode, validity.months],
+           (purchaser_crm_v2_client_id,purchaser_name,recipient_name,from_name,personal_message,language,delivery_recipient,delivery_mobile,amount,validity_mode,validity_months)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+        [buyer.id, buyer.name, recipient, sender, message, selectedLanguage, delivery, targetMobile, normalizedAmount, validity.mode, validity.months],
       )).rows[0];
       const key = requestKey(randomBytes);
       payment = (await client.query(
@@ -120,10 +127,9 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     const row = (await db.query(
       `SELECT o.recipient_name,o.from_name,o.personal_message,o.language,o.amount,
               v.voucher_code,v.balance,v.state,v.issued_at,v.valid_until
-         FROM payment_requests pr
-         JOIN gift_voucher_orders o ON o.id=pr.gift_voucher_order_id
-         JOIN gift_vouchers v ON v.order_id=o.id
-        WHERE pr.request_key=$1 AND pr.state='paid' LIMIT 1`, [key],
+         FROM gift_vouchers v
+         JOIN gift_voucher_orders o ON o.id=v.order_id
+        WHERE v.access_key=$1 AND o.state='paid' LIMIT 1`, [key],
     )).rows[0];
     return row || null;
   }
@@ -138,9 +144,15 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     const operator = await resolveOperator(db, adminId, CAPABILITIES.VIEW);
     const [validity, vouchers] = await Promise.all([
       policy(db),
-      db.query(`SELECT v.id,v.voucher_code,v.original_value,v.balance,v.state,v.issued_at,v.valid_until,o.recipient_name,o.from_name,o.language FROM gift_vouchers v JOIN gift_voucher_orders o ON o.id=v.order_id ORDER BY v.id DESC LIMIT 100`),
+      db.query(`SELECT v.id,v.voucher_code,v.original_value,v.balance,v.state,v.issued_at,v.valid_until,
+                       o.recipient_name,o.from_name,o.language,o.order_source,o.stock_reference,
+                       payment.method AS payment_method
+                  FROM gift_vouchers v
+                  JOIN gift_voucher_orders o ON o.id=v.order_id
+                  LEFT JOIN gift_voucher_payment_entries payment ON payment.order_id=o.id
+                 ORDER BY v.id DESC LIMIT 100`),
     ]);
-    return { policy: validity, vouchers: vouchers.rows, authority: { canRedeem: hasCapability(operator.calendarAuthority, CAPABILITIES.REDEEM), canManage: hasCapability(operator.calendarAuthority, CAPABILITIES.MANAGE) } };
+    return { policy: validity, vouchers: vouchers.rows, authority: { canIssue: hasCapability(operator.calendarAuthority, CAPABILITIES.ISSUE), canRedeem: hasCapability(operator.calendarAuthority, CAPABILITIES.REDEEM), canManage: hasCapability(operator.calendarAuthority, CAPABILITIES.MANAGE) } };
   }
 
   async function resolveAccess(adminId) {
@@ -155,6 +167,111 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     if (selected === 'fixed_months' && (!Number.isSafeInteger(count) || count < 1 || count > 120)) throw new GiftVoucherError('VOUCHER_INVALID_POLICY', 'Choose between 1 and 120 months.');
     await db.query(`UPDATE gift_voucher_settings SET validity_mode=$1,validity_months=$2,updated_by_admin_id=$3,updated_at=NOW() WHERE singleton=TRUE`, [selected, count, operator.id]);
     return { configured: true, mode: selected, months: count };
+  }
+
+  async function createWalkInVoucher({
+    adminId,
+    purchaserName,
+    recipientName,
+    fromName,
+    personalMessage,
+    language,
+    amount,
+    paymentMethod,
+    paymentReference,
+    stockReference,
+    deliveryMobile,
+    paymentConfirmed,
+    operationId,
+  } = {}) {
+    const normalizedAmount = voucherAmount(amount);
+    const purchaserLabel = cleanText(purchaserName, 120, 'Purchaser name');
+    const recipient = cleanText(recipientName, 120, 'Recipient name');
+    const sender = cleanText(fromName, 120, 'From name');
+    const message = cleanText(personalMessage, 280, 'Message', { optional: true });
+    const selectedLanguage = String(language || '').trim();
+    if (!['en', 'af'].includes(selectedLanguage)) throw new GiftVoucherError('VOUCHER_INVALID_LANGUAGE', 'Choose English or Afrikaans.');
+    const method = walkInPaymentMethod(paymentMethod);
+    const reference = cleanText(paymentReference, 120, 'Payment reference', { optional: true });
+    const stock = cleanText(stockReference, 80, 'Preprinted stock reference', { optional: true });
+    const mobileText = String(deliveryMobile || '').trim();
+    const mobile = mobileText ? normalizeWhatsAppMobile(mobileText) : null;
+    if (mobileText && !mobile) throw new GiftVoucherError('VOUCHER_INVALID_MOBILE', 'Enter a valid South African WhatsApp number or leave it blank.');
+    if (paymentConfirmed !== true) throw new GiftVoucherError('VOUCHER_PAYMENT_CONFIRMATION_REQUIRED', 'Confirm that the in-person payment was received before issuing the voucher.');
+    const operation = cleanText(operationId, 100, 'Operation identifier');
+    const operationKey = `walk-in:${operation}`;
+    const client = await db.connect();
+    let result;
+    try {
+      await client.query('BEGIN');
+      const operator = await resolveOperator(client, adminId, CAPABILITIES.ISSUE);
+      const replay = (await client.query(
+        `SELECT v.voucher_code,v.original_value,v.balance,v.state,v.valid_until,v.access_key,o.id AS order_id
+           FROM gift_voucher_payment_entries payment
+           JOIN gift_voucher_orders o ON o.id=payment.order_id
+           JOIN gift_vouchers v ON v.order_id=o.id
+          WHERE payment.operation_key=$1
+          LIMIT 1`,
+        [operationKey],
+      )).rows[0];
+      if (replay) {
+        await client.query('COMMIT');
+        return { status: 'idempotent_replay', orderId: Number(replay.order_id), voucher: replay, voucherPath: publicVoucherPath(replay.access_key), whatsappDelivery: { sent: false, reason: 'idempotent_replay' } };
+      }
+      const validity = await policy(client);
+      if (!validity.configured) throw new GiftVoucherError('VOUCHER_POLICY_REQUIRED', 'Choose the voucher validity policy before issuing a physical voucher.', 409);
+      const accessKey = requestKey(randomBytes);
+      const code = voucherCode(accessKey);
+      const order = (await client.query(
+        `INSERT INTO gift_voucher_orders
+           (purchaser_name,recipient_name,from_name,personal_message,language,delivery_recipient,delivery_mobile,amount,
+            validity_mode,validity_months,state,order_source,stock_reference,created_by_admin_id)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'paid','walk_in',$11,$12)
+         RETURNING *`,
+        [purchaserLabel, recipient, sender, message, selectedLanguage, mobile ? 'recipient' : null, mobile, normalizedAmount, validity.mode, validity.months, stock, operator.id],
+      )).rows[0];
+      const voucher = (await client.query(
+        `INSERT INTO gift_vouchers(order_id,voucher_code,original_value,balance,valid_until,access_key)
+         VALUES($1,$2,$3,$3,CASE WHEN $4='fixed_months' THEN (CURRENT_DATE + make_interval(months => $5::integer))::date ELSE NULL END,$6)
+         RETURNING *`,
+        [order.id, code, normalizedAmount, validity.mode, validity.months, accessKey],
+      )).rows[0];
+      await client.query(
+        `INSERT INTO gift_voucher_payment_entries(order_id,amount,method,operation_key,external_reference,actor_admin_id)
+         VALUES($1,$2,$3,$4,$5,$6)`,
+        [order.id, normalizedAmount, method, operationKey, reference, operator.id],
+      );
+      await client.query(
+        `INSERT INTO gift_voucher_ledger_entries(voucher_id,entry_type,amount,operation_key,actor_admin_id,notes)
+         VALUES($1,'issue',$2,$3,$4,$5)`,
+        [voucher.id, normalizedAmount, `issue:${operationKey}`, operator.id, `Preprinted walk-in voucher issued after ${method.replaceAll('_', ' ')} payment.`],
+      );
+      await client.query(
+        `INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata)
+         VALUES($1,'gift_voucher.walk_in_issued','gift_voucher',$2,$3::jsonb)`,
+        [operator.id, voucher.id, JSON.stringify({ orderId: Number(order.id), amount: normalizedAmount, paymentMethod: method, hasPaymentReference: Boolean(reference), stockReference: stock, language: selectedLanguage, whatsappDeliveryRequested: Boolean(mobile) })],
+      );
+      await client.query('COMMIT');
+      result = { status: 'issued', orderId: Number(order.id), order, voucher, voucherPath: publicVoucherPath(accessKey) };
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+      if (error?.code === '23505' && String(error.constraint || '').includes('stock_reference')) {
+        throw new GiftVoucherError('VOUCHER_STOCK_REFERENCE_EXISTS', 'That preprinted stock reference has already been captured.', 409);
+      }
+      throw error;
+    } finally { client.release(); }
+
+    let whatsappDelivery = { sent: false, reason: 'not_requested' };
+    if (mobile) {
+      whatsappDelivery = await sendPaymentTemplate({
+        templateKey: PAYMENT_TEMPLATE_KEYS.VOUCHER_ISSUED,
+        to: mobile,
+        bodyParameters: [recipient, result.voucher.voucher_code, formatRand(result.voucher.original_value), withActionLink(formatVoucherDate(result.voucher.valid_until), 'Secure voucher link', secureVoucherUrl(result.voucher.access_key))],
+        urlButtonParameter: result.voucher.access_key,
+        send: sendTemplate,
+      });
+    }
+    return { ...result, whatsappDelivery };
   }
 
   async function redeem({ adminId, voucherCode: code, amount, operationId, notes } = {}) {
@@ -181,7 +298,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
   }
 
-  return { getClientModel, createOrder, getPublicVoucher, getWorkspaceModel, updatePolicy, redeem, resolveAccess };
+  return { getClientModel, createOrder, createWalkInVoucher, getPublicVoucher, getWorkspaceModel, updatePolicy, redeem, resolveAccess };
 }
 
 async function issueVerifiedVoucher(client, request, providerTransactionId) {
@@ -189,14 +306,14 @@ async function issueVerifiedVoucher(client, request, providerTransactionId) {
   if (!order) throw new GiftVoucherError('VOUCHER_ORDER_NOT_FOUND', 'Voucher order not found.', 404);
   const code = voucherCode(request.request_key);
   const issued = (await client.query(
-    `INSERT INTO gift_vouchers(order_id,voucher_code,original_value,balance,valid_until)
-     VALUES($1,$2,$3,$3,CASE WHEN $4='fixed_months' THEN (CURRENT_DATE + make_interval(months => $5::integer))::date ELSE NULL END)
+    `INSERT INTO gift_vouchers(order_id,voucher_code,original_value,balance,valid_until,access_key)
+     VALUES($1,$2,$3,$3,CASE WHEN $4='fixed_months' THEN (CURRENT_DATE + make_interval(months => $5::integer))::date ELSE NULL END,$6)
      ON CONFLICT(order_id) DO UPDATE SET order_id=EXCLUDED.order_id RETURNING *`,
-    [order.id, code, order.amount, order.validity_mode, order.validity_months],
+    [order.id, code, order.amount, order.validity_mode, order.validity_months, request.request_key],
   )).rows[0];
   await client.query(`INSERT INTO gift_voucher_ledger_entries(voucher_id,entry_type,amount,operation_key) VALUES($1,'issue',$2,$3) ON CONFLICT(operation_key) DO NOTHING`, [issued.id, order.amount, `issue:ozow:${providerTransactionId}`]);
   await client.query(`UPDATE gift_voucher_orders SET state='paid',updated_at=NOW() WHERE id=$1`, [order.id]);
   return { order, voucher: issued };
 }
 
-module.exports = { CAPABILITIES, GiftVoucherError, voucherAmount, voucherCode, publicVoucherPath, createGiftVoucherService, issueVerifiedVoucher };
+module.exports = { CAPABILITIES, WALK_IN_PAYMENT_METHODS, GiftVoucherError, voucherAmount, walkInPaymentMethod, voucherCode, publicVoucherPath, createGiftVoucherService, issueVerifiedVoucher };
