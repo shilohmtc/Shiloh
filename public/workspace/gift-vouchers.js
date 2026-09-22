@@ -101,5 +101,20 @@
     redeemForm.scrollIntoView({ behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'start' });
     amountInput.focus({ preventScroll:true });
   });
+  recipientForm?.addEventListener('submit', function(event) {
+    event.preventDefault();
+    submit(this, '/calendar/vouchers/recipient', '[data-recipient-status]', (data) => ({
+      voucherCode:data.voucherCode,
+      recipientName:data.recipientName,
+      recipientMobile:data.recipientMobile,
+      confirmed:data.confirmed === 'true',
+    }));
+  });
+  document.querySelector('[data-recipient-cancel]')?.addEventListener('click', () => {
+    if (!recipientForm) return;
+    recipientForm.hidden = true;
+    recipientForm.reset();
+    if (recipientPrompt) recipientPrompt.hidden = false;
+  });
   redeemForm?.addEventListener('submit', function(event) { event.preventDefault(); submit(this, '/calendar/vouchers/redeem', '[data-redeem-status]', (data) => ({ ...data, operationId:crypto.randomUUID() })); });
 })();
