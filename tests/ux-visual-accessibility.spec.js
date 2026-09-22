@@ -65,6 +65,7 @@ test('Gift voucher recipient mobile guidance uses local 0-format on Phone and De
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
     await page.setViewportSize({ width:viewport.width, height:viewport.height });
     await page.goto('/iframe.html?id=shiloh-gift-vouchers--client-purchase&viewMode=story', { waitUntil:'networkidle' });
+    await page.addScriptTag({ url:'/my-shiloh/assets/gift-vouchers.js' });
     await page.getByLabel('The recipient').check();
     const mobile = page.getByLabel('Recipient’s WhatsApp number');
     await expect(mobile).toBeVisible();
