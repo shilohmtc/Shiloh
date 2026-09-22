@@ -86,7 +86,7 @@ test('browser launch is install-only while standalone launch preserves the exist
   assert.match(client, /matchMedia\?\.\('\(display-mode: standalone\)'\)/);
   assert.match(client, /window\.navigator\.standalone === true/);
   assert.match(client, /function appLaunchRequested\(\)/);
-  assert.match(client, /searchParams\.get\('launch'\) === 'app'/);
+  assert.match(client, /URLSearchParams\(window\.location\.search\)\.get\('launch'\) === 'app'/);
   assert.match(client, /target\.searchParams\.set\('launch', 'app'\)/);
   assert.match(client, /window\.location\.replace/);
   assert.match(client, /document\.body\.dataset\.myShilohLaunch = installedLaunch \? 'app' : 'install'/);
