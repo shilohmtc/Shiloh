@@ -86,7 +86,8 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
           AND v.recipient_crm_v2_client_id IS NULL
           AND o.recipient_mobile=$2
           AND o.state='paid'
-          AND v.state IN ('active','redeemed')`,
+          AND v.state IN ('active','redeemed')
+          AND (v.valid_until IS NULL OR v.valid_until >= CURRENT_DATE)`,
       [Number(recipient.id), recipient.local_mobile],
     );
   }
@@ -121,6 +122,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
           WHERE v.recipient_crm_v2_client_id=$1
             AND o.state='paid'
             AND v.state IN ('active','redeemed')
+            AND (v.valid_until IS NULL OR v.valid_until >= CURRENT_DATE)
           ORDER BY v.issued_at DESC,v.id DESC
           LIMIT 30`,
         [Number(crmV2ClientId)],
