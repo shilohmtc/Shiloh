@@ -149,7 +149,7 @@ function createMyShilohRouter({
   router.post('/my-shiloh/api/gift-vouchers', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
     try {
       setNoStoreJson(res);
-      const allowed = new Set(['recipientName','fromName','personalMessage','language','deliveryRecipient','deliveryMobile','amount']);
+      const allowed = new Set(['recipientName','recipientMobile','fromName','personalMessage','language','deliveryRecipient','amount']);
       if (Object.keys(req.body || {}).some((key) => !allowed.has(key))) return res.status(422).json({ error:'Please reload My Shiloh and try again', requestId:req.id });
       const result = await voucherService.createOrder({ crmV2ClientId:req.myShilohClientSession.crmV2ClientId, ...req.body });
       return res.status(201).json(result);
@@ -274,6 +274,11 @@ function createMyShilohRouter({
           requestId: req.id,
         });
       }
+      try {
+        await voucherService.syncRecipientLinks({ crmV2ClientId: result.client.id });
+      } catch (_) {
+        // Authentication remains authoritative; the voucher page retries recipient linking.
+      }
       return sendAuthenticatedClient(res, result);
     } catch (error) {
       return next(error);
@@ -289,7 +294,14 @@ function createMyShilohRouter({
         browserToken,
         requestFingerprintHash: requestFingerprintHash(req),
       });
-      if (result.ok) return sendAuthenticatedClient(res, result);
+      if (result.ok) {
+        try {
+          await voucherService.syncRecipientLinks({ crmV2ClientId: result.client.id });
+        } catch (_) {
+          // Authentication remains authoritative; the voucher page retries recipient linking.
+        }
+        return sendAuthenticatedClient(res, result);
+      }
       if (result.code === 'CLIENT_AUTH_NOT_VERIFIED') {
         return res.status(202).json({ status: 'waiting_for_whatsapp' });
       }
@@ -311,7 +323,14 @@ function createMyShilohRouter({
     }
   });
 
-  router.get('/my-shiloh/auth/session', requireSession, (req, res) => {
+  router.get('/my-shiloh/auth/session', requireSession, async (req, res) => {
+    try {
+      await voucherService.syncRecipientLinks({
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+      });
+    } catch (_) {
+      // Existing sessions stay available; the Gift vouchers page retries linking.
+    }
     setNoStoreJson(res);
     return res.status(200).json({
       authenticated: true,

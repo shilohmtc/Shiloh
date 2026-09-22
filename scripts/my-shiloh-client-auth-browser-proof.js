@@ -33,6 +33,7 @@ const clearedAssistantSessions = [];
 const confirmedActions = [];
 const declinedActions = [];
 const revokedActionSessions = [];
+const voucherSyncCalls = [];
 
 const fakeExperienceService = {
   async getExperience({ crmV2ClientId }) {
@@ -133,6 +134,13 @@ const fakeAssistantService = {
   },
 };
 
+const fakeVoucherService = {
+  async syncRecipientLinks({ crmV2ClientId }) {
+    voucherSyncCalls.push(Number(crmV2ClientId));
+    return { linked:true, crmV2ClientId:Number(crmV2ClientId) };
+  },
+};
+
 const fakeActionService = {
   async confirmAction({ sessionId, crmV2ClientId, actionToken }) {
     confirmedActions.push({ sessionId, crmV2ClientId, actionToken });
@@ -230,6 +238,7 @@ const fakeService = {
 async function runViewport(browser, name, viewport) {
   verified = false;
   loggedOut = false;
+  voucherSyncCalls.length = 0;
 
   const browserContext = await browser.newContext({ viewport });
   const browserPage = await browserContext.newPage();
@@ -264,6 +273,7 @@ async function runViewport(browser, name, viewport) {
   verified = true;
   await page.waitForFunction(() => document.body.textContent.includes('Christel'));
   await page.waitForLoadState('networkidle');
+  if (!voucherSyncCalls.includes(912)) throw new Error('verified My Shiloh sign-in did not trigger recipient voucher linking');
   const heading = await page.locator('#home-title').textContent();
   if (!/Christel/.test(heading || '')) throw new Error('authenticated greeting missing');
 
@@ -403,6 +413,7 @@ let baseUrl;
     experienceService: fakeExperienceService,
     assistantService: fakeAssistantService,
     actionService: fakeActionService,
+    voucherService: fakeVoucherService,
   }));
 
   server = app.listen(0, '127.0.0.1');

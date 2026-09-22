@@ -27,15 +27,45 @@ test('voucher values use exact Rand precision and stable non-sequential codes', 
   assert.equal(voucherCode('same-key'), voucherCode('same-key'));
 });
 
-test('client voucher page is policy gated and includes optional direct recipient delivery', () => {
-  const html = renderClientVoucherPage({ model:{client:{name:'Christel'},policy:{configured:false,mode:null,months:null},ozowConfigured:true,orders:[]},csrfToken:'csrf-token' });
-  assert.match(html, /Who is it for/);
+test('client voucher page requires recipient identity while preserving delivery choice', () => {
+  const html = renderClientVoucherPage({ model:{client:{name:'Christel'},policy:{configured:false,mode:null,months:null},ozowConfigured:true,receivedVouchers:[],orders:[]},csrfToken:'csrf-token' });
+  assert.match(html, /Recipient’s name and surname/);
+  assert.match(html, /Recipient’s mobile number/);
+  assert.match(html, /links the voucher to the recipient’s My Shiloh profile/i);
+  assert.match(html, /name="recipientMobile"/);
+  assert.match(html, /aria-describedby="recipientMobileHelp"/);
   assert.match(html, /The recipient/);
-  assert.match(html, /Recipient’s WhatsApp number/);
-  assert.match(html, /Use the 0-format, for example 082 123 4567/);
-  assert.match(html, /aria-describedby="deliveryMobileHelp"/);
   assert.match(html, /validity policy/);
   assert.match(html, /type="submit" disabled/);
+});
+
+test('client voucher page separates vouchers linked to the recipient from vouchers they bought', () => {
+  const html = renderClientVoucherPage({
+    model:{
+      client:{name:'Evelyn'},
+      policy:{configured:true,mode:'fixed_months',months:2},
+      ozowConfigured:true,
+      receivedVouchers:[{voucher_code:'SV-RECIPIENT123',balance:'900.00',voucher_state:'active',from_name:'Tinkie',voucherPath:'/gift-vouchers/recipient-key'}],
+      orders:[{recipient_name:'Naledi',amount:'500.00',state:'awaiting_payment',payment_state:'created'}],
+    },
+    csrfToken:'csrf-token',
+  });
+  assert.match(html, /Vouchers for you/);
+  assert.match(html, /SV-RECIPIENT123/);
+  assert.match(html, /From Tinkie/);
+  assert.match(html, /Vouchers you bought/);
+  assert.match(html, /Naledi/);
+});
+
+test('My Shiloh voucher route accepts recipient identity mobile instead of delivery identity', () => {
+  const route = fs.readFileSync(path.join(root, 'src', 'routes', 'myShiloh.js'), 'utf8');
+  assert.match(route, /'recipientMobile'/);
+  assert.doesNotMatch(route, /\['recipientName','fromName','personalMessage','language','deliveryRecipient','deliveryMobile'/);
+});
+
+test('My Shiloh startup retries recipient voucher linking for existing sessions', () => {
+  const route = fs.readFileSync(path.join(root, 'src', 'routes', 'myShiloh.js'), 'utf8');
+  assert.match(route, /router\.get\('\/my-shiloh\/auth\/session'[\s\S]*syncRecipientLinks/);
 });
 
 test('issued voucher renders approved language artwork and private value state', () => {

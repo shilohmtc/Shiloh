@@ -21,6 +21,8 @@ test('Workspace vouchers stay contained and selectable on Phone and Desktop', as
     const redeem = page.getByRole('heading', { name:'Redeem a voucher' });
     await expect(issued).toBeVisible();
     await expect(redeem).toBeVisible();
+    await expect(page.getByText(/Naledi · Online · Linked to My Shiloh/)).toBeVisible();
+    await expect(page.getByText(/Chenique Botha · Walk-in · Card · Stock BOOK-0042 · Waiting for recipient/)).toBeVisible();
     expect(await issued.evaluate((node) => node.getBoundingClientRect().top)).toBeLessThan(await redeem.evaluate((node) => node.getBoundingClientRect().top));
 
     await page.getByRole('button', { name:/SV-4A7F31B920CC.*Naledi.*Use this voucher/ }).click();
@@ -29,9 +31,10 @@ test('Workspace vouchers stay contained and selectable on Phone and Desktop', as
     await expect(page.getByLabel('Amount to redeem')).toHaveAttribute('max', '400.00');
     await expect(page.getByText('SV-4A7F31B920CC selected. Enter the amount to redeem below.')).toBeVisible();
 
-    await expect(page.getByText('Use the 0-format, for example 082 123 4567. If you paste +27, Shiloh converts it automatically.')).toBeVisible();
+    await expect(page.getByText('This links the voucher to the recipient’s My Shiloh profile. Use 082…; +27 is converted automatically.')).toBeVisible();
     await page.getByLabel('Purchaser’s name').fill('Tinkie');
-    await page.getByLabel('Recipient’s name').fill('Evelyn');
+    await page.getByLabel('Recipient’s name and surname').fill('Evelyn Example');
+    await page.getByLabel('Recipient’s mobile number').fill('082 123 4567');
     await page.getByLabel('From').fill('Tinkie');
     await page.getByLabel('Voucher value').fill('900');
     await page.getByLabel('Payment received by').selectOption('card_machine');
@@ -61,20 +64,24 @@ test('Workspace vouchers stay contained and selectable on Phone and Desktop', as
   }
 });
 
-test('Gift voucher recipient mobile guidance uses local 0-format on Phone and Desktop', async ({ page }, testInfo) => {
+test('Gift voucher recipient identity and linked voucher are clear on Phone and Desktop', async ({ page }, testInfo) => {
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
     await page.setViewportSize({ width:viewport.width, height:viewport.height });
-    await page.goto('/iframe.html?id=shiloh-gift-vouchers--client-purchase&viewMode=story', { waitUntil:'networkidle' });
+    await page.goto('/iframe.html?id=shiloh-gift-vouchers--recipient-linked&viewMode=story', { waitUntil:'networkidle' });
     await page.addScriptTag({ url:'/my-shiloh/assets/gift-vouchers.js' });
-    await page.getByLabel('The recipient').check();
-    const mobile = page.getByLabel('Recipient’s WhatsApp number');
+    await expect(page.getByRole('heading', { name:'Vouchers for you' })).toBeVisible();
+    await expect(page.getByText('SV-EVELYN123456')).toBeVisible();
+    await expect(page.getByText('From Tinkie · active')).toBeVisible();
+    const mobile = page.getByLabel('Recipient’s mobile number');
     await expect(mobile).toBeVisible();
     await expect(mobile).toHaveAttribute('placeholder', '082 123 4567');
-    await expect(mobile).toHaveAttribute('aria-describedby', 'deliveryMobileHelp');
-    await expect(page.getByText('Use the 0-format, for example 082 123 4567. If you paste +27, Shiloh converts it automatically.')).toBeVisible();
+    await expect(mobile).toHaveAttribute('aria-describedby', 'recipientMobileHelp');
+    await expect(page.getByText('This number links the voucher to the recipient’s My Shiloh profile. Use 082…; +27 is converted automatically.')).toBeVisible();
+    const metrics = await page.evaluate(() => ({ viewport:innerWidth, document:document.documentElement.scrollWidth }));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
     const accessibility = await new AxeBuilder({ page }).include('.voucher-shell').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact))).toEqual([]);
-    await page.screenshot({ path:testInfo.outputPath(`gift-voucher-mobile-guidance-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+    await page.screenshot({ path:testInfo.outputPath(`gift-voucher-recipient-linked-${viewport.name}.png`), fullPage:true, animations:'disabled' });
   }
 });
 

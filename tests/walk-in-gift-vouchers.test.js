@@ -37,7 +37,7 @@ function walkInDatabase() {
       if (sql.includes('calendarAuthorization:principal')) return { rows: [principal()] };
       if (sql.includes('FROM gift_voucher_payment_entries payment')) return { rows: [] };
       if (sql.includes('FROM gift_voucher_settings')) return { rows: [{ validity_mode: 'fixed_months', validity_months: 2 }] };
-      if (sql.includes('INSERT INTO gift_voucher_orders')) return { rows: [{ id: 501, recipient_name: params[1], delivery_mobile: params[6], amount: params[7] }] };
+      if (sql.includes('INSERT INTO gift_voucher_orders')) return { rows: [{ id: 501, recipient_name: params[1], recipient_mobile: params[2], delivery_mobile: params[7], amount: params[8] }] };
       if (sql.includes('INSERT INTO gift_vouchers')) return { rows: [{ id: 601, voucher_code: params[1], original_value: params[2], balance: params[2], state: 'active', valid_until: '2026-11-22', access_key: params[5] }] };
       if (sql.includes('INSERT INTO gift_voucher_payment_entries')) return { rows: [] };
       if (sql.includes('INSERT INTO gift_voucher_ledger_entries')) return { rows: [] };
@@ -68,6 +68,15 @@ test('voucher mobile migration converts historical delivery numbers to local 0-f
   assert.doesNotMatch(sql, /UPDATE crm_v2_clients|UPDATE client_contacts/);
 });
 
+test('recipient linking schema keeps verified CRM V2 as ownership authority', () => {
+  const sql = fs.readFileSync(path.join(root, 'migrations', '148_gift_voucher_recipient_linking.sql'), 'utf8');
+  assert.match(sql, /recipient_mobile/);
+  assert.match(sql, /recipient_crm_v2_client_id/);
+  assert.match(sql, /REFERENCES crm_v2_clients\(id\)/);
+  assert.match(sql, /mobile_verified_at|verified CRM V2/i);
+  assert.doesNotMatch(sql, /CREATE TABLE .*client/i);
+});
+
 test('walk-in payment method is bounded to Shiloh in-person evidence types', () => {
   assert.equal(walkInPaymentMethod('cash'), 'cash');
   assert.equal(walkInPaymentMethod('card_machine'), 'card_machine');
@@ -86,13 +95,13 @@ test('walk-in voucher stores recipient mobile in local 0-format before later ide
     language: 'en',
     amount: '900',
     paymentMethod: 'cash',
-    deliveryMobile: '+27 82 123 4567',
+    recipientMobile: '+27 82 123 4567',
     paymentConfirmed: true,
     operationId: 'walkin-local-mobile-001',
   });
   const insert = fake.calls.find((call) => call.sql.includes('INSERT INTO gift_voucher_orders'));
   assert.ok(insert);
-  assert.equal(insert.params[6], '0821234567');
+  assert.equal(insert.params[2], '0821234567');
 });
 
 test('authorised walk-in issuance writes payment, value and audit evidence atomically', async () => {
@@ -109,7 +118,8 @@ test('authorised walk-in issuance writes payment, value and audit evidence atomi
     paymentMethod: 'card_machine',
     paymentReference: 'Yoco 1234',
     stockReference: 'BOOK-0042',
-    deliveryMobile: '',
+    recipientMobile: '082 123 4567',
+    sendDigitalCopy: false,
     paymentConfirmed: true,
     operationId: 'walkin-test-001',
   });
@@ -131,7 +141,7 @@ test('walk-in issuance refuses to create value without explicit payment confirma
   const fake = walkInDatabase();
   const service = createGiftVoucherService({ db: fake.db });
   await assert.rejects(
-    service.createWalkInVoucher({ adminId: 14, purchaserName: 'Tinkie', recipientName: 'Evelyn', fromName: 'Tinkie', language: 'en', amount: '900', paymentMethod: 'cash', paymentConfirmed: false, operationId: 'walkin-test-002' }),
+    service.createWalkInVoucher({ adminId: 14, purchaserName: 'Tinkie', recipientName: 'Evelyn', recipientMobile: '0821234567', fromName: 'Tinkie', language: 'en', amount: '900', paymentMethod: 'cash', paymentConfirmed: false, operationId: 'walkin-test-002' }),
     /Confirm that the in-person payment was received/,
   );
   assert.equal(fake.calls.length, 0);
@@ -147,6 +157,9 @@ test('Workspace presents preprinted capture only to voucher issuers', () => {
   assert.match(html, /Issue a walk-in voucher/);
   assert.match(html, /physical voucher is already printed/i);
   assert.match(html, /Preprinted stock reference/);
+  assert.match(html, /Recipient’s mobile number/);
+  assert.match(html, /links the voucher to the recipient’s My Shiloh profile/i);
+  assert.match(html, /Send the recipient a digital voucher copy on WhatsApp now/);
   assert.match(html, /received the full in-person payment/);
   assert.match(html, /Walk-in · Card · Stock BOOK-0042/);
   assert.match(html, /data-walk-in-result hidden/);
@@ -160,6 +173,7 @@ test('Workspace client posts the idempotent walk-in operation and preserves the 
   const route = fs.readFileSync(path.join(root, 'src', 'routes', 'workspaceGiftVouchers.js'), 'utf8');
   assert.match(script, /\/calendar\/vouchers\/walk-in/);
   assert.match(script, /paymentConfirmed:data\.paymentConfirmed === 'true'/);
+  assert.match(script, /sendDigitalCopy:data\.sendDigitalCopy === 'true'/);
   assert.match(script, /this\.dataset\.operationId \|\| crypto\.randomUUID\(\)/);
   assert.match(script, /this\.dataset\.operationId = operationId/);
   assert.match(script, /delete this\.dataset\.operationId/);

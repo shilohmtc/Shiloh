@@ -28,7 +28,7 @@
         method:'POST',
         credentials:'same-origin',
         headers:{'Content-Type':'application/json','X-Shiloh-CSRF-Token':this.dataset.csrf,Accept:'application/json'},
-        body:JSON.stringify({ ...data, paymentConfirmed:data.paymentConfirmed === 'true', operationId }),
+        body:JSON.stringify({ ...data, paymentConfirmed:data.paymentConfirmed === 'true', sendDigitalCopy:data.sendDigitalCopy === 'true', operationId }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Unable to issue this voucher.');

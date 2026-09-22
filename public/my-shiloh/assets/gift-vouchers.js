@@ -3,13 +3,6 @@
   const form = document.querySelector('[data-voucher-form]');
   if (!form) return;
   const status = form.querySelector('[data-voucher-status]');
-  const recipientMobile = form.querySelector('[data-recipient-mobile]');
-  function updateDelivery() {
-    const recipient = form.elements.deliveryRecipient.value === 'recipient';
-    recipientMobile.hidden = !recipient;
-    form.elements.deliveryMobile.required = recipient;
-  }
-  form.addEventListener('change', (event) => { if (event.target.name === 'deliveryRecipient') updateDelivery(); });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const submit = form.querySelector('[type="submit"]');
@@ -26,5 +19,4 @@
       location.assign(result.paymentUrl);
     } catch (error) { status.textContent = error.message; submit.disabled = false; }
   });
-  updateDelivery();
 })();
