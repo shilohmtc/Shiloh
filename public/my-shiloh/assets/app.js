@@ -247,7 +247,10 @@
         if (value) value.textContent = String(fact.value || '');
         item.dataset.factHref = safeHref === '#shiloh' && fact.href !== '#shiloh' ? '' : safeHref;
         item.dataset.factMessage = String(fact.message || '');
-        item.setAttribute('aria-label', `${String(fact.label || 'Summary')}: ${String(fact.value || '')}. Open details`);
+        item.setAttribute(
+          'aria-label',
+          `${String(fact.label || 'Summary')}: ${String(fact.value || '')}. ${item.dataset.factHref ? 'Open details' : 'Check details'}`,
+        );
       });
 
       let action = experienceHome.querySelector('[data-client-experience-primary]');
