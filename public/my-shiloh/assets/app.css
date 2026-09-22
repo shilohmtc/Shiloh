@@ -184,6 +184,7 @@ h3{font-size:20px;line-height:1.12}
   border:1px solid rgba(37,51,44,.08);box-shadow:var(--shadow);
 }
 .brand-mark--install{width:82px;height:82px;border-radius:24px;margin-bottom:22px}
+.install-gate .eyebrow{color:#946d3f}
 .install-gate__card h1{font-size:clamp(38px,10vw,52px);max-width:500px;margin-bottom:16px}
 .install-gate__intro{max-width:500px;margin-bottom:22px;color:var(--muted);font-size:15px}
 .install-gate__steps{display:grid;gap:10px;margin:0 0 20px;padding:0;list-style:none}
@@ -200,7 +201,7 @@ h3{font-size:20px;line-height:1.12}
 .install-gate__status{min-height:20px;margin:11px 2px 0;color:var(--leaf-dark);font-size:12px;font-weight:800}
 .install-gate__installed{margin:18px 0 14px;padding:14px 15px;border-radius:17px;background:#f5efe8;border:1px solid var(--line)}
 .install-gate__installed strong{display:block;margin-bottom:3px;font-size:12px}
-.install-gate__installed p{margin:0;color:var(--muted);font-size:12px}
+.install-gate__installed p{margin:0;color:#626e67;font-size:12px}
 .install-gate__help{display:inline-flex;min-height:44px;align-items:center}
 :focus-visible{outline:3px solid rgba(161,122,75,.44);outline-offset:3px}
 @media(min-width:700px){
