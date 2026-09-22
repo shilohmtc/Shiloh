@@ -377,7 +377,7 @@ const METRICS_EXPRESSION = `(() => {
     drawerHeaderRight:drawerHeader?.getBoundingClientRect().right||0,
     drawerCloseRight:drawerClose?.getBoundingClientRect().right||0,
     drawerLinksOverflowY:drawerLinks?getComputedStyle(drawerLinks).overflowY:'',
-    drawerLogoBackground:drawerLogo?getComputedStyle(drawerLogo).backgroundImage:'',
+    drawerLogoSource:drawerLogo?.getAttribute('src')||'',
     drawerOpen:Boolean(nav?.classList.contains('open')),
     menuHeight:menuToggle?.getBoundingClientRect().height||0,
     menuLeft:menuToggle?.getBoundingClientRect().left||0,
@@ -496,7 +496,7 @@ async function main() {
           assert.ok(metrics.drawerHeaderRight <= metrics.navRight, `${name} drawer header escapes its panel`);
           assert.ok(metrics.drawerCloseRight <= metrics.navRight, `${name} close control escapes its panel`);
           assert.equal(metrics.drawerLinksOverflowY, 'auto');
-          assert.match(metrics.drawerLogoBackground, /\/calendar\/pwa\/icon-192\.png/);
+          assert.equal(metrics.drawerLogoSource, '/assets/pwa/shiloh-pwa-192.png?v=official-brand-v3');
           assert.equal(metrics.moreVisible, false);
           assert.equal(metrics.moreOpen, false);
           assert.ok(metrics.minNavTargetHeight >= 44, `${name} has a drawer target below 44px`);

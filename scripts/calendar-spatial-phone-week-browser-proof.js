@@ -560,7 +560,7 @@ async function main() {
         moreVisible:visible(drawer.querySelector('[data-workspace-more-toggle]')),
         current:drawer.querySelector('[aria-current="page"]')?.textContent.trim()||'',
         linksOverflowY:getComputedStyle(links).overflowY,
-        brandBackground:getComputedStyle(brandIcon).backgroundImage,
+        brandSource:brandIcon?.getAttribute('src')||'',
         rootScrollWidth:document.documentElement.scrollWidth,
       };
     })()`);
@@ -572,7 +572,7 @@ async function main() {
     assert.equal(drawerMetrics.moreVisible, false);
     assert.equal(drawerMetrics.current, 'Calendar');
     assert.equal(drawerMetrics.linksOverflowY, 'auto');
-    assert.match(drawerMetrics.brandBackground, /\/calendar\/pwa\/icon-192\.png/);
+    assert.equal(drawerMetrics.brandSource, '/assets/pwa/shiloh-pwa-192.png?v=official-brand-v3');
     assert.ok(drawerMetrics.rootScrollWidth <= 391);
     screenshots.push({ ...(await capture('phone-narrow-direct-drawer')), viewport: { width: 390, height: 844 }, metrics: drawerMetrics });
     await evaluate(cdp, `document.querySelector('[data-workspace-drawer-close]').click();true`);
