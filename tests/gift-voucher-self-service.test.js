@@ -63,6 +63,11 @@ test('My Shiloh voucher route accepts recipient identity mobile instead of deliv
   assert.doesNotMatch(route, /\['recipientName','fromName','personalMessage','language','deliveryRecipient','deliveryMobile'/);
 });
 
+test('My Shiloh startup retries recipient voucher linking for existing sessions', () => {
+  const route = fs.readFileSync(path.join(root, 'src', 'routes', 'myShiloh.js'), 'utf8');
+  assert.match(route, /router\.get\('\/my-shiloh\/auth\/session'[\s\S]*syncRecipientLinks/);
+});
+
 test('issued voucher renders approved language artwork and private value state', () => {
   const html = renderPublicVoucherPage({ voucher:{recipient_name:'Naledi',from_name:'Christel',personal_message:'Rest well',language:'af',amount:'600.00',voucher_code:'SV-ABCDEF123456',balance:'400.00',state:'active',valid_until:'2027-09-19'} });
   assert.match(html, /voucher-af\.jpeg/);
