@@ -6,7 +6,7 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 
-const MY_SHILOH_ASSET_VERSION = '20260922-client-install-gate-v1';
+const MY_SHILOH_ASSET_VERSION = '20260922-client-install-gate-v2';
 
 function escapeHtml(value = '') {
   return String(value)
