@@ -91,6 +91,12 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     );
   }
 
+  async function syncRecipientLinks({ crmV2ClientId } = {}) {
+    const recipient = await verifiedRecipient(db, crmV2ClientId);
+    await linkVerifiedRecipientVouchers(db, recipient);
+    return { linked: true, crmV2ClientId: Number(recipient.id) };
+  }
+
   async function getClientModel({ crmV2ClientId } = {}) {
     const recipient = await verifiedRecipient(db, crmV2ClientId);
     await linkVerifiedRecipientVouchers(db, recipient);
@@ -355,7 +361,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
   }
 
-  return { getClientModel, createOrder, createWalkInVoucher, getPublicVoucher, getWorkspaceModel, updatePolicy, redeem, resolveAccess };
+  return { syncRecipientLinks, getClientModel, createOrder, createWalkInVoucher, getPublicVoucher, getWorkspaceModel, updatePolicy, redeem, resolveAccess };
 }
 
 async function issueVerifiedVoucher(client, request, providerTransactionId) {
