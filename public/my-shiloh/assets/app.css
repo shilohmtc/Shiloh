@@ -264,3 +264,15 @@ h3{font-size:20px;line-height:1.12}
 @media(max-width:480px){.profile-fields{grid-template-columns:1fr}.profile-field--wide{grid-column:auto}}
 @media(max-width:520px){.welcome-voucher{grid-template-columns:1fr}.welcome-voucher__value{width:64px;height:64px;font-size:21px}.welcome-voucher__booking{grid-template-columns:1fr}.welcome-voucher__booking .button{width:100%}}
 @media(max-width:420px){.auth-code-row{grid-template-columns:1fr}.auth-code-row .button{width:100%}.assistant-composer{grid-template-columns:1fr}.assistant-composer .button{width:100%}.client-action-card__actions{grid-template-columns:1fr}.client-action-card__actions .button{width:100%}}
+
+
+/* Guest browser installation doorway: browser installs, standalone app signs in. */
+.install-gate{min-height:100dvh;padding:max(28px,env(safe-area-inset-top)) 18px max(28px,env(safe-area-inset-bottom));display:grid;place-items:center;background:linear-gradient(180deg,#eef4ef 0%,#f8f4ec 100%)}
+.install-gate[hidden]{display:none!important}
+.install-gate__card{width:min(100%,460px);padding:34px 26px 28px;border-radius:30px;background:rgba(255,253,249,.96);border:1px solid rgba(70,87,70,.13);box-shadow:0 24px 70px rgba(43,61,49,.14);text-align:center}
+.install-gate__logo{display:inline-grid;margin:0 auto 18px}
+.install-gate__card h1{margin:6px 0 12px;font-family:Georgia,serif;font-size:clamp(29px,8vw,40px);line-height:1.06;font-weight:500;color:var(--ink)}
+.install-gate__copy{margin:0 auto 20px;max-width:36ch;color:var(--muted);font-size:15px;line-height:1.6}
+.install-gate__device{margin:0 0 16px;padding:14px 15px;border-radius:16px;background:var(--sage-2);color:var(--ink);font-size:13px;font-weight:750;line-height:1.5;text-align:left}
+.install-gate__status{margin:14px 0 0;color:var(--muted);font-size:12px;line-height:1.45}
+@media(max-width:420px){.install-gate__card{padding:28px 20px 24px;border-radius:24px}}
