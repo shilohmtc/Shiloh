@@ -236,10 +236,10 @@ async function runViewport(browser, name, viewport) {
   await browserPage.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
   await browserPage.getByRole('heading', { name: 'Add My Shiloh to your Home Screen to continue.' }).waitFor();
   if (await browserPage.getByRole('button', { name: 'Continue with WhatsApp' }).count()) {
-    throw new Error('guest browser must not expose My Shiloh sign-in before installation');
+    throw new Error('normal browser must not expose My Shiloh sign-in before installation');
   }
   if (!(await browserPage.locator('[data-app-frame]').isHidden())) {
-    throw new Error('guest browser app shell must stay hidden behind the installation doorway');
+    throw new Error('normal browser app shell must stay hidden behind the installation doorway');
   }
   await browserPage.screenshot({ path: path.join(out, `${name}-install-doorway.png`), fullPage: true });
   await browserContext.close();
@@ -266,6 +266,22 @@ async function runViewport(browser, name, viewport) {
   await page.waitForLoadState('networkidle');
   const heading = await page.locator('#home-title').textContent();
   if (!/Christel/.test(heading || '')) throw new Error('authenticated greeting missing');
+
+  const authenticatedCookies = await context.cookies(baseUrl);
+  const authenticatedBrowserContext = await browser.newContext({ viewport });
+  await authenticatedBrowserContext.addCookies(authenticatedCookies);
+  const authenticatedBrowserPage = await authenticatedBrowserContext.newPage();
+  await authenticatedBrowserPage.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
+  await authenticatedBrowserPage.getByRole('heading', { name: 'Add My Shiloh to your Home Screen to continue.' }).waitFor();
+  if (!(await authenticatedBrowserPage.locator('[data-app-frame]').isHidden())) {
+    throw new Error('authenticated browser must keep the My Shiloh client shell hidden');
+  }
+  if (await authenticatedBrowserPage.getByText('Good evening, Christel.').isVisible()) {
+    throw new Error('authenticated private client content must not be visible in a normal browser');
+  }
+  await authenticatedBrowserPage.screenshot({ path: path.join(out, `${name}-authenticated-browser-install-doorway.png`), fullPage: true });
+  await authenticatedBrowserContext.close();
+
   await page.waitForFunction(() => document.body.textContent.includes('Hot Stone Massage'));
   const experienceText = await page.locator('[data-client-experience-home]').textContent();
   if (!/Paid/.test(experienceText || '') || !/Complete/.test(experienceText || '')) {
