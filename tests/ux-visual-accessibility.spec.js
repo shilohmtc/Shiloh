@@ -26,7 +26,7 @@ test('Workspace vouchers stay contained and selectable on Phone and Desktop', as
     expect(await issued.evaluate((node) => node.getBoundingClientRect().top)).toBeLessThan(await redeem.evaluate((node) => node.getBoundingClientRect().top));
 
     await page.getByRole('button', { name:/SV-4A7F31B920CC.*Naledi.*Use this voucher/ }).click();
-    await expect(page.getByLabel('Voucher code')).toHaveValue('SV-4A7F31B920CC');
+    await expect(page.locator('[data-redeem-form]').getByLabel('Voucher code')).toHaveValue('SV-4A7F31B920CC');
     await expect(page.getByLabel('Amount to redeem')).toBeFocused();
     await expect(page.getByLabel('Amount to redeem')).toHaveAttribute('max', '400.00');
     await expect(page.getByText('SV-4A7F31B920CC selected. Enter the amount to redeem below.')).toBeVisible();
