@@ -33,8 +33,8 @@ test('Workspace vouchers stay contained and selectable on Phone and Desktop', as
 
     await expect(page.getByText('This links the voucher to the recipient’s My Shiloh profile. Use 082…; +27 is converted automatically.')).toBeVisible();
     await page.getByLabel('Purchaser’s name').fill('Tinkie');
-    await page.getByLabel('Recipient’s name and surname').fill('Evelyn Example');
-    await page.getByLabel('Recipient’s mobile number').fill('082 123 4567');
+    await page.getByLabel('Recipient’s name and surname', { exact:true }).fill('Evelyn Example');
+    await page.getByLabel('Recipient’s mobile number', { exact:true }).fill('082 123 4567');
     await page.getByLabel('From').fill('Tinkie');
     await page.getByLabel('Voucher value').fill('900');
     await page.getByLabel('Payment received by').selectOption('card_machine');
