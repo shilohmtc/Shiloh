@@ -144,6 +144,14 @@ test('Workspace recipient recovery is capability-gated and keeps value history u
   assert.doesNotMatch(denied, /Recent recipient changes/);
 });
 
+test('Workspace does not offer recipient recovery for redeemed or expired vouchers', () => {
+  const base = { policy:{configured:true,mode:'fixed_months',months:2}, authority:{canIssue:true,canRedeem:true,canManage:true}, recipientChanges:[] };
+  const redeemed = renderWorkspaceVoucherPage({ model:{...base,vouchers:[{voucher_code:'SV-ABCDEF123456',recipient_name:'Old Recipient',recipient_mobile:'0821111111',original_value:'500.00',balance:'0.00',valid_until:'2027-11-22',state:'redeemed'}]},csrfToken:'csrf' });
+  assert.doesNotMatch(redeemed, /data-recipient-change/);
+  const expired = renderWorkspaceVoucherPage({ model:{...base,vouchers:[{voucher_code:'SV-ABCDEF123456',recipient_name:'Old Recipient',recipient_mobile:'0821111111',original_value:'500.00',balance:'400.00',valid_until:'2020-01-01',state:'active'}]},csrfToken:'csrf' });
+  assert.doesNotMatch(expired, /data-recipient-change/);
+});
+
 test('Workspace route and browser client preserve session, same-origin, CSRF and explicit confirmation guards', () => {
   const root = path.join(__dirname, '..');
   const route = fs.readFileSync(path.join(root,'src','routes','workspaceGiftVouchers.js'),'utf8');
