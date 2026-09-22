@@ -121,6 +121,8 @@ async function run() {
     await wireAssets(phone);
     await phone.setContent(withPreviewBase(renderHome(catalogue)), { waitUntil: 'networkidle' });
     await assertApprovedPhotography(phone, 'Phone home');
+    if (await phone.locator('.hero-visual-card').isVisible())
+      throw new Error('Phone hero photograph must not be covered by the wording card');
     if (!(await phone.locator('.mobile-book').isVisible()))
       throw new Error('Phone sticky booking CTA must be visible');
     if (!(await phone.locator('.mobile-nav').isVisible()))
@@ -180,6 +182,8 @@ async function run() {
     await wireAssets(desktop);
     await desktop.setContent(withPreviewBase(renderHome(catalogue)), { waitUntil: 'networkidle' });
     await assertApprovedPhotography(desktop, 'Desktop home');
+    if (await desktop.locator('.hero-visual-card').isVisible())
+      throw new Error('Desktop hero photograph must not be covered by the wording card');
     if (!(await desktop.locator('.site-nav a[href="/treatments"]').isVisible()))
       throw new Error('Desktop full navigation must be visible');
     if (await desktop.locator('.mobile-book').isVisible())
