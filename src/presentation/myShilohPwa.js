@@ -6,7 +6,7 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 
-const MY_SHILOH_ASSET_VERSION = '20260922-first-launch-whatsapp-v1';
+const MY_SHILOH_ASSET_VERSION = '20260922-direct-whatsapp-handoff-v1';
 
 function escapeHtml(value = '') {
   return String(value)
