@@ -147,7 +147,7 @@ function renderMyShilohPage({
     : '';
 
   const welcomeVoucher = authenticated
-    ? `<section class="welcome-voucher" id="welcome-voucher" data-welcome-voucher aria-labelledby="welcome-voucher-title">
+    ? `<section class="welcome-voucher" id="welcome-voucher" data-welcome-voucher aria-labelledby="welcome-voucher-title" hidden>
         <div class="welcome-voucher__value" aria-hidden="true">R100</div>
         <div class="welcome-voucher__body">
           <p class="eyebrow">My Shiloh welcome</p>
