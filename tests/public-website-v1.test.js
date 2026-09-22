@@ -287,6 +287,7 @@ test('routing reuses canonical catalogue and leaves /book and /health intact', (
   assert.match(bookRoute, /renderBookingPage\(number, catalogue \|\| \[\], req\.query\.service\)/);
   assert.match(app, /publicWebsiteRoutes/);
   assert.match(app, /app\.get\("\/health"/);
+  assert.match(app, /app\.use\("\/assets\/website", express\.static/);
   assert.doesNotMatch(websiteRoute, /INSERT|UPDATE|DELETE|pool\.query/);
 });
 
