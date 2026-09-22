@@ -643,7 +643,7 @@ test('Workspace navigation drawer remains contained and branded on Phone and Des
       };
     });
     expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
-    expect(metrics.logoSource).toBe('/assets/pwa/shiloh-pwa-192.png?v=official-brand-v3');
+    expect(metrics.logoSource).toBe('/calendar/pwa/icon-192.png?v=official-brand-v4');
     if (viewport.name === 'phone') {
       expect(metrics.shortTargets).toEqual([]);
       const expectedDrawerWidth = Math.min(viewport.width * 0.6, 220);

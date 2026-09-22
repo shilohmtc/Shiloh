@@ -496,7 +496,7 @@ async function main() {
           assert.ok(metrics.drawerHeaderRight <= metrics.navRight, `${name} drawer header escapes its panel`);
           assert.ok(metrics.drawerCloseRight <= metrics.navRight, `${name} close control escapes its panel`);
           assert.equal(metrics.drawerLinksOverflowY, 'auto');
-          assert.equal(metrics.drawerLogoSource, '/assets/pwa/shiloh-pwa-192.png?v=official-brand-v3');
+          assert.equal(metrics.drawerLogoSource, '/calendar/pwa/icon-192.png?v=official-brand-v4');
           assert.equal(metrics.moreVisible, false);
           assert.equal(metrics.moreOpen, false);
           assert.ok(metrics.minNavTargetHeight >= 44, `${name} has a drawer target below 44px`);

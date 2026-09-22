@@ -572,7 +572,7 @@ async function main() {
     assert.equal(drawerMetrics.moreVisible, false);
     assert.equal(drawerMetrics.current, 'Calendar');
     assert.equal(drawerMetrics.linksOverflowY, 'auto');
-    assert.equal(drawerMetrics.brandSource, '/assets/pwa/shiloh-pwa-192.png?v=official-brand-v3');
+    assert.equal(drawerMetrics.brandSource, '/calendar/pwa/icon-192.png?v=official-brand-v4');
     assert.ok(drawerMetrics.rootScrollWidth <= 391);
     screenshots.push({ ...(await capture('phone-narrow-direct-drawer')), viewport: { width: 390, height: 844 }, metrics: drawerMetrics });
     await evaluate(cdp, `document.querySelector('[data-workspace-drawer-close]').click();true`);
