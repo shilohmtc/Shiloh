@@ -109,8 +109,8 @@ test('final confirmation creates every treatment atomically and queues one combi
     locationId: 1,
     notes: 'Christa-style linked visit',
     assignments: [
-      { position: 1, staffId: 3, serviceId: 10, durationMinutes: 60, unitPrice: 650, startsAt: '2026-09-22T07:00:00.000Z', endsAt: '2026-09-22T08:00:00.000Z' },
-      { position: 2, staffId: 4, serviceId: 11, durationMinutes: 60, unitPrice: 490, startsAt: '2026-09-22T08:00:00.000Z', endsAt: '2026-09-22T09:00:00.000Z' },
+      { position: 1, staffId: 3, serviceId: 10, durationMinutes: 60, unitPrice: 650, startsAt: '2099-09-22T07:00:00.000Z', endsAt: '2099-09-22T08:00:00.000Z' },
+      { position: 2, staffId: 4, serviceId: 11, durationMinutes: 60, unitPrice: 490, startsAt: '2099-09-22T08:00:00.000Z', endsAt: '2099-09-22T09:00:00.000Z' },
     ],
   };
   const serviceRows = {
@@ -128,7 +128,7 @@ test('final confirmation creates every treatment atomically and queues one combi
       if (text.includes("FROM locations WHERE id=$1 AND status='active'")) return { rows: [{ id: 1 }], rowCount: 1 };
       if (text.includes('FROM services sv JOIN staff_services')) return { rows: [serviceRows[Number(params[0])]], rowCount: 1 };
       if (text.includes("AT TIME ZONE 'Africa/Johannesburg')::date::text AS local_date")) {
-        return { rows: [{ local_date: '2026-09-22', local_end_date: '2026-09-22', local_start: '09:00:00', local_end: '10:00:00' }], rowCount: 1 };
+        return { rows: [{ local_date: '2099-09-22', local_end_date: '2099-09-22', local_start: '09:00:00', local_end: '10:00:00' }], rowCount: 1 };
       }
       if (text.includes('WITH requested AS ( SELECT $2::date AS local_date')) {
         return { rows: [{ requested_dow: 2, is_holiday: false, weekly_start: '08:00:00', weekly_end: '18:00:00' }], rowCount: 1 };
