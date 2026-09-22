@@ -74,6 +74,9 @@ test('My Shiloh route is no-store, no-index and mounted without reusing staff au
   assert.match(route, /Content-Security-Policy/);
   assert.match(route, /getPublicServiceCatalogue/);
   assert.match(route, /resolveWhatsAppNumber/);
+  assert.match(route, /optionalSessionForAppLaunch/);
+  assert.match(route, /req\.query\?\.launch !== 'app'/);
+  assert.match(route, /req\.query\?\.launch === 'app' \? req\.myShilohClientSession\?\.client \|\| null : null/);
   assert.doesNotMatch(route, /ADMIN_API_KEY|x-admin-key|staffSession/i);
   assert.match(app, /myShilohRoutes/);
 });
@@ -82,6 +85,10 @@ test('browser launch is install-only while standalone launch preserves the exist
   const client = read('public/my-shiloh/assets/app.js');
   assert.match(client, /matchMedia\?\.\('\(display-mode: standalone\)'\)/);
   assert.match(client, /window\.navigator\.standalone === true/);
+  assert.match(client, /function appLaunchRequested\(\)/);
+  assert.match(client, /searchParams\.get\('launch'\) === 'app'/);
+  assert.match(client, /target\.searchParams\.set\('launch', 'app'\)/);
+  assert.match(client, /window\.location\.replace/);
   assert.match(client, /document\.body\.dataset\.myShilohLaunch = installedLaunch \? 'app' : 'install'/);
   assert.match(client, /if \(installGate\) installGate\.hidden = installedLaunch/);
   assert.match(client, /if \(appFrame\) appFrame\.hidden = !installedLaunch/);
@@ -100,7 +107,7 @@ test('PWA manifest is standalone and scoped to My Shiloh', () => {
   assert.equal(manifest.name, 'My Shiloh');
   assert.equal(manifest.display, 'standalone');
   assert.equal(manifest.scope, '/my-shiloh/');
-  assert.equal(manifest.start_url, '/my-shiloh/');
+  assert.equal(manifest.start_url, '/my-shiloh/?launch=app');
   assert.equal(manifest.background_color, '#fffcf7');
   assert.ok(manifest.icons.some((icon) => icon.src === '/my-shiloh/assets/icon-192.png' && icon.purpose === 'any'));
   assert.ok(manifest.icons.some((icon) => icon.src === '/my-shiloh/assets/icon-maskable-512.png' && icon.purpose === 'maskable'));
