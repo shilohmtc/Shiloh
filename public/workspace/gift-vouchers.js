@@ -69,6 +69,8 @@
       selection.addRange(range);
     }
   });
+  const recipientForm = document.querySelector('[data-recipient-form]');
+  const recipientPrompt = document.querySelector('[data-recipient-prompt]');
   const redeemForm = document.querySelector('[data-redeem-form]');
   const selectionStatus = document.querySelector('[data-voucher-selection-status]');
   document.querySelector('[data-issued-vouchers]')?.addEventListener('click', (event) => {
