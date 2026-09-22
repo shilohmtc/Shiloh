@@ -64,7 +64,8 @@ test('WhatsApp client menu leads with the My Shiloh R100 welcome voucher on Phon
   for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto('/iframe.html?id=whatsapp-client-menu--welcome-voucher-first&viewMode=story', { waitUntil: 'networkidle' });
-    await expect(page.getByText('Install My Shiloh on your phone')).toBeVisible();
+    await expect(page.getByText(/install My Shiloh/i)).toBeVisible();
+    await expect(page.getByText(/open the new My Shiloh icon/i)).toBeVisible();
     const buttons = page.locator('.wa-action');
     await expect(buttons).toHaveCount(3);
     await expect(buttons.nth(0)).toHaveText('Get R100 voucher');
@@ -80,6 +81,61 @@ test('WhatsApp client menu leads with the My Shiloh R100 welcome voucher on Phon
     const accessibility = await new AxeBuilder({ page }).include('.wa-story').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
     expect(accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact))).toEqual([]);
     await page.screenshot({ path: testInfo.outputPath(`whatsapp-client-menu-voucher-first-${viewport.name}.png`), fullPage: true });
+  }
+});
+
+test('My Shiloh install-first doorway is clear and accessible across iPhone, Android and Desktop', async ({ page }, testInfo) => {
+  const states = [
+    { name: 'iphone', story: 'browser-install-i-phone', viewport: { width: 390, height: 844 }, copy: 'On iPhone' },
+    { name: 'android', story: 'browser-install-android', viewport: { width: 412, height: 915 }, copy: 'On Android' },
+    { name: 'desktop', story: 'browser-install-desktop', viewport: { width: 1280, height: 900 }, copy: 'designed to be installed on your phone' },
+  ];
+
+  for (const state of states) {
+    await page.setViewportSize(state.viewport);
+    await page.goto(`/iframe.html?id=client-my-shiloh-pwa--${state.story}&viewMode=story`, { waitUntil: 'networkidle' });
+
+    const gate = page.locator('[data-install-gate]');
+    await expect(gate).toBeVisible();
+    await expect(page.locator('[data-app-frame]')).toBeHidden();
+    await expect(gate.getByRole('heading', { name: 'Install My Shiloh to continue.' })).toBeVisible();
+    await expect(gate.getByText(state.copy, { exact: false })).toBeVisible();
+    await expect(gate.getByText('Already installed?')).toBeVisible();
+
+    if (state.name === 'iphone') {
+      await expect(gate.getByText(/Share button/)).toBeVisible();
+      await expect(gate.getByText(/Add to Home Screen/)).toBeVisible();
+      await expect(gate.getByText(/Open as Web App/)).toBeVisible();
+      await expect(gate.getByRole('button', { name: 'Install My Shiloh' })).toBeHidden();
+    }
+    if (state.name === 'android') {
+      await expect(gate.getByRole('button', { name: 'Install My Shiloh' })).toBeVisible();
+      await expect(gate.getByText(/Install app or Add to Home screen/)).toBeVisible();
+    }
+
+    const metrics = await gate.evaluate((node) => ({
+      viewport: window.innerWidth,
+      document: document.documentElement.scrollWidth,
+      short: [...node.querySelectorAll('button,a')]
+        .filter((item) => item.getClientRects().length > 0 && item.getBoundingClientRect().height < 44)
+        .map((item) => item.textContent.trim() || item.getAttribute('aria-label')),
+    }));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
+    expect(metrics.short).toEqual([]);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-install-gate]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
+    expect(serious, `Serious accessibility violations in My Shiloh ${state.name} install gate: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+
+    await page.screenshot({
+      path: testInfo.outputPath(`my-shiloh-install-${state.name}.png`),
+      fullPage: true,
+      animations: 'disabled',
+      caret: 'hide',
+    });
   }
 });
 
