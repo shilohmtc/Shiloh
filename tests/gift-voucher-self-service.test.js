@@ -32,6 +32,8 @@ test('client voucher page is policy gated and includes optional direct recipient
   assert.match(html, /Who is it for/);
   assert.match(html, /The recipient/);
   assert.match(html, /Recipient’s WhatsApp number/);
+  assert.match(html, /Use the 0-format, for example 082 123 4567/);
+  assert.match(html, /aria-describedby="deliveryMobileHelp"/);
   assert.match(html, /validity policy/);
   assert.match(html, /type="submit" disabled/);
 });
