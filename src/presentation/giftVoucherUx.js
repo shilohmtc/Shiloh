@@ -1,7 +1,7 @@
 'use strict';
 
 const { workspaceShellStyles, renderWorkspaceNavigation } = require('./workspaceShell');
-const { formatVoucherDate } = require('../lib/voucherDate');
+const { formatVoucherDate, voucherExpiryTimestamp } = require('../lib/voucherDate');
 
 function esc(value = '') { return String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function rand(value) { return new Intl.NumberFormat('en-ZA', { style:'currency', currency:'ZAR' }).format(Number(value || 0)); }
@@ -44,7 +44,8 @@ function renderWorkspaceVoucherPage({ model, csrfToken, clientScriptPath = '/cal
     const codeControl = model.authority.canRedeem
       ? `<button class="voucher-code" type="button" data-voucher-select data-voucher-code="${code}" data-voucher-balance="${esc(voucher.balance)}" aria-pressed="false"><strong>${code}</strong><small>${esc(voucher.recipient_name)} · ${esc(source)} · ${esc(recipientLink)}</small><span>Use this voucher</span></button>`
       : `<div class="voucher-summary"><strong>${code}</strong><small>${esc(voucher.recipient_name)} · ${esc(source)} · ${esc(recipientLink)}</small></div>`;
-    const recipientAction = model.authority.canManage && voucher.state === 'active'
+    const recipientExpiry = voucherExpiryTimestamp(voucher.valid_until);
+    const recipientAction = model.authority.canManage && voucher.state === 'active' && (recipientExpiry == null || recipientExpiry >= Date.now())
       ? `<button class="back recipient-change" type="button" data-recipient-change data-voucher-code="${code}" data-recipient-name="${esc(voucher.recipient_name)}" data-recipient-mobile="${esc(voucher.recipient_mobile || '')}">Change recipient</button>`
       : '';
     return `<tr data-voucher-row><td data-label="Voucher"><div class="voucher-actions">${codeControl}${recipientAction}</div></td><td data-label="Original">${esc(rand(voucher.original_value))}</td><td data-label="Balance">${esc(rand(voucher.balance))}</td><td data-label="Valid until">${esc(date(voucher.valid_until))}</td><td data-label="Status"><span class="pill">${esc(voucher.state)}</span></td></tr>`;
