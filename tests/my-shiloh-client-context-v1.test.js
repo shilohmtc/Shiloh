@@ -179,5 +179,7 @@ test('My Shiloh experience API derives client identity from validated session, n
   const app = read('public/my-shiloh/assets/app.js');
   assert.match(app, /fetch\('\/my-shiloh\/api\/experience'/);
   assert.match(app, /cache: 'no-store'/);
-  assert.doesNotMatch(app, /localStorage|sessionStorage/);
+  assert.match(app, /INSTALL_VERIFIED_KEY = 'my-shiloh-install-whatsapp-verified-v1'/);
+  assert.doesNotMatch(app, /sessionStorage|indexedDB/);
+  assert.doesNotMatch(app, /localStorage\.setItem\([^\n]*(?:experience|appointment|payment|forms|client|token|session|csrf)/i);
 });
