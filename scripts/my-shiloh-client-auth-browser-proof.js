@@ -230,9 +230,32 @@ const fakeService = {
 async function runViewport(browser, name, viewport) {
   verified = false;
   loggedOut = false;
+
+  const browserContext = await browser.newContext({ viewport });
+  const browserPage = await browserContext.newPage();
+  await browserPage.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
+  await browserPage.getByRole('heading', { name: 'Add My Shiloh to your Home Screen to continue.' }).waitFor();
+  if (await browserPage.getByRole('button', { name: 'Continue with WhatsApp' }).count()) {
+    throw new Error('guest browser must not expose My Shiloh sign-in before installation');
+  }
+  if (!(await browserPage.locator('[data-app-frame]').isHidden())) {
+    throw new Error('guest browser app shell must stay hidden behind the installation doorway');
+  }
+  await browserPage.screenshot({ path: path.join(out, `${name}-install-doorway.png`), fullPage: true });
+  await browserContext.close();
+
   const context = await browser.newContext({ viewport });
+  await context.addInitScript(() => {
+    Object.defineProperty(window.navigator, 'standalone', {
+      configurable: true,
+      get: () => true,
+    });
+  });
   const page = await context.newPage();
   await page.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
+  if (!(await page.locator('[data-install-gate]').isHidden())) {
+    throw new Error('standalone My Shiloh must not show the browser installation doorway');
+  }
   await page.getByRole('button', { name: 'Continue with WhatsApp' }).click();
   await page.waitForURL('**/fake-whatsapp');
   await page.goBack({ waitUntil: 'domcontentloaded' });

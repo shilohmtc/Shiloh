@@ -162,3 +162,22 @@ test('returning from WhatsApp auto-completes in the original context with a usab
   assert.doesNotMatch(styles, /\.assistant-chat__messages\{[^}]*overflow-y:auto/);
   assert.doesNotMatch(styles, /\.assistant-chat__messages\{[^}]*max-height/);
 });
+
+
+test('guest browser is an installation doorway while standalone mode keeps sign-in authority unchanged', () => {
+  const presentation = read('src/presentation/myShilohPwa.js');
+  const client = read('public/my-shiloh/assets/app.js');
+  const styles = read('public/my-shiloh/assets/app.css');
+
+  assert.match(presentation, /data-install-gate/);
+  assert.match(presentation, /Add My Shiloh to your Home Screen to continue/);
+  assert.match(presentation, /Already installed\? Open My Shiloh from your Home Screen/);
+  assert.match(client, /function guestBrowserNeedsInstall\(\)/);
+  assert.match(client, /appFrame\?\.dataset\.clientAuthenticated !== 'true' && !standalone\(\)/);
+  assert.match(client, /appFrame\.hidden = gated/);
+  assert.match(client, /On iPhone: tap Share, choose Add to Home Screen, then tap Add/);
+  assert.match(client, /On Android: tap Install My Shiloh below/);
+  assert.match(client, /deferredInstallPrompt && isAndroid\(\)/);
+  assert.doesNotMatch(client, /document\.cookie|localStorage|sessionStorage/);
+  assert.match(styles, /\.install-gate\{/);
+});

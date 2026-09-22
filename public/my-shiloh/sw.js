@@ -1,6 +1,6 @@
 'use strict';
 
-const ASSET_VERSION = '20260921-welcome-voucher-v3';
+const ASSET_VERSION = '20260922-client-install-gate-v1';
 const SHELL_CACHE = 'my-shiloh-shell-v13';
 const STATIC_CACHE = 'my-shiloh-static-v13';
 const SHELL = [
