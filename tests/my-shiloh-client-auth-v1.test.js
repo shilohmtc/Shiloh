@@ -176,8 +176,9 @@ test('every normal browser is an installation doorway while standalone mode keep
   assert.match(client, /return !standalone\(\)/);
   assert.doesNotMatch(client, /dataset\.clientAuthenticated !== 'true' && !standalone\(\)/);
   assert.match(client, /appFrame\.hidden = gated/);
-  assert.match(client, /On iPhone: tap Share, choose Add to Home Screen, then tap Add/);
-  assert.match(client, /On Android: tap Install My Shiloh below/);
+  assert.doesNotMatch(presentation, /data-install-gate-instructions/);
+  assert.doesNotMatch(client, /On iPhone: tap Share, choose Add to Home Screen, then tap Add/);
+  assert.match(presentation, /data-install-gate-action>Install My Shiloh<\/button>/);
   assert.match(client, /deferredInstallPrompt && isAndroid\(\)/);
   assert.match(client, /if \(!standalone\(\) \|\| appFrame\?\.dataset\.clientAuthenticated !== 'true' \|\| clientRefreshInFlight\) return/);
   assert.match(client, /function welcomeBackFromWhatsApp\(\) \{[\s\S]*if \(!standalone\(\) \|\| appFrame\?\.dataset\.clientAuthenticated === 'true'\) return/);

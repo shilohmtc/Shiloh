@@ -1043,6 +1043,7 @@ test('My Shiloh install doorway is clear, contained and accessible on Phone and 
     await expect(page.getByRole('heading', { name: 'Add My Shiloh to your Home Screen to continue.' })).toBeVisible();
     await expect(page.getByText('Already installed? Open My Shiloh from your Home Screen.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Show install steps' })).toBeVisible();
+    await expect(gate.locator('[data-install-gate-instructions]')).toHaveCount(0);
 
     const metrics = await gate.evaluate((node) => ({
       viewportWidth: window.innerWidth,
@@ -1095,6 +1096,8 @@ test('authenticated My Shiloh browser sessions still show only the install doorw
     await expect(gate).toBeVisible();
     await expect(appFrame).toBeHidden();
     await expect(page.getByRole('heading', { name: 'Add My Shiloh to your Home Screen to continue.' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Show install steps' })).toBeVisible();
+    await expect(gate.locator('[data-install-gate-instructions]')).toHaveCount(0);
     await expect(page.getByText('Good evening, Christel.')).toBeHidden();
     await expect(page.getByText('Your R100 welcome voucher.')).toBeHidden();
 
@@ -1112,4 +1115,24 @@ test('authenticated My Shiloh browser sessions still show only the install doorw
       caret: 'hide',
     });
   }
+});
+
+
+test('My Shiloh install guidance appears only after Show install steps is tapped', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/iframe.html?id=client-my-shiloh-pwa--browser-install-doorway&viewMode=story', { waitUntil: 'networkidle' });
+  await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
+
+  await expect(page.locator('[data-install-gate-instructions]')).toHaveCount(0);
+  const button = page.getByRole('button', { name: 'Show install steps' });
+  await expect(button).toBeVisible();
+
+  const sheet = page.locator('[data-install-sheet]');
+  await expect(sheet).toBeHidden();
+  await button.click();
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByRole('heading', { name: 'Add My Shiloh to your Home Screen.' })).toBeVisible();
+  await expect(sheet.getByText('Open your browser menu or Share button.')).toBeVisible();
+  await expect(sheet.getByText('Choose Add to Home Screen or Install app.')).toBeVisible();
+  await expect(sheet.getByText('Open My Shiloh from its new icon.')).toBeVisible();
 });
