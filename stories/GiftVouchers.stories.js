@@ -24,7 +24,8 @@ export const RecipientLinked = {
       policy:{configured:true,mode:'fixed_months',months:2},
       ozowConfigured:true,
       receivedVouchers:[
-        {voucher_code:'SV-EVELYN123456',balance:'900.00',voucher_state:'active',from_name:'Tinkie',voucherPath:'/gift-vouchers/storybook-recipient-key'},
+        {voucher_code:'SV-A1B2C3D4E5F6',original_value:'1190.00',balance:'690.00',voucher_state:'active',issued_at:'2026-09-22T08:00:00.000Z',valid_until:'2026-11-22',from_name:'Tinkie',personal_message:'Enjoy your time at Shiloh.',voucherPath:'/gift-vouchers/storybook-recipient-key'},
+        {voucher_code:'SV-F6E5D4C3B2A1',original_value:'500.00',balance:'0.00',voucher_state:'redeemed',issued_at:'2026-08-10T08:00:00.000Z',valid_until:'2026-10-10',from_name:'Christa',personal_message:null,voucherPath:'/gift-vouchers/storybook-used-key'},
       ],
       orders:[],
     },
