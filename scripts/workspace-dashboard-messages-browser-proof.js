@@ -286,6 +286,7 @@ function createFixture() {
   app.get('/calendar/staff/client.js', (_req, res) => res.type('application/javascript').send("'use strict';"));
   app.post('/calendar/staff-auth/csrf', (_req, res) => res.status(200).json({ csrfToken: 'synthetic-csrf' }));
   app.get('/calendar/operations/client.js', (_req, res) => res.type('application/javascript').send("'use strict';"));
+  app.get('/calendar/pwa/icon-192.png', (_req, res) => res.type('image/png').sendFile(path.join(__dirname, '..', 'public', 'assets', 'pwa', 'shiloh-pwa-192.png')));
   app.use('/calendar/workspace', createWorkspaceOperationalRouter({ env: ENV, sessionService, dashboardService, navigationService }));
   app.use('/calendar/messages', createWorkspaceMessagesRouter({ env: ENV, sessionService, service: messageService }));
   app.use('/calendar/clients', createWorkspaceClientsRouter({
@@ -362,6 +363,7 @@ const METRICS_EXPRESSION = `(() => {
   const drawerClose = document.querySelector('[data-workspace-drawer-close]');
   const drawerLinks = document.querySelector('.workspace-links');
   const drawerLogo = document.querySelector('.workspace-brand-icon');
+  const menuLogo = document.querySelector('.workspace-menu-brand-icon');
   return {
     viewport:{width:innerWidth,height:innerHeight,screenWidth:screen.width,screenHeight:screen.height},
     rootScrollWidth:document.documentElement.scrollWidth,
@@ -378,6 +380,8 @@ const METRICS_EXPRESSION = `(() => {
     drawerCloseRight:drawerClose?.getBoundingClientRect().right||0,
     drawerLinksOverflowY:drawerLinks?getComputedStyle(drawerLinks).overflowY:'',
     drawerLogoSource:drawerLogo?.getAttribute('src')||'',
+    drawerLogoLoaded:Boolean(drawerLogo?.complete&&drawerLogo?.naturalWidth>0),
+    menuLogoLoaded:Boolean(menuLogo?.complete&&menuLogo?.naturalWidth>0),
     drawerOpen:Boolean(nav?.classList.contains('open')),
     menuHeight:menuToggle?.getBoundingClientRect().height||0,
     menuLeft:menuToggle?.getBoundingClientRect().left||0,
@@ -481,6 +485,7 @@ async function main() {
       assert.ok(metrics.rootScrollWidth <= width + 1, `${name} leaked horizontal page overflow`);
       assert.ok(metrics.active, `${name} has no active destination`);
       if (phone) {
+        assert.equal(metrics.menuLogoLoaded, true, `${name} did not paint the Shiloh menu logo`);
         assert.ok(metrics.menuHeight >= 44, `${name} has a menu touch target below 44px`);
         assert.ok(metrics.menuLeft >= 7, `${name} captured the responsive drawer transition before the Phone shell settled`);
         if (!urlPath.startsWith('/calendar/read-only')) {
@@ -497,6 +502,7 @@ async function main() {
           assert.ok(metrics.drawerCloseRight <= metrics.navRight, `${name} close control escapes its panel`);
           assert.equal(metrics.drawerLinksOverflowY, 'auto');
           assert.equal(metrics.drawerLogoSource, '/calendar/pwa/icon-192.png?v=official-brand-v4');
+          assert.equal(metrics.drawerLogoLoaded, true, `${name} did not paint the Shiloh drawer logo`);
           assert.equal(metrics.moreVisible, false);
           assert.equal(metrics.moreOpen, false);
           assert.ok(metrics.minNavTargetHeight >= 44, `${name} has a drawer target below 44px`);
@@ -510,6 +516,7 @@ async function main() {
           assert.deepEqual(metrics.secondary, []);
         }
       } else {
+        assert.equal(metrics.drawerLogoLoaded, true, `${name} did not paint the Shiloh desktop logo`);
         assert.deepEqual([...metrics.primary, ...metrics.secondary], ['Dashboard', 'Calendar', 'Clients', 'Messages', 'Staff', 'Services', 'Reports', 'Clinic hours', 'Gift vouchers', 'Rewards', 'Problem reports']);
         assert.equal(metrics.moreVisible, false);
         assert.equal(metrics.accountFooterVisible, true, `${name} does not show the Desktop account footer`);
