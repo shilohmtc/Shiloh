@@ -7,7 +7,6 @@
   const installTrigger = document.querySelector('[data-install-trigger]');
   const installSheet = document.querySelector('[data-install-sheet]');
   const installGate = document.querySelector('[data-install-gate]');
-  const installGateInstructions = document.querySelector('[data-install-gate-instructions]');
   const installGateAction = document.querySelector('[data-install-gate-action]');
   const installGateStatus = document.querySelector('[data-install-gate-status]');
   const offlineBanner = document.querySelector('[data-offline-banner]');
@@ -102,13 +101,6 @@
     if (appFrame) appFrame.hidden = gated;
     if (!gated) return;
 
-    if (installGateInstructions) {
-      installGateInstructions.textContent = isIos()
-        ? 'On iPhone: tap Share, choose Add to Home Screen, then tap Add.'
-        : isAndroid()
-          ? 'On Android: tap Install My Shiloh below. If your browser does not offer it yet, use the browser menu and choose Install app or Add to Home screen.'
-          : 'On your phone, use the browser menu to choose Install app or Add to Home Screen.';
-    }
     if (installGateAction) {
       installGateAction.textContent = deferredInstallPrompt && isAndroid() ? 'Install My Shiloh' : 'Show install steps';
     }
@@ -177,7 +169,6 @@
     if (installTrigger) installTrigger.hidden = true;
     deferredInstallPrompt = null;
     if (installGateAction) installGateAction.hidden = true;
-    if (installGateInstructions) installGateInstructions.textContent = 'My Shiloh is installed.';
     if (installGateStatus) installGateStatus.textContent = 'Open the My Shiloh icon on your Home Screen to continue.';
   });
 
