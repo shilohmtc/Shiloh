@@ -77,11 +77,11 @@ test('Voucher recipient recovery is explicit and accessible on Phone and Desktop
     await page.getByRole('button', { name:'Change recipient' }).nth(1).click();
     const form = page.locator('[data-recipient-form]');
     await expect(form).toBeVisible();
-    await expect(page.getByLabel('Voucher code', { exact:true })).toHaveValue('SV-A2F8CBC24FCA');
-    await expect(page.getByLabel('Recipient’s name and surname').last()).toHaveValue('Chenique Botha');
-    await expect(page.getByLabel('Recipient’s mobile number').last()).toHaveValue('0837654321');
-    await page.getByLabel('Recipient’s name and surname').last().fill('Evelyn Example');
-    await page.getByLabel('Recipient’s mobile number').last().fill('082 123 4567');
+    await expect(form.getByLabel('Voucher code', { exact:true })).toHaveValue('SV-A2F8CBC24FCA');
+    await expect(form.getByLabel('New recipient’s name and surname')).toHaveValue('Chenique Botha');
+    await expect(form.getByLabel('New recipient’s mobile number')).toHaveValue('0837654321');
+    await form.getByLabel('New recipient’s name and surname').fill('Evelyn Example');
+    await form.getByLabel('New recipient’s mobile number').fill('082 123 4567');
     await page.getByLabel('I confirm that I want to change who this voucher is linked to.').check();
     const accessibility = await new AxeBuilder({ page }).include('.recipient-card').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact))).toEqual([]);
