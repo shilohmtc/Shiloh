@@ -238,6 +238,7 @@ const fakeService = {
 async function runViewport(browser, name, viewport) {
   verified = false;
   loggedOut = false;
+  voucherSyncCalls.length = 0;
 
   const browserContext = await browser.newContext({ viewport });
   const browserPage = await browserContext.newPage();
@@ -273,7 +274,7 @@ async function runViewport(browser, name, viewport) {
   await page.waitForFunction(() => document.body.textContent.includes('Christel'));
   await page.waitForLoadState('networkidle');
   if (!voucherSyncCalls.includes(912)) throw new Error('verified My Shiloh sign-in did not trigger recipient voucher linking');
-    const heading = await page.locator('#home-title').textContent();
+  const heading = await page.locator('#home-title').textContent();
   if (!/Christel/.test(heading || '')) throw new Error('authenticated greeting missing');
   await page.waitForFunction(() => document.body.textContent.includes('Hot Stone Massage'));
   const experienceText = await page.locator('[data-client-experience-home]').textContent();
