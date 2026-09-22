@@ -1002,3 +1002,56 @@ test('public website Storybook exposes catalogue and WhatsApp unavailable states
   );
   await expect(page.locator('a[href^="https://wa.me/"]')).toHaveCount(0);
 });
+
+
+test('My Shiloh install doorway is clear, contained and accessible on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name: 'phone', width: 390, height: 844 },
+    { name: 'desktop', width: 1280, height: 900 },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--browser-install-doorway&viewMode=story', { waitUntil: 'networkidle' });
+
+    const gate = page.locator('[data-install-gate]');
+    await expect(gate).toBeVisible();
+    await expect(page.locator('[data-app-frame]')).toBeHidden();
+    await expect(page.getByRole('heading', { name: 'Add My Shiloh to your Home Screen to continue.' })).toBeVisible();
+    await expect(page.getByText('Already installed? Open My Shiloh from your Home Screen.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Show install steps' })).toBeVisible();
+
+    const metrics = await gate.evaluate((node) => ({
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      cardWidth: node.querySelector('.install-gate__card')?.getBoundingClientRect().width || 0,
+      shortTargets: [...node.querySelectorAll('button,a')]
+        .filter((target) => target.getClientRects().length && target.getBoundingClientRect().height < 44)
+        .map((target) => target.textContent.trim() || target.getAttribute('aria-label')),
+    }));
+    expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+    expect(metrics.cardWidth).toBeLessThanOrEqual(metrics.viewportWidth - 24);
+    expect(metrics.shortTargets).toEqual([]);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-install-gate]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
+    expect(serious, `Serious accessibility violations in My Shiloh install doorway on ${viewport.name}: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+
+    await page.screenshot({
+      path: testInfo.outputPath(`my-shiloh-install-doorway-${viewport.name}.png`),
+      fullPage: true,
+      animations: 'disabled',
+      caret: 'hide',
+    });
+  }
+});
+
+test('My Shiloh standalone guest state keeps WhatsApp sign-in available', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/iframe.html?id=client-my-shiloh-pwa--standalone-guest-sign-in&viewMode=story', { waitUntil: 'networkidle' });
+  await expect(page.locator('[data-install-gate]')).toBeHidden();
+  await expect(page.locator('[data-app-frame]')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue with WhatsApp' }).first()).toBeVisible();
+  await expect(page.getByText('Enter your 6-digit fallback code').first()).toBeVisible();
+});
