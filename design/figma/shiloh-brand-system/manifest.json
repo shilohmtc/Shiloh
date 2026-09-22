@@ -1,0 +1,80 @@
+{
+  "archiveVersion": 1,
+  "archivedAt": "2026-09-22",
+  "approvedAt": "2026-09-21",
+  "source": {
+    "provider": "Figma",
+    "fileKey": "c9QUbJHRpkElnKFniZaKtk",
+    "url": "https://www.figma.com/design/c9QUbJHRpkElnKFniZaKtk"
+  },
+  "includedFrames": [
+    {
+      "nodeId": "91:3",
+      "name": "Shiloh Brand Guide Cover",
+      "file": "00-brand-guide-cover.png",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "93:3",
+      "name": "Getting Started",
+      "file": "01-getting-started.png",
+      "width": 1440,
+      "height": 879
+    },
+    {
+      "nodeId": "94:3",
+      "name": "Brand Foundations",
+      "file": "02-brand-foundations.png",
+      "width": 1440,
+      "height": 878
+    },
+    {
+      "nodeId": "96:2",
+      "name": "Export Reference",
+      "file": "04-export-reference.png",
+      "width": 1440,
+      "height": 916
+    },
+    {
+      "nodeId": "15:2",
+      "name": "05 — Large Logo Review",
+      "file": "05-large-logo-review.png",
+      "width": 3600,
+      "height": 1800
+    },
+    {
+      "nodeId": "81:2",
+      "name": "06 — Official App Icon Master 1024",
+      "file": "06-official-app-icon-master-1024.png",
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "nodeId": "82:2",
+      "name": "07 — Official Icon Size Proofs",
+      "file": "07-official-icon-size-proofs.png",
+      "width": 1236,
+      "height": 512
+    },
+    {
+      "nodeId": "87:2",
+      "name": "08 — Platform Mask Previews",
+      "file": "08-platform-mask-previews.png",
+      "width": 1088,
+      "height": 320
+    }
+  ],
+  "excludedFrames": [
+    "Legacy 01 — Vector Brand Study · Do Not Export",
+    "Legacy 02 — Vector Variants · Do Not Export",
+    "Legacy 03 — App Icon Study · Do Not Export",
+    "Legacy 04 — Web & Social Study · Do Not Export"
+  ],
+  "productionExports": [
+    "exports/shiloh-apple-touch-180.png",
+    "exports/shiloh-app-icon-192.png",
+    "exports/shiloh-app-icon-512.png",
+    "exports/shiloh-app-icon-maskable-512.png"
+  ]
+}
