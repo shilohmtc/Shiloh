@@ -246,6 +246,13 @@ const fakeService = {
 async function runInstallGateViewport(browser, name, viewport, userAgent, expectedCopy, { simulateInstallPrompt = false } = {}) {
   const privateRequests = [];
   const context = await browser.newContext({ viewport, userAgent });
+  await context.addCookies([{
+    name: 'shiloh_client_session',
+    value: SESSION_TOKEN,
+    url: baseUrl,
+    httpOnly: true,
+    sameSite: 'Strict',
+  }]);
   const page = await context.newPage();
   page.on('request', (request) => {
     const pathname = new URL(request.url()).pathname;
@@ -258,6 +265,10 @@ async function runInstallGateViewport(browser, name, viewport, userAgent, expect
   await page.getByRole('heading', { name: 'Install My Shiloh to continue.' }).waitFor();
   if (!(await page.locator('[data-install-gate]').isVisible())) throw new Error(`${name} install gate is not visible`);
   if (await page.locator('[data-app-frame]').isVisible()) throw new Error(`${name} exposed the client app in browser mode`);
+  const browserText = await page.locator('body').textContent();
+  if (/Christel Botha|Good (morning|afternoon|evening), Christel/.test(browserText || '')) {
+    throw new Error(`${name} browser doorway rendered private signed-in client content`);
+  }
   const intro = await page.locator('[data-install-platform-intro]').textContent();
   if (!String(intro || '').includes(expectedCopy)) throw new Error(`${name} platform guidance was not selected`);
 
