@@ -186,6 +186,30 @@ test('home leads with the Heidelberg location and shared brand chrome', () => {
   assert.match(html, new RegExp(`shiloh-mark-192\\.png\\?v=${PUBLIC_BRAND_ASSET_VERSION}`));
 });
 
+test('home uses the approved editorial photography without presenting it as the clinic interior', () => {
+  const html = renderHome(catalogue);
+  const assets = [
+    'shiloh-editorial-hero-v1.webp',
+    'shiloh-editorial-massage-v1.webp',
+    'shiloh-editorial-foot-care-v1.webp',
+    'shiloh-editorial-welcome-v1.webp',
+  ];
+
+  for (const filename of assets) {
+    const filePath = path.join(__dirname, '..', 'public', 'assets', 'website', filename);
+    assert.equal(fs.existsSync(filePath), true, `${filename} must exist`);
+    assert.ok(fs.statSync(filePath).size < 200_000, `${filename} must stay web-sized`);
+    assert.match(html, new RegExp(`/assets/website/${filename.replaceAll('.', '\\.')}`));
+  }
+
+  assert.match(html, /Editorial wellness arrangement in Shiloh’s colour palette/);
+  assert.match(html, /Editorial massage preparation in Shiloh’s colour palette/);
+  assert.match(html, /Editorial foot-care preparation in Shiloh’s colour palette/);
+  assert.match(html, /Editorial welcome image inspired by Shiloh’s colour palette/);
+  assert.match(html, /The Shiloh feeling/);
+  assert.doesNotMatch(html, /assets\/booking\/(?:treatment-room-side|pedicure-side)\.webp/);
+});
+
 test('public website brand assets exactly match the approved installed-app artwork', () => {
   const asset = (...segments) => fs.readFileSync(path.join(__dirname, '..', ...segments));
   const pairs = [

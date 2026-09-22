@@ -86,6 +86,22 @@ async function assertAccessible(page, label) {
     );
 }
 
+async function assertApprovedPhotography(page, label) {
+  const expected = [
+    ['.hero-visual', 'shiloh-editorial-hero-v1.webp'],
+    ['.category-discovery-card__visual--massage', 'shiloh-editorial-massage-v1.webp'],
+    ['.category-discovery-card__visual--foot', 'shiloh-editorial-foot-care-v1.webp'],
+    ['.local-story__image', 'shiloh-editorial-welcome-v1.webp'],
+  ];
+  for (const [selector, filename] of expected) {
+    const image = page.locator(selector).first();
+    if (!(await image.isVisible())) throw new Error(`${label} must show ${selector}`);
+    const backgroundImage = await image.evaluate((node) => getComputedStyle(node).backgroundImage);
+    if (!backgroundImage.includes(filename))
+      throw new Error(`${label} must render ${filename}; got ${backgroundImage}`);
+  }
+}
+
 async function run() {
   const evidenceDir = path.join(process.cwd(), 'artifacts', 'public-website-v1');
   fs.mkdirSync(evidenceDir, { recursive: true });
@@ -99,6 +115,7 @@ async function run() {
     const phone = await phoneContext.newPage();
     await wireAssets(phone);
     await phone.setContent(withPreviewBase(renderHome(catalogue)), { waitUntil: 'networkidle' });
+    await assertApprovedPhotography(phone, 'Phone home');
     if (!(await phone.locator('.mobile-book').isVisible()))
       throw new Error('Phone sticky booking CTA must be visible');
     if (!(await phone.locator('.mobile-nav').isVisible()))
@@ -155,6 +172,7 @@ async function run() {
     const desktop = await desktopContext.newPage();
     await wireAssets(desktop);
     await desktop.setContent(withPreviewBase(renderHome(catalogue)), { waitUntil: 'networkidle' });
+    await assertApprovedPhotography(desktop, 'Desktop home');
     if (!(await desktop.locator('.site-nav a[href="/treatments"]').isVisible()))
       throw new Error('Desktop full navigation must be visible');
     if (await desktop.locator('.mobile-book').isVisible())
