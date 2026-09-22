@@ -137,14 +137,14 @@ test('Phone drawer keeps its brand, close control and account footer contained',
   assert.match(css, /\.workspace-links\{[^}]*min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain/);
   assert.match(css, /\.workspace-account\{margin-top:0\}/);
   assert.match(css, /\.workspace-brand-icon\{[^}]*object-fit:cover[^}]*background:#faf7f0/);
-  assert.match(html, /<img class="workspace-brand-icon" src="\/assets\/pwa\/shiloh-pwa-192\.png\?v=official-brand-v3" alt="" width="42" height="42" decoding="async">/);
+  assert.match(html, /<img class="workspace-brand-icon" src="\/calendar\/pwa\/icon-192\.png\?v=official-brand-v4" alt="" width="42" height="42" decoding="async">/);
 });
 
 test('Phone menu trigger keeps the Shiloh logo visible across Workspace pages', () => {
   const css = workspaceShellStyles();
   const html = renderWorkspaceNavigation({ active: 'dashboard', displayName: 'Jean-Pierre' });
   assert.match(html, /aria-label="Open Shiloh Workspace navigation"/);
-  assert.match(html, /<img class="workspace-menu-brand-icon" src="\/assets\/pwa\/shiloh-pwa-192\.png\?v=official-brand-v3" alt="" width="38" height="38" decoding="async">/);
+  assert.match(html, /<img class="workspace-menu-brand-icon" src="\/calendar\/pwa\/icon-192\.png\?v=official-brand-v4" alt="" width="38" height="38" decoding="async">/);
   assert.match(html, /class="workspace-menu-glyph" aria-hidden="true"/);
   assert.match(css, /\.workspace-menu-brand-icon\{[^}]*object-fit:cover[^}]*background:#fffdf9/);
   assert.match(css, /\.workspace-menu-glyph\{[^}]*position:absolute[^}]*background:#17382d/);

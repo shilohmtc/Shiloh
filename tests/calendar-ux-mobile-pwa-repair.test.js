@@ -101,6 +101,8 @@ test('#823 Desktop Week is six canonical date lanes, never date × practitioner'
   assert.equal((html.match(/data-calendar-booking-slot data-date/g) || []).length, 78);
   assert.doesNotMatch(html, /data-calendar-booking-slot[^>]*staff=/, 'multi-practitioner Week must not guess a practitioner');
   assert.match(calendar823Styles(), /minmax\(150px,1fr\)/);
+  assert.match(calendar823Styles(), /body\[data-calendar-view\] \.workspace-menu-toggle\{top:max\(4px,env\(safe-area-inset-top\)\);width:44px;height:44px\}/);
+  assert.match(calendar823Styles(), /body\[data-calendar-view\] \.workspace-menu-brand-icon\{width:36px;height:36px\}/);
 });
 
 test('#823 top controls are date-first and keep Today plus New appointment prominent', () => {
