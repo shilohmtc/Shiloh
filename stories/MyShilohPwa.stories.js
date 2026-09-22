@@ -44,6 +44,13 @@ function productionSurface(client = null, { launchMode = 'app', platform = 'gene
       if (three) three.textContent = 'Leave the browser and open My Shiloh from the new icon in your apps list or Home Screen.';
       if (button) button.hidden = false;
     }
+    if (platform === 'generic') {
+      if (intro) intro.textContent = 'My Shiloh is designed to be installed on your phone. Open this page on your iPhone or Android phone, install it, then continue from the My Shiloh icon.';
+      if (one) one.textContent = 'Open this page on your iPhone or Android phone.';
+      if (two) two.textContent = 'Use Add to Home Screen or Install app.';
+      if (three) three.textContent = 'Open My Shiloh from its new icon to sign in or register.';
+      if (button) button.hidden = true;
+    }
   } else {
     if (gate) gate.hidden = true;
     if (frame) frame.hidden = false;
