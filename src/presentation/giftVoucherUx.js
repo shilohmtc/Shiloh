@@ -31,9 +31,14 @@ function renderWorkspaceVoucherPage({ model, csrfToken, clientScriptPath = '/cal
     const source = voucher.order_source === 'walk_in'
       ? `Walk-in${paymentLabel(voucher.payment_method) ? ` · ${paymentLabel(voucher.payment_method)}` : ''}${voucher.stock_reference ? ` · Stock ${voucher.stock_reference}` : ''}`
       : 'Online';
+    const recipientLink = voucher.recipient_crm_v2_client_id
+      ? 'Linked to My Shiloh'
+      : voucher.recipient_mobile
+        ? 'Waiting for recipient'
+        : 'No recipient mobile';
     const codeControl = model.authority.canRedeem
-      ? `<button class="voucher-code" type="button" data-voucher-select data-voucher-code="${code}" data-voucher-balance="${esc(voucher.balance)}" aria-pressed="false"><strong>${code}</strong><small>${esc(voucher.recipient_name)} · ${esc(source)}</small><span>Use this voucher</span></button>`
-      : `<strong>${code}</strong><br><small>${esc(voucher.recipient_name)} · ${esc(source)}</small>`;
+      ? `<button class="voucher-code" type="button" data-voucher-select data-voucher-code="${code}" data-voucher-balance="${esc(voucher.balance)}" aria-pressed="false"><strong>${code}</strong><small>${esc(voucher.recipient_name)} · ${esc(source)} · ${esc(recipientLink)}</small><span>Use this voucher</span></button>`
+      : `<strong>${code}</strong><br><small>${esc(voucher.recipient_name)} · ${esc(source)} · ${esc(recipientLink)}</small>`;
     return `<tr data-voucher-row><td data-label="Voucher">${codeControl}</td><td data-label="Original">${esc(rand(voucher.original_value))}</td><td data-label="Balance">${esc(rand(voucher.balance))}</td><td data-label="Valid until">${esc(date(voucher.valid_until))}</td><td data-label="Status"><span class="pill">${esc(voucher.state)}</span></td></tr>`;
   }).join('');
   const issued = `<section class="card issued-card" data-issued-vouchers><div class="issued-heading"><div><h2>Issued vouchers</h2>${model.authority.canRedeem && rows ? '<p>Select a voucher code to fill in the redemption form.</p>' : ''}</div><span class="issued-count">${model.vouchers.length}</span></div><p class="selection-status" role="status" aria-live="polite" data-voucher-selection-status></p><table><thead><tr><th>Voucher</th><th>Original</th><th>Balance</th><th>Valid until</th><th>Status</th></tr></thead><tbody>${rows || '<tr class="empty-vouchers"><td colspan="5">No vouchers have been issued yet.</td></tr>'}</tbody></table></section>`;
