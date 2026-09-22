@@ -154,7 +154,7 @@ test('returning from WhatsApp auto-completes in the original context with a usab
   assert.match(client, /window\.setTimeout\(welcomeBackFromWhatsApp, 1500\);[\s\S]*openWhatsAppDirect\(whatsappAppUrl, whatsappFallbackUrl\)/);
   assert.match(client, /data\.whatsappAppUrl \|\| data\.whatsappUrl/);
   assert.match(client, /data\.whatsappFallbackUrl \|\| data\.whatsappUrl/);
-  assert.match(client, /data\.whatsappDirect = 'true'/);
+  assert.match(client, /dataset\.whatsappDirect = 'true'/);
   assert.match(client, /window\.setTimeout\([\s\S]*window\.location\.href = fallback[\s\S]*1800\)/);
   assert.match(client, /pagehide[\s\S]*markExternalOpened/);
   assert.match(client, /visibilitychange/);
