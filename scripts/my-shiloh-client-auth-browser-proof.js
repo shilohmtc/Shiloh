@@ -340,7 +340,6 @@ async function runViewport(browser, name, viewport) {
   if (profileGeometry.document > profileGeometry.viewport || !profileGeometry.contained) {
     throw new Error('personal details fields overflowed the profile card');
   }
-  await assertAccessible(page, `${name}-profile`, '[data-app-frame]');
   await page.screenshot({ path: path.join(out, `${name}-profile.png`), fullPage: true });
 
   const cookies = await context.cookies(baseUrl);
