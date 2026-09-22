@@ -19,6 +19,8 @@ function productionSurface(client = null) {
   const body = String(page).match(/<body[^>]*>([\s\S]*?)<\/body>/)?.[1] || '';
   const root = document.createElement('div');
   root.innerHTML = `<link rel="stylesheet" href="/my-shiloh/assets/app.css"><div data-story-surface>${body.replace(/<script[\s\S]*?<\/script>/g, '')}</div>`;
+  const frame = root.querySelector('[data-app-frame]');
+  if (frame) frame.hidden = false;
   return root;
 }
 
@@ -143,6 +145,24 @@ export const AuthenticatedBrowserInstallDoorway = {
     if (frame) frame.hidden = true;
     const action = surface.querySelector('[data-install-gate-action]');
     if (action) action.textContent = 'Show install steps';
+    return surface;
+  },
+};
+
+
+export const FirstLaunchWhatsAppVerification = {
+  render: () => {
+    const surface = productionSurface({
+      id: '913',
+      name: 'Jean-Pierre Botha',
+      firstName: 'Jean-Pierre',
+    });
+    const installGate = surface.querySelector('[data-install-gate]');
+    const verificationGate = surface.querySelector('[data-install-verification-gate]');
+    const frame = surface.querySelector('[data-app-frame]');
+    if (installGate) installGate.hidden = true;
+    if (verificationGate) verificationGate.hidden = false;
+    if (frame) frame.hidden = true;
     return surface;
   },
 };
