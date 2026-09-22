@@ -149,7 +149,7 @@ function createMyShilohRouter({
   router.post('/my-shiloh/api/gift-vouchers', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
     try {
       setNoStoreJson(res);
-      const allowed = new Set(['recipientName','fromName','personalMessage','language','deliveryRecipient','deliveryMobile','amount']);
+      const allowed = new Set(['recipientName','recipientMobile','fromName','personalMessage','language','deliveryRecipient','amount']);
       if (Object.keys(req.body || {}).some((key) => !allowed.has(key))) return res.status(422).json({ error:'Please reload My Shiloh and try again', requestId:req.id });
       const result = await voucherService.createOrder({ crmV2ClientId:req.myShilohClientSession.crmV2ClientId, ...req.body });
       return res.status(201).json(result);
