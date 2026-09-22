@@ -141,6 +141,17 @@ test('Phone drawer keeps its brand, close control and account footer contained',
   assert.doesNotMatch(html, /<img[^>]+workspace/);
 });
 
+test('Phone menu trigger keeps the Shiloh logo visible across Workspace pages', () => {
+  const css = workspaceShellStyles();
+  const html = renderWorkspaceNavigation({ active: 'dashboard', displayName: 'Jean-Pierre' });
+  assert.match(html, /aria-label="Open Shiloh Workspace navigation"/);
+  assert.match(html, /class="workspace-menu-brand-icon" aria-hidden="true"/);
+  assert.match(html, /class="workspace-menu-glyph" aria-hidden="true"/);
+  assert.match(css, /\.workspace-menu-brand-icon\{[^}]*url\('\/calendar\/pwa\/icon-192\.png\?v=official-brand-v2'\)[^}]*url\('\/assets\/pwa\/shiloh-pwa-192\.png\?v=official-brand-v2'\)/);
+  assert.match(css, /\.workspace-menu-glyph\{[^}]*position:absolute[^}]*background:#17382d/);
+  assert.doesNotMatch(html, /workspace-menu-icon/);
+});
+
 test('Gift vouchers and Rewards have dedicated drawer icons', () => {
   const css = workspaceShellStyles();
   assert.match(css, /data-workspace-destination="vouchers"\]\::before/);
