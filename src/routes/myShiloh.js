@@ -63,7 +63,22 @@ function defaultAuthUrlBuilder(number, token) {
   const digits = String(number || '').replace(/[^0-9]/g, '');
   if (!digits || !/^[A-Za-z0-9_-]{43}$/.test(String(token || ''))) return null;
   const message = `MY SHILOH SIGN IN ${token}`;
-  return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
+  const encoded = encodeURIComponent(message);
+  return {
+    appUrl: `whatsapp://send?phone=${digits}&text=${encoded}`,
+    fallbackUrl: `https://wa.me/${digits}?text=${encoded}`,
+  };
+}
+
+function normalizeAuthHandoff(value) {
+  if (typeof value === 'string' && value) {
+    return { appUrl: value, fallbackUrl: value };
+  }
+  if (!value || typeof value !== 'object') return null;
+  const appUrl = String(value.appUrl || '').trim();
+  const fallbackUrl = String(value.fallbackUrl || '').trim();
+  if (!appUrl || !fallbackUrl) return null;
+  return { appUrl, fallbackUrl };
 }
 
 function createMyShilohRouter({
@@ -236,15 +251,17 @@ function createMyShilohRouter({
         return res.status(429).json({ error: 'Please wait a moment before trying again', requestId: req.id });
       }
       if (!challenge.ok) return res.status(503).json({ error: 'Secure sign-in is temporarily unavailable', requestId: req.id });
-      const whatsappUrl = authUrlBuilder(number, challenge.whatsappToken);
-      if (!whatsappUrl) return res.status(503).json({ error: 'WhatsApp sign-in is temporarily unavailable', requestId: req.id });
+      const whatsappHandoff = normalizeAuthHandoff(authUrlBuilder(number, challenge.whatsappToken));
+      if (!whatsappHandoff) return res.status(503).json({ error: 'WhatsApp sign-in is temporarily unavailable', requestId: req.id });
       res.setHeader('Set-Cookie', serializeClientAuthCookie(challenge.browserToken, {
         env,
         maxAgeSeconds: Math.max(1, Math.floor(CHALLENGE_TTL_MS / 1000)),
       }));
       return res.status(201).json({
         status: 'waiting_for_whatsapp',
-        whatsappUrl,
+        whatsappUrl: whatsappHandoff.appUrl,
+        whatsappAppUrl: whatsappHandoff.appUrl,
+        whatsappFallbackUrl: whatsappHandoff.fallbackUrl,
         expiresAt: new Date(challenge.expiresAt).toISOString(),
       });
     } catch (error) {
@@ -674,4 +691,5 @@ module.exports = {
   setMyShilohPageHeaders,
   setNoStoreJson,
   defaultAuthUrlBuilder,
+  normalizeAuthHandoff,
 };
