@@ -29,6 +29,7 @@ test('Workspace vouchers stay contained and selectable on Phone and Desktop', as
     await expect(page.getByLabel('Amount to redeem')).toHaveAttribute('max', '400.00');
     await expect(page.getByText('SV-4A7F31B920CC selected. Enter the amount to redeem below.')).toBeVisible();
 
+    await expect(page.getByText('Use the 0-format, for example 082 123 4567. If you paste +27, Shiloh converts it automatically.')).toBeVisible();
     await page.getByLabel('Purchaser’s name').fill('Tinkie');
     await page.getByLabel('Recipient’s name').fill('Evelyn');
     await page.getByLabel('From').fill('Tinkie');
@@ -57,6 +58,22 @@ test('Workspace vouchers stay contained and selectable on Phone and Desktop', as
     const accessibility = await new AxeBuilder({ page }).include('.voucher-shell').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact))).toEqual([]);
     await page.screenshot({ path:testInfo.outputPath(`workspace-vouchers-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+  }
+});
+
+test('Gift voucher recipient mobile guidance uses local 0-format on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=shiloh-gift-vouchers--client-purchase&viewMode=story', { waitUntil:'networkidle' });
+    await page.getByLabel('The recipient').check();
+    const mobile = page.getByLabel('Recipient’s WhatsApp number');
+    await expect(mobile).toBeVisible();
+    await expect(mobile).toHaveAttribute('placeholder', '082 123 4567');
+    await expect(mobile).toHaveAttribute('aria-describedby', 'deliveryMobileHelp');
+    await expect(page.getByText('Use the 0-format, for example 082 123 4567. If you paste +27, Shiloh converts it automatically.')).toBeVisible();
+    const accessibility = await new AxeBuilder({ page }).include('.voucher-shell').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`gift-voucher-mobile-guidance-${viewport.name}.png`), fullPage:true, animations:'disabled' });
   }
 });
 
