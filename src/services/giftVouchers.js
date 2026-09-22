@@ -59,9 +59,42 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     return row;
   }
 
+  async function verifiedRecipient(queryable, crmV2ClientId) {
+    const id = Number(crmV2ClientId);
+    if (!Number.isSafeInteger(id) || id <= 0) throw new GiftVoucherError('VOUCHER_CLIENT_REQUIRED', 'Sign in to My Shiloh to view your vouchers.', 401);
+    const row = (await queryable.query(
+      `SELECT id,name,normalized_mobile,mobile_verified_at
+         FROM crm_v2_clients
+        WHERE id=$1 AND status='active'
+        LIMIT 1`,
+      [id],
+    )).rows[0];
+    if (!row || !row.mobile_verified_at) throw new GiftVoucherError('VOUCHER_CLIENT_REQUIRED', 'Verify your WhatsApp number to view vouchers linked to you.', 401);
+    const mobile = localMobile(row.normalized_mobile);
+    if (!mobile) throw new GiftVoucherError('VOUCHER_INVALID_MOBILE', 'Your verified mobile number is unavailable.', 409);
+    return { ...row, local_mobile: mobile };
+  }
+
+  async function linkVerifiedRecipientVouchers(queryable, recipient) {
+    await queryable.query(
+      `UPDATE gift_vouchers v
+          SET recipient_crm_v2_client_id=$1,
+              recipient_linked_at=COALESCE(v.recipient_linked_at,NOW()),
+              updated_at=NOW()
+         FROM gift_voucher_orders o
+        WHERE v.order_id=o.id
+          AND v.recipient_crm_v2_client_id IS NULL
+          AND o.recipient_mobile=$2
+          AND o.state='paid'
+          AND v.state IN ('active','redeemed')`,
+      [Number(recipient.id), recipient.local_mobile],
+    );
+  }
+
   async function getClientModel({ crmV2ClientId } = {}) {
-    const [client, validity, orders] = await Promise.all([
-      purchaser(db, crmV2ClientId),
+    const recipient = await verifiedRecipient(db, crmV2ClientId);
+    await linkVerifiedRecipientVouchers(db, recipient);
+    const [validity, orders, received] = await Promise.all([
       policy(db),
       db.query(
         `SELECT o.id,o.recipient_name,o.from_name,o.language,o.delivery_recipient,o.amount,o.state,o.created_at,
@@ -74,11 +107,29 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
           ORDER BY o.id DESC LIMIT 30`,
         [Number(crmV2ClientId)],
       ),
+      db.query(
+        `SELECT v.id,v.voucher_code,v.original_value,v.balance,v.state AS voucher_state,v.issued_at,v.valid_until,v.access_key,
+                o.recipient_name,o.from_name,o.personal_message,o.language
+           FROM gift_vouchers v
+           JOIN gift_voucher_orders o ON o.id=v.order_id
+          WHERE v.recipient_crm_v2_client_id=$1
+            AND o.state='paid'
+            AND v.state IN ('active','redeemed')
+          ORDER BY v.issued_at DESC,v.id DESC
+          LIMIT 30`,
+        [Number(crmV2ClientId)],
+      ),
     ]);
-    return { client: { name: client.name }, policy: validity, ozowConfigured: ozow.configured(), orders: orders.rows.map((row) => ({ ...row, voucherPath: row.voucher_code ? publicVoucherPath(row.access_key || row.request_key) : null })) };
+    return {
+      client: { name: recipient.name },
+      policy: validity,
+      ozowConfigured: ozow.configured(),
+      receivedVouchers: received.rows.map((row) => ({ ...row, voucherPath: publicVoucherPath(row.access_key) })),
+      orders: orders.rows.map((row) => ({ ...row, voucherPath: row.voucher_code ? publicVoucherPath(row.access_key || row.request_key) : null })),
+    };
   }
 
-  async function createOrder({ crmV2ClientId, recipientName, fromName, personalMessage, language, deliveryRecipient, deliveryMobile, amount } = {}) {
+  async function createOrder({ crmV2ClientId, recipientName, recipientMobile, fromName, personalMessage, language, deliveryRecipient, amount } = {}) {
     const normalizedAmount = voucherAmount(amount);
     const recipient = cleanText(recipientName, 120, 'Recipient name');
     const sender = cleanText(fromName, 120, 'From name');
@@ -87,6 +138,8 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     if (!['en', 'af'].includes(selectedLanguage)) throw new GiftVoucherError('VOUCHER_INVALID_LANGUAGE', 'Choose English or Afrikaans.');
     const delivery = String(deliveryRecipient || '').trim();
     if (!['purchaser', 'recipient'].includes(delivery)) throw new GiftVoucherError('VOUCHER_INVALID_DELIVERY', 'Choose who should receive the secure voucher link.');
+    const recipientLocalMobile = localMobile(recipientMobile);
+    if (!recipientLocalMobile) throw new GiftVoucherError('VOUCHER_INVALID_MOBILE', 'Enter the recipient’s valid South African mobile number.');
     const client = await db.connect(); let order; let payment;
     try {
       await client.query('BEGIN');
@@ -96,13 +149,13 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
       if (!ozow.configured()) throw new GiftVoucherError('VOUCHER_PAYMENT_UNAVAILABLE', 'Secure voucher payment is temporarily unavailable.', 503);
       const buyerMobile = normalizeWhatsAppMobile(buyer.normalized_mobile);
       const buyerLocalMobile = localMobile(buyer.normalized_mobile);
-      const targetMobile = delivery === 'purchaser' ? buyerLocalMobile : localMobile(deliveryMobile);
+      const targetMobile = delivery === 'purchaser' ? buyerLocalMobile : recipientLocalMobile;
       if (!targetMobile) throw new GiftVoucherError('VOUCHER_INVALID_MOBILE', 'Enter a valid South African mobile number for delivery.');
       order = (await client.query(
         `INSERT INTO gift_voucher_orders
-           (purchaser_crm_v2_client_id,purchaser_name,recipient_name,from_name,personal_message,language,delivery_recipient,delivery_mobile,amount,validity_mode,validity_months)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-        [buyer.id, buyer.name, recipient, sender, message, selectedLanguage, delivery, targetMobile, normalizedAmount, validity.mode, validity.months],
+           (purchaser_crm_v2_client_id,purchaser_name,recipient_name,recipient_mobile,from_name,personal_message,language,delivery_recipient,delivery_mobile,amount,validity_mode,validity_months)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+        [buyer.id, buyer.name, recipient, recipientLocalMobile, sender, message, selectedLanguage, delivery, targetMobile, normalizedAmount, validity.mode, validity.months],
       )).rows[0];
       const key = requestKey(randomBytes);
       payment = (await client.query(
@@ -182,7 +235,8 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     paymentMethod,
     paymentReference,
     stockReference,
-    deliveryMobile,
+    recipientMobile,
+    sendDigitalCopy = false,
     paymentConfirmed,
     operationId,
   } = {}) {
@@ -196,9 +250,10 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     const method = walkInPaymentMethod(paymentMethod);
     const reference = cleanText(paymentReference, 120, 'Payment reference', { optional: true });
     const stock = cleanText(stockReference, 80, 'Preprinted stock reference', { optional: true });
-    const mobileText = String(deliveryMobile || '').trim();
-    const mobile = mobileText ? localMobile(mobileText) : null;
-    if (mobileText && !mobile) throw new GiftVoucherError('VOUCHER_INVALID_MOBILE', 'Enter a valid South African mobile number or leave it blank.');
+    const recipientLocalMobile = localMobile(recipientMobile);
+    if (!recipientLocalMobile) throw new GiftVoucherError('VOUCHER_INVALID_MOBILE', 'Enter the recipient’s valid South African mobile number.');
+    const deliverDigitalCopy = sendDigitalCopy === true;
+    const mobile = deliverDigitalCopy ? recipientLocalMobile : null;
     if (paymentConfirmed !== true) throw new GiftVoucherError('VOUCHER_PAYMENT_CONFIRMATION_REQUIRED', 'Confirm that the in-person payment was received before issuing the voucher.');
     const operation = cleanText(operationId, 100, 'Operation identifier');
     const operationKey = `walk-in:${operation}`;
@@ -226,11 +281,11 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
       const code = voucherCode(accessKey);
       const order = (await client.query(
         `INSERT INTO gift_voucher_orders
-           (purchaser_name,recipient_name,from_name,personal_message,language,delivery_recipient,delivery_mobile,amount,
+           (purchaser_name,recipient_name,recipient_mobile,from_name,personal_message,language,delivery_recipient,delivery_mobile,amount,
             validity_mode,validity_months,state,order_source,stock_reference,created_by_admin_id)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'paid','walk_in',$11,$12)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'paid','walk_in',$12,$13)
          RETURNING *`,
-        [purchaserLabel, recipient, sender, message, selectedLanguage, mobile ? 'recipient' : null, mobile, normalizedAmount, validity.mode, validity.months, stock, operator.id],
+        [purchaserLabel, recipient, recipientLocalMobile, sender, message, selectedLanguage, mobile ? 'recipient' : null, mobile, normalizedAmount, validity.mode, validity.months, stock, operator.id],
       )).rows[0];
       const voucher = (await client.query(
         `INSERT INTO gift_vouchers(order_id,voucher_code,original_value,balance,valid_until,access_key)
