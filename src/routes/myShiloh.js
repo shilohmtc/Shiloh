@@ -323,7 +323,14 @@ function createMyShilohRouter({
     }
   });
 
-  router.get('/my-shiloh/auth/session', requireSession, (req, res) => {
+  router.get('/my-shiloh/auth/session', requireSession, async (req, res) => {
+    try {
+      await voucherService.syncRecipientLinks({
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+      });
+    } catch (_) {
+      // Existing sessions stay available; the Gift vouchers page retries linking.
+    }
     setNoStoreJson(res);
     return res.status(200).json({
       authenticated: true,
