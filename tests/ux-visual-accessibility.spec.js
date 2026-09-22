@@ -64,6 +64,42 @@ test('Workspace vouchers stay contained and selectable on Phone and Desktop', as
   }
 });
 
+test('Voucher recipient recovery is explicit and accessible on Phone and Desktop', async ({ page }, testInfo) => {
+  await page.route('**/calendar/vouchers/recipient', async (route) => route.fulfill({
+    status:200,
+    contentType:'application/json',
+    body:JSON.stringify({ status:'recipient_changed', voucherCode:'SV-A2F8CBC24FCA', linkStatus:'waiting' }),
+  }));
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=shiloh-gift-vouchers--workspace-balances&viewMode=story', { waitUntil:'networkidle' });
+    await page.addScriptTag({ url:'/workspace/gift-vouchers.js' });
+    await page.getByRole('button', { name:'Change recipient' }).nth(1).click();
+    const form = page.locator('[data-recipient-form]');
+    await expect(form).toBeVisible();
+    await expect(page.getByLabel('Voucher code', { exact:true })).toHaveValue('SV-A2F8CBC24FCA');
+    await expect(page.getByLabel('Recipient’s name and surname').last()).toHaveValue('Chenique Botha');
+    await expect(page.getByLabel('Recipient’s mobile number').last()).toHaveValue('0837654321');
+    await page.getByLabel('Recipient’s name and surname').last().fill('Evelyn Example');
+    await page.getByLabel('Recipient’s mobile number').last().fill('082 123 4567');
+    await page.getByLabel('I confirm that I want to change who this voucher is linked to.').check();
+    const accessibility = await new AxeBuilder({ page }).include('.recipient-card').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact))).toEqual([]);
+    const metrics = await page.evaluate(() => ({ viewport:innerWidth, document:document.documentElement.scrollWidth }));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
+    await page.screenshot({ path:testInfo.outputPath(`voucher-recipient-recovery-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+    const requestPromise = page.waitForRequest((request) => request.url().includes('/calendar/vouchers/recipient') && request.method() === 'POST');
+    await page.getByRole('button', { name:'Update recipient' }).click();
+    const request = await requestPromise;
+    expect(request.postDataJSON()).toEqual({
+      voucherCode:'SV-A2F8CBC24FCA',
+      recipientName:'Evelyn Example',
+      recipientMobile:'082 123 4567',
+      confirmed:true,
+    });
+  }
+});
+
 test('Gift voucher recipient identity and linked voucher are clear on Phone and Desktop', async ({ page }, testInfo) => {
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
     await page.setViewportSize({ width:viewport.width, height:viewport.height });
