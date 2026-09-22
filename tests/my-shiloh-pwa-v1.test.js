@@ -51,6 +51,19 @@ test('My Shiloh renders the approved four-tab PWA shell with public-safe service
   assert.doesNotMatch(html, /ADMIN_API_KEY|x-admin-key/i);
 });
 
+test('authenticated My Shiloh Home exposes tappable summary cards without duplicating authority', () => {
+  const html = renderMyShilohPage({
+    whatsappNumber: '27830000000',
+    catalogue: [],
+    client: { id: '912', name: 'Test Client', firstName: 'Test' },
+  });
+  assert.match(html, /data-client-experience-fact[^>]*data-fact-key="appointment"/);
+  assert.match(html, /data-client-experience-fact[^>]*data-fact-key="forms"/);
+  assert.match(html, /data-client-experience-fact[^>]*data-fact-key="payment"/);
+  assert.match(html, /data-client-experience-fact-status/);
+  assert.doesNotMatch(html, /onclick=/i);
+});
+
 test('My Shiloh uses WhatsApp only as an explicit client handoff in the guest shell', () => {
   const url = whatsappUrl('+27 83 000 0000', 'Hello Shiloh');
   assert.equal(url, 'https://wa.me/27830000000?text=Hello%20Shiloh');
