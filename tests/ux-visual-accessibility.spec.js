@@ -100,25 +100,46 @@ test('Voucher recipient recovery is explicit and accessible on Phone and Desktop
   }
 });
 
-test('Gift voucher recipient identity and linked voucher are clear on Phone and Desktop', async ({ page }, testInfo) => {
+test('My Shiloh voucher wallet is clear and accessible on Phone and Desktop', async ({ page }, testInfo) => {
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
     await page.setViewportSize({ width:viewport.width, height:viewport.height });
     await page.goto('/iframe.html?id=shiloh-gift-vouchers--recipient-linked&viewMode=story', { waitUntil:'networkidle' });
     await page.addScriptTag({ url:'/my-shiloh/assets/gift-vouchers.js' });
-    await expect(page.getByRole('heading', { name:'Vouchers for you' })).toBeVisible();
-    await expect(page.getByText('SV-EVELYN123456')).toBeVisible();
-    await expect(page.getByText('From Tinkie · active')).toBeVisible();
+
+    await expect(page.getByRole('heading', { name:'Your voucher wallet' })).toBeVisible();
+    await expect(page.getByText('Total available')).toBeVisible();
+    await expect(page.getByText(/R\s*690[,.]00/).first()).toBeVisible();
+    await expect(page.getByText('SV-A1B2C3D4E5F6')).toBeVisible();
+    await expect(page.getByText('22 November 2026')).toBeVisible();
+    await expect(page.getByText('From Tinkie')).toBeVisible();
+    await expect(page.getByText('Ready to use')).toBeVisible();
+    await expect(page.getByText('Used')).toBeVisible();
+    await expect(page.getByRole('link', { name:'Show voucher at reception' })).toHaveAttribute('href', '/gift-vouchers/storybook-recipient-key');
+    await expect(page.getByRole('link', { name:'Book a treatment' })).toHaveAttribute('href', '/book');
+
     const mobile = page.getByLabel('Recipient’s mobile number');
-    await expect(mobile).toBeVisible();
     await expect(mobile).toHaveAttribute('placeholder', '082 123 4567');
     await expect(mobile).toHaveAttribute('aria-describedby', 'recipientMobileHelp');
-    await expect(page.getByText('This number links the voucher to the recipient’s My Shiloh profile. Use 082…; +27 is converted automatically.')).toBeVisible();
-    const metrics = await page.evaluate(() => ({ viewport:innerWidth, document:document.documentElement.scrollWidth }));
+
+    const metrics = await page.evaluate(() => ({
+      viewport:innerWidth,
+      document:document.documentElement.scrollWidth,
+      short:[...document.querySelectorAll('.wallet a,.purchase-card button,.purchase-card input,.purchase-card select')].filter((node) => node.getClientRects().length && node.getBoundingClientRect().height < 44).length,
+    }));
     expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
+    expect(metrics.short).toBe(0);
     const accessibility = await new AxeBuilder({ page }).include('.voucher-shell').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact))).toEqual([]);
-    await page.screenshot({ path:testInfo.outputPath(`gift-voucher-recipient-linked-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-voucher-wallet-${viewport.name}.png`), fullPage:true, animations:'disabled' });
   }
+});
+
+test('My Shiloh home points clients to their voucher wallet', async ({ page }) => {
+  await page.setViewportSize({ width:390, height:844 });
+  await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-home&viewMode=story', { waitUntil:'networkidle' });
+  await expect(page.getByText('Voucher wallet')).toBeVisible();
+  await expect(page.getByRole('heading', { name:'Your vouchers, ready when you are.' })).toBeVisible();
+  await expect(page.getByRole('link', { name:'Open your Shiloh voucher wallet' })).toHaveAttribute('href', '/my-shiloh/gift-vouchers');
 });
 
 test('WhatsApp client menu leads with the My Shiloh R100 welcome voucher on Phone and Desktop', async ({ page }, testInfo) => {
