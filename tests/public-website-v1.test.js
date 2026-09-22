@@ -148,6 +148,7 @@ test('home includes a resilient, accessible Google review carousel without expos
   assert.match(html, /A calm and caring visit/);
   assert.match(html, /data-reviews-previous aria-label="Previous review"/);
   assert.match(html, /data-reviews-next aria-label="Next review"/);
+  assert.match(html, /data-reviews-rail tabindex="0" aria-label="Google client reviews"/);
   assert.match(html, /fetch\('\/reviews\/google'/);
   assert.match(html, /prefers-reduced-motion/);
   assert.match(html, /translate="no">Google Maps<\/span> · Reviews are shown in Google Maps relevance order/);

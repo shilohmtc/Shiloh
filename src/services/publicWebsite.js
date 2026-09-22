@@ -164,6 +164,7 @@ function buildGoogleReviewsMarkup(preview = null) {
 
 function googleReviewsSection(preview = null) {
   return buildGoogleReviewsMarkup(preview)
+    .replace('data-reviews-rail aria-label=', 'data-reviews-rail tabindex="0" aria-label=')
     .replace(
       'Reviews supplied by Google and shown with reviewer attribution.',
       '<span class="google-maps-attribution" translate="no">Google Maps</span> · Reviews are shown in Google Maps relevance order.',
