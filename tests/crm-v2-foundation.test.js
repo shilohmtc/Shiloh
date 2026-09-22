@@ -6,6 +6,7 @@ const path = require('node:path');
 const {
   CrmV2Error,
   normalizeMobile,
+  localMobile,
   normalizeName,
   createCrmV2ClientService,
 } = require('../src/services/crmV2ClientService');
@@ -162,6 +163,14 @@ test('South African mobile formatting normalizes deterministically', () => {
   assert.equal(normalizeMobile('0027 82 123 4567'), '27821234567');
   assert.equal(normalizeMobile('012 123 4567'), null);
   assert.equal(normalizeMobile('082123456'), null);
+});
+
+test('South African mobile display/storage projection uses the local 0-format', () => {
+  assert.equal(localMobile('082 123 4567'), '0821234567');
+  assert.equal(localMobile('+27 (82) 123-4567'), '0821234567');
+  assert.equal(localMobile('27821234567'), '0821234567');
+  assert.equal(localMobile('0027 82 123 4567'), '0821234567');
+  assert.equal(localMobile('012 123 4567'), null);
 });
 
 test('practical Unicode names are accepted while markup is rejected', () => {

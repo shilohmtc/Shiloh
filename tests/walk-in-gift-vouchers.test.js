@@ -60,11 +60,39 @@ test('walk-in voucher migration extends the canonical ledger for preprinted stoc
   assert.doesNotMatch(sql, /UPDATE appointments|INSERT INTO appointments/);
 });
 
+test('voucher mobile migration converts historical delivery numbers to local 0-format only', () => {
+  const sql = fs.readFileSync(path.join(root, 'migrations', '147_gift_voucher_local_mobile_format.sql'), 'utf8');
+  assert.match(sql, /delivery_mobile = '0' \|\| SUBSTRING\(delivery_mobile FROM 3\)/);
+  assert.match(sql, /\^27\[678\]/);
+  assert.match(sql, /canonical CRM\/WhatsApp identity remains authoritative/i);
+  assert.doesNotMatch(sql, /UPDATE crm_v2_clients|UPDATE client_contacts/);
+});
+
 test('walk-in payment method is bounded to Shiloh in-person evidence types', () => {
   assert.equal(walkInPaymentMethod('cash'), 'cash');
   assert.equal(walkInPaymentMethod('card_machine'), 'card_machine');
   assert.equal(walkInPaymentMethod('manual_eft'), 'manual_eft');
   assert.throws(() => walkInPaymentMethod('ozow'), /Choose cash, card machine or EFT/);
+});
+
+test('walk-in voucher stores recipient mobile in local 0-format before later identity linking', async () => {
+  const fake = walkInDatabase();
+  const service = createGiftVoucherService({ db: fake.db, randomBytes: () => Buffer.alloc(24, 8) });
+  await service.createWalkInVoucher({
+    adminId: 14,
+    purchaserName: 'Tinkie',
+    recipientName: 'Evelyn',
+    fromName: 'Tinkie',
+    language: 'en',
+    amount: '900',
+    paymentMethod: 'cash',
+    deliveryMobile: '+27 82 123 4567',
+    paymentConfirmed: true,
+    operationId: 'walkin-local-mobile-001',
+  });
+  const insert = fake.calls.find((call) => call.sql.includes('INSERT INTO gift_voucher_orders'));
+  assert.ok(insert);
+  assert.equal(insert.params[6], '0821234567');
 });
 
 test('authorised walk-in issuance writes payment, value and audit evidence atomically', async () => {
