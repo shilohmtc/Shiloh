@@ -112,8 +112,6 @@ export const BrowserInstallDoorway = {
     const frame = surface.querySelector('[data-app-frame]');
     if (gate) gate.hidden = false;
     if (frame) frame.hidden = true;
-    const instructions = surface.querySelector('[data-install-gate-instructions]');
-    if (instructions) instructions.textContent = 'On iPhone: tap Share, choose Add to Home Screen, then tap Add.';
     const action = surface.querySelector('[data-install-gate-action]');
     if (action) action.textContent = 'Show install steps';
     return surface;
@@ -143,8 +141,6 @@ export const AuthenticatedBrowserInstallDoorway = {
     const frame = surface.querySelector('[data-app-frame]');
     if (gate) gate.hidden = false;
     if (frame) frame.hidden = true;
-    const instructions = surface.querySelector('[data-install-gate-instructions]');
-    if (instructions) instructions.textContent = 'On iPhone: tap Share, choose Add to Home Screen, then tap Add.';
     const action = surface.querySelector('[data-install-gate-action]');
     if (action) action.textContent = 'Show install steps';
     return surface;
