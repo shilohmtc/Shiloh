@@ -1,8 +1,8 @@
 'use strict';
 
-const ASSET_VERSION = '20260922-client-install-gate-v3';
-const SHELL_CACHE = 'my-shiloh-shell-v15';
-const STATIC_CACHE = 'my-shiloh-static-v15';
+const ASSET_VERSION = '20260922-first-launch-whatsapp-v1';
+const SHELL_CACHE = 'my-shiloh-shell-v16';
+const STATIC_CACHE = 'my-shiloh-static-v16';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',
