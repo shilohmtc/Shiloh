@@ -156,7 +156,9 @@ test('returning from WhatsApp auto-completes in the original context with a usab
   assert.match(client, /Checking your WhatsApp verification/);
   assert.match(client, /open automatically/);
   assert.match(client, /updateViaCache: 'none'/);
-  assert.doesNotMatch(client, /localStorage|sessionStorage/);
+  assert.match(client, /INSTALL_VERIFIED_KEY = 'my-shiloh-install-whatsapp-verified-v1'/);
+  assert.match(client, /localStorage\.setItem\(INSTALL_VERIFIED_KEY, '1'\)/);
+  assert.doesNotMatch(client, /sessionStorage|indexedDB/);
   assert.match(styles, /\.auth-code-form\.is-waiting/);
   assert.match(styles, /\.assistant-chat__messages\{display:grid;gap:10px;padding:4px 2px 10px\}/);
   assert.doesNotMatch(styles, /\.assistant-chat__messages\{[^}]*overflow-y:auto/);
@@ -172,16 +174,38 @@ test('every normal browser is an installation doorway while standalone mode keep
   assert.match(presentation, /data-install-gate/);
   assert.match(presentation, /Add My Shiloh to your Home Screen to continue/);
   assert.match(presentation, /Already installed\? Open My Shiloh from your Home Screen/);
+  assert.match(presentation, /data-install-verification-gate/);
+  assert.match(presentation, /Confirm it’s you to finish setting up My Shiloh/);
+  assert.match(presentation, /data-client-auth-start>Verify with WhatsApp<\/button>/);
+  assert.match(presentation, /data-app-frame[^>]*hidden/);
   assert.match(client, /function browserNeedsInstall\(\)/);
   assert.match(client, /return !standalone\(\)/);
-  assert.doesNotMatch(client, /dataset\.clientAuthenticated !== 'true' && !standalone\(\)/);
-  assert.match(client, /appFrame\.hidden = gated/);
+  assert.match(client, /function installationVerificationRequired\(\)/);
+  assert.match(client, /INSTALL_VERIFIED_KEY = 'my-shiloh-install-whatsapp-verified-v1'/);
+  assert.match(client, /appFrame\.hidden = browserGated \|\| verificationGated/);
   assert.doesNotMatch(presentation, /data-install-gate-instructions/);
   assert.doesNotMatch(client, /On iPhone: tap Share, choose Add to Home Screen, then tap Add/);
   assert.match(presentation, /data-install-gate-action>Install My Shiloh<\/button>/);
   assert.match(client, /deferredInstallPrompt && isAndroid\(\)/);
-  assert.match(client, /if \(!standalone\(\) \|\| appFrame\?\.dataset\.clientAuthenticated !== 'true' \|\| clientRefreshInFlight\) return/);
-  assert.match(client, /function welcomeBackFromWhatsApp\(\) \{[\s\S]*if \(!standalone\(\) \|\| appFrame\?\.dataset\.clientAuthenticated === 'true'\) return/);
-  assert.doesNotMatch(client, /document\.cookie|localStorage|sessionStorage/);
+  assert.match(client, /appinstalled[\s\S]*resetInstallationVerification\(\)/);
+  assert.match(client, /if \(!standalone\(\) \|\| installationVerificationRequired\(\) \|\| appFrame\?\.dataset\.clientAuthenticated !== 'true'/);
+  assert.match(client, /function welcomeBackFromWhatsApp\(\) \{[\s\S]*installationVerificationRequired\(\)/);
+  assert.doesNotMatch(client, /document\.cookie|sessionStorage|indexedDB/);
   assert.match(styles, /\.install-gate\{/);
+});
+
+
+test('first installed-app launch uses only a non-sensitive convenience marker and WhatsApp remains authority', () => {
+  const client = read('public/my-shiloh/assets/app.js');
+  const presentation = read('src/presentation/myShilohPwa.js');
+
+  assert.match(client, /INSTALL_VERIFIED_KEY = 'my-shiloh-install-whatsapp-verified-v1'/);
+  const writes = [...client.matchAll(/localStorage\.setItem\(([^,]+),\s*([^\)]+)\)/g)]
+    .map((match) => [match[1].trim(), match[2].trim()]);
+  assert.deepEqual(writes, [["INSTALL_VERIFIED_KEY", "'1'"]]);
+  assert.match(client, /markInstallationVerified\(\)[\s\S]*window\.location\.replace\('\/my-shiloh\/'\)/);
+  assert.match(client, /resetInstallationVerification\(\)/);
+  assert.doesNotMatch(client, /localStorage\.setItem\([^\n]*(?:token|client|mobile|name|voucher|csrf|session)/i);
+  assert.doesNotMatch(client, /sessionStorage|indexedDB|document\.cookie/i);
+  assert.match(presentation, /Verify with WhatsApp once on this installation/);
 });
