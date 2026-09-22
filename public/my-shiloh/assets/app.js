@@ -46,8 +46,12 @@
   let clientProfileRevision = null;
   let clientRefreshInFlight = false;
 
+  function appLaunchRequested() {
+    return new URLSearchParams(window.location.search).get('launch') === 'app';
+  }
+
   function completionCodeFromHash() {
-    if (!standalone()) return null;
+    if (!standalone() || !appLaunchRequested()) return null;
     const match = String(window.location.hash || '').match(/^#verify=(\d{6})$/);
     if (!match) return null;
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
@@ -99,6 +103,18 @@
 
   function configureInstallGate() {
     const installedLaunch = standalone();
+
+    if (installedLaunch && !appLaunchRequested()) {
+      document.body.dataset.myShilohLaunch = 'redirecting';
+      if (installGate) installGate.hidden = true;
+      if (appFrame) appFrame.hidden = true;
+      const target = new URL('/my-shiloh/', window.location.origin);
+      target.searchParams.set('launch', 'app');
+      target.hash = window.location.hash;
+      window.location.replace(`${target.pathname}${target.search}${target.hash}`);
+      return false;
+    }
+
     document.body.dataset.myShilohLaunch = installedLaunch ? 'app' : 'install';
 
     if (installGate) installGate.hidden = installedLaunch;
