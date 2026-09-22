@@ -636,14 +636,14 @@ test('Workspace navigation drawer remains contained and branded on Phone and Des
         account: rect('[data-workspace-account-footer]'),
         closeDisplay: getComputedStyle(document.querySelector('[data-workspace-drawer-close]')).display,
         linksOverflowY: links ? getComputedStyle(links).overflowY : '',
-        logoBackground: logo ? getComputedStyle(logo).backgroundImage : '',
+        logoSource: logo?.getAttribute('src') || '',
         shortTargets: [...document.querySelectorAll('.workspace-nav a,.workspace-nav button')]
           .filter((node) => node.getClientRects().length > 0 && node.getBoundingClientRect().height < 44)
           .map((node) => node.textContent.trim() || node.getAttribute('aria-label')),
       };
     });
     expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
-    expect(metrics.logoBackground).toContain('/calendar/pwa/icon-192.png');
+    expect(metrics.logoSource).toBe('/assets/pwa/shiloh-pwa-192.png?v=official-brand-v3');
     if (viewport.name === 'phone') {
       expect(metrics.shortTargets).toEqual([]);
       const expectedDrawerWidth = Math.min(viewport.width * 0.6, 220);
