@@ -274,6 +274,11 @@ function createMyShilohRouter({
           requestId: req.id,
         });
       }
+      try {
+        await voucherService.syncRecipientLinks({ crmV2ClientId: result.client.id });
+      } catch (_) {
+        // Authentication remains authoritative; the voucher page retries recipient linking.
+      }
       return sendAuthenticatedClient(res, result);
     } catch (error) {
       return next(error);
@@ -289,7 +294,14 @@ function createMyShilohRouter({
         browserToken,
         requestFingerprintHash: requestFingerprintHash(req),
       });
-      if (result.ok) return sendAuthenticatedClient(res, result);
+      if (result.ok) {
+        try {
+          await voucherService.syncRecipientLinks({ crmV2ClientId: result.client.id });
+        } catch (_) {
+          // Authentication remains authoritative; the voucher page retries recipient linking.
+        }
+        return sendAuthenticatedClient(res, result);
+      }
       if (result.code === 'CLIENT_AUTH_NOT_VERIFIED') {
         return res.status(202).json({ status: 'waiting_for_whatsapp' });
       }
