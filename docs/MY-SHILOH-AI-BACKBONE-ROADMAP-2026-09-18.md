@@ -166,10 +166,19 @@ Three bounded actions are live:
 
 Consequential mutations continue to require explicit authenticated confirmation and canonical domain guards. AI may propose; domain authority decides and executes.
 
-### Phase 5 — WhatsApp ↔ My Shiloh Deep Linking and Adoption — NEXT
+### Phase 5 — WhatsApp ↔ My Shiloh Deep Linking and Adoption — ACTIVE DECISION 2026-09-22
 
+My Shiloh client access is now **install-first** on supported phones:
 
-Do not force app installation.
+- a normal browser visit to `/my-shiloh/` is the installation doorway;
+- the browser page does not start client sign-in or load private client experience data;
+- the full My Shiloh sign-in and client shell is revealed only when launched in standalone/Home Screen app mode;
+- iPhone guidance uses **Share → Add to Home Screen → Add**, with **Open as Web App** kept on when iOS shows that option;
+- Android uses the browser-owned install prompt when available, with **Install app / Add to Home screen** as the manual fallback;
+- already-installed clients who reopen the browser are told to open My Shiloh from the Home Screen or apps list;
+- installation does **not** revoke or deliberately expire secure client cookies; existing authentication/session authority remains unchanged.
+
+This install-first boundary applies to the My Shiloh client shell. It must **not** break or gate provider callbacks, Ozow payment returns, public booking, consultation-form delivery links, webhooks, Workspace, or other established browser/system routes.
 
 Use WhatsApp contextually:
 
@@ -179,11 +188,9 @@ Use WhatsApp contextually:
 - **Pay securely**
 - **Manage appointment**
 
-Inside the active WhatsApp customer-service window, ordinary replies/deep links can guide clients naturally into My Shiloh.
+Inside the active WhatsApp customer-service window, ordinary replies/deep links can guide clients naturally to the My Shiloh installation doorway.
 
 Outside that window, use approved transactional templates where the message is legitimately tied to an appointment/form/payment lifecycle. Do not create generic marketing pressure merely to drive installs.
-
-Prompt Home Screen installation only after the client has experienced value.
 
 ### Phase 6 — Proactive Shiloh
 
