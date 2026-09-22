@@ -28,6 +28,11 @@ function normalizeMobileSearch(value = '') {
   return digits;
 }
 
+function localMobile(value = '') {
+  const normalized = normalizeMobile(value);
+  return normalized ? `0${normalized.slice(2)}` : null;
+}
+
 function normalizeName(value = '') {
   const name = String(value || '').trim().replace(/\s+/g, ' ');
   if (name.length < 2 || name.length > 120) return null;
@@ -347,6 +352,7 @@ module.exports = {
   CrmV2Error,
   normalizeMobile,
   normalizeMobileSearch,
+  localMobile,
   normalizeName,
   normalizeDateOfBirth,
   normalizeGender,
