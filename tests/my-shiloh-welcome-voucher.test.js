@@ -42,7 +42,7 @@ test('website, My Shiloh and contextual WhatsApp invite clients into the same of
   assert.match(website, /href="\/my-shiloh\/#welcome-voucher"[^>]*>Claim my R100/);
   assert.match(guest, /Complete your registration\. Unlock R100\./);
   assert.match(guest, /data-client-auth-start>Claim my R100/);
-  assert.match(signedIn, /data-welcome-voucher/);
+  assert.match(signedIn, /data-welcome-voucher[^>]*hidden/);
   assert.match(transition.buildRegisteredClientPrompt(), /R100 welcome voucher/);
   assert.match(transition.buildRegisteredClientPrompt(), /my-shiloh\/#welcome-voucher/);
 });
