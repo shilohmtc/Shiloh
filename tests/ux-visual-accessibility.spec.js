@@ -106,7 +106,7 @@ test('My Shiloh voucher wallet is clear and accessible on Phone and Desktop', as
     await page.goto('/iframe.html?id=shiloh-gift-vouchers--recipient-linked&viewMode=story', { waitUntil:'networkidle' });
     await page.addScriptTag({ url:'/my-shiloh/assets/gift-vouchers.js' });
 
-    await expect(page.getByRole('heading', { name:'Your voucher wallet' })).toBeVisible();
+    await expect(page.getByRole('heading', { name:'Your voucher wallet', exact:true })).toBeVisible();
     await expect(page.getByText('Total available')).toBeVisible();
     await expect(page.getByText(/R\s*690[,.]00/).first()).toBeVisible();
     await expect(page.getByText('SV-A1B2C3D4E5F6')).toBeVisible();
@@ -137,9 +137,10 @@ test('My Shiloh voucher wallet is clear and accessible on Phone and Desktop', as
 test('My Shiloh home points clients to their voucher wallet', async ({ page }) => {
   await page.setViewportSize({ width:390, height:844 });
   await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-home&viewMode=story', { waitUntil:'networkidle' });
-  await expect(page.getByText('Voucher wallet')).toBeVisible();
-  await expect(page.getByRole('heading', { name:'Your vouchers, ready when you are.' })).toBeVisible();
-  await expect(page.getByRole('link', { name:'Open your Shiloh voucher wallet' })).toHaveAttribute('href', '/my-shiloh/gift-vouchers');
+  const home = page.locator('[data-view="home"]');
+  await expect(home.getByText('Voucher wallet', { exact:true })).toBeVisible();
+  await expect(home.getByRole('heading', { name:'Your vouchers, ready when you are.' })).toBeVisible();
+  await expect(home.getByRole('link', { name:'Open your Shiloh voucher wallet' })).toHaveAttribute('href', '/my-shiloh/gift-vouchers');
 });
 
 test('WhatsApp client menu leads with the My Shiloh R100 welcome voucher on Phone and Desktop', async ({ page }, testInfo) => {
