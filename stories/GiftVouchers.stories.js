@@ -12,8 +12,23 @@ export default { title: 'Shiloh/Gift vouchers' };
 
 export const ClientPurchase = {
   render: () => surface(renderClientVoucherPage({
-    model: { client:{name:'Christel'}, policy:{configured:true,mode:'fixed_months',months:12}, ozowConfigured:true, orders:[] },
+    model: { client:{name:'Christel'}, policy:{configured:true,mode:'fixed_months',months:12}, ozowConfigured:true, receivedVouchers:[], orders:[] },
     csrfToken: 'storybook',
+  })),
+};
+
+export const RecipientLinked = {
+  render: () => surface(renderClientVoucherPage({
+    model: {
+      client:{name:'Evelyn'},
+      policy:{configured:true,mode:'fixed_months',months:2},
+      ozowConfigured:true,
+      receivedVouchers:[
+        {voucher_code:'SV-EVELYN123456',balance:'900.00',voucher_state:'active',from_name:'Tinkie',voucherPath:'/gift-vouchers/storybook-recipient-key'},
+      ],
+      orders:[],
+    },
+    csrfToken:'storybook',
   })),
 };
 
