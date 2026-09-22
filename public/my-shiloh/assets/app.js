@@ -43,6 +43,8 @@
   let authStatusTimer = null;
   let shilohMessageInFlight = false;
   let whatsappHandoffStarted = false;
+  let whatsappFallbackTimer = null;
+  let whatsappExternalOpened = false;
   let clientProfileRevision = null;
   let clientRefreshInFlight = false;
 
@@ -479,6 +481,49 @@
       form.querySelectorAll('button,input').forEach((control) => { control.disabled = Boolean(disabled); });
     }
   }
+  function clearWhatsAppFallback() {
+    if (whatsappFallbackTimer) {
+      window.clearTimeout(whatsappFallbackTimer);
+      whatsappFallbackTimer = null;
+    }
+  }
+
+  function openWhatsAppDirect(appUrl, fallbackUrl) {
+    const direct = String(appUrl || '').trim();
+    const fallback = String(fallbackUrl || '').trim();
+    if (!direct) throw new Error('WhatsApp could not be opened.');
+
+    whatsappExternalOpened = false;
+    clearWhatsAppFallback();
+
+    const markExternalOpened = () => {
+      whatsappExternalOpened = true;
+      clearWhatsAppFallback();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') markExternalOpened();
+    };
+    document.addEventListener('visibilitychange', onVisibility, { once: true });
+    window.addEventListener('pagehide', markExternalOpened, { once: true });
+
+    if (fallback && fallback !== direct) {
+      whatsappFallbackTimer = window.setTimeout(() => {
+        if (!whatsappExternalOpened && document.visibilityState !== 'hidden') {
+          window.location.href = fallback;
+        }
+      }, 1800);
+    }
+
+    const link = document.createElement('a');
+    link.href = direct;
+    link.rel = 'noopener noreferrer';
+    link.hidden = true;
+    link.dataset.whatsappDirect = 'true';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
 
   function scheduleAuthStatusCheck(delay = 1500) {
     window.clearTimeout(authStatusTimer);
@@ -533,6 +578,7 @@
   }
 
   function welcomeBackFromWhatsApp() {
+    clearWhatsAppFallback();
     if (!standalone()
       || (appFrame?.dataset.clientAuthenticated === 'true' && !installationVerificationRequired())) return;
     if (whatsappHandoffStarted) {
@@ -956,14 +1002,16 @@
     try {
       const response = await postJson('/my-shiloh/auth/start');
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.whatsappUrl) throw new Error(data.error || 'Secure sign-in is unavailable.');
+      const whatsappAppUrl = data.whatsappAppUrl || data.whatsappUrl;
+      const whatsappFallbackUrl = data.whatsappFallbackUrl || data.whatsappUrl;
+      if (!response.ok || !whatsappAppUrl) throw new Error(data.error || 'Secure sign-in is unavailable.');
       whatsappHandoffStarted = true;
       authActionInFlight = false;
       setAuthCodeControlsDisabled(false);
       for (const form of authCodeForms) form.classList.add('is-waiting');
       setAuthStatus('WhatsApp is opening. Verify there, then return here — My Shiloh will open automatically.', 'waiting');
       window.setTimeout(welcomeBackFromWhatsApp, 1500);
-      window.location.href = data.whatsappUrl;
+      openWhatsAppDirect(whatsappAppUrl, whatsappFallbackUrl);
     } catch (error) {
       setAuthStatus(error.message || 'Secure sign-in is unavailable. Please try again.', 'error');
       setAuthControlsDisabled(false);
