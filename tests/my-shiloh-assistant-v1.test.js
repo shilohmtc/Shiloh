@@ -188,7 +188,9 @@ test('in-app chat uses text-only DOM rendering and no browser persistence', () =
   assert.match(presentation, /Prefer WhatsApp\?/);
   assert.match(app, /postJson\('\/my-shiloh\/api\/shiloh\/message'/);
   assert.match(app, /copy\.textContent = String\(message \|\| ''\)/);
-  assert.doesNotMatch(app, /localStorage|sessionStorage|indexedDB/i);
+  assert.match(app, /INSTALL_VERIFIED_KEY = 'my-shiloh-install-whatsapp-verified-v1'/);
+  assert.doesNotMatch(app, /sessionStorage|indexedDB/i);
+  assert.doesNotMatch(app, /localStorage\.setItem\([^\n]*(?:message|reply|conversation|client|token|session|csrf)/i);
   assert.match(worker, /url\.pathname\.startsWith\('\/my-shiloh\/api\/'\)/);
   assert.doesNotMatch(worker, /cache\.put\([^\n]*my-shiloh\/api/);
 });

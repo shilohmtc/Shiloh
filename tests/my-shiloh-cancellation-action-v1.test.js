@@ -385,7 +385,9 @@ test('browser confirmation card uses text-only DOM and fresh CSRF for both choic
   assert.match(app, /heading\.textContent = String\(action\.title/);
   assert.match(app, /detail\.textContent =/);
   assert.doesNotMatch(app, /innerHTML[\s\S]*action\./);
-  assert.doesNotMatch(app, /localStorage|sessionStorage|indexedDB/i);
+  assert.match(app, /INSTALL_VERIFIED_KEY = 'my-shiloh-install-whatsapp-verified-v1'/);
+  assert.doesNotMatch(app, /sessionStorage|indexedDB/i);
+  assert.doesNotMatch(app, /localStorage\.setItem\([^\n]*(?:action|appointment|token|client|session|csrf)/i);
 });
 
 test('WhatsApp cancellation delegates to the same canonical owner after its existing phone authority check', () => {

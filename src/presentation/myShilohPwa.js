@@ -6,7 +6,7 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 
-const MY_SHILOH_ASSET_VERSION = '20260922-client-install-gate-v3';
+const MY_SHILOH_ASSET_VERSION = '20260922-first-launch-whatsapp-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -287,7 +287,19 @@ function renderMyShilohPage({
     </section>
   </main>
 
-  <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}">
+  <main class="install-gate" data-install-verification-gate hidden aria-labelledby="install-verification-title">
+    <section class="install-gate__card">
+      <span class="brand-mark brand-mark--large install-gate__logo" aria-hidden="true"><img src="/my-shiloh/assets/icon-192.png" alt=""></span>
+      <p class="eyebrow">One quick check</p>
+      <h1 id="install-verification-title">Confirm it’s you to finish setting up My Shiloh.</h1>
+      <p class="install-gate__copy">Verify with WhatsApp once on this installation. After that, just open My Shiloh normally.</p>
+      <button class="button button--primary button--wide" type="button" data-client-auth-start>Verify with WhatsApp</button>
+      <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
+      ${authFinishForm('my-shiloh-install-code')}
+    </section>
+  </main>
+
+  <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}" hidden>
     <header class="topbar">
       <a class="brand" href="#home" aria-label="My Shiloh home">
         <span class="brand-mark brand-mark--header" aria-hidden="true"><img src="/my-shiloh/assets/icon-192.png" alt=""></span>

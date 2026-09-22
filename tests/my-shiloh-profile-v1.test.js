@@ -149,7 +149,9 @@ test('profile UI edits only approved fields and never persists private profile d
   assert.match(styles, /\.profile-field\{[^}]*min-width:0/);
   assert.match(styles, /\.profile-field input,[^{]+\{[^}]*max-width:100%[^}]*min-width:0/);
   assert.match(styles, /input\[type="date"\][^{]*\{[^}]*-webkit-appearance:none[^}]*max-inline-size:100%[^}]*min-inline-size:0/);
-  assert.doesNotMatch(app, /localStorage|sessionStorage|indexedDB/i);
+  assert.match(app, /INSTALL_VERIFIED_KEY = 'my-shiloh-install-whatsapp-verified-v1'/);
+  assert.doesNotMatch(app, /sessionStorage|indexedDB/i);
+  assert.doesNotMatch(app, /localStorage\.setItem\([^\n]*(?:name|mobile|dateOfBirth|gender|profile|client|token|session|csrf)/i);
   assert.match(worker, /url\.pathname\.startsWith\('\/my-shiloh\/api\/'\)/);
 });
 

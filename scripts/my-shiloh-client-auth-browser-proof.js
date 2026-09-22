@@ -260,22 +260,57 @@ async function runViewport(browser, name, viewport) {
       get: () => true,
     });
   });
+  await context.addCookies([{
+    name: 'shiloh_client_session',
+    value: SESSION_TOKEN,
+    url: baseUrl,
+    httpOnly: true,
+    sameSite: 'Strict',
+  }]);
   const page = await context.newPage();
   await page.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
   if (!(await page.locator('[data-install-gate]').isHidden())) {
     throw new Error('standalone My Shiloh must not show the browser installation doorway');
   }
-  await page.getByRole('button', { name: 'Continue with WhatsApp' }).click();
+  if (!(await page.locator('[data-install-verification-gate]').isVisible())) {
+    throw new Error('a newly installed My Shiloh copy must require one WhatsApp verification even with an inherited session');
+  }
+  if (!(await page.locator('[data-app-frame]').isHidden())) {
+    throw new Error('private My Shiloh content must stay hidden until first-launch verification completes');
+  }
+  if (await page.getByText('Good evening, Christel.').isVisible()) {
+    throw new Error('inherited browser session exposed private My Shiloh content before first-launch verification');
+  }
+  const initialMarker = await page.evaluate(() => localStorage.getItem('my-shiloh-install-whatsapp-verified-v1'));
+  if (initialMarker !== null) throw new Error('new installed copy unexpectedly began as already verified');
+  await page.screenshot({ path: path.join(out, `${name}-first-launch-verification.png`), fullPage: true });
+
+  await page.getByRole('button', { name: 'Verify with WhatsApp' }).click();
   await page.waitForURL('**/fake-whatsapp');
   await page.goBack({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => document.body.textContent.includes('Checking your WhatsApp verification'));
   await page.screenshot({ path: path.join(out, `${name}-auth-return.png`), fullPage: true });
   verified = true;
-  await page.waitForFunction(() => document.body.textContent.includes('Christel'));
+  await page.waitForFunction(() => localStorage.getItem('my-shiloh-install-whatsapp-verified-v1') === '1');
+  await page.waitForFunction(() => {
+    const frame = document.querySelector('[data-app-frame]');
+    return frame && frame.hidden === false;
+  });
   await page.waitForLoadState('networkidle');
   if (!voucherSyncCalls.includes(912)) throw new Error('verified My Shiloh sign-in did not trigger recipient voucher linking');
   const heading = await page.locator('#home-title').textContent();
   if (!/Christel/.test(heading || '')) throw new Error('authenticated greeting missing');
+  if (!(await page.locator('[data-install-verification-gate]').isHidden())) {
+    throw new Error('first-launch verification gate remained visible after successful WhatsApp verification');
+  }
+
+  await page.reload({ waitUntil: 'networkidle' });
+  if (!(await page.locator('[data-app-frame]').isVisible())) {
+    throw new Error('verified installed My Shiloh did not remain signed in on the next launch');
+  }
+  if (!(await page.locator('[data-install-verification-gate]').isHidden())) {
+    throw new Error('verified installed My Shiloh asked for WhatsApp again on a normal subsequent launch');
+  }
 
   const authenticatedCookies = await context.cookies(baseUrl);
   const authenticatedBrowserContext = await browser.newContext({ viewport });
@@ -375,11 +410,15 @@ async function runViewport(browser, name, viewport) {
   }
 
   const browserStorage = await page.evaluate(() => ({
-    local: localStorage.length,
+    localKeys: Object.keys(localStorage),
+    installVerified: localStorage.getItem('my-shiloh-install-whatsapp-verified-v1'),
     session: sessionStorage.length,
   }));
-  if (browserStorage.local !== 0 || browserStorage.session !== 0) {
-    throw new Error('in-app Shiloh conversation persisted to browser storage');
+  if (browserStorage.session !== 0
+      || browserStorage.installVerified !== '1'
+      || browserStorage.localKeys.length !== 1
+      || browserStorage.localKeys[0] !== 'my-shiloh-install-whatsapp-verified-v1') {
+    throw new Error(`My Shiloh browser storage contained more than the non-sensitive install verification marker: ${JSON.stringify(browserStorage)}`);
   }
   if (!assistantCalls.some((call) => call.sessionId === 55 && call.crmV2ClientId === 912)) {
     throw new Error('in-app Shiloh did not use server-owned identity');
