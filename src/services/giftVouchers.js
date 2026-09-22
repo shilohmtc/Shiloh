@@ -7,6 +7,7 @@ const { resolveCalendarAuthority, hasCapability } = require('./calendarAuthoriza
 const { PAYMENT_TEMPLATE_KEYS, formatRand, normalizeWhatsAppMobile, securePaymentUrl, secureVoucherUrl, withActionLink, sendPaymentTemplate } = require('./paymentWhatsAppNotifications');
 const { formatVoucherDate, voucherExpiryTimestamp } = require('../lib/voucherDate');
 const { sendWhatsAppTemplate } = require('./whatsapp');
+const { localMobile } = require('./crmV2ClientService');
 
 const CAPABILITIES = Object.freeze({ VIEW: 'voucher:view', ISSUE: 'voucher:issue', REDEEM: 'voucher:redeem', MANAGE: 'voucher:manage' });
 const WALK_IN_PAYMENT_METHODS = Object.freeze(['cash', 'card_machine', 'manual_eft']);
@@ -94,8 +95,9 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
       if (!validity.configured) throw new GiftVoucherError('VOUCHER_POLICY_REQUIRED', 'Shiloh needs to choose the voucher validity policy before purchases can open.', 409);
       if (!ozow.configured()) throw new GiftVoucherError('VOUCHER_PAYMENT_UNAVAILABLE', 'Secure voucher payment is temporarily unavailable.', 503);
       const buyerMobile = normalizeWhatsAppMobile(buyer.normalized_mobile);
-      const targetMobile = delivery === 'purchaser' ? buyerMobile : normalizeWhatsAppMobile(deliveryMobile);
-      if (!targetMobile) throw new GiftVoucherError('VOUCHER_INVALID_MOBILE', 'Enter a valid South African WhatsApp number for delivery.');
+      const buyerLocalMobile = localMobile(buyer.normalized_mobile);
+      const targetMobile = delivery === 'purchaser' ? buyerLocalMobile : localMobile(deliveryMobile);
+      if (!targetMobile) throw new GiftVoucherError('VOUCHER_INVALID_MOBILE', 'Enter a valid South African mobile number for delivery.');
       order = (await client.query(
         `INSERT INTO gift_voucher_orders
            (purchaser_crm_v2_client_id,purchaser_name,recipient_name,from_name,personal_message,language,delivery_recipient,delivery_mobile,amount,validity_mode,validity_months)
@@ -195,8 +197,8 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     const reference = cleanText(paymentReference, 120, 'Payment reference', { optional: true });
     const stock = cleanText(stockReference, 80, 'Preprinted stock reference', { optional: true });
     const mobileText = String(deliveryMobile || '').trim();
-    const mobile = mobileText ? normalizeWhatsAppMobile(mobileText) : null;
-    if (mobileText && !mobile) throw new GiftVoucherError('VOUCHER_INVALID_MOBILE', 'Enter a valid South African WhatsApp number or leave it blank.');
+    const mobile = mobileText ? localMobile(mobileText) : null;
+    if (mobileText && !mobile) throw new GiftVoucherError('VOUCHER_INVALID_MOBILE', 'Enter a valid South African mobile number or leave it blank.');
     if (paymentConfirmed !== true) throw new GiftVoucherError('VOUCHER_PAYMENT_CONFIRMATION_REQUIRED', 'Confirm that the in-person payment was received before issuing the voucher.');
     const operation = cleanText(operationId, 100, 'Operation identifier');
     const operationKey = `walk-in:${operation}`;
