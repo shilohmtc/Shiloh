@@ -10,6 +10,7 @@ const sessionService = require('../src/services/clientBrowserSession');
 const sessionMiddleware = require('../src/middleware/clientBrowserSession');
 const whatsappMiddleware = require('../src/middleware/myShilohWhatsAppAuth');
 const { renderMyShilohPage } = require('../src/presentation/myShilohPwa');
+const { defaultAuthUrlBuilder, normalizeAuthHandoff } = require('../src/routes/myShiloh');
 
 test('client session cookies are separate from staff authority and hardened in production', () => {
   const env = { NODE_ENV: 'production' };
@@ -147,10 +148,15 @@ test('guest and authenticated My Shiloh renders are distinct without server-rend
 test('returning from WhatsApp auto-completes in the original context with a usable code fallback', () => {
   const client = read('public/my-shiloh/assets/app.js');
   const styles = read('public/my-shiloh/assets/app.css');
-  assert.match(client, /whatsappHandoffStarted = true;[\s\S]*window\.location\.href = data\.whatsappUrl/);
+  assert.match(client, /whatsappHandoffStarted = true;[\s\S]*openWhatsAppDirect\(whatsappAppUrl, whatsappFallbackUrl\)/);
   assert.match(client, /postJson\('\/my-shiloh\/auth\/status'\)/);
   assert.match(client, /data\.authenticated === true[\s\S]*window\.location\.replace\('\/my-shiloh\/'\)/);
-  assert.match(client, /window\.setTimeout\(welcomeBackFromWhatsApp, 1500\);[\s\S]*window\.location\.href = data\.whatsappUrl/);
+  assert.match(client, /window\.setTimeout\(welcomeBackFromWhatsApp, 1500\);[\s\S]*openWhatsAppDirect\(whatsappAppUrl, whatsappFallbackUrl\)/);
+  assert.match(client, /data\.whatsappAppUrl \|\| data\.whatsappUrl/);
+  assert.match(client, /data\.whatsappFallbackUrl \|\| data\.whatsappUrl/);
+  assert.match(client, /dataset\.whatsappDirect = 'true'/);
+  assert.match(client, /window\.setTimeout\([\s\S]*window\.location\.href = fallback[\s\S]*1800\)/);
+  assert.match(client, /pagehide[\s\S]*markExternalOpened/);
   assert.match(client, /visibilitychange/);
   assert.match(client, /addEventListener\('focus', welcomeBackFromWhatsApp\)/);
   assert.match(client, /authStatusCheckInFlight = false/);
@@ -209,4 +215,19 @@ test('first installed-app launch uses only a non-sensitive convenience marker an
   assert.doesNotMatch(client, /localStorage\.setItem\([^\n]*(?:token|client|mobile|name|voucher|csrf|session)/i);
   assert.doesNotMatch(client, /sessionStorage|indexedDB|document\.cookie/i);
   assert.match(presentation, /Verify with WhatsApp once on this installation/);
+});
+
+
+test('My Shiloh WhatsApp auth handoff prefers the installed app and keeps wa.me only as fallback', () => {
+  const token = 'A'.repeat(43);
+  const handoff = defaultAuthUrlBuilder('+27 83 000 0000', token);
+  assert.deepEqual(handoff, {
+    appUrl: `whatsapp://send?phone=27830000000&text=${encodeURIComponent(`MY SHILOH SIGN IN ${token}`)}`,
+    fallbackUrl: `https://wa.me/27830000000?text=${encodeURIComponent(`MY SHILOH SIGN IN ${token}`)}`,
+  });
+  assert.deepEqual(normalizeAuthHandoff('/fake-whatsapp'), {
+    appUrl: '/fake-whatsapp',
+    fallbackUrl: '/fake-whatsapp',
+  });
+  assert.equal(normalizeAuthHandoff(null), null);
 });

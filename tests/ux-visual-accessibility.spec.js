@@ -1219,3 +1219,52 @@ test('My Shiloh first installed launch asks for one WhatsApp verification on Pho
     });
   }
 });
+
+
+test('My Shiloh opens installed WhatsApp directly before web fallback', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window.navigator, 'standalone', {
+      configurable: true,
+      get: () => true,
+    });
+  });
+  await page.route('**/my-shiloh/auth/start', async (route) => route.fulfill({
+    status: 201,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      status: 'waiting_for_whatsapp',
+      whatsappUrl: 'whatsapp://send?phone=27830000000&text=MY%20SHILOH%20SIGN%20IN%20TEST',
+      whatsappAppUrl: 'whatsapp://send?phone=27830000000&text=MY%20SHILOH%20SIGN%20IN%20TEST',
+      whatsappFallbackUrl: 'https://wa.me/27830000000?text=MY%20SHILOH%20SIGN%20IN%20TEST',
+      expiresAt: '2026-09-22T22:00:00.000Z',
+    }),
+  }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/iframe.html?id=client-my-shiloh-pwa--first-launch-whats-app-verification&viewMode=story', { waitUntil: 'networkidle' });
+
+  await page.evaluate(() => {
+    window.__myShilohDirectWhatsApp = null;
+    window.__myShilohFallbackSeen = false;
+    document.addEventListener('click', (event) => {
+      const link = event.target.closest?.('[data-whatsapp-direct]');
+      if (!link) return;
+      event.preventDefault();
+      window.__myShilohDirectWhatsApp = link.getAttribute('href');
+      window.dispatchEvent(new PageTransitionEvent('pagehide'));
+    }, true);
+  });
+  await page.route('https://wa.me/**', async (route) => {
+    await page.evaluate(() => { window.__myShilohFallbackSeen = true; });
+    await route.abort();
+  });
+
+  await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
+  const gate = page.locator('[data-install-verification-gate]');
+  await expect(gate).toBeVisible();
+  await gate.getByRole('button', { name: 'Verify with WhatsApp' }).click();
+
+  await expect.poll(() => page.evaluate(() => window.__myShilohDirectWhatsApp)).toContain('whatsapp://send?phone=27830000000');
+  await page.waitForTimeout(2100);
+  expect(await page.evaluate(() => window.__myShilohFallbackSeen)).toBe(false);
+  await expect(gate).toBeVisible();
+});
