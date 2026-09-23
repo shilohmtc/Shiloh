@@ -29,6 +29,8 @@ test('voucher values use exact Rand precision and stable non-sequential codes', 
 
 test('client voucher page requires recipient identity while preserving delivery choice', () => {
   const html = renderClientVoucherPage({ model:{client:{name:'Christel'},policy:{configured:false,mode:null,months:null},ozowConfigured:true,receivedVouchers:[],orders:[]},csrfToken:'csrf-token' });
+  assert.match(html, /Your voucher wallet is ready/);
+  assert.match(html, /Buy a gift voucher/);
   assert.match(html, /Recipient’s name and surname/);
   assert.match(html, /Recipient’s mobile number/);
   assert.match(html, /links the voucher to the recipient’s My Shiloh profile/i);
@@ -39,20 +41,31 @@ test('client voucher page requires recipient identity while preserving delivery 
   assert.match(html, /type="submit" disabled/);
 });
 
-test('client voucher page separates vouchers linked to the recipient from vouchers they bought', () => {
+test('client voucher wallet shows owned balances, expiry, sender and reception action separately from purchases', () => {
   const html = renderClientVoucherPage({
     model:{
       client:{name:'Evelyn'},
       policy:{configured:true,mode:'fixed_months',months:2},
       ozowConfigured:true,
-      receivedVouchers:[{voucher_code:'SV-RECIPIENT123',balance:'900.00',voucher_state:'active',from_name:'Tinkie',voucherPath:'/gift-vouchers/recipient-key'}],
+      receivedVouchers:[
+        {voucher_code:'SV-A1B2C3D4E5F6',original_value:'1190.00',balance:'690.00',voucher_state:'active',issued_at:'2026-09-22T08:00:00.000Z',valid_until:'2026-11-22',from_name:'Tinkie',personal_message:'Enjoy your time at Shiloh.',voucherPath:'/gift-vouchers/recipient-key'},
+        {voucher_code:'SV-F6E5D4C3B2A1',original_value:'500.00',balance:'0.00',voucher_state:'redeemed',issued_at:'2026-08-10T08:00:00.000Z',valid_until:'2026-10-10',from_name:'Christa',personal_message:null,voucherPath:'/gift-vouchers/used-key'},
+      ],
       orders:[{recipient_name:'Naledi',amount:'500.00',state:'awaiting_payment',payment_state:'created'}],
     },
     csrfToken:'csrf-token',
   });
-  assert.match(html, /Vouchers for you/);
-  assert.match(html, /SV-RECIPIENT123/);
+  assert.match(html, /Your voucher wallet/);
+  assert.match(html, /Ready to use/);
+  assert.match(html, /Used/);
+  assert.match(html, /Total available/);
+  assert.match(html, /R(?:\u00a0|\s)*690/);
+  assert.match(html, /22 November 2026/);
+  assert.match(html, /SV-A1B2C3D4E5F6/);
   assert.match(html, /From Tinkie/);
+  assert.match(html, /Enjoy your time at Shiloh/);
+  assert.match(html, /Show voucher at reception/);
+  assert.match(html, /Book a treatment/);
   assert.match(html, /Vouchers you bought/);
   assert.match(html, /Naledi/);
 });

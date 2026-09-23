@@ -133,8 +133,8 @@ function renderMyShilohPage({
   const giftVoucher = authenticated
     ? `<section class="quiet-card">
         <div class="quiet-icon" aria-hidden="true">♥</div>
-        <div><p class="eyebrow">Gift vouchers</p><h2>Give someone a little Shiloh.</h2><p>Create a personal English or Afrikaans voucher and pay securely.</p></div>
-        <a class="circle-link" href="/my-shiloh/gift-vouchers" aria-label="Create a Shiloh gift voucher">→</a>
+        <div><p class="eyebrow">Voucher wallet</p><h2>Your vouchers, ready when you are.</h2><p>See vouchers linked to you, check the balance, or buy one for someone special.</p></div>
+        <a class="circle-link" href="/my-shiloh/gift-vouchers" aria-label="Open your Shiloh voucher wallet">→</a>
       </section>`
     : '';
 
@@ -237,7 +237,7 @@ function renderMyShilohPage({
       </section>
       <div class="profile-list" aria-label="Secure profile areas">
         <div><span>Consultation forms</span><strong>When required</strong></div>
-        <div><span>Gift vouchers</span><strong><a href="/my-shiloh/gift-vouchers">Create or view</a></strong></div>
+        <div><span>Voucher wallet</span><strong><a href="/my-shiloh/gift-vouchers">Open wallet</a></strong></div>
         <div><span>Shiloh Rewards</span><strong><a href="/my-shiloh/rewards">View balance</a></strong></div>
         <div><span>Receipts &amp; payments</span><strong>Private</strong></div>
       </div>
