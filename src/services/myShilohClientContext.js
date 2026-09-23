@@ -221,6 +221,11 @@ function createMyShilohClientContextService({
       `/* myShilohClientContext:payment-position */
        SELECT bpa.id,bpa.canonical_amount_due,bpa.currency,
               bdr.state AS deposit_state,bdr.required_amount AS deposit_required_amount,
+              dp.rate_basis_points AS deposit_rate_basis_points,
+              dp.free_notice_hours AS deposit_free_notice_hours,
+              dp.partial_notice_hours AS deposit_partial_notice_hours,
+              dp.partial_forfeit_basis_points AS deposit_partial_forfeit_basis_points,
+              dp.late_forfeit_basis_points AS deposit_late_forfeit_basis_points,
               COALESCE(SUM(ple.amount) FILTER (WHERE ple.entry_type='payment'),0) AS paid,
               COALESCE(SUM(ple.amount) FILTER (WHERE ple.entry_type='refund'),0) AS refunded,
               (SELECT COALESCE(SUM(bla.amount),0) FROM booking_loyalty_allocations bla WHERE bla.booking_payment_account_id=bpa.id AND bla.state='applied') AS rewards_applied,
@@ -232,9 +237,13 @@ function createMyShilohClientContextService({
            ON ple.payment_account_id=bpa.id
          LEFT JOIN booking_deposit_requirements bdr
            ON bdr.payment_account_id=bpa.id
+         LEFT JOIN clinic_booking_deposit_policy dp
+           ON dp.id=bdr.policy_id
         WHERE bpa.appointment_id=$1
            OR gm.appointment_id=$1
-        GROUP BY bpa.id,bpa.canonical_amount_due,bpa.currency,bdr.state,bdr.required_amount
+        GROUP BY bpa.id,bpa.canonical_amount_due,bpa.currency,bdr.state,bdr.required_amount,
+                 dp.rate_basis_points,dp.free_notice_hours,dp.partial_notice_hours,
+                 dp.partial_forfeit_basis_points,dp.late_forfeit_basis_points
         ORDER BY bpa.id DESC
         LIMIT 1`,
       [positiveId(appointment.id)],
@@ -283,6 +292,11 @@ function createMyShilohClientContextService({
       depositState: account.deposit_state ? String(account.deposit_state) : null,
       depositRequired: depositRequired == null ? null : depositRequired.toFixed(2),
       depositOutstanding: depositOutstanding == null ? null : depositOutstanding.toFixed(2),
+      depositRatePercent: account.deposit_rate_basis_points == null ? null : Number(account.deposit_rate_basis_points) / 100,
+      depositFreeNoticeHours: account.deposit_free_notice_hours == null ? null : Number(account.deposit_free_notice_hours),
+      depositPartialNoticeHours: account.deposit_partial_notice_hours == null ? null : Number(account.deposit_partial_notice_hours),
+      depositPartialForfeitPercent: account.deposit_partial_forfeit_basis_points == null ? null : Number(account.deposit_partial_forfeit_basis_points) / 100,
+      depositLateForfeitPercent: account.deposit_late_forfeit_basis_points == null ? null : Number(account.deposit_late_forfeit_basis_points) / 100,
       activePaymentPurpose: String(requestResult.rows[0]?.purpose || ''),
       activePaymentPath: /^[A-Za-z0-9_-]{8,100}$/.test(requestKey) ? `/pay/${requestKey}` : null,
     };
