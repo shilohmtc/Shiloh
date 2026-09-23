@@ -377,6 +377,55 @@ test('linked booking payment is usable on Phone and Desktop', async ({page},test
   }
 });
 
+
+test('booking deposit policy is clear and accessible on Phone and Desktop', async ({page},testInfo)=>{
+  for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
+    await page.setViewportSize({width:viewport.width,height:viewport.height});
+    await page.goto('/iframe.html?id=workspace-production-surfaces--booking-deposit-awaiting&viewMode=story',{waitUntil:'networkidle'});
+    await expect(page.getByRole('heading',{name:'Appointment #812'})).toBeVisible();
+    await expect(page.getByRole('heading',{name:'50% booking deposit'})).toBeVisible();
+    await expect(page.getByText('Awaiting deposit',{exact:true})).toBeVisible();
+    await expect(page.getByText(/48\+ hours notice/)).toBeVisible();
+    await expect(page.getByText(/24–48 hours/)).toBeVisible();
+    await expect(page.getByText(/no-show/)).toBeVisible();
+    await expect(page.getByRole('heading',{name:'Record deposit received'})).toBeVisible();
+    await expect(page.getByRole('heading',{name:'Shiloh Rewards'})).toHaveCount(0);
+    const metrics=await page.evaluate(()=>({
+      viewport:innerWidth,
+      document:document.documentElement.scrollWidth,
+      short:[...document.querySelectorAll('[data-payment-page] button,[data-payment-page] input,[data-payment-page] select,[data-payment-page] a')]
+        .filter(node=>node.getClientRects().length&&node.getBoundingClientRect().height<44).length,
+    }));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
+    expect(metrics.short).toBe(0);
+    const accessibility=await new AxeBuilder({page}).include('[data-payment-page]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`booking-deposit-${viewport.name}.png`),fullPage:true,animations:'disabled'});
+  }
+});
+
+test('My Shiloh deposit request is clear and accessible on Phone and Desktop', async ({page},testInfo)=>{
+  for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
+    await page.setViewportSize({width:viewport.width,height:viewport.height});
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-deposit-required&viewMode=story',{waitUntil:'networkidle'});
+    const home=page.locator('[data-client-experience-home]');
+    await expect(home.getByRole('heading',{name:'Your booking is awaiting its deposit.'})).toBeVisible();
+    await expect(home.getByText('R340 deposit required')).toBeVisible();
+    await expect(home.getByRole('link',{name:'Pay deposit'})).toHaveAttribute('href','/pay/dep_storybook123');
+    await expect(home.getByText(/Pay the 50% booking deposit to secure it/)).toBeVisible();
+    const metrics=await home.evaluate(node=>({
+      viewport:innerWidth,
+      document:document.documentElement.scrollWidth,
+      short:[...node.querySelectorAll('button,a')].filter(target=>target.getClientRects().length&&target.getBoundingClientRect().height<44).length,
+    }));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
+    expect(metrics.short).toBe(0);
+    const accessibility=await new AxeBuilder({page}).include('[data-client-experience-home]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`my-shiloh-deposit-${viewport.name}.png`),fullPage:true,animations:'disabled'});
+  }
+});
+
 test('Couples booking supports separate canonical treatments and discretionary discount on Phone', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/iframe.html?id=workspace-production-surfaces--couples-booking-treatments-and-discount&viewMode=story', { waitUntil: 'networkidle' });

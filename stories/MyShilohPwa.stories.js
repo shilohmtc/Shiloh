@@ -168,6 +168,45 @@ export const FirstLaunchWhatsAppVerification = {
 };
 
 
+export const AuthenticatedDepositRequired = {
+  render: () => {
+    const surface = productionSurface({
+      id: '912',
+      name: 'Christel Botha',
+      firstName: 'Christel',
+    });
+    const home = surface.querySelector('[data-client-experience-home]');
+    if (home) {
+      const eyebrow = home.querySelector('.eyebrow');
+      const heading = home.querySelector('h2');
+      const copy = home.querySelector(':scope > p');
+      const status = home.querySelector('.status-pill');
+      if (eyebrow) eyebrow.textContent = 'Before your visit';
+      if (heading) heading.textContent = 'Your booking is awaiting its deposit.';
+      if (copy) copy.textContent = 'Hot Stone Massage is held for Wed, 30 Sep at 10:00. Pay the 50% booking deposit to secure it.';
+      if (status) status.textContent = 'Deposit';
+      const values = {
+        appointment: 'Wed, 30 Sep · 10:00',
+        forms: 'None required',
+        payment: 'R340 deposit required',
+      };
+      home.querySelectorAll('[data-client-experience-fact]').forEach((button) => {
+        const value = button.querySelector('strong');
+        if (value) value.textContent = values[button.dataset.factKey] || '';
+      });
+      const action = document.createElement('a');
+      action.className = 'button button--primary experience-primary';
+      action.dataset.clientExperiencePrimary = '';
+      action.href = '/pay/dep_storybook123';
+      action.textContent = 'Pay deposit';
+      home.appendChild(action);
+    }
+    const voucher = surface.querySelector('[data-welcome-voucher]');
+    if (voucher) voucher.hidden = true;
+    return surface;
+  },
+};
+
 export const AuthenticatedHomeSummaryActions = {
   render: () => {
     const surface = productionSurface({

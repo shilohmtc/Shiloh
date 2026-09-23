@@ -12,6 +12,7 @@ const { resolveClientFacingName } = require('./clientFacingNameAuthority');
 const { exactPhoneCandidates } = require('./clientVerifiedIdentity');
 const { assertTarget: assertControlledMessagingTestTarget } = require('./controlledMessagingTestLane');
 const { verifyMigrationFiles } = require('./migrations');
+const { createBookingPaymentService } = require('./bookingPayments');
 const logger = require('../lib/logger');
 
 const LIVE_BOOKING_CONFIRMATION_V1 = 'shiloh_booking_confirmation_v1';
@@ -552,6 +553,26 @@ async function sendCustomerBookingConfirmationForAppointment(appointmentId,optio
   }
   const queued=await queueCustomerBookingConfirmation(appointmentId,{db,recovery});
   if(queued.status==='sent')return {sent:false,reason:'already_sent',deliveryStatus:'sent'};
+  if(db===pool&&options.depositGate!==false){
+    const paymentService=options.paymentService||createBookingPaymentService({db});
+    const deposit=await paymentService.ensureDepositRequest({appointmentId});
+    if(deposit?.deposit?.applicable&&deposit.deposit.requirement?.state==='awaiting'){
+      return {
+        sent:false,
+        reason:'deposit_required',
+        deliveryStatus:'awaiting_deposit',
+        deposit:{
+          amount:Number(deposit.deposit.requirement.required_amount).toFixed(2),
+          policyVersion:deposit.deposit.requirement.policy_version,
+          requests:(deposit.requests||[]).map(request=>({
+            requestKey:request.request_key,
+            amount:Number(request.amount).toFixed(2),
+            paymentPath:request.provider_payment_url?`/pay/${request.request_key}`:null,
+          })),
+        },
+      };
+    }
+  }
   return sendCustomerBookingConfirmation({appointmentId:a.id,clientId:a.client_id,serviceName:a.service_name,staffName:a.staff_name,locationName:a.location_name,startsAt:a.starts_at,endsAt:a.ends_at,source:a.source||'shiloh'},{...options,db});
 }
 
