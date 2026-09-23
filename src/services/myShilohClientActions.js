@@ -5,6 +5,7 @@ const { pool } = require('../db/pool');
 const { cancelOwnedAppointmentInTransaction } = require('./clientAppointmentCancellation');
 const { listAvailableSlots } = require('./availabilityService');
 const { createPendingRescheduleRequest } = require('./clientRescheduleApproval');
+const { cancellationPolicyNotice } = require('../config/bookingPolicyAuthority');
 
 const ACTION_TOKEN_BYTES = 32;
 const ACTION_TTL_MS = 10 * 60 * 1000;
@@ -52,11 +53,8 @@ function localAppointmentDisplay(startsAt) {
   };
 }
 
-function cancellationPolicy(startsAt, now = new Date()) {
-  const hours = (new Date(startsAt).getTime() - new Date(now).getTime()) / 3600000;
-  return hours < 24
-    ? "This appointment is within 24 hours. Shiloh's late-cancellation policy may apply a 50% fee."
-    : "Shiloh's 24-hour cancellation policy applies.";
+function cancellationPolicy(startsAt, now = new Date(), practitioners = []) {
+  return cancellationPolicyNotice({ startsAt, now, practitioners });
 }
 
 function johannesburgDateTime(value) {
@@ -388,7 +386,7 @@ function createMyShilohClientActionService({
           practitioner: firstText(appointment.practitioners, 'Shiloh practitioner'),
           date: display.date,
           time: display.time,
-          policy: cancellationPolicy(appointment.starts_at, issuedAt),
+          policy: cancellationPolicy(appointment.starts_at, issuedAt, appointment.practitioners),
           paymentNote: 'Cancelling an appointment does not automatically issue a refund. Any payment or refund remains a separate Shiloh process.',
           confirmLabel: 'Cancel appointment',
           declineLabel: 'Keep appointment',
