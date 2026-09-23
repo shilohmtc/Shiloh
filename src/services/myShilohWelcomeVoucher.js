@@ -256,10 +256,16 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
       const totals = (await client.query(
         `SELECT COALESCE((SELECT SUM(CASE WHEN entry_type='payment' THEN amount ELSE -amount END) FROM payment_ledger_entries WHERE payment_account_id=$1),0) AS net_paid,
                 COALESCE((SELECT SUM(amount) FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0) AS rewards,
-                COALESCE((SELECT SUM(amount) FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0) AS welcome`,
+                COALESCE((SELECT SUM(amount) FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0) AS welcome,
+                COALESCE((SELECT required_amount FROM booking_payment_requirements WHERE payment_account_id=$1 LIMIT 1),0) AS deposit_required,
+                COALESCE((SELECT SUM(d.retained_amount) FROM booking_deposit_dispositions d JOIN booking_payment_requirements req ON req.id=d.requirement_id WHERE req.payment_account_id=$1),0) AS deposit_retained`,
         [account.id],
       )).rows[0];
-      const outstanding = Number(account.canonical_amount_due) - Number(totals.net_paid) - Number(totals.rewards) - Number(totals.welcome);
+      const depositCredit = Math.max(0, Number(totals.net_paid) - Number(totals.deposit_retained || 0));
+      if (depositCredit < Number(totals.deposit_required || 0)) {
+        throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_DEPOSIT_REQUIRED', 'Pay the booking deposit before using your R100 welcome voucher.', 409, ['Pay the secure booking deposit first.', 'Then return to your voucher card.']);
+      }
+      const outstanding = Number(account.canonical_amount_due) - depositCredit - Number(totals.rewards) - Number(totals.welcome);
       if (outstanding < Number(voucher.amount)) throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_BALANCE_TOO_LOW', 'Less than R100 remains on this booking.', 409, ['Choose another qualifying booking.', 'Or keep this voucher for a later treatment.']);
       await client.query(
         `INSERT INTO booking_welcome_voucher_allocations(welcome_voucher_id,booking_payment_account_id,amount,applied_by_client_session_id,operation_key)

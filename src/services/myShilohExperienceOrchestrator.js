@@ -55,13 +55,34 @@ function formPosition(forms = []) {
 }
 
 function paymentPosition(payment) {
-  if (!payment) return { state: 'none', label: 'No payment position', actionPath: null };
-  if (payment.state === 'paid') return { state: 'paid', label: 'Paid', actionPath: null };
+  if (!payment) return { state: 'none', label: 'No payment position', actionPath: null, kind: 'none' };
+  const deposit = payment.deposit;
+  if (deposit && ['required','partially_satisfied'].includes(deposit.status)) {
+    return {
+      state: 'deposit_due',
+      label: `${rand(deposit.remainingAmount) || 'Deposit'} deposit due`,
+      actionPath: payment.activePaymentPath || null,
+      kind: 'deposit',
+    };
+  }
+  if (payment.state === 'paid') return { state: 'paid', label: 'Paid', actionPath: null, kind: 'payment' };
+  if (deposit?.status === 'exempt') {
+    return { state: 'deposit_exempt', label: 'No deposit required', actionPath: payment.activePaymentPath || null, kind: 'deposit' };
+  }
+  if (deposit?.status === 'satisfied' && payment.state === 'partially_paid') {
+    return {
+      state: 'deposit_paid',
+      label: `Deposit paid · ${rand(payment.outstanding) || 'Balance'} balance`,
+      actionPath: payment.activePaymentPath || null,
+      kind: 'deposit',
+    };
+  }
   if (payment.state === 'partially_paid') {
     return {
       state: 'partially_paid',
       label: `${rand(payment.outstanding) || 'Balance'} outstanding`,
       actionPath: payment.activePaymentPath || null,
+      kind: 'payment',
     };
   }
   if (payment.activePaymentPath) {
@@ -69,14 +90,15 @@ function paymentPosition(payment) {
       state: 'payment_link_available',
       label: `${rand(payment.outstanding) || 'Payment'} available`,
       actionPath: payment.activePaymentPath,
+      kind: payment.activePaymentPurpose === 'deposit' ? 'deposit' : 'payment',
     };
   }
   if (payment.state === 'not_recorded' || payment.state === 'unpaid') {
-    return { state: 'not_recorded', label: 'No payment recorded', actionPath: null };
+    return { state: 'not_recorded', label: 'No payment recorded', actionPath: null, kind: 'payment' };
   }
-  if (payment.state === 'partially_refunded') return { state: 'partially_refunded', label: 'Partially refunded', actionPath: null };
-  if (payment.state === 'overpaid') return { state: 'overpaid', label: 'Payment review', actionPath: null };
-  return { state: 'unknown', label: 'Payment status unavailable', actionPath: null };
+  if (payment.state === 'partially_refunded') return { state: 'partially_refunded', label: 'Partially refunded', actionPath: null, kind: 'payment' };
+  if (payment.state === 'overpaid') return { state: 'overpaid', label: 'Payment review', actionPath: null, kind: 'payment' };
+  return { state: 'unknown', label: 'Payment status unavailable', actionPath: null, kind: 'payment' };
 }
 
 function buildClientExperience(context) {
@@ -107,9 +129,11 @@ function buildClientExperience(context) {
     home = {
       eyebrow: 'Before your visit',
       headline: 'Your booking is nearly ready.',
-      summary: `${appointment.service} is booked for ${appointment.date} at ${appointment.time}. A secure payment option is available.`,
-      status: 'Payment',
-      primaryAction: { kind: 'navigate', label: 'Open payment', href: payment.actionPath },
+      summary: payment.kind === 'deposit'
+        ? `${appointment.service} is reserved for ${appointment.date} at ${appointment.time}. ${payment.label} to secure your booking.`
+        : `${appointment.service} is booked for ${appointment.date} at ${appointment.time}. A secure payment option is available.`,
+      status: payment.kind === 'deposit' ? 'Deposit' : 'Payment',
+      primaryAction: { kind: 'navigate', label: payment.kind === 'deposit' ? 'Pay deposit' : 'Open payment', href: payment.actionPath },
     };
   } else {
     home = {
@@ -173,7 +197,7 @@ function buildClientExperience(context) {
               label: 'Payment',
               value: payment.label,
               href: payment.actionPath,
-              message: 'Open your secure payment.',
+              message: payment.kind === 'deposit' ? 'Open your secure booking deposit.' : 'Open your secure payment.',
             }
             : {
               key: 'payment',
