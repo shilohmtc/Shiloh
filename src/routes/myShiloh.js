@@ -17,7 +17,7 @@ const {
   renderUnavailablePage,
 } = require('../presentation/clientConsultationFormUx');
 const { renderMyShilohPage } = require('../presentation/myShilohPwa');
-const { renderMyShilohWelcomeVoucherBooking } = require('../presentation/myShilohWelcomeVoucherBooking');
+const { renderMyShilohBookingPage } = require('../presentation/myShilohBooking');
 const { createGiftVoucherService, GiftVoucherError } = require('../services/giftVouchers');
 const { renderClientVoucherPage, renderPublicVoucherPage } = require('../presentation/giftVoucherUx');
 const { createShilohRewardsService, ShilohRewardsError } = require('../services/shilohRewards');
@@ -26,6 +26,8 @@ const { createMyShilohProfileService, MyShilohProfileError } = require('../servi
 const { createMyShilohWelcomeVoucherService, MyShilohWelcomeVoucherError } = require('../services/myShilohWelcomeVoucher');
 const { createProblemReportService, ProblemReportError } = require('../services/problemReports');
 const { defaultPushService } = require('../services/myShilohPush');
+const { createMyShilohBookingService, MyShilohBookingError } = require('../services/myShilohBooking');
+const { POLICY_TEXT } = require('../services/bookingPolicy');
 const {
   sameOriginGuard,
   requestFingerprintHash,
@@ -99,6 +101,7 @@ function createMyShilohRouter({
   welcomeVoucherService = createMyShilohWelcomeVoucherService({ db: pool }),
   problemReportService = createProblemReportService({ db: pool }),
   pushService = defaultPushService,
+  bookingService = createMyShilohBookingService({ db: pool, catalogueProvider }),
 } = {}) {
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
@@ -130,7 +133,7 @@ function createMyShilohRouter({
     fallthrough: false,
     setHeaders(res, filePath) {
       res.setHeader('X-Content-Type-Options', 'nosniff');
-      if (['app.css', 'app.js'].includes(path.basename(filePath))) {
+      if (['app.css', 'app.js', 'booking.js'].includes(path.basename(filePath))) {
         res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
       }
     },
@@ -265,27 +268,89 @@ function createMyShilohRouter({
 
   router.get('/my-shiloh/book', requireSession, async (req, res, next) => {
     try {
-      const [number, catalogue, welcomeVoucher, eligibleServiceIds] = await Promise.all([
-        whatsappResolver(),
-        catalogueProvider(),
-        welcomeVoucherService.getClientModel({
-          crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+      const welcomeVoucherMode = String(req.query?.welcomeVoucher || '') === '1';
+      let voucher = null;
+      let eligibleServiceIds = null;
+      if (welcomeVoucherMode) {
+        const [welcomeVoucher, eligible] = await Promise.all([
+          welcomeVoucherService.getClientModel({
+            crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+          }),
+          welcomeVoucherService.listEligibleServiceIds(),
+        ]);
+        voucher = welcomeVoucher?.voucher || null;
+        eligibleServiceIds = eligible;
+        if (voucher?.state !== 'available') return res.redirect(303, '/my-shiloh/#welcome-voucher');
+      }
+      const [catalogue, rotated, depositPolicy] = await Promise.all([
+        bookingService.catalogue({
+          welcomeVoucherOnly: welcomeVoucherMode,
+          minimumBookingValue: voucher?.minimumBookingValue || 450,
+          eligibleServiceIds,
         }),
-        welcomeVoucherService.listEligibleServiceIds(),
+        sessionService.rotateCsrfToken(req.myShilohClientSession.sessionId),
+        bookingService.policy(),
       ]);
-      const voucher = welcomeVoucher?.voucher;
-      if (voucher?.state !== 'available') return res.redirect(303, '/my-shiloh/#welcome-voucher');
+      if (!rotated.ok) return res.status(401).type('text/plain').send('Unauthorized');
       setMyShilohPageHeaders(res, { allowInlineStyles: true });
-      return res.status(200).type('html').send(renderMyShilohWelcomeVoucherBooking({
-        number,
-        catalogue: catalogue || [],
-        minimumBookingValue: voucher.minimumBookingValue,
-        eligibleServiceIds,
+      return res.status(200).type('html').send(renderMyShilohBookingPage({
+        catalogue,
+        clientFirstName: req.myShilohClientSession.client.firstName,
+        csrfToken: rotated.csrfToken,
+        bookingPolicyText: POLICY_TEXT,
+        depositPolicy,
+        welcomeVoucherMode,
+        minimumBookingValue: voucher?.minimumBookingValue || 450,
+        selectedServiceId: /^[1-9]\\d*$/.test(String(req.query?.service || '')) ? String(req.query.service) : '',
       }));
     } catch (error) {
-      if (error instanceof MyShilohWelcomeVoucherError) {
-        return res.redirect(303, '/my-shiloh/#welcome-voucher');
+      if (error instanceof MyShilohWelcomeVoucherError) return res.redirect(303, '/my-shiloh/#welcome-voucher');
+      return next(error);
+    }
+  });
+
+  router.get('/my-shiloh/api/booking/practitioners', requireSession, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      return res.status(200).json(await bookingService.practitioners({ serviceId:req.query?.serviceId }));
+    } catch (error) {
+      if (error instanceof MyShilohBookingError) return res.status(error.httpStatus).json({ error:error.message, code:error.code, resolution:error.resolution, requestId:req.id });
+      return next(error);
+    }
+  });
+
+  router.get('/my-shiloh/api/booking/availability', requireSession, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      return res.status(200).json(await bookingService.slots({
+        serviceId:req.query?.serviceId,
+        staffId:req.query?.staffId,
+        date:req.query?.date,
+      }));
+    } catch (error) {
+      if (error instanceof MyShilohBookingError) return res.status(error.httpStatus).json({ error:error.message, code:error.code, resolution:error.resolution, requestId:req.id });
+      return next(error);
+    }
+  });
+
+  router.post('/my-shiloh/api/booking/confirm', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const payload = req.body && typeof req.body === 'object' ? req.body : {};
+      const allowed = new Set(['serviceId','staffId','startsAt','policyAccepted']);
+      if (Object.keys(payload).some((key) => !allowed.has(key))) {
+        return res.status(422).json({ error:'Please reload My Shiloh and try again', requestId:req.id });
       }
+      const result = await bookingService.createRequest({
+        crmV2ClientId:req.myShilohClientSession.crmV2ClientId,
+        serviceId:payload.serviceId,
+        staffId:payload.staffId,
+        startsAt:payload.startsAt,
+        policyAccepted:payload.policyAccepted === true,
+      });
+      return res.status(201).json(result);
+    } catch (error) {
+      if (error instanceof MyShilohBookingError) return res.status(error.httpStatus).json({ error:error.message, code:error.code, resolution:error.resolution, requestId:req.id });
       return next(error);
     }
   });
