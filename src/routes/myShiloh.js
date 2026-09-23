@@ -25,6 +25,7 @@ const { renderClientRewardsPage, clientRewardsScript } = require('../presentatio
 const { createMyShilohProfileService, MyShilohProfileError } = require('../services/myShilohProfile');
 const { createMyShilohWelcomeVoucherService, MyShilohWelcomeVoucherError } = require('../services/myShilohWelcomeVoucher');
 const { createProblemReportService, ProblemReportError } = require('../services/problemReports');
+const { defaultPushService } = require('../services/myShilohPush');
 const {
   sameOriginGuard,
   requestFingerprintHash,
@@ -97,6 +98,7 @@ function createMyShilohRouter({
   profileService = createMyShilohProfileService({ db: pool }),
   welcomeVoucherService = createMyShilohWelcomeVoucherService({ db: pool }),
   problemReportService = createProblemReportService({ db: pool }),
+  pushService = defaultPushService,
 } = {}) {
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
@@ -194,6 +196,55 @@ function createMyShilohRouter({
       if(Object.keys(req.body||{}).some(key=>!allowed.has(key)))return res.status(422).json({error:'Please reload My Shiloh and try again',requestId:req.id});
       return res.status(200).json(await rewardsService.applyCredit({crmV2ClientId:req.myShilohClientSession.crmV2ClientId,clientSessionId:req.myShilohClientSession.sessionId,...req.body}));
     } catch(error){if(error instanceof ShilohRewardsError)return res.status(error.httpStatus).json({error:error.message,code:error.code,requestId:req.id});return next(error);}
+  });
+
+  router.get('/my-shiloh/api/push/config', requireSession, (_req, res) => {
+    setNoStoreJson(res);
+    return res.status(200).json(pushService.config());
+  });
+
+  router.post('/my-shiloh/api/push/subscribe', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const subscription = req.body?.subscription || {};
+      const keys = subscription.keys || {};
+      const result = await pushService.subscribe({
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+        endpoint: subscription.endpoint,
+        p256dh: keys.p256dh,
+        auth: keys.auth,
+        userAgent: req.get('user-agent'),
+      });
+      return res.status(200).json(result);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/my-shiloh/api/push/unsubscribe', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const result = await pushService.unsubscribe({
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+        endpoint: req.body?.endpoint,
+      });
+      return res.status(200).json(result);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/my-shiloh/api/push/pending', requireSession, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const result = await pushService.pending({
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+        endpoint: req.body?.endpoint,
+      });
+      return res.status(200).json(result);
+    } catch (error) {
+      return next(error);
+    }
   });
 
   router.get('/my-shiloh/manifest.webmanifest', (_req, res) => {
