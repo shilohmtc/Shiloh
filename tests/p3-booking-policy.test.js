@@ -9,9 +9,13 @@ const {
 } = require("../src/services/bookingPolicy");
 
 test("booking policy is versioned and requires explicit acceptance", () => {
-  assert.equal(POLICY_VERSION, "2026-08-11-v1");
+  assert.equal(POLICY_VERSION, "2026-09-23-v2");
   assert.match(POLICY_TEXT, /strictly professional and non-sexual/i);
-  assert.match(POLICY_TEXT, /24 hours/i);
+  assert.match(POLICY_TEXT, /50% booking deposit/i);
+  assert.match(POLICY_TEXT, /48\+ hours/i);
+  assert.match(POLICY_TEXT, /24–48 hours/i);
+  assert.match(POLICY_TEXT, /Marietjie/i);
+  assert.match(POLICY_TEXT, /Rescheduling keeps the existing booking payment\/deposit record/i);
   assert.match(POLICY_TEXT, /health, medical, pregnancy, allergy, medication/i);
   assert.match(POLICY_TEXT, /reply exactly: \*I AGREE\*/i);
 });
