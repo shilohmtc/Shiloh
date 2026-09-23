@@ -84,6 +84,15 @@ function slotDto(slot) {
   };
 }
 
+
+function fixedCataloguePrice(service = {}) {
+  const text = String(service.price || '').replace(/\s/g, '').replace(',', '.');
+  const fixed = text.match(/^R(\d+(?:\.\d{1,2})?)$/i);
+  if (fixed) return Number(fixed[1]);
+  const range = text.match(/^R?(\d+(?:\.\d{1,2})?)[-–—]R?(\d+(?:\.\d{1,2})?)$/i);
+  return range ? Number(range[1]) : null;
+}
+
 function createMyShilohBookingService({
   db = pool,
   catalogueProvider = getPublicServiceCatalogue,
@@ -212,7 +221,7 @@ function createMyShilohBookingService({
     const minimum = Number(minimumBookingValue || 450);
     return rows.filter(item => {
       const id = Number(item.id);
-      const amount = Number(item.amount);
+      const amount = fixedCataloguePrice(item);
       if (allowed && !allowed.has(id)) return false;
       return Number.isFinite(amount) && amount >= minimum;
     });
@@ -291,7 +300,7 @@ function createMyShilohBookingService({
       if (!accepted) {
         throw new MyShilohBookingError('BOOKING_POLICY_NOT_RECORDED', 'Your booking terms could not be recorded safely. Nothing was booked.', 409);
       }
-      const created = await commitBooking(phone, { source:'shiloh_client_my_shiloh' });
+      const created = await commitBooking(phone);
       if (!created?.handled || created.status !== 'created' || !created.appointmentId) {
         await db.query(
           `DELETE FROM booking_intents WHERE phone=$1 AND policy_channel='my_shiloh'`,
@@ -341,6 +350,7 @@ module.exports = {
   localDate,
   localTime,
   slotDto,
+  fixedCataloguePrice,
   createMyShilohBookingService,
   ...service,
 };
