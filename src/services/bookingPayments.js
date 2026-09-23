@@ -105,6 +105,10 @@ function createBookingPaymentService({
     if (!position.applicable || !position.requirement || position.requirement.state !== 'awaiting') {
       return { status:'not_required', deposit:position, requests:[] };
     }
+    const rootAppointmentId = Number(position.scope.members[0]?.appointmentId || position.scope.appointmentId);
+    if (position.scope.groupId && Number(appointmentId) !== rootAppointmentId) {
+      return { status:'deposit_waiting_on_group', deposit:position, requests:[] };
+    }
     const plans = depositRequestPlans(position);
     if (!plans.length) return { status:'not_required', deposit:position, requests:[] };
     const created = [];
