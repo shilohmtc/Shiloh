@@ -249,17 +249,22 @@ function createMyShilohClientContextService({
       };
     }
 
+    const payerScope = appointment.crmV2ClientId
+      ? ' AND (payer_crm_v2_client_id IS NULL OR payer_crm_v2_client_id=$2)'
+      : '';
+    const requestValues = appointment.crmV2ClientId
+      ? [Number(account.id), appointment.crmV2ClientId]
+      : [Number(account.id)];
     const requestResult = await db.query(
       `/* myShilohClientContext:active-payment-request */
        SELECT request_key,purpose
          FROM payment_requests
         WHERE payment_account_id=$1
           AND provider_payment_url IS NOT NULL
-          AND state IN ('link_issued','pending')
-          AND ($2::bigint IS NULL OR payer_crm_v2_client_id IS NULL OR payer_crm_v2_client_id=$2)
+          AND state IN ('link_issued','pending')${payerScope}
         ORDER BY CASE WHEN purpose='deposit' THEN 0 ELSE 1 END,id DESC
         LIMIT 1`,
-      [Number(account.id), appointment.crmV2ClientId],
+      requestValues,
     );
     const requestKey = String(requestResult.rows[0]?.request_key || '');
     const base = paymentState({
