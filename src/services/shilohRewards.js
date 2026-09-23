@@ -2,6 +2,7 @@
 
 const { pool } = require('../db/pool');
 const { resolveCalendarAuthority, hasCapability } = require('./calendarAuthorization');
+const { queueClientNotification } = require('./myShilohPush');
 
 const CAPABILITIES = Object.freeze({ VIEW:'loyalty:view', REDEEM:'loyalty:redeem', MANAGE:'loyalty:manage' });
 
@@ -35,7 +36,8 @@ function rewardAmount(value,basisPoints=500) {
   return (rewardCents/100).toFixed(2);
 }
 
-function createShilohRewardsService({db=pool}={}) {
+function createShilohRewardsService({db=pool,notifyClient=null}={}) {
+  const pushNotify=notifyClient||(db===pool?queueClientNotification:null);
   async function settings(queryable=db) {
     const row=(await queryable.query(`SELECT earn_basis_points,unlock_threshold,expiry_mode,activated_at FROM loyalty_program_settings WHERE singleton=TRUE`)).rows[0];
     if(!row) throw new ShilohRewardsError('REWARDS_NOT_CONFIGURED','Shiloh Rewards is temporarily unavailable.',503);
@@ -88,11 +90,25 @@ function createShilohRewardsService({db=pool}={}) {
         await client.query('BEGIN');
         const wallet=await ensureWallet(client,row.reward_client_id);
         await client.query(`SELECT id FROM loyalty_wallets WHERE id=$1 FOR UPDATE`,[wallet.id]);
+        const beforePosition=await walletPosition(client,wallet.id);
         const reversal=row.entry_type==='refund';
         if(reversal){const earned=(await client.query(`SELECT COALESCE(SUM(signed_amount),0) AS amount FROM loyalty_wallet_entries WHERE wallet_id=$1 AND booking_payment_account_id=$2 AND entry_type IN ('earn','earn_reversal')`,[wallet.id,row.booking_payment_account_id])).rows[0];const reversible=Math.max(0,Number(earned?.amount||0));if(reversible===0){await client.query('ROLLBACK');skipped++;continue;}amount=Math.min(Number(amount),reversible).toFixed(2);}
         const inserted=await client.query(`INSERT INTO loyalty_wallet_entries(wallet_id,entry_type,signed_amount,operation_key,source_payment_ledger_entry_id,booking_payment_account_id,appointment_id,notes) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(source_payment_ledger_entry_id) DO NOTHING RETURNING id`,[wallet.id,reversal?'earn_reversal':'earn',reversal?`-${amount}`:amount,`${reversal?'refund':'earn'}:payment-ledger:${row.id}`,row.id,row.booking_payment_account_id,row.appointment_id,reversal?'Automatic reward reversal after refund':'5% Shiloh Reward on completed, paid treatment']);
         await client.query('COMMIT');
-        if(inserted.rowCount)recorded++;
+        if(inserted.rowCount){
+          recorded++;
+          const afterBalance=beforePosition.balance+(reversal?-Number(amount):Number(amount));
+          if(!reversal&&pushNotify&&beforePosition.balance<config.unlockThreshold&&afterBalance>=config.unlockThreshold){
+            await pushNotify({
+              crmV2ClientId:Number(row.reward_client_id),
+              eventKey:`rewards-unlocked:${wallet.id}:${inserted.rows[0].id}`,
+              category:'rewards',
+              title:'Your Shiloh Rewards are ready',
+              body:'Your Shiloh Rewards have reached the unlock amount and are ready to use.',
+              targetPath:'/my-shiloh/#wallet',
+            });
+          }
+        }
       }catch(error){try{await client.query('ROLLBACK');}catch(_){}throw error;}finally{client.release();}
     }
     return {recorded,skipped};
