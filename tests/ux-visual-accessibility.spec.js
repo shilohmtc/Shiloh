@@ -144,13 +144,49 @@ test('My Shiloh voucher wallet is clear and accessible on Phone and Desktop', as
   }
 });
 
-test('My Shiloh home points clients to their voucher wallet', async ({ page }) => {
-  await page.setViewportSize({ width:390, height:844 });
-  await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-home&viewMode=story', { waitUntil:'networkidle' });
-  const home = page.locator('[data-view="home"]');
-  await expect(home.getByText('Voucher wallet', { exact:true })).toBeVisible();
-  await expect(home.getByRole('heading', { name:'Your vouchers, ready when you are.' })).toBeVisible();
-  await expect(home.getByRole('link', { name:'Open your Shiloh voucher wallet' })).toHaveAttribute('href', '/my-shiloh/gift-vouchers');
+test('My Shiloh Wallet is a centred five-tab hub on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-wallet&viewMode=story', { waitUntil:'networkidle' });
+
+    const nav = page.locator('.bottom-nav');
+    await expect(nav.locator('[data-view-target]')).toHaveCount(5);
+    await expect(nav.locator('[data-view-target="wallet"]')).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('heading', { name:'Your Shiloh value, together.' })).toBeVisible();
+    await expect(page.getByRole('link', { name:'Open your Shiloh voucher wallet' })).toHaveAttribute('href', '/my-shiloh/gift-vouchers');
+    await expect(page.getByRole('link', { name:'View Shiloh Rewards' })).toHaveAttribute('href', '/my-shiloh/rewards');
+    await expect(page.getByRole('link', { name:'Open booking payments' })).toHaveAttribute('href', '#bookings');
+
+    const metrics = await page.evaluate(() => {
+      const nav = document.querySelector('.bottom-nav');
+      const shiloh = document.querySelector('[data-view-target="shiloh"]');
+      const navBox = nav.getBoundingClientRect();
+      const shilohBox = shiloh.getBoundingClientRect();
+      return {
+        viewport: innerWidth,
+        document: document.documentElement.scrollWidth,
+        navCenter: navBox.left + navBox.width / 2,
+        shilohCenter: shilohBox.left + shilohBox.width / 2,
+        short: [...nav.querySelectorAll('a')].filter((node) => node.getBoundingClientRect().height < 44).length,
+      };
+    });
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
+    expect(Math.abs(metrics.navCenter - metrics.shilohCenter)).toBeLessThanOrEqual(1);
+    expect(metrics.short).toBe(0);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-view="wallet"]')
+      .include('.bottom-nav')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact))).toEqual([]);
+
+    await page.screenshot({
+      path:testInfo.outputPath(`my-shiloh-wallet-nav-${viewport.name}.png`),
+      fullPage:true,
+      animations:'disabled',
+    });
+  }
 });
 
 test('WhatsApp client menu leads with the My Shiloh R100 welcome voucher on Phone and Desktop', async ({ page }, testInfo) => {
@@ -1401,4 +1437,18 @@ test('My Shiloh opens installed WhatsApp directly before web fallback', async ({
   await page.waitForTimeout(2100);
   expect(await page.evaluate(() => window.__myShilohFallbackSeen)).toBe(false);
   await expect(gate).toBeVisible();
+});
+
+
+test('legacy welcome-voucher deep link opens the new Wallet view', async ({ page }) => {
+  await page.setViewportSize({ width:390, height:844 });
+  await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-home&viewMode=story#welcome-voucher', { waitUntil:'networkidle' });
+  await page.evaluate(() => {
+    localStorage.setItem('my-shiloh-install-whatsapp-verified-v1', '1');
+    Object.defineProperty(window.navigator, 'standalone', { configurable:true, get:() => true });
+    location.hash = '#welcome-voucher';
+  });
+  await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
+  await expect(page.locator('[data-view="wallet"]')).toBeVisible();
+  await expect(page.locator('[data-view-target="wallet"]')).toHaveAttribute('aria-current', 'page');
 });
