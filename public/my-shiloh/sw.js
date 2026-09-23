@@ -116,7 +116,8 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (url.pathname === '/my-shiloh/assets/app.css'
-      || url.pathname === '/my-shiloh/assets/app.js') {
+      || url.pathname === '/my-shiloh/assets/app.js'
+      || url.pathname === '/my-shiloh/assets/booking.js') {
     event.respondWith(
       fetch(request)
         .then((response) => {
