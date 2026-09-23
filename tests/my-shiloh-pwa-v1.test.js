@@ -80,7 +80,7 @@ test('My Shiloh route is no-store, no-index and mounted without reusing staff au
   const route = read('src/routes/myShiloh.js');
   const app = read('app.js');
   assert.match(route, /Cache-Control', 'private, no-store, max-age=0'/);
-  assert.match(route, /\['app\.css', 'app\.js'\][\s\S]*Cache-Control', 'public, max-age=0, must-revalidate'/);
+  assert.match(route, /\['app\.css', 'app\.js', 'booking\.js'\][\s\S]*Cache-Control', 'public, max-age=0, must-revalidate'/);
   assert.match(route, /X-Robots-Tag', 'noindex, nofollow, noarchive'/);
   assert.match(route, /Content-Security-Policy/);
   assert.match(route, /getPublicServiceCatalogue/);
@@ -102,7 +102,7 @@ test('PWA manifest is standalone and scoped to My Shiloh', () => {
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v20/);
+  assert.match(worker, /my-shiloh-shell-v21/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /url\.pathname === '\/my-shiloh\/assets\/app\.css'[\s\S]*fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);
