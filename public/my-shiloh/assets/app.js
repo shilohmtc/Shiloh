@@ -227,7 +227,8 @@
 
   function safeExperienceHref(value) {
     const href = String(value || '');
-    if (href === '/book' || href === '/my-shiloh/book' || href === '/my-shiloh/book?welcomeVoucher=1' || href === '/my-shiloh/forms/complete' || /^\/pay\/[A-Za-z0-9_-]{8,100}$/.test(href) || /^#[a-z-]+$/.test(href)) return href;
+    if (href === '/book') return '/my-shiloh/book';
+    if (href === '/my-shiloh/book' || href === '/my-shiloh/book?welcomeVoucher=1' || href === '/my-shiloh/forms/complete' || /^\/pay\/[A-Za-z0-9_-]{8,100}$/.test(href) || /^#[a-z-]+$/.test(href)) return href;
     return '#shiloh';
   }
 
