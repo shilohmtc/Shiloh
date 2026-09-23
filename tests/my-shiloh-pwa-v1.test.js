@@ -46,9 +46,6 @@ test('My Shiloh renders the approved five-tab PWA shell with public-safe service
   assert.match(html, /data-view-target="profile"/);
   assert.match(html, /id="wallet" data-view="wallet"/);
   assert.match(html, /Your Shiloh value, together/);
-  assert.match(html, /Open your Shiloh voucher wallet/);
-  assert.match(html, /View Shiloh Rewards/);
-  assert.match(html, /Open booking payments/);
   assert.match(html, /Full Body Swedish/);
   assert.match(html, /R720/);
   assert.match(html, /Pedicures &amp; Foot Care/);
@@ -131,6 +128,9 @@ test('Wallet navigation keeps Shiloh in the exact centre and preserves welcome-v
     catalogue: [],
     client: { id:'912', name:'Test Client', firstName:'Test' },
   });
+  assert.match(html, /Open your Shiloh voucher wallet/);
+  assert.match(html, /View Shiloh Rewards/);
+  assert.match(html, /Open booking payments/);
   const styles = read('public/my-shiloh/assets/app.css');
   const client = read('public/my-shiloh/assets/app.js');
   assert.match(styles, /grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
