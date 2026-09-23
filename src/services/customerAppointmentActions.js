@@ -32,7 +32,7 @@ async function appointmentActionContext(appointmentId, phoneOverride = null) {
       LEFT JOIN clients c ON c.id=a.client_id
       LEFT JOIN crm_v2_clients v2 ON v2.id=a.crm_v2_client_id AND v2.status='active'
       LEFT JOIN locations l ON l.id=a.location_id
-     WHERE a.id=$1 AND a.status<>'cancelled'
+     WHERE a.id=$1 AND a.status NOT IN ('cancelled','no_show')
        AND num_nonnulls(a.client_id,a.crm_v2_client_id)=1
        AND (a.crm_v2_client_id IS NULL OR v2.id IS NOT NULL)
      LIMIT 1`, [Number(appointmentId), phoneOverride]);
@@ -53,7 +53,7 @@ async function appointmentActionContextForPhone(appointmentId, phone) {
       LEFT JOIN crm_v2_clients v2 ON v2.id=a.crm_v2_client_id AND v2.status='active'
       LEFT JOIN locations l ON l.id=a.location_id
      WHERE a.id=$1
-       AND a.status<>'cancelled'
+       AND a.status NOT IN ('cancelled','no_show')
        AND ((a.client_id IS NOT NULL AND a.crm_v2_client_id IS NULL AND EXISTS (
               SELECT 1 FROM client_contacts cc WHERE cc.client_id=a.client_id AND cc.contact_type IN ('whatsapp','phone','mobile') AND cc.normalized_value=$2
             )) OR (a.client_id IS NULL AND a.crm_v2_client_id IS NOT NULL AND v2.normalized_mobile=$2))
