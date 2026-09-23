@@ -92,7 +92,7 @@ test('booking balance calculations include welcome value while reward accrual re
 test('welcome voucher treatment discovery stays inside the installed My Shiloh scope', () => {
   const app = read('public/my-shiloh/assets/app.js');
   const routes = read('src/routes/myShiloh.js');
-  assert.match(app, /link\.href = '\/my-shiloh\/book'/);
+  assert.match(app, /link\.href = '\/my-shiloh\/book\?welcomeVoucher=1'/);
   assert.doesNotMatch(app, /Find a qualifying treatment'[\s\S]{0,100}href = '\/book'/);
   assert.match(app, /refreshAuthenticatedClientState/);
   assert.match(app, /visibilityState === 'visible'[\s\S]*refreshAuthenticatedClientState/);
