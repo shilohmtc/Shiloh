@@ -1,6 +1,8 @@
 import presentation from '../src/presentation/myShilohPwa.js';
+import bookingPresentation from '../src/presentation/myShilohBooking.js';
 
 const { renderMyShilohPage } = presentation;
+const { renderMyShilohBookingPage } = bookingPresentation;
 
 const catalogue = [
   { id: 101, name: 'Full Body Swedish', category: 'Massage', duration: '60 min', price: 'R720' },
@@ -21,6 +23,30 @@ function productionSurface(client = null) {
   root.innerHTML = `<link rel="stylesheet" href="/my-shiloh/assets/app.css"><div data-story-surface>${body.replace(/<script[\s\S]*?<\/script>/g, '')}</div>`;
   const frame = root.querySelector('[data-app-frame]');
   if (frame) frame.hidden = false;
+  return root;
+}
+
+
+function bookingSurface() {
+  const page = renderMyShilohBookingPage({
+    catalogue: [
+      { id: 101, name: 'Hot Stone Massage', category: 'Massage', duration: '75 min', price: 'R850' },
+      { id: 103, name: 'Signature Pedicure', category: 'Pedicures & Foot Care', duration: '75 min', price: 'R620' },
+    ],
+    clientFirstName: 'Christel',
+    csrfToken: 'storybook-csrf',
+    bookingPolicyText: 'Shiloh Massage Therapy & Aesthetic Clinic — Booking Policy & Terms\n\nPlease arrive on time.\n\nTo continue, accept the terms below.',
+    depositPolicy: {
+      rateBasisPoints: 5000,
+      freeNoticeHours: 48,
+      partialNoticeHours: 24,
+      partialForfeitBasisPoints: 5000,
+      lateForfeitBasisPoints: 10000,
+    },
+  });
+  const body = String(page).match(/<body[^>]*>([\s\S]*?)<\/body>/)?.[1] || '';
+  const root = document.createElement('div');
+  root.innerHTML = `<div data-story-surface>${body.replace(/<script[\s\S]*?<\/script>/g, '')}</div>`;
   return root;
 }
 
@@ -294,4 +320,9 @@ export const AuthenticatedNotificationsProfile = {
     if (status) status.textContent = 'Notifications are off. Turn them on when you’re ready.';
     return surface;
   },
+};
+
+
+export const AuthenticatedNativeBooking = {
+  render: () => bookingSurface(),
 };
