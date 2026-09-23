@@ -74,7 +74,9 @@ test('service worker waits for client approval before applying an update', () =>
   const app = read('public/my-shiloh/assets/app.js');
   const presentation = read('src/presentation/myShilohPwa.js');
   assert.match(worker, /message[\s\S]*SKIP_WAITING[\s\S]*self\.skipWaiting\(\)/);
-  assert.doesNotMatch(worker, /cache\.addAll\(SHELL\)[\s\S]*skipWaiting/);
+  const installBlock = worker.match(/self\.addEventListener\('install',[\s\S]*?\n\}\);/)?.[0] || '';
+  assert.match(installBlock, /cache\.addAll\(SHELL\)/);
+  assert.doesNotMatch(installBlock, /skipWaiting/);
   assert.match(app, /registration\.waiting\.postMessage\(\{ type: 'SKIP_WAITING' \}\)/);
   assert.match(app, /controllerchange[\s\S]*window\.location\.reload\(\)/);
   assert.match(presentation, /A new My Shiloh update is ready/);
