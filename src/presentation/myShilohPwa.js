@@ -6,7 +6,7 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 
-const MY_SHILOH_ASSET_VERSION = '20260923-updates-push-v1';
+const MY_SHILOH_ASSET_VERSION = '20260923-native-booking-v1';
 
 function escapeHtml(value = '') {
   return String(value)
