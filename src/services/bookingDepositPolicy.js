@@ -44,6 +44,8 @@ function normalizeRows(rows = []) {
     groupType: row.group_type || null,
     guestPosition: Number(row.guest_position || 1),
     createdAt: new Date(row.created_at),
+    startsAt: new Date(row.starts_at),
+    endsAt: new Date(row.ends_at),
     canonicalTotal: moneyNumber(row.canonical_total),
     allocatedAmount: moneyNumber(row.allocated_amount),
     pricingRevision: new Date(row.pricing_revision).toISOString(),
@@ -112,7 +114,7 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
     const rows = root.group_id
       ? await queryable.query(
         `SELECT a.id AS appointment_id,g.id AS group_id,g.group_type,gm.guest_position,
-                a.created_at,COALESCE(g.final_total,g.total_price) AS canonical_total,
+                a.created_at,a.starts_at,a.ends_at,COALESCE(g.final_total,g.total_price) AS canonical_total,
                 gm.allocated_price AS allocated_amount,g.updated_at AS pricing_revision,a.currency,
                 a.crm_v2_client_id,
                 COALESCE(v2.name,a.source_client_name,'Client') AS client_name,
@@ -131,7 +133,7 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
       )
       : await queryable.query(
         `SELECT a.id AS appointment_id,NULL::bigint AS group_id,NULL::text AS group_type,1 AS guest_position,
-                a.created_at,a.total_price AS canonical_total,a.total_price AS allocated_amount,
+                a.created_at,a.starts_at,a.ends_at,a.total_price AS canonical_total,a.total_price AS allocated_amount,
                 a.updated_at AS pricing_revision,a.currency,a.crm_v2_client_id,
                 COALESCE(v2.name,a.source_client_name,'Client') AS client_name,
                 v2.normalized_mobile AS client_mobile,
