@@ -9,6 +9,7 @@ const {
 } = require('./customerBookingConfirmation');
 const { exactPhoneCandidates } = require('./clientVerifiedIdentity');
 const { resolveClientFacingName } = require('./clientFacingNameAuthority');
+const { queueClientNotification } = require('./myShilohPush');
 
 const DELIVERY_FLAG = 'SHILOH_CONSULTATION_FORM_DELIVERY_ENABLED';
 const DELIVERY_NOT_BEFORE_FLAG = 'SHILOH_CONSULTATION_FORM_DELIVERY_NOT_BEFORE';
@@ -129,9 +130,11 @@ function createConsultationFormDeliveryService({
   exactPhoneCandidatesFn = exactPhoneCandidates,
   resolveName = resolveClientFacingName,
   initialFailure = initialDeliveryFailure,
+  notifyClient = null,
   now = () => new Date(),
 } = {}) {
   if (!db || typeof db.query !== 'function') throw new Error('Consultation form delivery database is required');
+  const pushNotify = notifyClient || (db === pool ? queueClientNotification : null);
 
   async function discoverAssignments() {
     if (!formService.isClientConsultationFormsEnabled(env)) return { created: 0 };
@@ -306,6 +309,16 @@ function createConsultationFormDeliveryService({
         providerMessageId: acceptedProviderMessageId,
         identityModel: recipient.identityModel,
       });
+      if (pushNotify && recipient.crmV2ClientId) {
+        await pushNotify({
+          crmV2ClientId: Number(recipient.crmV2ClientId),
+          eventKey: `consultation-form:${id}:sent`,
+          category: 'forms',
+          title: 'Your consultation form is ready',
+          body: 'A Shiloh consultation form is ready to complete before your appointment.',
+          targetPath: '/my-shiloh/forms/complete',
+        });
+      }
       return {
         sent: true,
         assignmentId: id,
