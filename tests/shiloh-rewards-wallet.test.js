@@ -55,6 +55,7 @@ test('My Shiloh shows locked and unlocked reward states in plain language',()=>{
   assert.match(locked,/R\s*60[,.]00 to go/);
   assert.match(locked,/5% of every completed, paid treatment/);
   assert.match(locked,/disabled/);
+  assert.match(locked,/href="\/my-shiloh\/#wallet">Back to Wallet/);
   const open=renderClientRewardsPage({model:{...common,wallet:{balance:120,unlocked:true},appointments:[{id:7,starts_at:'2026-10-01T08:00:00Z',total_price:'650',service_name:'Massage'}]},csrfToken:'csrf'});
   assert.match(open,/Ready whenever you choose/);
   assert.match(open,/Use rewards/);
