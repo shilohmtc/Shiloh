@@ -20,7 +20,7 @@ test('signed-in My Shiloh booking stays inside the app instead of /book', () => 
     client: { id:'55', name:'Naledi Mokoena', firstName:'Naledi' },
   });
   assert.match(authenticated, /href="\/my-shiloh\/book">Book an appointment/);
-  assert.match(authenticated, /href="\/my-shiloh\/book">Book this service/);
+  assert.match(authenticated, /href="\/my-shiloh\/book\?service=1">Book this service/);
 
   const guest = renderMyShilohPage({
     whatsappNumber: '27830000000',
