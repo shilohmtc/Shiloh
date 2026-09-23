@@ -10,7 +10,7 @@ const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 
 test('destructive cancellation review uses deterministic confirm/keep buttons', () => {
   assert.match(source, /Please confirm the cancellation:/);
-  assert.match(source, /latePolicy\(a\.starts_at\)/);
+  assert.match(source, /cancellationTerms\(a\)/);
   assert.match(presentation, /type:\s*['"]button['"]/);
   assert.match(presentation, /id:\s*['"]yes['"],\s*title:\s*['"]Confirm cancellation['"]/);
   assert.match(presentation, /id:\s*['"]stop['"],\s*title:\s*['"]Keep appointment['"]/);

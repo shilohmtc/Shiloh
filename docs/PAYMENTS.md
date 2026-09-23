@@ -13,9 +13,9 @@ Authorized owner/Reception staff open an appointment and choose **Payments**. Th
 
 Refund records require the narrower `payment:refund` capability. The initial migration grants collection to active canonical owner/booking-operator principals with full business/service scope and refund authority only to the active canonical owner.
 
-## Booking deposit policy
+## Booking Policy & Terms — deposit enforcement
 
-Shiloh has one clinic-wide booking-deposit authority layered on top of the existing payment ledger.
+Shiloh has one client-facing **Booking Policy & Terms** authority. The deposit tables below are a technical enforcement mirror of that same policy, layered on top of the existing payment ledger; they are not a second clinic policy.
 
 - New future bookings require a **50% booking deposit**.
 - Appointments provided by **Marietjie are exempt**. The exemption resolves through her canonical active staff record; it is not a presentation-only name check.
@@ -34,7 +34,7 @@ Cancellation/no-show consequence evidence is recorded separately from money move
 - Rescheduling preserves the existing booking payment/deposit account.
 - Shiloh does not automatically issue refunds or move money because of a cancellation/no-show event. Existing authorized refund/payment operations remain the monetary authority.
 
-The policy record, requirement/member allocations and policy events are distinct from appointment status and payment-ledger settlement truth.
+The technical deposit-policy row, requirement/member allocations and policy events remain distinct from appointment status and payment-ledger settlement truth, but their rule values and policy version must match the canonical Booking Policy & Terms authority or the deposit engine fails closed.
 
 ## Ozow configuration boundary
 

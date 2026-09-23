@@ -16,6 +16,10 @@ const {
   paymentPosition,
   buildClientExperience,
 } = require('../src/services/myShilohExperienceOrchestrator');
+const {
+  BOOKING_POLICY_TEXT,
+  BOOKING_POLICY_VERSION,
+} = require('../src/config/bookingPolicyAuthority');
 
 const policy = {
   id: 1,
@@ -28,7 +32,7 @@ const policy = {
   noShowForfeitBasisPoints: 10000,
   exemptStaffId: 13,
   effectiveFrom: new Date('2026-09-23T00:00:00.000Z'),
-  policyVersion: '2026-09-23-v1',
+  policyVersion: '2026-09-23-v2',
 };
 
 function member({ appointmentId, amount, staffIds }) {
@@ -93,8 +97,10 @@ test('deposit approval readiness fails before acceptance when the canonical pric
             late_forfeit_basis_points: 10000,
             no_show_forfeit_basis_points: 10000,
             exempt_staff_id: 13,
+            exempt_staff_name: 'Marietjie',
+            exempt_staff_status: 'active',
             effective_from: '2026-09-23T00:00:00.000Z',
-            policy_version: '2026-09-23-v1',
+            policy_version: '2026-09-23-v2',
           }],
         };
       }
@@ -182,11 +188,37 @@ test('booking confirmation and payment wiring cannot bypass the deposit gate', (
   );
 });
 
-test('deposit policy remains separate from the immutable legacy Booking Policy authority', () => {
-  const source = read('src/services/bookingPolicy.js');
-  assert.match(source, /const POLICY_VERSION = "2026-08-11-v1"/);
-  assert.match(source, /Policy updated: 11 August 2026/);
-  assert.doesNotMatch(source, /50% booking deposit|24–48 hours|Marietjie are excluded/);
+test('booking and deposit flows share one current Booking Policy authority', () => {
+  const authority = read('src/config/bookingPolicyAuthority.js');
+  const booking = read('src/services/bookingPolicy.js');
+  const deposit = read('src/services/bookingDepositPolicy.js');
+  const migration = read('migrations/151_unified_booking_policy_and_appointment_758_price.sql');
+  assert.match(authority, /BOOKING_POLICY_VERSION = '2026-09-23-v2'/);
+  assert.equal(BOOKING_POLICY_VERSION, '2026-09-23-v2');
+  assert.match(BOOKING_POLICY_TEXT, /50% booking deposit/);
+  assert.match(BOOKING_POLICY_TEXT, /48\+ hours/);
+  assert.match(BOOKING_POLICY_TEXT, /24–48 hours/);
+  assert.match(BOOKING_POLICY_TEXT, /Marietjie/);
+  assert.match(booking, /BOOKING_POLICY_VERSION: POLICY_VERSION/);
+  assert.match(booking, /BOOKING_POLICY_TEXT: POLICY_TEXT/);
+  assert.match(deposit, /BOOKING_POLICY_AUTHORITY/);
+  assert.match(deposit, /DEPOSIT_POLICY_DRIFT/);
+  assert.match(migration, /policy_version='2026-09-23-v2'/);
+});
+
+test('appointment 758 correction is exact, guarded and restores the R250 booking total', () => {
+  const migration = read('migrations/151_unified_booking_policy_and_appointment_758_price.sql');
+  assert.match(migration, /WHERE a\.id=758/);
+  assert.match(migration, /total_price=250/);
+  assert.match(migration, /price_snapshot=250/);
+  assert.match(migration, /source IS DISTINCT FROM 'shiloh_client_whatsapp'/);
+  assert.match(migration, /duration is not 30 minutes/);
+  assert.match(migration, /toegelonly/);
+  assert.match(migration, /christel/);
+  assert.match(migration, /total_service_count <> 1 OR matching_service_count <> 1/);
+  assert.match(migration, /total_staff_count <> 1 OR matching_staff_count <> 1/);
+  assert.match(migration, /payment account already exists/);
+  assert.match(migration, /appointment\.price_corrected/);
 });
 
 test('My Shiloh gives deposit priority without treating rewards as deposit payment', () => {

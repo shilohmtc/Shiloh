@@ -13,35 +13,12 @@ const {
 } = require('./bookingDepositPolicy');
 const { ensureBookingApprovalInfrastructure } = require("./clientBookingApprovalSchema");
 const logger = require("../lib/logger");
+const {
+  BOOKING_POLICY_VERSION: POLICY_VERSION,
+  BOOKING_POLICY_TEXT: POLICY_TEXT,
+} = require('../config/bookingPolicyAuthority');
 
-const POLICY_VERSION = "2026-08-11-v1";
 const POLICY_CHANNEL = "whatsapp";
-
-const POLICY_TEXT = [
-  "*Shiloh Massage Therapy & Aesthetic Clinic — Booking Policy & Terms*",
-  "",
-  "All treatments and services provided by Shiloh are strictly professional and non-sexual. Inappropriate, suggestive, abusive, discriminatory, threatening or disrespectful behaviour, comments or requests will not be tolerated. Shiloh may refuse or immediately end a treatment where these standards are breached.",
-  "",
-  "*Appointments & Arrival*",
-  "Please arrive on time. Late arrival may require a shorter treatment so later clients are not delayed, and the full treatment fee may still apply.",
-  "",
-  "*Cancellations & Rescheduling*",
-  "Please give at least 24 hours' notice when cancelling or rescheduling. Late cancellations and missed appointments may be subject to Shiloh's applicable cancellation or booking policy.",
-  "",
-  "*Health & Treatment Information*",
-  "Please provide accurate and relevant health, medical, pregnancy, allergy, medication and treatment information before your service, and tell your practitioner about any change that could affect treatment safety or suitability.",
-  "",
-  "*Treatment Suitability & Results*",
-  "Some treatments are not suitable for every client. A treatment may be adjusted, postponed or declined for safety reasons. Individual experiences and results may vary.",
-  "",
-  "*Respect, Safety & Belongings*",
-  "Shiloh is committed to a professional, respectful and safe environment. We may refuse service where conduct compromises another person's safety, dignity or wellbeing. Please take reasonable care of your personal belongings while at the clinic.",
-  "",
-  "Policy updated: 11 August 2026",
-  "",
-  "To continue with this booking request, reply exactly: *I AGREE*",
-  "If you do not agree, reply *DECLINE* and the booking request will not proceed.",
-].join("\n");
 
 let initialized = false;
 
