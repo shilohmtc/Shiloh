@@ -113,7 +113,7 @@ function buildClientExperience(context) {
       headline: `Ready when you are, ${name}.`,
       summary: 'There is no upcoming appointment linked to your secure client profile right now.',
       status: 'Ready',
-      primaryAction: { kind: 'navigate', label: 'Book an appointment', href: '/book' },
+      primaryAction: { kind: 'navigate', label: 'Book an appointment', href: '/my-shiloh/book' },
     };
   } else if (forms.state === 'action_required') {
     home = {
