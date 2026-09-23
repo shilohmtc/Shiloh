@@ -106,6 +106,11 @@ function dashboardAuthority(principal) {
   };
 }
 
+function appointmentHasStarted(item, now) {
+  const start = new Date(item?.startsAt).getTime();
+  return Number.isFinite(start) && start <= now.getTime();
+}
+
 function appointmentIsPast(item, now) {
   const end = new Date(item?.endsAt).getTime();
   return Number.isFinite(end) && end <= now.getTime();
@@ -117,12 +122,24 @@ function appointmentNeedsFinalization(item, now) {
     && !FINAL_STATUSES.has(String(item.status || '').toLowerCase());
 }
 
-function appointmentCanBeFinalized(item, authority, now) {
-  if (!authority?.canFinalize || !appointmentNeedsFinalization(item, now)) return false;
+function appointmentWithinFinalizationScope(item, authority) {
   const staffIds = [...new Set((item.staffIds || []).map(Number).filter(Number.isSafeInteger))];
   if (!staffIds.length) return false;
   if (authority.canFinalizeAllBusiness) return true;
   return staffIds.every(id => id === authority.linkedStaffId);
+}
+
+function appointmentCanBeFinalized(item, authority, now) {
+  if (!authority?.canFinalize || !appointmentNeedsFinalization(item, now)) return false;
+  return appointmentWithinFinalizationScope(item, authority);
+}
+
+function appointmentCanBeMarkedNoShow(item, authority, now) {
+  if (!authority?.canFinalize
+    || !item?.revision
+    || !appointmentHasStarted(item, now)
+    || FINAL_STATUSES.has(String(item.status || '').toLowerCase())) return false;
+  return appointmentWithinFinalizationScope(item, authority);
 }
 
 function projectAppointment(item, authority, now, operationalDateKey = null) {
@@ -131,6 +148,7 @@ function projectAppointment(item, authority, now, operationalDateKey = null) {
     operationalDateKey: operationalDateKey || null,
     needsFinalization: appointmentNeedsFinalization(item, now),
     canFinalize: appointmentCanBeFinalized(item, authority, now),
+    canMarkNoShow: appointmentCanBeMarkedNoShow(item, authority, now),
   };
 }
 
@@ -260,11 +278,15 @@ function createWorkspaceDashboardService({
       ))
       .filter(item => item.needsFinalization);
     await Promise.all([...appointments, ...carryOver].map(async (item) => {
-      if (!item.canFinalize) return;
-      item.canFinalize = await canCertifyAppointmentFn(principal, item.id, pool, {
+      if (!item.canFinalize && !item.canMarkNoShow) return;
+      const canCertify = await canCertifyAppointmentFn(principal, item.id, pool, {
         workspace: true,
         allowBusinessBackup: authority.canFinalizeAllBusiness === true,
       });
+      if (!canCertify) {
+        item.canFinalize = false;
+        item.canMarkNoShow = false;
+      }
     }));
     const awaitingFinalization = appointments.filter(item => item.needsFinalization);
     const recentActivity = appointments
@@ -349,6 +371,7 @@ function createWorkspaceDashboardService({
       expectedRevision: String(expectedRevision),
       workspace: true,
       allowBusinessBackup: authority.canFinalizeAllBusiness === true,
+      ...(targetStatus === 'no_show' ? { allowStartedNoShow: true } : {}),
     });
     if (result?.status === 'updated') return { ok: true, appointmentId: id, outcome: targetStatus };
     if (result?.status === 'certification_forbidden') {
@@ -385,6 +408,7 @@ module.exports = {
   viewerMatchesPrincipal,
   dashboardAuthority,
   appointmentCanBeFinalized,
+  appointmentCanBeMarkedNoShow,
   appointmentNeedsFinalization,
   groupOwnerAppointments,
   previousClinicDateKey,
