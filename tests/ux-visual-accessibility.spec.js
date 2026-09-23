@@ -1452,3 +1452,61 @@ test('legacy welcome-voucher deep link opens the new Wallet view', async ({ page
   await expect(page.locator('[data-view="wallet"]')).toBeVisible();
   await expect(page.locator('[data-view-target="wallet"]')).toHaveAttribute('aria-current', 'page');
 });
+
+
+test('My Shiloh update prompt is clear and accessible on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--update-available&viewMode=story', { waitUntil:'networkidle' });
+    const banner = page.locator('[data-app-update]');
+    await expect(banner).toBeVisible();
+    await expect(banner.getByText('A new My Shiloh update is ready.')).toBeVisible();
+    await expect(banner.getByRole('button', { name:'Update now' })).toBeVisible();
+    const metrics = await banner.evaluate((node) => ({
+      viewport: innerWidth,
+      document: document.documentElement.scrollWidth,
+      buttonHeight: node.querySelector('button')?.getBoundingClientRect().height || 0,
+    }));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
+    expect(metrics.buttonHeight).toBeGreaterThanOrEqual(42);
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-app-update]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact))).toEqual([]);
+    await page.screenshot({
+      path:testInfo.outputPath(`my-shiloh-update-available-${viewport.name}.png`),
+      fullPage:true,
+      animations:'disabled',
+    });
+  }
+});
+
+test('My Shiloh notification opt-in is client-controlled and accessible on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-notifications-profile&viewMode=story', { waitUntil:'networkidle' });
+    const settings = page.locator('[data-push-settings]');
+    await expect(settings).toBeVisible();
+    await expect(settings.getByRole('heading', { name:'Stay up to date with Shiloh.' })).toBeVisible();
+    await expect(settings.getByRole('button', { name:'Turn on notifications' })).toBeVisible();
+    await expect(settings.getByText('Operational updates only. Promotional messages stay separate and are never enabled by this setting.')).toBeVisible();
+    const metrics = await settings.evaluate((node) => ({
+      viewport: innerWidth,
+      document: document.documentElement.scrollWidth,
+      buttonHeight: node.querySelector('[data-push-toggle]')?.getBoundingClientRect().height || 0,
+    }));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
+    expect(metrics.buttonHeight).toBeGreaterThanOrEqual(44);
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-push-settings]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact))).toEqual([]);
+    await page.screenshot({
+      path:testInfo.outputPath(`my-shiloh-notification-opt-in-${viewport.name}.png`),
+      fullPage:true,
+      animations:'disabled',
+    });
+  }
+});
