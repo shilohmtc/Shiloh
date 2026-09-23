@@ -363,17 +363,47 @@ test('Shiloh Rewards is clear, responsive and accessible on Phone and Desktop', 
   }
 });
 
-test('linked booking payment is usable on Phone and Desktop', async ({page},testInfo)=>{
+test('booking deposit and Marietjie exemption are usable on Phone and Desktop', async ({page},testInfo)=>{
   for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await page.goto('/iframe.html?id=workspace-production-surfaces--linked-booking-payment&viewMode=story',{waitUntil:'networkidle'});
     await expect(page.getByRole('heading',{name:'Linked booking #55'})).toBeVisible();
-    await expect(page.getByText('R 740,00').first()).toBeVisible();
-    const metrics=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth,short:[...document.querySelectorAll('button,input,select,a')].filter(node=>node.getClientRects().length&&node.getBoundingClientRect().height<44).length}));
+    await expect(page.getByRole('heading',{name:'50% booking deposit required'})).toBeVisible();
+    await expect(page.getByText(/24–48 hours: half the deposit retained/)).toBeVisible();
+    await expect(page.locator('[data-ozow-form] [name="amount"]')).toHaveValue('320.00');
+    await expect(page.getByText(/Shiloh Rewards become available after the booking deposit is paid/)).toBeVisible();
+    let metrics=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth,short:[...document.querySelectorAll('button,input,select,a')].filter(node=>node.getClientRects().length&&node.getBoundingClientRect().height<44).length}));
     expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);expect(metrics.short).toBe(0);
-    const accessibility=await new AxeBuilder({page}).include('.workspace-surface-story').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    let accessibility=await new AxeBuilder({page}).include('.workspace-surface-story').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
-    await page.screenshot({path:testInfo.outputPath(`payment-${viewport.name}.png`),fullPage:true});
+    await page.screenshot({path:testInfo.outputPath(`payment-deposit-${viewport.name}.png`),fullPage:true});
+
+    await page.goto('/iframe.html?id=workspace-production-surfaces--marietjie-deposit-exempt-payment&viewMode=story',{waitUntil:'networkidle'});
+    await expect(page.getByRole('heading',{name:'Appointment #702'})).toBeVisible();
+    await expect(page.getByRole('heading',{name:'No booking deposit required'})).toBeVisible();
+    await expect(page.getByText(/Appointments with Marietjie are excluded/)).toBeVisible();
+    await expect(page.locator('[data-ozow-form] [name="amount"]')).toHaveValue('650.00');
+    metrics=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth,short:[...document.querySelectorAll('button,input,select,a')].filter(node=>node.getClientRects().length&&node.getBoundingClientRect().height<44).length}));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);expect(metrics.short).toBe(0);
+    accessibility=await new AxeBuilder({page}).include('.workspace-surface-story').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`payment-marietjie-exempt-${viewport.name}.png`),fullPage:true});
+  }
+});
+
+test('My Shiloh deposit call-to-action is clear on Phone and Desktop', async ({page},testInfo)=>{
+  for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
+    await page.setViewportSize({width:viewport.width,height:viewport.height});
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-deposit-due&viewMode=story',{waitUntil:'networkidle'});
+    const home=page.locator('[data-client-experience-home]');
+    await expect(home.getByRole('heading',{name:'Your booking is nearly ready.'})).toBeVisible();
+    await expect(home.getByText(/R325 deposit due/).first()).toBeVisible();
+    await expect(home.getByRole('link',{name:'Pay deposit'})).toHaveAttribute('href','/pay/deposit_story_example');
+    const metrics=await home.evaluate(node=>({viewport:innerWidth,document:document.documentElement.scrollWidth,short:[...node.querySelectorAll('button,input,select,a')].filter(target=>target.getClientRects().length&&target.getBoundingClientRect().height<44).length}));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);expect(metrics.short).toBe(0);
+    const accessibility=await new AxeBuilder({page}).include('[data-client-experience-home]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`my-shiloh-deposit-${viewport.name}.png`),fullPage:true});
   }
 });
 

@@ -206,6 +206,36 @@ export const AuthenticatedHomeSummaryActions = {
 };
 
 
+export const AuthenticatedDepositDue = {
+  render: () => {
+    const surface = productionSurface({
+      id: '912',
+      name: 'Christel Botha',
+      firstName: 'Christel',
+    });
+    const home = surface.querySelector('[data-client-experience-home]');
+    if (home) {
+      const heading = home.querySelector('h2');
+      const copy = home.querySelector(':scope > p');
+      const status = home.querySelector('.status-pill');
+      if (heading) heading.textContent = 'Your booking is nearly ready.';
+      if (copy) copy.textContent = 'Full Body Swedish is reserved for Thu, 24 Sep at 10:00. R325 deposit due to secure your booking.';
+      if (status) status.textContent = 'Deposit';
+      const appointment = home.querySelector('[data-client-experience-fact][data-fact-key="appointment"] strong');
+      const payment = home.querySelector('[data-client-experience-fact][data-fact-key="payment"] strong');
+      if (appointment) appointment.textContent = 'Thu, 24 Sep · 10:00';
+      if (payment) payment.textContent = 'R325 deposit due';
+      const action = document.createElement('a');
+      action.className = 'button button--primary experience-primary';
+      action.href = '/pay/deposit_story_example';
+      action.textContent = 'Pay deposit';
+      home.appendChild(action);
+    }
+    return surface;
+  },
+};
+
+
 export const AuthenticatedWallet = {
   render: () => {
     const surface = productionSurface({

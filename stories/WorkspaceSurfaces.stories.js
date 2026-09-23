@@ -377,12 +377,27 @@ export const MultiServiceClientBooking = {
 
 export const LinkedBookingPayment = {
   render: () => productionSurface(renderCalendarPaymentPage({ model: {
-    subject: { appointmentId: 701, groupId: 55 },
+    subject: { appointmentId: 701, groupId: 55, clientName:'Alex Adams', clientMobile:'27821234567', crmV2ClientId:91 },
     payment: {
-      state: 'partially_paid', amountDue: '1240.00', paid: '500.00', refunded: '0.00', netPaid: '500.00', outstanding: '740.00',
-      requests: [{ amount:'740.00', state:'link_issued', provider_payment_url:'https://pay.example.test/secure', created_at:'2026-09-14T09:00:00.000Z' }],
-      entries: [{ entry_type:'payment', amount:'500.00', method:'card_machine', evidence_kind:'authorized_manual', created_at:'2026-09-14T08:55:00.000Z' }],
+      state: 'partially_paid', amountDue: '1240.00', paid: '300.00', refunded: '0.00', netPaid: '300.00', rewardsApplied:'0.00', depositForfeited:'0.00', outstanding: '940.00',
+      deposit: { status:'partially_satisfied', requiredAmount:'620.00', creditedAmount:'300.00', remainingAmount:'320.00', forfeitedAmount:'0.00', percentageBasisPoints:5000 },
+      requests: [{ amount:'320.00', purpose:'deposit', state:'link_issued', provider_payment_url:'https://pay.example.test/secure', created_at:'2026-09-14T09:00:00.000Z' }],
+      entries: [{ entry_type:'payment', amount:'300.00', method:'card_machine', evidence_kind:'authorized_manual', created_at:'2026-09-14T08:55:00.000Z' }],
     },
+    rewards: { balance:180, unlocked:true, unlockThreshold:100 },
+    authority: { canCollect:true, canRefund:true, ozowConfigured:true },
+  } })),
+};
+
+export const MarietjieDepositExemptPayment = {
+  render: () => productionSurface(renderCalendarPaymentPage({ model: {
+    subject: { appointmentId: 702, groupId:null, clientName:'Naledi Mokoena', clientMobile:'27829876543', crmV2ClientId:92 },
+    payment: {
+      state:'unpaid', amountDue:'650.00', paid:'0.00', refunded:'0.00', netPaid:'0.00', rewardsApplied:'0.00', depositForfeited:'0.00', outstanding:'650.00',
+      deposit: { status:'exempt', requiredAmount:'0.00', creditedAmount:'0.00', remainingAmount:'0.00', forfeitedAmount:'0.00', exemptReason:'marietjie', percentageBasisPoints:5000 },
+      requests: [], entries: [],
+    },
+    rewards: { balance:120, unlocked:true, unlockThreshold:100 },
     authority: { canCollect:true, canRefund:true, ozowConfigured:true },
   } })),
 };
