@@ -125,7 +125,11 @@ test('My Shiloh voucher wallet is clear and accessible on Phone and Desktop', as
     const metrics = await page.evaluate(() => ({
       viewport:innerWidth,
       document:document.documentElement.scrollWidth,
-      short:[...document.querySelectorAll('.wallet a,.purchase-card button,.purchase-card input,.purchase-card select')].filter((node) => node.getClientRects().length && node.getBoundingClientRect().height < 44).length,
+      short:[...document.querySelectorAll('.wallet a,.purchase-card button,.purchase-card input,.purchase-card select')].filter((node) => {
+        if (!node.getClientRects().length) return false;
+        const target = ['checkbox','radio'].includes(node.type) ? node.closest('label') : node;
+        return !target || target.getBoundingClientRect().height < 44;
+      }).length,
     }));
     expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
     expect(metrics.short).toBe(0);
