@@ -12,6 +12,10 @@
   const installGateStatus = document.querySelector('[data-install-gate-status]');
   const INSTALL_VERIFIED_KEY = 'my-shiloh-install-whatsapp-verified-v1';
   const offlineBanner = document.querySelector('[data-offline-banner]');
+  const appUpdateBanner = document.querySelector('[data-app-update]');
+  const appUpdateAction = document.querySelector('[data-app-update-action]');
+  const pushToggle = document.querySelector('[data-push-toggle]');
+  const pushStatus = document.querySelector('[data-push-status]');
   const appFrame = document.querySelector('[data-app-frame]');
   const authStartButtons = [...document.querySelectorAll('[data-client-auth-start]')];
   const authLogoutButtons = [...document.querySelectorAll('[data-client-auth-logout]')];
@@ -50,6 +54,9 @@
   let welcomeVoucherRedeemedThisView = false;
   let clientProfileRevision = null;
   let clientRefreshInFlight = false;
+  let serviceWorkerRegistration = null;
+  let updateReloadPending = false;
+  let pushBusy = false;
 
   function completionCodeFromHash() {
     const match = String(window.location.hash || '').match(/^#verify=(\d{6})$/);
@@ -658,6 +665,187 @@
     return data.csrfToken;
   }
 
+  function setPushStatus(message = '', state = '') {
+    if (!pushStatus) return;
+    pushStatus.textContent = String(message || '');
+    pushStatus.dataset.state = state || '';
+  }
+
+  function pushSupported() {
+    return standalone()
+      && appFrame?.dataset.clientAuthenticated === 'true'
+      && 'serviceWorker' in navigator
+      && 'PushManager' in window
+      && 'Notification' in window;
+  }
+
+  function urlBase64ToUint8Array(value) {
+    const text = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+    const padded = text.padEnd(Math.ceil(text.length / 4) * 4, '=');
+    const raw = window.atob(padded);
+    return Uint8Array.from(raw, (char) => char.charCodeAt(0));
+  }
+
+  async function pushRegistration() {
+    if (serviceWorkerRegistration) return serviceWorkerRegistration;
+    if (!('serviceWorker' in navigator)) return null;
+    serviceWorkerRegistration = await navigator.serviceWorker.ready;
+    return serviceWorkerRegistration;
+  }
+
+  async function fetchPushConfig() {
+    const response = await fetch('/my-shiloh/api/push/config', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error('Notifications are temporarily unavailable.');
+    return data;
+  }
+
+  async function refreshPushUi() {
+    if (!pushToggle) return;
+    if (!pushSupported()) {
+      pushToggle.disabled = true;
+      pushToggle.textContent = standalone()
+        ? 'Notifications unavailable'
+        : 'Open the installed app for notifications';
+      setPushStatus(standalone()
+        ? 'This phone or browser does not currently support My Shiloh notifications.'
+        : 'Notifications can be turned on from the installed My Shiloh app.');
+      return;
+    }
+    if (Notification.permission === 'denied') {
+      pushToggle.disabled = true;
+      pushToggle.textContent = 'Notifications blocked';
+      setPushStatus('Notifications are blocked in your phone settings.', 'error');
+      return;
+    }
+    try {
+      const registration = await pushRegistration();
+      if (registration?.waiting && navigator.serviceWorker.controller) {
+        pushToggle.disabled = true;
+        pushToggle.textContent = 'Update My Shiloh first';
+        setPushStatus('Install the ready My Shiloh update, then turn on notifications.');
+        return;
+      }
+      const [subscription, config] = await Promise.all([
+        registration?.pushManager?.getSubscription(),
+        fetchPushConfig(),
+      ]);
+      if (!config.configured || !config.publicKey) {
+        pushToggle.disabled = true;
+        pushToggle.textContent = 'Notifications unavailable';
+        setPushStatus('My Shiloh notifications are not configured yet.');
+        return;
+      }
+      pushToggle.disabled = false;
+      pushToggle.dataset.enabled = subscription ? 'true' : 'false';
+      pushToggle.textContent = subscription ? 'Turn off notifications' : 'Turn on notifications';
+      setPushStatus(subscription
+        ? 'Notifications are on for this phone.'
+        : 'Notifications are off. Turn them on when you’re ready.', subscription ? 'success' : '');
+    } catch (_) {
+      pushToggle.disabled = true;
+      pushToggle.textContent = 'Notifications unavailable';
+      setPushStatus('Notifications could not be checked right now.');
+    }
+  }
+
+  async function enablePushNotifications() {
+    const registration = await pushRegistration();
+    const config = await fetchPushConfig();
+    if (!registration || !config.configured || !config.publicKey) throw new Error('Notifications are temporarily unavailable.');
+    if (registration.waiting && navigator.serviceWorker.controller) throw new Error('Update My Shiloh first, then turn on notifications.');
+    let permission = Notification.permission;
+    if (permission === 'default') permission = await Notification.requestPermission();
+    if (permission !== 'granted') throw new Error('Notifications were not allowed on this phone.');
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(config.publicKey),
+      });
+    }
+    const csrfToken = await freshCsrfToken();
+    const response = await postJson('/my-shiloh/api/push/subscribe', {
+      subscription: subscription.toJSON(),
+    }, { 'x-shiloh-csrf-token': csrfToken });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.enabled !== true) {
+      await subscription.unsubscribe().catch(() => {});
+      throw new Error(data.error || 'Notifications could not be turned on.');
+    }
+  }
+
+  async function disablePushNotifications() {
+    const registration = await pushRegistration();
+    const subscription = await registration?.pushManager?.getSubscription();
+    if (!subscription) return;
+    try {
+      const csrfToken = await freshCsrfToken();
+      await postJson('/my-shiloh/api/push/unsubscribe', {
+        endpoint: subscription.endpoint,
+      }, { 'x-shiloh-csrf-token': csrfToken });
+    } finally {
+      await subscription.unsubscribe().catch(() => {});
+    }
+  }
+
+  pushToggle?.addEventListener('click', async () => {
+    if (pushBusy || !pushSupported()) return;
+    pushBusy = true;
+    pushToggle.disabled = true;
+    setPushStatus(pushToggle.dataset.enabled === 'true'
+      ? 'Turning off notifications…'
+      : 'Turning on notifications…', 'working');
+    try {
+      if (pushToggle.dataset.enabled === 'true') await disablePushNotifications();
+      else await enablePushNotifications();
+      await refreshPushUi();
+    } catch (error) {
+      setPushStatus(error.message || 'Notifications could not be changed.', 'error');
+      pushToggle.disabled = false;
+    } finally {
+      pushBusy = false;
+    }
+  });
+
+  function revealAppUpdate(registration) {
+    if (!appUpdateBanner || !registration?.waiting || !navigator.serviceWorker.controller) return;
+    serviceWorkerRegistration = registration;
+    appUpdateBanner.hidden = false;
+    if (pushToggle) refreshPushUi();
+  }
+
+  function watchServiceWorkerRegistration(registration) {
+    serviceWorkerRegistration = registration;
+    if (registration.waiting) revealAppUpdate(registration);
+    registration.addEventListener('updatefound', () => {
+      const installing = registration.installing;
+      if (!installing) return;
+      installing.addEventListener('statechange', () => {
+        if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+          revealAppUpdate(registration);
+        }
+      });
+    });
+    refreshPushUi();
+  }
+
+  appUpdateAction?.addEventListener('click', async () => {
+    const registration = serviceWorkerRegistration || await pushRegistration();
+    if (!registration?.waiting) {
+      await registration?.update?.();
+      return;
+    }
+    updateReloadPending = true;
+    appUpdateAction.disabled = true;
+    appUpdateAction.textContent = 'Updating…';
+    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+  });
+
   clientProfileForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!clientProfileRevision) return;
@@ -1141,13 +1329,24 @@
   refreshAuthenticatedClientState();
 
   if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!updateReloadPending) return;
+      updateReloadPending = false;
+      window.location.reload();
+    });
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/my-shiloh/sw.js', {
         scope: '/my-shiloh/',
         updateViaCache: 'none',
-      }).then((registration) => registration.update()).catch(() => {
-          // The PWA still works as a normal web app if registration is unavailable.
-        });
+      }).then((registration) => {
+        watchServiceWorkerRegistration(registration);
+        return registration.update();
+      }).catch(() => {
+        // My Shiloh still works as a normal web app if registration is unavailable.
+        refreshPushUi();
+      });
     });
+  } else {
+    refreshPushUi();
   }
 })();
