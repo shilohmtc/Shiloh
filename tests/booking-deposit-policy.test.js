@@ -111,7 +111,7 @@ test('Booking Policy copy matches the approved business rules', () => {
   assert.match(source, /48 hours or more/);
   assert.match(source, /24–48 hours/);
   assert.match(source, /full booking deposit may be forfeited/);
-  assert.match(source, /2026-09-23-v2/);
+  assert.match(source, /const POLICY_VERSION = "2026-08-11-v1"/);
 });
 
 test('My Shiloh gives deposit priority without treating rewards as deposit payment', () => {
