@@ -13,6 +13,23 @@ Authorized owner/Reception staff open an appointment and choose **Payments**. Th
 
 Refund records require the narrower `payment:refund` capability. The initial migration grants collection to active canonical owner/booking-operator principals with full business/service scope and refund authority only to the active canonical owner.
 
+## Booking deposits
+
+Shiloh uses one prospective clinic-wide booking-deposit policy for bookings created after migration 150 is activated:
+
+- the required deposit is **50% of the canonical charged booking value**;
+- appointments assigned only to canonical tenant practitioner **Marietjie** are deposit-exempt;
+- for linked bookings that include Marietjie and another practitioner, Marietjie's canonical allocated portion is excluded and the 50% deposit is calculated only on the remaining allocation;
+- verified payment is required before the final customer booking-confirmation message is released;
+- Shiloh Rewards and the My Shiloh R100 welcome voucher do not substitute for the deposit;
+- 48+ hours before the original appointment start: no deposit retention;
+- 24–48 hours: 50% of that appointment's deposit share may be retained;
+- under 24 hours, same-day cancellation, or no-show: the full deposit share may be retained.
+
+The monetary payment ledger remains immutable payment evidence. Deposit requirements and cancellation/reschedule dispositions are separate records. A disposition never creates a refund automatically; authorized staff/owner refund handling remains a separate payment operation.
+
+There is deliberately **no automatic unpaid-deposit expiry or slot release in V1** because Shiloh has not approved a payment deadline. Unpaid bookings remain awaiting deposit until payment is verified or the booking is otherwise changed/cancelled.
+
 ## Ozow configuration boundary
 
 Ozow remains fail-closed until all of these runtime values are present:
