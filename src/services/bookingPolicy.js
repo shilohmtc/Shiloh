@@ -50,15 +50,16 @@ async function beginPolicyAcceptance(phone) {
   return result.rows[0] || null;
 }
 
-async function recordAcceptance(phone) {
+async function recordAcceptance(phone, channel = POLICY_CHANNEL) {
+  if (!['whatsapp', 'my_shiloh'].includes(String(channel || ''))) throw new Error('Unsupported booking policy acceptance channel');
   await ensurePolicySchema();
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const updated = await client.query(`UPDATE booking_intents SET status = 'policy_accepted', policy_version = $2, policy_accepted_at = NOW(), policy_channel = $3, updated_at = NOW() WHERE phone = $1 AND status = 'awaiting_policy_acceptance' RETURNING *`, [phone, POLICY_VERSION, POLICY_CHANNEL]);
+    const updated = await client.query(`UPDATE booking_intents SET status = 'policy_accepted', policy_version = $2, policy_accepted_at = NOW(), policy_channel = $3, updated_at = NOW() WHERE phone = $1 AND status = 'awaiting_policy_acceptance' RETURNING *`, [phone, POLICY_VERSION, channel]);
     const intent = updated.rows[0];
     if (!intent) { await client.query("ROLLBACK"); return null; }
-    await client.query(`INSERT INTO booking_policy_acceptances (phone, policy_version, channel, service_text, preferred_date, preferred_time, therapist_text) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [phone, POLICY_VERSION, POLICY_CHANNEL, intent.service_text, intent.preferred_date, intent.preferred_time, intent.therapist_text]);
+    await client.query(`INSERT INTO booking_policy_acceptances (phone, policy_version, channel, service_text, preferred_date, preferred_time, therapist_text) VALUES ($1, $2, $3, $4, $5, $6, $7)`, [phone, POLICY_VERSION, channel, intent.service_text, intent.preferred_date, intent.preferred_time, intent.therapist_text]);
     await client.query("COMMIT"); return intent;
   } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
 }
@@ -143,4 +144,4 @@ function sanitizeBookingReply(reply = "") {
   return String(reply).replace("Reply YES to continue to Goldie, or tell me what you'd like to change.", "Reply YES if these details are correct. I'll then show you Shiloh's Booking Policy & Terms for explicit acceptance before the booking can proceed.").replace("Please reply YES to continue to Goldie, or tell me what you'd like to change — for example, ‘change the time to 3pm’.", "Please reply YES if the details are correct so I can show you Shiloh's Booking Policy & Terms, or tell me what you'd like to change — for example, ‘change the time to 3pm’.");
 }
 
-module.exports = { POLICY_VERSION, POLICY_TEXT, ensurePolicySchema, finalizeAcceptedBooking, processBookingPolicyMessage, sanitizeBookingReply, stageCreatedBookingForApproval, isExplicitAcceptance };
+module.exports = { POLICY_VERSION, POLICY_TEXT, ensurePolicySchema, recordAcceptance, finalizeAcceptedBooking, processBookingPolicyMessage, sanitizeBookingReply, stageCreatedBookingForApproval, isExplicitAcceptance };
