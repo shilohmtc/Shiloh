@@ -62,6 +62,7 @@
 
   function selectedView() {
     const fromHash = String(window.location.hash || '').replace(/^#/, '');
+    if (fromHash === 'welcome-voucher') return 'wallet';
     return viewNames.has(fromHash) ? fromHash : 'home';
   }
 
