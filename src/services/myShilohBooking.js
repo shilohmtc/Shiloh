@@ -2,6 +2,7 @@
 
 const { pool } = require('../db/pool');
 const { getPublicServiceCatalogue } = require('./publicServiceCatalogue');
+const { ensureTable: ensureBookingIntentTable } = require('./bookingIntent');
 const {
   authoritativeSlotsForIntent,
   resolveEligibleStaff,
@@ -101,6 +102,7 @@ function createMyShilohBookingService({
   identityResolver = resolveWhatsAppBookingIdentity,
   commitBooking = commitAcceptedClientBooking,
   stageApproval = stageCreatedBookingForApproval,
+  ensureIntentTable = ensureBookingIntentTable,
   ensurePolicy = ensurePolicySchema,
   acceptPolicy = recordAcceptance,
   depositPolicy = createBookingDepositPolicyService({ db }),
@@ -264,6 +266,7 @@ function createMyShilohBookingService({
       );
     }
 
+    await ensureIntentTable();
     await ensurePolicy();
     const existing = await db.query(
       `SELECT phone,status,policy_channel
