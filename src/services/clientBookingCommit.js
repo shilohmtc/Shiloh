@@ -143,7 +143,7 @@ async function resolveCommitContext(phone, intent) {
   };
 }
 
-async function commitAcceptedClientBooking(phone, { source = BOOKING_SOURCE } = {}) {
+async function commitAcceptedClientBooking(phone) {
   const normalizedPhone = normalizePhone(phone);
   const initialIntent = await getIntent(normalizedPhone);
   if (!initialIntent || initialIntent.status !== 'policy_accepted') {
@@ -280,7 +280,7 @@ async function commitAcceptedClientBooking(phone, { source = BOOKING_SOURCE } = 
 
     const totalPrice = canonical.variable_price ? null : canonical.price;
     const appointment = await insertOrdinaryClientAppointment(
-      db, appointmentIdentity, canonical.location_id, startsAt, endsAt, canonical.service_name, totalPrice, source
+      db, appointmentIdentity, canonical.location_id, startsAt, endsAt, canonical.service_name, totalPrice
     );
 
     await db.query(`
@@ -295,14 +295,11 @@ async function commitAcceptedClientBooking(phone, { source = BOOKING_SOURCE } = 
       VALUES ($1, $2, 1, $3)
     `, [appointment.id, canonical.staff_id, canonical.staff_name]);
 
-    const bookingHistoryReason = source === 'shiloh_client_my_shiloh'
-      ? 'Client My Shiloh explicit policy acceptance and final booking confirmation'
-      : 'Client WhatsApp explicit policy acceptance and final booking confirmation';
     await db.query(`
       INSERT INTO appointment_status_history
         (appointment_id, from_status, to_status, changed_by, reason)
-      VALUES ($1, NULL, 'scheduled', $2, $3)
-    `, [appointment.id, `client:${normalizedPhone}`, bookingHistoryReason]);
+      VALUES ($1, NULL, 'scheduled', $2, 'Client WhatsApp explicit policy acceptance and final booking confirmation')
+    `, [appointment.id, `client:${normalizedPhone}`]);
 
     await db.query(`
       INSERT INTO crm_audit_events
@@ -318,9 +315,10 @@ async function commitAcceptedClientBooking(phone, { source = BOOKING_SOURCE } = 
       locationId: canonical.location_id,
       startsAt,
       endsAt,
-      source,
+      source: BOOKING_SOURCE,
       policyVersion: lockedIntent.policy_version,
       policyAcceptedAt: lockedIntent.policy_accepted_at,
+      policyChannel: lockedIntent.policy_channel,
       authoritativeClinicHoursChecked: true,
       authoritativeScheduleChecked: true,
       canonicalAppointmentConflictsChecked: true,
@@ -355,14 +353,14 @@ async function commitAcceptedClientBooking(phone, { source = BOOKING_SOURCE } = 
 }
 
 async function insertOrdinaryClientAppointment(
-  db, appointmentIdentity, locationId, startsAt, endsAt, serviceName, totalPrice, source = BOOKING_SOURCE
+  db, appointmentIdentity, locationId, startsAt, endsAt, serviceName, totalPrice
 ) {
   const result = await db.query(`
     INSERT INTO appointments
       (client_id, crm_v2_client_id, source_client_name, location_id, starts_at, ends_at, status, title, total_price, currency, source)
     VALUES ($1, $2, $3, $4, $5, $6, 'scheduled', $7, $8, 'ZAR', $9)
     RETURNING id, starts_at, ends_at, status
-  `, [appointmentIdentity.clientId, appointmentIdentity.crmV2ClientId, appointmentIdentity.sourceClientName, locationId, startsAt, endsAt, serviceName, totalPrice, source]);
+  `, [appointmentIdentity.clientId, appointmentIdentity.crmV2ClientId, appointmentIdentity.sourceClientName, locationId, startsAt, endsAt, serviceName, totalPrice, BOOKING_SOURCE]);
   return result.rows[0];
 }
 
