@@ -163,6 +163,11 @@ test('My Shiloh Home asks for the deposit before claiming the booking is ready',
       depositState: 'awaiting',
       depositRequired: '340.00',
       depositOutstanding: '340.00',
+      depositRatePercent: 50,
+      depositFreeNoticeHours: 48,
+      depositPartialNoticeHours: 24,
+      depositPartialForfeitPercent: 50,
+      depositLateForfeitPercent: 100,
       activePaymentPath: '/pay/dep_example123',
     },
   });
@@ -170,4 +175,6 @@ test('My Shiloh Home asks for the deposit before claiming the booking is ready',
   assert.equal(experience.home.primaryAction.label, 'Pay deposit');
   assert.match(experience.home.headline, /awaiting its deposit/);
   assert.match(experience.home.summary, /50% booking deposit/);
+  assert.match(experience.home.summary, /48\+ hours notice/);
+  assert.match(experience.home.summary, /24–48 hours/);
 });
