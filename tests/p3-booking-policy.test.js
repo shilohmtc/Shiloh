@@ -35,3 +35,18 @@ test("customer booking summary no longer directs clients to retired Goldie booki
   assert.match(cleaned, /Booking Policy & Terms/i);
   assert.match(cleaned, /explicit acceptance/i);
 });
+
+test("all active client cancellation copy reuses the unified booking policy authority", () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.resolve(__dirname, '..');
+  const appointmentChange = fs.readFileSync(path.join(root, 'src/services/appointmentChange.js'), 'utf8');
+  const myShilohActions = fs.readFileSync(path.join(root, 'src/services/myShilohClientActions.js'), 'utf8');
+  const authority = fs.readFileSync(path.join(root, 'src/config/bookingPolicyAuthority.js'), 'utf8');
+
+  assert.match(appointmentChange, /bookingPolicyAuthority/);
+  assert.match(myShilohActions, /bookingPolicyAuthority/);
+  assert.match(authority, /BOOKING_POLICY_VERSION = '2026-09-23-v2'/);
+  assert.doesNotMatch(appointmentChange, /24-hour cancellation policy|may apply a 50% fee/i);
+  assert.doesNotMatch(myShilohActions, /24-hour cancellation policy|may apply a 50% fee/i);
+});
