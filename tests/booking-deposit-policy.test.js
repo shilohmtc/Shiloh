@@ -175,6 +175,11 @@ test('booking confirmation and payment wiring cannot bypass the deposit gate', (
   const policyJourney = read('src/services/bookingPolicy.js');
   assert.match(policyJourney, /getClientPolicyPreview/);
   assert.match(policyJourney, /buildClientDepositPolicyNotice/);
+  const depositAuthority = read('src/services/bookingDepositPolicy.js');
+  assert.match(
+    depositAuthority,
+    /CASE WHEN gm\.group_id IS NULL[\s\S]*THEN a\.total_price[\s\S]*ELSE COALESCE\(g\.final_total,g\.total_price\)/,
+  );
 });
 
 test('deposit policy remains separate from the immutable legacy Booking Policy authority', () => {
