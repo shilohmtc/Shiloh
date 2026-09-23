@@ -262,7 +262,7 @@ export const AuthenticatedHomeSummaryActions = {
       const action = document.createElement('a');
       action.className = 'button button--primary experience-primary';
       action.dataset.clientExperiencePrimary = '';
-      action.href = '/book';
+      action.href = '/my-shiloh/book';
       action.textContent = 'Book an appointment';
       home.appendChild(action);
     }
