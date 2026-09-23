@@ -261,7 +261,7 @@ test('My Shiloh Home summary cards are tappable and redeemed welcome voucher cle
         headline: 'Ready when you are, Christel.',
         summary: 'There is no upcoming appointment linked to your secure client profile right now.',
         status: 'Ready',
-        primaryAction: { kind: 'navigate', label: 'Book an appointment', href: '/book' },
+        primaryAction: { kind: 'navigate', label: 'Book an appointment', href: '/my-shiloh/book' },
         facts: [
           { key: 'appointment', label: 'Appointment', value: 'None upcoming', href: '#bookings', message: 'Open Bookings to start a new appointment.' },
           { key: 'forms', label: 'Forms', value: 'Nothing waiting', href: null, message: 'Nothing waiting right now.' },
