@@ -204,3 +204,26 @@ export const AuthenticatedHomeSummaryActions = {
     return surface;
   },
 };
+
+
+export const AuthenticatedWallet = {
+  render: () => {
+    const surface = productionSurface({
+      id: '913',
+      name: 'Jean-Pierre Botha',
+      firstName: 'Jean-Pierre',
+    });
+    surface.querySelectorAll('[data-view]').forEach((view) => {
+      const active = view.dataset.view === 'wallet';
+      view.hidden = !active;
+      view.classList.toggle('is-active', active);
+    });
+    surface.querySelectorAll('[data-view-target]').forEach((item) => {
+      if (item.dataset.viewTarget === 'wallet') item.setAttribute('aria-current', 'page');
+      else item.removeAttribute('aria-current');
+    });
+    const voucher = surface.querySelector('[data-welcome-voucher]');
+    if (voucher) voucher.hidden = true;
+    return surface;
+  },
+};
