@@ -474,6 +474,9 @@
     } else {
       welcomeVoucherCopy.textContent = 'Your registration is complete. Your voucher is being prepared.';
     }
+    if (window.location.hash === '#welcome-voucher' && !welcomeVoucherHost.hidden) {
+      window.setTimeout(() => welcomeVoucherHost.scrollIntoView({ block: 'start', behavior: 'smooth' }), 0);
+    }
     return true;
   }
 
