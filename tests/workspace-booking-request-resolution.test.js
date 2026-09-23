@@ -164,6 +164,32 @@ test('Accept requested appointment locks, revalidates, writes one terminal decis
   }), error => error.code === 'BOOKING_REQUEST_ALREADY_RESOLVED');
 });
 
+test('deposit price preflight runs before a booking request can become approved', async () => {
+  const db = fakePool(row());
+  let confirmationCalled = false;
+  await assert.rejects(acceptRequestedAppointment({
+    dbPool: db,
+    principal: principal(),
+    appointmentId: 7651,
+    expectedRevision: REVISION,
+    validateWindow: async () => ({ ok: true }),
+    depositPreflight: async () => {
+      const error = new Error('Set the booking price before accepting this request.');
+      error.code = 'DEPOSIT_PRICE_UNRESOLVED';
+      error.httpStatus = 409;
+      throw error;
+    },
+    sendConfirmation: async () => {
+      confirmationCalled = true;
+      return { sent: true };
+    },
+  }), error => error.code === 'DEPOSIT_PRICE_UNRESOLVED' && error.httpStatus === 409);
+
+  assert.equal(db.state.row.status, 'pending');
+  assert.equal(db.state.calls.some(call => call.sql.includes("status='approved'")), false);
+  assert.equal(confirmationCalled, false);
+});
+
 test('multi-practitioner requested appointments revalidate every practitioner and keep every alternative hold', async () => {
   const multi = row({
     requested_staff_ids: [11, 12], current_staff_ids: [11, 12], staff_count: 2,

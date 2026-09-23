@@ -9,6 +9,8 @@ const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 const {
   createBookingDepositPolicyService,
+  bookingDepositPolicyPreview,
+  buildClientDepositPolicyNotice,
 } = require('../src/services/bookingDepositPolicy');
 const {
   paymentPosition,
@@ -53,6 +55,74 @@ test('deposit policy is one forward authority with the approved 50%, 48/24 and M
   assert.match(migration, /NEW\.to_status NOT IN \('cancelled','no_show'\)/);
   assert.match(migration, /policy_forfeit_amount/);
   assert.match(migration, /Money|money/i);
+});
+
+test('pending WhatsApp requests explain the deposit flow before staff acceptance', () => {
+  const preview = bookingDepositPolicyPreview({
+    policy,
+    createdAt: '2026-09-23T10:00:00.000Z',
+    startsAt: '2026-09-30T08:00:00.000Z',
+    canonicalTotal: null,
+    fullyExempt: false,
+    now: '2026-09-23T11:00:00.000Z',
+  });
+  const notice = buildClientDepositPolicyNotice(preview);
+  assert.equal(preview.applicable, true);
+  assert.equal(preview.priceKnown, false);
+  assert.match(notice, /50% booking deposit/);
+  assert.match(notice, /not an extra fee/);
+  assert.match(notice, /booking price still needs to be confirmed/i);
+  assert.match(notice, /48\+ hours/);
+  assert.match(notice, /24–48 hours/);
+  assert.match(notice, /No-show/);
+  assert.match(notice, /confirmed only after Shiloh verifies the required deposit/);
+});
+
+test('deposit approval readiness fails before acceptance when the canonical price is unresolved', async () => {
+  const db = {
+    async query(sql) {
+      if (String(sql).includes('FROM clinic_booking_deposit_policy')) {
+        return {
+          rows: [{
+            id: 1,
+            enabled: true,
+            rate_basis_points: 5000,
+            free_notice_hours: 48,
+            partial_notice_hours: 24,
+            partial_forfeit_basis_points: 5000,
+            late_forfeit_basis_points: 10000,
+            no_show_forfeit_basis_points: 10000,
+            exempt_staff_id: 13,
+            effective_from: '2026-09-23T00:00:00.000Z',
+            policy_version: '2026-09-23-v1',
+          }],
+        };
+      }
+      if (String(sql).includes('FROM appointments a')) {
+        return {
+          rows: [{
+            id: 758,
+            created_at: '2026-09-23T19:13:00.000Z',
+            starts_at: '2026-09-30T06:00:00.000Z',
+            group_id: null,
+            canonical_total: null,
+            fully_exempt: false,
+          }],
+        };
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+  };
+  const service = createBookingDepositPolicyService({ db });
+  await assert.rejects(
+    service.assertApprovalReady({
+      appointmentId: 758,
+      now: new Date('2026-09-23T19:14:00.000Z'),
+    }),
+    error => error.code === 'DEPOSIT_PRICE_UNRESOLVED'
+      && error.httpStatus === 409
+      && /before accepting this request/i.test(error.message),
+  );
 });
 
 test('ordinary non-Marietjie bookings require 50 percent', () => {
@@ -102,6 +172,14 @@ test('booking confirmation and payment wiring cannot bypass the deposit gate', (
   assert.match(payments, /purpose='deposit'/);
   assert.match(payments, /deposit_notification_sent_at/);
   assert.match(payments, /releaseConfirmedBookingAfterDeposit/);
+  const policyJourney = read('src/services/bookingPolicy.js');
+  assert.match(policyJourney, /getClientPolicyPreview/);
+  assert.match(policyJourney, /buildClientDepositPolicyNotice/);
+  const depositAuthority = read('src/services/bookingDepositPolicy.js');
+  assert.match(
+    depositAuthority,
+    /CASE WHEN gm\.group_id IS NULL[\s\S]*THEN a\.total_price[\s\S]*ELSE COALESCE\(g\.final_total,g\.total_price\)/,
+  );
 });
 
 test('deposit policy remains separate from the immutable legacy Booking Policy authority', () => {
