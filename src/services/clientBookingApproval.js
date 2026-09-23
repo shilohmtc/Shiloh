@@ -5,6 +5,10 @@ const { checkAuthoritativeSchedule } = require('./adminAvailability');
 const { pendingBookingProposalConflicts } = require('./bookingRequestHolds');
 const { sendWhatsAppReplyButtons, sendWhatsAppTemplate } = require('./whatsapp');
 const { sendCustomerBookingConfirmationForAppointment } = require('./customerBookingConfirmation');
+const {
+  BookingDepositPolicyError,
+  assertApprovalReady: assertBookingDepositApprovalReady,
+} = require('./bookingDepositPolicy');
 const { ensureBookingApprovalInfrastructure } = require('./clientBookingApprovalSchema');
 const logger = require('../lib/logger');
 
@@ -320,7 +324,16 @@ function requireResolvable(principal, row, expectedRevision, allowedStates = ACT
   if (!requestSnapshotMatches(row)) throw new BookingRequestError('BOOKING_REQUEST_CANONICAL_DRIFT', 'The canonical appointment changed after the client request. No resolution was recorded.', 409);
 }
 
-async function acceptRequestedAppointment({ dbPool = pool, principal, appointmentId, expectedRevision, now = new Date(), validateWindow = canonicalWindowAvailable, sendConfirmation = sendCustomerBookingConfirmationForAppointment }) {
+async function acceptRequestedAppointment({
+  dbPool = pool,
+  principal,
+  appointmentId,
+  expectedRevision,
+  now = new Date(),
+  validateWindow = canonicalWindowAvailable,
+  sendConfirmation = sendCustomerBookingConfirmationForAppointment,
+  depositPreflight = dbPool === pool ? assertBookingDepositApprovalReady : null,
+}) {
   const id = positiveId(appointmentId);
   await inTransaction(dbPool, async db => {
     const row = await loadRequest(db, id, true);
@@ -335,6 +348,9 @@ async function acceptRequestedAppointment({ dbPool = pool, principal, appointmen
       excludeProposalAppointmentId: id,
     }, validateWindow);
     if (!available.ok) throw new BookingRequestError('BOOKING_REQUEST_UNAVAILABLE', 'The requested appointment is no longer canonically available.', 409);
+    if (typeof depositPreflight === 'function') {
+      await depositPreflight({ appointmentId: id, queryable: db, now });
+    }
     const updated = await db.query(`UPDATE appointment_booking_approvals SET status='approved',decided_at=NOW(),
       decided_by_admin_id=$2,decision_note='workspace_accept_requested',updated_at=NOW()
       WHERE appointment_id=$1 AND (status='pending' OR
@@ -488,7 +504,16 @@ async function requestAnotherOption({ dbPool = pool, sender, appointmentId, prop
   return { handled: true, status: 'pending', reply: 'Thanks — I’ve asked the Shiloh team to review another option. Your request is not confirmed yet.' };
 }
 
-async function acceptProposedAlternative({ dbPool = pool, sender, appointmentId, proposalVersion, now = new Date(), validateWindow = canonicalWindowAvailable, sendConfirmation = sendCustomerBookingConfirmationForAppointment }) {
+async function acceptProposedAlternative({
+  dbPool = pool,
+  sender,
+  appointmentId,
+  proposalVersion,
+  now = new Date(),
+  validateWindow = canonicalWindowAvailable,
+  sendConfirmation = sendCustomerBookingConfirmationForAppointment,
+  depositPreflight = dbPool === pool ? assertBookingDepositApprovalReady : null,
+}) {
   const id = positiveId(appointmentId);
   const outcome = await inTransaction(dbPool, async db => {
     const row = await loadRequest(db, id, true);
@@ -514,6 +539,9 @@ async function acceptProposedAlternative({ dbPool = pool, sender, appointmentId,
       if (released.rowCount !== 1) throw new BookingRequestError('BOOKING_PROPOSAL_STALE', 'That proposed option is no longer active.', 409);
       await audit(db, null, 'client.booking_request.proposal_unavailable', id, { proposalVersion: Number(proposalVersion), reason: available.reason });
       return { status: 'unavailable' };
+    }
+    if (typeof depositPreflight === 'function') {
+      await depositPreflight({ appointmentId: id, queryable: db, now });
     }
     const accepted = await db.query(`UPDATE appointment_booking_approvals SET status='approved',decided_at=NOW(),client_responded_at=NOW(),
       decision_note='client_accepted_workspace_alternative',proposal_expires_at=NULL,updated_at=NOW()
@@ -555,6 +583,13 @@ async function processClientBookingProposalMessage(sender, text, options = {}) {
       : await requestAnotherOption({ sender, ...action, ...options });
   } catch (error) {
     if (error instanceof BookingRequestError) return { handled: true, status: 'rejected', reply: error.message };
+    if (error instanceof BookingDepositPolicyError && error.code === 'DEPOSIT_PRICE_UNRESOLVED') {
+      return {
+        handled: true,
+        status: 'awaiting_price',
+        reply: 'That option is still being held, but Shiloh needs to confirm the booking price before the deposit can be prepared. Your appointment is not confirmed yet. The team will review it.',
+      };
+    }
     logger.error({ err: error, appointmentId: action.appointmentId }, 'Client booking proposal response failed');
     return { handled: true, status: 'failed', reply: 'I couldn’t safely process that booking response. No new appointment confirmation was made; please ask the Shiloh team to review it.' };
   }
