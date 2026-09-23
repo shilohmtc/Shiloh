@@ -9,6 +9,7 @@ const { sendWhatsAppTemplate } = require('./whatsapp');
 const { issueVerifiedVoucher } = require('./giftVouchers');
 const { createShilohRewardsService } = require('./shilohRewards');
 const { queueClientNotification } = require('./myShilohPush');
+const { createBookingDepositPolicyService } = require('./bookingDepositPolicy');
 const logger = require('../lib/logger');
 
 const CAPABILITIES = Object.freeze({ VIEW: 'payment:view', COLLECT: 'payment:collect', REFUND: 'payment:refund' });
@@ -45,18 +46,203 @@ function normalizeMethod(value) {
   return method;
 }
 
+function depositDate(value) {
+  return new Intl.DateTimeFormat('en-ZA', {
+    timeZone:'Africa/Johannesburg',
+    weekday:'long',
+    day:'2-digit',
+    month:'long',
+    year:'numeric',
+  }).format(new Date(value));
+}
+
+function depositTime(value) {
+  return new Intl.DateTimeFormat('en-ZA', {
+    timeZone:'Africa/Johannesburg',
+    hour:'2-digit',
+    minute:'2-digit',
+    hour12:false,
+  }).format(new Date(value));
+}
+
 function createBookingPaymentService({
   db = pool,
   ozow = createOzowPaymentProvider(),
   sendTemplate = sendWhatsAppTemplate,
   rewards = createShilohRewardsService({ db }),
   notifyClient = null,
+  deposits = createBookingDepositPolicyService({ db }),
 } = {}) {
   const pushNotify = notifyClient || (db === pool ? queueClientNotification : null);
   async function syncRewardsAfterPayment() {
     try { await rewards.syncEligibleEarnings(); }
     catch (error) { logger.error({ err:error }, 'Shiloh Rewards payment sync failed'); }
   }
+  function depositMemberMap(position) {
+    return new Map((position.members || []).map(member => [Number(member.appointment_id), member]));
+  }
+
+  function depositRequestPlans(position) {
+    const requirement = position.requirement;
+    if (!position.applicable || !requirement || requirement.state !== 'awaiting') return [];
+    const byAppointment = depositMemberMap(position);
+    const eligibleMembers = position.scope.members.filter(member => Number(byAppointment.get(member.appointmentId)?.required_amount || 0) > 0);
+    if (!eligibleMembers.length) return [];
+    if (['couples_massage','group_booking'].includes(String(position.scope.groupType || ''))) {
+      return eligibleMembers.map(member => ({
+        member,
+        amount: Number(byAppointment.get(member.appointmentId).required_amount).toFixed(2),
+      }));
+    }
+    return [{
+      member: eligibleMembers[0],
+      amount: Number(requirement.required_amount).toFixed(2),
+    }];
+  }
+
+  async function ensureDepositRequest({ appointmentId } = {}) {
+    const position = await deposits.ensureRequirement({ appointmentId });
+    if (!position.applicable || !position.requirement || position.requirement.state !== 'awaiting') {
+      return { status:'not_required', deposit:position, requests:[] };
+    }
+    const plans = depositRequestPlans(position);
+    if (!plans.length) return { status:'not_required', deposit:position, requests:[] };
+    const created = [];
+    for (const plan of plans) {
+      let row = (await db.query(
+        `SELECT * FROM payment_requests
+          WHERE purpose='deposit'
+            AND deposit_requirement_id=$1
+            AND deposit_member_appointment_id=$2
+          LIMIT 1`,
+        [position.requirement.id, plan.member.appointmentId],
+      )).rows[0];
+      if (!row) {
+        const key = `dep_${crypto.randomBytes(18).toString('base64url')}`;
+        row = (await db.query(
+          `INSERT INTO payment_requests(
+             payment_account_id,request_key,provider,amount,payer_name,payer_mobile,payer_crm_v2_client_id,
+             purpose,deposit_requirement_id,deposit_member_appointment_id
+           ) VALUES($1,$2,'ozow',$3,$4,$5,$6,'deposit',$7,$8)
+           ON CONFLICT (deposit_requirement_id,deposit_member_appointment_id)
+             WHERE purpose='deposit' AND deposit_requirement_id IS NOT NULL AND deposit_member_appointment_id IS NOT NULL
+           DO UPDATE SET updated_at=payment_requests.updated_at
+           RETURNING *`,
+          [
+            position.requirement.payment_account_id,
+            key,
+            plan.amount,
+            plan.member.clientName || null,
+            plan.member.clientMobile || null,
+            plan.member.crmV2ClientId || null,
+            position.requirement.id,
+            plan.member.appointmentId,
+          ],
+        )).rows[0];
+      }
+      if (!row.provider_payment_url && ozow.configured()) {
+        const linked = await ozow.createPaymentLink({
+          requestKey: row.request_key,
+          amount: row.amount,
+          bankReference: `SHILOH D${position.requirement.id}`,
+          customerName: row.payer_name,
+          customerMobile: row.payer_mobile,
+        });
+        transitionPaymentState(STATES.CREATED, STATES.LINK_ISSUED);
+        row = (await db.query(
+          `UPDATE payment_requests
+              SET provider_request_id=$2,provider_payment_url=$3,state='link_issued',updated_at=NOW()
+            WHERE id=$1 AND state='created'
+            RETURNING *`,
+          [row.id, linked.providerRequestId, linked.paymentUrl],
+        )).rows[0] || row;
+      }
+      if (row.provider_payment_url && String(row.state) === 'link_issued') {
+        await sendPaymentTemplate({
+          templateKey: PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST,
+          to: row.payer_mobile || plan.member.clientMobile,
+          bodyParameters: [
+            row.payer_name || plan.member.clientName || 'there',
+            formatRand(row.amount),
+            plan.member.serviceName,
+            depositDate(plan.member.startsAt),
+            depositTime(plan.member.startsAt),
+            String(plan.member.appointmentId),
+          ],
+          urlButtonParameter: row.request_key,
+          send: sendTemplate,
+        });
+        if (row.payer_crm_v2_client_id && pushNotify) {
+          await pushNotify({
+            crmV2ClientId: Number(row.payer_crm_v2_client_id),
+            eventKey: `deposit-request:${row.id}:link-issued`,
+            category: 'payment',
+            title: 'Booking deposit required',
+            body: `Your 50% Shiloh booking deposit of ${formatRand(row.amount)} is ready to pay.`,
+            targetPath: '/my-shiloh/#bookings',
+          });
+        }
+      }
+      created.push(row);
+    }
+    return {
+      status: ozow.configured() ? 'deposit_requested' : 'deposit_awaiting_provider',
+      deposit: position,
+      requests: created,
+    };
+  }
+
+  async function releaseConfirmedBookingAfterDeposit(position) {
+    if (!position?.requirement?.transitioned) return;
+    const paidRequests = await db.query(
+      `SELECT pr.*,m.appointment_id
+         FROM payment_requests pr
+         LEFT JOIN booking_deposit_requirement_members m
+           ON m.requirement_id=pr.deposit_requirement_id
+          AND m.appointment_id=pr.deposit_member_appointment_id
+        WHERE pr.deposit_requirement_id=$1
+          AND pr.purpose='deposit'
+          AND pr.state='paid'
+        ORDER BY pr.id`,
+      [position.requirement.id],
+    );
+    const memberById = new Map(position.scope.members.map(member => [member.appointmentId, member]));
+    const remaining = Math.max(0, Number(position.scope.amountDue) - Number(position.requirement.net_paid || 0));
+    for (const request of paidRequests.rows) {
+      const member = memberById.get(Number(request.deposit_member_appointment_id || request.appointment_id)) || position.scope.members[0];
+      await sendPaymentTemplate({
+        templateKey: PAYMENT_TEMPLATE_KEYS.DEPOSIT_RECEIVED,
+        to: request.payer_mobile || member?.clientMobile,
+        bodyParameters: [
+          request.payer_name || member?.clientName || 'there',
+          formatRand(request.amount),
+          member?.serviceName || 'Shiloh appointment',
+          depositDate(member?.startsAt || position.scope.members[0].startsAt),
+          depositTime(member?.startsAt || position.scope.members[0].startsAt),
+          String(member?.appointmentId || position.scope.appointmentId),
+          formatRand(remaining),
+        ],
+        send: sendTemplate,
+      });
+    }
+    const { sendCustomerBookingConfirmationForAppointment } = require('./customerBookingConfirmation');
+    for (const member of position.scope.members) {
+      try { await sendCustomerBookingConfirmationForAppointment(member.appointmentId); }
+      catch (error) { logger.error({ err:error, appointmentId:member.appointmentId }, 'Deposit satisfied but booking confirmation release failed'); }
+    }
+  }
+
+  async function syncDepositAfterSettlement(appointmentId) {
+    try {
+      const position = await deposits.getPosition({ appointmentId });
+      if (position?.requirement?.transitioned) await releaseConfirmedBookingAfterDeposit(position);
+      return position;
+    } catch (error) {
+      logger.error({ err:error, appointmentId }, 'Booking deposit settlement sync failed');
+      return null;
+    }
+  }
+
   async function resolveOperator(queryable, adminId, capability) {
     const operator = await resolveCalendarAuthority(queryable, positiveId(adminId), { additionalCapabilities: Object.values(CAPABILITIES) });
     if (!operator || !hasCapability(operator.calendarAuthority, capability)) {
@@ -161,7 +347,9 @@ function createBookingPaymentService({
     const account = await accountFor(db, subject);
     let rewardWallet=null;
     if(subject.crmV2ClientId){try{rewardWallet=await rewards.getClientBalance(subject.crmV2ClientId);}catch(error){logger.error({err:error,appointmentId:subject.appointmentId},'Shiloh Rewards balance unavailable on payment page');}}
-    return { subject, payment: await position(db, account, subject), rewards: rewardWallet, authority: {
+    let deposit=null;
+    try { deposit=await deposits.getPosition({ appointmentId:subject.appointmentId }); } catch (error) { logger.error({err:error,appointmentId:subject.appointmentId},'Booking deposit position unavailable'); }
+    return { subject, payment: await position(db, account, subject), deposit, rewards: rewardWallet, authority: {
       canCollect: hasCapability(operator.calendarAuthority, CAPABILITIES.COLLECT),
       canRefund: hasCapability(operator.calendarAuthority, CAPABILITIES.REFUND),
       ozowConfigured: ozow.configured(),
@@ -219,6 +407,7 @@ function createBookingPaymentService({
       }
       const result = await position(client, account, subject); await client.query('COMMIT');
       await syncRewardsAfterPayment();
+      await syncDepositAfterSettlement(subject.appointmentId);
       if (!replay.rows[0]) await sendPaymentTemplate({
         templateKey: PAYMENT_TEMPLATE_KEYS.RECEIVED,
         to: subject.clientMobile,
@@ -393,6 +582,7 @@ function createBookingPaymentService({
       await client.query(`INSERT INTO payment_provider_events(provider,provider_event_key,payment_request_id,signature_verified,payload_sha256,outcome) VALUES('ozow',$1,$2,TRUE,$3,'accepted')`, [eventKey,request.id,hash]);
       await client.query('COMMIT');
       await syncRewardsAfterPayment();
+      if (paymentReceived?.request?.appointment_id) await syncDepositAfterSettlement(paymentReceived.request.appointment_id);
       if (paymentReceived) await sendPaymentTemplate({
         templateKey: PAYMENT_TEMPLATE_KEYS.RECEIVED,
         to: paymentReceived.request.payer_mobile,
@@ -436,7 +626,7 @@ function createBookingPaymentService({
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
   }
 
-  return { get, recordManual, recordRefund, createOzowRequest, handleOzowNotification };
+  return { get, recordManual, recordRefund, createOzowRequest, ensureDepositRequest, handleOzowNotification };
 }
 
 module.exports = { CAPABILITIES, BookingPaymentError, money, createBookingPaymentService };
