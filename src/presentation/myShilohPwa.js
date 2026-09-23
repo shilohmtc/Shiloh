@@ -6,7 +6,7 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 
-const MY_SHILOH_ASSET_VERSION = '20260923-updates-push-v1';
+const MY_SHILOH_ASSET_VERSION = '20260923-native-booking-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -23,10 +23,11 @@ function whatsappUrl(number, message = 'Hi Shiloh, I am using My Shiloh and woul
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
 
-function serviceCards(catalogue = []) {
+function serviceCards(catalogue = [], authenticated = false) {
+  const bookingHref = authenticated ? '/my-shiloh/book' : '/book';
   const services = sanitizePublicCatalogue(catalogue).slice(0, 4);
   if (!services.length) {
-    return '<article class="service-card service-card--empty"><span class="service-kicker">Services</span><h3>Explore what feels right.</h3><p>Our live service list is temporarily unavailable. Shiloh can still help you choose.</p><a class="text-link" href="/book">Open booking</a></article>';
+    return `<article class="service-card service-card--empty"><span class="service-kicker">Services</span><h3>Explore what feels right.</h3><p>Our live service list is temporarily unavailable. Shiloh can still help you choose.</p><a class="text-link" href="${bookingHref}">Open booking</a></article>`;
   }
 
   return services
@@ -34,7 +35,7 @@ function serviceCards(catalogue = []) {
       <span class="service-kicker">${escapeHtml(service.category || 'Service')}</span>
       <h3>${escapeHtml(service.name)}</h3>
       <div class="service-meta"><span>${escapeHtml(service.duration || '')}</span><strong>${escapeHtml(service.price || '')}</strong></div>
-      <a class="service-link" href="/book">Book this service</a>
+      <a class="service-link" href="${authenticated ? `/my-shiloh/book?service=${encodeURIComponent(service.id)}` : bookingHref}">Book this service</a>
     </article>`)
     .join('');
 }
@@ -87,7 +88,7 @@ function renderMyShilohPage({
         <h1 id="home-title">${escapeHtml(greeting)}, ${firstName}.</h1>
         <p class="hero-copy">You’re safely signed in. Your appointments, forms, payments and rewards are ready whenever you need them.</p>
         <div class="hero-actions">
-          <a class="button button--primary" href="/book">Book an appointment</a>
+          <a class="button button--primary" href="/my-shiloh/book">Book an appointment</a>
           <a class="button button--soft" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Ask Shiloh</a>
         </div>
       </div>`
@@ -360,7 +361,7 @@ function renderMyShilohPage({
             <div><p class="eyebrow">Discover</p><h2 id="discover-title">Start with what you need.</h2></div>
             <a class="text-link" href="/treatments">See all services</a>
           </div>
-          <div class="service-scroll">${serviceCards(catalogue)}</div>
+          <div class="service-scroll">${serviceCards(catalogue, authenticated)}</div>
         </section>
         <section class="quiet-card">
           <div class="quiet-icon" aria-hidden="true">S</div>
@@ -379,7 +380,7 @@ function renderMyShilohPage({
           <article class="action-card action-card--accent">
             <span class="action-number">01</span>
             <div><h2>${authenticated ? 'Loading your next booking…' : 'Book something new'}</h2><p>${authenticated ? 'We’re bringing your next appointment into view.' : 'Browse the live service list, then ask Shiloh to find a time that suits you.'}</p></div>
-            <a class="button button--primary" href="/book">Book an appointment</a>
+            <a class="button button--primary" href="${authenticated ? '/my-shiloh/book' : '/book'}">Book an appointment</a>
           </article>
           <article class="action-card">
             <span class="action-number">02</span>
