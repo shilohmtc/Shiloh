@@ -157,8 +157,8 @@ function createBookingPaymentService({
           [row.id, linked.providerRequestId, linked.paymentUrl],
         )).rows[0] || row;
       }
-      if (row.provider_payment_url && String(row.state) === 'link_issued') {
-        await sendPaymentTemplate({
+      if (row.provider_payment_url && String(row.state) === 'link_issued' && !row.deposit_notification_sent_at) {
+        const notice = await sendPaymentTemplate({
           templateKey: PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST,
           to: row.payer_mobile || plan.member.clientMobile,
           bodyParameters: [
@@ -172,6 +172,12 @@ function createBookingPaymentService({
           urlButtonParameter: row.request_key,
           send: sendTemplate,
         });
+        if (notice.sent) {
+          row = (await db.query(
+            'UPDATE payment_requests SET deposit_notification_sent_at=NOW(),updated_at=NOW() WHERE id=$1 RETURNING *',
+            [row.id],
+          )).rows[0] || row;
+        }
         if (row.payer_crm_v2_client_id && pushNotify) {
           await pushNotify({
             crmV2ClientId: Number(row.payer_crm_v2_client_id),
