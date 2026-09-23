@@ -157,7 +157,7 @@ test('no upcoming appointment produces a calm booking entry instead of invented 
     forms: [],
     payment: null,
   });
-  assert.equal(experience.home.primaryAction.href, '/book');
+  assert.equal(experience.home.primaryAction.href, '/my-shiloh/book');
   assert.deepEqual(experience.bookings.upcoming, []);
   assert.equal(experience.home.facts.find(item => item.key === 'appointment').href, '#bookings');
   assert.equal(experience.home.facts.find(item => item.key === 'forms').href, null);
