@@ -79,7 +79,8 @@ test('native booking reuses canonical client booking authorities rather than cre
   const service = read('src/services/myShilohBooking.js');
   assert.match(service, /authoritativeSlotsForIntent/);
   assert.match(service, /resolveEligibleStaff/);
-  assert.match(service, /resolveWhatsAppBookingIdentity/);
+  assert.match(service, /crmV2ClientId/);
+  assert.match(read('src/services/clientBookingCommit.js'), /my_shiloh_authenticated_booking/);
   assert.match(service, /commitAcceptedClientBooking/);
   assert.match(service, /stageCreatedBookingForApproval/);
   assert.match(service, /recordAcceptance/);
@@ -126,16 +127,10 @@ test('native booking request is bound to signed-in CRM V2 identity and stages Wo
         ends_at:'2026-09-30T09:00:00.000Z',
       }],
     }),
-    identityResolver:async phone=>({
-      status:'unique',
-      bookingReady:true,
-      clientIdentity:{ identityModel:'crm_v2', crmV2ClientId:'55' },
-      client:{ id:'55', name:'Naledi Mokoena', normalizedMobile:phone, status:'active' },
-    }),
     ensureIntentTable:async()=>calls.push(['ensureIntentTable']),
     ensurePolicy:async()=>calls.push(['ensurePolicy']),
     acceptPolicy:async(phone, channel)=>{ calls.push(['acceptPolicy',phone,channel]); return { phone }; },
-    commitBooking:async(phone)=>{ calls.push(['commit',phone]); return { handled:true,status:'created',appointmentId:812 }; },
+    commitBooking:async(phone, options)=>{ calls.push(['commit',phone,options]); return { handled:true,status:'created',appointmentId:812 }; },
     stageApproval:async result=>{ calls.push(['stage',result.appointmentId]); return { ...result,status:'pending_resolution' }; },
     depositPolicy:{ async loadPolicy(){ return { rateBasisPoints:5000, exemptStaffId:13 }; } },
     now:()=>new Date('2026-09-23T18:00:00.000Z'),
@@ -152,7 +147,31 @@ test('native booking request is bound to signed-in CRM V2 identity and stages Wo
   assert.equal(result.status, 'pending_resolution');
   assert.equal(result.appointmentId, 812);
   assert.deepEqual(calls.find(item=>item[0]==='acceptPolicy'), ['acceptPolicy','27821234567','my_shiloh']);
-  assert.deepEqual(calls.find(item=>item[0]==='commit'), ['commit','27821234567']);
+  assert.deepEqual(calls.find(item=>item[0]==='commit'), ['commit','27821234567',{ crmV2ClientId:55 }]);
   assert.deepEqual(calls.find(item=>item[0]==='stage'), ['stage',812]);
   assert.equal(queries.some(call=>call.sql.includes('INSERT INTO appointments')), false);
+});
+
+
+test('ordinary My Shiloh catalogue excludes special, package-session and variable-price services', async () => {
+  const db = {
+    async query(sql) {
+      if (String(sql).includes("s.external_source='shiloh_special'")) {
+        return { rows:[{ id:66 },{ id:65 },{ id:99 }], rowCount:3 };
+      }
+      throw new Error('Unexpected query');
+    },
+  };
+  const service = createMyShilohBookingService({
+    db,
+    catalogueProvider:async()=>[
+      { id:44, name:'Deep Tissue Massage', price:'R650' },
+      { id:66, name:'Couples Massage', price:'R1 080' },
+      { id:65, name:'Sports Package Session', price:'R0' },
+      { id:99, name:'Consultation priced by area', price:'Price varies' },
+    ],
+    depositPolicy:{ async loadPolicy(){ return { rateBasisPoints:5000, exemptStaffId:13 }; } },
+  });
+  const rows = await service.catalogue();
+  assert.deepEqual(rows.map(row=>row.id), [44]);
 });
