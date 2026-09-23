@@ -10,7 +10,7 @@ const { dispatchBookingRequestAlerts } = require('./bookingRequestStaffAlerts');
 const { ensureBookingApprovalInfrastructure } = require("./clientBookingApprovalSchema");
 const logger = require("../lib/logger");
 
-const POLICY_VERSION = "2026-09-23-v2";
+const POLICY_VERSION = "2026-08-11-v1";
 const POLICY_CHANNEL = "whatsapp";
 
 const POLICY_TEXT = [
