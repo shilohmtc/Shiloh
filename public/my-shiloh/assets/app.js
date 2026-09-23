@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const viewNames = new Set(['home', 'bookings', 'shiloh', 'profile']);
+  const viewNames = new Set(['home', 'bookings', 'shiloh', 'wallet', 'profile']);
   const views = [...document.querySelectorAll('[data-view]')];
   const navItems = [...document.querySelectorAll('[data-view-target]')];
   const installTrigger = document.querySelector('[data-install-trigger]');
@@ -62,6 +62,7 @@
 
   function selectedView() {
     const fromHash = String(window.location.hash || '').replace(/^#/, '');
+    if (fromHash === 'welcome-voucher') return 'wallet';
     return viewNames.has(fromHash) ? fromHash : 'home';
   }
 
@@ -472,6 +473,9 @@
       setWelcomeVoucherStatus('The 60-day validity period has ended.', 'error');
     } else {
       welcomeVoucherCopy.textContent = 'Your registration is complete. Your voucher is being prepared.';
+    }
+    if (window.location.hash === '#welcome-voucher' && !welcomeVoucherHost.hidden) {
+      window.setTimeout(() => welcomeVoucherHost.scrollIntoView({ block: 'start', behavior: 'smooth' }), 0);
     }
     return true;
   }

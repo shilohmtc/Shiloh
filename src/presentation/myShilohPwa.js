@@ -6,7 +6,7 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 
-const MY_SHILOH_ASSET_VERSION = '20260922-home-polish-v1';
+const MY_SHILOH_ASSET_VERSION = '20260923-wallet-nav-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -237,9 +237,7 @@ function renderMyShilohPage({
       </section>
       <div class="profile-list" aria-label="Secure profile areas">
         <div><span>Consultation forms</span><strong>When required</strong></div>
-        <div><span>Voucher wallet</span><strong><a href="/my-shiloh/gift-vouchers">Open wallet</a></strong></div>
-        <div><span>Shiloh Rewards</span><strong><a href="/my-shiloh/rewards">View balance</a></strong></div>
-        <div><span>Receipts &amp; payments</span><strong>Private</strong></div>
+        <div><span>Wallet</span><strong><a href="#wallet">Vouchers, rewards &amp; payments</a></strong></div>
       </div>
       <button class="button button--soft button--wide profile-signout" type="button" data-client-auth-logout>Sign out</button>
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>`
@@ -255,6 +253,33 @@ function renderMyShilohPage({
         <span aria-hidden="true">✓</span>
         <div><strong>Privacy first.</strong><p>Your My Shiloh information stays private and appears only after you sign in.</p></div>
       </aside>`;
+
+  const wallet = authenticated
+    ? `<div class="page-intro wallet-intro">
+        <p class="eyebrow">Wallet</p>
+        <h1 id="wallet-title">Your Shiloh value, together.</h1>
+        <p>Vouchers, rewards and payment shortcuts in one private place.</p>
+      </div>
+      ${welcomeVoucher}
+      <div class="wallet-stack">
+        ${giftVoucher}
+        ${rewards}
+        <section class="quiet-card" data-wallet-payments>
+          <div class="quiet-icon" aria-hidden="true">P</div>
+          <div><p class="eyebrow">Payments</p><h2>Payments stay with your bookings.</h2><p>Open Bookings to check the latest payment position or use a secure payment action when one is available.</p></div>
+          <a class="circle-link" href="#bookings" aria-label="Open booking payments">→</a>
+        </section>
+      </div>`
+    : `<div class="page-intro wallet-intro">
+        <p class="eyebrow">Wallet</p>
+        <h1 id="wallet-title">Your Shiloh value, together.</h1>
+        <p>Sign in to see your vouchers, rewards and payment shortcuts.</p>
+      </div>
+      <button class="button button--primary button--wide" type="button" data-client-auth-start>Continue with WhatsApp</button>
+      <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
+      ${authFinishForm('my-shiloh-wallet-code')}`;
+
+
 
   return `<!doctype html>
 <html lang="en">
@@ -314,10 +339,8 @@ function renderMyShilohPage({
     <main id="main-content" class="app-main">
       <section class="view is-active" id="home" data-view="home" aria-labelledby="home-title">
         ${hero}
-        ${welcomeVoucher}
+        ${authenticated ? '' : welcomeVoucher}
         ${focus}
-        ${rewards}
-        ${giftVoucher}
         <section class="section-block" aria-labelledby="discover-title">
           <div class="section-heading">
             <div><p class="eyebrow">Discover</p><h2 id="discover-title">Start with what you need.</h2></div>
@@ -392,6 +415,10 @@ function renderMyShilohPage({
         </div>`}
       </section>
 
+      <section class="view" id="wallet" data-view="wallet" aria-labelledby="wallet-title" hidden>
+        ${wallet}
+      </section>
+
       <section class="view" id="profile" data-view="profile" aria-labelledby="profile-title" hidden>
         ${profile}
       </section>
@@ -401,6 +428,7 @@ function renderMyShilohPage({
       <a href="#home" data-view-target="home" aria-current="page"><span class="nav-icon" aria-hidden="true">⌂</span><span>Home</span></a>
       <a href="#bookings" data-view-target="bookings"><span class="nav-icon" aria-hidden="true">□</span><span>Bookings</span></a>
       <a class="nav-shiloh" href="#shiloh" data-view-target="shiloh"><span class="nav-orb" aria-hidden="true">S</span><span>Shiloh</span></a>
+      <a href="#wallet" data-view-target="wallet"><span class="nav-icon" aria-hidden="true">▱</span><span>Wallet</span></a>
       <a href="#profile" data-view-target="profile"><span class="nav-icon" aria-hidden="true">○</span><span>Profile</span></a>
     </nav>
   </div>

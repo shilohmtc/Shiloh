@@ -42,9 +42,12 @@ test('website, My Shiloh and contextual WhatsApp invite clients into the same of
   assert.match(website, /href="\/my-shiloh\/#welcome-voucher"[^>]*>Claim my R100/);
   assert.match(guest, /Complete your registration\. Unlock R100\./);
   assert.match(guest, /data-client-auth-start>Claim my R100/);
+  assert.match(signedIn, /id="wallet" data-view="wallet"/);
   assert.match(signedIn, /data-welcome-voucher[^>]*hidden/);
   assert.match(transition.buildRegisteredClientPrompt(), /R100 welcome voucher/);
   assert.match(transition.buildRegisteredClientPrompt(), /my-shiloh\/#welcome-voucher/);
+  const client = read('public/my-shiloh/assets/app.js');
+  assert.match(client, /fromHash === 'welcome-voucher'\) return 'wallet'/);
 });
 
 test('redemption is guarded, client-confirmed and gives recovery steps', () => {

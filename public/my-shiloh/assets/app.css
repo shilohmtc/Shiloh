@@ -171,7 +171,7 @@ h3{font-size:20px;line-height:1.12}
 .privacy-note p{font-size:11px;color:var(--muted);margin:3px 0 0}
 .bottom-nav{
   position:fixed;z-index:40;left:50%;bottom:0;transform:translateX(-50%);
-  width:min(100%,760px);display:grid;grid-template-columns:repeat(4,1fr);align-items:end;
+  width:min(100%,760px);display:grid;grid-template-columns:repeat(5,minmax(0,1fr));align-items:end;
   padding:8px 9px calc(8px + var(--safe-bottom));
   background:rgba(255,253,249,.94);backdrop-filter:blur(20px);
   border-top:1px solid rgba(37,51,44,.08);box-shadow:0 -10px 35px rgba(48,61,52,.08);
@@ -182,8 +182,9 @@ h3{font-size:20px;line-height:1.12}
 }
 .bottom-nav a[aria-current="page"]{color:var(--leaf-dark);background:rgba(223,232,220,.47)}
 .nav-icon{font-size:19px;line-height:1}
-.nav-shiloh{position:relative}
+.nav-shiloh{position:relative;grid-column:3}
 .nav-orb{display:grid;place-items:center;width:35px;height:35px;margin-top:-17px;border-radius:50%;background:#faf7f0 url('/my-shiloh/assets/icon-192.png') center/cover no-repeat;color:transparent;border:4px solid var(--paper);box-shadow:0 6px 18px rgba(46,64,51,.25);font-size:0}
+.wallet-intro{padding-bottom:12px}.wallet-stack{display:grid;gap:12px}.wallet-stack .quiet-card{margin:0}.wallet-stack .quiet-card .eyebrow{color:var(--leaf-dark)}.wallet-stack .quiet-card p:last-child{color:#4f5d56}.wallet-stack+.section-block{margin-top:24px}
 .install-sheet{position:fixed;inset:0;z-index:100}
 .install-sheet__backdrop{position:absolute;inset:0;width:100%;border:0;background:rgba(32,43,36,.42);backdrop-filter:blur(4px)}
 .install-sheet__panel{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:min(100%,560px);padding:25px 20px calc(24px + var(--safe-bottom));border-radius:27px 27px 0 0;background:var(--paper);box-shadow:0 -20px 60px rgba(32,43,36,.2)}

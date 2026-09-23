@@ -31,6 +31,7 @@ test('client voucher page requires recipient identity while preserving delivery 
   const html = renderClientVoucherPage({ model:{client:{name:'Christel'},policy:{configured:false,mode:null,months:null},ozowConfigured:true,receivedVouchers:[],orders:[]},csrfToken:'csrf-token' });
   assert.match(html, /Your voucher wallet is ready/);
   assert.match(html, /Buy a gift voucher/);
+  assert.match(html, /href="\/my-shiloh\/#wallet">Back to Wallet/);
   assert.match(html, /Recipient’s name and surname/);
   assert.match(html, /Recipient’s mobile number/);
   assert.match(html, /links the voucher to the recipient’s My Shiloh profile/i);
