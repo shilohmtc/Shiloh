@@ -397,7 +397,8 @@ export const BookingDepositAwaiting = {
     },
     deposit: {
       applicable:true,
-      requirement:{ state:'awaiting', required_amount:'325.00', net_paid:'0.00', policy_version:'2026-09-23-v1' },
+      policy:{ rateBasisPoints:5000, freeNoticeHours:48, partialNoticeHours:24, partialForfeitBasisPoints:5000, lateForfeitBasisPoints:10000 },
+      requirement:{ state:'awaiting', required_amount:'325.00', net_paid:'0.00', policy_version:'2026-09-23-v1', rate_basis_points:5000 },
       events:[],
     },
     rewards:{ balance:'75.00', unlocked:true, unlockThreshold:'100.00' },
