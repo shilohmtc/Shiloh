@@ -56,7 +56,22 @@ function formPosition(forms = []) {
 
 function paymentPosition(payment) {
   if (!payment) return { state: 'none', label: 'No payment position', actionPath: null };
+  if (payment.depositState === 'exempt') return { state: 'deposit_exempt', label: 'No deposit required', actionPath: null };
+  if (payment.depositState === 'awaiting') {
+    return {
+      state: 'deposit_required',
+      label: `${rand(payment.depositOutstanding) || rand(payment.depositRequired) || 'Deposit'} deposit required`,
+      actionPath: payment.activePaymentPath || null,
+    };
+  }
   if (payment.state === 'paid') return { state: 'paid', label: 'Paid', actionPath: null };
+  if (payment.depositState === 'satisfied' && payment.state === 'partially_paid') {
+    return {
+      state: 'deposit_paid',
+      label: `Deposit paid · ${rand(payment.outstanding) || 'balance'} remaining`,
+      actionPath: payment.activePaymentPath || null,
+    };
+  }
   if (payment.state === 'partially_paid') {
     return {
       state: 'partially_paid',
@@ -104,12 +119,15 @@ function buildClientExperience(context) {
       primaryAction: { kind: 'shiloh', label: 'Ask Shiloh about my form', href: '#shiloh' },
     };
   } else if (payment.actionPath) {
+    const depositRequired = payment.state === 'deposit_required';
     home = {
       eyebrow: 'Before your visit',
-      headline: 'Your booking is nearly ready.',
-      summary: `${appointment.service} is booked for ${appointment.date} at ${appointment.time}. A secure payment option is available.`,
-      status: 'Payment',
-      primaryAction: { kind: 'navigate', label: 'Open payment', href: payment.actionPath },
+      headline: depositRequired ? 'Your booking is awaiting its deposit.' : 'Your booking is nearly ready.',
+      summary: depositRequired
+        ? `${appointment.service} is held for ${appointment.date} at ${appointment.time}. Pay the 50% booking deposit to secure it.`
+        : `${appointment.service} is booked for ${appointment.date} at ${appointment.time}. A secure payment option is available.`,
+      status: depositRequired ? 'Deposit' : 'Payment',
+      primaryAction: { kind: 'navigate', label: depositRequired ? 'Pay deposit' : 'Open payment', href: payment.actionPath },
     };
   } else {
     home = {
