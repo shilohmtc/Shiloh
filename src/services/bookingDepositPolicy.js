@@ -354,12 +354,13 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
           }),
         ],
       );
+      const syncedRequirement = await syncState(client, requirement);
       await client.query('COMMIT');
       return {
         applicable: true,
         policy,
         scope,
-        requirement,
+        requirement: syncedRequirement,
         members: calculated.members.map(member => ({
           appointment_id: member.appointmentId,
           eligible_amount: moneyText(member.eligibleAmount),
