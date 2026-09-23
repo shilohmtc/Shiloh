@@ -184,7 +184,10 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
     const result = await queryable.query(
       `SELECT a.id,a.created_at,a.starts_at,
               gm.group_id,
-              COALESCE(g.final_total,g.total_price,a.total_price) AS canonical_total,
+              CASE WHEN gm.group_id IS NULL
+                THEN a.total_price
+                ELSE COALESCE(g.final_total,g.total_price)
+              END AS canonical_total,
               CASE
                 WHEN gm.group_id IS NULL THEN EXISTS(
                   SELECT 1
