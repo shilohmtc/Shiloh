@@ -1667,7 +1667,11 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
       viewport: innerWidth,
       document: document.documentElement.scrollWidth,
       short: [...document.querySelectorAll('[data-my-shiloh-booking] button,[data-my-shiloh-booking] a,[data-my-shiloh-booking] input')]
-        .filter(node => node.getClientRects().length && node.getBoundingClientRect().height < 44).length,
+        .filter((node) => {
+          if (!node.getClientRects().length) return false;
+          const target = ['checkbox','radio'].includes(node.type) ? node.closest('label') : node;
+          return !target || target.getBoundingClientRect().height < 44;
+        }).length,
     }));
     expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
     expect(metrics.short).toBe(0);
