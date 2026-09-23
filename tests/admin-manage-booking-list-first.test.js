@@ -8,7 +8,7 @@ const source = fs.readFileSync(path.join(__dirname,'..','src','services','adminB
 test('Manage a booking is appointment-list first with manual number fallback',()=>{
   assert.match(source,/upcomingAppointmentsInteractive/);
   assert.match(source,/a\.starts_at>=NOW\(\)/);
-  assert.match(source,/a\.status<>'cancelled'/);
+  assert.match(source,/a\.status NOT IN \('cancelled','no_show'\)/);
   assert.match(source,/manage_booking_select_/);
   assert.match(source,/manage_booking_manual/);
   assert.match(source,/Enter appointment no\./);
