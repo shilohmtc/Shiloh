@@ -261,7 +261,7 @@ test('My Shiloh Home summary cards are tappable and redeemed welcome voucher cle
         headline: 'Ready when you are, Christel.',
         summary: 'There is no upcoming appointment linked to your secure client profile right now.',
         status: 'Ready',
-        primaryAction: { kind: 'navigate', label: 'Book an appointment', href: '/book' },
+        primaryAction: { kind: 'navigate', label: 'Book an appointment', href: '/my-shiloh/book' },
         facts: [
           { key: 'appointment', label: 'Appointment', value: 'None upcoming', href: '#bookings', message: 'Open Bookings to start a new appointment.' },
           { key: 'forms', label: 'Forms', value: 'Nothing waiting', href: null, message: 'Nothing waiting right now.' },
@@ -1629,6 +1629,120 @@ test('unified Booking Policy & Terms is readable and accessible on Phone and Des
       fullPage: true,
       animations: 'disabled',
       caret: 'hide',
+    });
+  }
+});
+
+
+test('My Shiloh native booking stays in-app and is usable on Phone and Desktop', async ({ page }, testInfo) => {
+  const confirmations = [];
+  await page.route('**/my-shiloh/api/booking/practitioners?**', async (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      service: { id:101, name:'Hot Stone Massage', category:'Massage', durationMinutes:75, price:850, variablePrice:false },
+      practitioners: [
+        { id:11, name:'Christel', depositExempt:false },
+        { id:13, name:'Marietjie', depositExempt:true },
+      ],
+      deposit: { ratePercent:50, exemptStaffId:13 },
+    }),
+  }));
+  await page.route('**/my-shiloh/api/booking/availability?**', async (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      status:'available',
+      service:{ id:101, name:'Hot Stone Massage' },
+      practitioner:{ id:11, name:'Christel' },
+      date:'2026-09-30',
+      slots:[
+        { startsAt:'2026-09-30T08:00:00.000Z', endsAt:'2026-09-30T09:15:00.000Z', date:'2026-09-30', time:'10:00', endTime:'11:15', practitionerId:11, practitionerName:'Christel' },
+      ],
+    }),
+  }));
+  await page.route('**/my-shiloh/api/booking/confirm', async (route) => {
+    confirmations.push({
+      headers: await route.request().allHeaders(),
+      body: route.request().postDataJSON(),
+    });
+    return route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status:'pending_resolution',
+        appointmentId:812,
+        service:'Hot Stone Massage',
+        practitioner:'Christel',
+        startsAt:'2026-09-30T08:00:00.000Z',
+        message:'Your booking request is in. Your selected time is being held while the Shiloh team confirms it. You’ll see the deposit step in My Shiloh after approval.',
+      }),
+    });
+  });
+
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-native-booking&viewMode=story', { waitUntil:'networkidle' });
+    await page.addScriptTag({ url:'/my-shiloh/assets/booking.js' });
+
+    await expect(page.getByRole('heading', { name:'Choose your next appointment, Christel.' })).toBeVisible();
+    await expect(page.getByText(/Everything happens here in My Shiloh/)).toBeVisible();
+    await page.locator('[data-book-service][data-service-id="101"]').click();
+
+    await expect(page.getByRole('heading', { name:'Who would you like to see?' })).toBeVisible();
+    await expect(page.getByText('No deposit required')).toBeVisible();
+    await page.locator('[data-practitioner-id="11"]').click();
+
+    await expect(page.getByRole('heading', { name:'Choose a date and time.' })).toBeVisible();
+    await page.locator('[data-booking-date]').fill('2026-09-30');
+    await page.getByRole('button', { name:'Show available times' }).click();
+    await page.getByRole('button', { name:/10:00–11:15/ }).click();
+
+    await expect(page.getByRole('heading', { name:'Review your booking request.' })).toBeVisible();
+    await expect(page.locator('[data-review-service]')).toContainText('Hot Stone Massage');
+    await expect(page.locator('[data-review-practitioner]')).toHaveText('Christel');
+    await expect(page.locator('[data-review-deposit]')).toHaveText('50% after approval');
+    await page.locator('[data-policy-accepted]').check();
+    await page.getByRole('button', { name:'Send booking request' }).click();
+
+    await expect(page.getByRole('heading', { name:'Booking request sent.' })).toBeVisible();
+    await expect(page.getByText(/selected time is being held while the Shiloh team confirms it/)).toBeVisible();
+    await expect(page.getByRole('link', { name:'View My Shiloh bookings' })).toHaveAttribute('href', '/my-shiloh/#bookings');
+
+    const metrics = await page.evaluate(() => ({
+      viewport: innerWidth,
+      document: document.documentElement.scrollWidth,
+      short: [...document.querySelectorAll('[data-my-shiloh-booking] button,[data-my-shiloh-booking] a,[data-my-shiloh-booking] input')]
+        .filter((node) => {
+          if (!node.getClientRects().length) return false;
+          const target = ['checkbox','radio'].includes(node.type) ? node.closest('label') : node;
+          return !target || target.getBoundingClientRect().height < 44;
+        }).length,
+    }));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
+    expect(metrics.short).toBe(0);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-my-shiloh-booking]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+
+    await page.screenshot({
+      path:testInfo.outputPath(`my-shiloh-native-booking-${viewport.name}.png`),
+      fullPage:true,
+      animations:'disabled',
+    });
+  }
+
+  expect(confirmations).toHaveLength(2);
+  for (const call of confirmations) {
+    expect(call.headers['x-shiloh-csrf-token']).toBe('storybook-csrf');
+    expect(call.body).toEqual({
+      serviceId:101,
+      staffId:11,
+      startsAt:'2026-09-30T08:00:00.000Z',
+      policyAccepted:true,
     });
   }
 });
