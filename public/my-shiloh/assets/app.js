@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const viewNames = new Set(['home', 'bookings', 'shiloh', 'profile']);
+  const viewNames = new Set(['home', 'bookings', 'shiloh', 'wallet', 'profile']);
   const views = [...document.querySelectorAll('[data-view]')];
   const navItems = [...document.querySelectorAll('[data-view-target]')];
   const installTrigger = document.querySelector('[data-install-trigger]');
