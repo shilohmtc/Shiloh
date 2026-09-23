@@ -500,7 +500,7 @@ function createBookingPaymentService({
         await client.query(`INSERT INTO payment_ledger_entries(payment_account_id,entry_type,amount,method,evidence_kind,operation_key,external_reference,actor_admin_id,notes,payer_crm_v2_client_id) VALUES($1,'refund',$2,$3,$4,$5,$6,$7,$8,$9)`,[account.id,normalizedAmount,normalizedMethod,EVIDENCE.AUTHORIZED_MANUAL,operationKey,String(reference||'').trim()||null,operator.id,String(notes||'').trim()||null,payerClientId]);
         await client.query(`INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata) VALUES($1,'payment.refund_recorded','booking_payment_account',$2,$3::jsonb)`,[operator.id,account.id,JSON.stringify({amount:normalizedAmount,method:normalizedMethod,operationId:key})]);
       }
-      const result=await position(client,account,subject);await client.query('COMMIT');await syncRewardsAfterPayment();
+      const result=await position(client,account,subject);await client.query('COMMIT');await syncRewardsAfterPayment();await syncDepositAfterSettlement(subject.appointmentId);
       if (!replay.rows[0]) await sendPaymentTemplate({
         templateKey: PAYMENT_TEMPLATE_KEYS.REFUND_UPDATE,
         to: subject.clientMobile,
