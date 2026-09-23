@@ -138,8 +138,8 @@ function createCalendarAppointmentEndTimeService({
     const operator = await resolveOperator(adminId, db);
     const context = await loadAppointment(db, appointmentId);
     requireAppointmentAuthority(operator, context);
-    if (String(context.appointment.status || '') === 'cancelled') {
-      throw endTimeError('CALENDAR_END_TIME_FINAL', 'A cancelled appointment does not have an adjustable visit end time.', 409);
+    if (['cancelled', 'no_show'].includes(String(context.appointment.status || ''))) {
+      throw endTimeError('CALENDAR_END_TIME_FINAL', 'A final appointment does not have an adjustable visit end time.', 409);
     }
     return { status: 'ready', appointment: state(context) };
   }
@@ -152,7 +152,7 @@ function createCalendarAppointmentEndTimeService({
              FROM appointments a
              JOIN appointment_staff ast ON ast.appointment_id=a.id
             WHERE ast.staff_id=$1
-              AND a.status<>'cancelled'
+              AND a.status NOT IN ('cancelled','no_show')
               AND a.id<>$4
               AND a.starts_at<$3 AND a.ends_at>$2
            UNION ALL
