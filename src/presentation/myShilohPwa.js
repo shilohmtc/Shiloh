@@ -35,7 +35,7 @@ function serviceCards(catalogue = [], authenticated = false) {
       <span class="service-kicker">${escapeHtml(service.category || 'Service')}</span>
       <h3>${escapeHtml(service.name)}</h3>
       <div class="service-meta"><span>${escapeHtml(service.duration || '')}</span><strong>${escapeHtml(service.price || '')}</strong></div>
-      <a class="service-link" href="${bookingHref}">Book this service</a>
+      <a class="service-link" href="${authenticated ? `/my-shiloh/book?service=${encodeURIComponent(service.id)}` : bookingHref}">Book this service</a>
     </article>`)
     .join('');
 }
