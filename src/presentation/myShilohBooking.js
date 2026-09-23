@@ -33,7 +33,14 @@ function serviceCards(catalogue = []) {
 }
 
 function cleanPolicyText(value = '') {
-  return String(value || '').replaceAll('*', '');
+  return String(value || '')
+    .replaceAll('*', '')
+    .split('\n')
+    .filter((line) => !/^To continue with this booking request, reply exactly:/i.test(line.trim()))
+    .filter((line) => !/^If you do not agree, reply DECLINE/i.test(line.trim()))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 function renderMyShilohBookingPage({
