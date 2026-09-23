@@ -301,6 +301,7 @@ function createMyShilohRouter({
         depositPolicy,
         welcomeVoucherMode,
         minimumBookingValue: voucher?.minimumBookingValue || 450,
+        selectedServiceId: /^[1-9]\\d*$/.test(String(req.query?.service || '')) ? String(req.query.service) : '',
       }));
     } catch (error) {
       if (error instanceof MyShilohWelcomeVoucherError) return res.redirect(303, '/my-shiloh/#welcome-voucher');
