@@ -70,7 +70,8 @@ CREATE TABLE IF NOT EXISTS booking_deposit_requirement_members (
 ALTER TABLE payment_requests
   ADD COLUMN IF NOT EXISTS purpose TEXT NOT NULL DEFAULT 'general',
   ADD COLUMN IF NOT EXISTS deposit_requirement_id BIGINT REFERENCES booking_deposit_requirements(id) ON DELETE RESTRICT,
-  ADD COLUMN IF NOT EXISTS deposit_member_appointment_id BIGINT REFERENCES appointments(id) ON DELETE RESTRICT;
+  ADD COLUMN IF NOT EXISTS deposit_member_appointment_id BIGINT REFERENCES appointments(id) ON DELETE RESTRICT,
+  ADD COLUMN IF NOT EXISTS deposit_notification_sent_at TIMESTAMPTZ;
 
 ALTER TABLE payment_requests DROP CONSTRAINT IF EXISTS payment_requests_purpose_check;
 ALTER TABLE payment_requests ADD CONSTRAINT payment_requests_purpose_check
