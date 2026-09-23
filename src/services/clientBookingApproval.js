@@ -207,7 +207,7 @@ async function listUnresolvedBookingRequests({ db = pool, principal, now = new D
            COALESCE(st.display_name,ast.staff_name_snapshot,'Shiloh practitioner') AS staff_name,
            COALESCE(pst.display_name,st.display_name,ast.staff_name_snapshot,'Shiloh practitioner') AS proposed_staff_name
       FROM appointment_booking_approvals aba
-      JOIN appointments a ON a.id=aba.appointment_id AND a.status<>'cancelled'
+      JOIN appointments a ON a.id=aba.appointment_id AND a.status NOT IN ('cancelled','no_show')
       JOIN appointment_staff ast ON ast.appointment_id=a.id AND ast.position=1
       JOIN appointment_services aps ON aps.appointment_id=a.id AND aps.position=1
       LEFT JOIN clients c ON c.id=a.client_id
@@ -254,7 +254,7 @@ async function canonicalWindowAvailable(db, {
     SELECT conflict_type,id FROM (
       SELECT 'appointment'::text conflict_type,a.id FROM appointments a
       JOIN appointment_staff ast ON ast.appointment_id=a.id
-      WHERE ast.staff_id=$1 AND a.id<>$2 AND a.status<>'cancelled' AND a.starts_at<$4 AND a.ends_at>$3
+      WHERE ast.staff_id=$1 AND a.id<>$2 AND a.status NOT IN ('cancelled','no_show') AND a.starts_at<$4 AND a.ends_at>$3
       UNION ALL
       SELECT 'calendar_block',cb.id FROM calendar_blocks cb
       WHERE cb.staff_id=$1 AND cb.starts_at<$4 AND cb.ends_at>$3
