@@ -261,9 +261,19 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
           RETURNING *`,
         [requirement.id],
       );
-      return { ...result.rows[0], net_paid: moneyText(netPaid), transitioned: true };
+      return { ...result.rows[0], net_paid: moneyText(netPaid), transitioned: true, reopened: false };
     }
-    return { ...requirement, net_paid: moneyText(netPaid), transitioned: false };
+    if (!satisfied && requirement.state === 'satisfied') {
+      const result = await queryable.query(
+        `UPDATE booking_deposit_requirements
+            SET state='awaiting',satisfied_at=NULL,updated_at=NOW()
+          WHERE id=$1
+          RETURNING *`,
+        [requirement.id],
+      );
+      return { ...result.rows[0], net_paid: moneyText(netPaid), transitioned: false, reopened: true };
+    }
+    return { ...requirement, net_paid: moneyText(netPaid), transitioned: false, reopened: false };
   }
 
   async function ensureRequirement({ appointmentId } = {}) {
@@ -273,11 +283,12 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
       const policy = await loadPolicy(client);
       const scope = await loadScope(client, appointmentId, { lock: true });
 
-      if (!policy.enabled || scope.createdAt < policy.effectiveFrom) {
+      const pastBooking = scope.members.every(member => member.startsAt.getTime() <= Date.now());
+      if (!policy.enabled || scope.createdAt < policy.effectiveFrom || pastBooking) {
         await client.query('COMMIT');
         return {
           applicable: false,
-          reason: !policy.enabled ? 'policy_disabled' : 'pre_policy_booking',
+          reason: !policy.enabled ? 'policy_disabled' : scope.createdAt < policy.effectiveFrom ? 'pre_policy_booking' : 'past_booking',
           policy,
           scope,
         };
@@ -380,8 +391,14 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
   async function getPosition({ appointmentId } = {}) {
     const policy = await loadPolicy(db);
     const scope = await loadScope(db, appointmentId);
-    if (!policy.enabled || scope.createdAt < policy.effectiveFrom) {
-      return { applicable: false, reason: !policy.enabled ? 'policy_disabled' : 'pre_policy_booking', policy, scope };
+    const pastBooking = scope.members.every(member => member.startsAt.getTime() <= Date.now());
+    if (!policy.enabled || scope.createdAt < policy.effectiveFrom || pastBooking) {
+      return {
+        applicable: false,
+        reason: !policy.enabled ? 'policy_disabled' : scope.createdAt < policy.effectiveFrom ? 'pre_policy_booking' : 'past_booking',
+        policy,
+        scope,
+      };
     }
     const requirement = await requirementFor(db, scope);
     if (!requirement) return { applicable: true, policy, scope, requirement: null, members: [] };
