@@ -13,6 +13,29 @@ Authorized owner/Reception staff open an appointment and choose **Payments**. Th
 
 Refund records require the narrower `payment:refund` capability. The initial migration grants collection to active canonical owner/booking-operator principals with full business/service scope and refund authority only to the active canonical owner.
 
+## Booking deposit policy
+
+Shiloh has one clinic-wide booking-deposit authority layered on top of the existing payment ledger.
+
+- New future bookings require a **50% booking deposit**.
+- Appointments provided by **Marietjie are exempt**. The exemption resolves through her canonical active staff record; it is not a presentation-only name check.
+- Linked/group bookings calculate the deposit only on non-Marietjie member allocations.
+- The deposit is part-payment toward the canonical booking total, never an added fee.
+- Booking confirmation is held until the required deposit is satisfied by verified Ozow or authorized manual payment evidence.
+- Rewards and welcome-voucher value do not silently satisfy the cash deposit requirement.
+- Existing bookings created before the policy effective timestamp and retrospective/past bookings are not enrolled retroactively.
+- No unpaid-booking expiry is invented in v1; an unpaid booking remains awaiting deposit until an explicit later policy defines an expiry.
+
+Cancellation/no-show consequence evidence is recorded separately from money movement:
+
+- **48 hours or more notice:** 0% of the deposit is forfeitable.
+- **24–48 hours notice:** 50% of the booking deposit is forfeitable.
+- **Less than 24 hours, same-day cancellation, or no-show:** 100% of the booking deposit is forfeitable.
+- Rescheduling preserves the existing booking payment/deposit account.
+- Shiloh does not automatically issue refunds or move money because of a cancellation/no-show event. Existing authorized refund/payment operations remain the monetary authority.
+
+The policy record, requirement/member allocations and policy events are distinct from appointment status and payment-ledger settlement truth.
+
 ## Ozow configuration boundary
 
 Ozow remains fail-closed until all of these runtime values are present:
