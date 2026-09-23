@@ -27,7 +27,7 @@ function serviceCards(catalogue = [], authenticated = false) {
   const bookingHref = authenticated ? '/my-shiloh/book' : '/book';
   const services = sanitizePublicCatalogue(catalogue).slice(0, 4);
   if (!services.length) {
-    return '<article class="service-card service-card--empty"><span class="service-kicker">Services</span><h3>Explore what feels right.</h3><p>Our live service list is temporarily unavailable. Shiloh can still help you choose.</p><a class="text-link" href="${bookingHref}">Open booking</a></article>';
+    return `<article class="service-card service-card--empty"><span class="service-kicker">Services</span><h3>Explore what feels right.</h3><p>Our live service list is temporarily unavailable. Shiloh can still help you choose.</p><a class="text-link" href="${bookingHref}">Open booking</a></article>`;
   }
 
   return services
