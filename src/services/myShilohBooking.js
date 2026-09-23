@@ -92,6 +92,8 @@ function createMyShilohBookingService({
   identityResolver = resolveWhatsAppBookingIdentity,
   commitBooking = commitAcceptedClientBooking,
   stageApproval = stageCreatedBookingForApproval,
+  ensurePolicy = ensurePolicySchema,
+  acceptPolicy = recordAcceptance,
   depositPolicy = createBookingDepositPolicyService({ db }),
   now = () => new Date(),
 } = {}) {
@@ -253,7 +255,7 @@ function createMyShilohBookingService({
       );
     }
 
-    await ensurePolicySchema();
+    await ensurePolicy();
     const existing = await db.query(
       `SELECT phone,status,policy_channel
          FROM booking_intents
@@ -285,7 +287,7 @@ function createMyShilohBookingService({
     }
 
     try {
-      const accepted = await recordAcceptance(phone, 'my_shiloh');
+      const accepted = await acceptPolicy(phone, 'my_shiloh');
       if (!accepted) {
         throw new MyShilohBookingError('BOOKING_POLICY_NOT_RECORDED', 'Your booking terms could not be recorded safely. Nothing was booked.', 409);
       }
