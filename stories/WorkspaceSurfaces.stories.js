@@ -119,6 +119,19 @@ function dashboardModel() {
   };
 }
 
+function activeNoShowDashboardModel() {
+  const model = dashboardModel();
+  model.appointments = model.appointments.map((item, index) => index === 0
+    ? { ...item, canFinalize: false, canMarkNoShow: true }
+    : item);
+  model.teamGroups = staff.map((person) => ({
+    key: String(person.id),
+    label: person.displayName,
+    appointments: model.appointments.filter((item) => item.staffIds.includes(person.id)),
+  }));
+  return model;
+}
+
 function clientModel() {
   return {
     authority: { displayName: 'Jean-Pierre' },
@@ -249,6 +262,7 @@ export default {
 };
 
 export const DashboardOperational = { render: () => interactiveProductionSurface(renderDashboardPage(dashboardModel()), dashboardClientScript()) };
+export const DashboardActiveNoShow = { render: () => interactiveProductionSurface(renderDashboardPage(activeNoShowDashboardModel()), dashboardClientScript()) };
 export const NavigationDrawerOpen = { render: workspaceNavigationOpenStory };
 export const ClientAppointmentHistory = { render: () => productionSurface(renderClientDetailPageWithCommunications(clientModel(), { calendarNavigationAllowed: true, notificationActionAllowed: true })) };
 export const MessagesAttention = { render: () => productionSurface(renderMessagesPage(messagesModel())) };
