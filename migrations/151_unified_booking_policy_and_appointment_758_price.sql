@@ -7,7 +7,9 @@ DECLARE
   policy_row clinic_booking_deposit_policy%ROWTYPE;
   appointment_row RECORD;
   matching_service_count INTEGER;
+  total_service_count INTEGER;
   matching_staff_count INTEGER;
+  total_staff_count INTEGER;
   payment_account_count INTEGER;
 BEGIN
   SELECT *
@@ -62,7 +64,7 @@ BEGIN
     RAISE EXCEPTION 'Appointment #758 price repair refused because status is %', appointment_row.status;
   END IF;
 
-  IF appointment_row.source <> 'shiloh_client_whatsapp' THEN
+  IF appointment_row.source IS DISTINCT FROM 'shiloh_client_whatsapp' THEN
     RAISE EXCEPTION 'Appointment #758 price repair refused because source is %', appointment_row.source;
   END IF;
 
@@ -75,15 +77,25 @@ BEGIN
   END IF;
 
   SELECT COUNT(*)::int
+    INTO total_service_count
+    FROM appointment_services
+   WHERE appointment_id=758;
+
+  SELECT COUNT(*)::int
     INTO matching_service_count
     FROM appointment_services aps
    WHERE aps.appointment_id=758
      AND REGEXP_REPLACE(LOWER(TRIM(aps.service_name_snapshot)),'[^a-z0-9]+','','g')
          IN ('toegelonly','toegelapplication');
 
-  IF matching_service_count <> 1 THEN
-    RAISE EXCEPTION 'Appointment #758 price repair requires exactly one Toe Gel service snapshot; found %', matching_service_count;
+  IF total_service_count <> 1 OR matching_service_count <> 1 THEN
+    RAISE EXCEPTION 'Appointment #758 price repair requires exactly one Toe Gel service snapshot; total %, matching %', total_service_count, matching_service_count;
   END IF;
+
+  SELECT COUNT(*)::int
+    INTO total_staff_count
+    FROM appointment_staff
+   WHERE appointment_id=758;
 
   SELECT COUNT(*)::int
     INTO matching_staff_count
@@ -91,8 +103,8 @@ BEGIN
    WHERE ast.appointment_id=758
      AND LOWER(TRIM(ast.staff_name_snapshot))='christel';
 
-  IF matching_staff_count <> 1 THEN
-    RAISE EXCEPTION 'Appointment #758 price repair requires exactly one Christel assignment; found %', matching_staff_count;
+  IF total_staff_count <> 1 OR matching_staff_count <> 1 THEN
+    RAISE EXCEPTION 'Appointment #758 price repair requires exactly one Christel assignment; total %, matching %', total_staff_count, matching_staff_count;
   END IF;
 
   IF EXISTS (SELECT 1 FROM appointment_group_members WHERE appointment_id=758) THEN
