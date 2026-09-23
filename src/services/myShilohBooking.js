@@ -145,6 +145,8 @@ function createMyShilohBookingService({
          FROM services s
          LEFT JOIN service_categories sc ON sc.id=s.category_id
         WHERE s.id=$1
+          AND COALESCE(s.variable_price,FALSE)=FALSE
+          AND s.price IS NOT NULL
           AND NOT (s.external_source='shiloh_special')
           AND NOT EXISTS (
             SELECT 1 FROM service_packages sp
@@ -220,6 +222,8 @@ function createMyShilohBookingService({
       `SELECT s.id
          FROM services s
         WHERE s.external_source='shiloh_special'
+           OR COALESCE(s.variable_price,FALSE)=TRUE
+           OR s.price IS NULL
            OR EXISTS (
              SELECT 1 FROM service_packages sp
               WHERE sp.session_service_id=s.id
@@ -326,6 +330,8 @@ function createMyShilohBookingService({
         );
       }
       const staged = await stageApproval(created);
+      const policy = await depositPolicy.loadPolicy(db);
+      const depositExempt = Number(practitioner.id) === Number(policy.exemptStaffId);
       return {
         status: staged.status,
         appointmentId: Number(created.appointmentId),
@@ -333,15 +339,16 @@ function createMyShilohBookingService({
         practitioner: practitioner.display_name,
         startsAt: exact.startsAt,
         clientFirstName: String(client.name || '').trim().split(/\s+/)[0] || 'there',
+        depositExempt,
         message: staged.status === 'pending_resolution'
-          ? 'Your booking request is in. Your selected time is being held while the Shiloh team confirms it. You’ll see the deposit step in My Shiloh after approval.'
+          ? depositExempt
+            ? 'Your booking request is in. Your selected time is being held while the Shiloh team confirms it. No booking deposit is required for Marietjie.'
+            : 'Your booking request is in. Your selected time is being held while the Shiloh team confirms it. You’ll see the deposit step in My Shiloh after approval.'
           : 'Your booking request was created and is being reviewed by Shiloh.',
       };
     } catch (error) {
       await db.query(
-        `DELETE FROM booking_intents
-          WHERE phone=$1
-            AND (policy_channel='my_shiloh' OR status='awaiting_policy_acceptance')`,
+        `DELETE FROM booking_intents WHERE phone=$1`,
         [phone],
       ).catch(() => {});
       throw error;
