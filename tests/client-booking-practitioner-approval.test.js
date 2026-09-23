@@ -29,7 +29,7 @@ test('approval trigger captures canonical request snapshots with no name-based p
 });
 
 test('unresolved request remains a canonical appointment conflict until explicit resolution', () => {
-  assert.match(availability, /a\.status <> 'cancelled'/);
+  assert.match(availability, /a\.status NOT IN \('cancelled','no_show'\)/);
   assert.match(approval, /pending|awaiting_client_confirmation/);
   assert.match(approval, /sendCustomerBookingConfirmationForAppointment/);
   assert.match(approval, /SET status='declined'/);
