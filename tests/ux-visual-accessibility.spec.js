@@ -112,8 +112,9 @@ test('My Shiloh voucher wallet is clear and accessible on Phone and Desktop', as
     await expect(page.getByText('SV-A1B2C3D4E5F6')).toBeVisible();
     await expect(page.getByText('22 November 2026')).toBeVisible();
     await expect(page.getByText('From Tinkie')).toBeVisible();
-    await expect(page.getByText('Ready to use')).toBeVisible();
-    await expect(page.getByText('Used')).toBeVisible();
+    const walletCards = page.locator('.wallet-card');
+    await expect(walletCards.first().getByText('Ready to use', { exact:true })).toBeVisible();
+    await expect(walletCards.last().getByText('Used', { exact:true })).toBeVisible();
     await expect(page.getByRole('link', { name:'Show voucher at reception' })).toHaveAttribute('href', '/gift-vouchers/storybook-recipient-key');
     await expect(page.getByRole('link', { name:'Book a treatment' })).toHaveAttribute('href', '/book');
 
