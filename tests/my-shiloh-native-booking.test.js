@@ -83,7 +83,7 @@ test('native booking reuses canonical client booking authorities rather than cre
   assert.match(service, /commitAcceptedClientBooking/);
   assert.match(service, /stageCreatedBookingForApproval/);
   assert.match(service, /recordAcceptance/);
-  assert.match(service, /source:'shiloh_client_my_shiloh'/);
+  assert.match(read('src/services/clientBookingCommit.js'), /policyChannel: lockedIntent\.policy_channel/);
   assert.doesNotMatch(service, /INSERT INTO appointments/);
   assert.doesNotMatch(service, /INSERT INTO appointment_staff/);
   assert.doesNotMatch(service, /INSERT INTO appointment_services/);
@@ -134,7 +134,7 @@ test('native booking request is bound to signed-in CRM V2 identity and stages Wo
     }),
     ensurePolicy:async()=>calls.push(['ensurePolicy']),
     acceptPolicy:async(phone, channel)=>{ calls.push(['acceptPolicy',phone,channel]); return { phone }; },
-    commitBooking:async(phone, options)=>{ calls.push(['commit',phone,options]); return { handled:true,status:'created',appointmentId:812 }; },
+    commitBooking:async(phone)=>{ calls.push(['commit',phone]); return { handled:true,status:'created',appointmentId:812 }; },
     stageApproval:async result=>{ calls.push(['stage',result.appointmentId]); return { ...result,status:'pending_resolution' }; },
     depositPolicy:{ async loadPolicy(){ return { rateBasisPoints:5000, exemptStaffId:13 }; } },
     now:()=>new Date('2026-09-23T18:00:00.000Z'),
@@ -151,7 +151,7 @@ test('native booking request is bound to signed-in CRM V2 identity and stages Wo
   assert.equal(result.status, 'pending_resolution');
   assert.equal(result.appointmentId, 812);
   assert.deepEqual(calls.find(item=>item[0]==='acceptPolicy'), ['acceptPolicy','27821234567','my_shiloh']);
-  assert.deepEqual(calls.find(item=>item[0]==='commit'), ['commit','27821234567',{ source:'shiloh_client_my_shiloh' }]);
+  assert.deepEqual(calls.find(item=>item[0]==='commit'), ['commit','27821234567']);
   assert.deepEqual(calls.find(item=>item[0]==='stage'), ['stage',812]);
   assert.equal(queries.some(call=>call.sql.includes('INSERT INTO appointments')), false);
 });
