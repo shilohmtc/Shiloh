@@ -131,7 +131,9 @@ async function refreshedQueueInteractive(admin, successMessage) {
 async function loadAuthorizedPendingAppointment(admin, appointmentId, db = pool, lock = false, {
   windowStart = HISTORICAL_WINDOW_START,
   windowEnd = HISTORICAL_WINDOW_END,
+  allowStartedNoShow = false,
 } = {}) {
+  const attendanceBoundarySql = allowStartedNoShow ? 'a.starts_at <= NOW()' : 'a.ends_at < NOW()';
   const result = await db.query(
     `SELECT a.id,a.client_id,a.starts_at,a.ends_at,a.status,a.updated_at,a.total_price,a.financial_classification,a.pre_adjustment_total_price,
             COALESCE(c.display_name,a.source_client_name,'Unknown client') AS client_name,
@@ -140,7 +142,7 @@ async function loadAuthorizedPendingAppointment(admin, appointmentId, db = pool,
        FROM appointments a
        LEFT JOIN clients c ON c.id=a.client_id
       WHERE a.id=$3
-        AND a.ends_at < NOW()
+        AND ${attendanceBoundarySql}
         AND a.starts_at >= $4::timestamptz
         AND a.starts_at < $5::timestamptz
         AND a.status NOT IN ('completed','cancelled','no_show')
@@ -368,7 +370,11 @@ async function finalizeAppointment(admin, appointmentId, targetStatus, {
   const db = await connectionPool.connect();
   try {
     await db.query('BEGIN');
-    const appointment = await loadAuthorizedPendingAppointment(admin, appointmentId, db, true, { windowStart, windowEnd });
+    const appointment = await loadAuthorizedPendingAppointment(admin, appointmentId, db, true, {
+      windowStart,
+      windowEnd,
+      allowStartedNoShow: workspace && targetStatus === 'no_show',
+    });
     if (!appointment) { await db.query('ROLLBACK'); return { status: 'stale_or_forbidden' }; }
     if (expectedRevision && new Date(appointment.updated_at).toISOString() !== String(expectedRevision)) {
       await db.query('ROLLBACK');
