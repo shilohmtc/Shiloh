@@ -314,17 +314,19 @@ function createMyShilohBookingService({
           : 'Your booking request was created and is being reviewed by Shiloh.',
       };
     } catch (error) {
-      if (!(error instanceof MyShilohBookingError)) {
-        await db.query(
-          `DELETE FROM booking_intents WHERE phone=$1 AND policy_channel='my_shiloh'`,
-          [phone],
-        ).catch(() => {});
-      }
+      await db.query(
+        `DELETE FROM booking_intents
+          WHERE phone=$1
+            AND (policy_channel='my_shiloh' OR status='awaiting_policy_acceptance')`,
+        [phone],
+      ).catch(() => {});
       throw error;
     }
   }
 
-  return { catalogue, practitioners, slots, createRequest };
+  async function policy() { return depositPolicy.loadPolicy(db); }
+
+  return { catalogue, practitioners, slots, createRequest, policy };
 }
 
 const service = createMyShilohBookingService();
