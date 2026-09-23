@@ -227,7 +227,7 @@
 
   function safeExperienceHref(value) {
     const href = String(value || '');
-    if (href === '/book' || href === '/my-shiloh/book' || href === '/my-shiloh/forms/complete' || /^\/pay\/[A-Za-z0-9_-]{8,100}$/.test(href) || /^#[a-z-]+$/.test(href)) return href;
+    if (href === '/book' || href === '/my-shiloh/book' || href === '/my-shiloh/book?welcomeVoucher=1' || href === '/my-shiloh/forms/complete' || /^\/pay\/[A-Za-z0-9_-]{8,100}$/.test(href) || /^#[a-z-]+$/.test(href)) return href;
     return '#shiloh';
   }
 
@@ -291,7 +291,7 @@
           if (copy) copy.textContent = 'You don’t have an upcoming appointment at the moment.';
           if (action) {
             action.textContent = 'Start booking';
-            action.href = '/book';
+            action.href = '/my-shiloh/book';
           }
         }
       }
@@ -448,7 +448,7 @@
       const bookings = Array.isArray(model.eligibleBookings) ? model.eligibleBookings : [];
       if (!bookings.length) {
         const empty = document.createElement('p'); empty.textContent = `No eligible upcoming booking yet. Book a treatment of R${voucher.minimumBookingValue.toFixed(0)} or more, then return here.`; welcomeVoucherBookings.appendChild(empty);
-        const link = document.createElement('a'); link.className = 'button button--soft'; link.href = '/my-shiloh/book'; link.textContent = 'Find a qualifying treatment'; welcomeVoucherBookings.appendChild(link);
+        const link = document.createElement('a'); link.className = 'button button--soft'; link.href = '/my-shiloh/book?welcomeVoucher=1'; link.textContent = 'Find a qualifying treatment'; welcomeVoucherBookings.appendChild(link);
       }
       for (const booking of bookings) {
         const card = document.createElement('div'); card.className = 'welcome-voucher__booking';
