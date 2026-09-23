@@ -104,14 +104,11 @@ test('booking confirmation and payment wiring cannot bypass the deposit gate', (
   assert.match(payments, /releaseConfirmedBookingAfterDeposit/);
 });
 
-test('Booking Policy copy matches the approved business rules', () => {
+test('deposit policy remains separate from the immutable legacy Booking Policy authority', () => {
   const source = read('src/services/bookingPolicy.js');
-  assert.match(source, /50% booking deposit/);
-  assert.match(source, /Marietjie are excluded/);
-  assert.match(source, /48 hours or more/);
-  assert.match(source, /24–48 hours/);
-  assert.match(source, /full booking deposit may be forfeited/);
   assert.match(source, /const POLICY_VERSION = "2026-08-11-v1"/);
+  assert.match(source, /Policy updated: 11 August 2026/);
+  assert.doesNotMatch(source, /50% booking deposit|24–48 hours|Marietjie are excluded/);
 });
 
 test('My Shiloh gives deposit priority without treating rewards as deposit payment', () => {
