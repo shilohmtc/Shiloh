@@ -94,6 +94,7 @@ test('Voucher recipient recovery is explicit and accessible on Phone and Desktop
     expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
     await page.screenshot({ path:testInfo.outputPath(`voucher-recipient-recovery-${viewport.name}.png`), fullPage:true, animations:'disabled' });
     const requestPromise = page.waitForRequest((request) => request.url().includes('/calendar/vouchers/recipient') && request.method() === 'POST');
+    const reloadPromise = page.waitForNavigation({ waitUntil:'networkidle' });
     await page.getByRole('button', { name:'Update recipient' }).click();
     const request = await requestPromise;
     expect(request.postDataJSON()).toEqual({
@@ -102,6 +103,7 @@ test('Voucher recipient recovery is explicit and accessible on Phone and Desktop
       recipientMobile:'082 123 4567',
       confirmed:true,
     });
+    await reloadPromise;
   }
 });
 
@@ -843,6 +845,31 @@ test('Dashboard visit outcomes use a polished accessible confirmation on Desktop
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
     await expect(carryOver.getByRole('button', { name: 'No-show' })).toBeFocused();
+  }
+});
+
+test('Dashboard allows No-show from visit start while keeping Completed unavailable until the visit ends', async ({ page }) => {
+  for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=workspace-production-surfaces--dashboard-active-no-show&viewMode=story', { waitUntil: 'networkidle' });
+
+    const activeVisit = page.locator('[data-dashboard-appointment="667"]');
+    await expect(activeVisit.getByRole('button', { name: 'No-show' })).toBeVisible();
+    await expect(activeVisit.getByRole('button', { name: 'Completed' })).toHaveCount(0);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-dashboard-appointment="667"]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
+    expect(serious, 'Serious accessibility violations in active No-show action: ' + JSON.stringify(serious, null, 2)).toEqual([]);
+
+    await activeVisit.getByRole('button', { name: 'No-show' }).click();
+    const dialog = page.locator('[data-dashboard-outcome-dialog]');
+    await expect(dialog.getByRole('heading', { name: 'Mark this visit as a no-show?' })).toBeVisible();
+    await expect(dialog).toContainText('release the remaining appointment time for booking');
+    await page.screenshot({ path: 'artifacts/dashboard-active-no-show-' + (viewport.width <= 560 ? 'phone' : 'desktop') + '.png' });
+    await page.keyboard.press('Escape');
   }
 });
 

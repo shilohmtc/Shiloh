@@ -60,7 +60,7 @@ async function upcomingForPhone(phone){const key=normalizePhone(phone);const r=a
  LEFT JOIN crm_v2_clients v2 ON v2.id=a.crm_v2_client_id AND v2.status='active'
  WHERE ((a.client_id IS NOT NULL AND a.crm_v2_client_id IS NULL AND EXISTS (SELECT 1 FROM client_contacts cc WHERE cc.client_id=a.client_id AND cc.normalized_value=$1 AND cc.contact_type IN ('whatsapp','mobile','phone')))
     OR (a.client_id IS NULL AND a.crm_v2_client_id IS NOT NULL AND v2.normalized_mobile=$1))
-   AND a.status<>'cancelled' AND a.ends_at>NOW()
+   AND a.status NOT IN ('cancelled','no_show') AND a.ends_at>NOW()
  ORDER BY a.starts_at`,[key]);return r.rows;}
 async function appointmentForPhone(phone,id){const rows=await upcomingForPhone(phone);return rows.find(x=>Number(x.id)===Number(id))||null;}
 function summary(a){return [`*${a.service_name}*`,`📅 ${fmtDateTime(a.starts_at)}`,`👤 ${a.staff_name}`,`Booking #${a.id}`].join('\n');}
@@ -189,13 +189,13 @@ async function rescheduleCanonical(phone,a,date,time){
  if(!clinic.covered)return{status:'clinic_hours',reply:'That time falls outside Shiloh’s clinic hours. Please choose another time.'};
  const schedule=await checkAuthoritativeSchedule({staffId:Number(a.staff_id),locationId:a.location_id,startsAt:starts,endsAt:ends});
  if(schedule.partialUnavailable||(schedule.allDayUnavailable&&!schedule.insideAvailableException)||!schedule.covered)return{status:'staff_schedule',reply:`${a.staff_name} is not available at that time. Please choose another time.`};
- const conflict=await pool.query(`SELECT 1 FROM appointments ap JOIN appointment_staff ast ON ast.appointment_id=ap.id WHERE ast.staff_id=$1 AND ap.id<>$2 AND ap.status<>'cancelled' AND ap.starts_at<$4 AND ap.ends_at>$3 LIMIT 1`,[a.staff_id,a.id,starts,ends]);
+ const conflict=await pool.query(`SELECT 1 FROM appointments ap JOIN appointment_staff ast ON ast.appointment_id=ap.id WHERE ast.staff_id=$1 AND ap.id<>$2 AND ap.status NOT IN ('cancelled','no_show') AND ap.starts_at<$4 AND ap.ends_at>$3 LIMIT 1`,[a.staff_id,a.id,starts,ends]);
  if(conflict.rowCount)return{status:'conflict',reply:'That time has just become unavailable. Please choose another time.'};
  const db=await pool.connect();
  try{
    await db.query('BEGIN');
    const locked=await db.query(`SELECT status,starts_at,ends_at FROM appointments WHERE id=$1 FOR UPDATE`,[a.id]);
-   if(!locked.rows[0]||locked.rows[0].status==='cancelled'){
+   if(!locked.rows[0]||['cancelled','no_show'].includes(locked.rows[0].status)){
      await db.query('ROLLBACK');
      return{status:'changed',reply:'That appointment changed while I was checking it. Please start the reschedule again.'};
    }
@@ -210,7 +210,7 @@ async function rescheduleCanonical(phone,a,date,time){
    if(!finalClinic.covered){await db.query('ROLLBACK');return{status:'clinic_hours',reply:'That time is no longer inside Shiloh’s clinic hours. Please choose another time.'};}
    const finalSchedule=await checkAuthoritativeSchedule({db,staffId:Number(a.staff_id),locationId:a.location_id,startsAt:starts,endsAt:ends});
    if(finalSchedule.partialUnavailable||(finalSchedule.allDayUnavailable&&!finalSchedule.insideAvailableException)||!finalSchedule.covered){await db.query('ROLLBACK');return{status:'staff_schedule',reply:`${a.staff_name} is no longer available at that time. Please choose another time.`};}
-   const finalConflict=await db.query(`SELECT 1 FROM appointments ap JOIN appointment_staff ast ON ast.appointment_id=ap.id WHERE ast.staff_id=$1 AND ap.id<>$2 AND ap.status<>'cancelled' AND ap.starts_at<$4 AND ap.ends_at>$3 LIMIT 1`,[a.staff_id,a.id,starts,ends]);
+   const finalConflict=await db.query(`SELECT 1 FROM appointments ap JOIN appointment_staff ast ON ast.appointment_id=ap.id WHERE ast.staff_id=$1 AND ap.id<>$2 AND ap.status NOT IN ('cancelled','no_show') AND ap.starts_at<$4 AND ap.ends_at>$3 LIMIT 1`,[a.staff_id,a.id,starts,ends]);
    if(finalConflict.rowCount){await db.query('ROLLBACK');return{status:'conflict',reply:'That time has just become unavailable. Please choose another time.'};}
    await db.query(`UPDATE appointments SET starts_at=$1,ends_at=$2,updated_at=NOW() WHERE id=$3`,[starts,ends,a.id]);
    await db.query(`UPDATE appointment_lifecycle SET appointment_at=$1,appointment_ends_at=$2,reminder_sent_at=NULL,updated_at=NOW() WHERE appointment_id=$3`,[starts,ends,a.id]);

@@ -124,7 +124,7 @@ async function changeToPackageService(sender, appointmentId, serviceId) {
       LEFT JOIN staff st ON st.id=ast.staff_id
       JOIN appointment_services aps ON aps.appointment_id=a.id
       LEFT JOIN services s0 ON s0.id=aps.service_id
-     WHERE a.id=$1 AND a.status<>'cancelled'`, [appointmentId]);
+     WHERE a.id=$1 AND a.status NOT IN ('cancelled','no_show')`, [appointmentId]);
   if (contextResult.rowCount !== 1) return { handled: true, admin, reply: 'Package conversion is currently limited to single-service, single-practitioner bookings.' };
   const a = contextResult.rows[0];
   const starts = new Date(a.starts_at);
@@ -133,7 +133,7 @@ async function changeToPackageService(sender, appointmentId, serviceId) {
   if (!clinic.covered) return { handled: true, admin, reply: 'The package session would fall outside clinic hours. No change was saved.' };
   const schedule = await checkAuthoritativeSchedule({ staffId: a.staff_id, locationId: a.location_id, startsAt: starts, endsAt: ends });
   if (schedule.partialUnavailable || (schedule.allDayUnavailable && !schedule.insideAvailableException) || !schedule.covered) return { handled: true, admin, reply: 'The 50-minute package session does not fit the practitioner schedule at this time. No change was saved.' };
-  const conflict = await pool.query(`SELECT a.id FROM appointments a JOIN appointment_staff ast ON ast.appointment_id=a.id WHERE ast.staff_id=$1 AND a.id<>$2 AND a.status<>'cancelled' AND a.starts_at<$4 AND a.ends_at>$3 LIMIT 1`, [a.staff_id, appointmentId, starts, ends]);
+  const conflict = await pool.query(`SELECT a.id FROM appointments a JOIN appointment_staff ast ON ast.appointment_id=a.id WHERE ast.staff_id=$1 AND a.id<>$2 AND a.status NOT IN ('cancelled','no_show') AND a.starts_at<$4 AND a.ends_at>$3 LIMIT 1`, [a.staff_id, appointmentId, starts, ends]);
   if (conflict.rowCount) return { handled: true, admin, reply: 'The 50-minute package session would conflict with another CRM appointment. No change was saved.' };
   const db = await pool.connect();
   let entitlement;

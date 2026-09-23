@@ -131,7 +131,7 @@ function appointmentContextQuery({ lock = false } = {}) {
       JOIN appointment_services aps ON aps.appointment_id=a.id AND aps.position=1
       LEFT JOIN services s ON s.id=aps.service_id
      WHERE a.id=$2
-       AND a.status<>'cancelled'
+       AND a.status NOT IN ('cancelled','no_show')
        AND num_nonnulls(a.client_id,a.crm_v2_client_id)=1
        AND (
          (a.client_id IS NOT NULL AND a.crm_v2_client_id IS NULL AND EXISTS (
@@ -185,7 +185,7 @@ async function canonicalConflicts({ db = pool, appointmentId, staffId, startsAt,
       JOIN appointment_staff ast ON ast.appointment_id=ap.id
      WHERE ast.staff_id=$1
        AND ap.id<>$2
-       AND ap.status<>'cancelled'
+       AND ap.status NOT IN ('cancelled','no_show')
        AND ap.starts_at<$4
        AND ap.ends_at>$3
      LIMIT 1

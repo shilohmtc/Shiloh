@@ -294,7 +294,7 @@ function createCalendarOperationalMutationService({
              FROM appointments a
              JOIN appointment_staff ast ON ast.appointment_id=a.id
             WHERE ast.staff_id=$1
-              AND a.status<>'cancelled'
+              AND a.status NOT IN ('cancelled','no_show')
               AND ($4::bigint IS NULL OR a.id<>$4)
               AND a.starts_at<$3 AND a.ends_at>$2
            UNION ALL
@@ -526,7 +526,7 @@ function createCalendarOperationalMutationService({
       `SELECT a.id, a.starts_at, a.ends_at
          FROM appointments a
          JOIN appointment_staff ast ON ast.appointment_id=a.id
-        WHERE ast.staff_id=$1 AND a.status<>'cancelled'
+        WHERE ast.staff_id=$1 AND a.status NOT IN ('cancelled','no_show')
           AND a.starts_at<$3 AND a.ends_at>$2
         ORDER BY a.starts_at, a.id`,
       [input.staffId, input.startsAt, input.endsAt]
@@ -632,7 +632,7 @@ function createCalendarOperationalMutationService({
       `SELECT a.id,a.starts_at,a.ends_at
          FROM appointments a
          JOIN appointment_staff ast ON ast.appointment_id=a.id
-        WHERE ast.staff_id=$1 AND a.status<>'cancelled'
+        WHERE ast.staff_id=$1 AND a.status NOT IN ('cancelled','no_show')
           AND (a.starts_at AT TIME ZONE 'Africa/Johannesburg')::date=$2::date
         ORDER BY a.starts_at,a.id`,
       [staffId, date]
@@ -850,7 +850,7 @@ function createCalendarOperationalMutationService({
           `SELECT a.id,a.location_id,a.starts_at,a.ends_at
              FROM appointments a
              JOIN appointment_staff ast ON ast.appointment_id=a.id
-            WHERE ast.staff_id=$1 AND a.status<>'cancelled' AND a.ends_at>NOW()
+            WHERE ast.staff_id=$1 AND a.status NOT IN ('cancelled','no_show') AND a.ends_at>NOW()
               AND EXTRACT(DOW FROM (a.starts_at AT TIME ZONE 'Africa/Johannesburg'))::int=$2
               AND ($3::bigint IS NULL OR a.location_id=$3)
             ORDER BY a.starts_at,a.id
