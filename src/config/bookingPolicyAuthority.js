@@ -149,6 +149,7 @@ const BOOKING_POLICY_TEXT = [
   'Shiloh is committed to a professional, respectful and safe environment. We may refuse service where conduct compromises another person’s safety, dignity or wellbeing. Please take reasonable care of your personal belongings while at the clinic.',
   '',
   `Policy updated: ${BOOKING_POLICY_UPDATED}`,
+  `Policy version: ${BOOKING_POLICY_VERSION}`,
   '',
   'To continue with this booking request, reply exactly: *I AGREE*',
   'If you do not agree, reply *DECLINE* and the booking request will not proceed.',
