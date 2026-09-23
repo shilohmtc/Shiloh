@@ -358,7 +358,7 @@ function createBookingPaymentService({
     let rewardWallet=null;
     if(subject.crmV2ClientId){try{rewardWallet=await rewards.getClientBalance(subject.crmV2ClientId);}catch(error){logger.error({err:error,appointmentId:subject.appointmentId},'Shiloh Rewards balance unavailable on payment page');}}
     let deposit=null;
-    try { deposit=await deposits.getPosition({ appointmentId:subject.appointmentId }); } catch (error) { logger.error({err:error,appointmentId:subject.appointmentId},'Booking deposit position unavailable'); }
+    try { await deposits.ensureRequirement({ appointmentId:subject.appointmentId }); deposit=await deposits.getPosition({ appointmentId:subject.appointmentId }); } catch (error) { logger.error({err:error,appointmentId:subject.appointmentId},'Booking deposit position unavailable'); }
     return { subject, payment: await position(db, account, subject), deposit, rewards: rewardWallet, authority: {
       canCollect: hasCapability(operator.calendarAuthority, CAPABILITIES.COLLECT),
       canRefund: hasCapability(operator.calendarAuthority, CAPABILITIES.REFUND),
