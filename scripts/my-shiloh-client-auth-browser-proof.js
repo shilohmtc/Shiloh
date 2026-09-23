@@ -120,7 +120,7 @@ const fakeAssistantService = {
           practitioner: 'Marietjie',
           date: 'Thursday, 24 September 2026',
           time: '10:00',
-          policy: "Shiloh's 24-hour cancellation policy applies.",
+          policy: "Under Shiloh’s Booking Policy & Terms, appointments with Marietjie are exempt from the booking-deposit requirement.",
           paymentNote: 'Cancelling an appointment does not automatically issue a refund.',
           confirmLabel: 'Cancel appointment',
           declineLabel: 'Keep appointment',
