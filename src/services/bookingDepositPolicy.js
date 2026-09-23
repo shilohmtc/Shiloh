@@ -37,6 +37,98 @@ function percentAmount(amount, basisPoints) {
   return Math.round(moneyNumber(amount) * Number(basisPoints) * 100 / 10000) / 100;
 }
 
+function percentText(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '0';
+  if (Number.isInteger(number)) return String(number);
+  return number.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function bookingDepositPolicyPreview({
+  policy,
+  createdAt,
+  startsAt,
+  canonicalTotal = null,
+  fullyExempt = false,
+  groupId = null,
+  now = new Date(),
+} = {}) {
+  if (!policy) {
+    throw new BookingDepositPolicyError('DEPOSIT_POLICY_MISSING', 'Shiloh booking deposit policy is unavailable.', 503);
+  }
+  const created = new Date(createdAt);
+  const starts = new Date(startsAt);
+  const effectiveFrom = new Date(policy.effectiveFrom);
+  const current = new Date(now);
+  if ([created, starts, effectiveFrom, current].some(value => Number.isNaN(value.getTime()))) {
+    throw new BookingDepositPolicyError('DEPOSIT_BOOKING_INVALID', 'The booking deposit policy could not resolve this appointment.', 409);
+  }
+
+  const priceKnown = canonicalTotal != null
+    && Number.isFinite(Number(canonicalTotal))
+    && Number(canonicalTotal) >= 0;
+  const enabled = policy.enabled === true;
+  const prePolicyBooking = created.getTime() < effectiveFrom.getTime();
+  const pastBooking = starts.getTime() <= current.getTime();
+  const applicable = enabled && !prePolicyBooking && !pastBooking;
+  const exempt = applicable && Boolean(fullyExempt);
+
+  return {
+    applicable,
+    reason: applicable
+      ? null
+      : !enabled
+        ? 'policy_disabled'
+        : prePolicyBooking
+          ? 'pre_policy_booking'
+          : 'past_booking',
+    exempt,
+    priceKnown,
+    groupId: groupId ? Number(groupId) : null,
+    policyVersion: String(policy.policyVersion || ''),
+    ratePercent: Number(policy.rateBasisPoints) / 100,
+    freeNoticeHours: Number(policy.freeNoticeHours),
+    partialNoticeHours: Number(policy.partialNoticeHours),
+    partialForfeitPercent: Number(policy.partialForfeitBasisPoints) / 100,
+    lateForfeitPercent: Number(policy.lateForfeitBasisPoints) / 100,
+    noShowForfeitPercent: Number(policy.noShowForfeitBasisPoints) / 100,
+  };
+}
+
+function buildClientDepositPolicyNotice(preview) {
+  if (!preview?.applicable) return null;
+  if (preview.exempt) {
+    return [
+      '*Booking deposit*',
+      'No booking deposit is required for this appointment under Shiloh’s current deposit policy.',
+    ].join('\n');
+  }
+
+  const rate = percentText(preview.ratePercent);
+  const free = percentText(preview.freeNoticeHours);
+  const partial = percentText(preview.partialNoticeHours);
+  const partialForfeit = percentText(preview.partialForfeitPercent);
+  const lateForfeit = percentText(preview.lateForfeitPercent);
+  const noShowForfeit = percentText(preview.noShowForfeitPercent);
+  const priceLine = preview.priceKnown
+    ? 'If Shiloh accepts this request, we’ll prepare the exact deposit amount and secure payment option.'
+    : `The booking price still needs to be confirmed before the ${rate}% deposit can be calculated. Shiloh cannot accept the request until that price is set.`;
+
+  return [
+    '*Booking deposit*',
+    `A ${rate}% booking deposit is required to secure this appointment if Shiloh accepts your request. It forms part of your booking total — it is not an extra fee.`,
+    priceLine,
+    '',
+    '*Deposit cancellation terms*',
+    `• ${free}+ hours’ notice: no deposit is forfeited.`,
+    `• ${partial}–${free} hours’ notice: up to ${partialForfeit}% of the deposit may be forfeited.`,
+    `• Under ${partial} hours or same-day cancellation: up to ${lateForfeit}% of the deposit may be forfeited.`,
+    `• No-show: up to ${noShowForfeit}% of the deposit may be forfeited.`,
+    'Rescheduling keeps the existing booking payment/deposit record.',
+    'Your appointment is confirmed only after Shiloh verifies the required deposit.',
+  ].join('\n');
+}
+
 function normalizeRows(rows = []) {
   return rows.map(row => ({
     appointmentId: Number(row.appointment_id),
@@ -84,6 +176,66 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
       effectiveFrom: new Date(row.effective_from),
       policyVersion: String(row.policy_version),
     };
+  }
+
+  async function getClientPolicyPreview({ appointmentId, queryable = db, now = new Date() } = {}) {
+    const id = positiveId(appointmentId);
+    const policy = await loadPolicy(queryable);
+    const result = await queryable.query(
+      `SELECT a.id,a.created_at,a.starts_at,
+              gm.group_id,
+              COALESCE(g.final_total,g.total_price,a.total_price) AS canonical_total,
+              CASE
+                WHEN gm.group_id IS NULL THEN EXISTS(
+                  SELECT 1
+                    FROM appointment_staff ast
+                   WHERE ast.appointment_id=a.id
+                     AND ast.staff_id=$2
+                )
+                ELSE NOT EXISTS(
+                  SELECT 1
+                    FROM appointment_group_members gm2
+                   WHERE gm2.group_id=gm.group_id
+                     AND NOT EXISTS(
+                       SELECT 1
+                         FROM appointment_staff ast2
+                        WHERE ast2.appointment_id=gm2.appointment_id
+                          AND ast2.staff_id=$2
+                     )
+                )
+              END AS fully_exempt
+         FROM appointments a
+         LEFT JOIN appointment_group_members gm ON gm.appointment_id=a.id
+         LEFT JOIN appointment_groups g ON g.id=gm.group_id
+        WHERE a.id=$1
+        LIMIT 1`,
+      [id, policy.exemptStaffId],
+    );
+    const row = result.rows[0];
+    if (!row) {
+      throw new BookingDepositPolicyError('DEPOSIT_BOOKING_NOT_FOUND', 'The canonical appointment no longer exists.', 404);
+    }
+    return bookingDepositPolicyPreview({
+      policy,
+      createdAt: row.created_at,
+      startsAt: row.starts_at,
+      canonicalTotal: row.canonical_total,
+      fullyExempt: row.fully_exempt === true,
+      groupId: row.group_id,
+      now,
+    });
+  }
+
+  async function assertApprovalReady({ appointmentId, queryable = db, now = new Date() } = {}) {
+    const preview = await getClientPolicyPreview({ appointmentId, queryable, now });
+    if (preview.applicable && !preview.exempt && !preview.priceKnown) {
+      throw new BookingDepositPolicyError(
+        'DEPOSIT_PRICE_UNRESOLVED',
+        `Set the booking price before accepting this request. Shiloh cannot calculate the ${percentText(preview.ratePercent)}% booking deposit until the price is set.`,
+        409,
+      );
+    }
+    return preview;
   }
 
   async function loadScope(queryable, appointmentId, { lock = false } = {}) {
@@ -436,6 +588,8 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
 
   return {
     loadPolicy,
+    getClientPolicyPreview,
+    assertApprovalReady,
     loadScope,
     calculate,
     ensureRequirement,
@@ -455,6 +609,9 @@ module.exports = {
   moneyNumber,
   moneyText,
   percentAmount,
+  percentText,
+  bookingDepositPolicyPreview,
+  buildClientDepositPolicyNotice,
   normalizeRows,
   createBookingDepositPolicyService,
   ...service,
