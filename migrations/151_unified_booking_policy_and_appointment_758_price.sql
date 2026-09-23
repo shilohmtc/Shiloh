@@ -68,7 +68,7 @@ BEGIN
     INTO matching_service_count
     FROM appointment_services aps
    WHERE aps.appointment_id=758
-     AND LOWER(REGEXP_REPLACE(TRIM(aps.service_name_snapshot),'[^a-z0-9]+','','g'))
+     AND REGEXP_REPLACE(LOWER(TRIM(aps.service_name_snapshot)),'[^a-z0-9]+','','g')
          IN ('toegelonly','toegelapplication');
 
   IF matching_service_count <> 1 THEN
