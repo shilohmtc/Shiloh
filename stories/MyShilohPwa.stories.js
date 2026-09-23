@@ -44,9 +44,11 @@ function bookingSurface() {
       lateForfeitBasisPoints: 10000,
     },
   });
-  const body = String(page).match(/<body[^>]*>([\s\S]*?)<\/body>/)?.[1] || '';
+  const source = String(page);
+  const body = source.match(/<body[^>]*>([\s\S]*?)<\/body>/)?.[1] || '';
+  const styles = [...source.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map(match => match[1]).join('\n');
   const root = document.createElement('div');
-  root.innerHTML = `<div data-story-surface>${body.replace(/<script[\s\S]*?<\/script>/g, '')}</div>`;
+  root.innerHTML = `<style>${styles}</style><div data-story-surface>${body.replace(/<script[\s\S]*?<\/script>/g, '')}</div>`;
   return root;
 }
 
