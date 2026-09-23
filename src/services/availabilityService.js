@@ -185,7 +185,7 @@ async function listAvailableSlots({
             FROM appointment_staff ast
             JOIN appointments a ON a.id = ast.appointment_id
            WHERE ast.staff_id = $2
-             AND a.status <> 'cancelled'
+             AND a.status NOT IN ('cancelled','no_show')
              AND ($6::bigint IS NULL OR a.id <> $6)
              AND a.starts_at < (c.local_end AT TIME ZONE '${TZ}')
              AND a.ends_at > (c.local_start AT TIME ZONE '${TZ}')
