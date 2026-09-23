@@ -49,6 +49,7 @@ function appointmentFromRow(row) {
   if (!row) return null;
   return {
     id: Number(row.id),
+    crmV2ClientId: row.crm_v2_client_id ? Number(row.crm_v2_client_id) : null,
     startsAt: new Date(row.starts_at).toISOString(),
     endsAt: new Date(row.ends_at).toISOString(),
     status: String(row.status || ''),
@@ -89,7 +90,7 @@ function createMyShilohClientContextService({
     if (!id) return null;
     const result = await db.query(
       `/* myShilohClientContext:next-appointment */
-       SELECT a.id,
+       SELECT a.id,a.crm_v2_client_id,
               COALESCE(linked_group.starts_at,a.starts_at) AS starts_at,
               COALESCE(linked_group.ends_at,a.ends_at) AS ends_at,
               a.status,
@@ -142,7 +143,7 @@ function createMyShilohClientContextService({
     if (!id) return [];
     const result = await db.query(
       `/* myShilohClientContext:upcoming-appointments */
-       SELECT a.id,
+       SELECT a.id,a.crm_v2_client_id,
               COALESCE(linked_group.starts_at,a.starts_at) AS starts_at,
               COALESCE(linked_group.ends_at,a.ends_at) AS ends_at,
               a.status,
@@ -219,6 +220,7 @@ function createMyShilohClientContextService({
     const accountResult = await db.query(
       `/* myShilohClientContext:payment-position */
        SELECT bpa.id,bpa.canonical_amount_due,bpa.currency,
+              bdr.state AS deposit_state,bdr.required_amount AS deposit_required_amount,
               COALESCE(SUM(ple.amount) FILTER (WHERE ple.entry_type='payment'),0) AS paid,
               COALESCE(SUM(ple.amount) FILTER (WHERE ple.entry_type='refund'),0) AS refunded,
               (SELECT COALESCE(SUM(bla.amount),0) FROM booking_loyalty_allocations bla WHERE bla.booking_payment_account_id=bpa.id AND bla.state='applied') AS rewards_applied,
@@ -228,9 +230,11 @@ function createMyShilohClientContextService({
            ON gm.group_id=bpa.appointment_group_id
          LEFT JOIN payment_ledger_entries ple
            ON ple.payment_account_id=bpa.id
+         LEFT JOIN booking_deposit_requirements bdr
+           ON bdr.payment_account_id=bpa.id
         WHERE bpa.appointment_id=$1
            OR gm.appointment_id=$1
-        GROUP BY bpa.id,bpa.canonical_amount_due,bpa.currency
+        GROUP BY bpa.id,bpa.canonical_amount_due,bpa.currency,bdr.state,bdr.required_amount
         ORDER BY bpa.id DESC
         LIMIT 1`,
       [positiveId(appointment.id)],
@@ -247,25 +251,34 @@ function createMyShilohClientContextService({
 
     const requestResult = await db.query(
       `/* myShilohClientContext:active-payment-request */
-       SELECT request_key
+       SELECT request_key,purpose
          FROM payment_requests
         WHERE payment_account_id=$1
           AND provider_payment_url IS NOT NULL
           AND state IN ('link_issued','pending')
-        ORDER BY id DESC
+          AND ($2::bigint IS NULL OR payer_crm_v2_client_id IS NULL OR payer_crm_v2_client_id=$2)
+        ORDER BY CASE WHEN purpose='deposit' THEN 0 ELSE 1 END,id DESC
         LIMIT 1`,
-      [Number(account.id)],
+      [Number(account.id), appointment.crmV2ClientId],
     );
     const requestKey = String(requestResult.rows[0]?.request_key || '');
+    const base = paymentState({
+      amountDue: account.canonical_amount_due,
+      paid: account.paid,
+      refunded: account.refunded,
+      rewardsApplied: account.rewards_applied,
+      welcomeVoucherApplied: account.welcome_voucher_applied,
+    });
+    const depositRequired = account.deposit_required_amount == null ? null : Number(account.deposit_required_amount);
+    const netMoneyPaid = Math.max(0, Number(account.paid || 0) - Number(account.refunded || 0));
+    const depositOutstanding = depositRequired == null ? null : Math.max(0, depositRequired - netMoneyPaid);
     return {
-      ...paymentState({
-        amountDue: account.canonical_amount_due,
-        paid: account.paid,
-        refunded: account.refunded,
-        rewardsApplied: account.rewards_applied,
-        welcomeVoucherApplied: account.welcome_voucher_applied,
-      }),
+      ...base,
       currency: String(account.currency || 'ZAR'),
+      depositState: account.deposit_state ? String(account.deposit_state) : null,
+      depositRequired: depositRequired == null ? null : depositRequired.toFixed(2),
+      depositOutstanding: depositOutstanding == null ? null : depositOutstanding.toFixed(2),
+      activePaymentPurpose: String(requestResult.rows[0]?.purpose || ''),
       activePaymentPath: /^[A-Za-z0-9_-]{8,100}$/.test(requestKey) ? `/pay/${requestKey}` : null,
     };
   }
