@@ -33,7 +33,7 @@ async function adminFor(sender) {
 }
 
 async function loadAppointment(admin, id) {
-  const r = await pool.query(`SELECT a.id,a.client_id,a.location_id,a.starts_at,a.ends_at,a.status,a.total_price,a.currency,COALESCE(c.display_name,a.source_client_name,'Client') client_name,l.name location_name FROM appointments a LEFT JOIN clients c ON c.id=a.client_id LEFT JOIN locations l ON l.id=a.location_id WHERE a.id=$1 AND a.status<>'cancelled'`, [id]);
+  const r = await pool.query(`SELECT a.id,a.client_id,a.location_id,a.starts_at,a.ends_at,a.status,a.total_price,a.currency,COALESCE(c.display_name,a.source_client_name,'Client') client_name,l.name location_name FROM appointments a LEFT JOIN clients c ON c.id=a.client_id LEFT JOIN locations l ON l.id=a.location_id WHERE a.id=$1 AND a.status NOT IN ('cancelled','no_show')`, [id]);
   if (!r.rowCount) return null;
   const a = r.rows[0];
   const staff = (await pool.query(`SELECT ast.staff_id,ast.staff_name_snapshot,s.display_name FROM appointment_staff ast LEFT JOIN staff s ON s.id=ast.staff_id WHERE ast.appointment_id=$1 ORDER BY ast.position`, [id])).rows;
@@ -65,7 +65,7 @@ async function upcomingAppointmentsInteractive(admin) {
                      WHERE ast.appointment_id=a.id),'Practitioner not recorded') staff_name
     FROM appointments a
     LEFT JOIN clients c ON c.id=a.client_id
-    WHERE a.status<>'cancelled' AND a.starts_at>=NOW() ${scope}
+    WHERE a.status NOT IN ('cancelled','no_show') AND a.starts_at>=NOW() ${scope}
     ORDER BY a.starts_at,a.id
     LIMIT ${limitParam}`, params);
   if (!r.rowCount) return null;
@@ -176,7 +176,7 @@ async function validateWindow(a, staffId, staffName, startsAt, endsAt) {
   if (!clinic.covered) return 'That time falls outside clinic hours.';
   const schedule = await checkAuthoritativeSchedule({ staffId, locationId: a.location_id, startsAt, endsAt });
   if (schedule.partialUnavailable || (schedule.allDayUnavailable && !schedule.insideAvailableException) || !schedule.covered) return 'That time falls outside the practitioner’s allowed schedule.';
-  const c = await pool.query(`SELECT a.id FROM appointments a JOIN appointment_staff ast ON ast.appointment_id=a.id WHERE ast.staff_id=$1 AND a.id<>$2 AND a.status<>'cancelled' AND a.starts_at<$4 AND a.ends_at>$3 LIMIT 1`, [staffId, a.id, startsAt, endsAt]);
+  const c = await pool.query(`SELECT a.id FROM appointments a JOIN appointment_staff ast ON ast.appointment_id=a.id WHERE ast.staff_id=$1 AND a.id<>$2 AND a.status NOT IN ('cancelled','no_show') AND a.starts_at<$4 AND a.ends_at>$3 LIMIT 1`, [staffId, a.id, startsAt, endsAt]);
   if (c.rowCount) return 'That practitioner already has another CRM appointment at that time.';
   return null;
 }
