@@ -10,7 +10,6 @@ const {
   localTimeParts,
 } = require('./clientBookingAvailability');
 const {
-  resolveWhatsAppBookingIdentity,
   normalizePhone,
 } = require('./whatsappBookingIdentity');
 const {
@@ -99,7 +98,6 @@ function createMyShilohBookingService({
   catalogueProvider = getPublicServiceCatalogue,
   availability = authoritativeSlotsForIntent,
   eligibleStaff = resolveEligibleStaff,
-  identityResolver = resolveWhatsAppBookingIdentity,
   commitBooking = commitAcceptedClientBooking,
   stageApproval = stageCreatedBookingForApproval,
   ensureIntentTable = ensureBookingIntentTable,
@@ -127,16 +125,10 @@ function createMyShilohBookingService({
       );
     }
     const phone = normalizePhone(client.normalized_mobile);
-    const resolved = await identityResolver(phone);
-    if (
-      resolved.status !== 'unique'
-      || resolved.clientIdentity?.identityModel !== 'crm_v2'
-      || Number(resolved.clientIdentity.crmV2ClientId) !== clientId
-      || resolved.bookingReady !== true
-    ) {
+    if (!phone || !String(client.name || '').trim()) {
       throw new MyShilohBookingError(
         'BOOKING_IDENTITY_CHANGED',
-        'Your secure booking identity needs to be checked before a new appointment can be made.',
+        'Your secure My Shiloh profile changed before this booking could start.',
         409,
         ['Return to My Shiloh.', 'Ask Shiloh for help with your profile.'],
       );
@@ -321,7 +313,7 @@ function createMyShilohBookingService({
       if (!accepted) {
         throw new MyShilohBookingError('BOOKING_POLICY_NOT_RECORDED', 'Your booking terms could not be recorded safely. Nothing was booked.', 409);
       }
-      const created = await commitBooking(phone);
+      const created = await commitBooking(phone, { crmV2ClientId:Number(client.id) });
       if (!created?.handled || created.status !== 'created' || !created.appointmentId) {
         await db.query(
           `DELETE FROM booking_intents WHERE phone=$1 AND policy_channel='my_shiloh'`,
