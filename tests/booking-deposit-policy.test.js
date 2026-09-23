@@ -16,6 +16,10 @@ const {
   paymentPosition,
   buildClientExperience,
 } = require('../src/services/myShilohExperienceOrchestrator');
+const {
+  BOOKING_POLICY_TEXT,
+  BOOKING_POLICY_VERSION,
+} = require('../src/config/bookingPolicyAuthority');
 
 const policy = {
   id: 1,
@@ -190,10 +194,11 @@ test('booking and deposit flows share one current Booking Policy authority', () 
   const deposit = read('src/services/bookingDepositPolicy.js');
   const migration = read('migrations/151_unified_booking_policy_and_appointment_758_price.sql');
   assert.match(authority, /BOOKING_POLICY_VERSION = '2026-09-23-v2'/);
-  assert.match(authority, /50% booking deposit/);
-  assert.match(authority, /48\\+ hours/);
-  assert.match(authority, /24–48 hours/);
-  assert.match(authority, /Marietjie/);
+  assert.equal(BOOKING_POLICY_VERSION, '2026-09-23-v2');
+  assert.match(BOOKING_POLICY_TEXT, /50% booking deposit/);
+  assert.match(BOOKING_POLICY_TEXT, /48\+ hours/);
+  assert.match(BOOKING_POLICY_TEXT, /24–48 hours/);
+  assert.match(BOOKING_POLICY_TEXT, /Marietjie/);
   assert.match(booking, /BOOKING_POLICY_VERSION: POLICY_VERSION/);
   assert.match(booking, /BOOKING_POLICY_TEXT: POLICY_TEXT/);
   assert.match(deposit, /BOOKING_POLICY_AUTHORITY/);
