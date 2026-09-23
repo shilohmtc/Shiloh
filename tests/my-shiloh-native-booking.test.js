@@ -132,6 +132,7 @@ test('native booking request is bound to signed-in CRM V2 identity and stages Wo
       clientIdentity:{ identityModel:'crm_v2', crmV2ClientId:'55' },
       client:{ id:'55', name:'Naledi Mokoena', normalizedMobile:phone, status:'active' },
     }),
+    ensureIntentTable:async()=>calls.push(['ensureIntentTable']),
     ensurePolicy:async()=>calls.push(['ensurePolicy']),
     acceptPolicy:async(phone, channel)=>{ calls.push(['acceptPolicy',phone,channel]); return { phone }; },
     commitBooking:async(phone)=>{ calls.push(['commit',phone]); return { handled:true,status:'created',appointmentId:812 }; },
