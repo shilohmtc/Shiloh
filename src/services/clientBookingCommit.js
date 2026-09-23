@@ -7,7 +7,7 @@ const {
   resolveFinalBookingIdentity,
   appointmentIdentityColumns,
 } = require('./whatsappBookingIdentity');
-const { identityAuditMetadata } = require('./whatsappCrmV2IdentityCompat');
+const { identityAuditMetadata, createCrmV2Identity } = require('./whatsappCrmV2IdentityCompat');
 const { getDefaultActiveLocation } = require('./clinicHours');
 const { checkAssistantBookingHours: checkClinicHours } = require('./assistantBookingHours');
 const { checkAvailability, checkAuthoritativeSchedule, getConflicts } = require('./adminAvailability');
@@ -71,12 +71,40 @@ function chooseAnotherTimeReply(reason) {
   ].join('\n');
 }
 
-async function resolveCommitContext(phone, intent) {
-  const identity = await resolveWhatsAppBookingIdentity(phone);
+async function resolveCommitContext(phone, intent, { crmV2ClientId = null } = {}) {
+  let identity;
+  if (crmV2ClientId != null) {
+    const id = Number(crmV2ClientId);
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      return {
+        status: 'identity_not_ready',
+        reply: 'I can’t safely create this appointment because the signed-in My Shiloh profile is no longer valid. Nothing has been booked.',
+      };
+    }
+    const direct = await pool.query(
+      `SELECT id,name,normalized_mobile AS "normalizedMobile",date_of_birth AS "dateOfBirth",
+              profile_status AS "profileStatus",status
+         FROM crm_v2_clients
+        WHERE id=$1
+          AND status='active'
+          AND normalized_mobile=$2
+        LIMIT 1`,
+      [id, normalizePhone(phone)],
+    );
+    const client = direct.rows[0] || null;
+    const clientIdentity = client ? createCrmV2Identity(id, { provenance:'my_shiloh_authenticated_booking' }) : null;
+    identity = client && bookingProfileComplete(clientIdentity, client)
+      ? { status:'unique', clientIdentity, client, bookingReady:true }
+      : { status:'identity_not_ready', clientIdentity, client, bookingReady:false };
+  } else {
+    identity = await resolveWhatsAppBookingIdentity(phone);
+  }
   if (identity.status !== 'unique' || !bookingProfileComplete(identity.clientIdentity, identity.client)) {
     return {
       status: 'identity_not_ready',
-      reply: 'I can’t safely create this appointment because the WhatsApp number no longer resolves to one complete Shiloh client profile. Nothing has been booked.',
+      reply: crmV2ClientId != null
+        ? 'I can’t safely create this appointment because the signed-in My Shiloh profile changed. Nothing has been booked.'
+        : 'I can’t safely create this appointment because the WhatsApp number no longer resolves to one complete Shiloh client profile. Nothing has been booked.',
     };
   }
 
@@ -143,14 +171,14 @@ async function resolveCommitContext(phone, intent) {
   };
 }
 
-async function commitAcceptedClientBooking(phone) {
+async function commitAcceptedClientBooking(phone, { crmV2ClientId = null } = {}) {
   const normalizedPhone = normalizePhone(phone);
   const initialIntent = await getIntent(normalizedPhone);
   if (!initialIntent || initialIntent.status !== 'policy_accepted') {
     return { handled: false, status: 'no_accepted_intent' };
   }
 
-  const context = await resolveCommitContext(normalizedPhone, initialIntent);
+  const context = await resolveCommitContext(normalizedPhone, initialIntent, { crmV2ClientId });
   if (context.status !== 'ready') {
     if (context.retryTime) await resetAcceptedIntentForNewSlot(normalizedPhone);
     return { handled: true, ...context };
@@ -318,6 +346,7 @@ async function commitAcceptedClientBooking(phone) {
       source: BOOKING_SOURCE,
       policyVersion: lockedIntent.policy_version,
       policyAcceptedAt: lockedIntent.policy_accepted_at,
+      policyChannel: lockedIntent.policy_channel,
       authoritativeClinicHoursChecked: true,
       authoritativeScheduleChecked: true,
       canonicalAppointmentConflictsChecked: true,
