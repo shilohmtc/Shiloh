@@ -206,10 +206,12 @@ test('appointment 758 correction is exact, guarded and restores the R250 booking
   assert.match(migration, /WHERE a\.id=758/);
   assert.match(migration, /total_price=250/);
   assert.match(migration, /price_snapshot=250/);
-  assert.match(migration, /source <> 'shiloh_client_whatsapp'/);
+  assert.match(migration, /source IS DISTINCT FROM 'shiloh_client_whatsapp'/);
   assert.match(migration, /duration is not 30 minutes/);
   assert.match(migration, /toegelonly/);
   assert.match(migration, /christel/);
+  assert.match(migration, /total_service_count <> 1 OR matching_service_count <> 1/);
+  assert.match(migration, /total_staff_count <> 1 OR matching_staff_count <> 1/);
   assert.match(migration, /payment account already exists/);
   assert.match(migration, /appointment\.price_corrected/);
 });
