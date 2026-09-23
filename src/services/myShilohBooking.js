@@ -153,6 +153,12 @@ function createMyShilohBookingService({
          FROM services s
          LEFT JOIN service_categories sc ON sc.id=s.category_id
         WHERE s.id=$1
+          AND NOT (s.external_source='shiloh_special')
+          AND NOT EXISTS (
+            SELECT 1 FROM service_packages sp
+             WHERE sp.session_service_id=s.id
+               AND sp.status='active'
+          )
         LIMIT 1`,
       [id],
     );
@@ -218,10 +224,22 @@ function createMyShilohBookingService({
   async function catalogue({ welcomeVoucherOnly = false, minimumBookingValue = 450, eligibleServiceIds = null } = {}) {
     const catalogue = await catalogueProvider();
     const rows = Array.isArray(catalogue) ? catalogue : [];
-    if (!welcomeVoucherOnly) return rows;
+    const blocked = await db.query(
+      `SELECT s.id
+         FROM services s
+        WHERE s.external_source='shiloh_special'
+           OR EXISTS (
+             SELECT 1 FROM service_packages sp
+              WHERE sp.session_service_id=s.id
+                AND sp.status='active'
+           )`,
+    );
+    const blockedIds = new Set(blocked.rows.map(row => Number(row.id)));
+    const ordinary = rows.filter(item => !blockedIds.has(Number(item.id)));
+    if (!welcomeVoucherOnly) return ordinary;
     const allowed = Array.isArray(eligibleServiceIds) ? new Set(eligibleServiceIds.map(Number)) : null;
     const minimum = Number(minimumBookingValue || 450);
-    return rows.filter(item => {
+    return ordinary.filter(item => {
       const id = Number(item.id);
       const amount = fixedCataloguePrice(item);
       if (allowed && !allowed.has(id)) return false;
