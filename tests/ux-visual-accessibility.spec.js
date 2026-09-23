@@ -1586,3 +1586,49 @@ test('My Shiloh notification opt-in is client-controlled and accessible on Phone
     });
   }
 });
+
+
+test('unified Booking Policy & Terms is readable and accessible on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name: 'phone', width: 390, height: 844 },
+    { name: 'desktop', width: 1280, height: 900 },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=client-booking-policy--unified-booking-policy&viewMode=story', { waitUntil: 'networkidle' });
+
+    const policy = page.locator('[data-booking-policy-story]');
+    await expect(policy).toBeVisible();
+    await expect(policy.getByRole('heading', { level: 1, name: 'Booking Policy & Terms' })).toBeVisible();
+    await expect(policy.getByText(/50% booking deposit/)).toBeVisible();
+    await expect(policy.getByText(/48\+ hours/)).toBeVisible();
+    await expect(policy.getByText(/24–48 hours/)).toBeVisible();
+    await expect(policy.getByText(/Marietjie/)).toBeVisible();
+    await expect(policy.getByText(/Rescheduling keeps the existing booking payment\/deposit record/)).toBeVisible();
+    await expect(policy.getByText(/reply exactly: I AGREE/i)).toBeVisible();
+
+    const geometry = await policy.evaluate(() => ({
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+    }));
+    expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-booking-policy-story]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    const serious = accessibility.violations.filter((violation) =>
+      ['serious', 'critical'].includes(violation.impact),
+    );
+    expect(
+      serious,
+      `Serious accessibility violations in unified booking policy on ${viewport.name}: ${JSON.stringify(serious, null, 2)}`,
+    ).toEqual([]);
+
+    await page.screenshot({
+      path: testInfo.outputPath(`unified-booking-policy-${viewport.name}.png`),
+      fullPage: true,
+      animations: 'disabled',
+      caret: 'hide',
+    });
+  }
+});
