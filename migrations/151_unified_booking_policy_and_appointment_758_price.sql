@@ -33,6 +33,16 @@ BEGIN
     RAISE EXCEPTION 'Unified Booking Policy migration refused because policy version drifted: %', policy_row.policy_version;
   END IF;
 
+  IF NOT EXISTS (
+    SELECT 1
+      FROM staff
+     WHERE id=policy_row.exempt_staff_id
+       AND status='active'
+       AND LOWER(TRIM(display_name))='marietjie'
+  ) THEN
+    RAISE EXCEPTION 'Unified Booking Policy migration refused because the Marietjie exemption authority drifted';
+  END IF;
+
   UPDATE clinic_booking_deposit_policy
      SET policy_version='2026-09-23-v2',
          updated_at=NOW()
