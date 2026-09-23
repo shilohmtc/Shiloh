@@ -205,13 +205,14 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
 
   function calculate(scope, policy) {
     const members = scope.members.map(member => {
-      const exempt = member.staffIds.includes(policy.exemptStaffId);
-      const eligibleAmount = exempt ? 0 : member.allocatedAmount;
+      const marietjieExempt = member.staffIds.includes(policy.exemptStaffId);
+      const zeroPrice = Number(member.allocatedAmount) === 0;
+      const eligibleAmount = marietjieExempt ? 0 : member.allocatedAmount;
       return {
         ...member,
         eligibleAmount: moneyNumber(eligibleAmount),
         requiredAmount: moneyNumber(percentAmount(eligibleAmount, policy.rateBasisPoints)),
-        exemptionReason: exempt ? 'marietjie' : null,
+        exemptionReason: marietjieExempt ? 'marietjie' : zeroPrice ? 'zero_price' : null,
       };
     });
     const eligibleAmount = moneyNumber(members.reduce((sum, member) => sum + member.eligibleAmount, 0));
