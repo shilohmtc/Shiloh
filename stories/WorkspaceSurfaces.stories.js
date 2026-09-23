@@ -387,6 +387,42 @@ export const LinkedBookingPayment = {
   } })),
 };
 
+export const BookingDepositAwaiting = {
+  render: () => productionSurface(renderCalendarPaymentPage({ model: {
+    subject: { appointmentId: 812, groupId: null, clientName:'Naledi', clientMobile:'27821234567', crmV2ClientId:91 },
+    payment: {
+      state:'unpaid', amountDue:'650.00', paid:'0.00', refunded:'0.00', netPaid:'0.00', rewardsApplied:'0.00', outstanding:'650.00',
+      requests:[{ amount:'325.00', state:'link_issued', purpose:'deposit', provider_payment_url:'https://pay.example.test/deposit', created_at:'2026-09-23T17:00:00.000Z' }],
+      entries:[],
+    },
+    deposit: {
+      applicable:true,
+      requirement:{ state:'awaiting', required_amount:'325.00', net_paid:'0.00', policy_version:'2026-09-23-v1' },
+      events:[],
+    },
+    rewards:{ balance:'75.00', unlocked:true, unlockThreshold:'100.00' },
+    authority:{ canCollect:true, canRefund:true, ozowConfigured:true },
+  } })),
+};
+
+export const MarietjieDepositExempt = {
+  render: () => productionSurface(renderCalendarPaymentPage({ model: {
+    subject: { appointmentId: 813, groupId: null, clientName:'Evelyn', clientMobile:'27831234567', crmV2ClientId:92 },
+    payment: {
+      state:'unpaid', amountDue:'490.00', paid:'0.00', refunded:'0.00', netPaid:'0.00', rewardsApplied:'0.00', outstanding:'490.00',
+      requests:[],
+      entries:[],
+    },
+    deposit: {
+      applicable:true,
+      requirement:{ state:'exempt', required_amount:'0.00', net_paid:'0.00', policy_version:'2026-09-23-v1' },
+      events:[],
+    },
+    rewards:null,
+    authority:{ canCollect:true, canRefund:true, ozowConfigured:true },
+  } })),
+};
+
 export const PhonePasskeyDevices = {
   render: () => productionSurface(renderPasskeyManagePage({
     credentials: [
