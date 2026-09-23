@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { createMyShilohBookingService } = require('../src/services/myShilohBooking');
-const { renderMyShilohBookingPage } = require('../src/presentation/myShilohBooking');
+const { renderMyShilohBookingPage, cleanPolicyText } = require('../src/presentation/myShilohBooking');
 const { renderMyShilohPage } = require('../src/presentation/myShilohPwa');
 const { buildClientExperience } = require('../src/services/myShilohExperienceOrchestrator');
 
@@ -174,4 +174,10 @@ test('ordinary My Shiloh catalogue excludes special, package-session and variabl
   });
   const rows = await service.catalogue();
   assert.deepEqual(rows.map(row=>row.id), [44]);
+});
+
+
+test('in-app policy copy removes WhatsApp-only reply instructions without changing policy substance', () => {
+  const cleaned = cleanPolicyText('Policy body\n\nTo continue with this booking request, reply exactly: *I AGREE*\nIf you do not agree, reply *DECLINE* and the booking request will not proceed.');
+  assert.equal(cleaned, 'Policy body');
 });
