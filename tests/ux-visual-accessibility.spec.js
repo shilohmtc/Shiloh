@@ -14,7 +14,12 @@ test('Workspace vouchers stay contained and selectable on Phone and Desktop', as
   }));
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
     await page.setViewportSize({ width:viewport.width, height:viewport.height });
-    await page.goto('/iframe.html?id=shiloh-gift-vouchers--workspace-balances&viewMode=story', { waitUntil:'networkidle' });
+    try {
+      await page.goto('/iframe.html?id=shiloh-gift-vouchers--workspace-balances&viewMode=story', { waitUntil:'domcontentloaded' });
+    } catch (error) {
+      if (!String(error?.message || error).includes('ERR_ABORTED')) throw error;
+    }
+    await expect(page.locator('.voucher-shell')).toBeVisible();
     await page.addScriptTag({ url:'/workspace/gift-vouchers.js' });
 
     const issued = page.getByRole('heading', { name:'Issued vouchers' });
@@ -168,11 +173,113 @@ test('My Shiloh personal details stay contained and accessible on Phone and Desk
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-profile&viewMode=story',{waitUntil:'networkidle'});
     await expect(page.getByRole('heading',{name:'Keep your details up to date.'})).toBeVisible();
     await expect(page.getByLabel('Date of birth')).toHaveValue('1985-06-14');
-    const geometry=await page.evaluate(()=>{const card=document.querySelector('.profile-editor');const input=document.querySelector('#profile-date-of-birth');const c=card.getBoundingClientRect();const i=input.getBoundingClientRect();return{viewport:innerWidth,document:document.documentElement.scrollWidth,contained:i.left>=c.left&&i.right<=c.right};});
+    const geometry=await page.evaluate(()=>{const card=document.querySelector('.profile-editor');const input=document.querySelector('#profile-date-of-birth');const c=card.getBoundingClientRect();const i=input.getBoundingClientRect();return{viewport:innerWidth,document:document.documentElement.scrollWidth,contained:i.left>=c.left&&i.right<=c.right,textAlign:getComputedStyle(input).textAlign,paddingLeft:getComputedStyle(input).paddingLeft};});
     expect(geometry.document).toBeLessThanOrEqual(geometry.viewport);expect(geometry.contained).toBe(true);
+    expect(geometry.textAlign).toBe('left');
+    expect(parseFloat(geometry.paddingLeft)).toBeGreaterThanOrEqual(11);
     const accessibility=await new AxeBuilder({page}).include('[data-view="profile"]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
     await page.screenshot({path:testInfo.outputPath(`my-shiloh-profile-${viewport.name}.png`),fullPage:true});
+  }
+});
+
+test('My Shiloh Home summary cards are tappable and redeemed welcome voucher clears from Home', async ({ page }, testInfo) => {
+  await page.route('**/my-shiloh/api/experience', async (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      version: 'my_shiloh_client_experience_v1',
+      generatedAt: '2026-09-22T20:00:00.000Z',
+      client: { firstName: 'Christel' },
+      home: {
+        eyebrow: 'Your Shiloh',
+        headline: 'Ready when you are, Christel.',
+        summary: 'There is no upcoming appointment linked to your secure client profile right now.',
+        status: 'Ready',
+        primaryAction: { kind: 'navigate', label: 'Book an appointment', href: '/book' },
+        facts: [
+          { key: 'appointment', label: 'Appointment', value: 'None upcoming', href: '#bookings', message: 'Open Bookings to start a new appointment.' },
+          { key: 'forms', label: 'Forms', value: 'Nothing waiting', href: null, message: 'Nothing waiting right now.' },
+          { key: 'payment', label: 'Payment', value: 'No active booking', href: null, message: 'There is no payment action waiting right now.' },
+        ],
+      },
+      bookings: { upcoming: [] },
+      assistant: { prompts: ['Help me choose a treatment.'], contextReady: true },
+    }),
+  }));
+  await page.route('**/my-shiloh/api/profile', async (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      profile: {
+        revision: 'a'.repeat(64),
+        name: 'Test Client',
+        dateOfBirth: '1985-06-14',
+        gender: 'female',
+        mobile: '+27 •• ••• 0000',
+        registrationComplete: true,
+      },
+    }),
+  }));
+  await page.route('**/my-shiloh/api/welcome-voucher', async (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      version: 'my_shiloh_welcome_voucher_v1',
+      eligibility: { complete: true, steps: [] },
+      voucher: { state: 'redeemed', amount: 100, minimumBookingValue: 450, redeemedAt: '2026-09-22T19:00:00.000Z' },
+      eligibleBookings: [],
+      terms: [],
+    }),
+  }));
+  await page.route('**/my-shiloh/api/problem-reports', async (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ reports: [] }),
+  }));
+
+  for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-home-summary-actions&viewMode=story', { waitUntil: 'networkidle' });
+    await page.evaluate(() => {
+      localStorage.setItem('my-shiloh-install-whatsapp-verified-v1', '1');
+      Object.defineProperty(window.navigator, 'standalone', { configurable: true, get: () => true });
+    });
+    await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
+
+    const focus = page.locator('[data-client-experience-home]');
+    await expect(focus.getByRole('button', { name: /Appointment: None upcoming/ })).toBeVisible();
+    await expect(focus.getByRole('button', { name: /Forms: Nothing waiting/ })).toBeVisible();
+    await expect(focus.getByRole('button', { name: /Payment: No active booking/ })).toBeVisible();
+    await expect(page.locator('[data-welcome-voucher]')).toBeHidden();
+
+    const metrics = await focus.evaluate((node) => ({
+      viewport: innerWidth,
+      document: document.documentElement.scrollWidth,
+      short: [...node.querySelectorAll('[data-client-experience-fact]')]
+        .filter((target) => target.getBoundingClientRect().height < 44).length,
+    }));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
+    expect(metrics.short).toBe(0);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-client-experience-home]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact))).toEqual([]);
+
+    await page.screenshot({
+      path: testInfo.outputPath(`my-shiloh-home-summary-actions-${viewport.name}.png`),
+      fullPage: true,
+      animations: 'disabled',
+    });
+
+    await focus.getByRole('button', { name: /Forms: Nothing waiting/ }).click();
+    await expect(page.locator('[data-client-experience-fact-status]')).toHaveText('Nothing waiting right now.');
+    await focus.getByRole('button', { name: /Payment: No active booking/ }).click();
+    await expect(page.locator('[data-client-experience-fact-status]')).toHaveText('There is no payment action waiting right now.');
+    await focus.getByRole('button', { name: /Appointment: None upcoming/ }).click();
+    await expect(page.locator('[data-view="bookings"]')).toBeVisible();
   }
 });
 

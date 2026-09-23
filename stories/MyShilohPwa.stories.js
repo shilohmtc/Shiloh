@@ -166,3 +166,41 @@ export const FirstLaunchWhatsAppVerification = {
     return surface;
   },
 };
+
+
+export const AuthenticatedHomeSummaryActions = {
+  render: () => {
+    const surface = productionSurface({
+      id: '912',
+      name: 'Christel Botha',
+      firstName: 'Christel',
+    });
+    const home = surface.querySelector('[data-client-experience-home]');
+    if (home) {
+      const heading = home.querySelector('h2');
+      const copy = home.querySelector(':scope > p');
+      const status = home.querySelector('.status-pill');
+      if (heading) heading.textContent = 'Ready when you are, Christel.';
+      if (copy) copy.textContent = 'There is no upcoming appointment linked to your secure client profile right now.';
+      if (status) status.textContent = 'Ready';
+      const values = {
+        appointment: 'None upcoming',
+        forms: 'Nothing waiting',
+        payment: 'No active booking',
+      };
+      home.querySelectorAll('[data-client-experience-fact]').forEach((button) => {
+        const value = button.querySelector('strong');
+        if (value) value.textContent = values[button.dataset.factKey] || '';
+      });
+      const action = document.createElement('a');
+      action.className = 'button button--primary experience-primary';
+      action.dataset.clientExperiencePrimary = '';
+      action.href = '/book';
+      action.textContent = 'Book an appointment';
+      home.appendChild(action);
+    }
+    const voucher = surface.querySelector('[data-welcome-voucher]');
+    if (voucher) voucher.hidden = true;
+    return surface;
+  },
+};

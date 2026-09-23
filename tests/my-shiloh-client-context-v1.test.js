@@ -118,7 +118,10 @@ test('Shiloh experience prioritises client action without becoming booking, form
   assert.equal(experience.home.status, 'Action needed');
   assert.equal(experience.home.primaryAction.href, '#shiloh');
   assert.equal(experience.bookings.upcoming[0].service, 'Hot Stone Massage');
-  assert.match(experience.home.facts.find(item => item.label === 'Payment').value, /R500/);
+  assert.equal(experience.home.facts.find(item => item.key === 'appointment').href, '#bookings');
+  assert.equal(experience.home.facts.find(item => item.key === 'forms').href, '/my-shiloh/forms/complete');
+  assert.equal(experience.home.facts.find(item => item.key === 'payment').href, '/pay/PAYREQ_123456');
+  assert.match(experience.home.facts.find(item => item.key === 'payment').value, /R500/);
   assert.ok(experience.assistant.prompts.some(prompt => /consultation form/i.test(prompt)));
 });
 
@@ -156,6 +159,10 @@ test('no upcoming appointment produces a calm booking entry instead of invented 
   });
   assert.equal(experience.home.primaryAction.href, '/book');
   assert.deepEqual(experience.bookings.upcoming, []);
+  assert.equal(experience.home.facts.find(item => item.key === 'appointment').href, '#bookings');
+  assert.equal(experience.home.facts.find(item => item.key === 'forms').href, null);
+  assert.equal(experience.home.facts.find(item => item.key === 'forms').message, 'Nothing waiting right now.');
+  assert.equal(experience.home.facts.find(item => item.key === 'payment').href, null);
   assert.match(experience.home.summary, /no upcoming appointment/i);
 });
 

@@ -18,6 +18,8 @@
   const authCodeForms = [...document.querySelectorAll('[data-client-auth-code-form]')];
   const authStatusHosts = [...document.querySelectorAll('[data-auth-status]')];
   const experienceHome = document.querySelector('[data-client-experience-home]');
+  const experienceFactButtons = [...document.querySelectorAll('[data-client-experience-fact]')];
+  const experienceFactStatus = document.querySelector('[data-client-experience-fact-status]');
   const experienceBookings = document.querySelector('[data-client-experience-bookings]');
   const experiencePrompts = document.querySelector('[data-client-experience-prompts]');
   const shilohMessages = document.querySelector('[data-shiloh-messages]');
@@ -45,6 +47,7 @@
   let whatsappHandoffStarted = false;
   let whatsappFallbackTimer = null;
   let whatsappExternalOpened = false;
+  let welcomeVoucherRedeemedThisView = false;
   let clientProfileRevision = null;
   let clientRefreshInFlight = false;
 
@@ -216,7 +219,7 @@
 
   function safeExperienceHref(value) {
     const href = String(value || '');
-    if (href === '/book' || href === '/my-shiloh/book' || /^\/pay\/[A-Za-z0-9_-]{8,100}$/.test(href) || /^#[a-z-]+$/.test(href)) return href;
+    if (href === '/book' || href === '/my-shiloh/book' || href === '/my-shiloh/forms/complete' || /^\/pay\/[A-Za-z0-9_-]{8,100}$/.test(href) || /^#[a-z-]+$/.test(href)) return href;
     return '#shiloh';
   }
 
@@ -234,13 +237,20 @@
       if (status) status.textContent = String(experience.home.status || 'Ready');
 
       const facts = Array.isArray(experience.home.facts) ? experience.home.facts.slice(0, 3) : [];
-      experienceHome.querySelectorAll('.focus-grid > div').forEach((item, index) => {
-        const fact = facts[index];
+      experienceFactButtons.forEach((item, index) => {
+        const fact = facts.find((candidate) => candidate?.key === item.dataset.factKey) || facts[index];
         if (!fact) return;
         const label = item.querySelector('span');
         const value = item.querySelector('strong');
+        const safeHref = fact.href ? safeExperienceHref(fact.href) : '';
         if (label) label.textContent = String(fact.label || '');
         if (value) value.textContent = String(fact.value || '');
+        item.dataset.factHref = safeHref === '#shiloh' && fact.href !== '#shiloh' ? '' : safeHref;
+        item.dataset.factMessage = String(fact.message || '');
+        item.setAttribute(
+          'aria-label',
+          `${String(fact.label || 'Summary')}: ${String(fact.value || '')}. ${item.dataset.factHref ? 'Open details' : 'Check details'}`,
+        );
       });
 
       let action = experienceHome.querySelector('[data-client-experience-primary]');
@@ -286,6 +296,22 @@
       });
     }
   }
+
+  experienceFactButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const href = String(button.dataset.factHref || '');
+      const message = String(button.dataset.factMessage || '');
+      if (experienceFactStatus) experienceFactStatus.textContent = message;
+      if (!href) return;
+      if (href.startsWith('#')) {
+        const target = href.slice(1);
+        window.location.hash = href;
+        activateView(target);
+        return;
+      }
+      window.location.href = href;
+    });
+  });
 
   function renderExperienceUnavailable() {
     if (!experienceHome) return;
@@ -382,6 +408,17 @@
 
   function renderWelcomeVoucher(model) {
     if (!welcomeVoucherHost || model?.version !== 'my_shiloh_welcome_voucher_v1') return false;
+    const voucher = model.voucher;
+    const termsDetails = welcomeVoucherTerms?.closest('details');
+    welcomeVoucherHost.hidden = false;
+    welcomeVoucherHost.classList.remove('welcome-voucher--redeemed-now');
+    if (termsDetails) termsDetails.hidden = false;
+
+    if (voucher?.state === 'redeemed' && !welcomeVoucherRedeemedThisView) {
+      welcomeVoucherHost.hidden = true;
+      return true;
+    }
+
     welcomeVoucherSteps.textContent = '';
     for (const step of model.eligibility?.steps || []) {
       const item = document.createElement('li');
@@ -394,7 +431,6 @@
       const item = document.createElement('li'); item.textContent = String(term); welcomeVoucherTerms.appendChild(item);
     }
     welcomeVoucherBookings.textContent = '';
-    const voucher = model.voucher;
     if (!model.eligibility?.complete) {
       welcomeVoucherCopy.textContent = 'Complete the steps below to unlock your once-off R100 voucher.';
       const link = document.createElement('a'); link.className = 'button button--primary'; link.href = '#profile'; link.textContent = 'Complete registration'; welcomeVoucherBookings.appendChild(link);
@@ -419,6 +455,7 @@
             const response = await postJson('/my-shiloh/api/welcome-voucher/redeem', { appointmentId:booking.id, operationId:crypto.randomUUID() }, { 'x-shiloh-csrf-token':csrfToken });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(welcomeVoucherErrorMessage(data, 'Your voucher could not be applied.'));
+            welcomeVoucherRedeemedThisView = true;
             setWelcomeVoucherStatus('R100 applied. Your booking balance has been updated.', 'success');
             await loadWelcomeVoucher(); await loadClientExperience();
           } catch (error) { button.disabled = false; setWelcomeVoucherStatus(error.message || 'Your voucher could not be applied. Reload My Shiloh and try again.', 'error'); }
@@ -426,8 +463,10 @@
         details.append(title, meta); card.append(details, button); welcomeVoucherBookings.appendChild(card);
       }
     } else if (voucher?.state === 'redeemed') {
-      welcomeVoucherCopy.textContent = 'Used — your R100 welcome voucher has been applied to your booking.';
-      setWelcomeVoucherStatus('Welcome voucher redeemed.', 'success');
+      welcomeVoucherHost.classList.add('welcome-voucher--redeemed-now');
+      if (termsDetails) termsDetails.hidden = true;
+      welcomeVoucherCopy.textContent = 'Your R100 welcome voucher has been applied successfully.';
+      setWelcomeVoucherStatus('✓ Your R100 welcome voucher has been redeemed.', 'success');
     } else if (voucher?.state === 'expired') {
       welcomeVoucherCopy.textContent = 'This welcome voucher has expired.';
       setWelcomeVoucherStatus('The 60-day validity period has ended.', 'error');

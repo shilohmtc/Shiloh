@@ -143,14 +143,70 @@ function buildClientExperience(context) {
       ...home,
       facts: appointment
         ? [
-          { label: 'Appointment', value: `${appointment.date} · ${appointment.time}` },
-          { label: 'Forms', value: forms.label },
-          { label: 'Payment', value: payment.label },
+          {
+            key: 'appointment',
+            label: 'Appointment',
+            value: `${appointment.date} · ${appointment.time}`,
+            href: '#bookings',
+            message: 'Open your Bookings tab to see the appointment details.',
+          },
+          forms.state === 'action_required'
+            ? {
+              key: 'forms',
+              label: 'Forms',
+              value: forms.label,
+              href: '/my-shiloh/forms/complete',
+              message: 'Open your waiting consultation form.',
+            }
+            : {
+              key: 'forms',
+              label: 'Forms',
+              value: forms.label,
+              href: null,
+              message: forms.state === 'complete'
+                ? 'Your consultation forms are complete.'
+                : 'Nothing waiting right now.',
+            },
+          payment.actionPath
+            ? {
+              key: 'payment',
+              label: 'Payment',
+              value: payment.label,
+              href: payment.actionPath,
+              message: 'Open your secure payment.',
+            }
+            : {
+              key: 'payment',
+              label: 'Payment',
+              value: payment.label,
+              href: null,
+              message: payment.state === 'paid'
+                ? 'Your payment is recorded as paid.'
+                : 'There is no payment action waiting right now.',
+            },
         ]
         : [
-          { label: 'Appointment', value: 'None upcoming' },
-          { label: 'Forms', value: 'Nothing waiting' },
-          { label: 'Payment', value: 'No active booking' },
+          {
+            key: 'appointment',
+            label: 'Appointment',
+            value: 'None upcoming',
+            href: '#bookings',
+            message: 'Open Bookings to start a new appointment.',
+          },
+          {
+            key: 'forms',
+            label: 'Forms',
+            value: 'Nothing waiting',
+            href: null,
+            message: 'Nothing waiting right now.',
+          },
+          {
+            key: 'payment',
+            label: 'Payment',
+            value: 'No active booking',
+            href: null,
+            message: 'There is no payment action waiting right now.',
+          },
         ],
     },
     bookings: {

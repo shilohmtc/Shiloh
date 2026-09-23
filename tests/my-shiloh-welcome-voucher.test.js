@@ -42,7 +42,7 @@ test('website, My Shiloh and contextual WhatsApp invite clients into the same of
   assert.match(website, /href="\/my-shiloh\/#welcome-voucher"[^>]*>Claim my R100/);
   assert.match(guest, /Complete your registration\. Unlock R100\./);
   assert.match(guest, /data-client-auth-start>Claim my R100/);
-  assert.match(signedIn, /data-welcome-voucher/);
+  assert.match(signedIn, /data-welcome-voucher[^>]*hidden/);
   assert.match(transition.buildRegisteredClientPrompt(), /R100 welcome voucher/);
   assert.match(transition.buildRegisteredClientPrompt(), /my-shiloh\/#welcome-voucher/);
 });
@@ -65,6 +65,15 @@ test('redemption is guarded, client-confirmed and gives recovery steps', () => {
   assert.match(routes, /resolution:error\.resolution/);
   assert.match(app, /What to do:/);
   assert.ok(WELCOME_VOUCHER_TERMS.some((term) => /amount actually paid/i.test(term)));
+});
+
+test('redeemed welcome voucher leaves Home after showing success in the redemption view', () => {
+  const app = read('public/my-shiloh/assets/app.js');
+  assert.match(app, /welcomeVoucherRedeemedThisView = true/);
+  assert.match(app, /voucher\?\.state === 'redeemed' && !welcomeVoucherRedeemedThisView/);
+  assert.match(app, /welcomeVoucherHost\.hidden = true/);
+  assert.match(app, /Your R100 welcome voucher has been redeemed/);
+  assert.doesNotMatch(app, /DELETE FROM my_shiloh_welcome_vouchers|UPDATE my_shiloh_welcome_vouchers[^\n]*state='cancelled'/i);
 });
 
 test('booking balance calculations include welcome value while reward accrual remains payment-ledger based', () => {
