@@ -159,6 +159,7 @@ test('Dashboard composes canonical all-permitted current/carry-over Calendar day
       async resolveAccess() { return { capability: 'client:lookup' }; },
       async buildModel(input) { calls.push({ messages: input }); return { attention: [], activity: [], attentionUnavailable: false, activityUnavailable: false }; },
     },
+    canCertifyAppointmentFn: async () => true,
   });
   const viewer = { calendarScope: 'business_all_staff' };
   const model = await service.buildModel({ adminId: 7, viewer, now: new Date('2026-09-05T08:00:00Z') });
