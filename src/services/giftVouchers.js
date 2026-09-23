@@ -483,11 +483,45 @@ async function issueVerifiedVoucher(client, request, providerTransactionId) {
   const order = (await client.query(`SELECT * FROM gift_voucher_orders WHERE id=$1 FOR UPDATE`, [request.gift_voucher_order_id])).rows[0];
   if (!order) throw new GiftVoucherError('VOUCHER_ORDER_NOT_FOUND', 'Voucher order not found.', 404);
   const code = voucherCode(request.request_key);
+  let recipientClientId = null;
+  try {
+    const normalized = normalizeMobile(order.recipient_mobile);
+    if (normalized) {
+      const matches = await client.query(
+        `SELECT id
+           FROM crm_v2_clients
+          WHERE normalized_mobile=$1
+            AND status='active'
+            AND mobile_verified_at IS NOT NULL
+          ORDER BY id
+          LIMIT 2`,
+        [normalized],
+      );
+      if (matches.rowCount === 1) recipientClientId = Number(matches.rows[0].id);
+    }
+  } catch (_) {
+    recipientClientId = null;
+  }
   const issued = (await client.query(
-    `INSERT INTO gift_vouchers(order_id,voucher_code,original_value,balance,valid_until,access_key)
-     VALUES($1,$2,$3,$3,CASE WHEN $4='fixed_months' THEN (CURRENT_DATE + make_interval(months => $5::integer))::date ELSE NULL END,$6)
-     ON CONFLICT(order_id) DO UPDATE SET order_id=EXCLUDED.order_id RETURNING *`,
-    [order.id, code, order.amount, order.validity_mode, order.validity_months, request.request_key],
+    `INSERT INTO gift_vouchers(
+       order_id,voucher_code,original_value,balance,valid_until,access_key,
+       recipient_crm_v2_client_id,recipient_linked_at
+     )
+     VALUES(
+       $1,$2,$3,$3,
+       CASE WHEN $4='fixed_months' THEN (CURRENT_DATE + make_interval(months => $5::integer))::date ELSE NULL END,
+       $6,$7,CASE WHEN $7 IS NULL THEN NULL ELSE NOW() END
+     )
+     ON CONFLICT(order_id) DO UPDATE SET
+       order_id=EXCLUDED.order_id,
+       recipient_crm_v2_client_id=COALESCE(gift_vouchers.recipient_crm_v2_client_id,EXCLUDED.recipient_crm_v2_client_id),
+       recipient_linked_at=CASE
+         WHEN gift_vouchers.recipient_crm_v2_client_id IS NOT NULL THEN gift_vouchers.recipient_linked_at
+         WHEN EXCLUDED.recipient_crm_v2_client_id IS NOT NULL THEN COALESCE(gift_vouchers.recipient_linked_at,NOW())
+         ELSE gift_vouchers.recipient_linked_at
+       END
+     RETURNING *`,
+    [order.id, code, order.amount, order.validity_mode, order.validity_months, request.request_key, recipientClientId],
   )).rows[0];
   await client.query(`INSERT INTO gift_voucher_ledger_entries(voucher_id,entry_type,amount,operation_key) VALUES($1,'issue',$2,$3) ON CONFLICT(operation_key) DO NOTHING`, [issued.id, order.amount, `issue:ozow:${providerTransactionId}`]);
   await client.query(`UPDATE gift_voucher_orders SET state='paid',updated_at=NOW() WHERE id=$1`, [order.id]);

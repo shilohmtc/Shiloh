@@ -4,6 +4,7 @@ const { resolveClientFacingNameByPhone } = require("./clientFacingNameAuthority"
 const { createPendingExperience } = require("./customerExperience");
 const logger = require("../lib/logger");
 const { assertTarget: assertControlledMessagingTestTarget } = require("./controlledMessagingTestLane");
+const { queueClientNotification } = require("./myShilohPush");
 
 const REMINDER_HOURS = Number(process.env.APPOINTMENT_REMINDER_HOURS || 24);
 const FOLLOWUP_HOURS = Number(process.env.APPOINTMENT_FOLLOWUP_HOURS || 4);
@@ -204,13 +205,25 @@ async function deliverClaimedReminder(appointment, reminderTemplate, reminderAct
       env,
     });
   }
-  return send(
+  const delivery = await send(
     appointment.phone,
     reminderTemplate,
     [name, appointment.service_text, date, time],
     deps.languageCode || LANGUAGE_CODE,
     quickReplyPayloads
   );
+  const notifyClient = deps.notifyClient || null;
+  if (notifyClient && Number.isSafeInteger(Number(appointment.crm_v2_client_id)) && Number(appointment.crm_v2_client_id) > 0) {
+    await notifyClient({
+      crmV2ClientId: Number(appointment.crm_v2_client_id),
+      eventKey: `appointment-reminder:${appointment.appointment_id || appointment.id}:${new Date(appointment.appointment_at).toISOString()}`,
+      category: 'appointment',
+      title: 'Appointment reminder',
+      body: 'Your Shiloh appointment is coming up. Open My Shiloh for the latest details.',
+      targetPath: '/my-shiloh/#bookings',
+    });
+  }
+  return delivery;
 }
 
 async function processReminders() {
@@ -221,7 +234,7 @@ async function processReminders() {
   if(!reminderTemplate&&!followupTemplate)return;
 
   if(reminderTemplate){
-    for(let i=0;i<20;i+=1){const appointment=await claimDueReminder();if(!appointment)break;try{await deliverClaimedReminder(appointment,reminderTemplate,reminderActionsTemplate);logger.info({appointmentId:appointment.appointment_id||appointment.id,actionTemplate:Boolean(reminderActionsTemplate)},"Customer appointment reminder sent");}catch(error){await undoClaim(appointment.id,"reminder_sent_at");logger.error({err:error,appointmentId:appointment.appointment_id||appointment.id},"Appointment reminder failed");break;}}
+    for(let i=0;i<20;i+=1){const appointment=await claimDueReminder();if(!appointment)break;try{await deliverClaimedReminder(appointment,reminderTemplate,reminderActionsTemplate,{notifyClient:queueClientNotification});logger.info({appointmentId:appointment.appointment_id||appointment.id,actionTemplate:Boolean(reminderActionsTemplate)},"Customer appointment reminder sent");}catch(error){await undoClaim(appointment.id,"reminder_sent_at");logger.error({err:error,appointmentId:appointment.appointment_id||appointment.id},"Appointment reminder failed");break;}}
   }
 
   if(followupTemplate){

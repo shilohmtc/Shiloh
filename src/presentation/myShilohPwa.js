@@ -6,7 +6,7 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 
-const MY_SHILOH_ASSET_VERSION = '20260923-wallet-nav-v1';
+const MY_SHILOH_ASSET_VERSION = '20260923-updates-push-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -215,6 +215,16 @@ function renderMyShilohPage({
           <button class="button button--primary button--wide" type="submit" disabled>Save personal details</button>
         </form>
       </section>
+      <section class="profile-editor notification-settings" aria-labelledby="notifications-title" data-push-settings>
+        <div class="profile-editor__heading">
+          <div><p class="eyebrow">Notifications</p><h2 id="notifications-title">Stay up to date with Shiloh.</h2></div>
+          <span class="status-pill">Optional</span>
+        </div>
+        <p class="problem-report-copy">Get important appointment reminders, consultation-form updates, payment updates, voucher arrivals and Shiloh Rewards updates on this phone.</p>
+        <button class="button button--soft button--wide" type="button" data-push-toggle disabled>Checking notifications…</button>
+        <p class="profile-editor__status" data-push-status role="status" aria-live="polite"></p>
+        <p class="notification-settings__note">Operational updates only. Promotional messages stay separate and are never enabled by this setting.</p>
+      </section>
       <section class="profile-editor" aria-labelledby="report-problem-title">
         <div class="profile-editor__heading">
           <div><p class="eyebrow">Help</p><h2 id="report-problem-title">Report a problem.</h2></div>
@@ -335,6 +345,10 @@ function renderMyShilohPage({
     </header>
 
     <div class="network-banner" data-offline-banner hidden role="status">You are offline. My Shiloh will reconnect automatically.</div>
+    <div class="app-update-banner" data-app-update hidden role="status" aria-live="polite">
+      <div><strong>A new My Shiloh update is ready.</strong><span>Update now to use the latest version.</span></div>
+      <button class="button button--primary" type="button" data-app-update-action>Update now</button>
+    </div>
 
     <main id="main-content" class="app-main">
       <section class="view is-active" id="home" data-view="home" aria-labelledby="home-title">

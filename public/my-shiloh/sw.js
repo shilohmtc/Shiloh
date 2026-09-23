@@ -1,8 +1,8 @@
 'use strict';
 
-const ASSET_VERSION = '20260923-wallet-nav-v1';
-const SHELL_CACHE = 'my-shiloh-shell-v19';
-const STATIC_CACHE = 'my-shiloh-static-v19';
+const ASSET_VERSION = '20260923-updates-push-v1';
+const SHELL_CACHE = 'my-shiloh-shell-v20';
+const STATIC_CACHE = 'my-shiloh-static-v20';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',
@@ -17,8 +17,7 @@ const SHELL = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(SHELL_CACHE)
-      .then((cache) => cache.addAll(SHELL))
-      .then(() => self.skipWaiting()),
+      .then((cache) => cache.addAll(SHELL)),
   );
 });
 
@@ -32,6 +31,68 @@ self.addEventListener('activate', (event) => {
       ))
       .then(() => self.clients.claim()),
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
+async function pendingNotifications() {
+  const subscription = await self.registration.pushManager.getSubscription();
+  if (!subscription?.endpoint) return [];
+  const response = await fetch('/my-shiloh/api/push/pending', {
+    method: 'POST',
+    credentials: 'include',
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ endpoint: subscription.endpoint }),
+  });
+  if (!response.ok) return [];
+  const data = await response.json().catch(() => ({}));
+  return Array.isArray(data.notifications) ? data.notifications : [];
+}
+
+self.addEventListener('push', (event) => {
+  event.waitUntil((async () => {
+    let notifications = [];
+    try { notifications = await pendingNotifications(); } catch (_) {}
+    if (!notifications.length) {
+      await self.registration.showNotification('My Shiloh', {
+        body: 'There’s a new update for you in My Shiloh.',
+        icon: '/my-shiloh/assets/icon-192.png',
+        badge: '/my-shiloh/assets/icon-192.png',
+        tag: 'my-shiloh-generic-update',
+        data: { url: '/my-shiloh/' },
+      });
+      return;
+    }
+    for (const notification of notifications) {
+      await self.registration.showNotification(String(notification.title || 'My Shiloh'), {
+        body: String(notification.body || ''),
+        icon: '/my-shiloh/assets/icon-192.png',
+        badge: '/my-shiloh/assets/icon-192.png',
+        tag: `my-shiloh-${notification.id}`,
+        data: { url: String(notification.targetPath || '/my-shiloh/') },
+      });
+    }
+  })());
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = String(event.notification.data?.url || '/my-shiloh/');
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const existing = windows.find((client) => {
+      try { return new URL(client.url).origin === self.location.origin; } catch (_) { return false; }
+    });
+    if (existing) {
+      if (typeof existing.navigate === 'function') await existing.navigate(target);
+      await existing.focus();
+      return;
+    }
+    await self.clients.openWindow(target);
+  })());
 });
 
 self.addEventListener('fetch', (event) => {

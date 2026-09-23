@@ -227,3 +227,32 @@ export const AuthenticatedWallet = {
     return surface;
   },
 };
+
+
+export const UpdateAvailable = {
+  render: () => {
+    const surface = productionSurface({
+      id: '913',
+      name: 'Jean-Pierre Botha',
+      firstName: 'Jean-Pierre',
+    });
+    const banner = surface.querySelector('[data-app-update]');
+    if (banner) banner.hidden = false;
+    return surface;
+  },
+};
+
+export const AuthenticatedNotificationsProfile = {
+  render: () => {
+    const surface = AuthenticatedProfile.render();
+    const button = surface.querySelector('[data-push-toggle]');
+    const status = surface.querySelector('[data-push-status]');
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'Turn on notifications';
+      button.dataset.enabled = 'false';
+    }
+    if (status) status.textContent = 'Notifications are off. Turn them on when you’re ready.';
+    return surface;
+  },
+};
