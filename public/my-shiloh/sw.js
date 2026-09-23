@@ -1,8 +1,8 @@
 'use strict';
 
-const ASSET_VERSION = '20260923-updates-push-v1';
-const SHELL_CACHE = 'my-shiloh-shell-v20';
-const STATIC_CACHE = 'my-shiloh-static-v20';
+const ASSET_VERSION = '20260923-native-booking-v1';
+const SHELL_CACHE = 'my-shiloh-shell-v21';
+const STATIC_CACHE = 'my-shiloh-static-v21';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',
@@ -116,7 +116,8 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (url.pathname === '/my-shiloh/assets/app.css'
-      || url.pathname === '/my-shiloh/assets/app.js') {
+      || url.pathname === '/my-shiloh/assets/app.js'
+      || url.pathname === '/my-shiloh/assets/booking.js') {
     event.respondWith(
       fetch(request)
         .then((response) => {
