@@ -62,6 +62,11 @@ function paymentPosition(payment) {
       state: 'deposit_required',
       label: `${rand(payment.depositOutstanding) || rand(payment.depositRequired) || 'Deposit'} deposit required`,
       actionPath: payment.activePaymentPath || null,
+      ratePercent: Number(payment.depositRatePercent || 0),
+      freeNoticeHours: Number(payment.depositFreeNoticeHours || 0),
+      partialNoticeHours: Number(payment.depositPartialNoticeHours || 0),
+      partialForfeitPercent: Number(payment.depositPartialForfeitPercent || 0),
+      lateForfeitPercent: Number(payment.depositLateForfeitPercent || 0),
     };
   }
   if (payment.state === 'paid') return { state: 'paid', label: 'Paid', actionPath: null };
@@ -124,7 +129,7 @@ function buildClientExperience(context) {
       eyebrow: 'Before your visit',
       headline: depositRequired ? 'Your booking is awaiting its deposit.' : 'Your booking is nearly ready.',
       summary: depositRequired
-        ? `${appointment.service} is held for ${appointment.date} at ${appointment.time}. Pay the 50% booking deposit to secure it.`
+        ? `${appointment.service} is held for ${appointment.date} at ${appointment.time}. Pay the ${payment.ratePercent}% booking deposit to secure it. ${payment.freeNoticeHours}+ hours notice has no cancellation penalty; ${payment.partialNoticeHours}–${payment.freeNoticeHours} hours may forfeit ${payment.partialForfeitPercent}% of the deposit; under ${payment.partialNoticeHours} hours or a no-show may forfeit ${payment.lateForfeitPercent}%.`
         : `${appointment.service} is booked for ${appointment.date} at ${appointment.time}. A secure payment option is available.`,
       status: depositRequired ? 'Deposit' : 'Payment',
       primaryAction: { kind: 'navigate', label: depositRequired ? 'Pay deposit' : 'Open payment', href: payment.actionPath },
