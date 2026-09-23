@@ -538,9 +538,12 @@ async function acceptProposedAlternative({ dbPool = pool, sender, appointmentId,
   if (outcome.status === 'expired') return { handled: true, status: 'pending', reply: 'That option has expired, so it was not booked. The Shiloh team will review another option.' };
   if (outcome.status === 'unavailable') return { handled: true, status: 'pending', reply: 'That option is no longer available, so it was not booked. The Shiloh team will review another option.' };
   const confirmation = await sendConfirmation(id);
+  const awaitingDeposit = confirmation?.deliveryStatus === 'awaiting_deposit';
   return { handled: true, status: 'approved', confirmation, reply: confirmation.sent
     ? 'Your appointment is confirmed. I’ve sent the final booking details. 🌿'
-    : 'Your appointment is confirmed after the final availability check. The Shiloh team can help if the confirmation message is delayed.' };
+    : awaitingDeposit
+      ? 'Your appointment option has been accepted. A 50% booking deposit is now required to secure it. Your final booking details will follow after Shiloh verifies the deposit. 🌿'
+      : 'Your appointment is confirmed after the final availability check. The Shiloh team can help if the confirmation message is delayed.' };
 }
 
 async function processClientBookingProposalMessage(sender, text, options = {}) {

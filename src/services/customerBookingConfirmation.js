@@ -550,6 +550,25 @@ async function sendCustomerBookingConfirmationForAppointment(appointmentId,optio
     const already=await db.query(`SELECT 1 FROM crm_audit_events WHERE action='customer.booking_confirmation_sent' AND entity_type='appointment' AND entity_id=$1 LIMIT 1`,[appointmentId]);
     if(already.rowCount)return {sent:false,reason:'already_sent'};
   }
+
+  if(db===pool && options.depositGate!==false){
+    const { ensureBookingDeposit }=require('./bookingDepositLifecycle');
+    const deposit=await ensureBookingDeposit(appointmentId);
+    const awaiting=deposit?.applies===true&&!['satisfied','exempt'].includes(String(deposit.status||''));
+    if(awaiting){
+      await db.query(`UPDATE customer_message_deliveries
+        SET status='awaiting_payment',updated_at=NOW(),last_error='booking_deposit_required'
+        WHERE appointment_id=$1 AND message_kind='booking_confirmation'
+          AND status IN ('pending','failed','awaiting_payment')`,[appointmentId]);
+      return {sent:false,reason:'deposit_required',deliveryStatus:'awaiting_deposit',deposit};
+    }
+    if(deposit?.applies===true){
+      await db.query(`UPDATE customer_message_deliveries
+        SET status='pending',next_attempt_at=NOW(),updated_at=NOW(),last_error=NULL
+        WHERE appointment_id=$1 AND message_kind='booking_confirmation' AND status='awaiting_payment'`,[appointmentId]);
+    }
+  }
+
   const queued=await queueCustomerBookingConfirmation(appointmentId,{db,recovery});
   if(queued.status==='sent')return {sent:false,reason:'already_sent',deliveryStatus:'sent'};
   return sendCustomerBookingConfirmation({appointmentId:a.id,clientId:a.client_id,serviceName:a.service_name,staffName:a.staff_name,locationName:a.location_name,startsAt:a.starts_at,endsAt:a.ends_at,source:a.source||'shiloh'},{...options,db});

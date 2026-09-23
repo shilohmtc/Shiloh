@@ -732,7 +732,7 @@ function createBookingPaymentService({
       if (duplicate.rows[0]) { await client.query('COMMIT'); return { status:'duplicate' }; }
       const request = (await client.query(
         `SELECT pr.*,
-                COALESCE(bpa.appointment_id,(
+                COALESCE(pr.deposit_appointment_id,bpa.appointment_id,(
                   SELECT agm.appointment_id
                     FROM appointment_group_members agm
                    WHERE agm.group_id=bpa.appointment_group_id

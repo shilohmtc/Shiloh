@@ -123,7 +123,7 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  SELECT req.*, item.*
+  SELECT req, item
     INTO requirement_row, item_row
     FROM booking_payment_requirement_items item
     JOIN booking_payment_requirements req ON req.id=item.requirement_id

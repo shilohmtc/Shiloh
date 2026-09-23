@@ -10,7 +10,7 @@ const { dispatchBookingRequestAlerts } = require('./bookingRequestStaffAlerts');
 const { ensureBookingApprovalInfrastructure } = require("./clientBookingApprovalSchema");
 const logger = require("../lib/logger");
 
-const POLICY_VERSION = "2026-08-11-v1";
+const POLICY_VERSION = "2026-09-23-v2";
 const POLICY_CHANNEL = "whatsapp";
 
 const POLICY_TEXT = [
@@ -21,8 +21,15 @@ const POLICY_TEXT = [
   "*Appointments & Arrival*",
   "Please arrive on time. Late arrival may require a shorter treatment so later clients are not delayed, and the full treatment fee may still apply.",
   "",
+  "*Booking deposit*",
+  "A 50% booking deposit is required to secure every appointment, except appointments with Marietjie. For a linked booking that includes Marietjie and another practitioner, Marietjie's treatment portion is excluded from the deposit calculation.",
+  "Your appointment remains awaiting deposit until Shiloh verifies the required payment.",
+  "",
   "*Cancellations & Rescheduling*",
-  "Please give at least 24 hours' notice when cancelling or rescheduling. Late cancellations and missed appointments may be subject to Shiloh's applicable cancellation or booking policy.",
+  "48 hours or more before the appointment: no cancellation charge applies to the booking deposit; an eligible deposit can move with a rescheduled booking or be handled for refund by Shiloh.",
+  "Between 24 and 48 hours before the appointment: 50% of the booking deposit is retained.",
+  "Less than 24 hours before the appointment, same-day cancellation, or a no-show: the full booking deposit is retained.",
+  "Refunds are processed separately from appointment changes and only against Shiloh's verified payment record.",
   "",
   "*Health & Treatment Information*",
   "Please provide accurate and relevant health, medical, pregnancy, allergy, medication and treatment information before your service, and tell your practitioner about any change that could affect treatment safety or suitability.",
@@ -33,7 +40,7 @@ const POLICY_TEXT = [
   "*Respect, Safety & Belongings*",
   "Shiloh is committed to a professional, respectful and safe environment. We may refuse service where conduct compromises another person's safety, dignity or wellbeing. Please take reasonable care of your personal belongings while at the clinic.",
   "",
-  "Policy updated: 11 August 2026",
+  "Policy updated: 23 September 2026",
   "",
   "To continue with this booking request, reply exactly: *I AGREE*",
   "If you do not agree, reply *DECLINE* and the booking request will not proceed.",
