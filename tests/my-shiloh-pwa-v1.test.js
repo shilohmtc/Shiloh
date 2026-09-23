@@ -29,7 +29,7 @@ const catalogue = [
   },
 ];
 
-test('My Shiloh renders the approved four-tab PWA shell with public-safe service data', () => {
+test('My Shiloh renders the approved five-tab PWA shell with public-safe service data', () => {
   const html = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue });
   assert.match(html, /<title>My Shiloh<\/title>/);
   assert.match(html, /rel="manifest" href="\/my-shiloh\/manifest\.webmanifest"/);
@@ -42,7 +42,13 @@ test('My Shiloh renders the approved four-tab PWA shell with public-safe service
   assert.match(html, /data-view-target="home"/);
   assert.match(html, /data-view-target="bookings"/);
   assert.match(html, /data-view-target="shiloh"/);
+  assert.match(html, /data-view-target="wallet"/);
   assert.match(html, /data-view-target="profile"/);
+  assert.match(html, /id="wallet" data-view="wallet"/);
+  assert.match(html, /Your Shiloh value, together/);
+  assert.match(html, /Open your Shiloh voucher wallet/);
+  assert.match(html, /View Shiloh Rewards/);
+  assert.match(html, /Open booking payments/);
   assert.match(html, /Full Body Swedish/);
   assert.match(html, /R720/);
   assert.match(html, /Pedicures &amp; Foot Care/);
@@ -99,7 +105,7 @@ test('PWA manifest is standalone and scoped to My Shiloh', () => {
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v18/);
+  assert.match(worker, /my-shiloh-shell-v19/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /url\.pathname === '\/my-shiloh\/assets\/app\.css'[\s\S]*fetch\(request\)[\s\S]*catch\(\(\) => caches\.match\(request\)\)/);
@@ -116,4 +122,20 @@ test('offline page explains privacy without technical wording', () => {
   assert.match(html, /personal details are not shown while you’re offline/i);
   assert.doesNotMatch(html, /cache|offline shell|session|client data/i);
   assert.match(html, /Reconnect/);
+});
+
+
+test('Wallet navigation keeps Shiloh in the exact centre and preserves welcome-voucher deep links', () => {
+  const html = renderMyShilohPage({
+    whatsappNumber: '27830000000',
+    catalogue: [],
+    client: { id:'912', name:'Test Client', firstName:'Test' },
+  });
+  const styles = read('public/my-shiloh/assets/app.css');
+  const client = read('public/my-shiloh/assets/app.js');
+  assert.match(styles, /grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
+  assert.match(styles, /\.nav-shiloh\{position:relative;grid-column:3\}/);
+  assert.match(client, /new Set\(\['home', 'bookings', 'shiloh', 'wallet', 'profile'\]\)/);
+  assert.match(client, /fromHash === 'welcome-voucher'\) return 'wallet'/);
+  assert.match(html, /href="#wallet" data-view-target="wallet"/);
 });
