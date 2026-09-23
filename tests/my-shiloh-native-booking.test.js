@@ -37,6 +37,8 @@ test('signed-in My Shiloh booking stays inside the app instead of /book', () => 
     payment:null,
   });
   assert.equal(experience.home.primaryAction.href, '/my-shiloh/book');
+  const app = read('public/my-shiloh/assets/app.js');
+  assert.match(app, /if \(href === '\/book'\) return '\/my-shiloh\/book'/);
 });
 
 test('native booking page is a My Shiloh treatment-practitioner-time-review wizard', () => {
