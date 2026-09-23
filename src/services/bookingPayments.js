@@ -8,6 +8,7 @@ const { formatVoucherDate } = require('../lib/voucherDate');
 const { sendWhatsAppTemplate } = require('./whatsapp');
 const { issueVerifiedVoucher } = require('./giftVouchers');
 const { createShilohRewardsService } = require('./shilohRewards');
+const { queueClientNotification } = require('./myShilohPush');
 const logger = require('../lib/logger');
 
 const CAPABILITIES = Object.freeze({ VIEW: 'payment:view', COLLECT: 'payment:collect', REFUND: 'payment:refund' });
@@ -44,7 +45,14 @@ function normalizeMethod(value) {
   return method;
 }
 
-function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvider(), sendTemplate = sendWhatsAppTemplate, rewards = createShilohRewardsService({ db }) } = {}) {
+function createBookingPaymentService({
+  db = pool,
+  ozow = createOzowPaymentProvider(),
+  sendTemplate = sendWhatsAppTemplate,
+  rewards = createShilohRewardsService({ db }),
+  notifyClient = null,
+} = {}) {
+  const pushNotify = notifyClient || (db === pool ? queueClientNotification : null);
   async function syncRewardsAfterPayment() {
     try { await rewards.syncEligibleEarnings(); }
     catch (error) { logger.error({ err:error }, 'Shiloh Rewards payment sync failed'); }
@@ -217,6 +225,16 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
         bodyParameters: [subject.clientName || 'there', formatRand(normalizedAmount), String(normalizedMethod).replaceAll('_', ' '), String(reference || `SHILOH ${subject.appointmentId}`), formatRand(result.outstanding)],
         send: sendTemplate,
       });
+      if (!replay.rows[0] && pushNotify && subject.crmV2ClientId) {
+        await pushNotify({
+          crmV2ClientId: Number(subject.crmV2ClientId),
+          eventKey: `payment-manual:${account.id}:${operationKey}`,
+          category: 'payment',
+          title: 'Payment received',
+          body: 'Your Shiloh payment was recorded. Open My Shiloh for the latest booking balance.',
+          targetPath: '/my-shiloh/#bookings',
+        });
+      }
       return { status: replay.rows[0] ? 'idempotent_replay' : 'recorded', payment: result };
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
   }
@@ -254,6 +272,16 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
        urlButtonParameter: request.request_key,
        send: sendTemplate,
      });
+     if (request?.payer_crm_v2_client_id && pushNotify) {
+       await pushNotify({
+         crmV2ClientId: Number(request.payer_crm_v2_client_id),
+         eventKey: `payment-request:${request.id}:link-issued`,
+         category: 'payment',
+         title: 'Payment ready',
+         body: 'A secure payment is ready for your Shiloh booking.',
+         targetPath: '/my-shiloh/#bookings',
+       });
+     }
      return { status: 'link_issued', request: updated.rows[0] };
   }
 
@@ -280,6 +308,16 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
         bodyParameters: [subject.clientName || 'there', 'Recorded', formatRand(normalizedAmount), String(reference || `SHILOH ${subject.appointmentId}`)],
         send: sendTemplate,
       });
+      if (!replay.rows[0] && pushNotify && subject.crmV2ClientId) {
+        await pushNotify({
+          crmV2ClientId: Number(subject.crmV2ClientId),
+          eventKey: `payment-refund:${account.id}:${operationKey}`,
+          category: 'payment',
+          title: 'Payment update',
+          body: 'A refund was recorded for your Shiloh booking.',
+          targetPath: '/my-shiloh/#bookings',
+        });
+      }
       return{status:replay.rows[0]?'idempotent_replay':'refunded',payment:result};
     }catch(error){try{await client.query('ROLLBACK');}catch(_){}throw error;}finally{client.release();}
   }
@@ -374,6 +412,26 @@ function createBookingPaymentService({ db = pool, ozow = createOzowPaymentProvid
         urlButtonParameter: request.request_key,
         send: sendTemplate,
       });
+      if (paymentReceived?.request?.payer_crm_v2_client_id && pushNotify) {
+        await pushNotify({
+          crmV2ClientId: Number(paymentReceived.request.payer_crm_v2_client_id),
+          eventKey: `payment-provider:${paymentReceived.request.id}:paid`,
+          category: 'payment',
+          title: 'Payment received',
+          body: 'Your Shiloh payment was received successfully.',
+          targetPath: '/my-shiloh/#bookings',
+        });
+      }
+      if (voucherIssued?.voucher?.recipient_crm_v2_client_id && pushNotify) {
+        await pushNotify({
+          crmV2ClientId: Number(voucherIssued.voucher.recipient_crm_v2_client_id),
+          eventKey: `voucher-issued:${voucherIssued.voucher.id}`,
+          category: 'voucher',
+          title: 'A voucher has arrived',
+          body: 'A Shiloh gift voucher is ready in your Wallet.',
+          targetPath: '/my-shiloh/#wallet',
+        });
+      }
       return { status: paid ? 'paid' : 'accepted' };
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
   }
