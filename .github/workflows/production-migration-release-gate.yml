@@ -31,11 +31,11 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch base branch for exact migration diff
-        run: git fetch --no-tags origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
+        run: git fetch --no-tags origin ${{ github.event.pull_request.base.sha }}
 
       - name: Verify controlled migration plan
         env:
-          SHILOH_BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+          SHILOH_BASE_REF: ${{ github.event.pull_request.base.sha }}
           GITHUB_SHA: ${{ github.event.pull_request.head.sha }}
           SHILOH_PULL_REQUEST_BODY: ${{ github.event.pull_request.body }}
         run: node scripts/check-migration-release-plan.js
