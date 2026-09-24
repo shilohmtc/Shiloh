@@ -426,6 +426,28 @@ test('My Shiloh deposit request is clear and accessible on Phone and Desktop', a
   }
 });
 
+test('My Shiloh keeps an awaiting deposit clear when its link is unavailable on Phone and Desktop', async ({page},testInfo)=>{
+  for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
+    await page.setViewportSize({width:viewport.width,height:viewport.height});
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-deposit-link-unavailable&viewMode=story',{waitUntil:'networkidle'});
+    const home=page.locator('[data-client-experience-home]');
+    await expect(home.getByRole('heading',{name:'Your booking is awaiting its deposit.'})).toBeVisible();
+    await expect(home.getByText(/secure payment link is not available yet/)).toBeVisible();
+    await expect(home.getByRole('link',{name:'Ask Shiloh about my deposit'})).toHaveAttribute('href','#shiloh');
+    await expect(home.getByRole('link',{name:'Pay deposit'})).toHaveCount(0);
+    const metrics=await home.evaluate(node=>({
+      viewport:innerWidth,
+      document:document.documentElement.scrollWidth,
+      short:[...node.querySelectorAll('button,a')].filter(target=>target.getClientRects().length&&target.getBoundingClientRect().height<44).length,
+    }));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
+    expect(metrics.short).toBe(0);
+    const accessibility=await new AxeBuilder({page}).include('[data-client-experience-home]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`my-shiloh-deposit-link-unavailable-${viewport.name}.png`),fullPage:true,animations:'disabled'});
+  }
+});
+
 test('Couples booking supports separate canonical treatments and discretionary discount on Phone', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/iframe.html?id=workspace-production-surfaces--couples-booking-treatments-and-discount&viewMode=story', { waitUntil: 'networkidle' });
