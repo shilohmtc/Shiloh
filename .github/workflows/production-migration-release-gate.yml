@@ -1,0 +1,41 @@
+name: Production migration release gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - migrations/**/*.sql
+      - scripts/check-migration-release-plan.js
+      - tests/production-migration-release-plan.test.js
+      - src/services/controlledReleaseMigration.js
+      - src/services/migrations.js
+      - package.json
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: production-migration-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  migration-plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact pull request commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Verify controlled migration plan
+        env:
+          GITHUB_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          GITHUB_SHA: ${{ github.event.pull_request.head.sha }}
+          SHILOH_PULL_REQUEST_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/check-migration-release-plan.js
+
+      - name: Test the migration release-plan contract
+        run: node --test tests/production-migration-release-plan.test.js
