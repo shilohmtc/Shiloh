@@ -7,6 +7,7 @@ const { getReportingIntegrityAudit } = require("../services/reportingIntegrityAu
 const { getBirthdayTemplateStatus, TEMPLATE_BODY } = require("../services/birthdayTemplateProvisioning");
 const { inspectMetaTemplateInventory } = require("../services/metaTemplateContracts");
 const { getClientWelcomeDiagnostic } = require("../services/clientWelcomeDiagnostic");
+const { getAppointmentReadDiagnostic } = require("../services/appointmentReadDiagnostic");
 
 const router = express.Router();
 
@@ -65,6 +66,21 @@ router.get("/client-welcome/status", auditReadAuth, async (req, res) => {
     }
     (req.log || console).error?.({ err: error }, "Client welcome diagnostic failed");
     return res.status(500).json({ error: "Could not inspect client welcome state", requestId: req.id });
+  }
+});
+
+// Sanitized, authenticated, read-only appointment lifecycle evidence. No client identity,
+// contact data, provider IDs, message bodies or arbitrary SQL are returned.
+router.get("/appointment/:appointmentId/status", auditReadAuth, async (req, res) => {
+  try {
+    const report = await getAppointmentReadDiagnostic(req.params.appointmentId);
+    return res.status(200).json({ report, requestId: req.id });
+  } catch (error) {
+    if (error.code === "INVALID_APPOINTMENT_ID") {
+      return res.status(400).json({ error: error.message, requestId: req.id });
+    }
+    (req.log || console).error?.({ err: error }, "Appointment read diagnostic failed");
+    return res.status(500).json({ error: "Could not inspect appointment status", requestId: req.id });
   }
 });
 
