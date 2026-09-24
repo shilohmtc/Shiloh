@@ -245,7 +245,27 @@ function createCalendarOperationalMutationRouter({
         reason: req.body?.reason,
         requestId: req.body?.requestId,
       });
-      return res.status(200).json(result);
+      let customerNotification;
+      try {
+        customerNotification = await customerChangeNotificationService.queueCustomerChangeNotification(
+          Number(result.appointmentId || req.params.appointmentId),
+          'cancellation'
+        );
+      } catch (notificationError) {
+        logger.error({
+          err: notificationError,
+          appointmentId: Number(result.appointmentId || req.params.appointmentId),
+          requestId: req.id,
+        }, 'Calendar cancellation saved but customer cancellation update could not be queued');
+        customerNotification = { queued: false, reason: 'queue_failed' };
+      }
+      return res.status(200).json({
+        ...result,
+        customerNotification: {
+          queued: customerNotification?.queued === true,
+          reason: customerNotification?.reason || customerNotification?.attempted?.reason || null,
+        },
+      });
     } catch (error) {
       return sendOperationalError(error, req, res, next);
     }
