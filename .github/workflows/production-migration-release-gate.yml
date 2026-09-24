@@ -32,7 +32,7 @@ jobs:
 
       - name: Verify controlled migration plan
         env:
-          GITHUB_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          GITHUB_BASE_REF: origin/${{ github.event.pull_request.base.ref }}
           GITHUB_SHA: ${{ github.event.pull_request.head.sha }}
           SHILOH_PULL_REQUEST_BODY: ${{ github.event.pull_request.body }}
         run: node scripts/check-migration-release-plan.js
