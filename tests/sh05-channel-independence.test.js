@@ -43,11 +43,13 @@ test('booking confirmations queue My Shiloh before the WhatsApp provider is call
 test('appointment reminders queue My Shiloh before WhatsApp and isolate either channel failure', () => {
   const reminder = lifecycle.indexOf('async function deliverClaimedReminder');
   const notify = lifecycle.indexOf('await notifyClient({', reminder);
+  const tryStart = lifecycle.lastIndexOf('try {', notify);
   const send = lifecycle.indexOf('return send(', reminder);
-  assert.ok(notify > reminder);
+  assert.ok(tryStart > reminder);
+  assert.ok(notify > tryStart);
   assert.ok(send > notify);
-  assert.match(lifecycle.slice(notify, send), /try/);
-  assert.match(lifecycle.slice(notify, send), /catch/);
+  assert.match(lifecycle.slice(tryStart, send), /try/);
+  assert.match(lifecycle.slice(tryStart, send), /catch/);
 });
 
 test('booking changes queue My Shiloh before WhatsApp delivery', () => {
