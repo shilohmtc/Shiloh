@@ -1851,3 +1851,45 @@ test('deposit policy is unmistakable before Ozow on Phone and Desktop', async ({
     });
   }
 });
+
+
+test('cancelled booking payment review is safe and actionable on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name: 'phone', width: 390, height: 844 },
+    { name: 'desktop', width: 1280, height: 900 },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=workspace-production-surfaces--cancelled-booking-payment-review&viewMode=story', { waitUntil: 'networkidle' });
+
+    const surface = page.locator('.workspace-surface-story');
+    await expect(surface).toBeVisible();
+    await expect(surface.getByText('Payment received after this booking was cancelled')).toBeVisible();
+    await expect(surface.getByText('The booking stays cancelled. No refund has been issued automatically.')).toBeVisible();
+    await expect(surface.getByText('Payment collection is disabled because this booking is cancelled.')).toBeVisible();
+    await expect(surface.getByRole('heading', { name: 'Record refund' })).toBeVisible();
+    await expect(surface.locator('[data-payment-requests] [data-copy-link]')).toHaveCount(0);
+
+    const metrics = await surface.evaluate(() => ({
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      short: [...document.querySelectorAll('button,input,select,a')]
+        .filter((node) => node.getClientRects().length && node.getBoundingClientRect().height < 44)
+        .length,
+    }));
+    expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+    expect(metrics.short).toBe(0);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('.workspace-surface-story')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+
+    await page.screenshot({
+      path: testInfo.outputPath(`cancelled-booking-payment-review-${viewport.name}.png`),
+      fullPage: true,
+      animations: 'disabled',
+      caret: 'hide',
+    });
+  }
+});
