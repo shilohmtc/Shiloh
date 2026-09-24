@@ -136,6 +136,25 @@ function createMyShilohBookingService({
     return { client, phone };
   }
 
+  async function clientAppEligibleStaff(serviceId, candidates = null) {
+    const id = positiveId(serviceId, 'BOOKING_SERVICE_INVALID');
+    const staff = Array.isArray(candidates) ? candidates : await eligibleStaff(id, 'any available therapist');
+    const ids = staff.map(row => Number(row.id)).filter(Number.isSafeInteger);
+    if (!ids.length) return [];
+    const result = await db.query(
+      `SELECT id
+         FROM staff
+        WHERE id = ANY($1::bigint[])
+          AND status='active'
+          AND resource_type='practitioner'
+          AND client_bookable=TRUE
+          AND COALESCE(business_role,'') <> 'tenant_practitioner'`,
+      [ids],
+    );
+    const allowed = new Set(result.rows.map(row => Number(row.id)));
+    return staff.filter(row => allowed.has(Number(row.id)));
+  }
+
   async function canonicalService(serviceId) {
     const id = positiveId(serviceId, 'BOOKING_SERVICE_INVALID');
     const result = await db.query(
@@ -160,7 +179,7 @@ function createMyShilohBookingService({
     if (!service || service.status !== 'active') {
       throw new MyShilohBookingError('BOOKING_SERVICE_CHANGED', 'That treatment is no longer available to book.', 409);
     }
-    const staff = await eligibleStaff(id, 'any available therapist');
+    const staff = await clientAppEligibleStaff(id);
     if (!staff.length) {
       throw new MyShilohBookingError('BOOKING_SERVICE_NOT_BOOKABLE', 'That treatment is not currently available for online booking.', 409);
     }
@@ -232,10 +251,26 @@ function createMyShilohBookingService({
     );
     const blockedIds = new Set(blocked.rows.map(row => Number(row.id)));
     const ordinary = rows.filter(item => !blockedIds.has(Number(item.id)));
-    if (!welcomeVoucherOnly) return ordinary;
+    let clientAppOrdinary = ordinary;
+    if (ordinary.length) {
+      const visible = await db.query(
+        `SELECT DISTINCT ss.service_id
+           FROM staff_services ss
+           JOIN staff st ON st.id=ss.staff_id
+          WHERE ss.service_id = ANY($1::bigint[])
+            AND st.status='active'
+            AND st.resource_type='practitioner'
+            AND st.client_bookable=TRUE
+            AND COALESCE(st.business_role,'') <> 'tenant_practitioner'`,
+        [ordinary.map(item => Number(item.id)).filter(Number.isSafeInteger)],
+      );
+      const visibleIds = new Set(visible.rows.map(row => Number(row.service_id)));
+      clientAppOrdinary = ordinary.filter(item => visibleIds.has(Number(item.id)));
+    }
+    if (!welcomeVoucherOnly) return clientAppOrdinary;
     const allowed = Array.isArray(eligibleServiceIds) ? new Set(eligibleServiceIds.map(Number)) : null;
     const minimum = Number(minimumBookingValue || 450);
-    return ordinary.filter(item => {
+    return clientAppOrdinary.filter(item => {
       const id = Number(item.id);
       const amount = fixedCataloguePrice(item);
       if (allowed && !allowed.has(id)) return false;
@@ -357,7 +392,7 @@ function createMyShilohBookingService({
 
   async function policy() { return depositPolicy.loadPolicy(db); }
 
-  return { catalogue, practitioners, slots, createRequest, policy };
+  return { catalogue, practitioners, slots, createRequest, policy, clientAppEligibleStaff };
 }
 
 const service = createMyShilohBookingService();

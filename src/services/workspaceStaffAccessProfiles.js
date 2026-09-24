@@ -43,8 +43,6 @@ const OWN_WORKSPACE_VIEW = Object.freeze([
   'services:view',
   'staff:services:view',
   'schedule:view',
-  'forms:view',
-  'forms:clinical_manage',
 ]);
 const OWN_WORKSPACE_ACTIONS = Object.freeze([
   'appointment:create',
@@ -62,6 +60,8 @@ const OWN_WORKSPACE_DENIED = Object.freeze([
   'calendar:booking:reassign',
   'client:delete',
   'client:notify',
+  'forms:view',
+  'forms:clinical_manage',
   'services:create',
   'schedule:manage',
   'staff:view',
@@ -96,11 +96,11 @@ const PROFILE_META = Object.freeze({
   }),
   [PROFILE_OWN_WORKSPACE]: Object.freeze({
     label: 'Own workspace',
-    summary: 'Can fully manage their own work while clinic-wide records and other practitioners stay protected.',
+    summary: 'Can manage their own bookings, clients, services and availability while clinic-wide records stay protected.',
     protected: Object.freeze([
       'Cannot change Clinic Hours.',
       'Cannot edit, cancel, reassign or delete another practitioner’s appointments.',
-      'Cannot access clinic-only client relationships.',
+      'Cannot access clinic-only client relationships or clinical forms.',
       'Cannot create services or change staff/access settings.',
     ]),
   }),

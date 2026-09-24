@@ -49,10 +49,10 @@ test('Own workspace profile keeps Marietjie work-scoped and explicitly blocks cl
   assert.equal(config.businessRole, 'tenant_practitioner');
   assert.equal(config.calendarScope, 'own_appointments');
   assert.equal(config.serviceScope, 'own_services');
-  for (const capability of ['appointment:view', 'appointment:create', 'appointment:adjust_end', 'booking:update', 'calendar:booking:reschedule', 'calendar:booking:cancel', 'client:lookup', 'client:manage', 'services:view', 'services:manage', 'service:pricing', 'schedule:view', 'forms:view', 'forms:clinical_manage']) {
+  for (const capability of ['appointment:view', 'appointment:create', 'appointment:adjust_end', 'booking:update', 'calendar:booking:reschedule', 'calendar:booking:cancel', 'client:lookup', 'client:manage', 'services:view', 'services:manage', 'service:pricing', 'schedule:view']) {
     assert.equal(config.permissions[capability], true, capability);
   }
-  for (const forbidden of ['calendar:booking:reassign', 'schedule:manage', 'client:delete', 'services:create', 'staff:view', 'staff:manage', 'staff_access:manage', 'staff_auth:reset']) {
+  for (const forbidden of ['calendar:booking:reassign', 'schedule:manage', 'client:delete', 'forms:view', 'forms:clinical_manage', 'services:create', 'staff:view', 'staff:manage', 'staff_access:manage', 'staff_auth:reset']) {
     assert.notEqual(config.permissions[forbidden], true, forbidden);
   }
 });
@@ -61,14 +61,14 @@ test('Friendly switches can only change profile-safe actions and reassert protec
   const row = principal({
     business_role: 'tenant_practitioner',
     staff_business_role: 'tenant_practitioner',
-    permissions: { 'schedule:manage': true, 'calendar:booking:reassign': true, 'client:delete': true },
+    permissions: { 'schedule:manage': true, 'calendar:booking:reassign': true, 'client:delete': true, 'forms:view': true, 'forms:clinical_manage': true },
   });
   const next = safeTogglePermissions(row, PROFILE_OWN_WORKSPACE, 'manage_my_clients', true);
   assert.equal(next['client:manage'], true);
   assert.equal(next['appointment:view'], true);
   assert.equal(next['schedule:view'], true);
-  assert.equal(next['forms:view'], true);
-  assert.equal(next['forms:clinical_manage'], true);
+  assert.notEqual(next['forms:view'], true);
+  assert.notEqual(next['forms:clinical_manage'], true);
   assert.notEqual(next['schedule:manage'], true);
   assert.notEqual(next['calendar:booking:reassign'], true);
   assert.notEqual(next['client:delete'], true);
