@@ -38,6 +38,7 @@ function fakeDb({ role = 'booking_operator', linkedStaffId = null, practitionerI
         staff_status: linkedStaffId ? 'active' : null,
         staff_resource_type: linkedStaffId ? 'practitioner' : null,
       })] };
+      if (sql.includes('workspaceServiceCreation:options')) return { rows: practitionerIds.map(id => ({ id, display_name: `P${id}` })) };
       if (sql.includes('workspaceServiceCreation:category')) return { rows: [{ id: 3, name: 'Massage', display_order: 1, status: 'active' }] };
       if (sql.includes('workspaceServiceCreation:categories')) return { rows: [{ id: 3, name: 'Massage', display_order: 1 }] };
       if (sql.includes('workspaceServiceCreation:practitioners')) return { rows: practitionerIds.map(id => ({ id, display_name: `P${id}`, status: 'active', resource_type: 'practitioner' })) };
@@ -68,6 +69,13 @@ test('services:create is narrow canonical authority and does not depend on displ
   assert.equal(evaluateCreatePrincipal([principal({ business_role: 'unknown' })]), null);
   assert.equal(evaluateCreatePrincipal([principal({ business_role: 'tenant_practitioner' })]), null);
   assert.equal(evaluateCreatePrincipal([principal({ business_role: 'tenant_practitioner', staff_id: 11, staff_status: 'active', staff_resource_type: 'practitioner' })])?.linkedStaffId, 11);
+});
+
+test('creation options expose existing canonical categories instead of inventing a second taxonomy', async () => {
+  const { db } = fakeDb({ practitionerIds: [11, 12] });
+  const options = await createWorkspaceServiceCreationService({ db }).listCreateOptions(40);
+  assert.deepEqual(options.categories, [{ id: 3, name: 'Massage', displayOrder: 1 }]);
+  assert.deepEqual(options.practitioners.map(item => item.id), [11, 12]);
 });
 
 test('creation pricing validates fixed and variable price policy explicitly', () => {
