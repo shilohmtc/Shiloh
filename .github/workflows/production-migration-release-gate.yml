@@ -30,6 +30,9 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
+      - name: Fetch base branch for exact migration diff
+        run: git fetch --no-tags origin ${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}
+
       - name: Verify controlled migration plan
         env:
           SHILOH_BASE_REF: origin/${{ github.event.pull_request.base.ref }}
