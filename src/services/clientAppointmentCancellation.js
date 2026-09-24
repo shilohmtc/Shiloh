@@ -1,6 +1,7 @@
 'use strict';
 
 const { pool } = require('../db/pool');
+const { cancelOutstandingPaymentRequestsForAppointment } = require('./bookingPaymentSafety');
 
 function positiveId(value) {
   const id = Number(value);
@@ -103,6 +104,10 @@ async function cancelOwnedAppointmentInTransaction(db, {
      VALUES($1,$2,'cancelled',$3,$4)`,
     [id, appointment.status, String(changedBy || 'client').slice(0, 160), String(reason || 'Client cancellation confirmed').slice(0, 240)],
   );
+  const paymentSafety = await cancelOutstandingPaymentRequestsForAppointment(db, {
+    appointmentId: id,
+    reason: 'client_appointment_cancelled',
+  });
   await db.query(
     `INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
      VALUES('client.appointment_cancelled','appointment',$1,$2::jsonb)`,
@@ -112,6 +117,7 @@ async function cancelOwnedAppointmentInTransaction(db, {
       clientId: identity.legacyClientId,
       crmV2ClientId: identity.crmV2ClientId,
       schedulingAuthority: 'shiloh_canonical',
+      paymentRequestsCancelled: paymentSafety.cancelled,
     })],
   );
 
@@ -123,6 +129,7 @@ async function cancelOwnedAppointmentInTransaction(db, {
       endsAt: new Date(appointment.ends_at).toISOString(),
       previousStatus: String(appointment.status || ''),
     },
+    paymentSafety,
   };
 }
 
