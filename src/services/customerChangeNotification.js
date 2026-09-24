@@ -18,6 +18,7 @@ const ACTION_BY_KIND = Object.freeze({
 });
 const ACTION_ALIASES_BY_KIND = Object.freeze({
   time: Object.freeze(['calendar.appointment_rescheduled']),
+  cancellation: Object.freeze(['calendar.appointment_cancelled']),
 });
 const UPDATE_KINDS = new Set(['service', 'practitioner', 'time', 'price']);
 const RETRY_MS = 5 * 60 * 1000;
