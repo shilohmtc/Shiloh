@@ -45,6 +45,9 @@ test('staff booking page renders guided actions and a prefilled private report h
   assert.match(script, /Choose another practitioner/);
   assert.match(script, /\/calendar\/problem-reports\?category=booking/);
   assert.match(script, /showBookingRecovery\(body\)/);
+  assert.match(script, /recovery-detail/);
+  assert.match(script, /body&&body\.reply/);
+  assert.match(script, /String\(body&&body\.reply\|\|recovery\.title/);
   assert.doesNotThrow(() => new Function(script));
 });
 
