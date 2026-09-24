@@ -14,6 +14,9 @@ async function pendingBookingProposalConflicts({
            aba.proposed_ends_at AS ends_at,
            'Awaiting client confirmation'::text AS label
       FROM appointment_booking_approvals aba
+      JOIN appointments a
+        ON a.id=aba.appointment_id
+       AND a.status NOT IN ('cancelled','no_show')
      WHERE aba.status='awaiting_client_confirmation'
        AND aba.proposal_expires_at>NOW()
        AND aba.proposed_staff_ids @> ARRAY[$1::bigint]
