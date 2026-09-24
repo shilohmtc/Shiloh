@@ -91,10 +91,15 @@ function detailModel() {
     authority: authority(),
     service: {
       ...serviceRows()[0],
+      category_id: 3,
       revision: 'a'.repeat(64),
       customer_description: 'A treatment in Marietjie’s assigned service set.',
       booking_note: 'Please arrive a few minutes before your appointment.',
     },
+    categories: [
+      { id: 1, name: 'Pedicures & Foot Care', displayOrder: 1, status: 'active' },
+      { id: 3, name: 'Massage', displayOrder: 3, status: 'active' },
+    ],
     assignedStaff: [
       { id: 55, display_name: 'Marietjie', resource_type: 'practitioner', status: 'active', client_bookable: true },
     ],
@@ -252,6 +257,8 @@ async function main() {
       assert.equal(detailResponse.status(), 200);
       await page.locator('[data-service-edit-form]').waitFor();
       assert.equal(await page.locator('[data-service-edit-form]').isVisible(), true);
+      assert.equal(await page.getByLabel('Category').inputValue(), '3');
+      assert.equal(await page.getByLabel('Category').locator('option').filter({ hasText: 'Pedicures & Foot Care' }).count(), 1);
       assert.equal(await page.locator('[data-service-description-form]').isVisible(), true);
       assert.equal(await page.locator('[data-description-preview]').isVisible(), true);
       assert.equal(await page.locator('[data-service-assign-form]').isVisible(), true);
@@ -321,6 +328,7 @@ async function main() {
     assert.equal(updateCalls, 2);
     assert.equal(descriptionCalls, 2);
     assert.equal(lastUpdate.name, 'Marietjie Signature Massage');
+    assert.equal(String(lastUpdate.categoryId), '3');
     assert.match(lastDescription.customerDescription, /approved phone description/);
     const exactHead = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
     fs.writeFileSync(path.join(OUT_DIR, 'manifest.json'), JSON.stringify({
