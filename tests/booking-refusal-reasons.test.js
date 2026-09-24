@@ -41,7 +41,7 @@ test('canonical availability carries the actual holiday reason to its reply', as
   const clinic = { covered: false, reason: 'holiday_unconfigured', holidayName: 'Heritage Day' };
   const results = [
     [{ id: 1, display_name: 'Practitioner A' }],
-    [{ id: 2, name: 'Treatment', duration_minutes: 60 }],
+    [{ id: 2, name: 'Treatment', duration_minutes: 60, category_name: 'Massage' }],
     [{}],
     [{ starts_at: unavailable.startsAt, ends_at: unavailable.endsAt }],
   ];
