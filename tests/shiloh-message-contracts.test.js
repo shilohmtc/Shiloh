@@ -13,15 +13,16 @@ const {
   resolveMetaTemplateBinding,
 } = require('../src/services/metaTemplateAdapter');
 
-test('Shiloh owns one canonical registry with 32 identities and 27 sendable contracts', () => {
+test('Shiloh owns one canonical registry with 33 identities and 28 sendable contracts', () => {
   const contracts = getShilohMessageContracts();
-  assert.equal(contracts.length, 32);
-  assert.equal(new Set(contracts.map((contract) => contract.id)).size, 32);
-  assert.equal(contracts.filter((contract) => contract.sendable).length, 27);
+  assert.equal(contracts.length, 33);
+  assert.equal(new Set(contracts.map((contract) => contract.id)).size, 33);
+  assert.equal(contracts.filter((contract) => contract.sendable).length, 28);
   assert.ok(contracts.some((contract) => contract.id === 'problem_report_resolved' && contract.lifecycle === 'current' && contract.sendable));
   assert.ok(contracts.some((contract) => contract.id === 'workspace_booking_request_alert' && contract.lifecycle === 'current' && contract.sendable));
   assert.ok(contracts.some((contract) => contract.id === 'consultation_form' && contract.lifecycle === 'current' && contract.sendable));
   assert.ok(contracts.some((contract) => contract.id === 'consultation_form_reminder' && contract.lifecycle === 'current' && contract.sendable));
+  assert.ok(contracts.some((contract) => contract.id === 'payment_deposit_request_v2' && contract.lifecycle === 'current' && contract.sendable));
   assert.deepEqual(
     contracts.filter((contract) => contract.lifecycle === 'retired').map((contract) => contract.id).sort(),
     ['appointment_followup_legacy', 'appointment_reminder_legacy', 'birthday_v1', 'booking_approval_outcome', 'booking_approval_request'],
