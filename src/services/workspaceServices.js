@@ -636,7 +636,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
         const next = updated.rows[0];
         if (!next) throw new WorkspaceServicesError('WORKSPACE_SERVICE_NOT_FOUND', 'Service was not found.', 404);
         return {
-          revision: serviceRevision(next, state.assignedStaffIds),
+          revision: serviceRevision({ ...next, category_id: state.service.category_id, category_name: state.service.category_name }, state.assignedStaffIds),
           auditMetadata: {
             before: { customerDescription: before },
             after: { customerDescription: description },
@@ -664,7 +664,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
         );
         const next = updated.rows[0];
         return {
-          revision: serviceRevision(next, state.assignedStaffIds),
+          revision: serviceRevision({ ...next, category_id: state.service.category_id, category_name: state.service.category_name }, state.assignedStaffIds),
           auditMetadata: {
             before: { status: state.service.status },
             after: { status: nextStatus },
