@@ -1,12 +1,18 @@
 'use strict';
 
 const crypto = require('crypto');
+const dns = require('node:dns').promises;
+const https = require('node:https');
+const net = require('node:net');
 const { pool } = require('../db/pool');
 const logger = require('../lib/logger');
 
 const CATEGORIES = new Set(['appointment','forms','payment','voucher','rewards','system']);
 const MAX_PENDING = 5;
 const NOTIFICATION_TTL_DAYS = 7;
+const DEFAULT_PUSH_TIMEOUT_MS = 5000;
+const MIN_PUSH_TIMEOUT_MS = 1000;
+const MAX_PUSH_TIMEOUT_MS = 15000;
 
 function base64url(value) {
   return Buffer.from(value).toString('base64url');
@@ -24,13 +30,131 @@ function safeTargetPath(value) {
   return path;
 }
 
+function cleanHostname(value) {
+  return String(value || '').trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+}
+
 function validEndpoint(value) {
   try {
     const url = new URL(String(value || ''));
-    return url.protocol === 'https:' ? url.toString() : null;
+    const hostname = cleanHostname(url.hostname);
+    if (url.protocol !== 'https:' || !hostname || url.username || url.password) return null;
+    if (url.port && url.port !== '443') return null;
+    if (hostname === 'localhost' || hostname.endsWith('.localhost') || net.isIP(hostname)) return null;
+    return url.toString();
   } catch (_) {
     return null;
   }
+}
+
+function isUnsafeIpv4(address) {
+  const parts = String(address || '').split('.').map(Number);
+  if (parts.length !== 4 || parts.some(part => !Number.isInteger(part) || part < 0 || part > 255)) return true;
+  const [a, b, c] = parts;
+  return a === 0
+    || a === 10
+    || a === 127
+    || (a === 100 && b >= 64 && b <= 127)
+    || (a === 169 && b === 254)
+    || (a === 172 && b >= 16 && b <= 31)
+    || (a === 192 && b === 0)
+    || (a === 192 && b === 2)
+    || (a === 192 && b === 168)
+    || (a === 198 && (b === 18 || b === 19))
+    || (a === 198 && b === 51 && c === 100)
+    || (a === 203 && b === 0 && c === 113)
+    || a >= 224;
+}
+
+function isUnsafeIpv6(address) {
+  const normalized = String(address || '').toLowerCase();
+  if (!normalized) return true;
+  if (normalized === '::' || normalized === '::1' || normalized.startsWith('::ffff:')) return true;
+  if (normalized.startsWith('fc') || normalized.startsWith('fd') || /^fe[89ab]/.test(normalized)) return true;
+  if (normalized.startsWith('ff') || normalized.startsWith('2001:db8:')) return true;
+  return false;
+}
+
+function isUnsafeNetworkAddress(address) {
+  const family = net.isIP(String(address || ''));
+  if (family === 4) return isUnsafeIpv4(address);
+  if (family === 6) return isUnsafeIpv6(address);
+  return true;
+}
+
+function boundedPushTimeoutMs(env = process.env) {
+  const requested = Number(env.MY_SHILOH_PUSH_TIMEOUT_MS || DEFAULT_PUSH_TIMEOUT_MS);
+  if (!Number.isFinite(requested)) return DEFAULT_PUSH_TIMEOUT_MS;
+  return Math.min(Math.max(Math.trunc(requested), MIN_PUSH_TIMEOUT_MS), MAX_PUSH_TIMEOUT_MS);
+}
+
+async function resolveSafePushEndpoint(endpoint, resolveHost = (...args) => dns.lookup(...args)) {
+  const cleanEndpoint = validEndpoint(endpoint);
+  if (!cleanEndpoint) throw Object.assign(new Error('Push endpoint is not allowed'), { code: 'PUSH_ENDPOINT_INVALID' });
+  const url = new URL(cleanEndpoint);
+  const hostname = cleanHostname(url.hostname);
+  let addresses;
+  try {
+    addresses = await resolveHost(hostname, { all: true, verbatim: true });
+  } catch (error) {
+    throw Object.assign(new Error('Push endpoint could not be resolved'), { code: 'PUSH_ENDPOINT_RESOLUTION_FAILED', cause: error });
+  }
+  const resolved = Array.isArray(addresses) ? addresses : [addresses];
+  if (!resolved.length || resolved.some(item => !item?.address || isUnsafeNetworkAddress(item.address))) {
+    throw Object.assign(new Error('Push endpoint resolved to an unsafe network address'), { code: 'PUSH_ENDPOINT_UNSAFE' });
+  }
+  const selected = resolved[0];
+  return { url, address: selected.address, family: Number(selected.family) || net.isIP(selected.address) };
+}
+
+function timeoutError(code, message) {
+  return Object.assign(new Error(message), { code });
+}
+
+function createPinnedLookup(address, family) {
+  return (_hostname, options, callback) => {
+    if (options?.all) return callback(null, [{ address, family }]);
+    return callback(null, address, family);
+  };
+}
+
+async function safePushRequest(endpoint, options = {}) {
+  const timeoutMs = Number(options.timeoutMs) || DEFAULT_PUSH_TIMEOUT_MS;
+  let resolutionTimer;
+  const resolved = await Promise.race([
+    resolveSafePushEndpoint(endpoint, options.resolveHost || ((...args) => dns.lookup(...args))),
+    new Promise((_, reject) => {
+      resolutionTimer = setTimeout(() => reject(timeoutError('PUSH_RESOLUTION_TIMEOUT', 'Push endpoint resolution timed out')), timeoutMs);
+      resolutionTimer.unref?.();
+    }),
+  ]).finally(() => clearTimeout(resolutionTimer));
+
+  return new Promise((resolve, reject) => {
+    const request = https.request({
+      protocol: 'https:',
+      hostname: resolved.url.hostname,
+      port: 443,
+      path: `${resolved.url.pathname}${resolved.url.search}`,
+      method: 'POST',
+      headers: options.headers || {},
+      servername: cleanHostname(resolved.url.hostname),
+      lookup: createPinnedLookup(resolved.address, resolved.family),
+    }, response => {
+      clearTimeout(totalTimer);
+      response.resume();
+      const status = Number(response.statusCode) || 0;
+      resolve({ ok: status >= 200 && status < 300, status });
+    });
+    const totalTimer = setTimeout(() => {
+      request.destroy(timeoutError('PUSH_REQUEST_TIMEOUT', 'Push request timed out'));
+    }, timeoutMs);
+    totalTimer.unref?.();
+    request.once('error', error => {
+      clearTimeout(totalTimer);
+      reject(error);
+    });
+    request.end();
+  });
 }
 
 function parseVapid(env = process.env) {
@@ -81,7 +205,8 @@ function vapidAuthorization(endpoint, vapid, now = () => new Date()) {
 function createMyShilohPushService({
   db = pool,
   env = process.env,
-  fetchImpl = global.fetch,
+  fetchImpl = safePushRequest,
+  resolveHost = (...args) => dns.lookup(...args),
   now = () => new Date(),
 } = {}) {
   if (!db || typeof db.query !== 'function') throw new Error('My Shiloh push database is required');
@@ -171,6 +296,8 @@ function createMyShilohPushService({
           TTL: '300',
           Urgency: 'normal',
         },
+        resolveHost,
+        timeoutMs: boundedPushTimeoutMs(env),
       });
       if (response.ok) {
         await markPushResult(subscription.id, { status: `accepted_${response.status}` });
@@ -295,6 +422,12 @@ async function queueClientNotification(notification) {
 
 module.exports = {
   CATEGORIES,
+  validEndpoint,
+  isUnsafeNetworkAddress,
+  boundedPushTimeoutMs,
+  resolveSafePushEndpoint,
+  createPinnedLookup,
+  safePushRequest,
   parseVapid,
   vapidAuthorization,
   createMyShilohPushService,
