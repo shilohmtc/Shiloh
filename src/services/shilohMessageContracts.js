@@ -32,6 +32,7 @@ const SOURCE_DEFINITIONS = Object.freeze({
   reschedule_approval_request: () => definition('reschedule_approval_request'),
   reschedule_declined: () => definition('reschedule_declined'),
   cancellation_confirmation: () => definition('cancellation_confirmation'),
+  cancellation_confirmation_v2: () => definition('cancellation_confirmation_v2'),
   reschedule_confirmation: () => definition('reschedule_confirmation'),
   appointment_reminder_actions: () => buildReminderActionTemplateDefinition(),
   booking_confirmation: () => buildBookingConfirmationTemplateDefinition(),
