@@ -10,6 +10,7 @@ on:
       - src/services/controlledReleaseMigration.js
       - src/services/migrations.js
       - package.json
+      - .github/workflows/production-migration-release-gate.yml
 
 permissions:
   contents: read
