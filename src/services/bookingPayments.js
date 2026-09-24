@@ -643,7 +643,7 @@ function createBookingPaymentService({
       }
       await client.query(`INSERT INTO payment_provider_events(provider,provider_event_key,payment_request_id,signature_verified,payload_sha256,outcome) VALUES('ozow',$1,$2,TRUE,$3,'accepted')`, [eventKey,request.id,hash]);
       await client.query('COMMIT');
-      await syncRewardsAfterPayment();
+      if (!paymentReceived?.reviewRequired) await syncRewardsAfterPayment();
       if (paymentReceived?.request?.appointment_id && !paymentReceived.reviewRequired) {
         await syncDepositAfterSettlement(paymentReceived.request.appointment_id);
       }
