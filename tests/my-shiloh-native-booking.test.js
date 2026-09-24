@@ -189,14 +189,14 @@ test('My Shiloh catalogue and practitioner step exclude tenant-practitioner serv
   const db = {
     async query(sql, values = []) {
       const text = String(sql);
-      if (text.includes("s.external_source='shiloh_special'")) return { rows:[], rowCount:0 };
-      if (text.includes('SELECT DISTINCT ss.service_id')) return { rows:[{ service_id:44 }], rowCount:1 };
       if (text.includes('FROM services s') && text.includes('WHERE s.id=$1')) {
         return { rows:[{
           id:Number(values[0]), name:'Shared Treatment', status:'active', price:'650.00', variable_price:false,
           duration_minutes:60, processing_time_minutes:0, extra_time_minutes:0, category_name:'Massage',
         }], rowCount:1 };
       }
+      if (text.includes("s.external_source='shiloh_special'")) return { rows:[], rowCount:0 };
+      if (text.includes('SELECT DISTINCT ss.service_id')) return { rows:[{ service_id:44 }], rowCount:1 };
       if (text.includes('FROM staff') && text.includes("<> 'tenant_practitioner'")) {
         return { rows:[{ id:11 }], rowCount:1 };
       }
