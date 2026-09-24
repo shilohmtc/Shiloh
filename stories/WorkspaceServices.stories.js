@@ -45,6 +45,12 @@ const services = [
   },
 ];
 
+const categories = [
+  { id: 1, name: 'Pedicures & Foot Care', displayOrder: 1, status: 'active' },
+  { id: 3, name: 'Massage', displayOrder: 3, status: 'active' },
+  { id: 2, name: 'Facials', displayOrder: 2, status: 'active' },
+];
+
 const options = {
   calendarNavigationAllowed: true,
   clientsNavigationAllowed: true,
@@ -80,10 +86,12 @@ function detailHtml() {
     },
     service: {
       ...services[0],
+      category_id: 3,
       revision: 'a'.repeat(64),
       customer_description: 'A treatment available in Marietjie’s assigned service set.',
       booking_note: 'Please arrive a few minutes before your appointment.',
     },
+    categories,
     assignedStaff: [
       { id: 55, display_name: 'Marietjie', resource_type: 'practitioner', status: 'active', client_bookable: true },
     ],
@@ -93,6 +101,44 @@ function detailHtml() {
     ],
     bookingEligibility: { eligible: true, clientBookableStaffCount: 1, authority: 'read_projection_only' },
   }, options);
+}
+
+
+function uncategorisedDetailHtml() {
+  return renderServiceDetailPage({
+    authority: {
+      displayName: 'Christel',
+      businessRole: 'owner',
+      serviceScope: 'all_services',
+      linkedStaffId: 12,
+    },
+    service: {
+      id: 703,
+      name: 'Toe Gel Only',
+      category_id: null,
+      category_name: null,
+      duration_minutes: 30,
+      processing_time_minutes: 0,
+      extra_time_minutes: 0,
+      total_minutes: 30,
+      variable_price: false,
+      price: '250.00',
+      display_price: null,
+      status: 'active',
+      revision: 'b'.repeat(64),
+      customer_description: 'A focused gel application service for toes.',
+      booking_note: null,
+      catalogue_issues: [{ code: 'missing_category', label: 'Category required', message: 'Assign a category before this service can be offered for booking.', blocking: true }],
+    },
+    categories,
+    assignedStaff: [
+      { id: 12, display_name: 'Christel', resource_type: 'practitioner', status: 'active', client_bookable: true },
+    ],
+    practitioners: [
+      { id: 12, display_name: 'Christel', status: 'active', client_bookable: true, assigned: true },
+    ],
+    bookingEligibility: { eligible: false, categoryConfigured: false, clientBookableStaffCount: 1, authority: 'read_projection_only' },
+  }, { ...options, staffNavigationAllowed: true });
 }
 
 export default {
@@ -109,4 +155,8 @@ export const MarietjieAssignedServices = {
 
 export const MarietjieServiceManagement = {
   render: () => productionSurface(detailHtml()),
+};
+
+export const UncategorisedServiceManagement = {
+  render: () => productionSurface(uncategorisedDetailHtml()),
 };
