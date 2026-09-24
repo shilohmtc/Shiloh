@@ -18,6 +18,7 @@ const META_TEMPLATE_BINDINGS = Object.freeze([
   { contractId: 'reschedule_approval_request', templateName: 'shiloh_reschedule_approval_request_v1', env: 'WHATSAPP_RESCHEDULE_APPROVAL_REQUEST_TEMPLATE' },
   { contractId: 'reschedule_declined', templateName: 'shiloh_reschedule_declined_v1', env: 'WHATSAPP_RESCHEDULE_DECLINED_TEMPLATE' },
   { contractId: 'cancellation_confirmation', templateName: 'shiloh_cancellation_confirmation_v1', env: 'WHATSAPP_CANCELLATION_CONFIRMATION_TEMPLATE' },
+  { contractId: 'cancellation_confirmation_v2', templateName: 'shiloh_cancellation_confirmation_v2', env: null, defaultWhenUnset: true },
   { contractId: 'reschedule_confirmation', templateName: 'shiloh_reschedule_confirmation_v1', env: 'WHATSAPP_RESCHEDULE_CONFIRMATION_TEMPLATE' },
   { contractId: 'appointment_reminder_actions', templateName: 'shiloh_appointment_reminder_actions_v1', env: 'WHATSAPP_REMINDER_ACTIONS_TEMPLATE' },
   { contractId: 'booking_confirmation', templateName: 'shiloh_booking_confirmation_v1', env: 'WHATSAPP_BOOKING_CONFIRMATION_TEMPLATE' },
