@@ -157,14 +157,35 @@ function totalServiceMinutes(service) {
     + Number(service?.extra_time_minutes || 0);
 }
 
+function catalogueIssues(service) {
+  if (service?.status !== 'active') return [];
+  const issues = [];
+  if (!String(service?.category_name || '').trim()) issues.push({
+    code: 'missing_category',
+    label: 'Category required',
+    message: 'Assign a category before this service can be offered for booking.',
+    blocking: true,
+  });
+  if (service?.variable_price !== true && (service?.price == null || !Number.isFinite(Number(service.price)))) issues.push({
+    code: 'missing_fixed_price',
+    label: 'Price required',
+    message: 'Set a fixed price before this service can be offered for booking.',
+    blocking: true,
+  });
+  return issues;
+}
+
 function projectBookingEligibility(service, assignedStaff = null) {
   const count = Array.isArray(assignedStaff)
     ? assignedStaff.filter(item => item.status === 'active' && item.client_bookable === true).length
     : Number(service?.client_bookable_staff_count || 0);
+  const issues = catalogueIssues(service);
   return {
     serviceActive: service?.status === 'active',
+    categoryConfigured: Boolean(String(service?.category_name || '').trim()),
     clientBookableStaffCount: count,
-    eligible: service?.status === 'active' && count > 0,
+    catalogueIssues: issues,
+    eligible: service?.status === 'active' && count > 0 && issues.length === 0,
     authority: 'read_projection_only',
   };
 }
@@ -181,6 +202,7 @@ function serviceRevision(service, assignedStaffIds = []) {
     display_price: service?.display_price == null ? null : String(service.display_price),
     customer_description: service?.customer_description == null ? null : String(service.customer_description),
     status: String(service?.status || ''),
+    category_name: String(service?.category_name || ''),
     assigned_staff_ids: [...new Set((assignedStaffIds || []).map(Number).filter(positiveId))].sort((a, b) => a - b),
   };
   return crypto.createHash('sha256').update(JSON.stringify(stable)).digest('hex');
@@ -310,6 +332,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
       return {
         ...publicService,
         total_minutes: totalServiceMinutes(publicService),
+        catalogue_issues: catalogueIssues(publicService),
         booking_eligibility: projectBookingEligibility(publicService),
       };
     });
@@ -397,6 +420,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
       service: {
         ...service,
         total_minutes: totalServiceMinutes(service),
+        catalogue_issues: catalogueIssues(service),
         revision,
       },
       assignedStaff,
@@ -423,8 +447,9 @@ function createWorkspaceServicesService({ db = pool } = {}) {
       `/* workspaceServices:mutation-service */
        SELECT svc.id, svc.name, svc.duration_minutes, svc.processing_time_minutes, svc.extra_time_minutes,
               svc.variable_price, svc.price, svc.display_price, svc.customer_description, svc.status,
-              visibility.owner_staff_id AS private_owner_staff_id
+              sc.name AS category_name, visibility.owner_staff_id AS private_owner_staff_id
          FROM services svc
+         LEFT JOIN service_categories sc ON sc.id=svc.category_id
          LEFT JOIN service_visibility_policies visibility ON visibility.service_id=svc.id
         WHERE svc.id=$1
           ${assignmentClause}
