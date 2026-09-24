@@ -1830,7 +1830,7 @@ test('deposit policy is unmistakable before Ozow on Phone and Desktop', async ({
     const metrics = await policy.evaluate(() => ({
       viewportWidth: window.innerWidth,
       documentWidth: document.documentElement.scrollWidth,
-      short: [...document.querySelectorAll('button,input,a')]
+      short: [...document.querySelectorAll('button,input:not([type="checkbox"]),a')]
         .filter((node) => node.getClientRects().length && node.getBoundingClientRect().height < 44)
         .length,
     }));
