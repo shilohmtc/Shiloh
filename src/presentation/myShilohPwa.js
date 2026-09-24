@@ -356,6 +356,10 @@ function renderMyShilohPage({
         ${hero}
         ${authenticated ? '' : welcomeVoucher}
         ${focus}
+        ${authenticated ? `<section class="notification-centre" aria-labelledby="notification-centre-title" data-client-notification-centre>
+          <div class="section-heading"><div><p class="eyebrow">Updates</p><h2 id="notification-centre-title">Your latest Shiloh updates.</h2></div><a class="text-link" href="#profile">Notification settings</a></div>
+          <div class="notification-centre__list" data-client-notification-list aria-live="polite"><p class="notification-centre__empty">Checking for updates…</p></div>
+        </section>` : ''}
         <section class="section-block" aria-labelledby="discover-title">
           <div class="section-heading">
             <div><p class="eyebrow">Discover</p><h2 id="discover-title">Start with what you need.</h2></div>
