@@ -20,7 +20,7 @@ These instructions apply to the entire repository.
 
 ## Publishing changes through connected GitHub
 
-Use the connected GitHub integration as Shiloh's standard publishing path when this Work session cannot authenticate a local `git push`. Do not ask for Git credentials or route around an approval rejection. The user's authorization to publish must be established before writing to GitHub.
+Use Shiloh's connected GitHub integration as the default publishing path. Do not attempt to authenticate a local `git push` from the workspace, ask for Git credentials, or route around an approval rejection. The user's authorization to publish must be established before writing to GitHub.
 
 1. Fetch current `main`, work on a dedicated local branch, review the diff, and run the applicable local checks. Keep generated artifacts and secrets out of the commit.
 2. Create the same dedicated branch through the connected GitHub integration from the exact `main` SHA used locally. Upload only changed file blobs. Compare each returned blob SHA with `git ls-tree` for the local commit.
