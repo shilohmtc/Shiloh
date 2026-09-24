@@ -33,6 +33,14 @@ function paymentNotificationsEnabled(environment = process.env) {
   return String(environment.WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED || '').toLowerCase() === 'true';
 }
 
+function isTemplateUnavailableError(error) {
+  const providerError = error?.response?.data?.error || {};
+  const code = Number(providerError.code);
+  const message = String(providerError.message || error?.message || '');
+  return [132001, 132015].includes(code)
+    || /template[^\n]*(?:not found|does not exist|not approved|paused|disabled)/i.test(message);
+}
+
 function securePaymentUrl(requestKey) {
   const key = String(requestKey || '').trim();
   if (!/^[A-Za-z0-9_-]{8,100}$/.test(key)) throw new Error('A route-safe payment request key is required');
@@ -80,7 +88,7 @@ async function sendPaymentTemplate({
       messageId: response?.messages?.[0]?.id || null,
     };
   } catch (error) {
-    if (templateKey === PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST) {
+    if (templateKey === PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST && isTemplateUnavailableError(error)) {
       const legacyTemplateName = String(environment.WHATSAPP_PAYMENT_DEPOSIT_REQUEST_TEMPLATE || LEGACY_DEPOSIT_TEMPLATE_NAME).trim();
       if (legacyTemplateName && legacyTemplateName !== templateName) {
         try {
@@ -132,6 +140,7 @@ module.exports = {
   normalizeWhatsAppMobile,
   formatRand,
   paymentNotificationsEnabled,
+  isTemplateUnavailableError,
   securePaymentUrl,
   secureVoucherUrl,
   withActionLink,
