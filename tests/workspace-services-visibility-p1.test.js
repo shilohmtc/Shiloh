@@ -56,6 +56,7 @@ function readDb({ admin, listRows = [], detailRow = null } = {}) {
       if (sql.includes('workspaceServices:principal')) return result(admin ? [admin] : []);
       if (sql.includes('workspaceServices:list')) return result(listRows);
       if (sql.includes('workspaceServices:detail')) return result(detailRow ? [detailRow] : []);
+      if (sql.includes('workspaceServices:categories')) return result([{ id: 3, name: 'Massage', display_order: 1, status: 'active' }]);
       if (sql.includes('workspaceServices:staff')) return result([]);
       if (sql.includes('workspaceServices:practitioners')) return result([]);
       throw new Error(`Unexpected SQL: ${sql}`);
