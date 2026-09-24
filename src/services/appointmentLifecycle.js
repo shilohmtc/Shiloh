@@ -205,25 +205,28 @@ async function deliverClaimedReminder(appointment, reminderTemplate, reminderAct
       env,
     });
   }
-  const delivery = await send(
+  const notifyClient = deps.notifyClient || null;
+  if (notifyClient && Number.isSafeInteger(Number(appointment.crm_v2_client_id)) && Number(appointment.crm_v2_client_id) > 0) {
+    try {
+      await notifyClient({
+        crmV2ClientId: Number(appointment.crm_v2_client_id),
+        eventKey: `appointment-reminder:${appointment.appointment_id || appointment.id}:${new Date(appointment.appointment_at).toISOString()}`,
+        category: 'appointment',
+        title: 'Appointment reminder',
+        body: 'Your Shiloh appointment is coming up. Open My Shiloh for the latest details.',
+        targetPath: '/my-shiloh/#bookings',
+      });
+    } catch (error) {
+      logger.warn({ err: error, appointmentId: appointment.appointment_id || appointment.id }, 'My Shiloh reminder notification failed independently');
+    }
+  }
+  return send(
     appointment.phone,
     reminderTemplate,
     [name, appointment.service_text, date, time],
     deps.languageCode || LANGUAGE_CODE,
     quickReplyPayloads
   );
-  const notifyClient = deps.notifyClient || null;
-  if (notifyClient && Number.isSafeInteger(Number(appointment.crm_v2_client_id)) && Number(appointment.crm_v2_client_id) > 0) {
-    await notifyClient({
-      crmV2ClientId: Number(appointment.crm_v2_client_id),
-      eventKey: `appointment-reminder:${appointment.appointment_id || appointment.id}:${new Date(appointment.appointment_at).toISOString()}`,
-      category: 'appointment',
-      title: 'Appointment reminder',
-      body: 'Your Shiloh appointment is coming up. Open My Shiloh for the latest details.',
-      targetPath: '/my-shiloh/#bookings',
-    });
-  }
-  return delivery;
 }
 
 async function processReminders() {
