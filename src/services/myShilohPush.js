@@ -31,7 +31,7 @@ function safeTargetPath(value) {
 }
 
 function cleanHostname(value) {
-  return String(value || '').trim().toLowerCase().replace(/^\\[|\\]$/g, '').replace(/\\.$/, '');
+  return String(value || '').trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
 }
 
 function validEndpoint(value) {
