@@ -337,7 +337,6 @@ test('safe reschedule commits appointment, lifecycle and before/after audit atom
   assert.equal(saved.status, 'rescheduled');
   assert.ok(fake.calls.some(call => call.sql.startsWith('UPDATE appointments')));
   assert.ok(fake.calls.some(call => call.sql.startsWith('UPDATE appointment_lifecycle')));
-  assert.ok(fake.calls.some(call => call.sql.startsWith('UPDATE payment_requests pr')));
   const audit = fake.calls.find(call => call.sql.startsWith('INSERT INTO crm_audit_events'));
   assert.equal(audit.params[0], 71);
   assert.match(audit.params[4], /"before"/);
@@ -393,6 +392,7 @@ test('cancellation requires exact confirmation and audits the authenticated oper
   assert.equal(cancelled.status, 'cancelled');
   assert.ok(fake.calls.some(call => call.sql.startsWith('INSERT INTO appointment_status_history')));
   assert.ok(fake.calls.some(call => call.sql.startsWith('UPDATE appointment_lifecycle')));
+  assert.ok(fake.calls.some(call => call.sql.startsWith('UPDATE payment_requests pr')));
   const audit = fake.calls.find(call => call.sql.startsWith('INSERT INTO crm_audit_events'));
   assert.equal(audit.params[0], 71);
   assert.doesNotMatch(audit.params.at(-1), /phone|sender/i);
