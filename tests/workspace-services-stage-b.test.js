@@ -38,6 +38,8 @@ function canonicalService(overrides = {}) {
     variable_price: false,
     price: '700.00',
     display_price: 'R700',
+    category_id: 3,
+    category_name: 'Massage',
     customer_description: 'A clear, approved description for the public website.',
     status: 'active',
     ...overrides,
@@ -54,6 +56,7 @@ function transactionalDb(handler, { admin = principal(), service = canonicalServ
     if (sql.includes('pg_advisory_xact_lock')) return result([{}]);
     if (sql.includes('workspaceServices:mutation-service')) return result(service ? [service] : []);
     if (sql.includes('workspaceServices:mutation-assignments')) return result(assignments.map(staff_id => ({ staff_id })));
+    if (sql.includes('workspaceServices:canonical-category')) return result([{ id: 3, name: 'Massage', status: 'active' }]);
     if (sql.startsWith('INSERT INTO crm_audit_events')) return result([{ id: 901 }]);
     return handler(sql, params, calls);
   };
@@ -96,6 +99,7 @@ test('view-only principal fails closed before any canonical Services mutation', 
     expectedRevision: serviceRevision(current, [11]),
     requestId: 'request_001',
     name: 'Changed',
+    categoryId: 3,
     durationMinutes: 60,
     processingTimeMinutes: 10,
     extraTimeMinutes: 5,
@@ -111,7 +115,7 @@ test('service edit mutates only canonical editable columns while preserving inde
   const current = canonicalService();
   const fake = transactionalDb(async (sql, params) => {
     if (sql.startsWith('UPDATE services') && sql.includes('duration_minutes=')) {
-      assert.deepEqual(params, [9, 'Synthetic Massage Plus', 70, 12, 8, '725.50', 'From R725.50', true]);
+      assert.deepEqual(params, [9, 'Synthetic Massage Plus', 70, 12, 8, '725.50', 'From R725.50', true, 3]);
       return result([canonicalService({
         name: 'Synthetic Massage Plus', duration_minutes: 70, processing_time_minutes: 12,
         extra_time_minutes: 8, price: '725.50', display_price: 'From R725.50', variable_price: true,
@@ -126,6 +130,7 @@ test('service edit mutates only canonical editable columns while preserving inde
     expectedRevision: serviceRevision(current, [11, 12]),
     requestId: 'request_002',
     name: ' Synthetic   Massage Plus ',
+    categoryId: '3',
     durationMinutes: '70',
     processingTimeMinutes: '12',
     extraTimeMinutes: '8',
@@ -141,10 +146,15 @@ test('service edit mutates only canonical editable columns while preserving inde
   assert.match(update.sql, /price=\$6::numeric/);
   assert.match(update.sql, /display_price=\$7/);
   assert.match(update.sql, /variable_price=\$8/);
-  assert.doesNotMatch(update.sql, /customer_description\s*=|booking_note|category_id|client_bookable/i);
+  assert.match(update.sql, /category_id=\$9/);
+  assert.doesNotMatch(update.sql, /customer_description\s*=|booking_note|client_bookable/i);
   const audit = fake.calls.find(call => call.sql.startsWith('INSERT INTO crm_audit_events'));
   assert.equal(audit.params[1], 'workspace.service_updated');
   const metadata = JSON.parse(audit.params[3]);
+  assert.equal(metadata.before.categoryId, 3);
+  assert.equal(metadata.before.categoryName, 'Massage');
+  assert.equal(metadata.after.categoryId, 3);
+  assert.equal(metadata.after.categoryName, 'Massage');
   assert.equal(metadata.before.processingTimeMinutes, 10);
   assert.equal(metadata.after.processingTimeMinutes, 12);
   assert.equal(metadata.before.variablePrice, false);
@@ -293,9 +303,10 @@ test('mutation HTTP boundary requires staff session, same-origin JSON and CSRF b
 test('Workspace Services manage UX exposes only bounded service/status/practitioner controls and secure JSON client', () => {
   const model = {
     service: {
-      ...canonicalService(), total_minutes: 75, revision: 'b'.repeat(64), category_name: 'Massage',
+      ...canonicalService(), total_minutes: 75, revision: 'b'.repeat(64), category_id: 3, category_name: 'Massage',
       customer_description: 'Customer-safe description', booking_note: 'Arrive early',
     },
+    categories: [{ id: 3, name: 'Massage', displayOrder: 1, status: 'active' }, { id: 4, name: 'Pedicures & Foot Care', displayOrder: 2, status: 'active' }],
     assignedStaff: [
       { id: 11, display_name: 'Practitioner One', resource_type: 'practitioner', status: 'active', client_bookable: true },
       { id: 20, display_name: 'Internal Resource', resource_type: 'business_resource', status: 'active', client_bookable: false },
@@ -314,6 +325,9 @@ test('Workspace Services manage UX exposes only bounded service/status/practitio
   };
   const managed = renderServiceDetailPage(model, { ...baseOptions, manageAllowed: true });
   assert.match(managed, /data-service-edit-form/);
+  assert.match(managed, /name="categoryId"/);
+  assert.match(managed, /<option value="3" selected>Massage<\/option>/);
+  assert.match(managed, /Pedicures &amp; Foot Care/);
   assert.match(managed, /name="durationMinutes"/);
   assert.match(managed, /name="processingTimeMinutes"/);
   assert.match(managed, /name="extraTimeMinutes"/);
@@ -339,6 +353,7 @@ test('Workspace Services manage UX exposes only bounded service/status/practitio
   assert.match(client, /AUTH='\/calendar\/staff-auth'/);
   assert.match(client, /AUTH\+'\/csrf'/);
   assert.match(client, /x-shiloh-csrf-token/);
+  assert.match(client, /categoryId:edit\.elements\.categoryId\.value/);
   assert.match(client, /Content-Type':'application\/json/);
   assert.match(client, /window\.location\.reload/);
   assert.match(client, /\/description/);

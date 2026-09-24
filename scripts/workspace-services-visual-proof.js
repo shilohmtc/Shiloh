@@ -18,6 +18,12 @@ const services = [
   { id: 4, name: 'Legacy Treatment', category_name: 'Massage', duration_minutes: 30, processing_time_minutes: 0, extra_time_minutes: 0, total_minutes: 30, variable_price: false, price: '300.00', display_price: null, status: 'inactive', assigned_staff_count: 1, client_bookable_staff_count: 1, booking_eligibility: { eligible: false, clientBookableStaffCount: 1 } },
 ];
 
+const categories = [
+  { id: 1, name: 'Pedicures & Foot Care', displayOrder: 1, status: 'active' },
+  { id: 2, name: 'Facials', displayOrder: 2, status: 'active' },
+  { id: 3, name: 'Massage', displayOrder: 3, status: 'active' },
+];
+
 const options = {
   calendarNavigationAllowed: true,
   clientsNavigationAllowed: true,
@@ -34,10 +40,12 @@ function detailHtml() {
   return renderServiceDetailPage({
     service: {
       ...services[0],
+      category_id: 3,
       revision: 'a'.repeat(64),
       customer_description: 'A calming full-body massage using classic Swedish techniques.',
       booking_note: 'Please arrive a few minutes before your appointment.',
     },
+    categories,
     assignedStaff: [
       { id: 1, display_name: 'Practitioner One', resource_type: 'practitioner', status: 'active', client_bookable: true },
       { id: 2, display_name: 'Practitioner Two', resource_type: 'practitioner', status: 'active', client_bookable: true },
@@ -49,6 +57,38 @@ function detailHtml() {
       { id: 3, display_name: 'Practitioner Three', status: 'active', client_bookable: true, assigned: false },
     ],
     bookingEligibility: { eligible: true, clientBookableStaffCount: 2, authority: 'read_projection_only' },
+  }, options);
+}
+
+
+function uncategorisedDetailHtml() {
+  return renderServiceDetailPage({
+    service: {
+      id: 5,
+      name: 'Toe Gel Only',
+      category_id: null,
+      category_name: null,
+      duration_minutes: 30,
+      processing_time_minutes: 0,
+      extra_time_minutes: 0,
+      total_minutes: 30,
+      variable_price: false,
+      price: '250.00',
+      display_price: null,
+      status: 'active',
+      revision: 'b'.repeat(64),
+      customer_description: 'A focused gel application service for toes.',
+      booking_note: null,
+      catalogue_issues: [{ code: 'missing_category', label: 'Category required', message: 'Assign a category before this service can be offered for booking.', blocking: true }],
+    },
+    categories,
+    assignedStaff: [
+      { id: 2, display_name: 'Christel', resource_type: 'practitioner', status: 'active', client_bookable: true },
+    ],
+    practitioners: [
+      { id: 2, display_name: 'Christel', status: 'active', client_bookable: true, assigned: true },
+    ],
+    bookingEligibility: { eligible: false, categoryConfigured: false, clientBookableStaffCount: 1, authority: 'read_projection_only' },
   }, options);
 }
 
@@ -71,6 +111,8 @@ const proofs = [
   { view: 'service-detail', viewport: 'desktop', width: 1440, height: 960, html: detailHtml() },
   { view: 'services-list', viewport: 'narrow', width: 390, height: 844, html: listHtml() },
   { view: 'service-detail', viewport: 'narrow', width: 390, height: 844, html: detailHtml() },
+  { view: 'service-category-repair', viewport: 'desktop', width: 1440, height: 960, html: uncategorisedDetailHtml() },
+  { view: 'service-category-repair', viewport: 'narrow', width: 390, height: 844, html: uncategorisedDetailHtml() },
 ];
 const manifest = [];
 
@@ -78,7 +120,7 @@ for (const proof of proofs) {
   if (!/aria-current="page">Services/.test(proof.html) || !/>Calendar<|>Calendar<\//.test(proof.html) || !/>Clients<|>Clients<\//.test(proof.html) || !/>Staff<|>Staff<\//.test(proof.html)) {
     throw new Error(`${proof.view}/${proof.viewport} lacks shared Workspace navigation`);
   }
-  if (proof.view === 'service-detail' && (!/data-service-edit-form/.test(proof.html) || !/data-service-description-form/.test(proof.html) || !/data-service-assign-form/.test(proof.html))) {
+  if ((proof.view === 'service-detail' || proof.view === 'service-category-repair') && (!/data-service-edit-form/.test(proof.html) || !/name="categoryId"/.test(proof.html) || !/data-service-description-form/.test(proof.html))) {
     throw new Error(`${proof.view}/${proof.viewport} lacks Services Stage B management controls`);
   }
   const stem = `${proof.view}-${proof.viewport}`;

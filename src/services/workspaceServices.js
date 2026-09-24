@@ -77,6 +77,12 @@ function normalizeWritableStatus(value) {
   throw new WorkspaceServicesError('WORKSPACE_SERVICES_INVALID_STATUS', 'Service status must be active or inactive.', 400);
 }
 
+function normalizeCategoryId(value) {
+  const id = positiveId(value);
+  if (!id) throw new WorkspaceServicesError('WORKSPACE_SERVICES_INVALID_CATEGORY', 'Choose a valid service category.', 400);
+  return id;
+}
+
 function normalizeOffset(value) {
   const offset = Number.parseInt(value, 10);
   if (!Number.isFinite(offset) || offset < 0) return 0;
@@ -202,6 +208,7 @@ function serviceRevision(service, assignedStaffIds = []) {
     display_price: service?.display_price == null ? null : String(service.display_price),
     customer_description: service?.customer_description == null ? null : String(service.customer_description),
     status: String(service?.status || ''),
+    category_id: service?.category_id == null ? null : Number(service.category_id),
     category_name: String(service?.category_name || ''),
     assigned_staff_ids: [...new Set((assignedStaffIds || []).map(Number).filter(positiveId))].sort((a, b) => a - b),
   };
@@ -347,6 +354,22 @@ function createWorkspaceServicesService({ db = pool } = {}) {
     };
   }
 
+  async function readCategories(queryable = db) {
+    const result = await queryable.query(
+      `/* workspaceServices:categories */
+       SELECT id, name, display_order, status
+         FROM service_categories
+        WHERE status='active'
+        ORDER BY display_order, LOWER(name), id`
+    );
+    return result.rows.map(row => ({
+      id: Number(row.id),
+      name: row.name,
+      displayOrder: Number(row.display_order || 0),
+      status: row.status,
+    }));
+  }
+
   async function readAssignedStaff(queryable, serviceId) {
     const staffResult = await queryable.query(
       `/* workspaceServices:staff */
@@ -383,7 +406,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
               svc.processing_time_minutes, svc.extra_time_minutes,
               svc.variable_price, svc.price, svc.display_price, svc.status,
               svc.customer_description, svc.booking_note,
-              sc.name AS category_name, visibility.owner_staff_id AS private_owner_staff_id
+              svc.category_id, sc.name AS category_name, visibility.owner_staff_id AS private_owner_staff_id
          FROM services svc
          LEFT JOIN service_categories sc ON sc.id=svc.category_id
          LEFT JOIN service_visibility_policies visibility ON visibility.service_id=svc.id
@@ -399,6 +422,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
     delete service.private_owner_staff_id;
 
     const assignedStaff = await readAssignedStaff(db, id);
+    const categories = await readCategories(db);
     const practitionerResult = await db.query(
       `/* workspaceServices:practitioners */
        SELECT st.id, st.display_name, st.status, st.client_bookable,
@@ -424,6 +448,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
         revision,
       },
       assignedStaff,
+      categories,
       practitioners: practitionerResult.rows,
       bookingEligibility: projectBookingEligibility(service, assignedStaff),
     };
@@ -447,7 +472,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
       `/* workspaceServices:mutation-service */
        SELECT svc.id, svc.name, svc.duration_minutes, svc.processing_time_minutes, svc.extra_time_minutes,
               svc.variable_price, svc.price, svc.display_price, svc.customer_description, svc.status,
-              sc.name AS category_name, visibility.owner_staff_id AS private_owner_staff_id
+              svc.category_id, sc.name AS category_name, visibility.owner_staff_id AS private_owner_staff_id
          FROM services svc
          LEFT JOIN service_categories sc ON sc.id=svc.category_id
          LEFT JOIN service_visibility_policies visibility ON visibility.service_id=svc.id
@@ -518,11 +543,12 @@ function createWorkspaceServicesService({ db = pool } = {}) {
 
   async function updateService({
     adminId, serviceId, expectedRevision, requestId,
-    name, durationMinutes, processingTimeMinutes, extraTimeMinutes,
+    name, categoryId, durationMinutes, processingTimeMinutes, extraTimeMinutes,
     price, displayPrice, variablePrice,
   } = {}) {
     const payload = {
       name: normalizeName(name),
+      categoryId: normalizeCategoryId(categoryId),
       durationMinutes: normalizeMinutes(durationMinutes, 'Treatment duration'),
       processingTimeMinutes: normalizeMinutes(processingTimeMinutes, 'Processing time'),
       extraTimeMinutes: normalizeMinutes(extraTimeMinutes, 'Extra time'),
@@ -534,8 +560,22 @@ function createWorkspaceServicesService({ db = pool } = {}) {
       adminId, serviceId, expectedRevision, requestId,
       action: 'workspace.service_updated',
       execute: async (client, _operator, state) => {
+        const categoryResult = await client.query(
+          `/* workspaceServices:canonical-category */
+           SELECT id, name, status
+             FROM service_categories
+            WHERE id=$1 AND status='active'
+            LIMIT 2`,
+          [payload.categoryId]
+        );
+        if (categoryResult.rows.length !== 1) {
+          throw new WorkspaceServicesError('WORKSPACE_SERVICES_CATEGORY_UNAVAILABLE', 'The selected category is no longer an active canonical service category.', 409);
+        }
+        const canonicalCategory = categoryResult.rows[0];
         const before = {
           name: state.service.name,
+          categoryId: state.service.category_id == null ? null : Number(state.service.category_id),
+          categoryName: state.service.category_name || null,
           durationMinutes: Number(state.service.duration_minutes || 0),
           processingTimeMinutes: Number(state.service.processing_time_minutes || 0),
           extraTimeMinutes: Number(state.service.extra_time_minutes || 0),
@@ -552,20 +592,23 @@ function createWorkspaceServicesService({ db = pool } = {}) {
                   price=$6::numeric,
                   display_price=$7,
                   variable_price=$8,
+                  category_id=$9,
                   updated_at=NOW()
             WHERE id=$1
           RETURNING id, name, duration_minutes, processing_time_minutes, extra_time_minutes,
-                    variable_price, price, display_price, customer_description, status`,
+                    variable_price, price, display_price, customer_description, status, category_id`,
           [
             state.service.id, payload.name, payload.durationMinutes, payload.processingTimeMinutes,
             payload.extraTimeMinutes, payload.price, payload.displayPrice, payload.variablePrice,
+            canonicalCategory.id,
           ]
         );
         const next = updated.rows[0];
         if (!next) throw new WorkspaceServicesError('WORKSPACE_SERVICE_NOT_FOUND', 'Service was not found.', 404);
+        const after = { ...payload, categoryName: canonicalCategory.name };
         return {
-          revision: serviceRevision(next, state.assignedStaffIds),
-          auditMetadata: { before, after: payload },
+          revision: serviceRevision({ ...next, category_name: canonicalCategory.name }, state.assignedStaffIds),
+          auditMetadata: { before, after },
         };
       },
     });
@@ -593,7 +636,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
         const next = updated.rows[0];
         if (!next) throw new WorkspaceServicesError('WORKSPACE_SERVICE_NOT_FOUND', 'Service was not found.', 404);
         return {
-          revision: serviceRevision(next, state.assignedStaffIds),
+          revision: serviceRevision({ ...next, category_id: state.service.category_id, category_name: state.service.category_name }, state.assignedStaffIds),
           auditMetadata: {
             before: { customerDescription: before },
             after: { customerDescription: description },
@@ -621,7 +664,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
         );
         const next = updated.rows[0];
         return {
-          revision: serviceRevision(next, state.assignedStaffIds),
+          revision: serviceRevision({ ...next, category_id: state.service.category_id, category_name: state.service.category_name }, state.assignedStaffIds),
           auditMetadata: {
             before: { status: state.service.status },
             after: { status: nextStatus },
@@ -724,6 +767,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
     requireManageAccess,
     listServices,
     getServiceDetail,
+    readCategories,
     updateService,
     updateCustomerDescription,
     setServiceStatus,
@@ -747,6 +791,7 @@ module.exports = {
   normalizeSearch,
   normalizeStatus,
   normalizeWritableStatus,
+  normalizeCategoryId,
   normalizeOffset,
   normalizeName,
   normalizeMinutes,
