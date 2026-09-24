@@ -29,11 +29,13 @@ function renderCalendarPaymentPage({ model, csrfToken = '', clientScriptPath = '
   const partialForfeit = Number(deposit?.policy?.partialForfeitBasisPoints || 5000) / 100;
   const lateForfeit = Number(deposit?.policy?.lateForfeitBasisPoints || 10000) / 100;
   const depositPolicyCard = depositApplicable ? `<section class="payment-card deposit-policy" data-deposit-policy>
-    <div class="deposit-policy__head"><div><span class="eyebrow">Booking deposit</span><h2>${escapeHtml(depositRate)}% booking deposit</h2></div><span class="state">${escapeHtml(depositExempt ? 'Exempt' : depositPaid ? 'Deposit paid' : 'Awaiting deposit')}</span></div>
-    ${depositExempt
-      ? '<p class="hint"><strong>No deposit required.</strong> This booking is provided by Marietjie and is excluded from Shiloh’s deposit requirement.</p>'
-      : `<div class="deposit-summary"><span><small>Deposit required</small><strong>${escapeHtml(rand(requirement.required_amount))}</strong></span><span><small>Still needed</small><strong>${escapeHtml(rand(depositDue))}</strong></span></div>
-         <p class="hint">${escapeHtml(freeNoticeHours)}+ hours notice: no cancellation penalty. ${escapeHtml(partialNoticeHours)}–${escapeHtml(freeNoticeHours)} hours: ${escapeHtml(partialForfeit)}% of the booking deposit may be forfeited. Under ${escapeHtml(partialNoticeHours)} hours, same-day cancellation or no-show: ${escapeHtml(lateForfeit)}% of the booking deposit may be forfeited.</p>`}
+    <div class="deposit-policy__head"><div><span class="eyebrow">Booking deposit</span><h2>${escapeHtml(depositRate)}% booking deposit</h2></div><span class="state">${escapeHtml(bookingCancelled ? 'Cancelled booking' : depositExempt ? 'Exempt' : depositPaid ? 'Deposit paid' : 'Awaiting deposit')}</span></div>
+    ${bookingCancelled
+      ? '<p class="hint"><strong>No further deposit should be collected.</strong> This booking is cancelled. The policy record below is preserved for review and does not reopen payment collection.</p>'
+      : depositExempt
+        ? '<p class="hint"><strong>No deposit required.</strong> This booking is provided by Marietjie and is excluded from Shiloh’s deposit requirement.</p>'
+        : `<div class="deposit-summary"><span><small>Deposit required</small><strong>${escapeHtml(rand(requirement.required_amount))}</strong></span><span><small>Still needed</small><strong>${escapeHtml(rand(depositDue))}</strong></span></div>
+           <p class="hint">${escapeHtml(freeNoticeHours)}+ hours notice: no cancellation penalty. ${escapeHtml(partialNoticeHours)}–${escapeHtml(freeNoticeHours)} hours: ${escapeHtml(partialForfeit)}% of the booking deposit may be forfeited. Under ${escapeHtml(partialNoticeHours)} hours, same-day cancellation or no-show: ${escapeHtml(lateForfeit)}% of the booking deposit may be forfeited.</p>`}
     ${latestDepositEvent ? `<p class="deposit-outcome"><strong>Latest policy outcome:</strong> ${escapeHtml(latestDepositEvent.event_type.replaceAll('_',' '))} · policy forfeit ${escapeHtml(rand(latestDepositEvent.policy_forfeit_amount))} · creditable ${escapeHtml(rand(latestDepositEvent.policy_creditable_amount))}. Money is not moved automatically.</p>` : ''}
   </section>` : '';
   const requests = payment.requests.map(item => {
