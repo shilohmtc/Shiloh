@@ -1,3 +1,4 @@
+const test = require('node:test');
 'use strict';
 
 const assert = require('node:assert/strict');
