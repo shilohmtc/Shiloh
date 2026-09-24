@@ -574,7 +574,7 @@ function createBookingPaymentService({
         && String(request.appointment_status || '').toLowerCase() === 'cancelled'
         && !request.gift_voucher_order_id;
       if (paid && request.state !== 'paid') {
-        if (!(paidAfterBookingCancellation && request.state === STATES.CANCELLED)) {
+        if (!paidAfterBookingCancellation) {
           transitionPaymentState(request.state, STATES.PAID, { evidence:EVIDENCE.VERIFIED_PROVIDER });
         }
         if (request.gift_voucher_order_id) {
