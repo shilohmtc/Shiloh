@@ -3,7 +3,7 @@
 
 const { execFileSync } = require('node:child_process');
 
-function migrationFilesFromGit({ baseRef = process.env.GITHUB_BASE_REF, headRef = process.env.GITHUB_SHA } = {}) {
+function migrationFilesFromGit({ baseRef = process.env.SHILOH_BASE_REF, headRef = process.env.GITHUB_SHA } = {}) {
   if (!baseRef || !headRef) return [];
   const diff = execFileSync('git', [
     'diff', '--name-only', '--diff-filter=AM', `${baseRef}...${headRef}`, '--', 'migrations',
