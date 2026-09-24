@@ -359,7 +359,25 @@ function createBookingPaymentService({
     if(subject.crmV2ClientId){try{rewardWallet=await rewards.getClientBalance(subject.crmV2ClientId);}catch(error){logger.error({err:error,appointmentId:subject.appointmentId},'Shiloh Rewards balance unavailable on payment page');}}
     let deposit=null;
     try { await deposits.ensureRequirement({ appointmentId:subject.appointmentId }); deposit=await deposits.getPosition({ appointmentId:subject.appointmentId }); } catch (error) { logger.error({err:error,appointmentId:subject.appointmentId},'Booking deposit position unavailable'); }
-    return { subject, payment: await position(db, account, subject), deposit, rewards: rewardWallet, authority: {
+    let paymentReview=null;
+    if (account?.id) {
+      const review = await db.query(
+        `SELECT created_at,metadata
+           FROM crm_audit_events
+          WHERE action='payment.received_after_booking_cancelled'
+            AND entity_type='booking_payment_account'
+            AND entity_id=$1::text
+          ORDER BY created_at DESC,id DESC
+          LIMIT 1`,
+        [account.id],
+      );
+      if (review.rows[0]) paymentReview = {
+        kind: 'cancelled_booking_payment_received',
+        createdAt: review.rows[0].created_at,
+        metadata: review.rows[0].metadata || {},
+      };
+    }
+    return { subject, payment: await position(db, account, subject), deposit, rewards: rewardWallet, paymentReview, authority: {
       canCollect: hasCapability(operator.calendarAuthority, CAPABILITIES.COLLECT),
       canRefund: hasCapability(operator.calendarAuthority, CAPABILITIES.REFUND),
       ozowConfigured: ozow.configured(),
