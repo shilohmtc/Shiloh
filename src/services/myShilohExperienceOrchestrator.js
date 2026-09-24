@@ -123,6 +123,14 @@ function buildClientExperience(context) {
       status: 'Action needed',
       primaryAction: { kind: 'shiloh', label: 'Ask Shiloh about my form', href: '#shiloh' },
     };
+  } else if (payment.state === 'deposit_required' && !payment.actionPath) {
+    home = {
+      eyebrow: 'Before your visit',
+      headline: 'Your booking is awaiting its deposit.',
+      summary: `${appointment.service} is held for ${appointment.date} at ${appointment.time}. Your secure payment link is not available yet. Ask Shiloh for help with the deposit before your visit.`,
+      status: 'Deposit',
+      primaryAction: { kind: 'shiloh', label: 'Ask Shiloh about my deposit', href: '#shiloh' },
+    };
   } else if (payment.actionPath) {
     const depositRequired = payment.state === 'deposit_required';
     home = {

@@ -288,3 +288,33 @@ test('My Shiloh Home asks for the deposit before claiming the booking is ready',
   assert.match(experience.home.summary, /48\+ hours notice/);
   assert.match(experience.home.summary, /24–48 hours/);
 });
+
+test('My Shiloh keeps an awaiting deposit visible when its payment link is unavailable', () => {
+  const experience = buildClientExperience({
+    client: { id: 1, name: 'Christel' },
+    nextAppointment: {
+      id: 91,
+      startsAt: '2026-09-30T08:00:00.000Z',
+      endsAt: '2026-09-30T09:00:00.000Z',
+      status: 'scheduled',
+      services: ['Hot Stone Massage'],
+      practitioners: ['Christel'],
+    },
+    forms: [],
+    payment: {
+      state: 'unpaid',
+      depositState: 'awaiting',
+      depositRequired: '340.00',
+      depositOutstanding: '340.00',
+      activePaymentPath: null,
+    },
+  });
+  assert.equal(paymentPosition({ depositState: 'awaiting', depositRequired: '340.00', activePaymentPath: null }).state, 'deposit_required');
+  assert.equal(experience.home.status, 'Deposit');
+  assert.match(experience.home.headline, /awaiting its deposit/);
+  assert.match(experience.home.summary, /payment link is not available yet/);
+  assert.deepEqual(experience.home.primaryAction, {
+    kind: 'shiloh', label: 'Ask Shiloh about my deposit', href: '#shiloh',
+  });
+  assert.doesNotMatch(experience.home.headline, /You're set/);
+});

@@ -235,6 +235,21 @@ export const AuthenticatedDepositRequired = {
   },
 };
 
+export const AuthenticatedDepositLinkUnavailable = {
+  render: () => {
+    const surface = AuthenticatedDepositRequired.render();
+    const home = surface.querySelector('[data-client-experience-home]');
+    const copy = home?.querySelector(':scope > p');
+    if (copy) copy.textContent = 'Hot Stone Massage is held for Wed, 30 Sep at 10:00. Your secure payment link is not available yet. Ask Shiloh for help with the deposit before your visit.';
+    const action = home?.querySelector('[data-client-experience-primary]');
+    if (action) {
+      action.href = '#shiloh';
+      action.textContent = 'Ask Shiloh about my deposit';
+    }
+    return surface;
+  },
+};
+
 export const AuthenticatedHomeSummaryActions = {
   render: () => {
     const surface = productionSurface({
