@@ -755,6 +755,7 @@ module.exports = {
   normalizeCustomerDescription,
   normalizeBoolean,
   totalServiceMinutes,
+  catalogueIssues,
   projectBookingEligibility,
   serviceRevision,
   createWorkspaceServicesService,
