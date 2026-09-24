@@ -18,6 +18,19 @@ These instructions apply to the entire repository.
 - Prefer the connected GitHub and Render tools for operations they support. Use Any App when an authenticated dashboard action is required and the connector does not expose it.
 - Never request passwords, one-time codes or other credentials in chat.
 
+## Publishing changes through connected GitHub
+
+Use the connected GitHub integration as Shiloh's standard publishing path when this Work session cannot authenticate a local `git push`. Do not ask for Git credentials or route around an approval rejection. The user's authorization to publish must be established before writing to GitHub.
+
+1. Fetch current `main`, work on a dedicated local branch, review the diff, and run the applicable local checks. Keep generated artifacts and secrets out of the commit.
+2. Create the same dedicated branch through the connected GitHub integration from the exact `main` SHA used locally. Upload only changed file blobs. Compare each returned blob SHA with `git ls-tree` for the local commit.
+3. Create a tree from the base tree plus those changed blobs. Its SHA must match the local commit's `git rev-parse HEAD^{tree}`. If it differs, stop and inspect the full path/mode/content set before publishing.
+4. Create one connected GitHub commit with that verified tree and the exact base commit as parent; advance only the dedicated branch ref. The GitHub commit SHA can differ from the local SHA because author and committer metadata differ, but the tree must match. Open a PR against `main`.
+5. Run and inspect every applicable exact-head workflow, including Storybook, phone/desktop Playwright, accessibility, visual artifacts, focused regressions, and CI for interface changes. Repair actual failures; rerun an unchanged head only for an evidenced transient runner failure. Never weaken a check to obtain a merge.
+6. Immediately before merging, recheck the PR head and base, then merge with `expected_head_sha` set to the tested GitHub head. Follow Render's automatic deploy, migration authority, health, and production behavior checks. Record the exact deployed merge SHA and any remaining human acceptance on the existing roadmap.
+
+For a small documentation-only change, apply the same branch, tree, PR, exact-head, and release evidence steps with the applicable documentation checks. Do not claim that a green build proves an authenticated client journey or a live payment.
+
 ## Product and authority boundaries
 
 - Reuse Shiloh’s existing business authorities, canonical data and established workflows.
