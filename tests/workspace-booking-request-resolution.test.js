@@ -377,8 +377,12 @@ test('active proposal holds participate in client slots, booking, reschedule and
   assert.match(calendar, /awaiting_client_confirmation/);
   assert.match(availability, /proposal_expires_at > NOW\(\)/);
   assert.match(calendar, /booking_proposal_hold/);
+  assert.match(availability, /booking_hold_appointment\.status NOT IN \('cancelled','no_show'\)/);
+  assert.match(calendar, /booking_hold_appointment\.status NOT IN \('cancelled','no_show'\)/);
   const holds = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'bookingRequestHolds.js'), 'utf8');
   assert.match(holds, /aba\.proposed_staff_ids @> ARRAY\[\$1::bigint\]/);
+  assert.match(holds, /JOIN appointments a/);
+  assert.match(holds, /a\.status NOT IN \('cancelled','no_show'\)/);
 });
 
 test('runtime cutover has no initial-booking staff template send or staff approval parser', () => {
