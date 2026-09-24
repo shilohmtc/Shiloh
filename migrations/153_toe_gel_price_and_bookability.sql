@@ -39,6 +39,50 @@ BEGIN
     RAISE EXCEPTION 'Toe Gel Only pricing repair refused because no practitioner mapping exists';
   END IF;
 
+
+  -- Repair the live booking that exposed this gap, but only when it is the
+  -- exact scheduled Toe Gel appointment with no competing price.
+  IF EXISTS (SELECT 1 FROM appointments WHERE id=759) THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM appointments
+       WHERE id=759
+         AND status IN ('scheduled','confirmed')
+         AND (total_price IS NULL OR total_price = 250)
+    ) THEN
+      RAISE EXCEPTION 'Appointment #759 price repair refused because status or existing price drifted';
+    END IF;
+
+    IF (
+      SELECT COUNT(*) FROM appointment_services
+       WHERE appointment_id=759
+         AND REGEXP_REPLACE(LOWER(TRIM(service_name_snapshot)),'[^a-z0-9]+','','g') = 'toegelonly'
+    ) <> 1 THEN
+      RAISE EXCEPTION 'Appointment #759 price repair requires exactly one Toe Gel Only service snapshot';
+    END IF;
+
+    UPDATE appointments
+       SET total_price=250, updated_at=NOW()
+     WHERE id=759;
+
+    UPDATE appointment_services
+       SET price_snapshot=250
+     WHERE appointment_id=759
+       AND REGEXP_REPLACE(LOWER(TRIM(service_name_snapshot)),'[^a-z0-9]+','','g') = 'toegelonly';
+
+    INSERT INTO crm_audit_events(action, entity_type, entity_id, metadata)
+    VALUES (
+      'appointment.price_corrected',
+      'appointment',
+      '759',
+      jsonb_build_object(
+        'reason','owner_authorized_toe_gel_price_correction',
+        'newPrice','250.00',
+        'currency','ZAR',
+        'bookingNotificationRepair',TRUE
+      )
+    );
+  END IF;
+
   INSERT INTO crm_audit_events(action, entity_type, entity_id, metadata)
   VALUES (
     'service.price_and_bookability_corrected',
