@@ -15,7 +15,7 @@ test('active service without a category is flagged and cannot be eligible', () =
     price: '250.00',
   };
   const issues = catalogueIssues(service);
-  assert.deepEqual(issues.map(issue => issue.code), []);
+  assert.deepEqual(issues.map(issue => issue.code), ['missing_category']);
   const eligibility = projectBookingEligibility(service, [
     { status: 'active', client_bookable: true },
   ]);
