@@ -359,7 +359,25 @@ function createBookingPaymentService({
     if(subject.crmV2ClientId){try{rewardWallet=await rewards.getClientBalance(subject.crmV2ClientId);}catch(error){logger.error({err:error,appointmentId:subject.appointmentId},'Shiloh Rewards balance unavailable on payment page');}}
     let deposit=null;
     try { await deposits.ensureRequirement({ appointmentId:subject.appointmentId }); deposit=await deposits.getPosition({ appointmentId:subject.appointmentId }); } catch (error) { logger.error({err:error,appointmentId:subject.appointmentId},'Booking deposit position unavailable'); }
-    return { subject, payment: await position(db, account, subject), deposit, rewards: rewardWallet, authority: {
+    let paymentReview=null;
+    if (account?.id) {
+      const review = await db.query(
+        `SELECT created_at,metadata
+           FROM crm_audit_events
+          WHERE action='payment.received_after_booking_cancelled'
+            AND entity_type='booking_payment_account'
+            AND entity_id=$1::text
+          ORDER BY created_at DESC,id DESC
+          LIMIT 1`,
+        [account.id],
+      );
+      if (review.rows[0]) paymentReview = {
+        kind: 'cancelled_booking_payment_received',
+        createdAt: review.rows[0].created_at,
+        metadata: review.rows[0].metadata || {},
+      };
+    }
+    return { subject, payment: await position(db, account, subject), deposit, rewards: rewardWallet, paymentReview, authority: {
       canCollect: hasCapability(operator.calendarAuthority, CAPABILITIES.COLLECT),
       canRefund: hasCapability(operator.calendarAuthority, CAPABILITIES.REFUND),
       ozowConfigured: ozow.configured(),
@@ -539,15 +557,24 @@ function createBookingPaymentService({
       if (duplicate.rows[0]) { await client.query('COMMIT'); return { status:'duplicate' }; }
       const request = (await client.query(
         `SELECT pr.*,
-                COALESCE(bpa.appointment_id,(
+                COALESCE(pr.deposit_member_appointment_id,bpa.appointment_id,(
                   SELECT agm.appointment_id
                     FROM appointment_group_members agm
                    WHERE agm.group_id=bpa.appointment_group_id
                    ORDER BY agm.guest_position,agm.appointment_id
                    LIMIT 1
-                )) AS appointment_id
+                )) AS appointment_id,
+                payment_appointment.status AS appointment_status
            FROM payment_requests pr
            LEFT JOIN booking_payment_accounts bpa ON bpa.id=pr.payment_account_id
+           LEFT JOIN appointments payment_appointment
+             ON payment_appointment.id=COALESCE(pr.deposit_member_appointment_id,bpa.appointment_id,(
+               SELECT agm2.appointment_id
+                 FROM appointment_group_members agm2
+                WHERE agm2.group_id=bpa.appointment_group_id
+                ORDER BY agm2.guest_position,agm2.appointment_id
+                LIMIT 1
+             ))
           WHERE pr.request_key=$1
           FOR UPDATE OF pr`,
         [requestReference],
@@ -561,8 +588,13 @@ function createBookingPaymentService({
         }
       }
       let voucherIssued = null;
+      const paidAfterBookingCancellation = paid
+        && String(request.appointment_status || '').toLowerCase() === 'cancelled'
+        && !request.gift_voucher_order_id;
       if (paid && request.state !== 'paid') {
-        transitionPaymentState(request.state, STATES.PAID, { evidence:EVIDENCE.VERIFIED_PROVIDER });
+        if (!paidAfterBookingCancellation) {
+          transitionPaymentState(request.state, STATES.PAID, { evidence:EVIDENCE.VERIFIED_PROVIDER });
+        }
         if (request.gift_voucher_order_id) {
           voucherIssued = await issueVerifiedVoucher(client, request, eventKey);
         } else {
@@ -580,7 +612,27 @@ function createBookingPaymentService({
             GROUP BY bpa.id`,
           [request.payment_account_id],
           )).rows[0];
-          paymentReceived = { request, remaining: Math.max(0, Number(balance?.canonical_amount_due || 0) - Number(balance?.net_paid || 0)) };
+          paymentReceived = {
+            request,
+            remaining: Math.max(0, Number(balance?.canonical_amount_due || 0) - Number(balance?.net_paid || 0)),
+            reviewRequired: paidAfterBookingCancellation,
+          };
+          if (paidAfterBookingCancellation) {
+            await client.query(
+              `INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
+               VALUES('payment.received_after_booking_cancelled','booking_payment_account',$1,$2::jsonb)`,
+              [request.payment_account_id, JSON.stringify({
+                appointmentId: Number(request.appointment_id),
+                paymentRequestId: Number(request.id),
+                amount: Number(request.amount).toFixed(2),
+                provider: 'ozow',
+                providerEventKey: eventKey,
+                reviewRequired: true,
+                bookingRemainsCancelled: true,
+                automaticRefundIssued: false,
+              })],
+            );
+          }
         }
       } else if (!paid && notVerifiedOutcome && ['link_issued', 'pending'].includes(String(request.state))) {
         const nextState = cancelled ? STATES.CANCELLED : STATES.FAILED;
@@ -591,9 +643,18 @@ function createBookingPaymentService({
       }
       await client.query(`INSERT INTO payment_provider_events(provider,provider_event_key,payment_request_id,signature_verified,payload_sha256,outcome) VALUES('ozow',$1,$2,TRUE,$3,'accepted')`, [eventKey,request.id,hash]);
       await client.query('COMMIT');
-      await syncRewardsAfterPayment();
-      if (paymentReceived?.request?.appointment_id) await syncDepositAfterSettlement(paymentReceived.request.appointment_id);
-      if (paymentReceived) await sendPaymentTemplate({
+      if (!paymentReceived?.reviewRequired) await syncRewardsAfterPayment();
+      if (paymentReceived?.request?.appointment_id && !paymentReceived.reviewRequired) {
+        await syncDepositAfterSettlement(paymentReceived.request.appointment_id);
+      }
+      if (paymentReceived?.reviewRequired) {
+        logger.error({
+          appointmentId: Number(paymentReceived.request.appointment_id),
+          paymentRequestId: Number(paymentReceived.request.id),
+          amount: Number(paymentReceived.request.amount).toFixed(2),
+        }, 'Payment received after booking cancellation; manual payment/refund review required');
+      }
+      if (paymentReceived && !paymentReceived.reviewRequired) await sendPaymentTemplate({
         templateKey: PAYMENT_TEMPLATE_KEYS.RECEIVED,
         to: paymentReceived.request.payer_mobile,
         bodyParameters: [paymentReceived.request.payer_name || 'there', formatRand(paymentReceived.request.amount), 'Ozow', requestReference, formatRand(paymentReceived.remaining)],
@@ -617,8 +678,10 @@ function createBookingPaymentService({
           crmV2ClientId: Number(paymentReceived.request.payer_crm_v2_client_id),
           eventKey: `payment-provider:${paymentReceived.request.id}:paid`,
           category: 'payment',
-          title: 'Payment received',
-          body: 'Your Shiloh payment was received successfully.',
+          title: paymentReceived.reviewRequired ? 'Payment needs review' : 'Payment received',
+          body: paymentReceived.reviewRequired
+            ? 'A payment reached Shiloh after this booking was cancelled. The booking stays cancelled and Shiloh will review the payment. No automatic refund has been issued.'
+            : 'Your Shiloh payment was received successfully.',
           targetPath: '/my-shiloh/#bookings',
         });
       }
@@ -632,7 +695,7 @@ function createBookingPaymentService({
           targetPath: '/my-shiloh/#wallet',
         });
       }
-      return { status: paid ? 'paid' : 'accepted' };
+      return { status: paymentReceived?.reviewRequired ? 'paid_review_required' : paid ? 'paid' : 'accepted' };
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
   }
 

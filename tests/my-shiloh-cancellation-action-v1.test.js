@@ -65,6 +65,7 @@ function cancellationDb({ revision = REVISION, status = 'confirmed', startsAt = 
       if (/UPDATE appointments/.test(sql)) return { rowCount: 1, rows: [] };
       if (/UPDATE appointment_lifecycle/.test(sql)) return { rowCount: 1, rows: [] };
       if (/INSERT INTO appointment_status_history/.test(sql)) return { rowCount: 1, rows: [] };
+      if (/UPDATE payment_requests pr/.test(sql)) return { rowCount: 0, rows: [] };
       if (/INSERT INTO crm_audit_events/.test(sql)) return { rowCount: 1, rows: [] };
       throw new Error(`Unexpected cancellation query: ${sql}`);
     },
@@ -203,6 +204,7 @@ function actionDb() {
         if (/UPDATE appointments/.test(sql)) return { rowCount: 1, rows: [] };
         if (/UPDATE appointment_lifecycle/.test(sql)) return { rowCount: 1, rows: [] };
         if (/INSERT INTO appointment_status_history/.test(sql)) return { rowCount: 1, rows: [] };
+        if (/UPDATE payment_requests pr/.test(sql)) return { rowCount: 0, rows: [] };
         if (/INSERT INTO crm_audit_events/.test(sql)) return { rowCount: 1, rows: [] };
         if (/SET consumed_at=/.test(sql)) return { rowCount: 1, rows: [] };
         throw new Error(`Unexpected action query: ${sql}`);

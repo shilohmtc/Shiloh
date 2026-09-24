@@ -16,7 +16,7 @@ function appointmentDetails({ appointmentId, crmV2ClientId, clientName, serviceN
     : 'your scheduled time';
   const label = changeKind === 'cancellation' ? 'Appointment cancelled' : changeKind === 'reminder' ? 'Appointment reminder' : changeKind === 'confirmation' ? 'Appointment confirmed' : 'Appointment updated';
   const body = changeKind === 'cancellation'
-    ? 'Your Shiloh appointment was cancelled. Open My Shiloh for the latest details.'
+    ? 'Your Shiloh appointment was cancelled. Any earlier unpaid deposit or payment link for this booking is no longer valid. Open My Shiloh for the latest details.'
     : changeKind === 'reminder'
       ? 'Your Shiloh appointment is coming up. Open My Shiloh for the latest details.'
       : `Your Shiloh appointment is ${changeKind === 'confirmation' ? 'confirmed' : 'updated'} for ${date} at ${time}. Open My Shiloh for the latest details.`;

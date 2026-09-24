@@ -92,7 +92,8 @@ test('future booking updates remain on the normal delivery path while cancellati
   assert.match(service, /AND appointment\.ends_at <= NOW\(\)/);
   assert.match(service, /WHERE audit_event_id=\$1 AND status IN \('pending','failed'\)/);
   assert.match(service, /sendWhatsAppTemplate/);
-  assert.match(service, /item\.change_kind === 'cancellation' \? 'cancellation_confirmation' : 'booking_update'/);
+  assert.match(service, /preferredTemplateKey = item\.change_kind === 'cancellation' \? 'cancellation_confirmation_v2' : 'booking_update'/);
+  assert.match(service, /fallbackTemplateKey = item\.change_kind === 'cancellation' \? 'cancellation_confirmation' : null/);
 });
 
 test('customer messages are sent only through approved utility templates', () => {
@@ -118,4 +119,13 @@ test('customer notification patch is preloaded after the Google provider guard',
   const customer = pkg.scripts.start.indexOf('adminBookingCustomerNotificationPatch.js');
   assert.ok(provider >= 0 && customer > provider);
   assert.match(pkg.scripts.dev, /adminBookingCustomerNotificationPatch\.js/);
+});
+
+
+test('cancellation payment-safety template warns that old payment links are invalid', () => {
+  const lifecycleSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'clientLifecycleTemplateProvisioning.js'), 'utf8');
+  assert.match(lifecycleSource, /cancellation_confirmation_v2/);
+  assert.match(lifecycleSource, /earlier unpaid deposit or payment link/);
+  assert.match(lifecycleSource, /No refund is issued automatically/);
+  assert.match(service, /\['booking_update', 'cancellation_confirmation_v2'\]/);
 });

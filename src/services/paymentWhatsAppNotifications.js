@@ -3,8 +3,10 @@ const { APP_ORIGIN } = require('../config/publicOrigins');
 const { configuredMetaTemplateName } = require('./metaTemplateAdapter');
 const { sendWhatsAppTemplate } = require('./whatsapp');
 
+const LEGACY_DEPOSIT_TEMPLATE_NAME = 'shiloh_payment_deposit_request_v1';
+
 const PAYMENT_TEMPLATE_KEYS = Object.freeze({
-  DEPOSIT_REQUEST: 'payment_deposit_request',
+  DEPOSIT_REQUEST: 'payment_deposit_request_v2',
   DEPOSIT_RECEIVED: 'payment_deposit_received',
   BALANCE_DUE: 'payment_balance_due',
   SPLIT_REQUEST: 'payment_split_request',
@@ -29,6 +31,14 @@ function formatRand(value) {
 
 function paymentNotificationsEnabled(environment = process.env) {
   return String(environment.WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED || '').toLowerCase() === 'true';
+}
+
+function isTemplateUnavailableError(error) {
+  const providerError = error?.response?.data?.error || {};
+  const code = Number(providerError.code);
+  const message = String(providerError.message || error?.message || '');
+  return [132001, 132015].includes(code)
+    || /template[^\n]*(?:not found|does not exist|not approved|paused|disabled)/i.test(message);
 }
 
 function securePaymentUrl(requestKey) {
@@ -78,6 +88,43 @@ async function sendPaymentTemplate({
       messageId: response?.messages?.[0]?.id || null,
     };
   } catch (error) {
+    if (templateKey === PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST && isTemplateUnavailableError(error)) {
+      const legacyTemplateName = String(environment.WHATSAPP_PAYMENT_DEPOSIT_REQUEST_TEMPLATE || LEGACY_DEPOSIT_TEMPLATE_NAME).trim();
+      if (legacyTemplateName && legacyTemplateName !== templateName) {
+        try {
+          const fallback = await send(
+            phone,
+            legacyTemplateName,
+            bodyParameters,
+            'en',
+            quickReplyPayloads,
+            urlButtonParameter ? [String(urlButtonParameter)] : [],
+          );
+          logger.warn({
+            templateKey,
+            preferredTemplateName: templateName,
+            fallbackTemplateName: legacyTemplateName,
+            toSuffix: phone.slice(-4),
+          }, 'Deposit WhatsApp v2 unavailable; legacy deposit template used');
+          return {
+            sent: true,
+            templateKey,
+            templateName: legacyTemplateName,
+            preferredTemplateName: templateName,
+            fallback: true,
+            messageId: fallback?.messages?.[0]?.id || null,
+          };
+        } catch (fallbackError) {
+          logger.warn({
+            err: fallbackError,
+            templateKey,
+            preferredTemplateName: templateName,
+            fallbackTemplateName: legacyTemplateName,
+            toSuffix: phone.slice(-4),
+          }, 'Payment WhatsApp legacy fallback was not sent');
+        }
+      }
+    }
     logger.warn({
       err: error,
       templateKey,
@@ -88,10 +135,12 @@ async function sendPaymentTemplate({
 }
 
 module.exports = {
+  LEGACY_DEPOSIT_TEMPLATE_NAME,
   PAYMENT_TEMPLATE_KEYS,
   normalizeWhatsAppMobile,
   formatRand,
   paymentNotificationsEnabled,
+  isTemplateUnavailableError,
   securePaymentUrl,
   secureVoucherUrl,
   withActionLink,

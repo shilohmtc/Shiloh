@@ -19,11 +19,19 @@ function paymentUnavailable(res, status, message) {
 
 function paymentRequestQuery() {
   return `SELECT pr.provider,pr.state,pr.provider_payment_url,pr.expires_at,pr.gift_voucher_order_id,
-                  pr.amount,pr.payer_name,pr.payer_mobile,bpa.appointment_id
+                  pr.amount,pr.payer_name,pr.payer_mobile,
+                  COALESCE(pr.deposit_member_appointment_id,bpa.appointment_id) AS appointment_id,
+                  payment_appointment.status AS appointment_status
              FROM payment_requests pr
              LEFT JOIN booking_payment_accounts bpa ON bpa.id=pr.payment_account_id
+             LEFT JOIN appointments payment_appointment
+               ON payment_appointment.id=COALESCE(pr.deposit_member_appointment_id,bpa.appointment_id)
             WHERE pr.request_key=$1
             LIMIT 1`;
+}
+
+function cancelledBookingPaymentLink(request) {
+  return String(request?.appointment_status || '').toLowerCase() === 'cancelled';
 }
 
 function validateOzowTarget(request) {
@@ -68,6 +76,7 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema 
       const result = await db.query(paymentRequestQuery(), [requestKey]);
       const request = result.rows[0];
       if (!request) return paymentUnavailable(res, 404, 'Payment link not found.');
+      if (cancelledBookingPaymentLink(request)) return paymentUnavailable(res, 410, 'This booking was cancelled. This payment link can no longer be used.');
       if (request.gift_voucher_order_id) return res.redirect(303, `/gift-vouchers/${requestKey}`);
       if (!request.payer_mobile) return paymentUnavailable(res, 409, 'This payment link has no verified payer contact.');
       if (['paid', 'failed', 'cancelled', 'expired', 'refunded'].includes(String(request.state))) {
@@ -106,6 +115,7 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema 
       const result = await db.query(paymentRequestQuery(), [requestKey]);
       const request = result.rows[0];
       if (!request) return paymentUnavailable(res, 404, 'Payment link not found.');
+      if (cancelledBookingPaymentLink(request)) return paymentUnavailable(res, 410, 'This booking was cancelled. This payment link can no longer be used.');
       if (request.state === 'paid' && request.gift_voucher_order_id) {
         return res.redirect(303, `/gift-vouchers/${requestKey}`);
       }
@@ -136,4 +146,4 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema 
   return router;
 }
 
-module.exports = { createPaymentLinkRouter, safePaymentRequestKey, paymentRequestQuery };
+module.exports = { createPaymentLinkRouter, safePaymentRequestKey, paymentRequestQuery, cancelledBookingPaymentLink };

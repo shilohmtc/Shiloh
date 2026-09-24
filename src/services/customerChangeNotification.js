@@ -18,6 +18,7 @@ const ACTION_BY_KIND = Object.freeze({
 });
 const ACTION_ALIASES_BY_KIND = Object.freeze({
   time: Object.freeze(['calendar.appointment_rescheduled']),
+  cancellation: Object.freeze(['calendar.appointment_cancelled']),
 });
 const UPDATE_KINDS = new Set(['service', 'practitioner', 'time', 'price']);
 const RETRY_MS = 5 * 60 * 1000;
@@ -186,7 +187,7 @@ async function suppressEndedBookingUpdate(item) {
 
 async function provisionRequiredCustomerChangeTemplates() {
   const results = [];
-  for (const key of ['booking_update', 'cancellation_confirmation']) {
+  for (const key of ['booking_update', 'cancellation_confirmation_v2']) {
     try {
       const result = await submitClientLifecycleTemplate(key);
       results.push({ key, submitted: result?.submitted === true, reason: result?.reason || null, providerStatus: result?.provider?.status || null });
@@ -238,11 +239,15 @@ async function attemptCustomerChangeNotification(auditEventId) {
     return { sent: false, reason: 'provider_status_error' };
   }
 
-  const templateKey = item.change_kind === 'cancellation' ? 'cancellation_confirmation' : 'booking_update';
-  const templateName = approvedTemplate(templateStatus, templateKey);
+  const preferredTemplateKey = item.change_kind === 'cancellation' ? 'cancellation_confirmation_v2' : 'booking_update';
+  const fallbackTemplateKey = item.change_kind === 'cancellation' ? 'cancellation_confirmation' : null;
+  const preferredTemplateName = approvedTemplate(templateStatus, preferredTemplateKey);
+  const fallbackTemplateName = fallbackTemplateKey ? approvedTemplate(templateStatus, fallbackTemplateKey) : null;
+  const templateKey = preferredTemplateName ? preferredTemplateKey : fallbackTemplateName ? fallbackTemplateKey : preferredTemplateKey;
+  const templateName = preferredTemplateName || fallbackTemplateName;
   if (!templateName) {
-    await pool.query(`UPDATE customer_change_notifications SET status='pending',last_error=$2,updated_at=NOW() WHERE audit_event_id=$1`, [auditEventId, `${templateKey}_not_approved`]);
-    return { sent: false, reason: 'template_not_approved', templateKey };
+    await pool.query(`UPDATE customer_change_notifications SET status='pending',last_error=$2,updated_at=NOW() WHERE audit_event_id=$1`, [auditEventId, `${preferredTemplateKey}_not_approved`]);
+    return { sent: false, reason: 'template_not_approved', templateKey: preferredTemplateKey };
   }
 
   const appointment = await loadAppointmentSnapshot(item.appointment_id);

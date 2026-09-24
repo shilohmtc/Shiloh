@@ -94,6 +94,7 @@ function appointmentHandler(overrides = {}) {
     if (sql.startsWith('UPDATE appointments') && sql.includes("status='cancelled'")) return result([{ id: 592, status: 'cancelled', updated_at: NEXT_REVISION }]);
     if (sql.startsWith('UPDATE appointments') && sql.includes('updated_at=NOW()')) return result([{ updated_at: NEXT_REVISION }]);
     if (sql.startsWith('UPDATE appointment_staff') || sql.startsWith('UPDATE appointment_lifecycle') || sql.startsWith('INSERT INTO appointment_status_history')) return result();
+    if (sql.startsWith('UPDATE payment_requests pr')) return result();
     throw new Error(`Unexpected SQL: ${sql}`);
   };
 }
@@ -391,6 +392,7 @@ test('cancellation requires exact confirmation and audits the authenticated oper
   assert.equal(cancelled.status, 'cancelled');
   assert.ok(fake.calls.some(call => call.sql.startsWith('INSERT INTO appointment_status_history')));
   assert.ok(fake.calls.some(call => call.sql.startsWith('UPDATE appointment_lifecycle')));
+  assert.ok(fake.calls.some(call => call.sql.startsWith('UPDATE payment_requests pr')));
   const audit = fake.calls.find(call => call.sql.startsWith('INSERT INTO crm_audit_events'));
   assert.equal(audit.params[0], 71);
   assert.doesNotMatch(audit.params.at(-1), /phone|sender/i);

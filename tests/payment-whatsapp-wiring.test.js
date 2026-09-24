@@ -71,6 +71,52 @@ test('enabled payment notification passes a dynamic Shiloh payment button value'
   ]);
 });
 
+test('deposit request prefers policy-aware v2 and falls back safely while Meta approval is pending', async () => {
+  const calls = [];
+  const result = await sendPaymentTemplate({
+    templateKey: PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST,
+    to: '0716742646',
+    bodyParameters: ['Jean-Pierre', 'R125.00', 'Toe Gel Only', 'Saturday, 03 October 2026', '08:00', '760'],
+    urlButtonParameter: 'dep_760_token',
+    environment: {
+      WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED: 'true',
+      WHATSAPP_PAYMENT_DEPOSIT_REQUEST_TEMPLATE: 'shiloh_payment_deposit_request_v1',
+    },
+    send: async (...args) => {
+      calls.push(args);
+      if (args[1] === 'shiloh_payment_deposit_request_v2') {
+        const error = new Error('template does not exist');
+        error.response = { data: { error: { code: 132001, message: 'Template does not exist' } } };
+        throw error;
+      }
+      return { messages: [{ id: 'wamid.legacy' }] };
+    },
+  });
+  assert.equal(result.sent, true);
+  assert.equal(result.fallback, true);
+  assert.equal(result.templateName, 'shiloh_payment_deposit_request_v1');
+  assert.equal(calls[0][1], 'shiloh_payment_deposit_request_v2');
+  assert.equal(calls[1][1], 'shiloh_payment_deposit_request_v1');
+});
+
+
+test('ambiguous provider failure does not retry a second WhatsApp template', async () => {
+  let calls = 0;
+  const result = await sendPaymentTemplate({
+    templateKey: PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST,
+    to: '0716742646',
+    bodyParameters: ['Jean-Pierre', 'R125.00', 'Toe Gel Only', 'Saturday, 03 October 2026', '08:00', '760'],
+    urlButtonParameter: 'dep_760_token',
+    environment: {
+      WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED: 'true',
+      WHATSAPP_PAYMENT_DEPOSIT_REQUEST_TEMPLATE: 'shiloh_payment_deposit_request_v1',
+    },
+    send: async () => { calls += 1; throw new Error('network timeout'); },
+  });
+  assert.equal(result.sent, false);
+  assert.equal(calls, 1);
+});
+
 test('payment links show the booking policy before redirecting to Ozow', async () => {
   const app = express();
   app.use('/pay', createPaymentLinkRouter({
@@ -98,10 +144,61 @@ test('payment links show the booking policy before redirecting to Ozow', async (
     response.on('data', chunk => { body += chunk; });
     await new Promise(resolve => response.on('end', resolve));
     assert.equal(response.statusCode, 200);
-    assert.match(body, /Review the booking policy/);
+    assert.match(body, /Before you pay, review the Booking Policy &amp; Terms/);
     assert.match(body, /R125\.00/);
+    assert.match(body, /No payment is taken on this page/);
     assert.match(body, /I have read and accept/);
-    assert.match(body, /Continue to secure payment/);
+    assert.match(body, /I accept — continue to secure payment/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('cancelled booking payment links fail closed before policy acceptance or Ozow redirect', async () => {
+  const app = express();
+  app.use('/pay', createPaymentLinkRouter({
+    policySchema: async () => { throw new Error('policy schema should not run'); },
+    db: { query: async () => ({ rows: [{
+      provider: 'ozow',
+      state: 'link_issued',
+      provider_payment_url: 'https://pay.ozow.com/request/old',
+      amount: '125.00',
+      payer_name: 'Jean-Pierre Botha',
+      payer_mobile: '27716742646',
+      appointment_id: 759,
+      appointment_status: 'cancelled',
+    }] }) },
+  }));
+  const server = http.createServer(app);
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const address = server.address();
+    const getResponse = await new Promise((resolve, reject) => {
+      const request = http.get({ hostname: '127.0.0.1', port: address.port, path: '/pay/old_759_token' }, resolve);
+      request.on('error', reject);
+    });
+    let getBody = '';
+    getResponse.setEncoding('utf8');
+    getResponse.on('data', chunk => { getBody += chunk; });
+    await new Promise(resolve => getResponse.on('end', resolve));
+    assert.equal(getResponse.statusCode, 410);
+    assert.match(getBody, /booking was cancelled/i);
+    assert.match(getBody, /can no longer be used/i);
+
+    const postResponse = await new Promise((resolve, reject) => {
+      const request = http.request({
+        hostname: '127.0.0.1',
+        port: address.port,
+        path: '/pay/old_759_token/accept',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      }, resolve);
+      request.on('error', reject);
+      request.end('accept=yes');
+    });
+    assert.equal(postResponse.statusCode, 410);
+    assert.equal(postResponse.headers.location, undefined);
+    postResponse.resume();
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

@@ -19,6 +19,21 @@ Your booking is awaiting payment. Shiloh confirms it only after the payment is v
     example: [['Christel', 'R300.00', 'Couples Massage', 'Monday, 21 September 2026', '10:00', '712']],
     button: { text: 'Pay deposit', example: ['deposit_712_example'] },
   },
+  payment_deposit_request_v2: {
+    name: 'shiloh_payment_deposit_request_v2',
+    env: null,
+    header: 'Deposit required',
+    body: `Hi {{1}}, a deposit of {{2}} is required for your Shiloh booking.
+
+Treatment: {{3}}
+Date: {{4}}
+Time: {{5}}
+Booking #{{6}}
+
+Before payment, you’ll review and accept Shiloh’s Booking Policy & Terms. Your booking is confirmed only after Shiloh verifies the required deposit.`,
+    example: [['Christel', 'R300.00', 'Couples Massage', 'Monday, 21 September 2026', '10:00', '712']],
+    button: { text: 'Review & pay deposit', example: ['deposit_712_example'] },
+  },
   payment_deposit_received: {
     name: 'shiloh_payment_deposit_received_v1',
     env: 'WHATSAPP_PAYMENT_DEPOSIT_RECEIVED_TEMPLATE',
