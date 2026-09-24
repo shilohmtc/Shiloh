@@ -20,10 +20,25 @@ const stories = [
     assertSurface: async (page) => {
       await expect(page.getByRole('heading', { name: 'Marietjie Signature Massage', exact: true })).toBeVisible();
       await expect(page.locator('[data-service-edit-form]')).toBeVisible();
+      await expect(page.getByLabel('Category')).toHaveValue('3');
+      await expect(page.getByLabel('Category').getByRole('option', { name: 'Pedicures & Foot Care' })).toHaveCount(1);
       await expect(page.locator('[data-service-description-form]')).toBeVisible();
       await expect(page.locator('[data-description-preview]')).toContainText('A treatment available in Marietjie’s assigned service set.');
       await expect(page.getByRole('button', { name: 'Approve and publish wording' })).toBeVisible();
       await expect(page.locator('[data-service-assign-form]')).toBeVisible();
+    },
+  },
+  {
+    id: 'workspace-services--uncategorised-service-management',
+    name: 'uncategorised service category repair',
+    assertSurface: async (page) => {
+      await expect(page.getByRole('heading', { name: 'Toe Gel Only', exact: true })).toBeVisible();
+      await expect(page.getByText('This service is blocked from new bookings')).toBeVisible();
+      const category = page.getByLabel('Category');
+      await expect(category).toHaveValue('');
+      await expect(category.getByRole('option', { name: 'Choose category' })).toHaveCount(1);
+      await expect(category.getByRole('option', { name: 'Pedicures & Foot Care' })).toHaveCount(1);
+      await expect(page.getByRole('button', { name: 'Save service' })).toBeVisible();
     },
   },
 ];
