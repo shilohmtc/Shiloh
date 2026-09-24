@@ -26,11 +26,12 @@ async function confirmCalendarV2BookingDirect(admin, options = {}) {
               st.display_name AS staff_name, st.status AS staff_status,
               s.name AS service_name, s.status AS service_status,
               s.duration_minutes, s.processing_time_minutes, s.extra_time_minutes,
-              s.price, s.variable_price,
+              s.price, s.variable_price, sc.name AS category_name,
               l.name AS location_name, l.status AS location_status
          FROM admin_booking_sessions abs
          JOIN staff st ON st.id = abs.staff_id
          JOIN services s ON s.id = abs.service_id
+         LEFT JOIN service_categories sc ON sc.id = s.category_id
          JOIN locations l ON l.id = abs.location_id
         WHERE abs.admin_id = $1
           AND abs.client_id IS NULL
@@ -56,6 +57,7 @@ async function confirmCalendarV2BookingDirect(admin, options = {}) {
       await db.query('COMMIT');
       return { status: 'stale', reply: 'The pending booking is no longer valid. It was discarded; please start again.' };
     }
+
     if (new Date(session.starts_at).getTime() <= Date.now()) {
       await db.query(`DELETE FROM admin_booking_sessions WHERE admin_id = $1`, [admin.id]);
       await db.query('COMMIT');
@@ -110,6 +112,18 @@ async function confirmCalendarV2BookingDirect(admin, options = {}) {
       await db.query(`DELETE FROM admin_booking_sessions WHERE admin_id = $1`, [admin.id]);
       await db.query('COMMIT');
       return { status: 'client_mobile_changed', reply: 'The canonical CRM V2 client/mobile changed before creation. Nothing was written; prepare the booking again.' };
+    }
+
+    if (!String(session.category_name || '').trim()) {
+      await db.query(`DELETE FROM admin_booking_sessions WHERE admin_id = $1`, [admin.id]);
+      await db.query('COMMIT');
+      return { status: 'catalogue_incomplete', reply: 'This treatment cannot be booked yet because it has no category in Shiloh’s canonical service catalogue. No appointment was created.' };
+    }
+
+    if (session.variable_price === true || session.price === null || session.price === undefined || !Number.isFinite(Number(session.price))) {
+      await db.query(`DELETE FROM admin_booking_sessions WHERE admin_id = $1`, [admin.id]);
+      await db.query('COMMIT');
+      return { status: 'pricing_unavailable', reply: 'This treatment cannot be booked yet because Shiloh has not confirmed a fixed price. No appointment was created.' };
     }
 
     const totalPrice = session.variable_price ? null : session.price;

@@ -6,6 +6,37 @@ const {
   sendCustomerBookingConfirmationForAppointment,
 } = require("./customerBookingConfirmation");
 
+
+function usableFixedBookingPrice(service) {
+  return service
+    && service.variable_price !== true
+    && service.price !== null
+    && service.price !== undefined
+    && Number.isFinite(Number(service.price));
+}
+
+function usableBookingCategory(service) {
+  return Boolean(String(service?.category_name || '').trim());
+}
+
+function catalogueUnavailableReply(availability) {
+  if (!usableBookingCategory(availability?.service)) {
+    return {
+      status: 'catalogue_incomplete',
+      reply: 'This treatment cannot be booked yet because it has no category in Shiloh’s canonical service catalogue. No appointment was created.',
+      availability,
+    };
+  }
+  if (!usableFixedBookingPrice(availability?.service)) {
+    return {
+      status: 'pricing_unavailable',
+      reply: 'This treatment cannot be booked yet because Shiloh has not confirmed a fixed price. No appointment was created.',
+      availability,
+    };
+  }
+  return null;
+}
+
 function formatLocalDateTime(value) {
   return new Intl.DateTimeFormat("en-ZA", {
     timeZone: "Africa/Johannesburg",
@@ -54,6 +85,8 @@ async function prepareAdminBooking({ adminId, clientId, staffName, serviceName, 
   if (availability.status !== "available") {
     return { status: availability.status, reply: formatAvailabilityReply(availability), availability };
   }
+  const catalogueIssue = catalogueUnavailableReply(availability);
+  if (catalogueIssue) return catalogueIssue;
 
   if (new Date(availability.startsAt).getTime() <= Date.now()) {
     return { status: "past_time", reply: "I won't prepare a new booking in the past. Please choose a future date and time." };
@@ -126,6 +159,14 @@ async function prepareCalendarV2Booking({ adminId, crmV2Client, staffName, servi
   if (availability.status !== "available") {
     return { status: availability.status, reply: formatAvailabilityReply(availability), availability };
   }
+  if (!usableFixedBookingPrice(availability.service)) {
+    return {
+      status: "pricing_unavailable",
+      reply: "This treatment cannot be booked yet because Shiloh has not confirmed a fixed price. No appointment was created.",
+      availability,
+    };
+  }
+
   if (new Date(availability.startsAt).getTime() <= Date.now()) {
     return { status: "past_time", reply: "I won't prepare a new booking in the past. Please choose a future date and time." };
   }
@@ -259,12 +300,13 @@ async function confirmAdminBooking(admin, options = {}) {
               st.display_name AS staff_name, st.status AS staff_status,
               s.name AS service_name, s.status AS service_status,
               s.duration_minutes, s.processing_time_minutes, s.extra_time_minutes,
-              s.price, s.variable_price,
+              s.price, s.variable_price, sc.name AS category_name,
               l.name AS location_name, l.status AS location_status
          FROM admin_booking_sessions abs
          JOIN clients c ON c.id = abs.client_id
          JOIN staff st ON st.id = abs.staff_id
          JOIN services s ON s.id = abs.service_id
+         LEFT JOIN service_categories sc ON sc.id = s.category_id
          JOIN locations l ON l.id = abs.location_id
         WHERE abs.admin_id = $1
         FOR UPDATE OF abs`,
@@ -277,6 +319,13 @@ async function confirmAdminBooking(admin, options = {}) {
     }
 
     await db.query(`SELECT pg_advisory_xact_lock($1::bigint)`, [session.staff_id]);
+
+    const pendingCatalogueIssue = catalogueUnavailableReply({ service: session });
+    if (pendingCatalogueIssue) {
+      await db.query(`DELETE FROM admin_booking_sessions WHERE admin_id = $1`, [admin.id]);
+      await db.query("COMMIT");
+      return pendingCatalogueIssue;
+    }
 
     if (session.state !== "confirm" || session.client_status !== "active" || session.staff_status !== "active" || session.service_status !== "active" || session.location_status !== "active") {
       await db.query(`DELETE FROM admin_booking_sessions WHERE admin_id = $1`, [admin.id]);

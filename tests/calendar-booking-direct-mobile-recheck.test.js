@@ -39,6 +39,7 @@ function loadDirectConfirmationWithFakes({ finalMobile = '27821234567' } = {}) {
             extra_time_minutes: 0,
             price: 500,
             variable_price: false,
+            category_name: 'Massage',
             location_name: 'Shiloh',
             location_status: 'active',
           }],
