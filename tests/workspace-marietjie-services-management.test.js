@@ -112,6 +112,7 @@ test('tenant service detail requires the service assignment before subordinate r
       calls.push({ sql, params });
       if (sql.includes('workspaceServices:principal')) return result([marietjiePrincipal()]);
       if (sql.includes('workspaceServices:detail')) return result([serviceRow(7)]);
+      if (sql.includes('workspaceServices:categories')) return result([{ id: 3, name: 'Massage', display_order: 1, status: 'active' }]);
       if (sql.includes('workspaceServices:staff')) {
         return result([{ id: 55, display_name: 'Marietjie', resource_type: 'practitioner', status: 'active', client_bookable: true }]);
       }
