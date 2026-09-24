@@ -354,7 +354,7 @@ function createMyShilohPushService({
     const inserted = await db.query(
       `INSERT INTO my_shiloh_push_notifications
          (crm_v2_client_id,event_key,category,title,body,target_path,created_at,expires_at)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$7 + ($8 * INTERVAL '1 day'))
+       VALUES($1,$2,$3,$4,$5,$6,$7::timestamptz,$7::timestamptz + ($8::integer * INTERVAL '1 day'))
        ON CONFLICT (event_key) DO NOTHING
        RETURNING id`,
       [clientId, key, cleanCategory, cleanTitle, cleanBody, path, now(), NOTIFICATION_TTL_DAYS],
