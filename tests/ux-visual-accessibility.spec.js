@@ -1809,3 +1809,45 @@ test('booking conflict recovery shows the actual cause on Phone and Desktop', as
     });
   }
 });
+
+
+test('deposit policy is unmistakable before Ozow on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name: 'phone', width: 390, height: 844 },
+    { name: 'desktop', width: 1280, height: 900 },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=client-payment-policy--deposit-policy-before-ozow&viewMode=story', { waitUntil: 'networkidle' });
+
+    const policy = page.locator('[data-payment-policy-story]');
+    await expect(policy).toBeVisible();
+    await expect(policy.getByRole('heading', { name: 'Before you pay, review the Booking Policy & Terms' })).toBeVisible();
+    await expect(policy.getByText('1. Review & accept')).toBeVisible();
+    await expect(policy.getByText('2. Pay securely')).toBeVisible();
+    await expect(policy.getByText('No payment is taken on this page.')).toBeVisible();
+    await expect(policy.getByRole('button', { name: 'I accept — continue to secure payment' })).toBeVisible();
+
+    const metrics = await policy.evaluate(() => ({
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      short: [...document.querySelectorAll('button,input,a')]
+        .filter((node) => node.getClientRects().length && node.getBoundingClientRect().height < 44)
+        .length,
+    }));
+    expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+    expect(metrics.short).toBe(0);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-payment-policy-story]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+
+    await page.screenshot({
+      path: testInfo.outputPath(`deposit-policy-before-ozow-${viewport.name}.png`),
+      fullPage: true,
+      animations: 'disabled',
+      caret: 'hide',
+    });
+  }
+});
