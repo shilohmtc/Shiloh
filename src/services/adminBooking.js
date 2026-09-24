@@ -6,6 +6,15 @@ const {
   sendCustomerBookingConfirmationForAppointment,
 } = require("./customerBookingConfirmation");
 
+
+function usableFixedBookingPrice(service) {
+  return service
+    && service.variable_price !== true
+    && service.price !== null
+    && service.price !== undefined
+    && Number.isFinite(Number(service.price));
+}
+
 function formatLocalDateTime(value) {
   return new Intl.DateTimeFormat("en-ZA", {
     timeZone: "Africa/Johannesburg",
@@ -53,6 +62,13 @@ async function prepareAdminBooking({ adminId, clientId, staffName, serviceName, 
   const availability = await checkAvailability({ staffName, serviceName, localDateTime, locationId: location.id });
   if (availability.status !== "available") {
     return { status: availability.status, reply: formatAvailabilityReply(availability), availability };
+  }
+  if (!usableFixedBookingPrice(availability.service)) {
+    return {
+      status: "pricing_unavailable",
+      reply: "This treatment cannot be booked yet because Shiloh has not confirmed a fixed price. No appointment was created.",
+      availability,
+    };
   }
 
   if (new Date(availability.startsAt).getTime() <= Date.now()) {
@@ -126,6 +142,14 @@ async function prepareCalendarV2Booking({ adminId, crmV2Client, staffName, servi
   if (availability.status !== "available") {
     return { status: availability.status, reply: formatAvailabilityReply(availability), availability };
   }
+  if (!usableFixedBookingPrice(availability.service)) {
+    return {
+      status: "pricing_unavailable",
+      reply: "This treatment cannot be booked yet because Shiloh has not confirmed a fixed price. No appointment was created.",
+      availability,
+    };
+  }
+
   if (new Date(availability.startsAt).getTime() <= Date.now()) {
     return { status: "past_time", reply: "I won't prepare a new booking in the past. Please choose a future date and time." };
   }
