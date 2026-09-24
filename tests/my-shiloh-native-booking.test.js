@@ -61,7 +61,7 @@ test('native booking page is a My Shiloh treatment-practitioner-time-review wiza
   assert.match(html, /3 · Time/);
   assert.match(html, /4 · Review/);
   assert.match(html, /50% is required after Shiloh approves/);
-  assert.match(html, /Marietjie’s appointments are deposit-exempt/);
+  assert.doesNotMatch(html, /Marietjie/i);
   assert.match(html, /data-submit-booking/);
   assert.match(html, /\/my-shiloh\/assets\/booking\.js/);
   assert.doesNotMatch(html, /wa\.me|whatsapp:\/\//i);
@@ -105,6 +105,9 @@ test('native booking request is bound to signed-in CRM V2 identity and stages Wo
           id:7, name:'Hot Stone Massage', status:'active', price:'650.00', variable_price:false,
           duration_minutes:60, processing_time_minutes:0, extra_time_minutes:0, category_name:'Massage',
         }], rowCount:1 };
+      }
+      if (sql.includes('FROM staff') && sql.includes("business_role,''") && sql.includes("<> 'tenant_practitioner'")) {
+        return { rows:[{ id:11 }], rowCount:1 };
       }
       if (sql.includes('FROM booking_intents')) return { rows:[], rowCount:0 };
       if (sql.includes('INSERT INTO booking_intents')) return { rows:[{ phone:'27821234567' }], rowCount:1 };
@@ -161,6 +164,9 @@ test('ordinary My Shiloh catalogue excludes special, package-session and variabl
       if (String(sql).includes("s.external_source='shiloh_special'")) {
         return { rows:[{ id:66 },{ id:65 },{ id:99 }], rowCount:3 };
       }
+      if (String(sql).includes('SELECT DISTINCT ss.service_id')) {
+        return { rows:[{ service_id:44 }], rowCount:1 };
+      }
       throw new Error('Unexpected query');
     },
   };
@@ -176,6 +182,44 @@ test('ordinary My Shiloh catalogue excludes special, package-session and variabl
   });
   const rows = await service.catalogue();
   assert.deepEqual(rows.map(row=>row.id), [44]);
+});
+
+
+test('My Shiloh catalogue and practitioner step exclude tenant-practitioner services without changing canonical service ownership', async () => {
+  const db = {
+    async query(sql, values = []) {
+      const text = String(sql);
+      if (text.includes("s.external_source='shiloh_special'")) return { rows:[], rowCount:0 };
+      if (text.includes('SELECT DISTINCT ss.service_id')) return { rows:[{ service_id:44 }], rowCount:1 };
+      if (text.includes('FROM services s') && text.includes('WHERE s.id=$1')) {
+        return { rows:[{
+          id:Number(values[0]), name:'Shared Treatment', status:'active', price:'650.00', variable_price:false,
+          duration_minutes:60, processing_time_minutes:0, extra_time_minutes:0, category_name:'Massage',
+        }], rowCount:1 };
+      }
+      if (text.includes('FROM staff') && text.includes("<> 'tenant_practitioner'")) {
+        return { rows:[{ id:11 }], rowCount:1 };
+      }
+      throw new Error(`Unexpected query: ${text}`);
+    },
+  };
+  const service = createMyShilohBookingService({
+    db,
+    catalogueProvider:async()=>[
+      { id:44, name:'Shared Treatment', price:'R650' },
+      { id:55, name:'Tenant-only Treatment', price:'R500' },
+    ],
+    eligibleStaff:async()=>[
+      { id:11, display_name:'Christel' },
+      { id:13, display_name:'Marietjie' },
+    ],
+    depositPolicy:{ async loadPolicy(){ return { rateBasisPoints:5000, exemptStaffId:13 }; } },
+  });
+  const catalogue = await service.catalogue();
+  assert.deepEqual(catalogue.map(row=>row.id), [44]);
+  const practitioners = await service.practitioners({ serviceId:44 });
+  assert.deepEqual(practitioners.practitioners.map(row=>row.name), ['Christel']);
+  assert.equal(practitioners.practitioners.some(row=>row.depositExempt), false);
 });
 
 
