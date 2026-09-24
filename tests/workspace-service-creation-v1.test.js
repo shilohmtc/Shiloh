@@ -38,10 +38,12 @@ function fakeDb({ role = 'booking_operator', linkedStaffId = null, practitionerI
         staff_status: linkedStaffId ? 'active' : null,
         staff_resource_type: linkedStaffId ? 'practitioner' : null,
       })] };
+      if (sql.includes('workspaceServiceCreation:category')) return { rows: [{ id: 3, name: 'Massage', display_order: 1, status: 'active' }] };
+      if (sql.includes('workspaceServiceCreation:categories')) return { rows: [{ id: 3, name: 'Massage', display_order: 1 }] };
       if (sql.includes('workspaceServiceCreation:practitioners')) return { rows: practitionerIds.map(id => ({ id, display_name: `P${id}`, status: 'active', resource_type: 'practitioner' })) };
       if (sql.includes('pg_advisory_xact_lock')) return { rows: [] };
       if (sql.includes('LOWER(BTRIM(name))')) return { rows: duplicate ? [{ id: 8 }] : [] };
-      if (sql.includes('INSERT INTO services(')) return { rows: [{ id: 99, name: values[0], duration_minutes: Number(values[1]), processing_time_minutes: 0, extra_time_minutes: 0, variable_price: values[2], price: values[3], display_price: values[4], customer_description: values[5], status: 'active' }] };
+      if (sql.includes('INSERT INTO services(')) return { rows: [{ id: 99, category_id: Number(values[0]), name: values[1], duration_minutes: Number(values[2]), processing_time_minutes: 0, extra_time_minutes: 0, variable_price: values[3], price: values[4], display_price: values[5], customer_description: values[6], status: 'active' }] };
       if (sql.includes('INSERT INTO staff_services')) return { rows: [] };
       if (sql.includes("business_role='tenant_practitioner'")) return { rows: tenantOwner ? [{ staff_id: tenantOwner }] : [] };
       if (sql.includes('INSERT INTO service_visibility_policies')) return { rows: [] };
@@ -70,10 +72,12 @@ test('services:create is narrow canonical authority and does not depend on displ
 
 test('creation pricing validates fixed and variable price policy explicitly', () => {
   const description = 'A clear customer-facing description for this service.';
-  assert.throws(() => normalizeCreatePayload({ name: 'A', durationMinutes: 60, staffIds: [1], price: '', variablePrice: false, customerDescription: description }), /requires a price/i);
-  assert.throws(() => normalizeCreatePayload({ name: 'A', durationMinutes: 0, staffIds: [1], price: 100, variablePrice: false, customerDescription: description }), /between 1 and 1440/i);
-  assert.throws(() => normalizeCreatePayload({ name: 'A', durationMinutes: 60, staffIds: [1], price: 100, variablePrice: false, customerDescription: 'Too short' }), /between 20 and 2000/i);
-  const variable = normalizeCreatePayload({ name: 'Variable', durationMinutes: 45, staffIds: [1], price: '', displayPrice: 'From R500', variablePrice: true, customerDescription: description });
+  assert.throws(() => normalizeCreatePayload({ name: 'A', categoryId: 3, durationMinutes: 60, staffIds: [1], price: '', variablePrice: false, customerDescription: description }), /requires a price/i);
+  assert.throws(() => normalizeCreatePayload({ name: 'A', categoryId: 3, durationMinutes: 0, staffIds: [1], price: 100, variablePrice: false, customerDescription: description }), /between 1 and 1440/i);
+  assert.throws(() => normalizeCreatePayload({ name: 'A', categoryId: 3, durationMinutes: 60, staffIds: [1], price: 100, variablePrice: false, customerDescription: 'Too short' }), /between 20 and 2000/i);
+  assert.throws(() => normalizeCreatePayload({ name: 'A', categoryId: '', durationMinutes: 60, staffIds: [1], price: 100, variablePrice: false, customerDescription: description }), /valid service category/i);
+  const variable = normalizeCreatePayload({ name: 'Variable', categoryId: 3, durationMinutes: 45, staffIds: [1], price: '', displayPrice: 'From R500', variablePrice: true, customerDescription: description });
+  assert.equal(variable.categoryId, 3);
   assert.equal(variable.price, null);
   assert.equal(variable.displayPrice, 'From R500');
   assert.equal(variable.variablePrice, true);
@@ -82,9 +86,11 @@ test('creation pricing validates fixed and variable price policy explicitly', ()
 test('tenant practitioner creates only own canonical tenant-private service', async () => {
   const { db, calls } = fakeDb({ role: 'tenant_practitioner', linkedStaffId: 11, practitionerIds: [11], tenantOwner: 11 });
   const service = createWorkspaceServiceCreationService({ db });
-  const result = await service.createService({ adminId: 40, requestId: 'request_1234', name: 'Tenant Custom', durationMinutes: 50, price: '550', variablePrice: false, customerDescription: 'A tailored service with clear client-facing information.', staffIds: [11] });
+  const result = await service.createService({ adminId: 40, requestId: 'request_1234', name: 'Tenant Custom', categoryId: 3, durationMinutes: 50, price: '550', variablePrice: false, customerDescription: 'A tailored service with clear client-facing information.', staffIds: [11] });
   assert.equal(result.status, 'created');
   assert.equal(result.service.privateOwnerStaffId, 11);
+  assert.equal(result.service.categoryId, 3);
+  assert.equal(result.service.categoryName, 'Massage');
   assert.ok(calls.some(call => call.sql.includes('INSERT INTO services(')));
   assert.ok(calls.some(call => call.sql.includes('INSERT INTO staff_services')));
   assert.ok(calls.some(call => call.sql.includes('INSERT INTO service_visibility_policies')));
@@ -93,7 +99,7 @@ test('tenant practitioner creates only own canonical tenant-private service', as
 
   const denied = fakeDb({ role: 'tenant_practitioner', linkedStaffId: 11, practitionerIds: [12] });
   await assert.rejects(
-    createWorkspaceServiceCreationService({ db: denied.db }).createService({ adminId: 40, requestId: 'request_5678', name: 'Wrong Target', durationMinutes: 50, price: '550', variablePrice: false, customerDescription: 'A tailored service with clear client-facing information.', staffIds: [12] }),
+    createWorkspaceServiceCreationService({ db: denied.db }).createService({ adminId: 40, requestId: 'request_5678', name: 'Wrong Target', categoryId: 3, durationMinutes: 50, price: '550', variablePrice: false, customerDescription: 'A tailored service with clear client-facing information.', staffIds: [12] }),
     error => error.code === 'WORKSPACE_SERVICES_CREATE_SCOPE_DENIED' && error.httpStatus === 403
   );
   assert.equal(denied.calls.some(call => call.sql.includes('INSERT INTO services(')), false);
@@ -103,11 +109,12 @@ test('tenant practitioner creates only own canonical tenant-private service', as
 test('booking operator can create an ordinary shared service without gaining services:manage', async () => {
   const { db, calls } = fakeDb({ practitionerIds: [11, 12] });
   const service = createWorkspaceServiceCreationService({ db });
-  const result = await service.createService({ adminId: 40, requestId: 'request_shared', name: 'Shared Custom', durationMinutes: 30, price: '300', variablePrice: false, customerDescription: 'A shared service ready for clients to discover online.', staffIds: [11, 12] });
+  const result = await service.createService({ adminId: 40, requestId: 'request_shared', name: 'Shared Custom', categoryId: 3, durationMinutes: 30, price: '300', variablePrice: false, customerDescription: 'A shared service ready for clients to discover online.', staffIds: [11, 12] });
   assert.equal(result.service.privateOwnerStaffId, null);
   assert.deepEqual(result.service.staffIds, [11, 12]);
   assert.equal(result.service.customerDescription, 'A shared service ready for clients to discover online.');
   const insert = calls.find(call => call.sql.includes('INSERT INTO services('));
+  assert.match(insert.sql, /category_id/);
   assert.match(insert.sql, /customer_description/);
   assert.match(insert.sql, /'active'/);
   assert.equal(calls.some(call => call.sql.includes('INSERT INTO service_visibility_policies')), false);
@@ -122,7 +129,7 @@ test('booking operator can create an ordinary shared service without gaining ser
 test('duplicate canonical service name fails closed before any service write', async () => {
   const { db, calls } = fakeDb({ practitionerIds: [11], duplicate: true });
   await assert.rejects(
-    createWorkspaceServiceCreationService({ db }).createService({ adminId: 40, requestId: 'request_duplicate', name: 'Existing', durationMinutes: 60, price: '600', variablePrice: false, customerDescription: 'An existing service description that will not be saved.', staffIds: [11] }),
+    createWorkspaceServiceCreationService({ db }).createService({ adminId: 40, requestId: 'request_duplicate', name: 'Existing', categoryId: 3, durationMinutes: 60, price: '600', variablePrice: false, customerDescription: 'An existing service description that will not be saved.', staffIds: [11] }),
     error => error.code === 'WORKSPACE_SERVICE_NAME_EXISTS' && error.httpStatus === 409
   );
   assert.equal(calls.some(call => call.sql.includes('INSERT INTO services(')), false);
@@ -145,6 +152,8 @@ test('route and UX use one guarded creation endpoint from Workspace and Calendar
   assert.match(ux, /var API='\/calendar\/services'/);
   assert.match(ux, /fetch\(API\+'\/create-options'/);
   assert.match(ux, /fetch\(API\+'\/create'/);
+  assert.match(ux, /data-create-category/);
+  assert.match(ux, /categoryId/);
   assert.match(ux, /data-create-description/);
   assert.match(ux, /customerDescription/);
   assert.match(ux, /createdServiceId/);
