@@ -16,6 +16,8 @@ These instructions apply to the entire repository.
 - Keep one authoritative record for each decision. Update an existing roadmap or instruction when one exists instead of creating a parallel list.
 - Distinguish an idea under discussion, an accepted standard, an implemented change, production verification, and owner acceptance. Do not present a proposal as completed work.
 
+Use [`docs/SHILOH_PLATFORM_HANDBOOK.md`](docs/SHILOH_PLATFORM_HANDBOOK.md) as the quick orientation map for the platform, its integrations, source-of-truth boundaries and operating links. Keep detailed behavior in the existing canonical code, migrations and documents linked from that handbook.
+
 ## Computer Use and connected tools
 
 - For authenticated websites or desktop applications, first check whether **Computer Use → Any App** is attached to the current session.

@@ -8,6 +8,8 @@ Shiloh is the digital operating system for Shiloh Massage Therapy and Aesthetic 
 
 [Visit Shiloh](https://shilohmtc.co.za) · [Book an appointment](https://shilohmtc.co.za/book)
 
+For the platform map, integration inventory, authority boundaries and release orientation, see the [Shiloh Platform Handbook](docs/SHILOH_PLATFORM_HANDBOOK.md).
+
 ## Shiloh-first model
 
 - **Public website and booking** — the client-facing Home, Treatments, About, Contact and canonical Book journey.
