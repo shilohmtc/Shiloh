@@ -51,7 +51,12 @@ async function confirmCalendarV2BookingDirect(admin, options = {}) {
       || session.staff_status !== 'active'
       || session.service_status !== 'active'
       || session.location_status !== 'active'
-    ) {
+    ) {    if (session.variable_price === true || session.price === null || session.price === undefined || !Number.isFinite(Number(session.price))) {
+      await db.query(`DELETE FROM admin_booking_sessions WHERE admin_id = $1`, [admin.id]);
+      await db.query('COMMIT');
+      return { status: 'pricing_unavailable', reply: 'This treatment cannot be booked yet because Shiloh has not confirmed a fixed price. No appointment was created.' };
+    }
+
       await db.query(`DELETE FROM admin_booking_sessions WHERE admin_id = $1`, [admin.id]);
       await db.query('COMMIT');
       return { status: 'stale', reply: 'The pending booking is no longer valid. It was discarded; please start again.' };
