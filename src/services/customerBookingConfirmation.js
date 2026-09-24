@@ -14,6 +14,7 @@ const { assertTarget: assertControlledMessagingTestTarget } = require('./control
 const { verifyMigrationFiles } = require('./migrations');
 const { createBookingPaymentService } = require('./bookingPayments');
 const logger = require('../lib/logger');
+const { queueBookingConfirmationMyShilohNotification } = require('./sh05ChannelIndependence');
 
 const LIVE_BOOKING_CONFIRMATION_V1 = 'shiloh_booking_confirmation_v1';
 const LIVE_BOOKING_CONFIRMATION_V2 = 'shiloh_booking_confirmation_v2';
@@ -417,6 +418,14 @@ async function sendCustomerBookingConfirmation(data,{
       const state=existing.rows[0];
       return {sent:false,reason:state?.status==='sent'?'already_sent':state?.last_error||'already_sent_or_in_progress',deliveryStatus:state?.status||'unknown'};
     }
+    await queueBookingConfirmationMyShilohNotification({
+      appointmentId,
+      crmV2ClientId: authority.crm_v2_client_id,
+      clientName,
+      serviceName,
+      startsAt,
+      endsAt,
+    });
     const token=await ensureToken(appointmentId,db);const root=baseUrl();
     const ics=root?`${root}/calendar/${token}.ics`:'';
     const google=googleCalendarUrl({serviceName,staffName,locationName,startsAt,endsAt});
