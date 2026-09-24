@@ -1,5 +1,6 @@
 const { pool } = require("../db/pool");
 const { normalizePhone } = require("./clientIdentityOnboarding");
+const { cancelOutstandingPaymentRequestsForAppointment } = require('./bookingPaymentSafety');
 
 let initialized = false;
 
@@ -87,6 +88,11 @@ async function cancelCanonicalAppointmentInTransaction(db, {
      VALUES ($1,$2,'cancelled',$3,$4)`,
     [appointmentId, row.status, `admin:${actorAdminId}`, clean(reason)]
   );
+  const paymentSafety = await cancelOutstandingPaymentRequestsForAppointment(db, {
+    appointmentId,
+    actorAdminId,
+    reason: 'appointment_cancelled',
+  });
   await db.query(
     `INSERT INTO crm_audit_events (actor_admin_id,action,entity_type,entity_id,metadata)
      VALUES ($1,$2,'appointment',$3,$4::jsonb)`,
@@ -97,9 +103,10 @@ async function cancelCanonicalAppointmentInTransaction(db, {
       lockedStaffIds: assignedStaff.map((staff) => staff.staffId),
       before: { status: row.status, revision: canonicalRevision(row.updated_at) },
       after: { status: 'cancelled', revision: canonicalRevision(updated.rows[0].updated_at) },
+      paymentRequestsCancelled: paymentSafety.cancelled,
     })]
   );
-  return { status: 'cancelled', appointment: updated.rows[0], assignedStaff };
+  return { status: 'cancelled', appointment: updated.rows[0], assignedStaff, paymentSafety };
 }
 function formatDateTime(value) { return new Intl.DateTimeFormat("en-ZA", { timeZone:"Africa/Johannesburg", weekday:"short", day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit", hour12:false }).format(new Date(value)); }
 function appointmentSummary(row) { return [`Appointment #${row.id}`, `• ${formatDateTime(row.starts_at)}–${new Intl.DateTimeFormat("en-ZA", { timeZone:"Africa/Johannesburg", hour:"2-digit", minute:"2-digit", hour12:false }).format(new Date(row.ends_at))}`, `• Client: ${row.client_name}`, row.services ? `• Service: ${row.services}` : null, row.staff ? `• Staff: ${row.staff}` : null].filter(Boolean).join("\n"); }
