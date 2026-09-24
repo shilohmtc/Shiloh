@@ -444,7 +444,7 @@ function renderMyShilohPage({
     </main>
 
     <nav class="bottom-nav" aria-label="My Shiloh">
-      <a href="#home" data-view-target="home" aria-current="page"><span class="nav-icon" aria-hidden="true">⌂</span><span>Home</span></a>
+      <a href="#home" data-view-target="home" aria-current="page"><span class="nav-icon nav-icon--badged" aria-hidden="true">⌂<i data-notification-badge hidden></i></span><span>Home</span></a>
       <a href="#bookings" data-view-target="bookings"><span class="nav-icon" aria-hidden="true">□</span><span>Bookings</span></a>
       <a class="nav-shiloh" href="#shiloh" data-view-target="shiloh"><span class="nav-orb" aria-hidden="true">S</span><span>Shiloh</span></a>
       <a href="#wallet" data-view-target="wallet"><span class="nav-icon" aria-hidden="true">▱</span><span>Wallet</span></a>
