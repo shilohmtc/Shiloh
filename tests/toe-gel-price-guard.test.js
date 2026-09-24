@@ -23,4 +23,6 @@ test('Toe Gel Only is repaired as the owner-approved R250 active service', () =>
   assert.match(migration, /price = 250/);
   assert.match(migration, /variable_price = FALSE/);
   assert.match(migration, /mapping_count = 0/);
+  assert.match(migration, /appointment_id=759/);
+  assert.match(migration, /newPrice','250\.00'/);
 });
