@@ -30,14 +30,18 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
-      - name: Fetch base branch for exact migration diff
-        run: git fetch --no-tags origin ${{ github.event.pull_request.base.sha }}
+      - name: Read authoritative pull request changed files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${{ github.event.pull_request.number }}/files" --jq '.[].filename' >> "$GITHUB_ENV"
 
       - name: Verify controlled migration plan
         env:
-          SHILOH_BASE_REF: ${{ github.event.pull_request.base.sha }}
           GITHUB_SHA: ${{ github.event.pull_request.head.sha }}
+          SHILOH_MIGRATION_FILES: ${{ '' }}
           SHILOH_PULL_REQUEST_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/check-migration-release-plan.js
         run: node scripts/check-migration-release-plan.js
 
       - name: Test the migration release-plan contract
