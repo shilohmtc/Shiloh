@@ -19,16 +19,15 @@ async function getAppointmentReadDiagnostic(value, query = pool.query.bind(pool)
     query(`SELECT status,requested_at,decided_at FROM appointment_booking_approvals WHERE appointment_id=$1`, [appointmentId]),
     query(`SELECT bpa.canonical_amount_due, bdr.required_amount AS deposit_required_amount,
                    bdr.state AS deposit_state,
-                   COALESCE(SUM(CASE WHEN ple.entry_type='payment' THEN ple.amount ELSE 0 END),0) AS paid_amount,
-                   COALESCE(SUM(CASE WHEN ple.entry_type='refund' THEN ple.amount ELSE 0 END),0) AS refunded_amount,
-                   COUNT(DISTINCT pr.id)::int AS payment_request_count,
-                   COUNT(DISTINCT ple.id)::int AS ledger_entry_count
+                   COALESCE((SELECT SUM(amount) FROM payment_ledger_entries
+                              WHERE payment_account_id=bpa.id AND entry_type='payment'),0) AS paid_amount,
+                   COALESCE((SELECT SUM(amount) FROM payment_ledger_entries
+                              WHERE payment_account_id=bpa.id AND entry_type='refund'),0) AS refunded_amount,
+                   (SELECT COUNT(*)::int FROM payment_requests WHERE payment_account_id=bpa.id) AS payment_request_count,
+                   (SELECT COUNT(*)::int FROM payment_ledger_entries WHERE payment_account_id=bpa.id) AS ledger_entry_count
               FROM booking_payment_accounts bpa
               LEFT JOIN booking_deposit_requirements bdr ON bdr.payment_account_id=bpa.id
-              LEFT JOIN payment_requests pr ON pr.payment_account_id=bpa.id
-              LEFT JOIN payment_ledger_entries ple ON ple.payment_account_id=bpa.id
-             WHERE bpa.appointment_id=$1
-             GROUP BY bpa.canonical_amount_due,bdr.required_amount,bdr.state`, [appointmentId]),
+             WHERE bpa.appointment_id=$1`, [appointmentId]),
     query(`SELECT status,claimed_at,sent_at,updated_at,last_attempt_at,
                    provider_message_id IS NOT NULL AS provider_message_recorded,
                    provider_sent_at IS NOT NULL AS provider_sent,
