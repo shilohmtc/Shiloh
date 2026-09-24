@@ -4,6 +4,12 @@
 const { execFileSync } = require('node:child_process');
 
 function migrationFilesFromGit({ baseRef = process.env.SHILOH_BASE_REF, headRef = process.env.GITHUB_SHA } = {}) {
+  const apiFiles = process.env.SHILOH_MIGRATION_FILES;
+  if (apiFiles !== undefined) {
+    return apiFiles.split(/\r?\n/).map(value => value.trim())
+      .filter(value => /^migrations\/\d+_[A-Za-z0-9][A-Za-z0-9._-]*\.sql$/.test(value))
+      .map(value => value.slice('migrations/'.length));
+  }
   if (!baseRef || !headRef) return [];
   const diff = execFileSync('git', [
     'diff', '--name-only', '--diff-filter=AM', `${baseRef}...${headRef}`, '--', 'migrations',
