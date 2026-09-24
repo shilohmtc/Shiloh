@@ -943,7 +943,7 @@
     const cards = [...(clientNotificationList?.querySelectorAll('.notification-centre__item') || [])];
     const newestId = Math.max(0, ...cards.map(card => Number(card.dataset.notificationId) || 0));
     if (!newestId) return;
-    try { window.localStorage.setItem(NOTIFICATION_SEEN_KEY, String(newestId)); } catch (_) {}
+    try { window.localStorage[NOTIFICATION_SEEN_KEY] = String(newestId); } catch (_) {}
     if (notificationBadge) notificationBadge.hidden = true;
   }
 
