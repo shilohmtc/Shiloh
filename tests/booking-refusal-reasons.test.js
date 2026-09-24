@@ -60,3 +60,10 @@ test('canonical availability carries the actual holiday reason to its reply', as
   assert.match(context.module.exports.formatAvailabilityReply(result), /Heritage Day/);
   assert.equal(results.length, 0);
 });
+
+
+test('service availability query qualifies the service name when joining categories', () => {
+  const source = fs.readFileSync(require.resolve('../src/services/adminAvailability'), 'utf8');
+  assert.match(source, /WHERE s\\.status='active' AND s\\.name ILIKE \\$1 ORDER BY CASE WHEN LOWER\\(s\\.name\\)=LOWER\\(\\$2\\) THEN 0 ELSE 1 END,s\\.name,s\\.id/);
+  assert.doesNotMatch(source, /WHERE s\\.status='active' AND name ILIKE/);
+});
