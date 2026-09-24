@@ -144,7 +144,7 @@ test('payment links show the booking policy before redirecting to Ozow', async (
     response.on('data', chunk => { body += chunk; });
     await new Promise(resolve => response.on('end', resolve));
     assert.equal(response.statusCode, 200);
-    assert.match(body, /Before you pay, review the Booking Policy & Terms/);
+    assert.match(body, /Before you pay, review the Booking Policy &amp; Terms/);
     assert.match(body, /R125\.00/);
     assert.match(body, /No payment is taken on this page/);
     assert.match(body, /I have read and accept/);
