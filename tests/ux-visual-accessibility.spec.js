@@ -1866,6 +1866,10 @@ test('cancelled booking payment review is safe and actionable on Phone and Deskt
     await expect(surface.getByText('Payment received after this booking was cancelled')).toBeVisible();
     await expect(surface.getByText('The booking stays cancelled. No refund has been issued automatically.')).toBeVisible();
     await expect(surface.getByText('Payment collection is disabled because this booking is cancelled.')).toBeVisible();
+    await expect(surface.getByText('No further deposit should be collected.')).toBeVisible();
+    await expect(surface.getByText('Cancelled booking', { exact: true })).toBeVisible();
+    await expect(surface.getByText('Awaiting deposit', { exact: true })).toHaveCount(0);
+    await expect(surface.getByText('Still needed', { exact: true })).toHaveCount(0);
     await expect(surface.getByRole('heading', { name: 'Record refund' })).toBeVisible();
     await expect(surface.locator('[data-payment-requests] [data-copy-link]')).toHaveCount(0);
 
