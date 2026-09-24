@@ -113,7 +113,7 @@ test('Services list is canonical, searchable, page-bounded and derives booking r
 });
 
 test('booking readiness is a projection only and cannot override inactive service authority', () => {
-  assert.equal(projectBookingEligibility({ status: 'active', client_bookable_staff_count: 1 }).eligible, true);
+  assert.equal(projectBookingEligibility({ status: 'active', category_name: 'Massage', variable_price: false, price: '650.00', client_bookable_staff_count: 1 }).eligible, true);
   assert.equal(projectBookingEligibility({ status: 'active', client_bookable_staff_count: 0 }).eligible, false);
   assert.equal(projectBookingEligibility({ status: 'inactive', client_bookable_staff_count: 4 }).eligible, false);
   assert.equal(projectBookingEligibility({ status: 'active' }, [{ status: 'active', client_bookable: true }]).authority, 'read_projection_only');
