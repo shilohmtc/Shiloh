@@ -29,7 +29,7 @@ function paymentRequestQuery() {
 function validateOzowTarget(request) {
   if (!request.provider_payment_url || request.provider !== 'ozow') return null;
   const target = new URL(String(request.provider_payment_url));
-  if (target.protocol !== 'https:' || !/(^|\\.)ozow\\.com$/i.test(target.hostname)) return null;
+  if (target.protocol !== 'https:' || !/(^|\.)ozow\.com$/i.test(target.hostname)) return null;
   return target;
 }
 
