@@ -282,6 +282,45 @@ export const CreateBooking = {
     return interactiveProductionSurface(page, calendarCreateBookingClientScript());
   },
 };
+
+function bookingConflictRecoveryStory() {
+  const page = renderCalendarCreateBookingPage({
+    options: {
+      staff,
+      services: [
+        { id: 91, name: 'Toe Gel Only', categoryName: 'Feet', durationMinutes: 30, staffIds: [12] },
+      ],
+    },
+    prefill: { date: '2026-10-03', time: '08:00', staffId: 12 },
+  });
+  const root = document.createElement('div');
+  root.innerHTML = productionSurface(page);
+  const status = root.querySelector('[data-booking-status]');
+  status.classList.add('error');
+  status.textContent = '';
+  const title = document.createElement('strong');
+  title.className = 'recovery-title';
+  title.textContent = 'This time overlaps another booking or blocked period.';
+  const copy = document.createElement('p');
+  copy.className = 'recovery-copy';
+  copy.textContent = 'Nothing has been booked. Choose a time where the full treatment is free.';
+  const detail = document.createElement('p');
+  detail.className = 'recovery-detail';
+  detail.textContent = 'Christel — Toe Gel Only\nRequested: 03/10/2026, 08:00 to 03/10/2026, 08:30\n\nThat time overlaps with:\n• Existing client booking — appointment, 03/10/2026 08:00–08:30\n\nPlease choose another start time.';
+  const actions = document.createElement('div');
+  actions.className = 'recovery-actions';
+  ['Choose another time', 'Choose another date', 'Choose another practitioner', 'Report a problem'].forEach((label) => {
+    const button = document.createElement('button');
+    button.className = 'button secondary';
+    button.type = 'button';
+    button.textContent = label;
+    actions.append(button);
+  });
+  status.append(title, copy, detail, actions);
+  return root;
+}
+
+export const BookingConflictRecovery = { render: bookingConflictRecoveryStory };
 export const ReceptionistPractitionerFirstBooking = {
   render: () => {
     const page = renderCalendarCreateBookingPage({

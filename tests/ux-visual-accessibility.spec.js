@@ -1768,3 +1768,44 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
     });
   }
 });
+
+
+test('booking conflict recovery shows the actual cause on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name: 'phone', width: 390, height: 844 },
+    { name: 'desktop', width: 1280, height: 900 },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=workspace-production-surfaces--booking-conflict-recovery&viewMode=story', { waitUntil: 'networkidle' });
+
+    const status = page.locator('[data-booking-status]');
+    await expect(status).toBeVisible();
+    await expect(status.getByText('This time overlaps another booking or blocked period.')).toBeVisible();
+    await expect(status.locator('.recovery-detail')).toContainText('Christel — Toe Gel Only');
+    await expect(status.locator('.recovery-detail')).toContainText('Existing client booking');
+    await expect(status.getByRole('button', { name: 'Choose another time' })).toBeVisible();
+    await expect(status.getByRole('button', { name: 'Report a problem' })).toBeVisible();
+
+    const geometry = await status.evaluate((node) => ({
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      shortControls: [...node.querySelectorAll('button')].filter((control) => control.getBoundingClientRect().height < 44).length,
+    }));
+    expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+    expect(geometry.shortControls).toBe(0);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-booking-status]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
+    expect(serious, `Serious accessibility violations in booking conflict recovery on ${viewport.name}: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+
+    await page.screenshot({
+      path: testInfo.outputPath(`booking-conflict-recovery-${viewport.name}.png`),
+      fullPage: true,
+      animations: 'disabled',
+      caret: 'hide',
+    });
+  }
+});

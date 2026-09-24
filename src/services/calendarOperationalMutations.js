@@ -305,6 +305,9 @@ function createCalendarOperationalMutationService({
            UNION ALL
            SELECT 'booking_proposal_hold'::text, aba.appointment_id, aba.proposed_starts_at, aba.proposed_ends_at
              FROM appointment_booking_approvals aba
+             JOIN appointments booking_hold_appointment
+               ON booking_hold_appointment.id=aba.appointment_id
+              AND booking_hold_appointment.status NOT IN ('cancelled','no_show')
             WHERE aba.proposed_staff_ids @> ARRAY[$1::bigint]
               AND aba.status='awaiting_client_confirmation'
               AND aba.proposal_expires_at>NOW()

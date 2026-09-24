@@ -197,7 +197,11 @@ async function listAvailableSlots({
              AND cb.ends_at > (c.local_start AT TIME ZONE '${TZ}')
         )
         AND NOT EXISTS (
-          SELECT 1 FROM appointment_booking_approvals aba
+          SELECT 1
+            FROM appointment_booking_approvals aba
+            JOIN appointments booking_hold_appointment
+              ON booking_hold_appointment.id = aba.appointment_id
+             AND booking_hold_appointment.status NOT IN ('cancelled','no_show')
            WHERE aba.proposed_staff_ids @> ARRAY[$2::bigint]
              AND aba.status = 'awaiting_client_confirmation'
              AND aba.proposal_expires_at > NOW()
