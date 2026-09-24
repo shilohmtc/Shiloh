@@ -4,6 +4,7 @@ const {
   positiveId,
   permissionSet,
   normalizeName,
+  normalizeCategoryId,
   normalizePrice,
   normalizeDisplayPrice,
   normalizeCustomerDescription,
@@ -54,6 +55,7 @@ function normalizeCreatePayload(input = {}) {
   }
   return {
     name: normalizeName(input.name),
+    categoryId: normalizeCategoryId(input.categoryId),
     durationMinutes: normalizeDuration(input.durationMinutes),
     variablePrice,
     price,
@@ -119,6 +121,21 @@ function createWorkspaceServiceCreationService({ db = pool } = {}) {
     return authority;
   }
 
+  async function canonicalCategory(queryable, categoryId) {
+    const result = await queryable.query(
+      `/* workspaceServiceCreation:category */
+       SELECT id, name, display_order, status
+         FROM service_categories
+        WHERE id=$1 AND status='active'
+        LIMIT 2`,
+      [categoryId]
+    );
+    if (result.rows.length !== 1) {
+      throw new WorkspaceServicesError('WORKSPACE_SERVICES_CATEGORY_UNAVAILABLE', 'The selected category is no longer an active canonical service category.', 409);
+    }
+    return result.rows[0];
+  }
+
   async function canonicalPractitioners(queryable, staffIds) {
     const result = await queryable.query(
       `/* workspaceServiceCreation:practitioners */
@@ -156,9 +173,17 @@ function createWorkspaceServiceCreationService({ db = pool } = {}) {
         ORDER BY LOWER(st.display_name), st.id`,
       values
     );
+    const categories = await db.query(
+      `/* workspaceServiceCreation:categories */
+       SELECT id, name, display_order
+         FROM service_categories
+        WHERE status='active'
+        ORDER BY display_order, LOWER(name), id`
+    );
     return {
       authority: { businessRole: authority.businessRole, linkedStaffId: authority.linkedStaffId },
       practitioners: result.rows.map(row => ({ id: Number(row.id), displayName: row.display_name })),
+      categories: categories.rows.map(row => ({ id: Number(row.id), name: row.name, displayOrder: Number(row.display_order || 0) })),
     };
   }
 
@@ -195,6 +220,7 @@ function createWorkspaceServiceCreationService({ db = pool } = {}) {
           );
         }
       }
+      const category = await canonicalCategory(client, payload.categoryId);
       const practitioners = await canonicalPractitioners(client, payload.staffIds);
       await client.query(
         `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,
@@ -213,16 +239,16 @@ function createWorkspaceServiceCreationService({ db = pool } = {}) {
       }
       const inserted = await client.query(
         `INSERT INTO services(
-           name,duration_minutes,processing_time_minutes,extra_time_minutes,
+           category_id,name,duration_minutes,processing_time_minutes,extra_time_minutes,
            variable_price,price,display_price,customer_description,display_order,status
          )
          VALUES(
-           $1,$2,0,0,$3,$4::numeric,$5,$6,
+           $1,$2,$3,0,0,$4,$5::numeric,$6,$7,
            COALESCE((SELECT MAX(display_order)+1 FROM services),0),'active'
          )
-         RETURNING id,name,duration_minutes,processing_time_minutes,extra_time_minutes,
+         RETURNING id,category_id,name,duration_minutes,processing_time_minutes,extra_time_minutes,
                    variable_price,price,display_price,customer_description,status`,
-        [payload.name, payload.durationMinutes, payload.variablePrice, payload.price, payload.displayPrice, payload.customerDescription]
+        [category.id, payload.name, payload.durationMinutes, payload.variablePrice, payload.price, payload.displayPrice, payload.customerDescription]
       );
       const service = inserted.rows[0];
       for (const staffId of payload.staffIds) {
@@ -247,6 +273,7 @@ function createWorkspaceServiceCreationService({ db = pool } = {}) {
          VALUES($1,'workspace.service_created','service',$2,$3::jsonb)`,
         [operator.operatorAdminId, service.id, JSON.stringify({
           requestId,
+          category: { id: Number(category.id), name: category.name },
           staffIds: payload.staffIds,
           practitionerCount: practitioners.length,
           visibility: privateOwnerStaffId ? 'tenant_private' : 'ordinary',
@@ -260,6 +287,8 @@ function createWorkspaceServiceCreationService({ db = pool } = {}) {
         status: 'created',
         service: {
           id: Number(service.id),
+          categoryId: Number(service.category_id),
+          categoryName: category.name,
           name: service.name,
           durationMinutes: Number(service.duration_minutes || 0),
           processingTimeMinutes: Number(service.processing_time_minutes || 0),
@@ -281,7 +310,7 @@ function createWorkspaceServiceCreationService({ db = pool } = {}) {
     }
   }
 
-  return { resolveCreateAccess, requireCreateAccess, listCreateOptions, createService };
+  return { resolveCreateAccess, requireCreateAccess, canonicalCategory, listCreateOptions, createService };
 }
 
 const service = createWorkspaceServiceCreationService();
