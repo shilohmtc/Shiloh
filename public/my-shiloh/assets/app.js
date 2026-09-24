@@ -44,6 +44,8 @@
   const clientProblemReportStatus = document.querySelector('[data-client-problem-report-status]');
   const clientProblemReportList = document.querySelector('[data-client-problem-report-list]');
   const clientNotificationList = document.querySelector('[data-client-notification-list]');
+  const notificationBadge = document.querySelector('[data-notification-badge]');
+  const NOTIFICATION_SEEN_KEY = 'my-shiloh-notification-centre-seen-v1';
   let deferredInstallPrompt = null;
   let authActionInFlight = false;
   let authStatusCheckInFlight = false;
@@ -914,21 +916,35 @@
     if (!clientNotificationList) return;
     clientNotificationList.replaceChildren();
     if (!Array.isArray(notifications) || notifications.length === 0) {
+      if (notificationBadge) notificationBadge.hidden = true;
       const empty = document.createElement('p');
       empty.className = 'notification-centre__empty';
       empty.textContent = 'You have no new Shiloh updates.';
       clientNotificationList.append(empty);
       return;
     }
+    const newestId = Math.max(...notifications.map(item => Number(item.id) || 0));
+    let seenId = 0;
+    try { seenId = Number(window.localStorage.getItem(NOTIFICATION_SEEN_KEY) || 0); } catch (_) {}
+    if (notificationBadge) notificationBadge.hidden = newestId <= seenId;
     for (const notification of notifications) {
       const card = document.createElement('a');
       card.className = 'notification-centre__item';
       card.href = String(notification.targetPath || '/my-shiloh/');
+      card.dataset.notificationId = String(notification.id || '');
       const title = document.createElement('strong'); title.textContent = String(notification.title || 'My Shiloh update');
       const body = document.createElement('span'); body.textContent = String(notification.body || '');
       card.append(title, body);
       clientNotificationList.append(card);
     }
+  }
+
+  function markNotificationsSeen() {
+    const cards = [...(clientNotificationList?.querySelectorAll('.notification-centre__item') || [])];
+    const newestId = Math.max(0, ...cards.map(card => Number(card.dataset.notificationId) || 0));
+    if (!newestId) return;
+    try { window.localStorage[NOTIFICATION_SEEN_KEY] = String(newestId); } catch (_) {}
+    if (notificationBadge) notificationBadge.hidden = true;
   }
 
   async function loadClientNotifications() {
@@ -948,6 +964,7 @@
   }
 
   loadClientNotifications();
+  clientNotificationList?.addEventListener('click', markNotificationsSeen);
 
   async function loadProblemReports() {
     if (!clientProblemReportList || !standalone() || installationVerificationRequired()

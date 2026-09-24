@@ -133,8 +133,11 @@ test('My Shiloh exposes a session-bound in-app notification centre without creat
   assert.match(push, /async function listForClient\(/);
   assert.match(push, /FROM my_shiloh_push_notifications/);
   assert.match(presentation, /data-client-notification-centre/);
+  assert.match(presentation, /data-notification-badge/);
   assert.match(app, /\/my-shiloh\/api\/notifications/);
   assert.match(app, /renderClientNotifications/);
+  assert.match(app, /NOTIFICATION_SEEN_KEY/);
+  assert.match(app, /notificationBadge\.hidden = newestId <= seenId/);
 });
 
 test('notification permission is requested only after the client taps the notification control', () => {
