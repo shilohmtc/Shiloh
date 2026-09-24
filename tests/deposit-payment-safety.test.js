@@ -146,3 +146,15 @@ test('verified Ozow payment after cancellation is recorded as payment truth but 
   assert.ok(queries.some(call => call.text.includes("'payment.received_after_booking_cancelled'")));
   assert.ok(queries.some(call => call.text.startsWith('INSERT INTO payment_ledger_entries')));
 });
+
+
+test('cancelled booking payment UI disables collection, hides stale copy links and exposes review-only refund control', () => {
+  const ux = read('src/presentation/calendarPaymentsUx.js');
+  assert.match(ux, /bookingCancelled = subject\.final === true/);
+  assert.match(ux, /data-payment-review/);
+  assert.match(ux, /No refund has been issued automatically/);
+  assert.match(ux, /Payment collection is disabled because this booking is cancelled/);
+  assert.match(ux, /!bookingCancelled && item\.provider_payment_url/);
+  assert.match(ux, /data-refund-form/);
+  assert.match(ux, /paymentReview \|\| bookingCancelled/);
+});
