@@ -44,6 +44,7 @@ const SOURCE_DEFINITIONS = Object.freeze({
   appointment_followup_legacy: () => ({ language: 'en', category: 'UTILITY', components: null }),
   appointment_reminder_legacy: () => ({ language: 'en', category: 'UTILITY', components: null }),
   payment_deposit_request: () => buildPaymentTemplateDefinition('payment_deposit_request'),
+  payment_deposit_request_v2: () => buildPaymentTemplateDefinition('payment_deposit_request_v2'),
   payment_deposit_received: () => buildPaymentTemplateDefinition('payment_deposit_received'),
   payment_balance_due: () => buildPaymentTemplateDefinition('payment_balance_due'),
   payment_split_request: () => buildPaymentTemplateDefinition('payment_split_request'),
