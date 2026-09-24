@@ -62,6 +62,7 @@ function createWorkspaceServicesMutationRouter({
         adminId: req.staffBrowserSession?.adminId,
         requestId: req.body?.requestId,
         name: req.body?.name,
+        categoryId: req.body?.categoryId,
         durationMinutes: req.body?.durationMinutes,
         price: req.body?.price,
         displayPrice: req.body?.displayPrice,
