@@ -7,6 +7,10 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 
 const {
+  validEndpoint,
+  isUnsafeNetworkAddress,
+  boundedPushTimeoutMs,
+  resolveSafePushEndpoint,
   parseVapid,
   vapidAuthorization,
 } = require('../src/services/myShilohPush');
@@ -38,6 +42,47 @@ test('My Shiloh VAPID authorization is bounded to the push-service origin', () =
   const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
   assert.equal(payload.aud, 'https://push.example.test');
   assert.equal(payload.sub, 'mailto:notifications@example.test');
+});
+
+test('push endpoints reject local, literal-IP, credentialed and non-standard-port destinations', () => {
+  assert.equal(validEndpoint('https://push.example.test/send/device-id'), 'https://push.example.test/send/device-id');
+  assert.equal(validEndpoint('http://push.example.test/send/device-id'), null);
+  assert.equal(validEndpoint('https://localhost/send/device-id'), null);
+  assert.equal(validEndpoint('https://127.0.0.1/send/device-id'), null);
+  assert.equal(validEndpoint('https://user:pass@push.example.test/send/device-id'), null);
+  assert.equal(validEndpoint('https://push.example.test:8443/send/device-id'), null);
+});
+
+test('push endpoint resolution rejects private or mixed network destinations before any request', async () => {
+  await assert.rejects(
+    resolveSafePushEndpoint('https://push.example.test/send/device-id', async () => [{ address: '10.0.0.8', family: 4 }]),
+    error => error.code === 'PUSH_ENDPOINT_UNSAFE',
+  );
+  await assert.rejects(
+    resolveSafePushEndpoint('https://push.example.test/send/device-id', async () => [
+      { address: '142.250.74.78', family: 4 },
+      { address: '192.168.1.8', family: 4 },
+    ]),
+    error => error.code === 'PUSH_ENDPOINT_UNSAFE',
+  );
+  const resolved = await resolveSafePushEndpoint(
+    'https://push.example.test/send/device-id',
+    async () => [{ address: '142.250.74.78', family: 4 }],
+  );
+  assert.equal(resolved.address, '142.250.74.78');
+  assert.equal(resolved.family, 4);
+});
+
+test('push network safeguards cover private IPv4 and IPv6 ranges and bound request time', () => {
+  for (const address of ['10.0.0.1', '127.0.0.1', '169.254.1.1', '172.16.0.1', '192.168.1.1', '::1', 'fc00::1', 'fe80::1', '::ffff:127.0.0.1']) {
+    assert.equal(isUnsafeNetworkAddress(address), true, address);
+  }
+  assert.equal(isUnsafeNetworkAddress('142.250.74.78'), false);
+  assert.equal(isUnsafeNetworkAddress('2607:f8b0:4006:81a::200e'), false);
+  assert.equal(boundedPushTimeoutMs({ MY_SHILOH_PUSH_TIMEOUT_MS: '100' }), 1000);
+  assert.equal(boundedPushTimeoutMs({ MY_SHILOH_PUSH_TIMEOUT_MS: '5000' }), 5000);
+  assert.equal(boundedPushTimeoutMs({ MY_SHILOH_PUSH_TIMEOUT_MS: '60000' }), 15000);
+  assert.equal(boundedPushTimeoutMs({ MY_SHILOH_PUSH_TIMEOUT_MS: 'not-a-number' }), 5000);
 });
 
 test('push schema is client-bound delivery state, not a second business authority', () => {
