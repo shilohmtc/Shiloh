@@ -30,6 +30,7 @@ const META_TEMPLATE_BINDINGS = Object.freeze([
   { contractId: 'appointment_followup_legacy', templateName: 'appointment_followup', env: 'WHATSAPP_FOLLOWUP_TEMPLATE' },
   { contractId: 'appointment_reminder_legacy', templateName: 'appointment_reminder', env: 'WHATSAPP_REMINDER_TEMPLATE' },
   { contractId: 'payment_deposit_request', templateName: 'shiloh_payment_deposit_request_v1', env: 'WHATSAPP_PAYMENT_DEPOSIT_REQUEST_TEMPLATE' },
+  { contractId: 'payment_deposit_request_v2', templateName: 'shiloh_payment_deposit_request_v2', env: null, defaultWhenUnset: true },
   { contractId: 'payment_deposit_received', templateName: 'shiloh_payment_deposit_received_v1', env: 'WHATSAPP_PAYMENT_DEPOSIT_RECEIVED_TEMPLATE' },
   { contractId: 'payment_balance_due', templateName: 'shiloh_payment_balance_due_v1', env: 'WHATSAPP_PAYMENT_BALANCE_DUE_TEMPLATE' },
   { contractId: 'payment_split_request', templateName: 'shiloh_payment_split_request_v1', env: 'WHATSAPP_PAYMENT_SPLIT_REQUEST_TEMPLATE' },
