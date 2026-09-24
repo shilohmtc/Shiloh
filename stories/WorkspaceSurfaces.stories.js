@@ -463,6 +463,26 @@ export const MarietjieDepositExempt = {
   } })),
 };
 
+export const CancelledBookingPaymentReview = {
+  render: () => productionSurface(renderCalendarPaymentPage({ model: {
+    subject: { appointmentId: 759, groupId: null, clientName:'Jean-Pierre Botha', clientMobile:'27716742646', crmV2ClientId:49, final:true },
+    payment: {
+      state:'partially_paid', amountDue:'250.00', paid:'125.00', refunded:'0.00', netPaid:'125.00', rewardsApplied:'0.00', outstanding:'125.00',
+      requests:[{ id:8, amount:'125.00', state:'paid', purpose:'deposit', provider_payment_url:'https://pay.ozow.com/old', created_at:'2026-09-24T18:52:00.000Z' }],
+      entries:[{ entry_type:'payment', amount:'125.00', method:'ozow', created_at:'2026-09-24T18:52:00.000Z' }],
+    },
+    deposit: {
+      applicable:true,
+      policy:{ rateBasisPoints:5000, freeNoticeHours:48, partialNoticeHours:24, partialForfeitBasisPoints:5000, lateForfeitBasisPoints:10000 },
+      requirement:{ state:'awaiting', required_amount:'125.00', net_paid:'0.00', policy_version:'2026-09-23-v2', rate_basis_points:5000 },
+      events:[{ event_type:'cancelled', policy_forfeit_amount:'0.00', policy_creditable_amount:'125.00' }],
+    },
+    rewards:null,
+    paymentReview:{ kind:'cancelled_booking_payment_received', createdAt:'2026-09-24T18:52:00.000Z', metadata:{ reviewRequired:true, automaticRefundIssued:false } },
+    authority:{ canCollect:true, canRefund:true, ozowConfigured:true },
+  } })),
+};
+
 export const PhonePasskeyDevices = {
   render: () => productionSurface(renderPasskeyManagePage({
     credentials: [
