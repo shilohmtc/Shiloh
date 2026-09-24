@@ -84,7 +84,11 @@ test('deposit request prefers policy-aware v2 and falls back safely while Meta a
     },
     send: async (...args) => {
       calls.push(args);
-      if (args[1] === 'shiloh_payment_deposit_request_v2') throw new Error('template pending');
+      if (args[1] === 'shiloh_payment_deposit_request_v2') {
+        const error = new Error('template does not exist');
+        error.response = { data: { error: { code: 132001, message: 'Template does not exist' } } };
+        throw error;
+      }
       return { messages: [{ id: 'wamid.legacy' }] };
     },
   });
@@ -95,6 +99,23 @@ test('deposit request prefers policy-aware v2 and falls back safely while Meta a
   assert.equal(calls[1][1], 'shiloh_payment_deposit_request_v1');
 });
 
+
+test('ambiguous provider failure does not retry a second WhatsApp template', async () => {
+  let calls = 0;
+  const result = await sendPaymentTemplate({
+    templateKey: PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST,
+    to: '0716742646',
+    bodyParameters: ['Jean-Pierre', 'R125.00', 'Toe Gel Only', 'Saturday, 03 October 2026', '08:00', '760'],
+    urlButtonParameter: 'dep_760_token',
+    environment: {
+      WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED: 'true',
+      WHATSAPP_PAYMENT_DEPOSIT_REQUEST_TEMPLATE: 'shiloh_payment_deposit_request_v1',
+    },
+    send: async () => { calls += 1; throw new Error('network timeout'); },
+  });
+  assert.equal(result.sent, false);
+  assert.equal(calls, 1);
+});
 
 test('payment links show the booking policy before redirecting to Ozow', async () => {
   const app = express();
