@@ -7,6 +7,7 @@ const {
   submitClientLifecycleTemplate,
 } = require('./clientLifecycleTemplateProvisioning');
 const logger = require('../lib/logger');
+const { queueBookingChangeMyShilohNotification } = require('./sh05ChannelIndependence');
 
 const ACTION_BY_KIND = Object.freeze({
   service: 'appointment.service_updated',
@@ -264,6 +265,16 @@ async function attemptCustomerChangeNotification(auditEventId) {
      RETURNING audit_event_id`, [auditEventId]);
   if (!claimed.rowCount) return { sent: false, reason: 'already_sending_or_sent' };
 
+  await queueBookingChangeMyShilohNotification({
+    appointmentId: appointment.id,
+    crmV2ClientId: appointment.crm_v2_client_id,
+    clientName: appointment.client_name,
+    serviceName: appointment.service_name,
+    startsAt: appointment.starts_at,
+    endsAt: appointment.ends_at,
+    changeKind: item.change_kind,
+    auditEventId,
+  });
   const date = fmtDate(appointment.starts_at);
   const start = fmtTime(appointment.starts_at);
   const timeRange = `${start}–${fmtTime(appointment.ends_at)}`;
