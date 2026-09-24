@@ -11,6 +11,7 @@ const {
   isUnsafeNetworkAddress,
   boundedPushTimeoutMs,
   resolveSafePushEndpoint,
+  createPinnedLookup,
   parseVapid,
   vapidAuthorization,
 } = require('../src/services/myShilohPush');
@@ -71,6 +72,25 @@ test('push endpoint resolution rejects private or mixed network destinations bef
   );
   assert.equal(resolved.address, '142.250.74.78');
   assert.equal(resolved.family, 4);
+});
+
+test('pinned push lookup supports Node 24 single-address and all-address lookup shapes', async () => {
+  const lookup = createPinnedLookup('142.250.74.78', 4);
+  await new Promise((resolve, reject) => {
+    lookup('push.example.test', { all: true }, (error, addresses) => {
+      if (error) return reject(error);
+      assert.deepEqual(addresses, [{ address: '142.250.74.78', family: 4 }]);
+      resolve();
+    });
+  });
+  await new Promise((resolve, reject) => {
+    lookup('push.example.test', { all: false }, (error, address, family) => {
+      if (error) return reject(error);
+      assert.equal(address, '142.250.74.78');
+      assert.equal(family, 4);
+      resolve();
+    });
+  });
 });
 
 test('push network safeguards cover private IPv4 and IPv6 ranges and bound request time', () => {

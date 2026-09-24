@@ -111,6 +111,13 @@ function timeoutError(code, message) {
   return Object.assign(new Error(message), { code });
 }
 
+function createPinnedLookup(address, family) {
+  return (_hostname, options, callback) => {
+    if (options?.all) return callback(null, [{ address, family }]);
+    return callback(null, address, family);
+  };
+}
+
 async function safePushRequest(endpoint, options = {}) {
   const timeoutMs = Number(options.timeoutMs) || DEFAULT_PUSH_TIMEOUT_MS;
   let resolutionTimer;
@@ -131,7 +138,7 @@ async function safePushRequest(endpoint, options = {}) {
       method: 'POST',
       headers: options.headers || {},
       servername: cleanHostname(resolved.url.hostname),
-      lookup: (_hostname, _options, callback) => callback(null, resolved.address, resolved.family),
+      lookup: createPinnedLookup(resolved.address, resolved.family),
     }, response => {
       clearTimeout(totalTimer);
       response.resume();
@@ -419,6 +426,7 @@ module.exports = {
   isUnsafeNetworkAddress,
   boundedPushTimeoutMs,
   resolveSafePushEndpoint,
+  createPinnedLookup,
   safePushRequest,
   parseVapid,
   vapidAuthorization,
