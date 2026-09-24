@@ -19,10 +19,10 @@ function appointmentDetails({ appointmentId, crmV2ClientId, clientName, serviceN
     ? 'Your Shiloh appointment was cancelled. Open My Shiloh for the latest details.'
     : changeKind === 'reminder'
       ? 'Your Shiloh appointment is coming up. Open My Shiloh for the latest details.'
-      : \`Your Shiloh appointment is \${changeKind === 'confirmation' ? 'confirmed' : 'updated'} for \${date} at \${time}. Open My Shiloh for the latest details.\`;
+      : `Your Shiloh appointment is ${changeKind === 'confirmation' ? 'confirmed' : 'updated'} for ${date} at ${time}. Open My Shiloh for the latest details.`;
   return {
     crmV2ClientId: Number(crmV2ClientId),
-    eventKey: \`appointment-\${changeKind}:\${appointmentId}:\${auditEventId || startsAt || 'current'}\`,
+    eventKey: `appointment-${changeKind}:${appointmentId}:${auditEventId || startsAt || 'current'}`,
     category: 'appointment',
     title: label,
     body: body.slice(0, 240),
