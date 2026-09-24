@@ -89,3 +89,14 @@ test('payment pack contains no promotional or review-request language', () => {
   const serialized = JSON.stringify(EXPECTED.map(([key]) => buildPaymentTemplateDefinition(key)));
   assert.doesNotMatch(serialized, /special|discount|promotion|review us|rate us|limited time/i);
 });
+
+test('release startup provisions deposit request v2 without changing existing template configuration', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+  const provisioning = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'paymentDepositTemplateProvisioning.js'), 'utf8');
+  assert.match(pkg.scripts.start, /provision-payment-deposit-template-v2\.js/);
+  assert.match(provisioning, /shiloh_payment_deposit_request_v2/);
+  assert.match(provisioning, /already_exists/);
+  assert.match(provisioning, /message_templates/);
+});
