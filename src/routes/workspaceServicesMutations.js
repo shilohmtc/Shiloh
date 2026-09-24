@@ -99,6 +99,7 @@ function createWorkspaceServicesMutationRouter({
         expectedRevision: req.body?.expectedRevision,
         requestId: req.body?.requestId,
         name: req.body?.name,
+        categoryId: req.body?.categoryId,
         durationMinutes: req.body?.durationMinutes,
         processingTimeMinutes: req.body?.processingTimeMinutes,
         extraTimeMinutes: req.body?.extraTimeMinutes,
