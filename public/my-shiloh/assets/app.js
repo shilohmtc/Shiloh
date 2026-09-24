@@ -43,6 +43,7 @@
   const clientProblemReportForm = document.querySelector('[data-client-problem-report-form]');
   const clientProblemReportStatus = document.querySelector('[data-client-problem-report-status]');
   const clientProblemReportList = document.querySelector('[data-client-problem-report-list]');
+  const clientNotificationList = document.querySelector('[data-client-notification-list]');
   let deferredInstallPrompt = null;
   let authActionInFlight = false;
   let authStatusCheckInFlight = false;
@@ -908,6 +909,45 @@
       clientProblemReportList.append(card);
     }
   }
+
+  function renderClientNotifications(notifications) {
+    if (!clientNotificationList) return;
+    clientNotificationList.replaceChildren();
+    if (!Array.isArray(notifications) || notifications.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'notification-centre__empty';
+      empty.textContent = 'You have no new Shiloh updates.';
+      clientNotificationList.append(empty);
+      return;
+    }
+    for (const notification of notifications) {
+      const card = document.createElement('a');
+      card.className = 'notification-centre__item';
+      card.href = String(notification.targetPath || '/my-shiloh/');
+      const title = document.createElement('strong'); title.textContent = String(notification.title || 'My Shiloh update');
+      const body = document.createElement('span'); body.textContent = String(notification.body || '');
+      card.append(title, body);
+      clientNotificationList.append(card);
+    }
+  }
+
+  async function loadClientNotifications() {
+    if (!clientNotificationList || !standalone() || installationVerificationRequired()
+      || appFrame?.dataset.clientAuthenticated !== 'true') return;
+    try {
+      const response = await fetch('/my-shiloh/api/notifications', { credentials: 'same-origin', headers: { accept: 'application/json' } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Your updates could not be loaded.');
+      renderClientNotifications(data.notifications);
+    } catch (_) {
+      const message = document.createElement('p');
+      message.className = 'notification-centre__empty';
+      message.textContent = 'Your latest updates are temporarily unavailable.';
+      clientNotificationList.replaceChildren(message);
+    }
+  }
+
+  loadClientNotifications();
 
   async function loadProblemReports() {
     if (!clientProblemReportList || !standalone() || installationVerificationRequired()

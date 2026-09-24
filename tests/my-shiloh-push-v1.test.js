@@ -123,6 +123,20 @@ test('push subscription routes stay behind the verified My Shiloh session and CS
   assert.doesNotMatch(route, /req\.(?:body|query).*crmV2ClientId/);
 });
 
+test('My Shiloh exposes a session-bound in-app notification centre without creating a second event authority', () => {
+  const route = read('src/routes/myShiloh.js');
+  const push = read('src/services/myShilohPush.js');
+  const presentation = read('src/presentation/myShilohPwa.js');
+  const app = read('public/my-shiloh/assets/app.js');
+  assert.match(route, /router\.get\('\/my-shiloh\/api\/notifications', requireSession/);
+  assert.match(route, /pushService\.listForClient\([\s\S]*crmV2ClientId: req\.myShilohClientSession\.crmV2ClientId/);
+  assert.match(push, /async function listForClient\(/);
+  assert.match(push, /FROM my_shiloh_push_notifications/);
+  assert.match(presentation, /data-client-notification-centre/);
+  assert.match(app, /\/my-shiloh\/api\/notifications/);
+  assert.match(app, /renderClientNotifications/);
+});
+
 test('notification permission is requested only after the client taps the notification control', () => {
   const app = read('public/my-shiloh/assets/app.js');
   const presentation = read('src/presentation/myShilohPwa.js');

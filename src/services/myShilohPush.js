@@ -406,7 +406,31 @@ function createMyShilohPushService({
     };
   }
 
-  return { config, subscribe, unsubscribe, queueNotification, pending, wakeClient };
+  async function listForClient({ crmV2ClientId, limit = 8 } = {}) {
+    const clientId = Number(crmV2ClientId);
+    if (!Number.isSafeInteger(clientId) || clientId <= 0) return { notifications: [] };
+    const safeLimit = Math.min(Math.max(Number(limit) || 8, 1), 12);
+    const result = await db.query(
+      `SELECT id,category,title,body,target_path,created_at
+         FROM my_shiloh_push_notifications
+        WHERE crm_v2_client_id=$1 AND expires_at>$2
+        ORDER BY id DESC
+        LIMIT $3`,
+      [clientId, now(), safeLimit],
+    );
+    return {
+      notifications: result.rows.map((row) => ({
+        id: Number(row.id),
+        category: row.category,
+        title: row.title,
+        body: row.body,
+        targetPath: safeTargetPath(row.target_path),
+        createdAt: row.created_at,
+      })),
+    };
+  }
+
+  return { config, subscribe, unsubscribe, queueNotification, pending, listForClient, wakeClient };
 }
 
 const defaultPushService = createMyShilohPushService();

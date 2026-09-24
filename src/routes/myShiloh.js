@@ -250,6 +250,17 @@ function createMyShilohRouter({
     }
   });
 
+  router.get('/my-shiloh/api/notifications', requireSession, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      return res.status(200).json(await pushService.listForClient({
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+      }));
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   router.get('/my-shiloh/manifest.webmanifest', (_req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=3600');
     return res.type('application/manifest+json').sendFile(path.join(ROOT, 'manifest.webmanifest'));
