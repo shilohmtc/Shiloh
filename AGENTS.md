@@ -9,6 +9,13 @@ These instructions apply to the entire repository.
 - Keep client-facing language warm, simple and non-technical.
 - State assumptions, blockers and release risk plainly. Never imply that an action was completed without direct evidence.
 
+## Idea review and durable decisions
+
+- When Christel puts forward an idea, pause before implementation and give a candid assessment: what problem it solves, how it fits Shiloh's direction, likely benefits, risks or tradeoffs, dependencies, and the next sensible step. Treat this as a request for thoughtful judgment, not automatic approval.
+- Once Christel accepts a direction or standard, record the durable decision in the appropriate repository instruction, GitHub roadmap/issue, or canonical project document. Do not rely on chat memory alone for project behavior.
+- Keep one authoritative record for each decision. Update an existing roadmap or instruction when one exists instead of creating a parallel list.
+- Distinguish an idea under discussion, an accepted standard, an implemented change, production verification, and owner acceptance. Do not present a proposal as completed work.
+
 ## Computer Use and connected tools
 
 - For authenticated websites or desktop applications, first check whether **Computer Use → Any App** is attached to the current session.
