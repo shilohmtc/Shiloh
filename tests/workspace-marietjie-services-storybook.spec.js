@@ -34,6 +34,7 @@ const stories = [
     assertSurface: async (page) => {
       await expect(page.getByRole('heading', { name: 'Toe Gel Only', exact: true })).toBeVisible();
       await expect(page.getByText('This service is blocked from new bookings')).toBeVisible();
+      await expect(page.getByText(/Not available for booking: Assign a category before this service can be offered for booking/)).toBeVisible();
       const category = page.getByLabel('Category');
       await expect(category).toHaveValue('');
       await expect(category.getByRole('option', { name: 'Choose category' })).toHaveCount(1);
