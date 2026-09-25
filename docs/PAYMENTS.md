@@ -19,6 +19,7 @@ Shiloh has one client-facing **Booking Policy & Terms** authority. The deposit t
 
 - New future bookings require a **50% booking deposit**.
 - Appointments provided by **Marietjie are exempt**. The exemption resolves through her canonical active staff record; it is not a presentation-only name check.
+- The client-facing general policy does not publish that practitioner-specific exception. Shiloh applies it internally and tells an affected client simply that no booking deposit is required for that appointment.
 - Linked/group bookings calculate the deposit only on non-Marietjie member allocations.
 - The deposit is part-payment toward the canonical booking total, never an added fee.
 - Booking confirmation is held until the required deposit is satisfied by verified Ozow or authorized manual payment evidence.
