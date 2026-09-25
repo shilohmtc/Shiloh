@@ -140,7 +140,7 @@ function renderPaymentPolicyPage({ requestKey, request, policyText } = {}) {
     + '<section class="summary" aria-label="Deposit summary">'
     + '<div class="summary-card"><small>Deposit due</small><strong>R' + amount + '</strong></div>'
     + appointmentSummary
-    + '<p class="confirm-note">Your appointment is confirmed only after Shiloh verifies the required deposit.</p>'
+    + '<p class="confirm-note">Your appointment is confirmed once Shiloh has received and verified the required deposit.</p>'
     + '</section>'
     + '<section class="policy-shell" aria-labelledby="policy-heading">'
     + '<div class="policy-head"><h2 id="policy-heading">Booking Policy &amp; Terms</h2></div>'
