@@ -1827,12 +1827,14 @@ test('deposit policy is unmistakable before Ozow on Phone and Desktop', async ({
     await expect(policy.getByText(/No payment is taken until you accept/)).toBeVisible();
     await expect(policy.getByRole('heading', { name: 'Booking Deposit' })).toBeVisible();
     await expect(policy.getByRole('heading', { name: 'Cancellations & Rescheduling' })).toBeVisible();
+    await expect(policy.getByText(/Our therapists set aside this time especially for you/)).toBeVisible();
+    await expect(policy).not.toContainText('Marietjie');
     await expect(policy.getByRole('heading', { name: 'Professional Treatment Standards' })).toBeVisible();
     await expect(policy.getByRole('heading', { name: 'Appointments & Arrival' })).toBeVisible();
     await expect(policy.getByRole('heading', { name: 'Health & Treatment Information' })).toBeVisible();
     await expect(policy.getByRole('heading', { name: 'Respect, Safety & Belongings' })).toBeVisible();
-    await expect(policy.getByText('Updated 23 September 2026')).toHaveCount(0);
-    await expect(policy.getByText('Version 2026-09-23-v2')).toHaveCount(0);
+    await expect(policy.getByText('Updated 25 September 2026')).toHaveCount(0);
+    await expect(policy.getByText('Version 2026-09-25-v3')).toHaveCount(0);
     await expect(policy.getByText(/reply exactly: I AGREE/i)).toHaveCount(0);
     await expect(policy.getByText(/If you do not agree, reply/i)).toHaveCount(0);
     await expect(policy.getByRole('button', { name: 'Accept & continue to secure payment' })).toBeVisible();
