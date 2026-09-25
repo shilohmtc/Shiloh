@@ -197,7 +197,12 @@
       if (installStepExtra) installStepExtra.hidden = false;
       if (installTip) {
         installTip.hidden = false;
-        installTip.innerHTML = '<strong>Already installed?</strong><span>Close this browser page and open the My Shiloh icon on your Home Screen.</span>';
+        installTip.textContent = '';
+        var tipTitle = document.createElement('strong');
+        var tipCopy = document.createElement('span');
+        tipTitle.textContent = 'Already installed?';
+        tipCopy.textContent = 'Close this browser page and open the My Shiloh icon on your Home Screen.';
+        installTip.append(tipTitle, tipCopy);
       }
       return;
     }
