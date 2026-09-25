@@ -1,7 +1,7 @@
 {
   "name": "My Shiloh",
-  "short_name": "Shiloh",
-  "description": "Your calm client space for Shiloh bookings, forms, payments and support.",
+  "short_name": "My Shiloh",
+  "description": "Your calm client space for Shiloh bookings, Wallet, notifications, forms, payments and support.",
   "id": "/my-shiloh/",
   "start_url": "/my-shiloh/",
   "scope": "/my-shiloh/",
