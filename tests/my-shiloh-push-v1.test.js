@@ -123,21 +123,22 @@ test('push subscription routes stay behind the verified My Shiloh session and CS
   assert.doesNotMatch(route, /req\.(?:body|query).*crmV2ClientId/);
 });
 
-test('My Shiloh exposes a session-bound in-app notification centre without creating a second event authority', () => {
+test('My Shiloh keeps the notification centre but removes the duplicate in-app red dot', () => {
   const route = read('src/routes/myShiloh.js');
   const push = read('src/services/myShilohPush.js');
   const presentation = read('src/presentation/myShilohPwa.js');
   const app = read('public/my-shiloh/assets/app.js');
+  const styles = read('public/my-shiloh/assets/app.css');
   assert.match(route, /router\.get\('\/my-shiloh\/api\/notifications', requireSession/);
   assert.match(route, /pushService\.listForClient\([\s\S]*crmV2ClientId: req\.myShilohClientSession\.crmV2ClientId/);
   assert.match(push, /async function listForClient\(/);
   assert.match(push, /FROM my_shiloh_push_notifications/);
   assert.match(presentation, /data-client-notification-centre/);
-  assert.match(presentation, /data-notification-badge/);
+  assert.doesNotMatch(presentation, /data-notification-badge|nav-icon--badged/);
+  assert.doesNotMatch(styles, /nav-icon--badged/);
   assert.match(app, /\/my-shiloh\/api\/notifications/);
   assert.match(app, /renderClientNotifications/);
-  assert.match(app, /NOTIFICATION_SEEN_KEY/);
-  assert.match(app, /notificationBadge\.hidden = newestId <= seenId/);
+  assert.doesNotMatch(app, /NOTIFICATION_SEEN_KEY|notificationBadge/);
 });
 
 test('notification permission is requested only after the client taps the notification control', () => {
@@ -163,6 +164,20 @@ test('service worker waits for client approval before applying an update', () =>
   assert.match(app, /controllerchange[\s\S]*window\.location\.reload\(\)/);
   assert.match(presentation, /A new My Shiloh update is ready/);
   assert.match(presentation, /data-app-update-action>Update now/);
+});
+
+test('installed My Shiloh uses the operating-system app icon badge for new pushes', () => {
+  const worker = read('public/my-shiloh/sw.js');
+  const app = read('public/my-shiloh/assets/app.js');
+  assert.match(worker, /BADGE_DB_NAME = 'my-shiloh-badge-v1'/);
+  assert.match(worker, /self\.navigator\.setAppBadge\(value\)/);
+  assert.match(worker, /self\.navigator\.clearAppBadge\(\)/);
+  assert.match(worker, /incrementHomeScreenBadge\(notifications\.length\)/);
+  assert.match(worker, /CLEAR_APP_BADGE/);
+  assert.match(app, /async function clearHomeScreenAppBadge\(\)/);
+  assert.match(app, /navigator\.clearAppBadge\(\)/);
+  assert.match(app, /postMessage\(\{ type: 'CLEAR_APP_BADGE' \}\)/);
+  assert.match(app, /addEventListener\('focus', clearHomeScreenAppBadge\)/);
 });
 
 test('service worker handles push privately and opens only My Shiloh notification targets', () => {

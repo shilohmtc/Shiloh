@@ -1589,6 +1589,7 @@ test('My Shiloh notification opt-in is client-controlled and accessible on Phone
     await expect(settings.getByRole('heading', { name:'Stay up to date with Shiloh.' })).toBeVisible();
     await expect(settings.getByRole('button', { name:'Turn on notifications' })).toBeVisible();
     await expect(settings.getByText('Operational updates only. Promotional messages stay separate and are never enabled by this setting.')).toBeVisible();
+    await expect(page.locator('[data-notification-badge]')).toHaveCount(0);
     const metrics = await settings.evaluate((node) => ({
       viewport: innerWidth,
       document: document.documentElement.scrollWidth,
