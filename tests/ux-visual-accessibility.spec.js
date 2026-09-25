@@ -2037,3 +2037,31 @@ test('Workspace client record shows policy history and booking readiness on Phon
     });
   }
 });
+
+
+test('accepted booking terms stay separate from secure deposit payment on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name:'phone', width:390, height:844 },
+    { name:'desktop', width:1280, height:900 },
+  ]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=client-payment-policy--accepted-terms-before-ozow&viewMode=story', { waitUntil:'networkidle' });
+    const surface = page.locator('[data-payment-policy-story]');
+    await expect(surface).toBeVisible();
+    await expect(surface.getByText(/Booking Policy & Terms acknowledgement is already recorded/)).toBeVisible();
+    await expect(surface.getByText(/Payment remains a separate step/)).toBeVisible();
+    await expect(surface.getByRole('button', { name:'Continue to secure payment' })).toBeVisible();
+    await expect(surface.getByLabel('I have read and accept Shiloh’s Booking Policy & Terms.')).toHaveCount(0);
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-payment-policy-story]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({
+      path:testInfo.outputPath(`accepted-terms-before-ozow-${viewport.name}.png`),
+      fullPage:true,
+      animations:'disabled',
+      caret:'hide',
+    });
+  }
+});
