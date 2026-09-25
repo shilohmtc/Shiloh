@@ -366,7 +366,7 @@ function createBookingPaymentService({
            FROM crm_audit_events
           WHERE action='payment.received_after_booking_cancelled'
             AND entity_type='booking_payment_account'
-            AND entity_id=$1::text
+            AND entity_id=$1::bigint
           ORDER BY created_at DESC,id DESC
           LIMIT 1`,
         [account.id],
