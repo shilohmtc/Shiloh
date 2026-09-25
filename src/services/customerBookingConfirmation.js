@@ -15,6 +15,7 @@ const { verifyMigrationFiles } = require('./migrations');
 const { createBookingPaymentService } = require('./bookingPayments');
 const logger = require('../lib/logger');
 const { queueBookingConfirmationMyShilohNotification } = require('./sh05ChannelIndependence');
+const bookingPolicyAcceptance = require('./bookingPolicyAcceptance');
 
 const LIVE_BOOKING_CONFIRMATION_V1 = 'shiloh_booking_confirmation_v1';
 const LIVE_BOOKING_CONFIRMATION_V2 = 'shiloh_booking_confirmation_v2';
@@ -551,6 +552,19 @@ async function sendCustomerBookingConfirmationForAppointment(appointmentId,optio
   if(a.source==='shiloh_client_whatsapp'){
     const approval=await practitionerApprovalStatus(appointmentId,db);
     if(approval!=='approved')return {sent:false,reason:'practitioner_approval_required'};
+  }
+  const policyAcceptanceService=options.policyAcceptanceService||bookingPolicyAcceptance;
+  const policyGate=await policyAcceptanceService.policyGateForAppointment({queryable:db,appointmentId});
+  if(policyGate.required){
+    return {
+      sent:false,
+      reason:'policy_acceptance_required',
+      deliveryStatus:'awaiting_policy_acceptance',
+      policyAcceptance:{
+        policyVersion:policyGate.policyVersion||null,
+        revoked:policyGate.revoked===true,
+      },
+    };
   }
   const recovery=options.recovery===true;
   if(recovery){
