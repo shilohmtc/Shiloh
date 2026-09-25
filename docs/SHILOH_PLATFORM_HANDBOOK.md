@@ -108,6 +108,20 @@ For interface work, include Storybook review, desktop and phone Playwright cover
 - When direct connector access is blocked, use an authorized Render Shell read-only query or the protected application audit authority, with the result recorded as evidence rather than as a new source of truth.
 - Never commit secrets, raw client exports, payment credentials or full connection strings.
 
+### Render database network configuration — verified 2026-09-25
+
+- The Shiloh application service and managed PostgreSQL database run in Render's Oregon region.
+- `DATABASE_URL` was compared with the database's **Internal Database URL** in Render and confirmed to match.
+- Shiloh therefore uses Render's private internal network for database traffic; an external database IP allowlist is not required for this connection.
+- Keep TLS enforced with `sslmode=require`. Never record the URL, password or other secret value here.
+- Render support confirmed that this configuration is the recommended same-region setup. This is configuration evidence, not a reason to change production credentials without verification.
+
+### Booking-preparation incident and follow-up — 2026-09-24/25
+
+- The original production booking-preparation failure was PostgreSQL error `42702`: an unqualified `name` column was ambiguous in the availability query. PR #1154 qualified the column and was deployed; this was unrelated to database network routing.
+- A later Workspace test selected a time already occupied by an existing appointment. The availability layer correctly treated the slot as unavailable, but the Workspace fallback displayed only a generic preparation error and discarded the detailed conflict explanation.
+- The clearer conflict-message improvement is recorded in local commit `daa5237` and still requires its clean GitHub branch, PR, merge and Render verification before it is considered live.
+
 ## Operational boundaries
 
 Permission-sensitive work must preserve the existing product model: staff actions are authorized before booking mutations; client, staff and clinic-wide views are not interchangeable; synchronization and reconciliation work must not send unsolicited client messages; and payment success must be based on canonical/provider evidence rather than UI appearance.
