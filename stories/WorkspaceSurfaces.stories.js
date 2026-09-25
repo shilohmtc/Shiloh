@@ -321,6 +321,27 @@ function bookingConflictRecoveryStory() {
 }
 
 export const BookingConflictRecovery = { render: bookingConflictRecoveryStory };
+
+function depositMessageRetryStory() {
+  const page = renderCalendarCreateBookingPage({
+    options: {
+      staff,
+      services: [
+        { id: 93, name: 'Medi-Heel Pedicure (With Gel Toes) & Foot Massage', categoryName: 'Feet', durationMinutes: 60, staffIds: [12] },
+      ],
+    },
+    prefill: { date: '2026-09-25', time: '08:00', staffId: 12 },
+  });
+  const root = document.createElement('div');
+  root.innerHTML = productionSurface(page);
+  const status = root.querySelector('[data-booking-status]');
+  status.classList.remove('error', 'ready');
+  status.classList.add('warn');
+  status.textContent = 'BOOKING CREATED — DEPOSIT MESSAGE NOT SENT. Appointment #761 exists in Shiloh. Automatic retry is queued. Please contact the client manually about the required deposit in the meantime.';
+  return root;
+}
+
+export const DepositMessageRetry = { render: depositMessageRetryStory };
 export const ReceptionistPractitionerFirstBooking = {
   render: () => {
     const page = renderCalendarCreateBookingPage({
