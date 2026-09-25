@@ -150,13 +150,27 @@ test('ambiguous provider failure does not retry a second WhatsApp template', asy
   assert.equal(calls, 1);
 });
 
-test('web payment policy formats the canonical authority without WhatsApp-only instructions', () => {
+test('web payment policy formats and reorders the canonical authority without changing its wording', () => {
   const html = webPolicyHtml(BOOKING_POLICY_TEXT);
+  assert.match(html, /<h2>Booking Deposit<\/h2>/);
+  assert.match(html, /<h2>Cancellations &amp; Rescheduling<\/h2>/);
   assert.match(html, /<h2>Appointments &amp; Arrival<\/h2>/);
+  assert.match(html, /<h2>Health &amp; Treatment Information<\/h2>/);
   assert.match(html, /<h2>Respect, Safety &amp; Belongings<\/h2>/);
   assert.match(html, /<li>48\+ hours’ notice: no booking deposit is forfeited\.<\/li>/);
+
+  const deposit = html.indexOf('<h2>Booking Deposit</h2>');
+  const cancellations = html.indexOf('<h2>Cancellations &amp; Rescheduling</h2>');
+  const professional = html.indexOf('All treatments and services provided by Shiloh are strictly professional and non-sexual.');
+  const appointments = html.indexOf('<h2>Appointments &amp; Arrival</h2>');
+  const health = html.indexOf('<h2>Health &amp; Treatment Information</h2>');
+  assert.ok(deposit >= 0 && deposit < cancellations);
+  assert.ok(cancellations < professional && professional < appointments && appointments < health);
+  assert.equal(html.match(/<h2>([^<]+)<\/h2>/)?.[1], 'Booking Deposit');
+
   assert.doesNotMatch(html, /reply exactly/i);
   assert.doesNotMatch(html, /reply\s+(?:\*?DECLINE\*?)/i);
+  assert.doesNotMatch(html, /Policy updated:/i);
   assert.doesNotMatch(html, /Policy version:/i);
   assert.doesNotMatch(html, /\*Appointments & Arrival\*/);
 });
@@ -195,7 +209,8 @@ test('payment links show the booking policy before redirecting to Ozow', async (
     assert.match(body, /Accept &amp; continue to secure payment/);
     assert.doesNotMatch(body, /reply exactly/i);
     assert.doesNotMatch(body, /\*Respect, Safety & Belongings\*/);
-    assert.equal((body.match(/Version 2026-09-23-v2/g) || []).length, 1);
+    assert.doesNotMatch(body, /Updated 23 September 2026/);
+    assert.doesNotMatch(body, /Version 2026-09-23-v2/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

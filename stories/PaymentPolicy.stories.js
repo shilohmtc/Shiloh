@@ -2,11 +2,7 @@ import paymentPolicyPresentation from '../src/presentation/paymentPolicyUx.js';
 import bookingPolicyAuthority from '../src/config/bookingPolicyAuthority.js';
 
 const { renderPaymentPolicyPage } = paymentPolicyPresentation;
-const {
-  BOOKING_POLICY_TEXT,
-  BOOKING_POLICY_VERSION,
-  BOOKING_POLICY_UPDATED,
-} = bookingPolicyAuthority;
+const { BOOKING_POLICY_TEXT } = bookingPolicyAuthority;
 
 function productionSurface(pageHtml) {
   const styles = [...String(pageHtml).matchAll(/<style>([\s\S]*?)<\/style>/g)]
@@ -29,8 +25,6 @@ export const DepositPolicyBeforeOzow = {
       payer_name: 'Jean-Pierre Botha',
       appointment_id: 760,
     },
-    policyVersion: BOOKING_POLICY_VERSION,
-    policyUpdated: BOOKING_POLICY_UPDATED,
     policyText: BOOKING_POLICY_TEXT,
   })),
 };
