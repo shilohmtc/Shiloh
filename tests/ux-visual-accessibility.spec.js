@@ -1832,6 +1832,10 @@ test('deposit policy is unmistakable before Ozow on Phone and Desktop', async ({
     await expect(policy.getByText(/reply exactly: I AGREE/i)).toHaveCount(0);
     await expect(policy.getByText(/If you do not agree, reply/i)).toHaveCount(0);
     await expect(policy.getByRole('button', { name: 'Accept & continue to secure payment' })).toBeVisible();
+    await expect(policy).not.toContainText('*Respect, Safety & Belongings*');
+    const policyOverflow = await policy.locator('.policy').evaluate((node) => getComputedStyle(node).overflowY);
+    expect(policyOverflow).not.toBe('auto');
+    expect(policyOverflow).not.toBe('scroll');
 
     const metrics = await policy.evaluate(() => ({
       viewportWidth: window.innerWidth,
