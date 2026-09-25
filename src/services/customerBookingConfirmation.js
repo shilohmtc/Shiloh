@@ -577,6 +577,7 @@ async function sendCustomerBookingConfirmationForAppointment(appointmentId,optio
             requestKey:request.request_key,
             amount:Number(request.amount).toFixed(2),
             paymentPath:request.provider_payment_url?`/pay/${request.request_key}`:null,
+            notificationSent:Boolean(request.deposit_notification_sent_at),
           })),
         },
       };

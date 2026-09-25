@@ -134,6 +134,10 @@ function assertDeliveryFeatureGate(contractId, environment = process.env) {
   }
 }
 
+function templateContractError(code, message) {
+  return Object.assign(new Error(message), { code });
+}
+
 let cache = null;
 let cachedAt = 0;
 
@@ -149,7 +153,7 @@ async function assertMessageContractSendAllowed(contractId, language = null) {
     throw new Error(`Shiloh message language does not match contract: ${contractId}`);
   }
   if (configuredTemplateName(entry) !== entry.contract.name) {
-    throw new Error(`WhatsApp template configuration does not match contract: ${entry.env}`);
+    throw templateContractError('META_TEMPLATE_NOT_READY', `WhatsApp template configuration does not match contract: ${entry.env}`);
   }
   assertDeliveryFeatureGate(contractId);
   if (!cache || Date.now() - cachedAt > 60000) {
@@ -158,7 +162,7 @@ async function assertMessageContractSendAllowed(contractId, language = null) {
   }
   const state = cache.templates?.find((candidate) => candidate.key === contractId);
   if (!state?.ready || !state?.binding?.bound) {
-    throw new Error(`WhatsApp template is not exact, approved and configured: ${entry.contract.name}`);
+    throw templateContractError('META_TEMPLATE_NOT_READY', `WhatsApp template is not exact, approved and configured: ${entry.contract.name}`);
   }
   return state;
 }
@@ -192,5 +196,6 @@ module.exports = {
   assertDeliveryFeatureGate,
   assertMessageContractSendAllowed,
   assertTemplateSendAllowed,
+  templateContractError,
   resetTemplateInventoryCache,
 };

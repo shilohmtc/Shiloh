@@ -35,10 +35,12 @@ function paymentNotificationsEnabled(environment = process.env) {
 
 function isTemplateUnavailableError(error) {
   const providerError = error?.response?.data?.error || {};
-  const code = Number(providerError.code);
+  const providerCode = Number(providerError.code);
+  const internalCode = String(error?.code || '');
   const message = String(providerError.message || error?.message || '');
-  return [132001, 132015].includes(code)
-    || /template[^\n]*(?:not found|does not exist|not approved|paused|disabled)/i.test(message);
+  return internalCode === 'META_TEMPLATE_NOT_READY'
+    || [132001, 132015].includes(providerCode)
+    || /template[^\n]*(?:not found|does not exist|not approved|paused|disabled|not exact, approved and configured)/i.test(message);
 }
 
 function securePaymentUrl(requestKey) {

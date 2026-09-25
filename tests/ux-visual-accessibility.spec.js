@@ -1897,3 +1897,42 @@ test('cancelled booking payment review is safe and actionable on Phone and Deskt
     });
   }
 });
+
+
+test('booking-created deposit retry status is clear on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name: 'phone', width: 390, height: 844 },
+    { name: 'desktop', width: 1280, height: 900 },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=workspace-production-surfaces--deposit-message-retry&viewMode=story', { waitUntil: 'networkidle' });
+
+    const status = page.locator('[data-booking-status]');
+    await expect(status).toBeVisible();
+    await expect(status).toContainText('BOOKING CREATED — DEPOSIT MESSAGE NOT SENT.');
+    await expect(status).toContainText('Appointment #761 exists in Shiloh.');
+    await expect(status).toContainText('Automatic retry is queued.');
+    await expect(status).toContainText('required deposit');
+    await expect(status).toHaveClass(/warn/);
+    await expect(status).not.toHaveClass(/error/);
+
+    const geometry = await status.evaluate(() => ({
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+    }));
+    expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-booking-status]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+
+    await page.screenshot({
+      path: testInfo.outputPath(`deposit-message-retry-${viewport.name}.png`),
+      fullPage: true,
+      animations: 'disabled',
+      caret: 'hide',
+    });
+  }
+});
