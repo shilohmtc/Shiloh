@@ -146,7 +146,6 @@ function customerConfirmationState(result) {
       reason,
       depositMessageSent,
       depositAmount: delivery.deposit?.amount || null,
-      paymentPath: requests.find(request => request.paymentPath)?.paymentPath || null,
     };
   }
   const manualAction = [
@@ -401,12 +400,16 @@ function createCalendarCreateBookingRouter({
         return res.status(409).json({ status: result.status, reply: result.reply || 'Booking was not created.' });
       }
       const customerConfirmation = customerConfirmationState(result);
+      const depositRequests = Array.isArray(result?.customerConfirmation?.deposit?.requests)
+        ? result.customerConfirmation.deposit.requests
+        : [];
+      const paymentPath = depositRequests.find(request => request?.paymentPath)?.paymentPath || null;
       return res.status(201).json({
         status: 'created',
         appointmentId: result.appointmentId,
         customerConfirmation,
         policyReviewPath: `${req.baseUrl || '/calendar/book'}/policy/${result.appointmentId}`,
-        paymentPath: customerConfirmation.paymentPath || null,
+        paymentPath,
       });
     } catch (error) {
       const status = statusForError(error);
