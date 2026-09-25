@@ -1993,7 +1993,11 @@ test('in-clinic future-booking terms review is clear and accessible on Phone and
       viewportWidth:innerWidth,
       documentWidth:document.documentElement.scrollWidth,
       short:[...document.querySelectorAll('button,input,a')]
-        .filter(node => node.getClientRects().length && node.getBoundingClientRect().height < 44)
+        .filter((node) => {
+          if (!node.getClientRects().length) return false;
+          const target = ['checkbox','radio'].includes(node.type) ? node.closest('label') : node;
+          return !target || target.getBoundingClientRect().height < 44;
+        })
         .map(node => node.textContent || node.getAttribute('aria-label') || node.tagName),
     }));
     expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
