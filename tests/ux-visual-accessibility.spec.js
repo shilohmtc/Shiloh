@@ -1827,6 +1827,7 @@ test('deposit policy is unmistakable before Ozow on Phone and Desktop', async ({
     await expect(policy.getByText(/No payment is taken until you accept/)).toBeVisible();
     await expect(policy.getByRole('heading', { name: 'Booking Deposit' })).toBeVisible();
     await expect(policy.getByRole('heading', { name: 'Cancellations & Rescheduling' })).toBeVisible();
+    await expect(policy.getByRole('heading', { name: 'Professional Treatment Standards' })).toBeVisible();
     await expect(policy.getByRole('heading', { name: 'Appointments & Arrival' })).toBeVisible();
     await expect(policy.getByRole('heading', { name: 'Health & Treatment Information' })).toBeVisible();
     await expect(policy.getByRole('heading', { name: 'Respect, Safety & Belongings' })).toBeVisible();
@@ -1841,6 +1842,7 @@ test('deposit policy is unmistakable before Ozow on Phone and Desktop', async ({
       return {
         deposit: text.indexOf('Booking Deposit'),
         cancellations: text.indexOf('Cancellations & Rescheduling'),
+        professionalHeading: text.indexOf('Professional Treatment Standards'),
         professional: text.indexOf('All treatments and services provided by Shiloh are strictly professional and non-sexual.'),
         appointments: text.indexOf('Appointments & Arrival'),
         health: text.indexOf('Health & Treatment Information'),
@@ -1848,7 +1850,8 @@ test('deposit policy is unmistakable before Ozow on Phone and Desktop', async ({
     });
     expect(policyOrder.deposit).toBeGreaterThanOrEqual(0);
     expect(policyOrder.deposit).toBeLessThan(policyOrder.cancellations);
-    expect(policyOrder.cancellations).toBeLessThan(policyOrder.professional);
+    expect(policyOrder.cancellations).toBeLessThan(policyOrder.professionalHeading);
+    expect(policyOrder.professionalHeading).toBeLessThan(policyOrder.professional);
     expect(policyOrder.professional).toBeLessThan(policyOrder.appointments);
     expect(policyOrder.appointments).toBeLessThan(policyOrder.health);
     const policyOverflow = await policy.locator('.policy').evaluate((node) => getComputedStyle(node).overflowY);

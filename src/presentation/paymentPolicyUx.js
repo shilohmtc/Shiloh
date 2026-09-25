@@ -82,7 +82,7 @@ function webPolicyHtml(policyText = '') {
   }
 
   if (preamble.length) {
-    rendered.push('<div class="policy-preamble">' + preamble.map(line => '<p>' + escapeHtml(line) + '</p>').join('') + '</div>');
+    rendered.push('<div class="policy-preamble"><h2>Professional Treatment Standards</h2>' + preamble.map(line => '<p>' + escapeHtml(line) + '</p>').join('') + '</div>');
   }
 
   for (const heading of preferredOrder.slice(2)) {
@@ -127,7 +127,7 @@ function renderPaymentPolicyPage({ requestKey, request, policyText } = {}) {
     + '.step-number{display:block;margin-bottom:4px;font-size:.76rem;font-weight:850;letter-spacing:.06em;text-transform:uppercase;color:var(--leaf)}.step strong{display:block;font-size:.98rem}.step span{display:block;margin-top:4px;color:var(--muted);font-size:.9rem;line-height:1.45}'
     + '.summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 24px}.summary-card{padding:15px 16px;border-radius:14px;background:var(--mint)}.summary-card small{display:block;margin-bottom:4px;color:var(--muted);font-weight:700}.summary-card strong{font-size:1.2rem}.confirm-note{grid-column:1/-1;margin:0;color:var(--muted);font-size:.9rem;line-height:1.45}'
     + '.policy-shell{margin-top:8px;border:1px solid var(--line);border-radius:16px;background:#fff;overflow:hidden}.policy-head{padding:18px 18px 14px;border-bottom:1px solid var(--line);background:#fafbf8}.policy-head h2{margin:0;font-size:1.18rem}'
-    + '.policy{padding:4px 18px 20px;color:#40584d;line-height:1.6}.policy h2{margin:22px 0 8px;padding-top:18px;border-top:1px solid #e9ede9;color:var(--ink);font-size:1.03rem}.policy h2:first-child{border-top:0;padding-top:8px}.policy p{margin:8px 0}.policy ul{margin:8px 0 10px;padding-left:21px}.policy li{margin:6px 0}.policy-preamble{margin-top:22px;padding-top:18px;border-top:1px solid #e9ede9}.policy-preamble p{margin:0}'
+    + '.policy{padding:4px 18px 20px;color:#40584d;line-height:1.6}.policy h2{margin:22px 0 8px;padding-top:18px;border-top:1px solid #e9ede9;color:var(--ink);font-size:1.03rem}.policy h2:first-child{border-top:0;padding-top:8px}.policy p{margin:8px 0}.policy ul{margin:8px 0 10px;padding-left:21px}.policy li{margin:6px 0}.policy-preamble{margin-top:22px;padding-top:18px;border-top:1px solid #e9ede9}.policy-preamble h2{margin:0 0 8px;padding:0;border:0;color:var(--ink);font-size:1.03rem}.policy-preamble p{margin:0}'
     + '.acceptance{margin-top:18px;padding:16px;border:1px solid var(--line);border-radius:16px;background:#fafbf8}.acceptance label{display:flex;gap:12px;align-items:flex-start;min-height:48px;margin:0;font-weight:750;line-height:1.45;cursor:pointer}.acceptance input{width:22px;height:22px;margin:1px 0 0;accent-color:var(--leaf);flex:0 0 auto}'
     + 'button{width:100%;min-height:52px;margin-top:14px;border:0;border-radius:999px;padding:14px 18px;background:var(--leaf);color:#fff;font-size:1rem;font-weight:850;cursor:pointer}button:hover{filter:brightness(.96)}button:focus-visible,input:focus-visible{outline:3px solid #91b09f;outline-offset:3px}'
     + '.footer-note{margin:14px 0 0;text-align:center;color:var(--muted);font-size:.82rem;line-height:1.45}'

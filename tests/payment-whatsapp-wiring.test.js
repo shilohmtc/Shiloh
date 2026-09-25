@@ -161,11 +161,12 @@ test('web payment policy formats and reorders the canonical authority without ch
 
   const deposit = html.indexOf('<h2>Booking Deposit</h2>');
   const cancellations = html.indexOf('<h2>Cancellations &amp; Rescheduling</h2>');
+  const professionalHeading = html.indexOf('<h2>Professional Treatment Standards</h2>');
   const professional = html.indexOf('All treatments and services provided by Shiloh are strictly professional and non-sexual.');
   const appointments = html.indexOf('<h2>Appointments &amp; Arrival</h2>');
   const health = html.indexOf('<h2>Health &amp; Treatment Information</h2>');
   assert.ok(deposit >= 0 && deposit < cancellations);
-  assert.ok(cancellations < professional && professional < appointments && appointments < health);
+  assert.ok(cancellations < professionalHeading && professionalHeading < professional && professional < appointments && appointments < health);
   assert.equal(html.match(/<h2>([^<]+)<\/h2>/)?.[1], 'Booking Deposit');
 
   assert.doesNotMatch(html, /reply exactly/i);
