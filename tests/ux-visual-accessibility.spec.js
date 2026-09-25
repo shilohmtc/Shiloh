@@ -807,6 +807,43 @@ test('normal business admin account receives the same practitioner-first Phone b
   expect(serious, `Serious accessibility violations in normal admin booking: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
 });
 
+test('staff browser handoff offers existing passkey recovery on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=staff-passkey-sign-in--browser-handoff&viewMode=story', { waitUntil:'networkidle' });
+
+    const surface = page.locator('[data-passkey-signin-story]');
+    await expect(surface).toBeVisible();
+    await expect(surface.getByRole('heading', { name:'Secure staff sign-in' })).toBeVisible();
+    await expect(surface.getByRole('button', { name:'Use existing passkey' })).toBeVisible();
+    await expect(surface.getByText(/This browser is not linked yet/)).toBeVisible();
+    await expect(surface).not.toContainText('Device setup required');
+
+    const metrics = await surface.evaluate((node) => ({
+      viewportWidth:innerWidth,
+      documentWidth:document.documentElement.scrollWidth,
+      shortButtons:[...node.querySelectorAll('button')]
+        .filter((button) => button.getClientRects().length && button.getBoundingClientRect().height < 44)
+        .map((button) => button.textContent.trim()),
+    }));
+    expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+    expect(metrics.shortButtons).toEqual([]);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-passkey-signin-story]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+
+    await page.screenshot({
+      path:testInfo.outputPath(`staff-passkey-browser-handoff-${viewport.name}.png`),
+      fullPage:true,
+      animations:'disabled',
+      caret:'hide',
+    });
+  }
+});
+
 test('stalled Android passkey setup shows a clear accessible recovery on Phone and Desktop', async ({ page }, testInfo) => {
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
     await page.setViewportSize({ width:viewport.width, height:viewport.height });
