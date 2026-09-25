@@ -44,8 +44,6 @@
   const clientProblemReportStatus = document.querySelector('[data-client-problem-report-status]');
   const clientProblemReportList = document.querySelector('[data-client-problem-report-list]');
   const clientNotificationList = document.querySelector('[data-client-notification-list]');
-  const notificationBadge = document.querySelector('[data-notification-badge]');
-  const NOTIFICATION_SEEN_KEY = 'my-shiloh-notification-centre-seen-v1';
   let deferredInstallPrompt = null;
   let authActionInFlight = false;
   let authStatusCheckInFlight = false;
@@ -825,6 +823,7 @@
 
   function watchServiceWorkerRegistration(registration) {
     serviceWorkerRegistration = registration;
+    clearHomeScreenAppBadge();
     if (registration.waiting) revealAppUpdate(registration);
     registration.addEventListener('updatefound', () => {
       const installing = registration.installing;
@@ -916,17 +915,12 @@
     if (!clientNotificationList) return;
     clientNotificationList.replaceChildren();
     if (!Array.isArray(notifications) || notifications.length === 0) {
-      if (notificationBadge) notificationBadge.hidden = true;
       const empty = document.createElement('p');
       empty.className = 'notification-centre__empty';
       empty.textContent = 'You have no new Shiloh updates.';
       clientNotificationList.append(empty);
       return;
     }
-    const newestId = Math.max(...notifications.map(item => Number(item.id) || 0));
-    let seenId = 0;
-    try { seenId = Number(window.localStorage.getItem(NOTIFICATION_SEEN_KEY) || 0); } catch (_) {}
-    if (notificationBadge) notificationBadge.hidden = newestId <= seenId;
     for (const notification of notifications) {
       const card = document.createElement('a');
       card.className = 'notification-centre__item';
@@ -939,12 +933,17 @@
     }
   }
 
-  function markNotificationsSeen() {
-    const cards = [...(clientNotificationList?.querySelectorAll('.notification-centre__item') || [])];
-    const newestId = Math.max(0, ...cards.map(card => Number(card.dataset.notificationId) || 0));
-    if (!newestId) return;
-    try { window.localStorage[NOTIFICATION_SEEN_KEY] = String(newestId); } catch (_) {}
-    if (notificationBadge) notificationBadge.hidden = true;
+  async function clearHomeScreenAppBadge() {
+    if (!standalone()) return;
+    try {
+      if ('clearAppBadge' in navigator) await navigator.clearAppBadge();
+    } catch (_) {}
+    try {
+      if (!('serviceWorker' in navigator)) return;
+      const registration = serviceWorkerRegistration || await navigator.serviceWorker.ready;
+      const worker = navigator.serviceWorker.controller || registration?.active;
+      worker?.postMessage({ type: 'CLEAR_APP_BADGE' });
+    } catch (_) {}
   }
 
   async function loadClientNotifications() {
@@ -964,7 +963,6 @@
   }
 
   loadClientNotifications();
-  clientNotificationList?.addEventListener('click', markNotificationsSeen);
 
   async function loadProblemReports() {
     if (!clientProblemReportList || !standalone() || installationVerificationRequired()
@@ -1368,10 +1366,12 @@
   window.addEventListener('pageshow', refreshAuthenticatedClientState);
   window.addEventListener('focus', welcomeBackFromWhatsApp);
   window.addEventListener('focus', refreshAuthenticatedClientState);
+  window.addEventListener('focus', clearHomeScreenAppBadge);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       welcomeBackFromWhatsApp();
       refreshAuthenticatedClientState();
+      clearHomeScreenAppBadge();
     }
   });
   welcomeBackFromWhatsApp();
