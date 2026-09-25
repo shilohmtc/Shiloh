@@ -6,7 +6,7 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 
-const MY_SHILOH_ASSET_VERSION = '20260925-home-screen-badge-v1';
+const MY_SHILOH_ASSET_VERSION = '20260925-iphone-install-polish-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -316,11 +316,11 @@ function renderMyShilohPage({
   <main class="install-gate" data-install-gate hidden aria-labelledby="install-gate-title">
     <section class="install-gate__card">
       <span class="brand-mark brand-mark--large install-gate__logo" aria-hidden="true"><img src="/my-shiloh/assets/icon-192.png" alt=""></span>
-      <p class="eyebrow">Install My Shiloh</p>
-      <h1 id="install-gate-title">Add My Shiloh to your Home Screen to continue.</h1>
-      <p class="install-gate__copy">Once it’s installed, open the <strong>My Shiloh</strong> icon on your phone to continue.</p>
+      <p class="eyebrow">My Shiloh</p>
+      <h1 id="install-gate-title" data-install-gate-title>Keep My Shiloh one tap away.</h1>
+      <p class="install-gate__copy" data-install-gate-copy>Add <strong>My Shiloh</strong> to your Home Screen for quick access to bookings, Wallet, notifications and Shiloh support.</p>
       <button class="button button--primary button--wide" type="button" data-install-gate-action>Install My Shiloh</button>
-      <p class="install-gate__status" data-install-gate-status aria-live="polite">Already installed? Open My Shiloh from your Home Screen.</p>
+      <p class="install-gate__status" data-install-gate-status aria-live="polite">Already installed? Open the <strong>My Shiloh</strong> icon on your Home Screen.</p>
     </section>
   </main>
 
@@ -342,7 +342,7 @@ function renderMyShilohPage({
         <span class="brand-mark brand-mark--header" aria-hidden="true"><img src="/my-shiloh/assets/icon-192.png" alt=""></span>
         <span class="brand-copy"><strong>Shiloh</strong><small>My Shiloh</small></span>
       </a>
-      <button class="install-button" type="button" data-install-trigger hidden>Install app</button>
+      <button class="install-button" type="button" data-install-trigger hidden>Install My Shiloh</button>
     </header>
 
     <div class="network-banner" data-offline-banner hidden role="status">You are offline. My Shiloh will reconnect automatically.</div>
@@ -457,13 +457,16 @@ function renderMyShilohPage({
     <section class="install-sheet__panel" role="dialog" aria-modal="true" aria-labelledby="install-title">
       <button class="install-sheet__close" type="button" data-install-close aria-label="Close">×</button>
       <span class="brand-mark brand-mark--large" aria-hidden="true"><img src="/my-shiloh/assets/icon-192.png" alt=""></span>
-      <p class="eyebrow">Keep My Shiloh close</p>
-      <h2 id="install-title">Add My Shiloh to your Home Screen.</h2>
-      <ol data-install-steps>
-        <li>Open your browser menu or Share button.</li>
-        <li>Choose Add to Home Screen or Install app.</li>
-        <li>Open My Shiloh from its new icon.</li>
+      <p class="eyebrow" data-install-eyebrow>Install My Shiloh</p>
+      <h2 id="install-title" data-install-title>Add My Shiloh to your Home Screen.</h2>
+      <p class="install-sheet__lead" data-install-lead>It only takes a moment, and you’ll be able to open My Shiloh like any other app.</p>
+      <ol class="install-steps" data-install-steps>
+        <li><span class="install-step__number">1</span><div><strong data-install-step-title="1">Open your browser menu or Share button</strong><span data-install-step-copy="1">Use your browser’s sharing or install menu.</span></div></li>
+        <li><span class="install-step__number">2</span><div><strong data-install-step-title="2">Choose Add to Home Screen or Install app</strong><span data-install-step-copy="2">Your phone will show the installation option.</span></div></li>
+        <li><span class="install-step__number">3</span><div><strong data-install-step-title="3">Open My Shiloh</strong><span data-install-step-copy="3">Tap the new My Shiloh icon on your Home Screen.</span></div></li>
+        <li data-install-step-extra hidden><span class="install-step__number">4</span><div><strong data-install-step-title="4"></strong><span data-install-step-copy="4"></span></div></li>
       </ol>
+      <div class="install-tip" data-install-tip hidden></div>
       <button class="button button--primary button--wide" type="button" data-install-close>Got it</button>
     </section>
   </div>
