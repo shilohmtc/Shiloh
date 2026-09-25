@@ -134,7 +134,7 @@ function renderClientDetailPage(model, {
     const start = formatDateTime(appointment.starts_at);
     const end = formatDateTime(appointment.ends_at);
     const cancelled = String(appointment.status).toLowerCase() === 'cancelled' ? ' cancelled' : '';
-    return `<article class="history-row${cancelled}"><div class="history-time"><strong>${escapeHtml(start.date)}</strong><small>${escapeHtml(start.time)}${end.time ? `–${escapeHtml(end.time)}` : ''}</small></div><div class="history-service">${escapeHtml(appointmentServices(appointment))}${readinessMarkup(appointment.bookingReadiness)}</div><div class="history-staff">${escapeHtml(appointmentStaff(appointment))}</div>${statusPill(appointment.status)}</article>`;
+    return `<article class="history-row${cancelled}"><div class="history-time"><strong>${escapeHtml(start.date)}</strong><small>${escapeHtml(start.time)}${end.time ? `–${escapeHtml(end.time)}` : ''}</small></div><div class="history-service"><span class="history-service-name">${escapeHtml(appointmentServices(appointment))}</span>${readinessMarkup(appointment.bookingReadiness)}</div><div class="history-staff">${escapeHtml(appointmentStaff(appointment))}</div>${statusPill(appointment.status)}</article>`;
   }).join('');
   const previousOffset = Math.max(0, model.historyOffset - model.pageSize);
   const historyBase = `/calendar/clients/${encodeURIComponent(String(client.id))}`;
