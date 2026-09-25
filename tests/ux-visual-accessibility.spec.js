@@ -1622,10 +1622,11 @@ test('unified Booking Policy & Terms is readable and accessible on Phone and Des
     await expect(policy).toBeVisible();
     await expect(policy.getByRole('heading', { level: 1, name: 'Booking Policy & Terms' })).toBeVisible();
     await expect(policy.getByText(/50% booking deposit/)).toBeVisible();
-    await expect(policy.getByText(/48\+ hours/)).toBeVisible();
+    await expect(policy.getByText(/48 hours or more before your appointment/)).toBeVisible();
     await expect(policy.getByText(/24–48 hours/)).toBeVisible();
-    await expect(policy.getByText(/Marietjie/)).toBeVisible();
-    await expect(policy.getByText(/Rescheduling keeps the existing booking payment\/deposit record/)).toBeVisible();
+    await expect(policy.getByText(/Our therapists set aside this time especially for you/)).toBeVisible();
+    await expect(policy).not.toContainText('Marietjie');
+    await expect(policy.getByText(/Any deposit already paid remains linked to your booking/)).toBeVisible();
     await expect(policy.getByText(/reply exactly: I AGREE/i)).toBeVisible();
 
     const geometry = await policy.evaluate(() => ({
