@@ -14,6 +14,8 @@ function styles() {
   return `${baseStyles()}:root{--muted:#52645b}`;
 }
 
+const policyRecordStyles = `.policy-history-list{display:grid;gap:7px}.policy-history-row{display:grid;grid-template-columns:170px minmax(180px,1fr) minmax(150px,1fr);gap:12px;align-items:center;min-height:58px;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:#fff}.policy-history-row strong{font-size:.82rem}.policy-history-row small{display:block;margin-top:3px;color:var(--muted);font-size:.72rem}.policy-method{color:var(--leaf-deep);font-size:.76rem;font-weight:780}.booking-readiness{display:block;margin-top:5px;color:var(--muted);font-size:.7rem;font-weight:650;line-height:1.4}.booking-readiness strong{color:var(--leaf-deep);font-size:inherit}.terms-panel{margin-bottom:12px}@media(max-width:700px){.policy-history-row{grid-template-columns:1fr;padding:13px}.policy-method{justify-self:start}}`;
+
 const appointmentHistoryResponsiveStyles = `@media(max-width:900px) and (min-width:701px){.history-row-link{grid-template-columns:150px minmax(170px,1fr) minmax(110px,.7fr) 100px 64px}.history-row-link .history-staff{grid-column:auto}}@media(max-width:700px){.history-row-link .status-pill{grid-column:2;grid-row:1/3}.history-row-link .history-open{grid-column:2;grid-row:3/5;align-self:end}}`;
 
 function formatDateOnly(value) {
@@ -69,7 +71,7 @@ function listHref({ query = '', status = 'active', offset = 0 } = {}) {
 }
 
 function shellStart({ title, subtitle, displayName, calendarNavigationAllowed, staffAccessScriptPath }) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} — Shiloh Workspace</title><style>${workspaceShellStyles()}${styles()}${appointmentHistoryResponsiveStyles}</style><script src="${escapeHtml(staffAccessScriptPath)}" defer></script></head><body data-workspace-clients="true"><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'clients', displayName, calendarHref: calendarNavigationAllowed ? '/calendar/read-only' : null })}<div class="workspace-main"><div class="shell"><header class="topbar"><div class="brand"><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p></div><div class="topbar-side"><span class="truth-note">View only</span></div></header>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} — Shiloh Workspace</title><style>${workspaceShellStyles()}${styles()}${policyRecordStyles}${appointmentHistoryResponsiveStyles}</style><script src="${escapeHtml(staffAccessScriptPath)}" defer></script></head><body data-workspace-clients="true"><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'clients', displayName, calendarHref: calendarNavigationAllowed ? '/calendar/read-only' : null })}<div class="workspace-main"><div class="shell"><header class="topbar"><div class="brand"><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p></div><div class="topbar-side"><span class="truth-note">View only</span></div></header>`;
 }
 
 function renderClientListPage(model, {
@@ -99,6 +101,39 @@ function appointmentServices(appointment) {
   return names.join(' + ') || String(appointment.title || 'Appointment');
 }
 
+function readinessText(readiness = {}) {
+  const terms = readiness.terms?.state === 'accepted'
+    ? 'Terms accepted'
+    : readiness.terms?.state === 'awaiting'
+      ? 'Terms awaiting acceptance'
+      : 'Terms not recorded';
+  const depositState = String(readiness.deposit?.state || 'not_started');
+  const deposit = depositState === 'satisfied'
+    ? 'Deposit received'
+    : depositState === 'exempt'
+      ? 'No deposit required'
+      : depositState === 'awaiting'
+        ? 'Deposit awaiting'
+        : 'Deposit not started';
+  const confirmation = readiness.confirmation?.state === 'sent'
+    ? 'Confirmation sent'
+    : readiness.confirmation?.state === 'pending'
+      ? 'Confirmation pending'
+      : 'Confirmation not started';
+  return [terms, deposit, confirmation].join(' · ');
+}
+
+function renderPolicyHistory(model = {}) {
+  const rows = (model.policyAcceptances || []).map(item => {
+    const accepted = formatDateTime(item.acceptedAt);
+    const booking = item.appointmentId
+      ? `Booking #${item.appointmentId}${item.serviceName ? ` · ${item.serviceName}` : ''}`
+      : 'General booking terms';
+    return `<div class="policy-history-row"><div><strong>${escapeHtml(accepted.date)}</strong><small>${escapeHtml(accepted.time)}</small></div><div><strong>${escapeHtml(booking)}</strong><small>Policy version ${escapeHtml(item.policyVersion || 'Recorded')}</small></div><span class="policy-method">${escapeHtml(item.channelLabel || 'Shiloh')}</span></div>`;
+  }).join('');
+  return `<section class="history-panel terms-panel" data-policy-history><header class="section-heading"><div><span class="eyebrow">Policies &amp; consents</span><h2>Booking Policy &amp; Terms</h2></div><span class="truth-note">Client acknowledgement history</span></header><div class="policy-history-list">${rows || '<div class="empty">No Booking Policy &amp; Terms acceptance is recorded yet.</div>'}</div></section>`;
+}
+
 function appointmentStaff(appointment) {
   return (appointment.staff || []).map(item => String(item.name || '').trim()).filter(Boolean).join(' + ') || 'Practitioner not recorded';
 }
@@ -112,7 +147,8 @@ function renderClientDetailPage(model, {
     const start = formatDateTime(appointment.starts_at);
     const end = formatDateTime(appointment.ends_at);
     const cancelled = String(appointment.status).toLowerCase() === 'cancelled' ? ' cancelled' : '';
-    return `<article class="history-row${cancelled}"><div class="history-time"><strong>${escapeHtml(start.date)}</strong><small>${escapeHtml(start.time)}${end.time ? `–${escapeHtml(end.time)}` : ''}</small></div><div class="history-service">${escapeHtml(appointmentServices(appointment))}</div><div class="history-staff">${escapeHtml(appointmentStaff(appointment))}</div>${statusPill(appointment.status)}</article>`;
+    const readiness = model.bookingReadiness?.[appointment.id] || model.bookingReadiness?.[String(appointment.id)] || {};
+    return `<article class="history-row${cancelled}" data-booking-readiness="${escapeHtml(appointment.id)}"><div class="history-time"><strong>${escapeHtml(start.date)}</strong><small>${escapeHtml(start.time)}${end.time ? `–${escapeHtml(end.time)}` : ''}</small></div><div class="history-service">${escapeHtml(appointmentServices(appointment))}<small class="booking-readiness">${escapeHtml(readinessText(readiness))}</small></div><div class="history-staff">${escapeHtml(appointmentStaff(appointment))}</div>${statusPill(appointment.status)}</article>`;
   }).join('');
   const previousOffset = Math.max(0, model.historyOffset - model.pageSize);
   const historyBase = `/calendar/clients/${encodeURIComponent(String(client.id))}`;
@@ -122,6 +158,7 @@ function renderClientDetailPage(model, {
   return `${shellStart({ title: 'Client detail', subtitle: 'Client profile and appointment history.', displayName: model.authority?.displayName, calendarNavigationAllowed, staffAccessScriptPath })}<main data-client-detail-view>
     <nav class="detail-actions" aria-label="Client navigation"><a class="button" href="/calendar/clients">← Back to Clients</a></nav>
     <section class="profile-panel"><header class="profile-heading"><div><span class="eyebrow">Client record</span><h2>${escapeHtml(client.name || 'Unnamed client')}</h2></div>${statusPill(client.status)}</header><div class="profile-grid"><div class="profile-field"><span>Profile</span><strong>${escapeHtml(String(client.profile_status || 'unknown').replace(/_/g, ' '))}</strong></div><div class="profile-field"><span>Date of birth</span><strong>${escapeHtml(formatDateOnly(client.date_of_birth))}</strong></div><div class="profile-field"><span>Gender</span><strong>${escapeHtml(String(client.gender || 'Not recorded').replace(/_/g, ' '))}</strong></div><div class="profile-field"><span>Appointment history</span><strong>${model.appointments.length} shown</strong></div></div><div class="contact-card"><div><span class="eyebrow">Primary mobile</span><strong>${escapeHtml(formatMobile(client.normalized_mobile))}</strong></div><small>${escapeHtml(verified)}</small></div></section>
+    ${renderPolicyHistory(model)}
     <section class="history-panel"><header class="section-heading"><div><span class="eyebrow">History</span><h2>Appointments</h2></div><span class="truth-note">Historical service and practitioner snapshots</span></header><div class="history-list">${historyRows || '<div class="empty">No appointments are recorded for this client.</div>'}</div><nav class="pager" aria-label="Appointment history pages">${previous}${next}</nav></section>
   </main><p class="footer-note">Only appointments linked to this client are shown.</p></div></div></div></body></html>`;
 }
@@ -136,6 +173,8 @@ module.exports = {
   formatMobile,
   maskMobile,
   renderClientListPage,
+  readinessText,
+  renderPolicyHistory,
   renderClientDetailPage,
   renderClientsUnavailablePage,
 };
