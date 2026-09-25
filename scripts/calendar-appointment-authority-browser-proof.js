@@ -29,7 +29,19 @@ function installedChrome() {
 }
 
 function calendarFixture(editable) {
-  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{--panel:#fff;--line:#dfe5df;--leaf-soft:#e7eee9;--leaf-deep:#294b3e}body{font-family:system-ui;background:#f7f5ef;padding:20px}.event-card{min-height:64px;border:1px solid #dfe5df;border-radius:14px;background:#fff;padding:14px;max-width:420px}.event-card h4{margin:4px 0}.event-meta{display:flex;gap:8px}.eyebrow{font-size:11px;text-transform:uppercase}</style></head><body><article class="event-card" data-event-id="appointment-42" data-kind="appointment" data-canonical="true" ${editable ? 'data-appointment-management-target="true" data-appointment-id="42"' : ''} data-client-name="Client Example" data-client-mobile="+27 82 000 0000" data-service-name="Treatment Example" data-practitioner-names="Practitioner A" data-appointment-status="confirmed"><div class="event-time"><span class="event-time-range">09:00–10:00</span></div><span class="kind-pill">Appointment</span><h4>Client Example</h4><p class="event-client-mobile">+27 82 000 0000</p><p class="event-meta"><span class="event-practitioners">Practitioner A</span><span class="event-service-context"><span>Treatment Example</span></span><span class="event-state">confirmed</span></p></article><script>${calendarAppointmentDetailsClientScript()}</script></body></html>`;
+  const readiness = JSON.stringify({
+    appointmentId:42,
+    terms:{ state:'awaiting', policyVersion:'2026-09-25-v3' },
+    deposit:{ state:'not_started', requiredAmount:null },
+    confirmation:{ state:'pending' },
+    policyActions: editable ? {
+      policyVersion:'2026-09-25-v3',
+      clinicPath:'/booking-policy/clinic_fixture_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      clientPath:'/booking-policy/client_fixture_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      clientMobile:'27820000000',
+    } : null,
+  });
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{--panel:#fff;--line:#dfe5df;--leaf-soft:#e7eee9;--leaf-deep:#294b3e}body{font-family:system-ui;background:#f7f5ef;padding:20px}.event-card{min-height:64px;border:1px solid #dfe5df;border-radius:14px;background:#fff;padding:14px;max-width:420px}.event-card h4{margin:4px 0}.event-meta{display:flex;gap:8px}.eyebrow{font-size:11px;text-transform:uppercase}</style><script>window.fetch=async function(url){if(String(url).includes('/calendar/book/readiness/42'))return new Response(${JSON.stringify(readiness)},{status:200,headers:{'Content-Type':'application/json'}});return new Response('{}',{status:404,headers:{'Content-Type':'application/json'}});};</script></head><body><article class="event-card" data-event-id="appointment-42" data-kind="appointment" data-canonical="true" ${editable ? 'data-appointment-management-target="true" data-appointment-id="42"' : ''} data-client-name="Client Example" data-client-mobile="+27 82 000 0000" data-service-name="Treatment Example" data-practitioner-names="Practitioner A" data-appointment-status="confirmed"><div class="event-time"><span class="event-time-range">09:00–10:00</span></div><span class="kind-pill">Appointment</span><h4>Client Example</h4><p class="event-client-mobile">+27 82 000 0000</p><p class="event-meta"><span class="event-practitioners">Practitioner A</span><span class="event-service-context"><span>Treatment Example</span></span><span class="event-state">confirmed</span></p></article><script>${calendarAppointmentDetailsClientScript()}</script></body></html>`;
 }
 
 function clientHistoryFixture() {
@@ -81,6 +93,8 @@ function fileUrl(filePath, query = '') {
       await card.click();
       await page.locator('[data-appointment-details-dialog][open]').waitFor();
       if (await page.locator('[data-details-edit]').isVisible()) throw new Error(`${state.name}: read-only viewer received edit action`);
+      await page.locator('[data-details-readiness-body]').filter({ hasText:'Terms awaiting acceptance' }).waitFor();
+      if ((await page.locator('.readiness-actions').count()) !== 0) throw new Error(`${state.name}: read-only viewer received policy acceptance actions`);
       await page.screenshot({ path: path.join(output, `${state.name}-appointment-details.png`), fullPage: true });
 
       await page.goto(fileUrl(deepLinkFixturePath, '?view=day&date=2026-09-11&appointment=42&staff=all'));
@@ -95,6 +109,10 @@ function fileUrl(filePath, query = '') {
       await page.locator('.event-card').click();
       await page.locator('[data-appointment-details-dialog][open]').waitFor();
       if (!(await page.locator('[data-details-edit]').isVisible())) throw new Error(`${state.name}: editor did not receive edit handoff`);
+      await page.locator('[data-details-readiness-body]').filter({ hasText:'Terms awaiting acceptance' }).waitFor();
+      if ((await page.getByText('Let client review terms').count()) !== 1) throw new Error(`${state.name}: clinic-device policy action missing`);
+      if ((await page.getByText('Send link in WhatsApp').count()) !== 1) throw new Error(`${state.name}: client-phone policy action missing`);
+      await page.screenshot({ path: path.join(output, `${state.name}-appointment-readiness-actions.png`), fullPage: true });
 
       await page.setContent(clientHistoryFixture());
       const historyLink = page.locator('[data-appointment-detail-link="42"]');
