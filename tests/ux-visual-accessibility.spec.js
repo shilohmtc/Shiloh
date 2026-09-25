@@ -1518,7 +1518,7 @@ test('My Shiloh install guidance appears only after Show install steps is tapped
   await expect(sheet.getByRole('heading', { name: 'Add My Shiloh to your Home Screen.' })).toBeVisible();
   await expect(sheet.getByText('Open your browser menu or Share button')).toBeVisible();
   await expect(sheet.getByText('Choose Add to Home Screen or Install app')).toBeVisible();
-  await expect(sheet.getByText('Open My Shiloh')).toBeVisible();
+  await expect(sheet.getByText('Open My Shiloh', { exact: true })).toBeVisible();
 });
 
 test('polished iPhone install guide is clear and accessible on Phone and Desktop', async ({ page }, testInfo) => {
@@ -1537,11 +1537,11 @@ test('polished iPhone install guide is clear and accessible on Phone and Desktop
     await expect(gate.getByRole('button', { name: 'Show iPhone steps' })).toBeVisible();
     await expect(sheet.getByRole('heading', { name: 'Four quick steps and you’re in.' })).toBeVisible();
     await expect(sheet.getByText('My Shiloh installs from Safari — no App Store download is needed.')).toBeVisible();
-    await expect(sheet.getByText('Open this page in Safari')).toBeVisible();
-    await expect(sheet.getByText('Tap the Share button')).toBeVisible();
-    await expect(sheet.getByText('Choose Add to Home Screen')).toBeVisible();
-    await expect(sheet.getByText('Turn on Open as Web App, then tap Add')).toBeVisible();
-    await expect(sheet.getByText(/Already installed/)).toBeVisible();
+    await expect(sheet.getByText('Open this page in Safari', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('Tap the Share button', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('Choose Add to Home Screen', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('Turn on Open as Web App, then tap Add', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('Already installed?', { exact: true })).toBeVisible();
 
     const metrics = await sheet.evaluate((node) => ({
       viewportWidth: window.innerWidth,
