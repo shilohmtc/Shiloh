@@ -155,14 +155,21 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
       scope: authority.clientScope,
     });
     const visibleHistory = history.slice(0, CLIENT_HISTORY_PAGE_SIZE);
-    const [policyAcceptances, readiness] = await Promise.all([
-      policyReads.listClientAcceptanceHistory({
-        clientId: client.id,
-        mobile: client.normalized_mobile,
-        limit: 20,
-      }),
-      policyReads.readinessForAppointments(visibleHistory.map(item => item.id)),
-    ]);
+    let policyAcceptances = [];
+    let readiness = new Map();
+    let policyAcceptanceUnavailable = false;
+    try {
+      [policyAcceptances, readiness] = await Promise.all([
+        policyReads.listClientAcceptanceHistory({
+          clientId: client.id,
+          mobile: client.normalized_mobile,
+          limit: 20,
+        }),
+        policyReads.readinessForAppointments(visibleHistory.map(item => item.id)),
+      ]);
+    } catch (_) {
+      policyAcceptanceUnavailable = true;
+    }
     const appointmentsWithReadiness = visibleHistory.map(item => ({
       ...item,
       bookingReadiness: readiness.get(Number(item.id)) || null,
@@ -185,6 +192,7 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
       client,
       appointments: appointmentsWithReadiness,
       policyAcceptances,
+      policyAcceptanceUnavailable,
       hasMore: history.length > CLIENT_HISTORY_PAGE_SIZE,
       historyOffset: safeOffset,
       pageSize: CLIENT_HISTORY_PAGE_SIZE,
