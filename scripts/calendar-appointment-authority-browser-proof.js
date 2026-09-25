@@ -29,7 +29,7 @@ function installedChrome() {
 }
 
 function calendarFixture(editable) {
-  const readiness = JSON.stringify({
+  const readiness = {
     appointmentId:42,
     terms:{ state:'awaiting', policyVersion:'2026-09-25-v3' },
     deposit:{ state:'not_started', requiredAmount:null },
@@ -40,7 +40,7 @@ function calendarFixture(editable) {
       clientPath:'/booking-policy/client_fixture_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
       clientMobile:'27820000000',
     } : null,
-  });
+  };
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{--panel:#fff;--line:#dfe5df;--leaf-soft:#e7eee9;--leaf-deep:#294b3e}body{font-family:system-ui;background:#f7f5ef;padding:20px}.event-card{min-height:64px;border:1px solid #dfe5df;border-radius:14px;background:#fff;padding:14px;max-width:420px}.event-card h4{margin:4px 0}.event-meta{display:flex;gap:8px}.eyebrow{font-size:11px;text-transform:uppercase}</style><script>window.fetch=async function(url){if(String(url).includes('/calendar/book/readiness/42'))return new Response(${JSON.stringify(readiness)},{status:200,headers:{'Content-Type':'application/json'}});return new Response('{}',{status:404,headers:{'Content-Type':'application/json'}});};</script></head><body><article class="event-card" data-event-id="appointment-42" data-kind="appointment" data-canonical="true" ${editable ? 'data-appointment-management-target="true" data-appointment-id="42"' : ''} data-client-name="Client Example" data-client-mobile="+27 82 000 0000" data-service-name="Treatment Example" data-practitioner-names="Practitioner A" data-appointment-status="confirmed"><div class="event-time"><span class="event-time-range">09:00–10:00</span></div><span class="kind-pill">Appointment</span><h4>Client Example</h4><p class="event-client-mobile">+27 82 000 0000</p><p class="event-meta"><span class="event-practitioners">Practitioner A</span><span class="event-service-context"><span>Treatment Example</span></span><span class="event-state">confirmed</span></p></article><script>${calendarAppointmentDetailsClientScript()}</script></body></html>`;
 }
 
