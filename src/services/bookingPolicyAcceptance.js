@@ -409,9 +409,8 @@ function createBookingPolicyAcceptanceService({
     return result.rows[0] || null;
   }
 
-  async function listForClient({ crmV2ClientId, phone, limit = 20 } = {}) {
+  async function listForClient({ crmV2ClientId, limit = 20 } = {}) {
     const clientId = positiveId(crmV2ClientId);
-    const mobile = canonicalPhone(phone);
     if (!clientId) return [];
     const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 50));
     const result = await db.query(
@@ -428,10 +427,9 @@ function createBookingPolicyAcceptanceService({
             LIMIT 1
          ) aps ON TRUE
         WHERE bpa.crm_v2_client_id=$1
-           OR (bpa.crm_v2_client_id IS NULL AND $2::text IS NOT NULL AND bpa.phone=$2)
         ORDER BY bpa.accepted_at DESC,bpa.id DESC
-        LIMIT $3`,
-      [clientId, mobile, safeLimit],
+        LIMIT $2`,
+      [clientId, safeLimit],
     );
     return result.rows.map(row => ({
       id: Number(row.id),
