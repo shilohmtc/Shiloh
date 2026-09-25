@@ -1970,3 +1970,70 @@ test('booking-created deposit retry status is clear on Phone and Desktop', async
     });
   }
 });
+
+
+test('in-person future-booking terms acceptance is clear and accessible on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name:'phone', width:390, height:844 },
+    { name:'desktop', width:1280, height:900 },
+  ]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=client-booking-policy-acceptance--clinic-device-review&viewMode=story', { waitUntil:'networkidle' });
+    const surface = page.locator('[data-booking-policy-acceptance]');
+    await expect(surface).toBeVisible();
+    await expect(surface.getByRole('heading', { level:1, name:'Review Shiloh’s Booking Policy & Terms' })).toBeVisible();
+    await expect(surface.getByText(/Please review these terms yourself/)).toBeVisible();
+    await expect(surface.getByText(/acknowledgement below is yours to make/)).toBeVisible();
+    await expect(surface.getByLabel('I have read and accept Shiloh’s Booking Policy & Terms.')).toBeVisible();
+    await expect(surface.getByText(/acknowledgement and any payment are recorded separately/)).toBeVisible();
+    const metrics = await surface.evaluate(() => ({
+      viewportWidth: innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      short: [...document.querySelectorAll('button,a,input')].filter(node => node.getClientRects().length && ((node.type === 'checkbox' ? node.closest('label') : node)?.getBoundingClientRect().height || 0) < 44).length,
+    }));
+    expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+    expect(metrics.short).toBe(0);
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-booking-policy-acceptance]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({
+      path:testInfo.outputPath(`in-person-booking-policy-${viewport.name}.png`),
+      fullPage:true,
+      animations:'disabled',
+      caret:'hide',
+    });
+  }
+});
+
+test('Workspace client record shows policy history and booking readiness on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name:'phone', width:390, height:844 },
+    { name:'desktop', width:1280, height:900 },
+  ]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=workspace-clients--marietjie-client-management&viewMode=story', { waitUntil:'networkidle' });
+    const surface = page.locator('.workspace-clients-story');
+    await expect(surface).toBeVisible();
+    await expect(surface.getByRole('heading', { name:'Booking Policy & Terms' })).toBeVisible();
+    await expect(surface.getByText('In clinic on Shiloh device')).toBeVisible();
+    await expect(surface.getByText(/Terms accepted · No deposit required · Confirmation sent/)).toBeVisible();
+    const metrics = await surface.evaluate(() => ({
+      viewportWidth: innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+    }));
+    expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+    const accessibility = await new AxeBuilder({ page })
+      .include('.workspace-clients-story')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({
+      path:testInfo.outputPath(`workspace-client-policy-history-${viewport.name}.png`),
+      fullPage:true,
+      animations:'disabled',
+      caret:'hide',
+    });
+  }
+});
