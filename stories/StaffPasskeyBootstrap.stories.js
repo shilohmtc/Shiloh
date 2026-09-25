@@ -8,7 +8,7 @@ function productionSurface(html, { stalled = false } = {}) {
   body = body.replace(/<script[\s\S]*?<\/script>/g, '');
   if (stalled) {
     body = body
-      .replace('data-bootstrap-choices>', 'data-bootstrap-choices hidden>')
+      .replace('data-bootstrap-choices>', 'data-bootstrap-choices hidden style="display:none">')
       .replace('class="status"', 'class="status show error"')
       .replace('data-bootstrap-status></div>', 'data-bootstrap-status>Android did not finish device verification. Close any passkey prompt, then tap Try again. If this phone was already set up for Shiloh, open sign-in instead.</div>')
       .replace('class="action" type="button" data-bootstrap-retry', 'class="action show" type="button" data-bootstrap-retry')
