@@ -4,7 +4,6 @@ const { renderPaymentStatusPage } = require('../presentation/paymentStatusUx');
 const { renderPaymentPolicyPage } = require('../presentation/paymentPolicyUx');
 const {
   BOOKING_POLICY_VERSION,
-  BOOKING_POLICY_UPDATED,
   BOOKING_POLICY_TEXT,
 } = require('../config/bookingPolicyAuthority');
 const { ensurePolicySchema } = require('../services/bookingPolicy');
@@ -137,8 +136,6 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema 
         requestKey,
         request,
         policyText: BOOKING_POLICY_TEXT,
-        policyVersion: BOOKING_POLICY_VERSION,
-        policyUpdated: BOOKING_POLICY_UPDATED,
       }));
     } catch (error) {
       return next(error);
