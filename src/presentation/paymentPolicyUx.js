@@ -9,10 +9,6 @@ function renderPolicySection(section) {
   const heading = '<h2>' + escapeHtml(section.heading) + '</h2>';
   const lines = Array.isArray(section.lines) ? section.lines.filter(Boolean) : [];
 
-  if (section.heading === 'Cancellations & Rescheduling') {
-    return heading + '<ul>' + lines.map(line => '<li>' + escapeHtml(line.replace(/^•\s*/, '')) + '</li>').join('') + '</ul>';
-  }
-
   const body = lines.map(line => {
     if (line.startsWith('•')) return '<li>' + escapeHtml(line.replace(/^•\s*/, '')) + '</li>';
     return '<p>' + escapeHtml(line) + '</p>';
