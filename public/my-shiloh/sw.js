@@ -1,8 +1,8 @@
 'use strict';
 
-const ASSET_VERSION = '20260923-native-booking-v1';
-const SHELL_CACHE = 'my-shiloh-shell-v21';
-const STATIC_CACHE = 'my-shiloh-static-v21';
+const ASSET_VERSION = '20260925-home-screen-badge-v1';
+const SHELL_CACHE = 'my-shiloh-shell-v22';
+const STATIC_CACHE = 'my-shiloh-static-v22';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',
@@ -33,8 +33,72 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+const BADGE_DB_NAME = 'my-shiloh-badge-v1';
+const BADGE_STORE = 'state';
+const BADGE_KEY = 'unread-count';
+
+function openBadgeDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(BADGE_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(BADGE_STORE)) {
+        request.result.createObjectStore(BADGE_STORE);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function mutateBadgeCount(delta = 0, reset = false) {
+  const db = await openBadgeDb();
+  try {
+    return await new Promise((resolve, reject) => {
+      const transaction = db.transaction(BADGE_STORE, 'readwrite');
+      const store = transaction.objectStore(BADGE_STORE);
+      const request = store.get(BADGE_KEY);
+      let next = 0;
+      request.onsuccess = () => {
+        const current = Math.max(0, Number(request.result) || 0);
+        next = reset ? 0 : Math.max(0, current + Math.max(0, Number(delta) || 0));
+        store.put(next, BADGE_KEY);
+      };
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => resolve(next);
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+async function applyHomeScreenBadge(count) {
+  const value = Math.max(0, Number(count) || 0);
+  try {
+    if (value > 0 && 'setAppBadge' in self.navigator) {
+      await self.navigator.setAppBadge(value);
+    } else if (value === 0 && 'clearAppBadge' in self.navigator) {
+      await self.navigator.clearAppBadge();
+    }
+  } catch (_) {}
+}
+
+async function incrementHomeScreenBadge(amount = 1) {
+  try {
+    const count = await mutateBadgeCount(amount, false);
+    await applyHomeScreenBadge(count);
+  } catch (_) {}
+}
+
+async function clearHomeScreenBadge() {
+  try { await mutateBadgeCount(0, true); } catch (_) {}
+  await applyHomeScreenBadge(0);
+}
+
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
+  if (event.data?.type === 'CLEAR_APP_BADGE') event.waitUntil(clearHomeScreenBadge());
 });
 
 async function pendingNotifications() {
@@ -64,6 +128,7 @@ self.addEventListener('push', (event) => {
         tag: 'my-shiloh-generic-update',
         data: { url: '/my-shiloh/' },
       });
+      await incrementHomeScreenBadge(1);
       return;
     }
     for (const notification of notifications) {
@@ -75,6 +140,7 @@ self.addEventListener('push', (event) => {
         data: { url: String(notification.targetPath || '/my-shiloh/') },
       });
     }
+    await incrementHomeScreenBadge(notifications.length);
   })());
 });
 
