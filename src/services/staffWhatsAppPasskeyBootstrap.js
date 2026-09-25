@@ -308,8 +308,8 @@ function createStaffWhatsAppPasskeyBootstrapService({
           attestation: 'none',
           authenticatorSelection: {
             authenticatorAttachment: 'platform',
-            residentKey: 'discouraged',
-            requireResidentKey: false,
+            residentKey: 'required',
+            requireResidentKey: true,
             userVerification: 'required',
           },
           excludeCredentials: existing.rows.map((row) => ({ type: 'public-key', id: row.credential_id })),

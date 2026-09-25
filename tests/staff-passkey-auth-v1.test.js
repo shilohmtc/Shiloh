@@ -112,34 +112,40 @@ test('#940 passkey registration presents the canonical staff name while retainin
   assert.doesNotMatch(user.name, /^staff-\d+$/);
 });
 
-test('#794 device credential is non-discoverable, platform-bound, and targeted on re-entry', () => {
+test('staff passkeys are discoverable so an existing phone can recover across browser or PWA handoff', () => {
   const service = fs.readFileSync(path.join(__dirname, '../src/services/staffPasskeyAuth.js'), 'utf8');
+  const bootstrap = fs.readFileSync(path.join(__dirname, '../src/services/staffWhatsAppPasskeyBootstrap.js'), 'utf8');
   const ux = fs.readFileSync(path.join(__dirname, '../src/presentation/staffPasskeyUx.js'), 'utf8');
   assert.match(service, /authenticatorAttachment:\s*'platform'/);
-  assert.match(service, /residentKey:\s*'discouraged'/);
-  assert.match(service, /requireResidentKey:\s*false/);
-  assert.doesNotMatch(service, /residentKey:\s*'required'/);
-  assert.match(service, /userVerification:\s*'required'/);
-  assert.match(service, /allowCredentials:\s*\[\{ type: 'public-key', id: credential\.credential_id/);
-  assert.match(service, /STAFF_PASSKEY_KNOWN_PRINCIPAL_REQUIRED/);
-  assert.match(service, /INSERT INTO staff_auth_webauthn_challenges \(challenge_hash, purpose, admin_id/);
-  assert.match(service, /Number\(credential\.admin_id\) !== Number\(challenge\.admin_id\)/);
-  assert.match(ux, /allowCredentials\|\|\[\]/);
+  assert.match(service, /residentKey:\s*'required'/);
+  assert.match(service, /requireResidentKey:\s*true/);
+  assert.match(bootstrap, /residentKey:\s*'required'/);
+  assert.match(bootstrap, /requireResidentKey:\s*true/);
+  assert.match(service, /allowCredentials:\s*credential[\s\S]*:\s*\[\]/);
+  assert.match(service, /credential \? credential\.admin_id : null/);
+  assert.match(service, /challenge\.admin_id != null/);
+  assert.match(ux, /Use existing passkey/);
   assert.match(ux, /known-principal/);
 });
 
-test('#968 missing browser device link is explained without disclosing staff identity', () => {
+test('missing browser hint offers existing discoverable passkey before device setup', () => {
   const panel = signinPanel();
   const ux = signinScript();
   assert.doesNotThrow(() => new Function(ux));
   assert.match(panel, /data-shiloh-passkey-status[^>]*hidden/);
-  assert.match(ux, /This app is not linked to a Shiloh staff account/);
-  assert.match(ux, /removing or reinstalling Shiloh/);
-  assert.match(ux, /Workspace → Devices & sign-in → Set up another device/);
-  assert.match(ux, /fresh private QR code/);
-  assert.match(ux, /Device setup required/);
+  assert.match(ux, /Use existing passkey/);
+  assert.match(ux, /This browser is not linked yet/);
+  assert.match(ux, /No usable Shiloh passkey was found in this browser/);
   assert.match(ux, /device-unlinked/);
   assert.doesNotMatch(ux, /staff-admin:\\d+|normalized_whatsapp|whatsapp_number/);
+});
+
+test('discoverable authentication migration permits an unbound authentication challenge only', () => {
+  const sql = fs.readFileSync(path.join(__dirname, '../migrations/156_staff_discoverable_passkey_handoff.sql'), 'utf8');
+  assert.match(sql, /purpose = 'authentication' AND session_id IS NULL/);
+  assert.match(sql, /registration_replacement/);
+  assert.match(sql, /bootstrap_replacement_registration/);
+  assert.doesNotMatch(sql, /CREATE TABLE|UPDATE staff_admin_accounts|DELETE FROM/i);
 });
 
 test('#794 remembered device hint is opaque, HttpOnly, strict, secure in production, and not authority', () => {

@@ -215,8 +215,8 @@ test('#804 recognized eligible WhatsApp identity gets one-time token; redemption
   assert.equal(started.ok, true);
   assert.equal(db.bootstraps[0].consumed_at instanceof Date, true);
   assert.equal(started.options.authenticatorSelection.authenticatorAttachment, 'platform');
-  assert.equal(started.options.authenticatorSelection.residentKey, 'discouraged');
-  assert.equal(started.options.authenticatorSelection.requireResidentKey, false);
+  assert.equal(started.options.authenticatorSelection.residentKey, 'required');
+  assert.equal(started.options.authenticatorSelection.requireResidentKey, true);
   assert.equal(started.options.authenticatorSelection.userVerification, 'required');
   assert.equal(started.options.user.name, 'Christel');
   assert.equal(started.options.user.displayName, 'Christel');
