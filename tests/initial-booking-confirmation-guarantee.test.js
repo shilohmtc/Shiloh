@@ -488,7 +488,7 @@ test('missing contact, missing name authority and inactive canonical authority f
   assert.match(authoritySql, /AND cc\.client_id=c\.id/);
   assert.doesNotMatch(authoritySql, /WHERE[^`]*(?:display_name|current_name)\s*=\s*\$1/i);
   const ux = fs.readFileSync(path.join(ROOT, 'src/presentation/calendarCreateBookingUx.js'), 'utf8');
-  assert.match(ux, /BOOKED — CLIENT CONFIRMATION NOT SENT/);
+  assert.match(ux, /BOOKING CREATED — CLIENT CONFIRMATION NOT SENT/);
 });
 
 test('unverified imported contact is durable manual action and never reaches the provider', async () => {
@@ -601,4 +601,50 @@ test('migration 083 is expand-only for old-artifact compatibility and preserves 
   assert.match(service, /verifyMigrationFiles/);
   assert.doesNotMatch(service.slice(service.indexOf('async function ensureDeliveryTable'), service.indexOf('async function loadBookingConfirmationAuthority')), /\b(?:CREATE|ALTER|UPDATE|INSERT|DELETE)\b/);
   assert.doesNotMatch(migration, /staff_totp|staff_auth|emergency_calendar_bootstrap/i);
+});
+
+
+test('deposit-message delivery is reported separately from booking creation', () => {
+  assert.deepEqual(customerConfirmationState({
+    customerConfirmation: {
+      sent: false,
+      reason: 'deposit_required',
+      deliveryStatus: 'awaiting_deposit',
+      deposit: {
+        amount: '125.00',
+        requests: [{ requestKey: 'dep_761', notificationSent: true }],
+      },
+    },
+  }), {
+    status: 'deposit_request_sent',
+    sent: false,
+    retryable: false,
+    reason: 'deposit_required',
+    depositMessageSent: true,
+    depositAmount: '125.00',
+  });
+
+  assert.deepEqual(customerConfirmationState({
+    customerConfirmation: {
+      sent: false,
+      reason: 'deposit_required',
+      deliveryStatus: 'awaiting_deposit',
+      deposit: {
+        amount: '125.00',
+        requests: [{ requestKey: 'dep_761', notificationSent: false }],
+      },
+    },
+  }), {
+    status: 'deposit_request_retry_pending',
+    sent: false,
+    retryable: true,
+    reason: 'deposit_required',
+    depositMessageSent: false,
+    depositAmount: '125.00',
+  });
+
+  const ux = fs.readFileSync(path.join(ROOT, 'src/presentation/calendarCreateBookingUx.js'), 'utf8');
+  assert.match(ux, /BOOKING CREATED — DEPOSIT REQUEST SENT/);
+  assert.match(ux, /BOOKING CREATED — DEPOSIT MESSAGE NOT SENT/);
+  assert.match(ux, /Appointment #.*exists in Shiloh/);
 });
