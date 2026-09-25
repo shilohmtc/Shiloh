@@ -8,6 +8,7 @@ function webPolicyHtml(policyText = '') {
   const lines = String(policyText || '').split(/\r?\n/);
   const html = [];
   let bullets = [];
+  let currentHeading = '';
 
   function flushBullets() {
     if (!bullets.length) return;
@@ -31,11 +32,16 @@ function webPolicyHtml(policyText = '') {
     const heading = line.match(/^\*([^*]+)\*$/);
     if (heading) {
       flushBullets();
-      html.push('<h2>' + escapeHtml(heading[1]) + '</h2>');
+      currentHeading = heading[1];
+      html.push('<h2>' + escapeHtml(currentHeading) + '</h2>');
       continue;
     }
     if (line.startsWith('•')) {
       bullets.push(line.replace(/^•\s*/, ''));
+      continue;
+    }
+    if (currentHeading === 'Cancellations & Rescheduling') {
+      bullets.push(line);
       continue;
     }
     flushBullets();
