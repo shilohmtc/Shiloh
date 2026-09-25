@@ -170,7 +170,7 @@
     }
     if (browserGated && isIos()) {
       if (installGateTitle) installGateTitle.textContent = 'Add My Shiloh to your iPhone.';
-      if (installGateCopy) installGateCopy.innerHTML = 'Keep bookings, Wallet, notifications and Shiloh support one tap away on your Home Screen.';
+      if (installGateCopy) installGateCopy.textContent = 'Keep bookings, Wallet, notifications and Shiloh support one tap away on your Home Screen.';
     }
   }
 
