@@ -148,6 +148,13 @@ test('verified Ozow payment after cancellation is recorded as payment truth but 
 });
 
 
+test('cancelled-booking payment review looks up the BIGINT audit entity id without a text cast', () => {
+  const service = read('src/services/bookingPayments.js');
+  const lookup = service.match(/payment\.received_after_booking_cancelled'[\s\S]{0,500}ORDER BY created_at DESC,id DESC/)?.[0] || '';
+  assert.match(lookup, /entity_id=\$1::bigint/);
+  assert.doesNotMatch(lookup, /entity_id=\$1::text/);
+});
+
 test('cancelled booking payment UI disables collection, hides stale copy links and exposes review-only refund control', () => {
   const ux = read('src/presentation/calendarPaymentsUx.js');
   assert.match(ux, /bookingCancelled = subject\.final === true/);
