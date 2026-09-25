@@ -85,6 +85,19 @@ function fakeReadService({ clients = [canonicalClient()], client = canonicalClie
   };
 }
 
+function fakePolicyAcceptanceService() {
+  return {
+    async listForClient() { return []; },
+    async readinessForAppointments(ids = []) {
+      return Object.fromEntries((ids || []).filter(Boolean).map(id => [id, {
+        terms:{ state:'not_recorded' },
+        deposit:{ state:'not_started', requiredAmount:null },
+        confirmation:{ state:'not_started' },
+      }]));
+    },
+  };
+}
+
 async function withServer(app, work) {
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve, reject) => {
@@ -130,7 +143,7 @@ test('client:lookup is the sole current-principal authority and fails closed for
 test('current authenticated admin permission is re-read server-side for every Client operation', async () => {
   const db = fakeDb([authorityRow()]);
   const reads = fakeReadService();
-  const service = createWorkspaceClientsService({ db, readService: reads });
+  const service = createWorkspaceClientsService({ db, readService: reads, policyAcceptanceService: fakePolicyAcceptanceService() });
   const model = await service.listClients({ adminId: 41, q: '  Synthetic   Client ', status: 'active', offset: 0 });
   assert.equal(db.calls.length, 1);
   assert.match(db.calls[0].sql, /FROM staff_admin_accounts a/);
@@ -146,7 +159,7 @@ test('list and history pagination are hard-bounded before reads reach the databa
   const manyClients = Array.from({ length: 40 }, (_, index) => canonicalClient({ id: index + 1, name: `Synthetic ${index + 1}` }));
   const manyAppointments = Array.from({ length: 30 }, (_, index) => canonicalAppointment({ starts_at: `2026-08-${String(29 - index).padStart(2, '0')}T08:00:00.000Z` }));
   const reads = fakeReadService({ clients: manyClients, appointments: manyAppointments });
-  const service = createWorkspaceClientsService({ db: fakeDb([authorityRow()]), readService: reads });
+  const service = createWorkspaceClientsService({ db: fakeDb([authorityRow()]), readService: reads, policyAcceptanceService: fakePolicyAcceptanceService() });
   const list = await service.listClients({ adminId: 41, status: 'all', offset: 9999999 });
   assert.equal(list.clients.length, CLIENT_LIST_PAGE_SIZE);
   assert.equal(list.hasMore, true);
@@ -212,7 +225,7 @@ test('no browser session is unauthorized at the mounted Clients router', async (
   app.use('/calendar/clients', createWorkspaceClientsRouter({
     env: ENABLED_ENV,
     sessionService: { async validateSessionToken() { return { ok: false }; } },
-    service: createWorkspaceClientsService({ db: fakeDb([authorityRow()]), readService: fakeReadService() }),
+    service: createWorkspaceClientsService({ db: fakeDb([authorityRow()]), readService: fakeReadService(), policyAcceptanceService: fakePolicyAcceptanceService() }),
   }));
   await withServer(app, async base => {
     const response = await fetch(`${base}/calendar/clients`);
@@ -226,7 +239,7 @@ test('authenticated staff with client:lookup can open list and exact detail', as
   app.use('/calendar/clients', createWorkspaceClientsRouter({
     env: ENABLED_ENV,
     sessionService: { async validateSessionToken(token) { return token === 'authorized' ? { ok: true, adminId: 41, viewer: { calendarScope: 'none' } } : { ok: false }; } },
-    service: createWorkspaceClientsService({ db: fakeDb([authorityRow()]), readService: fakeReadService() }),
+    service: createWorkspaceClientsService({ db: fakeDb([authorityRow()]), readService: fakeReadService(), policyAcceptanceService: fakePolicyAcceptanceService() }),
   }));
   await withServer(app, async base => {
     const headers = { cookie: 'shiloh_staff_session=authorized' };
