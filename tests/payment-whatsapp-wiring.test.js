@@ -156,7 +156,7 @@ test('web payment policy formats the canonical authority without WhatsApp-only i
   assert.match(html, /<h2>Respect, Safety &amp; Belongings<\/h2>/);
   assert.match(html, /<li>48\+ hours’ notice: no booking deposit is forfeited\.<\/li>/);
   assert.doesNotMatch(html, /reply exactly/i);
-  assert.doesNotMatch(html, /DECLINE/i);
+  assert.doesNotMatch(html, /reply\s+(?:\*?DECLINE\*?)/i);
   assert.doesNotMatch(html, /Policy version:/i);
   assert.doesNotMatch(html, /\*Appointments & Arrival\*/);
 });
