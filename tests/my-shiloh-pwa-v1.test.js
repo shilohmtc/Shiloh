@@ -44,6 +44,7 @@ test('My Shiloh renders the approved five-tab PWA shell with public-safe service
   assert.match(html, /data-view-target="shiloh"/);
   assert.match(html, /data-view-target="wallet"/);
   assert.match(html, /data-view-target="profile"/);
+  assert.doesNotMatch(html, /data-notification-badge|nav-icon--badged/);
   assert.match(html, /id="wallet" data-view="wallet"/);
   assert.match(html, /Your Shiloh value, together/);
   assert.match(html, /Full Body Swedish/);
@@ -102,7 +103,7 @@ test('PWA manifest is standalone and scoped to My Shiloh', () => {
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v21/);
+  assert.match(worker, /my-shiloh-shell-v22/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /booking\.js/);
