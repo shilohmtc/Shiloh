@@ -99,7 +99,7 @@ function webPolicyHtml(policyText = '') {
   return rendered.join('');
 }
 
-function renderPaymentPolicyPage({ requestKey, request, policyText } = {}) {
+function renderPaymentPolicyPage({ requestKey, request, policyText, policyAccepted = false } = {}) {
   const key = escapeHtml(requestKey);
   const amount = escapeHtml(Number(request?.amount || 0).toFixed(2));
   const payerName = escapeHtml(request?.payer_name || 'there');
@@ -132,7 +132,7 @@ function renderPaymentPolicyPage({ requestKey, request, policyText } = {}) {
     + '<main class="card">'
     + '<p class="eyebrow">SHILOH DEPOSIT · STEP 1 OF 2</p>'
     + '<h1>Review &amp; accept before payment</h1>'
-    + '<p class="intro">Hi ' + payerName + '. You’re still on Shiloh. No payment is taken until you accept the Booking Policy &amp; Terms and continue to Ozow.</p>'
+    + '<p class="intro">Hi ' + payerName + '. ' + (policyAccepted ? 'Your Booking Policy &amp; Terms acknowledgement is already recorded. Continue when you’re ready to pay securely with Ozow.' : 'You’re still on Shiloh. No payment is taken until you accept the Booking Policy &amp; Terms and continue to Ozow.') + '</p>'
     + '<div class="steps" aria-label="Deposit payment steps">'
     + '<div class="step current"><span class="step-number">Step 1</span><strong>Review &amp; accept</strong><span>Read Shiloh’s Booking Policy &amp; Terms and confirm your acceptance.</span></div>'
     + '<div class="step"><span class="step-number">Step 2</span><strong>Pay securely</strong><span>You’ll then continue to Ozow to complete the deposit.</span></div>'
@@ -147,8 +147,9 @@ function renderPaymentPolicyPage({ requestKey, request, policyText } = {}) {
     + '<div class="policy">' + policy + '</div>'
     + '</section>'
     + '<form method="post" action="/pay/' + key + '/accept">'
-    + '<div class="acceptance"><label><input type="checkbox" name="accept" value="yes" required> <span>I have read and accept Shiloh’s Booking Policy &amp; Terms.</span></label>'
-    + '<button type="submit">Accept &amp; continue to secure payment</button></div>'
+    + (policyAccepted
+      ? '<div class="acceptance" data-policy-already-accepted><p><strong>✓ Booking Policy &amp; Terms accepted</strong></p><p>Your acknowledgement is already recorded for this booking. Payment remains a separate step.</p><button type="submit">Continue to secure payment</button></div>'
+      : '<div class="acceptance"><label><input type="checkbox" name="accept" value="yes" required> <span>I have read and accept Shiloh’s Booking Policy &amp; Terms.</span></label><button type="submit">Accept &amp; continue to secure payment</button></div>')
     + '</form>'
     + '<p class="footer-note">You will leave Shiloh for Ozow only after you accept these terms.</p>'
     + '</main></body></html>';
