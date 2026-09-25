@@ -1,8 +1,8 @@
 'use strict';
 
-const ASSET_VERSION = '20260925-home-screen-badge-v1';
-const SHELL_CACHE = 'my-shiloh-shell-v22';
-const STATIC_CACHE = 'my-shiloh-static-v22';
+const ASSET_VERSION = '20260925-iphone-install-polish-v1';
+const SHELL_CACHE = 'my-shiloh-shell-v23';
+const STATIC_CACHE = 'my-shiloh-static-v23';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',

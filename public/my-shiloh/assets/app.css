@@ -189,11 +189,22 @@ h3{font-size:20px;line-height:1.12}
 .wallet-intro{padding-bottom:12px}.wallet-stack{display:grid;gap:12px}.wallet-stack .quiet-card{margin:0}.wallet-stack .quiet-card .eyebrow{color:var(--leaf-dark)}.wallet-stack .quiet-card p:last-child{color:#4f5d56}.wallet-stack+.section-block{margin-top:24px}
 .install-sheet{position:fixed;inset:0;z-index:100}
 .install-sheet__backdrop{position:absolute;inset:0;width:100%;border:0;background:rgba(32,43,36,.42);backdrop-filter:blur(4px)}
-.install-sheet__panel{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:min(100%,560px);padding:25px 20px calc(24px + var(--safe-bottom));border-radius:27px 27px 0 0;background:var(--paper);box-shadow:0 -20px 60px rgba(32,43,36,.2)}
-.install-sheet__panel h2{font-size:29px;margin:14px 0 12px}
-.install-sheet__panel ol{padding-left:20px;color:var(--muted);font-size:13px;margin:0 0 18px}
-.install-sheet__panel li+li{margin-top:8px}
-.install-sheet__close{position:absolute;right:16px;top:16px;width:40px;height:40px;border:0;border-radius:50%;background:var(--cream);font-size:22px}
+.install-sheet__panel{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:min(100%,560px);max-height:min(92dvh,760px);overflow:auto;padding:25px 20px calc(24px + var(--safe-bottom));border-radius:27px 27px 0 0;background:var(--paper);box-shadow:0 -20px 60px rgba(32,43,36,.2)}
+.install-sheet__panel h2{font-size:29px;margin:14px 0 8px}
+.install-sheet__panel .eyebrow{color:var(--leaf-dark)}
+.install-sheet__lead{margin:0 0 18px;color:var(--muted);font-size:13px;line-height:1.55}
+.install-steps{display:grid;gap:10px;padding:0!important;margin:0 0 16px!important;list-style:none;color:var(--ink)!important}
+.install-steps li{display:grid;grid-template-columns:34px minmax(0,1fr);gap:11px;align-items:start;padding:12px 13px;border:1px solid var(--line);border-radius:16px;background:#fff}
+.install-steps li+li{margin-top:0!important}
+.install-step__number{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--sage-2);color:var(--leaf-dark);font-size:12px;font-weight:900}
+.install-steps strong,.install-steps span{display:block}
+.install-steps strong{font-size:13px;line-height:1.35}
+.install-steps div>span{margin-top:4px;color:var(--muted);font-size:11px;line-height:1.45}
+.install-tip{display:grid;gap:3px;margin:0 0 16px;padding:13px 14px;border-radius:15px;background:var(--sage-2);text-align:left}
+.install-tip strong{font-size:12px;color:var(--leaf-dark)}
+.install-tip span{font-size:11px;line-height:1.45;color:#4f5d56}
+.install-sheet__close{position:absolute;right:16px;top:16px;width:44px;height:44px;border:0;border-radius:50%;background:var(--cream);font-size:22px}
+@media(max-width:420px){.install-sheet__panel{padding:22px 16px calc(20px + var(--safe-bottom))}.install-sheet__panel h2{padding-right:40px;font-size:26px}.install-steps li{padding:11px}}
 :focus-visible{outline:3px solid rgba(161,122,75,.44);outline-offset:3px}
 @media(min-width:700px){
   body{padding:26px}

@@ -1423,7 +1423,7 @@ test('My Shiloh install doorway is clear, contained and accessible on Phone and 
     const gate = page.locator('[data-install-gate]');
     await expect(gate).toBeVisible();
     await expect(page.locator('[data-app-frame]')).toBeHidden();
-    await expect(page.getByRole('heading', { name: 'Add My Shiloh to your Home Screen to continue.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Keep My Shiloh one tap away.' })).toBeVisible();
     await expect(page.getByText('Already installed? Open My Shiloh from your Home Screen.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Show install steps' })).toBeVisible();
     await expect(gate.locator('[data-install-gate-instructions]')).toHaveCount(0);
@@ -1479,7 +1479,7 @@ test('authenticated My Shiloh browser sessions still show only the install doorw
     const appFrame = page.locator('[data-app-frame]');
     await expect(gate).toBeVisible();
     await expect(appFrame).toBeHidden();
-    await expect(page.getByRole('heading', { name: 'Add My Shiloh to your Home Screen to continue.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Keep My Shiloh one tap away.' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Show install steps' })).toBeVisible();
     await expect(gate.locator('[data-install-gate-instructions]')).toHaveCount(0);
     await expect(page.getByText('Good evening, Christel.')).toBeHidden();
@@ -1516,9 +1516,57 @@ test('My Shiloh install guidance appears only after Show install steps is tapped
   await button.click();
   await expect(sheet).toBeVisible();
   await expect(sheet.getByRole('heading', { name: 'Add My Shiloh to your Home Screen.' })).toBeVisible();
-  await expect(sheet.getByText('Open your browser menu or Share button.')).toBeVisible();
-  await expect(sheet.getByText('Choose Add to Home Screen or Install app.')).toBeVisible();
-  await expect(sheet.getByText('Open My Shiloh from its new icon.')).toBeVisible();
+  await expect(sheet.getByText('Open your browser menu or Share button')).toBeVisible();
+  await expect(sheet.getByText('Choose Add to Home Screen or Install app')).toBeVisible();
+  await expect(sheet.getByText('Open My Shiloh', { exact: true })).toBeVisible();
+});
+
+test('polished iPhone install guide is clear and accessible on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name: 'phone', width: 390, height: 844 },
+    { name: 'desktop', width: 1280, height: 900 },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--i-phone-install-guide&viewMode=story', { waitUntil: 'networkidle' });
+
+    const gate = page.locator('[data-install-gate]');
+    const sheet = page.locator('[data-install-sheet]');
+    await expect(gate).toBeVisible();
+    await expect(sheet).toBeVisible();
+    await expect(gate.getByRole('heading', { name: 'Add My Shiloh to your iPhone.' })).toBeVisible();
+    await expect(gate.getByRole('button', { name: 'Show iPhone steps' })).toBeVisible();
+    await expect(sheet.getByRole('heading', { name: 'Four quick steps and you’re in.' })).toBeVisible();
+    await expect(sheet.getByText('My Shiloh installs from Safari — no App Store download is needed.')).toBeVisible();
+    await expect(sheet.getByText('Open this page in Safari', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('Tap the Share button', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('Choose Add to Home Screen', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('Turn on Open as Web App, then tap Add', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('Already installed?', { exact: true })).toBeVisible();
+
+    const metrics = await sheet.evaluate((node) => ({
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      shortTargets: [...node.querySelectorAll('button,a')]
+        .filter((target) => target.getClientRects().length && target.getBoundingClientRect().height < 44)
+        .map((target) => target.textContent.trim() || target.getAttribute('aria-label')),
+    }));
+    expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+    expect(metrics.shortTargets).toEqual([]);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-install-sheet]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
+    expect(serious, `Serious accessibility violations in iPhone install guide on ${viewport.name}: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+
+    await page.screenshot({
+      path: testInfo.outputPath(`my-shiloh-iphone-install-guide-${viewport.name}.png`),
+      fullPage: true,
+      animations: 'disabled',
+      caret: 'hide',
+    });
+  }
 });
 
 

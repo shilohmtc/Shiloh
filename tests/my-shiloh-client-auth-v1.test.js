@@ -179,7 +179,7 @@ test('every normal browser is an installation doorway while standalone mode keep
   const styles = read('public/my-shiloh/assets/app.css');
 
   assert.match(presentation, /data-install-gate/);
-  assert.match(presentation, /Add My Shiloh to your Home Screen to continue/);
+  assert.match(presentation, /Keep My Shiloh one tap away/);
   assert.match(presentation, /Already installed\? Open My Shiloh from your Home Screen/);
   assert.match(presentation, /data-install-verification-gate/);
   assert.match(presentation, /Confirm it’s you to finish setting up My Shiloh/);
@@ -194,6 +194,11 @@ test('every normal browser is an installation doorway while standalone mode keep
   assert.doesNotMatch(client, /On iPhone: tap Share, choose Add to Home Screen, then tap Add/);
   assert.match(presentation, /data-install-gate-action>Install My Shiloh<\/button>/);
   assert.match(client, /deferredInstallPrompt && isAndroid\(\)/);
+  assert.match(client, /Show iPhone steps/);
+  assert.match(client, /Open this page in Safari/);
+  assert.match(client, /Tap the Share button/);
+  assert.match(client, /Choose Add to Home Screen/);
+  assert.match(client, /Open as Web App, then tap Add/);
   assert.match(client, /appinstalled[\s\S]*resetInstallationVerification\(\)/);
   assert.match(client, /if \(!standalone\(\) \|\| installationVerificationRequired\(\) \|\| appFrame\?\.dataset\.clientAuthenticated !== 'true'/);
   assert.match(client, /function welcomeBackFromWhatsApp\(\) \{[\s\S]*installationVerificationRequired\(\)/);
@@ -201,6 +206,15 @@ test('every normal browser is an installation doorway while standalone mode keep
   assert.match(styles, /\.install-gate\{/);
 });
 
+
+test('My Shiloh is the canonical installed-app display name', () => {
+  const manifest = JSON.parse(read('public/my-shiloh/manifest.webmanifest'));
+  const presentation = read('src/presentation/myShilohPwa.js');
+  assert.equal(manifest.name, 'My Shiloh');
+  assert.equal(manifest.short_name, 'My Shiloh');
+  assert.match(presentation, /apple-mobile-web-app-title" content="My Shiloh"/);
+  assert.match(presentation, /data-install-trigger hidden>Install My Shiloh<\/button>/);
+});
 
 test('first installed-app launch uses only a non-sensitive convenience marker and WhatsApp remains authority', () => {
   const client = read('public/my-shiloh/assets/app.js');
