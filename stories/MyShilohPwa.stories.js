@@ -148,6 +148,51 @@ export const BrowserInstallDoorway = {
   },
 };
 
+export const IPhoneInstallGuide = {
+  render: () => {
+    const surface = productionSurface();
+    const gate = surface.querySelector('[data-install-gate]');
+    const frame = surface.querySelector('[data-app-frame]');
+    const sheet = surface.querySelector('[data-install-sheet]');
+    if (gate) gate.hidden = false;
+    if (frame) frame.hidden = true;
+    if (sheet) sheet.hidden = false;
+    const action = surface.querySelector('[data-install-gate-action]');
+    const gateTitle = surface.querySelector('[data-install-gate-title]');
+    const gateCopy = surface.querySelector('[data-install-gate-copy]');
+    if (action) action.textContent = 'Show iPhone steps';
+    if (gateTitle) gateTitle.textContent = 'Add My Shiloh to your iPhone.';
+    if (gateCopy) gateCopy.textContent = 'Keep bookings, Wallet, notifications and Shiloh support one tap away on your Home Screen.';
+    const eyebrow = surface.querySelector('[data-install-eyebrow]');
+    const title = surface.querySelector('[data-install-title]');
+    const lead = surface.querySelector('[data-install-lead]');
+    if (eyebrow) eyebrow.textContent = 'Install My Shiloh on iPhone';
+    if (title) title.textContent = 'Four quick steps and you’re in.';
+    if (lead) lead.textContent = 'My Shiloh installs from Safari — no App Store download is needed.';
+    const steps = [
+      ['Open this page in Safari', 'If you opened My Shiloh inside another app, use its menu to open this page in Safari.'],
+      ['Tap the Share button', 'Look for the square with the upward arrow in Safari.'],
+      ['Choose Add to Home Screen', 'Scroll the Share menu if you do not see it straight away.'],
+      ['Turn on Open as Web App, then tap Add', 'Open the new My Shiloh icon from your Home Screen when installation finishes.'],
+    ];
+    steps.forEach(([stepTitle, stepCopy], index) => {
+      const number = String(index + 1);
+      const titleNode = surface.querySelector(`[data-install-step-title="${number}"]`);
+      const copyNode = surface.querySelector(`[data-install-step-copy="${number}"]`);
+      if (titleNode) titleNode.textContent = stepTitle;
+      if (copyNode) copyNode.textContent = stepCopy;
+    });
+    const extra = surface.querySelector('[data-install-step-extra]');
+    if (extra) extra.hidden = false;
+    const tip = surface.querySelector('[data-install-tip]');
+    if (tip) {
+      tip.hidden = false;
+      tip.innerHTML = '<strong>Already installed?</strong><span>Close this browser page and open the My Shiloh icon on your Home Screen.</span>';
+    }
+    return surface;
+  },
+};
+
 export const StandaloneGuestSignIn = {
   render: () => {
     const surface = productionSurface();
