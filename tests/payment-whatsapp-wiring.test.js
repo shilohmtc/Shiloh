@@ -100,6 +100,37 @@ test('deposit request prefers policy-aware v2 and falls back safely while Meta a
 });
 
 
+test('deposit request falls back when Shiloh knows v2 is pending approval before provider send', async () => {
+  const calls = [];
+  const result = await sendPaymentTemplate({
+    templateKey: PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST,
+    to: '0825278287',
+    bodyParameters: ['Client', 'R125.00', 'Medi-Heel Pedicure', 'Friday, 25 September 2026', '08:00', '761'],
+    urlButtonParameter: 'dep_761_token',
+    environment: {
+      WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED: 'true',
+      WHATSAPP_PAYMENT_DEPOSIT_REQUEST_TEMPLATE: 'shiloh_payment_deposit_request_v1',
+    },
+    send: async (...args) => {
+      calls.push(args);
+      if (args[1] === 'shiloh_payment_deposit_request_v2') {
+        throw Object.assign(
+          new Error('WhatsApp template is not exact, approved and configured: shiloh_payment_deposit_request_v2'),
+          { code: 'META_TEMPLATE_NOT_READY' },
+        );
+      }
+      return { messages: [{ id: 'wamid.761.legacy' }] };
+    },
+  });
+  assert.equal(result.sent, true);
+  assert.equal(result.fallback, true);
+  assert.equal(result.templateName, 'shiloh_payment_deposit_request_v1');
+  assert.deepEqual(calls.map(call => call[1]), [
+    'shiloh_payment_deposit_request_v2',
+    'shiloh_payment_deposit_request_v1',
+  ]);
+});
+
 test('ambiguous provider failure does not retry a second WhatsApp template', async () => {
   let calls = 0;
   const result = await sendPaymentTemplate({
