@@ -1825,14 +1825,32 @@ test('deposit policy is unmistakable before Ozow on Phone and Desktop', async ({
     await expect(policy.getByText('Step 1', { exact: true })).toBeVisible();
     await expect(policy.getByText('Step 2', { exact: true })).toBeVisible();
     await expect(policy.getByText(/No payment is taken until you accept/)).toBeVisible();
+    await expect(policy.getByRole('heading', { name: 'Booking Deposit' })).toBeVisible();
+    await expect(policy.getByRole('heading', { name: 'Cancellations & Rescheduling' })).toBeVisible();
     await expect(policy.getByRole('heading', { name: 'Appointments & Arrival' })).toBeVisible();
+    await expect(policy.getByRole('heading', { name: 'Health & Treatment Information' })).toBeVisible();
     await expect(policy.getByRole('heading', { name: 'Respect, Safety & Belongings' })).toBeVisible();
-    await expect(policy.getByText('Updated 23 September 2026')).toBeVisible();
-    await expect(policy.getByText('Version 2026-09-23-v2')).toHaveCount(1);
+    await expect(policy.getByText('Updated 23 September 2026')).toHaveCount(0);
+    await expect(policy.getByText('Version 2026-09-23-v2')).toHaveCount(0);
     await expect(policy.getByText(/reply exactly: I AGREE/i)).toHaveCount(0);
     await expect(policy.getByText(/If you do not agree, reply/i)).toHaveCount(0);
     await expect(policy.getByRole('button', { name: 'Accept & continue to secure payment' })).toBeVisible();
     await expect(policy).not.toContainText('*Respect, Safety & Belongings*');
+    const policyOrder = await policy.locator('.policy').evaluate((node) => {
+      const text = node.innerText;
+      return {
+        deposit: text.indexOf('Booking Deposit'),
+        cancellations: text.indexOf('Cancellations & Rescheduling'),
+        professional: text.indexOf('All treatments and services provided by Shiloh are strictly professional and non-sexual.'),
+        appointments: text.indexOf('Appointments & Arrival'),
+        health: text.indexOf('Health & Treatment Information'),
+      };
+    });
+    expect(policyOrder.deposit).toBeGreaterThanOrEqual(0);
+    expect(policyOrder.deposit).toBeLessThan(policyOrder.cancellations);
+    expect(policyOrder.cancellations).toBeLessThan(policyOrder.professional);
+    expect(policyOrder.professional).toBeLessThan(policyOrder.appointments);
+    expect(policyOrder.appointments).toBeLessThan(policyOrder.health);
     const policyOverflow = await policy.locator('.policy').evaluate((node) => getComputedStyle(node).overflowY);
     expect(policyOverflow).not.toBe('auto');
     expect(policyOverflow).not.toBe('scroll');
