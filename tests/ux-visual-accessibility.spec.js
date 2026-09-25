@@ -807,6 +807,46 @@ test('normal business admin account receives the same practitioner-first Phone b
   expect(serious, `Serious accessibility violations in normal admin booking: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
 });
 
+test('stalled Android passkey setup shows a clear accessible recovery on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=staff-passkey-bootstrap--android-verification-stalled&viewMode=story', { waitUntil:'networkidle' });
+
+    const surface = page.locator('[data-passkey-bootstrap-story]');
+    await expect(surface).toBeVisible();
+    await expect(surface.getByRole('heading', { name:'Set up this device' })).toBeVisible();
+    await expect(surface.getByText(/Android did not finish device verification/)).toBeVisible();
+    await expect(surface.getByRole('button', { name:'Try again' })).toBeVisible();
+    await expect(surface.getByRole('button', { name:'Open sign-in' })).toBeVisible();
+    await expect(surface.getByRole('button', { name:'Add this device' })).toBeHidden();
+    await expect(surface.getByRole('button', { name:'Replace a lost device' })).toBeHidden();
+
+    const metrics = await surface.evaluate((node) => ({
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      shortButtons: [...node.querySelectorAll('button')]
+        .filter((button) => button.getClientRects().length && button.getBoundingClientRect().height < 44)
+        .map((button) => button.textContent.trim()),
+    }));
+    expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+    expect(metrics.shortButtons).toEqual([]);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-passkey-bootstrap-story]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa'])
+      .analyze();
+    const serious = accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact));
+    expect(serious, `Serious accessibility violations in passkey stall recovery on ${viewport.name}: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+
+    await page.screenshot({
+      path:testInfo.outputPath(`android-passkey-stall-${viewport.name}.png`),
+      fullPage:true,
+      animations:'disabled',
+      caret:'hide',
+    });
+  }
+});
+
 test('phone passkey cards show South African date and time without overflow', async ({ page }) => {
   await page.setViewportSize({ width: 310, height: 659 });
   await page.goto('/iframe.html?id=workspace-production-surfaces--phone-passkey-devices&viewMode=story', { waitUntil: 'networkidle' });
