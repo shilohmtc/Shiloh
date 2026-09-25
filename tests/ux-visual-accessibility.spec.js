@@ -1970,3 +1970,151 @@ test('booking-created deposit retry status is clear on Phone and Desktop', async
     });
   }
 });
+
+
+test('in-clinic future-booking terms review is clear and accessible on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name:'phone', width:390, height:844 },
+    { name:'desktop', width:1280, height:900 },
+  ]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=client-in-person-booking-policy--awaiting-client-acceptance&viewMode=story', { waitUntil:'networkidle' });
+    const surface = page.locator('[data-in-person-policy-story]');
+    await expect(surface).toBeVisible();
+    await expect(surface.getByRole('heading', { name:'Booking Policy & Terms' })).toBeVisible();
+    await expect(surface.getByText('Naledi Mokoena')).toBeVisible();
+    await expect(surface.getByText(/client must read and tap the acknowledgement themselves/i)).toBeVisible();
+    await expect(surface.getByText(/staff must not accept on their behalf/i)).toBeVisible();
+    await expect(surface.getByText(/Our therapists set aside this time especially for you/)).toBeVisible();
+    await expect(surface.getByText('Marietjie')).toHaveCount(0);
+    await expect(surface.getByText(/I have read and accept Shiloh’s Booking Policy & Terms/)).toBeVisible();
+
+    const metrics = await surface.evaluate(() => ({
+      viewportWidth:innerWidth,
+      documentWidth:document.documentElement.scrollWidth,
+      short:[...document.querySelectorAll('button,input,a')]
+        .filter(node => node.getClientRects().length && node.getBoundingClientRect().height < 44)
+        .map(node => node.textContent || node.getAttribute('aria-label') || node.tagName),
+    }));
+    expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+    expect(metrics.short).toEqual([]);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-in-person-policy-story]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+
+    await page.screenshot({
+      path:testInfo.outputPath(`in-person-policy-${viewport.name}.png`),
+      fullPage:true,animations:'disabled',caret:'hide',
+    });
+  }
+});
+
+test('Workspace client record shows policy history and booking readiness on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name:'phone', width:390, height:844 },
+    { name:'desktop', width:1280, height:900 },
+  ]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=workspace-clients--marietjie-client-management&viewMode=story', { waitUntil:'networkidle' });
+    const surface = page.locator('[data-story-surface]');
+    await expect(surface).toBeVisible();
+    await expect(surface.getByRole('heading', { name:'Booking Policy & Terms' })).toBeVisible();
+    await expect(surface.getByText('2026-09-25-v3')).toBeVisible();
+    await expect(surface.getByText(/In clinic on Shiloh device/)).toBeVisible();
+    await expect(surface.getByText('✓ Terms accepted')).toBeVisible();
+    await expect(surface.getByText('Deposit received')).toBeVisible();
+    await expect(surface.getByText('✓ Confirmed')).toBeVisible();
+
+    const metrics = await surface.evaluate(() => ({
+      viewportWidth:innerWidth,
+      documentWidth:document.documentElement.scrollWidth,
+    }));
+    expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-story-surface]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+
+    await page.screenshot({
+      path:testInfo.outputPath(`client-policy-history-${viewport.name}.png`),
+      fullPage:true,animations:'disabled',caret:'hide',
+    });
+  }
+});
+
+test('future booking completion offers clinic-device review and the secure client-phone link on Phone and Desktop', async ({ page }, testInfo) => {
+  await page.route('**/calendar/staff-auth/csrf', async route => route.fulfill({
+    status:200,contentType:'application/json',body:JSON.stringify({ csrfToken:'storybook-csrf' }),
+  }));
+  await page.route('**/calendar/book/client-search', async route => route.fulfill({
+    status:200,contentType:'application/json',body:JSON.stringify({
+      clients:[{ id:91, displayName:'Naledi Mokoena', contactHint:'••67', profileStatus:'registered' }],
+    }),
+  }));
+  await page.route('**/calendar/book/prepare', async route => route.fulfill({
+    status:200,contentType:'application/json',body:JSON.stringify({
+      status:'pending_confirmation',
+      review:{
+        client:{ id:91, displayName:'Naledi Mokoena', contactHint:'••67', mobile:'082 123 4567' },
+        service:{ id:81, name:'Quick Relief: Back & Neck (45 min)' },
+        practitioner:{ id:11, displayName:'Christel' },
+        startsAt:'2026-09-14T08:30:00.000Z',
+        durationMinutes:45,
+        price:'R520.00',
+      },
+    }),
+  }));
+  await page.route('**/calendar/book/confirm', async route => route.fulfill({
+    status:201,contentType:'application/json',body:JSON.stringify({
+      status:'created',
+      appointmentId:812,
+      policyReviewPath:'/calendar/book/policy/812',
+      paymentPath:'/pay/dep_812_secure',
+      customerConfirmation:{
+        status:'deposit_request_sent',
+        sent:false,
+        retryable:false,
+        reason:'deposit_required',
+        paymentPath:'/pay/dep_812_secure',
+      },
+    }),
+  }));
+
+  for (const viewport of [
+    { name:'phone', width:390, height:844 },
+    { name:'desktop', width:1280, height:900 },
+  ]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=workspace-production-surfaces--create-booking&viewMode=story', { waitUntil:'networkidle' });
+    await page.locator('#client-search').fill('Naledi');
+    await page.locator('[data-client-search]').click();
+    await page.locator('.client-result').click();
+    await page.locator('#service-select').selectOption('81');
+    await page.locator('#staff-select').selectOption('11');
+    await page.locator('[data-review-booking]').click();
+    await expect(page.locator('[data-review-panel]')).toBeVisible();
+    await page.locator('[data-create-booking]').click();
+
+    const status = page.locator('[data-booking-status]');
+    await expect(status).toContainText('BOOKING CREATED — DEPOSIT REQUEST SENT');
+    await expect(status.getByRole('link', { name:'Let client review terms' })).toHaveAttribute('href', '/calendar/book/policy/812');
+    await expect(status.getByRole('button', { name:'Copy secure link' })).toBeVisible();
+    await expect(status.getByText(/same Booking Policy & Terms before deposit payment/)).toBeVisible();
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-booking-status]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+
+    await page.screenshot({
+      path:testInfo.outputPath(`future-booking-terms-options-${viewport.name}.png`),
+      fullPage:true,animations:'disabled',caret:'hide',
+    });
+  }
+});
