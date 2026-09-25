@@ -46,7 +46,6 @@ jobs:
           GITHUB_SHA: ${{ github.event.pull_request.head.sha }}
           SHILOH_PULL_REQUEST_BODY: ${{ github.event.pull_request.body }}
         run: node scripts/check-migration-release-plan.js
-        run: node scripts/check-migration-release-plan.js
 
       - name: Test the migration release-plan contract
         run: node --test tests/production-migration-release-plan.test.js

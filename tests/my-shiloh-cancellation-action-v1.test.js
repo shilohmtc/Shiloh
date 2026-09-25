@@ -234,8 +234,8 @@ test('prepare returns the one-time token only to the client action, never the mo
   assert.equal(JSON.stringify(prepared.modelResult).includes(prepared.clientAction.token), false);
   assert.match(prepared.modelResult.message, /has not changed/i);
   assert.match(prepared.clientAction.paymentNote, /does not automatically issue a refund/i);
-  assert.match(prepared.clientAction.policy, /Marietjie/i);
-  assert.match(prepared.clientAction.policy, /exempt from the booking-deposit requirement/i);
+  assert.match(prepared.clientAction.policy, /no booking deposit is required for this appointment/i);
+  assert.doesNotMatch(prepared.clientAction.policy, /Marietjie/i);
 
   const confirmed = await service.confirmAction({
     sessionId: 55,
@@ -285,14 +285,14 @@ test('My Shiloh cancellation fails closed when the appointment becomes linked to
   assert.equal(calls.some(call => /UPDATE appointments/.test(call.sql)), false);
 });
 
-test('My Shiloh cancellation copy uses the unified Booking Policy bands and Marietjie exemption', () => {
+test('My Shiloh cancellation copy uses the unified Booking Policy bands without exposing the practitioner-specific exemption', () => {
   const late = cancellationPolicy(
     new Date(NOW.getTime() + 3 * 60 * 60 * 1000),
     NOW,
     ['Christel'],
   );
   assert.match(late, /less than 24 hours/i);
-  assert.match(late, /100% of the booking deposit may be forfeited/i);
+  assert.match(late, /100% of your booking deposit may be retained/i);
   assert.doesNotMatch(late, /charged|has been applied/i);
 
   const partial = cancellationPolicy(
@@ -301,15 +301,15 @@ test('My Shiloh cancellation copy uses the unified Booking Policy bands and Mari
     ['Christel'],
   );
   assert.match(partial, /24–48 hours/i);
-  assert.match(partial, /50% of the booking deposit may be forfeited/i);
+  assert.match(partial, /50% of your booking deposit may be retained/i);
 
   const exempt = cancellationPolicy(
     new Date(NOW.getTime() + 3 * 60 * 60 * 1000),
     NOW,
     ['Marietjie'],
   );
-  assert.match(exempt, /Marietjie/i);
-  assert.match(exempt, /exempt from the booking-deposit requirement/i);
+  assert.match(exempt, /no booking deposit is required for this appointment/i);
+  assert.doesNotMatch(exempt, /Marietjie/i);
 });
 
 test('prepare cancellation tool is strict, argument-free and cannot confirm the action', async () => {

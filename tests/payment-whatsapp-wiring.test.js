@@ -157,7 +157,9 @@ test('web payment policy formats and reorders the canonical authority without ch
   assert.match(html, /<h2>Appointments &amp; Arrival<\/h2>/);
   assert.match(html, /<h2>Health &amp; Treatment Information<\/h2>/);
   assert.match(html, /<h2>Respect, Safety &amp; Belongings<\/h2>/);
-  assert.match(html, /<li>48\+ hours’ notice: no booking deposit is forfeited\.<\/li>/);
+  assert.match(html, /<p>We understand that plans can change\./);
+  assert.match(html, /<li>48 hours or more before your appointment: No portion of your booking deposit is forfeited\.<\/li>/);
+  assert.doesNotMatch(html, /Marietjie/i);
 
   const deposit = html.indexOf('<h2>Booking Deposit</h2>');
   const cancellations = html.indexOf('<h2>Cancellations &amp; Rescheduling</h2>');
@@ -210,8 +212,8 @@ test('payment links show the booking policy before redirecting to Ozow', async (
     assert.match(body, /Accept &amp; continue to secure payment/);
     assert.doesNotMatch(body, /reply exactly/i);
     assert.doesNotMatch(body, /\*Respect, Safety & Belongings\*/);
-    assert.doesNotMatch(body, /Updated 23 September 2026/);
-    assert.doesNotMatch(body, /Version 2026-09-23-v2/);
+    assert.doesNotMatch(body, /Updated 25 September 2026/);
+    assert.doesNotMatch(body, /Version 2026-09-25-v3/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

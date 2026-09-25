@@ -458,7 +458,7 @@ export const BookingDepositAwaiting = {
     deposit: {
       applicable:true,
       policy:{ rateBasisPoints:5000, freeNoticeHours:48, partialNoticeHours:24, partialForfeitBasisPoints:5000, lateForfeitBasisPoints:10000 },
-      requirement:{ state:'awaiting', required_amount:'325.00', net_paid:'0.00', policy_version:'2026-09-23-v2', rate_basis_points:5000 },
+      requirement:{ state:'awaiting', required_amount:'325.00', net_paid:'0.00', policy_version:'2026-09-25-v3', rate_basis_points:5000 },
       events:[],
     },
     rewards:{ balance:'75.00', unlocked:true, unlockThreshold:'100.00' },
@@ -476,7 +476,7 @@ export const MarietjieDepositExempt = {
     },
     deposit: {
       applicable:true,
-      requirement:{ state:'exempt', required_amount:'0.00', net_paid:'0.00', policy_version:'2026-09-23-v2' },
+      requirement:{ state:'exempt', required_amount:'0.00', net_paid:'0.00', policy_version:'2026-09-25-v3' },
       events:[],
     },
     rewards:null,
@@ -495,7 +495,7 @@ export const CancelledBookingPaymentReview = {
     deposit: {
       applicable:true,
       policy:{ rateBasisPoints:5000, freeNoticeHours:48, partialNoticeHours:24, partialForfeitBasisPoints:5000, lateForfeitBasisPoints:10000 },
-      requirement:{ state:'awaiting', required_amount:'125.00', net_paid:'0.00', policy_version:'2026-09-23-v2', rate_basis_points:5000 },
+      requirement:{ state:'awaiting', required_amount:'125.00', net_paid:'0.00', policy_version:'2026-09-25-v3', rate_basis_points:5000 },
       events:[{ event_type:'cancelled', policy_forfeit_amount:'0.00', policy_creditable_amount:'125.00' }],
     },
     rewards:null,

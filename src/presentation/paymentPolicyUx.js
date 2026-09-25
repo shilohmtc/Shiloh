@@ -9,10 +9,6 @@ function renderPolicySection(section) {
   const heading = '<h2>' + escapeHtml(section.heading) + '</h2>';
   const lines = Array.isArray(section.lines) ? section.lines.filter(Boolean) : [];
 
-  if (section.heading === 'Cancellations & Rescheduling') {
-    return heading + '<ul>' + lines.map(line => '<li>' + escapeHtml(line.replace(/^•\s*/, '')) + '</li>').join('') + '</ul>';
-  }
-
   const body = lines.map(line => {
     if (line.startsWith('•')) return '<li>' + escapeHtml(line.replace(/^•\s*/, '')) + '</li>';
     return '<p>' + escapeHtml(line) + '</p>';
@@ -144,7 +140,7 @@ function renderPaymentPolicyPage({ requestKey, request, policyText } = {}) {
     + '<section class="summary" aria-label="Deposit summary">'
     + '<div class="summary-card"><small>Deposit due</small><strong>R' + amount + '</strong></div>'
     + appointmentSummary
-    + '<p class="confirm-note">Your appointment is confirmed only after Shiloh verifies the required deposit.</p>'
+    + '<p class="confirm-note">Your appointment is confirmed once Shiloh has received and verified the required deposit.</p>'
     + '</section>'
     + '<section class="policy-shell" aria-labelledby="policy-heading">'
     + '<div class="policy-head"><h2 id="policy-heading">Booking Policy &amp; Terms</h2></div>'

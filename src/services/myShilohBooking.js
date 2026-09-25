@@ -377,7 +377,7 @@ function createMyShilohBookingService({
         depositExempt,
         message: staged.status === 'pending_resolution'
           ? depositExempt
-            ? 'Your booking request is in. Your selected time is being held while the Shiloh team confirms it. No booking deposit is required for Marietjie.'
+            ? 'Your booking request is in. Your selected time is being held while the Shiloh team confirms it. No booking deposit is required for this appointment.'
             : 'Your booking request is in. Your selected time is being held while the Shiloh team confirms it. You’ll see the deposit step in My Shiloh after approval.'
           : 'Your booking request was created and is being reviewed by Shiloh.',
       };

@@ -1,7 +1,7 @@
 'use strict';
 
-const BOOKING_POLICY_VERSION = '2026-09-23-v2';
-const BOOKING_POLICY_UPDATED = '23 September 2026';
+const BOOKING_POLICY_VERSION = '2026-09-25-v3';
+const BOOKING_POLICY_UPDATED = '25 September 2026';
 
 const DEPOSIT_RULES = Object.freeze({
   rateBasisPoints: 5000,
@@ -69,30 +69,30 @@ function cancellationBand({ startsAt, now = new Date(), noShow = false } = {}) {
 
 function cancellationPolicyNotice({ startsAt, practitioners = [], now = new Date() } = {}) {
   if (depositExemptForPractitioners(practitioners)) {
-    return `Under Shiloh’s Booking Policy & Terms, appointments with ${DEPOSIT_RULES.exemptPractitionerDisplayName} are exempt from the booking-deposit requirement.`;
+    return 'Under Shiloh’s Booking Policy & Terms, no booking deposit is required for this appointment.';
   }
   const band = cancellationBand({ startsAt, now });
   if (band.key === 'free') {
-    return `Under Shiloh’s Booking Policy & Terms, ${DEPOSIT_RULES.freeNoticeHours}+ hours’ notice means no booking deposit is forfeited.`;
+    return `Under Shiloh’s Booking Policy & Terms, ${DEPOSIT_RULES.freeNoticeHours} hours or more before your appointment means no portion of your booking deposit is forfeited.`;
   }
   if (band.key === 'partial') {
-    return `This cancellation is ${DEPOSIT_RULES.partialNoticeHours}–${DEPOSIT_RULES.freeNoticeHours} hours before the appointment. Under Shiloh’s Booking Policy & Terms, up to ${percentText(band.forfeitPercent)}% of the booking deposit may be forfeited.`;
+    return `This cancellation is ${DEPOSIT_RULES.partialNoticeHours}–${DEPOSIT_RULES.freeNoticeHours} hours before the appointment. Under Shiloh’s Booking Policy & Terms, up to ${percentText(band.forfeitPercent)}% of your booking deposit may be retained.`;
   }
   if (band.key === 'late') {
-    return `This cancellation is less than ${DEPOSIT_RULES.partialNoticeHours} hours before the appointment. Under Shiloh’s Booking Policy & Terms, up to ${percentText(band.forfeitPercent)}% of the booking deposit may be forfeited.`;
+    return `This cancellation is less than ${DEPOSIT_RULES.partialNoticeHours} hours before the appointment. Under Shiloh’s Booking Policy & Terms, up to ${percentText(band.forfeitPercent)}% of your booking deposit may be retained.`;
   }
   return 'Shiloh’s current Booking Policy & Terms apply to this cancellation.';
 }
 
 function reschedulePolicyNotice() {
-  return 'Under Shiloh’s Booking Policy & Terms, rescheduling keeps the existing booking payment/deposit record.';
+  return 'Under Shiloh’s Booking Policy & Terms, any deposit already paid remains linked to your booking when you reschedule.';
 }
 
 function buildDepositPolicyNotice({ priceKnown = false, exempt = false } = {}) {
   if (exempt) {
     return [
       '*Booking deposit*',
-      `No booking deposit is required for this appointment under Shiloh’s Booking Policy & Terms because appointments with ${DEPOSIT_RULES.exemptPractitionerDisplayName} are exempt.`,
+      'No booking deposit is required for this appointment under Shiloh’s Booking Policy & Terms.',
     ].join('\n');
   }
 
@@ -108,16 +108,16 @@ function buildDepositPolicyNotice({ priceKnown = false, exempt = false } = {}) {
 
   return [
     '*Booking deposit*',
-    `A ${rate}% booking deposit is required to secure this appointment if Shiloh accepts your request. It forms part of your booking total — it is not an extra fee.`,
+    `A ${rate}% booking deposit is required to secure this appointment if Shiloh accepts your request. It forms part of the total cost of your treatment — it is not an additional fee.`,
     priceLine,
     '',
     '*Cancellation & rescheduling*',
-    `• ${free}+ hours’ notice: no booking deposit is forfeited.`,
-    `• ${partial}–${free} hours’ notice: up to ${partialForfeit}% of the booking deposit may be forfeited.`,
-    `• Under ${partial} hours or same-day cancellation: up to ${lateForfeit}% of the booking deposit may be forfeited.`,
-    `• No-show: up to ${noShowForfeit}% of the booking deposit may be forfeited.`,
-    '• Rescheduling keeps the existing booking payment/deposit record.',
-    'Your appointment is confirmed only after Shiloh verifies the required deposit.',
+    `• ${free} hours or more before your appointment: No portion of your booking deposit is forfeited.`,
+    `• ${partial}–${free} hours before your appointment: Up to ${partialForfeit}% of your booking deposit may be retained.`,
+    `• Less than ${partial} hours or same-day cancellation: Up to ${lateForfeit}% of your booking deposit may be retained.`,
+    `• No-show: Up to ${noShowForfeit}% of your booking deposit may be retained.`,
+    '• Rescheduling: Any deposit already paid remains linked to your booking.',
+    'Once your deposit has been received and verified by Shiloh, your appointment is confirmed.',
   ].join('\n');
 }
 
@@ -130,15 +130,16 @@ const BOOKING_POLICY_TEXT = [
   'Please arrive on time. Late arrival may require a shorter treatment so later clients are not delayed, and the full treatment fee may still apply.',
   '',
   '*Booking Deposit*',
-  `New future bookings require a ${percentText(basisPointsPercent(DEPOSIT_RULES.rateBasisPoints))}% booking deposit. The deposit forms part of your booking total — it is not an extra fee. Appointments with ${DEPOSIT_RULES.exemptPractitionerDisplayName} are exempt from the booking-deposit requirement.`,
-  'A deposit-required appointment is confirmed only after Shiloh verifies the required deposit.',
+  `A ${percentText(basisPointsPercent(DEPOSIT_RULES.rateBasisPoints))}% booking deposit is required for new bookings.`,
+  'Your deposit forms part of the total cost of your treatment — it is not an additional fee. Once your deposit has been received and verified by Shiloh, your appointment is confirmed.',
   '',
   '*Cancellations & Rescheduling*',
-  `${DEPOSIT_RULES.freeNoticeHours}+ hours’ notice: no booking deposit is forfeited.`,
-  `${DEPOSIT_RULES.partialNoticeHours}–${DEPOSIT_RULES.freeNoticeHours} hours’ notice: up to ${percentText(basisPointsPercent(DEPOSIT_RULES.partialForfeitBasisPoints))}% of the booking deposit may be forfeited.`,
-  `Under ${DEPOSIT_RULES.partialNoticeHours} hours or same-day cancellation: up to ${percentText(basisPointsPercent(DEPOSIT_RULES.lateForfeitBasisPoints))}% of the booking deposit may be forfeited.`,
-  `No-show: up to ${percentText(basisPointsPercent(DEPOSIT_RULES.noShowForfeitBasisPoints))}% of the booking deposit may be forfeited.`,
-  'Rescheduling keeps the existing booking payment/deposit record.',
+  'We understand that plans can change. If you need to cancel or reschedule, please let us know as soon as possible. Our therapists set aside this time especially for you, and adequate notice allows us to offer the appointment to another client while respecting the time our team has reserved for your treatment.',
+  `• ${DEPOSIT_RULES.freeNoticeHours} hours or more before your appointment: No portion of your booking deposit is forfeited.`,
+  `• ${DEPOSIT_RULES.partialNoticeHours}–${DEPOSIT_RULES.freeNoticeHours} hours before your appointment: Up to ${percentText(basisPointsPercent(DEPOSIT_RULES.partialForfeitBasisPoints))}% of your booking deposit may be retained.`,
+  `• Less than ${DEPOSIT_RULES.partialNoticeHours} hours or same-day cancellation: Up to ${percentText(basisPointsPercent(DEPOSIT_RULES.lateForfeitBasisPoints))}% of your booking deposit may be retained.`,
+  `• No-show: Up to ${percentText(basisPointsPercent(DEPOSIT_RULES.noShowForfeitBasisPoints))}% of your booking deposit may be retained.`,
+  '• Rescheduling: Any deposit already paid remains linked to your booking.',
   '',
   '*Health & Treatment Information*',
   'Please provide accurate and relevant health, medical, pregnancy, allergy, medication and treatment information before your service, and tell your practitioner about any change that could affect treatment safety or suitability.',
