@@ -20,6 +20,7 @@ function paymentUnavailable(res, status, message) {
 function paymentRequestQuery() {
   return `SELECT pr.provider,pr.state,pr.provider_payment_url,pr.expires_at,pr.gift_voucher_order_id,
                   pr.amount,pr.payer_name,pr.payer_mobile,
+                  COALESCE(pr.payer_crm_v2_client_id,payment_appointment.crm_v2_client_id) AS payer_crm_v2_client_id,
                   COALESCE(pr.deposit_member_appointment_id,bpa.appointment_id) AS appointment_id,
                   payment_appointment.status AS appointment_status
              FROM payment_requests pr
@@ -91,9 +92,18 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema 
       await policySchema();
       await db.query(
         `INSERT INTO booking_policy_acceptances
-          (phone,policy_version,accepted_at,channel,service_text)
-         VALUES ($1,$2,NOW(),'payment_link',$3)`,
-        [String(request.payer_mobile), BOOKING_POLICY_VERSION, request.appointment_id ? `Booking #${request.appointment_id}` : 'Shiloh payment'],
+          (phone,policy_version,accepted_at,channel,service_text,crm_v2_client_id,appointment_id)
+         VALUES ($1,$2,NOW(),'payment_link',$3,$4,$5)
+         ON CONFLICT (appointment_id,policy_version,channel)
+           WHERE appointment_id IS NOT NULL AND channel IN ('clinic_device','payment_link')
+         DO NOTHING`,
+        [
+          String(request.payer_mobile),
+          BOOKING_POLICY_VERSION,
+          request.appointment_id ? `Booking #${request.appointment_id}` : 'Shiloh payment',
+          request.payer_crm_v2_client_id || null,
+          request.appointment_id || null,
+        ],
       );
 
       res.set({

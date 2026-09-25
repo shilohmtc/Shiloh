@@ -76,14 +76,26 @@ function detailModel() {
     appointments: [
       {
         id: 9101,
-        starts_at: '2026-09-14T08:00:00.000Z',
-        ends_at: '2026-09-14T09:00:00.000Z',
-        status: 'completed',
+        starts_at: '2026-09-30T08:00:00.000Z',
+        ends_at: '2026-09-30T09:00:00.000Z',
+        status: 'scheduled',
         title: 'Marietjie appointment',
         services: [{ name: 'Marietjie Signature Massage' }],
         staff: [{ name: 'Marietjie' }],
+        bookingReadiness: { termsAccepted: true, depositState: 'satisfied', confirmed: true },
       },
     ],
+    policyAcceptances: [
+      {
+        id: 501,
+        policy_version: '2026-09-25-v3',
+        accepted_at: '2026-09-25T08:32:00.000Z',
+        channel: 'clinic_device',
+        service_text: 'Marietjie Signature Massage',
+        appointment_id: 9101,
+      },
+    ],
+    policyAcceptanceUnavailable: false,
     communications: [
       {
         intent: 'booking_confirmation',

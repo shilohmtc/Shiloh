@@ -26,6 +26,14 @@ const {
   decorateCreateBookingNotes,
   calendarCreateBookingNotesClientScript,
 } = require('../presentation/calendarAppointmentNotesUx');
+const {
+  createInPersonBookingPolicyService,
+  InPersonBookingPolicyError,
+} = require('../services/inPersonBookingPolicy');
+const {
+  renderInPersonBookingPolicyPage,
+  inPersonBookingPolicyClientScript,
+} = require('../presentation/inPersonBookingPolicyUx');
 
 const CLIENT_BROWSE_QUERY = '__shiloh_calendar_active_clients_v1__';
 
@@ -206,6 +214,9 @@ function createCalendarCreateBookingRouter({
   renderServiceCreationClient = serviceCreationClientScript,
   injectAppointmentNotes = decorateCreateBookingNotes,
   renderAppointmentNotesClient = calendarCreateBookingNotesClientScript,
+  policyAcceptanceService = createInPersonBookingPolicyService({ db: pool }),
+  renderPolicyPage = renderInPersonBookingPolicyPage,
+  renderPolicyClient = inPersonBookingPolicyClientScript,
 } = {}) {
   if (!sessionService) throw new Error('Calendar Create Booking staff session service is required');
   if (!clientDirectory || typeof clientDirectory.listActiveClients !== 'function') {
@@ -258,6 +269,51 @@ function createCalendarCreateBookingRouter({
       return res.status(200).type('application/javascript').send(source);
     } catch (error) {
       if (statusForError(error) !== 503) return res.status(statusForError(error)).type('text/plain').send('Not Found');
+      return next(error);
+    }
+  });
+
+  router.get('/policy-client.js', requireSession, async (req, res, next) => {
+    try {
+      await bookingService.resolveOperator(req.staffBrowserSession.adminId);
+      return res.status(200).type('application/javascript').send(renderPolicyClient());
+    } catch (error) {
+      if (statusForError(error) !== 503) return res.status(statusForError(error)).type('text/plain').send('Not Found');
+      return next(error);
+    }
+  });
+
+  router.get('/policy/:appointmentId', requireSession, async (req, res, next) => {
+    try {
+      await bookingService.resolveOperator(req.staffBrowserSession.adminId);
+      const context = await policyAcceptanceService.appointmentContext(req.params.appointmentId);
+      return res.status(200).type('html').send(renderPolicyPage(context, {
+        clientScriptPath: `${req.baseUrl || '/calendar/book'}/policy-client.js`,
+      }));
+    } catch (error) {
+      const status = error instanceof InPersonBookingPolicyError ? error.httpStatus : statusForError(error);
+      if (status !== 503) return res.status(status || 400).type('text/plain').send(error.message || 'Policy review unavailable');
+      return next(error);
+    }
+  });
+
+  router.post('/policy/:appointmentId/accept', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      await bookingService.resolveOperator(req.staffBrowserSession.adminId);
+      if (req.body?.accept !== true) return res.status(400).json({ error: 'Client acknowledgement is required.' });
+      const result = await policyAcceptanceService.recordClinicDeviceAcceptance({
+        appointmentId: req.params.appointmentId,
+      });
+      return res.status(200).json({
+        ok: true,
+        appointmentId: result.appointmentId,
+        policyVersion: result.acceptance?.policy_version || result.policyVersion,
+        acceptedAt: result.acceptance?.accepted_at || null,
+        channel: 'clinic_device',
+      });
+    } catch (error) {
+      const status = error instanceof InPersonBookingPolicyError ? error.httpStatus : statusForError(error);
+      if (status !== 503) return res.status(status || 400).json({ error: error.message, code: error.code, requestId: req.id });
       return next(error);
     }
   });
@@ -343,10 +399,17 @@ function createCalendarCreateBookingRouter({
       if (result.status !== 'created') {
         return res.status(409).json({ status: result.status, reply: result.reply || 'Booking was not created.' });
       }
+      const customerConfirmation = customerConfirmationState(result);
+      const depositRequests = Array.isArray(result?.customerConfirmation?.deposit?.requests)
+        ? result.customerConfirmation.deposit.requests
+        : [];
+      const paymentPath = depositRequests.find(request => request?.paymentPath)?.paymentPath || null;
       return res.status(201).json({
         status: 'created',
         appointmentId: result.appointmentId,
-        customerConfirmation: customerConfirmationState(result),
+        customerConfirmation,
+        policyReviewPath: `${req.baseUrl || '/calendar/book'}/policy/${result.appointmentId}`,
+        paymentPath,
       });
     } catch (error) {
       const status = statusForError(error);
