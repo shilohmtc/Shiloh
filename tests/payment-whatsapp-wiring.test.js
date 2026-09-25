@@ -16,6 +16,8 @@ const {
   sendPaymentTemplate,
 } = require('../src/services/paymentWhatsAppNotifications');
 const { createPaymentLinkRouter } = require('../src/routes/paymentLinks');
+const { webPolicyHtml } = require('../src/presentation/paymentPolicyUx');
+const { BOOKING_POLICY_TEXT } = require('../src/config/bookingPolicyAuthority');
 
 test('payment WhatsApp notifications normalize South African mobile numbers', () => {
   assert.equal(normalizeWhatsAppMobile('071 674 2646'), '27716742646');
@@ -148,6 +150,17 @@ test('ambiguous provider failure does not retry a second WhatsApp template', asy
   assert.equal(calls, 1);
 });
 
+test('web payment policy formats the canonical authority without WhatsApp-only instructions', () => {
+  const html = webPolicyHtml(BOOKING_POLICY_TEXT);
+  assert.match(html, /<h2>Appointments &amp; Arrival<\/h2>/);
+  assert.match(html, /<h2>Respect, Safety &amp; Belongings<\/h2>/);
+  assert.match(html, /<li>48\+ hours’ notice: no booking deposit is forfeited\.<\/li>/);
+  assert.doesNotMatch(html, /reply exactly/i);
+  assert.doesNotMatch(html, /reply\s+(?:\*?DECLINE\*?)/i);
+  assert.doesNotMatch(html, /Policy version:/i);
+  assert.doesNotMatch(html, /\*Appointments & Arrival\*/);
+});
+
 test('payment links show the booking policy before redirecting to Ozow', async () => {
   const app = express();
   app.use('/pay', createPaymentLinkRouter({
@@ -175,11 +188,14 @@ test('payment links show the booking policy before redirecting to Ozow', async (
     response.on('data', chunk => { body += chunk; });
     await new Promise(resolve => response.on('end', resolve));
     assert.equal(response.statusCode, 200);
-    assert.match(body, /Before you pay, review the Booking Policy &amp; Terms/);
+    assert.match(body, /Review &amp; accept before payment/);
     assert.match(body, /R125\.00/);
-    assert.match(body, /No payment is taken on this page/);
+    assert.match(body, /No payment is taken until you accept/);
     assert.match(body, /I have read and accept/);
-    assert.match(body, /I accept — continue to secure payment/);
+    assert.match(body, /Accept &amp; continue to secure payment/);
+    assert.doesNotMatch(body, /reply exactly/i);
+    assert.doesNotMatch(body, /\*Respect, Safety & Belongings\*/);
+    assert.equal((body.match(/Version 2026-09-23-v2/g) || []).length, 1);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

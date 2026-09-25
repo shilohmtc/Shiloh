@@ -1,6 +1,12 @@
 import paymentPolicyPresentation from '../src/presentation/paymentPolicyUx.js';
+import bookingPolicyAuthority from '../src/config/bookingPolicyAuthority.js';
 
 const { renderPaymentPolicyPage } = paymentPolicyPresentation;
+const {
+  BOOKING_POLICY_TEXT,
+  BOOKING_POLICY_VERSION,
+  BOOKING_POLICY_UPDATED,
+} = bookingPolicyAuthority;
 
 function productionSurface(pageHtml) {
   const styles = [...String(pageHtml).matchAll(/<style>([\s\S]*?)<\/style>/g)]
@@ -23,15 +29,8 @@ export const DepositPolicyBeforeOzow = {
       payer_name: 'Jean-Pierre Botha',
       appointment_id: 760,
     },
-    policyVersion: '2026-09-23-v2',
-    policyText: `Booking Policy & Terms
-
-A 50% booking deposit is required for applicable appointments and is part of your treatment price, not an extra fee.
-
-48+ hours before your appointment: no cancellation penalty.
-24–48 hours: 50% of the booking deposit may be forfeited.
-Under 24 hours, same-day cancellation or no-show: 100% of the booking deposit may be forfeited.
-
-Marietjie’s services are exempt from the booking deposit requirement.`,
+    policyVersion: BOOKING_POLICY_VERSION,
+    policyUpdated: BOOKING_POLICY_UPDATED,
+    policyText: BOOKING_POLICY_TEXT,
   })),
 };

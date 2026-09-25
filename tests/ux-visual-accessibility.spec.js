@@ -1821,11 +1821,21 @@ test('deposit policy is unmistakable before Ozow on Phone and Desktop', async ({
 
     const policy = page.locator('[data-payment-policy-story]');
     await expect(policy).toBeVisible();
-    await expect(policy.getByRole('heading', { name: 'Before you pay, review the Booking Policy & Terms' })).toBeVisible();
-    await expect(policy.getByText('1. Review & accept')).toBeVisible();
-    await expect(policy.getByText('2. Pay securely')).toBeVisible();
-    await expect(policy.getByText('No payment is taken on this page.')).toBeVisible();
-    await expect(policy.getByRole('button', { name: 'I accept — continue to secure payment' })).toBeVisible();
+    await expect(policy.getByRole('heading', { level: 1, name: 'Review & accept before payment' })).toBeVisible();
+    await expect(policy.getByText('Step 1', { exact: true })).toBeVisible();
+    await expect(policy.getByText('Step 2', { exact: true })).toBeVisible();
+    await expect(policy.getByText(/No payment is taken until you accept/)).toBeVisible();
+    await expect(policy.getByRole('heading', { name: 'Appointments & Arrival' })).toBeVisible();
+    await expect(policy.getByRole('heading', { name: 'Respect, Safety & Belongings' })).toBeVisible();
+    await expect(policy.getByText('Updated 23 September 2026')).toBeVisible();
+    await expect(policy.getByText('Version 2026-09-23-v2')).toHaveCount(1);
+    await expect(policy.getByText(/reply exactly: I AGREE/i)).toHaveCount(0);
+    await expect(policy.getByText(/If you do not agree, reply/i)).toHaveCount(0);
+    await expect(policy.getByRole('button', { name: 'Accept & continue to secure payment' })).toBeVisible();
+    await expect(policy).not.toContainText('*Respect, Safety & Belongings*');
+    const policyOverflow = await policy.locator('.policy').evaluate((node) => getComputedStyle(node).overflowY);
+    expect(policyOverflow).not.toBe('auto');
+    expect(policyOverflow).not.toBe('scroll');
 
     const metrics = await policy.evaluate(() => ({
       viewportWidth: window.innerWidth,
