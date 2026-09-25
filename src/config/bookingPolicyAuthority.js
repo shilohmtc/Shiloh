@@ -73,13 +73,13 @@ function cancellationPolicyNotice({ startsAt, practitioners = [], now = new Date
   }
   const band = cancellationBand({ startsAt, now });
   if (band.key === 'free') {
-    return `Under Shiloh’s Booking Policy & Terms, ${DEPOSIT_RULES.freeNoticeHours}+ hours’ notice means no booking deposit is forfeited.`;
+    return `Under Shiloh’s Booking Policy & Terms, ${DEPOSIT_RULES.freeNoticeHours} hours or more before your appointment means no portion of your booking deposit is forfeited.`;
   }
   if (band.key === 'partial') {
-    return `This cancellation is ${DEPOSIT_RULES.partialNoticeHours}–${DEPOSIT_RULES.freeNoticeHours} hours before the appointment. Under Shiloh’s Booking Policy & Terms, up to ${percentText(band.forfeitPercent)}% of the booking deposit may be forfeited.`;
+    return `This cancellation is ${DEPOSIT_RULES.partialNoticeHours}–${DEPOSIT_RULES.freeNoticeHours} hours before the appointment. Under Shiloh’s Booking Policy & Terms, up to ${percentText(band.forfeitPercent)}% of your booking deposit may be retained.`;
   }
   if (band.key === 'late') {
-    return `This cancellation is less than ${DEPOSIT_RULES.partialNoticeHours} hours before the appointment. Under Shiloh’s Booking Policy & Terms, up to ${percentText(band.forfeitPercent)}% of the booking deposit may be forfeited.`;
+    return `This cancellation is less than ${DEPOSIT_RULES.partialNoticeHours} hours before the appointment. Under Shiloh’s Booking Policy & Terms, up to ${percentText(band.forfeitPercent)}% of your booking deposit may be retained.`;
   }
   return 'Shiloh’s current Booking Policy & Terms apply to this cancellation.';
 }
