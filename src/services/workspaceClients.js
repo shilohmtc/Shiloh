@@ -3,6 +3,7 @@ const crmReadService = require('./crmReadService');
 const { createWorkspaceCommunicationEvidenceService } = require('./workspaceCommunicationEvidence');
 const { evaluateClientManageAuthority, clientRelationshipRevision } = require('./workspaceClientMutations');
 const { scopeForPrincipal, validClientScope } = require('./clientRelationshipScope');
+const { createInPersonBookingPolicyService } = require('./inPersonBookingPolicy');
 
 const CLIENT_LOOKUP_CAPABILITY = 'client:lookup';
 const CLIENT_LIST_PAGE_SIZE = 24;
@@ -63,9 +64,10 @@ function normalizeOffset(value) {
   return Math.min(offset, 100000);
 }
 
-function createWorkspaceClientsService({ db = pool, readService = crmReadService, communicationService = null } = {}) {
+function createWorkspaceClientsService({ db = pool, readService = crmReadService, communicationService = null, policyAcceptanceService = null } = {}) {
   if (!db || typeof db.query !== 'function') throw new Error('Workspace Clients database is required');
   const communicationReads = communicationService || createWorkspaceCommunicationEvidenceService({ db });
+  const policyReads = policyAcceptanceService || createInPersonBookingPolicyService({ db });
 
   async function resolveAccess(adminId) {
     const id = positiveId(adminId);
@@ -152,6 +154,19 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
       offset: safeOffset,
       scope: authority.clientScope,
     });
+    const visibleHistory = history.slice(0, CLIENT_HISTORY_PAGE_SIZE);
+    const [policyAcceptances, readiness] = await Promise.all([
+      policyReads.listClientAcceptanceHistory({
+        clientId: client.id,
+        mobile: client.normalized_mobile,
+        limit: 20,
+      }),
+      policyReads.readinessForAppointments(visibleHistory.map(item => item.id)),
+    ]);
+    const appointmentsWithReadiness = visibleHistory.map(item => ({
+      ...item,
+      bookingReadiness: readiness.get(Number(item.id)) || null,
+    }));
     let communications = [];
     let communicationsUnavailable = false;
     try {
@@ -168,7 +183,8 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
       authority,
       manageAllowed,
       client,
-      appointments: history.slice(0, CLIENT_HISTORY_PAGE_SIZE),
+      appointments: appointmentsWithReadiness,
+      policyAcceptances,
       hasMore: history.length > CLIENT_HISTORY_PAGE_SIZE,
       historyOffset: safeOffset,
       pageSize: CLIENT_HISTORY_PAGE_SIZE,
