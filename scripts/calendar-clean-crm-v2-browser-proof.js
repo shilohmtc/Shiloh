@@ -320,9 +320,27 @@ async function main() {
     const beforeConfirm = state.confirmations.length;
     await evaluate(cdp, `document.querySelector('[data-create-booking]').click();true`);
     await poll(() => state.confirmations.length, (value) => value > beforeConfirm);
+    await poll(
+      () => evaluate(cdp, `Boolean([...document.querySelectorAll('[data-booking-status] a')].find(node=>node.textContent.trim()==='Let client review terms'))`),
+      Boolean,
+    );
+    const completion = await evaluate(cdp, `(()=>{
+      const status=document.querySelector('[data-booking-status]');
+      const links=[...status.querySelectorAll('a')];
+      return {
+        text:status.innerText,
+        policyHref:links.find(node=>node.textContent.trim()==='Let client review terms')?.getAttribute('href')||null,
+        backHref:links.find(node=>node.textContent.trim()==='Back to Calendar')?.getAttribute('href')||null,
+      };
+    })()`);
+    assert.match(completion.text, /Ask the client to review the Booking Policy & Terms before leaving/i);
+    assert.equal(completion.policyHref, '/calendar/book/policy/99001');
+    assert.equal(completion.backHref, `/calendar/read-only?view=week&date=${DATE}&staff=all`);
+    assert.deepEqual(state.confirmations.at(-1), { adminId: 71, notes: '' });
+    assert.equal(state.canonicalReloads, 0);
+    await evaluate(cdp, `[...document.querySelectorAll('[data-booking-status] a')].find(node=>node.textContent.trim()==='Back to Calendar').click();true`);
     await poll(() => evaluate(cdp, 'location.pathname'), (value) => value === '/calendar/read-only');
     assert.equal(await evaluate(cdp, 'location.search'), `?view=week&date=${DATE}&staff=all`);
-    assert.deepEqual(state.confirmations.at(-1), { adminId: 71, notes: '' });
     assert.equal(state.canonicalReloads, 1);
 
     await navigate();
