@@ -4,47 +4,107 @@ function escapeHtml(value) {
   }[character]));
 }
 
-function renderPaymentPolicyPage({ requestKey, request, policyText, policyVersion } = {}) {
+function webPolicyHtml(policyText = '') {
+  const lines = String(policyText || '').split(/\r?\n/);
+  const html = [];
+  let bullets = [];
+
+  function flushBullets() {
+    if (!bullets.length) return;
+    html.push('<ul>' + bullets.map(item => '<li>' + escapeHtml(item) + '</li>').join('') + '</ul>');
+    bullets = [];
+  }
+
+  for (const rawLine of lines) {
+    const line = String(rawLine || '').trim();
+    if (!line) {
+      flushBullets();
+      continue;
+    }
+    if (/^\*?Shiloh Massage Therapy & Aesthetic Clinic — Booking Policy & Terms\*?$/i.test(line)) continue;
+    if (/^Booking Policy & Terms$/i.test(line)) continue;
+    if (/^Policy updated:/i.test(line)) continue;
+    if (/^Policy version:/i.test(line)) continue;
+    if (/^To continue with this booking request, reply exactly:/i.test(line)) continue;
+    if (/^If you do not agree, reply /i.test(line)) continue;
+
+    const heading = line.match(/^\*([^*]+)\*$/);
+    if (heading) {
+      flushBullets();
+      html.push('<h2>' + escapeHtml(heading[1]) + '</h2>');
+      continue;
+    }
+    if (line.startsWith('•')) {
+      bullets.push(line.replace(/^•\s*/, ''));
+      continue;
+    }
+    flushBullets();
+    html.push('<p>' + escapeHtml(line) + '</p>');
+  }
+
+  flushBullets();
+  return html.join('');
+}
+
+function renderPaymentPolicyPage({ requestKey, request, policyText, policyVersion, policyUpdated } = {}) {
   const key = escapeHtml(requestKey);
   const amount = escapeHtml(Number(request?.amount || 0).toFixed(2));
   const payerName = escapeHtml(request?.payer_name || 'there');
-  const policy = escapeHtml(policyText || '').replace(/\n/g, '<br>');
-  const appointment = request?.appointment_id
-    ? `<p><strong>Booking:</strong> #${escapeHtml(request.appointment_id)}</p>`
+  const appointmentId = request?.appointment_id ? escapeHtml(request.appointment_id) : null;
+  const policy = webPolicyHtml(policyText);
+  const version = escapeHtml(policyVersion || '');
+  const updated = escapeHtml(policyUpdated || '');
+
+  const appointmentSummary = appointmentId
+    ? '<div class="summary-card"><small>Booking</small><strong>#' + appointmentId + '</strong></div>'
     : '';
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Review Shiloh deposit policy</title>
-<style>
-body{margin:0;background:#f5f3ed;color:#173126;font-family:Inter,system-ui,-apple-system,sans-serif}
-.card{max-width:680px;margin:5vh auto;padding:28px;border:1px solid #d7dfd9;border-radius:18px;background:#fffdf9;box-shadow:0 12px 30px #17312612}
-.eyebrow{letter-spacing:.08em;font-size:.78rem;font-weight:800;color:#285642}
-.policy{margin:20px 0;padding:18px;border:1px solid #d7dfd9;border-radius:12px;background:#f8faf6;line-height:1.55;color:#40584d;max-height:48vh;overflow:auto}
-.notice{padding:14px;border-radius:10px;background:#edf4ee;line-height:1.5}.steps{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0}.step{padding:12px;border:1px solid #d7dfd9;border-radius:11px;background:#fff}.step strong{display:block;margin-bottom:4px}.step span{color:#60746b;font-size:.9rem;line-height:1.4}@media(max-width:560px){.card{margin:0;min-height:100vh;border-radius:0;padding:22px 16px}.steps{grid-template-columns:1fr}}
-label{display:flex;gap:10px;align-items:flex-start;margin:18px 0;font-weight:700;line-height:1.45}
-input{width:20px;height:20px;accent-color:#285642;flex:0 0 auto}
-button{width:100%;border:0;border-radius:999px;padding:15px;background:#285642;color:#fff;font-size:1rem;font-weight:800;cursor:pointer}
-small{color:#60746b}
-</style>
-</head>
-<body>
-<main class="card">
-<p class="eyebrow">SHILOH DEPOSIT · STEP 1 OF 2</p>
-<h1>Before you pay, review the Booking Policy &amp; Terms</h1>
-<p>Hi ${payerName}. You are still on Shiloh. No payment is taken on this page.</p>\n<div class="steps" aria-label="Deposit payment steps"><div class="step"><strong>1. Review &amp; accept</strong><span>Read Shiloh’s Booking Policy &amp; Terms below and confirm that you accept them.</span></div><div class="step"><strong>2. Pay securely</strong><span>After acceptance, Shiloh takes you to Ozow to complete the deposit.</span></div></div>
-<div class="notice"><strong>Deposit due: R${amount}</strong><br>Your appointment is confirmed only after Shiloh verifies the required deposit.</div>
-${appointment}
-<section class="policy" aria-label="Shiloh Booking Policy and Terms">${policy}</section>
-<form method="post" action="/pay/${key}/accept">
-<label><input type="checkbox" name="accept" value="yes" required> I have read and accept Shiloh’s Booking Policy &amp; Terms.</label>
-<button type="submit">I accept — continue to secure payment</button>
-</form>
-<p><small>Policy version: ${escapeHtml(policyVersion || '')}</small></p>
-</main>
-</body>
-</html>`;
+  const policyMeta = (updated ? '<span>Updated ' + updated + '</span>' : '')
+    + (version ? '<span>Version ' + version + '</span>' : '');
+
+  return '<!doctype html>'
+    + '<html lang="en"><head>'
+    + '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<title>Review Shiloh Booking Policy &amp; Terms</title>'
+    + '<style>'
+    + ':root{--ink:#173126;--leaf:#285642;--muted:#61736a;--line:#d7dfd9;--soft:#f5f3ed;--panel:#fffdf9;--mint:#edf4ee}'
+    + '*{box-sizing:border-box}body{margin:0;background:var(--soft);color:var(--ink);font-family:Inter,system-ui,-apple-system,sans-serif}'
+    + '.card{width:min(760px,calc(100% - 32px));margin:28px auto;padding:30px;border:1px solid var(--line);border-radius:22px;background:var(--panel);box-shadow:0 12px 34px #17312612}'
+    + '.eyebrow{margin:0 0 8px;letter-spacing:.09em;font-size:.76rem;font-weight:850;color:var(--leaf)}'
+    + 'h1{margin:0;font-size:clamp(1.7rem,4vw,2.25rem);line-height:1.12;letter-spacing:-.025em}'
+    + '.intro{margin:12px 0 0;color:var(--muted);line-height:1.55}'
+    + '.steps{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:22px 0 16px}.step{padding:14px;border:1px solid var(--line);border-radius:14px;background:#fff}.step.current{border-color:#b9ccbf;background:var(--mint)}'
+    + '.step-number{display:block;margin-bottom:4px;font-size:.76rem;font-weight:850;letter-spacing:.06em;text-transform:uppercase;color:var(--leaf)}.step strong{display:block;font-size:.98rem}.step span{display:block;margin-top:4px;color:var(--muted);font-size:.9rem;line-height:1.45}'
+    + '.summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 24px}.summary-card{padding:15px 16px;border-radius:14px;background:var(--mint)}.summary-card small{display:block;margin-bottom:4px;color:var(--muted);font-weight:700}.summary-card strong{font-size:1.2rem}.confirm-note{grid-column:1/-1;margin:0;color:var(--muted);font-size:.9rem;line-height:1.45}'
+    + '.policy-shell{margin-top:8px;border:1px solid var(--line);border-radius:16px;background:#fff;overflow:hidden}.policy-head{padding:18px 18px 14px;border-bottom:1px solid var(--line);background:#fafbf8}.policy-head h2{margin:0;font-size:1.18rem}.policy-meta{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px;color:var(--muted);font-size:.82rem}'
+    + '.policy{padding:4px 18px 20px;color:#40584d;line-height:1.6}.policy h2{margin:22px 0 8px;padding-top:18px;border-top:1px solid #e9ede9;color:var(--ink);font-size:1.03rem}.policy h2:first-child{border-top:0;padding-top:8px}.policy p{margin:8px 0}.policy ul{margin:8px 0 10px;padding-left:21px}.policy li{margin:6px 0}'
+    + '.acceptance{margin-top:18px;padding:16px;border:1px solid var(--line);border-radius:16px;background:#fafbf8}.acceptance label{display:flex;gap:12px;align-items:flex-start;min-height:48px;margin:0;font-weight:750;line-height:1.45;cursor:pointer}.acceptance input{width:22px;height:22px;margin:1px 0 0;accent-color:var(--leaf);flex:0 0 auto}'
+    + 'button{width:100%;min-height:52px;margin-top:14px;border:0;border-radius:999px;padding:14px 18px;background:var(--leaf);color:#fff;font-size:1rem;font-weight:850;cursor:pointer}button:hover{filter:brightness(.96)}button:focus-visible,input:focus-visible{outline:3px solid #91b09f;outline-offset:3px}'
+    + '.footer-note{margin:14px 0 0;text-align:center;color:var(--muted);font-size:.82rem;line-height:1.45}'
+    + '@media(max-width:560px){body{background:var(--panel)}.card{width:100%;min-height:100vh;margin:0;padding:20px 16px 28px;border:0;border-radius:0;box-shadow:none}.steps,.summary{grid-template-columns:1fr}.confirm-note{grid-column:auto}.policy-head{padding:16px 15px 12px}.policy{padding:2px 15px 18px}}'
+    + '</style></head><body>'
+    + '<main class="card">'
+    + '<p class="eyebrow">SHILOH DEPOSIT · STEP 1 OF 2</p>'
+    + '<h1>Review &amp; accept before payment</h1>'
+    + '<p class="intro">Hi ' + payerName + '. You’re still on Shiloh. No payment is taken until you accept the Booking Policy &amp; Terms and continue to Ozow.</p>'
+    + '<div class="steps" aria-label="Deposit payment steps">'
+    + '<div class="step current"><span class="step-number">Step 1</span><strong>Review &amp; accept</strong><span>Read Shiloh’s Booking Policy &amp; Terms and confirm your acceptance.</span></div>'
+    + '<div class="step"><span class="step-number">Step 2</span><strong>Pay securely</strong><span>You’ll then continue to Ozow to complete the deposit.</span></div>'
+    + '</div>'
+    + '<section class="summary" aria-label="Deposit summary">'
+    + '<div class="summary-card"><small>Deposit due</small><strong>R' + amount + '</strong></div>'
+    + appointmentSummary
+    + '<p class="confirm-note">Your appointment is confirmed only after Shiloh verifies the required deposit.</p>'
+    + '</section>'
+    + '<section class="policy-shell" aria-labelledby="policy-heading">'
+    + '<div class="policy-head"><h2 id="policy-heading">Booking Policy &amp; Terms</h2><div class="policy-meta">' + policyMeta + '</div></div>'
+    + '<div class="policy">' + policy + '</div>'
+    + '</section>'
+    + '<form method="post" action="/pay/' + key + '/accept">'
+    + '<div class="acceptance"><label><input type="checkbox" name="accept" value="yes" required> <span>I have read and accept Shiloh’s Booking Policy &amp; Terms.</span></label>'
+    + '<button type="submit">Accept &amp; continue to secure payment</button></div>'
+    + '</form>'
+    + '<p class="footer-note">You will leave Shiloh for Ozow only after you accept these terms.</p>'
+    + '</main></body></html>';
 }
 
-module.exports = { escapeHtml, renderPaymentPolicyPage };
+module.exports = { escapeHtml, webPolicyHtml, renderPaymentPolicyPage };
