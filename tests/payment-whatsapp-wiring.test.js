@@ -182,6 +182,7 @@ test('payment links show the booking policy before redirecting to Ozow', async (
   const app = express();
   app.use('/pay', createPaymentLinkRouter({
     policySchema: async () => {},
+    acceptanceService: { async acceptanceForAppointment() { return null; } },
     db: { query: async () => ({ rows: [{
       provider: 'ozow',
       state: 'link_issued',
@@ -271,12 +272,17 @@ test('cancelled booking payment links fail closed before policy acceptance or Oz
 
 test('payment policy acceptance is recorded before redirecting to Ozow', async () => {
   const queries = [];
+  const acceptanceCalls = [];
   const app = express();
   app.use('/pay', createPaymentLinkRouter({
     policySchema: async () => {},
+    acceptanceService: {
+      async acceptanceForAppointment() { return null; },
+      async recordPaymentLinkAcceptance(input) { acceptanceCalls.push(input); return { id:77, channel:'payment_link' }; },
+    },
     db: { query: async (sql) => {
       queries.push(sql);
-      if (String(sql).startsWith('SELECT')) return { rows: [{
+      return { rows: [{
         provider: 'ozow',
         state: 'link_issued',
         provider_payment_url: 'https://pay.ozow.com/request/test',
@@ -285,7 +291,6 @@ test('payment policy acceptance is recorded before redirecting to Ozow', async (
         payer_mobile: '27716742646',
         appointment_id: 759,
       }] };
-      return { rows: [] };
     } },
   }));
   const server = http.createServer(app);
@@ -305,7 +310,9 @@ test('payment policy acceptance is recorded before redirecting to Ozow', async (
     });
     assert.equal(response.statusCode, 303);
     assert.equal(response.headers.location, 'https://pay.ozow.com/request/test');
-    assert.equal(queries.some(sql => String(sql).includes('booking_policy_acceptances')), true);
+    assert.equal(acceptanceCalls.length, 1);
+    assert.equal(acceptanceCalls[0].appointmentId, 759);
+    assert.equal(acceptanceCalls[0].phone, '27716742646');
     response.resume();
   } finally {
     await new Promise((resolve) => server.close(resolve));

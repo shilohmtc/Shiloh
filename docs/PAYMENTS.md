@@ -37,6 +37,12 @@ Cancellation/no-show consequence evidence is recorded separately from money move
 
 The technical deposit-policy row, requirement/member allocations and policy events remain distinct from appointment status and payment-ledger settlement truth, but their rule values and policy version must match the canonical Booking Policy & Terms authority or the deposit engine fails closed.
 
+### In-person future bookings
+
+When reception creates an ordinary future appointment for a client who is physically at Shiloh, the client must personally acknowledge the same canonical Booking Policy & Terms before deposit collection or final booking confirmation continues. Shiloh supports two review paths: the client can review on the clinic device, or reception can open/send the opaque secure client link for the client's own phone. Staff do not accept on the client's behalf.
+
+The durable acceptance remains one row in `booking_policy_acceptances`, linked to the CRM V2 client and appointment when those identities are available. `booking_policy_acceptance_requests` stores only the bounded review-link/gate state and an immutable policy snapshot for that appointment; it is not a second consent authority. Policy acknowledgement and payment remain separate evidence. Existing historical policy acceptances are never rewritten.
+
 ## Ozow configuration boundary
 
 Ozow remains fail-closed until all of these runtime values are present:

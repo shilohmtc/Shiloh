@@ -3,6 +3,7 @@ const crmReadService = require('./crmReadService');
 const { createWorkspaceCommunicationEvidenceService } = require('./workspaceCommunicationEvidence');
 const { evaluateClientManageAuthority, clientRelationshipRevision } = require('./workspaceClientMutations');
 const { scopeForPrincipal, validClientScope } = require('./clientRelationshipScope');
+const { createBookingPolicyAcceptanceService } = require('./bookingPolicyAcceptance');
 
 const CLIENT_LOOKUP_CAPABILITY = 'client:lookup';
 const CLIENT_LIST_PAGE_SIZE = 24;
@@ -63,9 +64,10 @@ function normalizeOffset(value) {
   return Math.min(offset, 100000);
 }
 
-function createWorkspaceClientsService({ db = pool, readService = crmReadService, communicationService = null } = {}) {
+function createWorkspaceClientsService({ db = pool, readService = crmReadService, communicationService = null, policyAcceptanceService = null } = {}) {
   if (!db || typeof db.query !== 'function') throw new Error('Workspace Clients database is required');
   const communicationReads = communicationService || createWorkspaceCommunicationEvidenceService({ db });
+  const policyReads = policyAcceptanceService || createBookingPolicyAcceptanceService({ db });
 
   async function resolveAccess(adminId) {
     const id = positiveId(adminId);
@@ -164,16 +166,27 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
     } catch (_) {
       communicationsUnavailable = true;
     }
+    const visibleAppointments = history.slice(0, CLIENT_HISTORY_PAGE_SIZE);
+    const [policyAcceptances, bookingReadiness] = await Promise.all([
+      policyReads.listForClient({
+        crmV2ClientId: client.id,
+        phone: client.normalized_mobile,
+        limit: 20,
+      }),
+      policyReads.readinessForAppointments(visibleAppointments.map(appointment => appointment.id)),
+    ]);
     return {
       authority,
       manageAllowed,
       client,
-      appointments: history.slice(0, CLIENT_HISTORY_PAGE_SIZE),
+      appointments: visibleAppointments,
       hasMore: history.length > CLIENT_HISTORY_PAGE_SIZE,
       historyOffset: safeOffset,
       pageSize: CLIENT_HISTORY_PAGE_SIZE,
       communications,
       communicationsUnavailable,
+      policyAcceptances,
+      bookingReadiness,
     };
   }
 

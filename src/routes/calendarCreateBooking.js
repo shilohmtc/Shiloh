@@ -5,6 +5,7 @@ const { createCalendarRetrospectiveBookingService } = require('../services/calen
 const { confirmCalendarV2BookingDirect } = require('../services/calendarDirectBookingConfirmation');
 const { createCalendarBookingClientDirectory } = require('../services/calendarBookingClientDirectory');
 const workspaceServiceCreation = require('../services/workspaceServiceCreation');
+const bookingPolicyAcceptance = require('../services/bookingPolicyAcceptance');
 const { isOperationalDateKey } = require('../services/operationalCalendar');
 const {
   requireStaffSession,
@@ -125,6 +126,19 @@ function customerConfirmationState(result) {
     return { status: 'sent', sent: true, retryable: false, reason: null };
   }
   const reason = String(delivery.reason || result?.customerConfirmationObligation?.reason || 'confirmation_not_sent');
+  if (reason === 'policy_acceptance_required' && delivery.deliveryStatus === 'awaiting_policy_acceptance') {
+    const policy = result?.policyAcceptance || delivery.policyAcceptance || {};
+    return {
+      status: 'policy_acceptance_required',
+      sent: false,
+      retryable: false,
+      reason,
+      policyVersion: policy.policyVersion || null,
+      clinicPath: policy.clinicPath || null,
+      clientPath: policy.clientPath || null,
+      clientMobile: policy.clientMobile || null,
+    };
+  }
   if (delivery.deliveryStatus === 'uncertain' || reason === 'delivery_state_uncertain') {
     return { status: 'delivery_status_uncertain', sent: false, retryable: false, reason: 'delivery_state_uncertain' };
   }
@@ -197,6 +211,7 @@ function createCalendarCreateBookingRouter({
   sessionService,
   bookingService = createCalendarCreateBookingService({ db: pool, env, confirmBooking: confirmCalendarV2BookingDirect }),
   retrospectiveService = createCalendarRetrospectiveBookingService({ db: pool }),
+  policyAcceptanceService = bookingPolicyAcceptance,
   clientDirectory = createCalendarBookingClientDirectory(),
   creationService = workspaceServiceCreation,
   renderPage = renderCalendarCreateBookingPage,
@@ -269,6 +284,21 @@ function createCalendarCreateBookingRouter({
     } catch (error) {
       if (Number(error?.httpStatus) === 403 || String(error?.code || '').includes('FORBIDDEN')) {
         return res.status(404).type('text/plain').send('Not Found');
+      }
+      return next(error);
+    }
+  });
+
+  router.get('/readiness/:appointmentId', requireSession, async (req, res, next) => {
+    try {
+      const result = await policyAcceptanceService.operatorReadiness({
+        adminId: req.staffBrowserSession.adminId,
+        appointmentId: req.params.appointmentId,
+      });
+      return res.status(200).json(result);
+    } catch (error) {
+      if (error?.httpStatus) {
+        return res.status(error.httpStatus).json({ error: error.message, code: error.code, requestId: req.id });
       }
       return next(error);
     }

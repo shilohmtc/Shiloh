@@ -6,6 +6,7 @@ const {
   sendCustomerBookingConfirmationForAppointment,
 } = require('./customerBookingConfirmation');
 const { normalizeAppointmentNotes } = require('./appointmentNotes');
+const bookingPolicyAcceptance = require('./bookingPolicyAcceptance');
 
 function isCanonicalMobile(value) {
   return /^27[678][0-9]{8}$/.test(String(value || ''));
@@ -16,6 +17,7 @@ async function confirmCalendarV2BookingDirect(admin, options = {}) {
   const appointmentNotes = normalizeAppointmentNotes(options.notes);
   const db = await pool.connect();
   let customerConfirmationObligation = null;
+  let policyAcceptance = null;
   try {
     await db.query('BEGIN');
     const sessionResult = await db.query(
@@ -189,6 +191,14 @@ async function confirmCalendarV2BookingDirect(admin, options = {}) {
       })]
     );
 
+    policyAcceptance = await bookingPolicyAcceptance.ensureForAppointment({
+      queryable: db,
+      appointmentId: appointment.id,
+      crmV2ClientId: Number(session.crm_v2_client_id),
+      phone: finalClient.normalized_mobile,
+      adminId: Number(admin.id),
+    });
+
     customerConfirmationObligation = await queueCustomerBookingConfirmation(appointment.id, { db });
     if (!customerConfirmationObligation?.queued && customerConfirmationObligation?.status !== 'sent') {
       throw new Error(`Initial CRM V2 booking confirmation obligation was not durably queued: ${customerConfirmationObligation?.reason || 'unknown'}`);
@@ -209,6 +219,7 @@ async function confirmCalendarV2BookingDirect(admin, options = {}) {
       appointmentId: appointment.id,
       customerConfirmation,
       customerConfirmationObligation,
+      policyAcceptance,
       reply: `Booking created successfully — appointment #${appointment.id}.`,
     };
   } catch (error) {

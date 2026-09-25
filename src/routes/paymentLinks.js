@@ -7,6 +7,7 @@ const {
   BOOKING_POLICY_TEXT,
 } = require('../config/bookingPolicyAuthority');
 const { ensurePolicySchema } = require('../services/bookingPolicy');
+const bookingPolicyAcceptance = require('../services/bookingPolicyAcceptance');
 
 function safePaymentRequestKey(value) {
   const key = String(value || '').trim();
@@ -41,7 +42,7 @@ function validateOzowTarget(request) {
   return target;
 }
 
-function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema } = {}) {
+function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema, acceptanceService = bookingPolicyAcceptance } = {}) {
   const router = express.Router();
   router.use(express.urlencoded({ extended: false }));
 
@@ -71,7 +72,6 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema 
   router.post('/:requestKey/accept', async (req, res, next) => {
     const requestKey = safePaymentRequestKey(req.params.requestKey);
     if (!requestKey) return paymentUnavailable(res, 404, 'Payment link not found.');
-    if (req.body?.accept !== 'yes') return paymentUnavailable(res, 400, 'Please acknowledge Shiloh’s Booking Policy & Terms before continuing.');
     try {
       const result = await db.query(paymentRequestQuery(), [requestKey]);
       const request = result.rows[0];
@@ -88,13 +88,21 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema 
       const target = validateOzowTarget(request);
       if (!target) return paymentUnavailable(res, 502, 'This payment link is unavailable.');
 
-      await policySchema();
-      await db.query(
-        `INSERT INTO booking_policy_acceptances
-          (phone,policy_version,accepted_at,channel,service_text)
-         VALUES ($1,$2,NOW(),'payment_link',$3)`,
-        [String(request.payer_mobile), BOOKING_POLICY_VERSION, request.appointment_id ? `Booking #${request.appointment_id}` : 'Shiloh payment'],
-      );
+      const existingAcceptance = request.appointment_id
+        ? await acceptanceService.acceptanceForAppointment({ queryable: db, appointmentId: request.appointment_id })
+        : null;
+      if (!existingAcceptance && req.body?.accept !== 'yes') {
+        return paymentUnavailable(res, 400, 'Please acknowledge Shiloh’s Booking Policy & Terms before continuing.');
+      }
+      if (!existingAcceptance) {
+        await policySchema();
+        await acceptanceService.recordPaymentLinkAcceptance({
+          queryable: db,
+          appointmentId: request.appointment_id,
+          phone: String(request.payer_mobile),
+          policyVersion: BOOKING_POLICY_VERSION,
+        });
+      }
 
       res.set({
         'Cache-Control': 'no-store',
@@ -128,6 +136,9 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema 
       if (request.gift_voucher_order_id) return res.redirect(303, `/gift-vouchers/${requestKey}`);
       if (!validateOzowTarget(request)) return paymentUnavailable(res, 409, 'This payment link is not ready yet.');
 
+      const existingAcceptance = request.appointment_id
+        ? await acceptanceService.acceptanceForAppointment({ queryable: db, appointmentId: request.appointment_id })
+        : null;
       return res.status(200).type('html').set({
         'Cache-Control': 'no-store',
         'Referrer-Policy': 'no-referrer',
@@ -136,6 +147,7 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema 
         requestKey,
         request,
         policyText: BOOKING_POLICY_TEXT,
+        policyAccepted: Boolean(existingAcceptance),
       }));
     } catch (error) {
       return next(error);

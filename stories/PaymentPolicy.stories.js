@@ -28,3 +28,17 @@ export const DepositPolicyBeforeOzow = {
     policyText: BOOKING_POLICY_TEXT,
   })),
 };
+
+
+export const AcceptedTermsBeforeOzow = {
+  render: () => productionSurface(renderPaymentPolicyPage({
+    requestKey: 'dep_storybook_812',
+    request: {
+      amount: '340.00',
+      payer_name: 'Christel Botha',
+      appointment_id: 812,
+    },
+    policyText: BOOKING_POLICY_TEXT,
+    policyAccepted: true,
+  })),
+};
