@@ -54,7 +54,7 @@ function statusForError(error) {
   return 503;
 }
 
-function bookingRecoveryFor(status) {
+function bookingRecoveryFor(status, details = {}) {
   const key = String(status || 'booking_unavailable');
   const recovery = {
     kind: key,
@@ -107,8 +107,8 @@ function bookingRecoveryFor(status) {
   if (key === 'conflict') {
     return {
       ...recovery,
-      title: 'This time overlaps another booking or blocked period.',
-      message: 'Nothing has been booked. Choose a time where the full treatment is free.',
+      title: 'This time is not available.',
+      message: details.reply || 'Nothing has been booked. This time overlaps another booking or blocked period.',
       steps: [
         'Choose another start time or date.',
         'Or choose another eligible practitioner.',
@@ -307,7 +307,7 @@ function createCalendarCreateBookingRouter({
         return res.status(409).json({
           status: result.status,
           reply: result.reply || 'Booking cannot be prepared.',
-          recovery: bookingRecoveryFor(result.status),
+          recovery: bookingRecoveryFor(result.status, result),
         });
       }
       return res.status(200).json(result);
@@ -317,7 +317,7 @@ function createCalendarCreateBookingRouter({
         error: error.message,
         code: error.code,
         requestId: req.id,
-        recovery: bookingRecoveryFor(error.code),
+        recovery: bookingRecoveryFor(error.code, { reply: error.message }),
       });
       return next(error);
     }

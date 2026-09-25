@@ -32,8 +32,13 @@ test('clinic-hours and conflict refusals give specific nontechnical next steps',
   assert.deepEqual(clinic.actions, ['change_time', 'change_date', 'report_problem']);
 
   const conflict = bookingRecoveryFor('conflict');
-  assert.match(conflict.title, /overlaps another booking or blocked period/);
+  assert.match(conflict.title, /not available/);
   assert.match(conflict.steps.join(' '), /Calendar shows this time as free/);
+
+  const detailedConflict = bookingRecoveryFor('conflict', {
+    reply: 'That time overlaps with Jean-Pierre Botha — appointment, 08:00–08:30',
+  });
+  assert.equal(detailedConflict.message, 'That time overlaps with Jean-Pierre Botha — appointment, 08:00–08:30');
 });
 
 test('staff booking page renders guided actions and a prefilled private report handoff', () => {
