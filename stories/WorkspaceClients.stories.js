@@ -84,6 +84,25 @@ function detailModel() {
         staff: [{ name: 'Marietjie' }],
       },
     ],
+    policyAcceptances: [
+      {
+        id: 41,
+        policyVersion: '2026-09-25-v3',
+        acceptedAt: '2026-09-25T08:32:00.000Z',
+        channel: 'clinic_device',
+        channelLabel: 'In clinic on Shiloh device',
+        appointmentId: 9101,
+        serviceName: 'Marietjie Signature Massage',
+        startsAt: '2026-09-30T08:00:00.000Z',
+      },
+    ],
+    bookingReadiness: {
+      9101: {
+        terms: { state: 'accepted', policyVersion: '2026-09-25-v3', acceptedAt: '2026-09-25T08:32:00.000Z', channel: 'clinic_device', channelLabel: 'In clinic on Shiloh device' },
+        deposit: { state: 'exempt', requiredAmount: '0.00' },
+        confirmation: { state: 'sent' },
+      },
+    },
     communications: [
       {
         intent: 'booking_confirmation',
