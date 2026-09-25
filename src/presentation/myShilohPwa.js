@@ -320,7 +320,7 @@ function renderMyShilohPage({
       <h1 id="install-gate-title" data-install-gate-title>Keep My Shiloh one tap away.</h1>
       <p class="install-gate__copy" data-install-gate-copy>Add <strong>My Shiloh</strong> to your Home Screen for quick access to bookings, Wallet, notifications and Shiloh support.</p>
       <button class="button button--primary button--wide" type="button" data-install-gate-action>Install My Shiloh</button>
-      <p class="install-gate__status" data-install-gate-status aria-live="polite">Already installed? Open the <strong>My Shiloh</strong> icon on your Home Screen.</p>
+      <p class="install-gate__status" data-install-gate-status aria-live="polite">Already installed? Open My Shiloh from your Home Screen.</p>
     </section>
   </main>
 
