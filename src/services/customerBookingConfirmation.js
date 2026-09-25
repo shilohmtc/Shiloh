@@ -553,18 +553,20 @@ async function sendCustomerBookingConfirmationForAppointment(appointmentId,optio
     const approval=await practitionerApprovalStatus(appointmentId,db);
     if(approval!=='approved')return {sent:false,reason:'practitioner_approval_required'};
   }
-  const policyAcceptanceService=options.policyAcceptanceService||bookingPolicyAcceptance;
-  const policyGate=await policyAcceptanceService.policyGateForAppointment({queryable:db,appointmentId});
-  if(policyGate.required){
-    return {
-      sent:false,
-      reason:'policy_acceptance_required',
-      deliveryStatus:'awaiting_policy_acceptance',
-      policyAcceptance:{
-        policyVersion:policyGate.policyVersion||null,
-        revoked:policyGate.revoked===true,
-      },
-    };
+  if(a.source==='shiloh_calendar'){
+    const policyAcceptanceService=options.policyAcceptanceService||bookingPolicyAcceptance;
+    const policyGate=await policyAcceptanceService.policyGateForAppointment({queryable:db,appointmentId});
+    if(policyGate.required){
+      return {
+        sent:false,
+        reason:'policy_acceptance_required',
+        deliveryStatus:'awaiting_policy_acceptance',
+        policyAcceptance:{
+          policyVersion:policyGate.policyVersion||null,
+          revoked:policyGate.revoked===true,
+        },
+      };
+    }
   }
   const recovery=options.recovery===true;
   if(recovery){
