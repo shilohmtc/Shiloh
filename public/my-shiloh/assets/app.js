@@ -9,7 +9,16 @@
   const installGate = document.querySelector('[data-install-gate]');
   const installVerificationGate = document.querySelector('[data-install-verification-gate]');
   const installGateAction = document.querySelector('[data-install-gate-action]');
+  const installGateTitle = document.querySelector('[data-install-gate-title]');
+  const installGateCopy = document.querySelector('[data-install-gate-copy]');
   const installGateStatus = document.querySelector('[data-install-gate-status]');
+  const installEyebrow = document.querySelector('[data-install-eyebrow]');
+  const installTitle = document.querySelector('[data-install-title]');
+  const installLead = document.querySelector('[data-install-lead]');
+  const installStepTitles = [...document.querySelectorAll('[data-install-step-title]')];
+  const installStepCopies = [...document.querySelectorAll('[data-install-step-copy]')];
+  const installStepExtra = document.querySelector('[data-install-step-extra]');
+  const installTip = document.querySelector('[data-install-tip]');
   const INSTALL_VERIFIED_KEY = 'my-shiloh-install-whatsapp-verified-v1';
   const offlineBanner = document.querySelector('[data-offline-banner]');
   const appUpdateBanner = document.querySelector('[data-app-update]');
@@ -153,7 +162,15 @@
     if (appFrame) appFrame.hidden = browserGated || verificationGated;
 
     if (browserGated && installGateAction) {
-      installGateAction.textContent = deferredInstallPrompt && isAndroid() ? 'Install My Shiloh' : 'Show install steps';
+      installGateAction.textContent = deferredInstallPrompt && isAndroid()
+        ? 'Install My Shiloh'
+        : isIos()
+          ? 'Show iPhone steps'
+          : 'Show install steps';
+    }
+    if (browserGated && isIos()) {
+      if (installGateTitle) installGateTitle.textContent = 'Add My Shiloh to your iPhone.';
+      if (installGateCopy) installGateCopy.innerHTML = 'Keep bookings, Wallet, notifications and Shiloh support one tap away on your Home Screen.';
     }
   }
 
@@ -161,8 +178,44 @@
     if (installTrigger && !standalone()) installTrigger.hidden = false;
   }
 
+  function setInstallStep(index, title, copy) {
+    const titleNode = installStepTitles.find((node) => node.dataset.installStepTitle === String(index));
+    const copyNode = installStepCopies.find((node) => node.dataset.installStepCopy === String(index));
+    if (titleNode) titleNode.textContent = title;
+    if (copyNode) copyNode.textContent = copy;
+  }
+
+  function renderInstallGuide() {
+    if (isIos()) {
+      if (installEyebrow) installEyebrow.textContent = 'Install My Shiloh on iPhone';
+      if (installTitle) installTitle.textContent = 'Four quick steps and you’re in.';
+      if (installLead) installLead.textContent = 'My Shiloh installs from Safari — no App Store download is needed.';
+      setInstallStep(1, 'Open this page in Safari', 'If you opened My Shiloh inside another app, use its menu to open this page in Safari.');
+      setInstallStep(2, 'Tap the Share button', 'Look for the square with the upward arrow in Safari.');
+      setInstallStep(3, 'Choose Add to Home Screen', 'Scroll the Share menu if you do not see it straight away.');
+      setInstallStep(4, 'Turn on Open as Web App, then tap Add', 'Open the new My Shiloh icon from your Home Screen when installation finishes.');
+      if (installStepExtra) installStepExtra.hidden = false;
+      if (installTip) {
+        installTip.hidden = false;
+        installTip.innerHTML = '<strong>Already installed?</strong><span>Close this browser page and open the My Shiloh icon on your Home Screen.</span>';
+      }
+      return;
+    }
+
+    if (installEyebrow) installEyebrow.textContent = 'Install My Shiloh';
+    if (installTitle) installTitle.textContent = 'Add My Shiloh to your Home Screen.';
+    if (installLead) installLead.textContent = 'It only takes a moment, and you’ll be able to open My Shiloh like any other app.';
+    setInstallStep(1, 'Open your browser menu or Share button', 'Use your browser’s sharing or install menu.');
+    setInstallStep(2, 'Choose Add to Home Screen or Install app', 'Your phone will show the installation option.');
+    setInstallStep(3, 'Open My Shiloh', 'Tap the new My Shiloh icon on your Home Screen.');
+    setInstallStep(4, '', '');
+    if (installStepExtra) installStepExtra.hidden = true;
+    if (installTip) installTip.hidden = true;
+  }
+
   function openInstallGuide() {
     if (!installSheet) return;
+    renderInstallGuide();
     installSheet.hidden = false;
     document.body.style.overflow = 'hidden';
     installSheet.querySelector('.install-sheet__close')?.focus();
