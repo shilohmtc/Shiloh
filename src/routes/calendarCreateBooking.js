@@ -128,6 +128,18 @@ function customerConfirmationState(result) {
   if (delivery.deliveryStatus === 'uncertain' || reason === 'delivery_state_uncertain') {
     return { status: 'delivery_status_uncertain', sent: false, retryable: false, reason: 'delivery_state_uncertain' };
   }
+  if (reason === 'deposit_required' && delivery.deliveryStatus === 'awaiting_deposit') {
+    const requests = Array.isArray(delivery.deposit?.requests) ? delivery.deposit.requests : [];
+    const depositMessageSent = requests.length > 0 && requests.every(request => request.notificationSent === true);
+    return {
+      status: depositMessageSent ? 'deposit_request_sent' : 'deposit_request_retry_pending',
+      sent: false,
+      retryable: !depositMessageSent,
+      reason,
+      depositMessageSent,
+      depositAmount: delivery.deposit?.amount || null,
+    };
+  }
   const manualAction = [
     'client_contact_not_found',
     'client_contact_unverified',
