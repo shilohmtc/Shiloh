@@ -11,6 +11,7 @@ function loadDirectConfirmationWithFakes({ finalMobile = '27821234567' } = {}) {
   const availabilityModule = require('../src/services/adminAvailability');
   const clinicHoursModule = require('../src/services/clinicHours');
   const confirmationModule = require('../src/services/customerBookingConfirmation');
+  const policyAcceptanceModule = require('../src/services/bookingPolicyAcceptance');
 
   const calls = [];
   const db = {
@@ -68,6 +69,7 @@ function loadDirectConfirmationWithFakes({ finalMobile = '27821234567' } = {}) {
     checkClinicHours: clinicHoursModule.checkClinicHours,
     queueCustomerBookingConfirmation: confirmationModule.queueCustomerBookingConfirmation,
     sendCustomerBookingConfirmationForAppointment: confirmationModule.sendCustomerBookingConfirmationForAppointment,
+    ensureForAppointment: policyAcceptanceModule.ensureForAppointment,
   };
 
   poolModule.pool.connect = async () => db;
@@ -76,6 +78,7 @@ function loadDirectConfirmationWithFakes({ finalMobile = '27821234567' } = {}) {
   clinicHoursModule.checkClinicHours = async () => ({ covered: true });
   confirmationModule.queueCustomerBookingConfirmation = async () => ({ queued: true });
   confirmationModule.sendCustomerBookingConfirmationForAppointment = async () => ({ sent: true, deliveryStatus: 'sent' });
+  policyAcceptanceModule.ensureForAppointment = async () => ({ policyVersion:'2026-09-25-v3', clinicPath:'/booking-policy/clinic-test', clientPath:'/booking-policy/client-test', clientMobile:'27821234567' });
 
   const modulePath = require.resolve('../src/services/calendarDirectBookingConfirmation');
   delete require.cache[modulePath];
@@ -88,6 +91,7 @@ function loadDirectConfirmationWithFakes({ finalMobile = '27821234567' } = {}) {
     clinicHoursModule.checkClinicHours = originals.checkClinicHours;
     confirmationModule.queueCustomerBookingConfirmation = originals.queueCustomerBookingConfirmation;
     confirmationModule.sendCustomerBookingConfirmationForAppointment = originals.sendCustomerBookingConfirmationForAppointment;
+    policyAcceptanceModule.ensureForAppointment = originals.ensureForAppointment;
     delete require.cache[modulePath];
   }
 
