@@ -19,7 +19,8 @@ function paymentUnavailable(res, status, message) {
 
 function paymentRequestQuery() {
   return `SELECT pr.provider,pr.state,pr.provider_payment_url,pr.expires_at,pr.gift_voucher_order_id,
-                  pr.amount,pr.payer_name,pr.payer_mobile,pr.payer_crm_v2_client_id,
+                  pr.amount,pr.payer_name,pr.payer_mobile,
+                  COALESCE(pr.payer_crm_v2_client_id,payment_appointment.crm_v2_client_id) AS payer_crm_v2_client_id,
                   COALESCE(pr.deposit_member_appointment_id,bpa.appointment_id) AS appointment_id,
                   payment_appointment.status AS appointment_status
              FROM payment_requests pr
