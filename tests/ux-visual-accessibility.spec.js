@@ -1479,7 +1479,7 @@ test('authenticated My Shiloh browser sessions still show only the install doorw
     const appFrame = page.locator('[data-app-frame]');
     await expect(gate).toBeVisible();
     await expect(appFrame).toBeHidden();
-    await expect(page.getByRole('heading', { name: 'Add My Shiloh to your Home Screen to continue.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Keep My Shiloh one tap away.' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Show install steps' })).toBeVisible();
     await expect(gate.locator('[data-install-gate-instructions]')).toHaveCount(0);
     await expect(page.getByText('Good evening, Christel.')).toBeHidden();
