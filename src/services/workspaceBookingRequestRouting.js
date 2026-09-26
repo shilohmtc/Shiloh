@@ -181,10 +181,11 @@ async function listPendingRescheduleRequests({ db = pool, principal, now = new D
        AND a.ends_at=request.original_ends_at
        AND ast.staff_id=request.approver_staff_id
        AND aps.service_id=request.service_id
+       AND ($2::bigint IS NULL OR team.id=$2)
        AND ((request.crm_v2_client_id IS NOT NULL AND a.crm_v2_client_id=request.crm_v2_client_id AND v2.id IS NOT NULL)
          OR (request.client_id IS NOT NULL AND a.client_id=request.client_id))
      ORDER BY request.proposed_starts_at,request.id
-     LIMIT 100`, [now]);
+     LIMIT 100`, [now, scope.kind === 'team' ? scope.teamId : null]);
   const seen = new Set();
   return (result.rows || []).filter(row => {
     if (seen.has(Number(row.id)) || !rowVisibleToScope(row, principal, scope)) return false;

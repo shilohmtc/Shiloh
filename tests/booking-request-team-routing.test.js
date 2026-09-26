@@ -36,6 +36,8 @@ function dbWith({ scopes = {}, unresolved = [], reschedules = [], targets = {}, 
       if (sql.includes('FROM appointment_reschedule_requests request')) {
         assert.match(sql, /st\.business_role.*tenant_practitioner/);
         assert.match(sql, /a\.starts_at=request\.original_starts_at/);
+        assert.match(sql, /team\.id=\$2/);
+        if (params[1] != null) assert.equal(params[1], 11);
         return { rowCount: reschedules.length, rows: reschedules };
       }
       if (sql.includes('WHERE aba.appointment_id=$1') && sql.includes('requested_staff_ids')) {
