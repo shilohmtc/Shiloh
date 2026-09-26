@@ -271,6 +271,16 @@ function buildClientExperience(context) {
         ],
     },
     bookings: {
+      history: (Array.isArray(context.declinedRequests) ? context.declinedRequests : []).map(item => {
+        const requested = appointmentDisplay(item);
+        return {
+          id: item.id, service: requested?.service || 'Shiloh appointment',
+          practitioner: requested?.practitioner || 'Shiloh',
+          date: requested?.date, time: requested?.time,
+          status: 'Could not accommodate',
+          nextAction: 'This request was not booked. Ask Shiloh if you would like to find another time.',
+        };
+      }),
       upcoming: requestDisplay ? [
         ...activeRequests.map(item => {
           const requested = appointmentDisplay(item);

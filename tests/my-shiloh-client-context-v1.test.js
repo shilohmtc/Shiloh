@@ -41,6 +41,10 @@ test('authenticated client context is keyed only by CRM V2 identity and projects
         assert.deepEqual(values, [55]);
         return { rows: [], rowCount: 0 };
       }
+      if (sql.includes('myShilohClientContext:declined-booking-requests')) {
+        assert.deepEqual(values, [55]);
+        return { rows: [], rowCount: 0 };
+      }
       if (sql.includes('myShilohClientContext:forms-status-only')) {
         assert.deepEqual(values, [55, 901]);
         return {
@@ -84,6 +88,7 @@ test('authenticated client context is keyed only by CRM V2 identity and projects
   assert.equal(context.nextAppointment.id, 901);
   assert.equal(context.activeRequest, null);
   assert.deepEqual(context.activeRequests, []);
+  assert.deepEqual(context.declinedRequests, []);
   assert.deepEqual(context.nextAppointment.services, ['Hot Stone Massage']);
   assert.deepEqual(context.nextAppointment.practitioners, ['Marietjie']);
   assert.equal(context.forms[0].actionRequired, true);
@@ -135,6 +140,31 @@ test('a canonical client request takes priority over an upcoming visit without a
     proposalExpiresAt: '2026-09-27T10:00:00.000Z',
   } });
   assert.equal(expired.home.status, 'Requested');
+});
+
+test('declined Workspace requests appear only in bounded client history and never as upcoming bookings', async () => {
+  const db = { async query(sql, values) {
+    assert.match(sql, /a\.crm_v2_client_id=\$1 AND a\.client_id IS NULL/);
+    assert.match(sql, /aba\.decision_note='workspace_cannot_accommodate'/);
+    assert.match(sql, /aba\.status='declined'/);
+    assert.match(sql, /LIMIT 5/);
+    assert.deepEqual(values, [55]);
+    return { rows: [{
+      id: 904, crm_v2_client_id: 55, starts_at: '2026-10-02T08:00:00.000Z',
+      ends_at: '2026-10-02T09:00:00.000Z', status: 'cancelled',
+      booking_request_status: 'declined', services: [{ name: 'Facial' }],
+      practitioners: [{ name: 'Christel' }],
+    }] };
+  } };
+  const declinedRequests = await createMyShilohClientContextService({ db }).loadDeclinedBookingRequests(55);
+  const experience = buildClientExperience({
+    generatedAt: '2026-09-26T10:00:00.000Z', client: { id: 55, name: 'Naledi Mokoena' },
+    declinedRequests, nextAppointment: null, forms: [], payment: null,
+  });
+  assert.deepEqual(experience.bookings.upcoming, []);
+  assert.equal(experience.bookings.history[0].id, 904);
+  assert.equal(experience.bookings.history[0].status, 'Could not accommodate');
+  assert.match(experience.bookings.history[0].nextAction, /not booked/);
 });
 
 test('active request is scoped to the signed-in CRM client and reads the existing approval state', async () => {

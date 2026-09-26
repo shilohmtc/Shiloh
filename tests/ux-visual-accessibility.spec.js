@@ -255,16 +255,18 @@ test('My Shiloh presents a client request as planning on phone and desktop', asy
       home: {
         eyebrow: 'Your booking request', headline: 'Shiloh is planning your request.',
         summary: 'You requested Hot Stone Massage for Fri, 2 Oct at 10:00. Reception will review the arrangement before confirming it. This appointment is not confirmed yet.',
-        status: 'Requested', primaryAction: { kind: 'navigate', label: 'View request', href: '#bookings' },
+        status: 'Planning', primaryAction: { kind: 'navigate', label: 'View request', href: '#bookings' },
         facts: [
-          { key: 'appointment', label: 'Booking request', value: 'Requested', href: '#bookings', message: 'Your request is waiting for the next planning step.' },
+          { key: 'appointment', label: 'Booking request', value: 'Planning', href: '#bookings', message: 'Reception is reviewing your request.' },
           { key: 'forms', label: 'Forms', value: 'Nothing to do yet', href: null, message: 'Shiloh will let you know if a form is needed.' },
           { key: 'payment', label: 'Payment', value: 'No action yet', href: null, message: 'No payment action is due from this request yet.' },
         ],
       },
       bookings: { upcoming: [
-        { service: 'Hot Stone Massage', date: 'Fri, 2 Oct', time: '10:00', practitioner: 'Christel', status: 'Requested', nextAction: 'Reception is reviewing your request. The appointment has not been confirmed.' },
+        { service: 'Hot Stone Massage', date: 'Fri, 2 Oct', time: '10:00', practitioner: 'Christel', status: 'Planning', nextAction: 'Reception is reviewing your request. The appointment has not been confirmed.' },
         { service: 'Facial', date: 'Sat, 3 Oct', time: '11:00', practitioner: 'Abigail', status: 'Awaiting your response', nextAction: 'Reply to the Shiloh message about the proposed time.' },
+      ], history: [
+        { service: 'Sports Massage', date: 'Thu, 1 Oct', time: '09:00', practitioner: 'Christel', status: 'Could not accommodate', nextAction: 'This request was not booked. Ask Shiloh if you would like to find another time.' },
       ] },
       assistant: { prompts: ['What is the status of my request?'], contextReady: true },
     }),
@@ -278,9 +280,15 @@ test('My Shiloh presents a client request as planning on phone and desktop', asy
     });
     await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
     await expect(page.locator('[data-client-experience-home]')).toContainText('This appointment is not confirmed yet.');
-    await expect(page.locator('[data-client-experience-bookings] .action-card').first()).toContainText('Requested');
-    await expect(page.locator('[data-experience-extra-booking]')).toContainText('Awaiting your response');
+    await expect(page.locator('[data-client-experience-bookings] .action-card').first()).toContainText('Planning');
+    await expect(page.locator('[data-client-experience-bookings] .action-card').first().locator('a')).toContainText('request');
+    await expect(page.locator('[data-experience-extra-booking]').first()).toContainText('Awaiting your response');
+    await expect(page.locator('[data-experience-extra-booking]').last()).toContainText('Could not accommodate');
+    await expect(page.locator('[data-experience-extra-booking]').last()).toContainText('not booked');
     await expect(page.locator('[data-client-experience-bookings] .action-card').first()).not.toContainText('Upcoming appointment');
+    await page.locator('[data-view-target="bookings"]').click();
+    await expect(page.locator('[data-view="bookings"]')).toBeVisible();
+    await expect(page.getByText('Could not accommodate')).toBeVisible();
     const bounds = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }));
     expect(bounds.document).toBeLessThanOrEqual(bounds.viewport);
     const accessibility = await new AxeBuilder({ page })
