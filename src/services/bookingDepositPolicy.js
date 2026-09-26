@@ -162,7 +162,9 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
       || policy.partialForfeitBasisPoints !== authority.partialForfeitBasisPoints
       || policy.lateForfeitBasisPoints !== authority.lateForfeitBasisPoints
       || policy.noShowForfeitBasisPoints !== authority.noShowForfeitBasisPoints
-      || policy.exemptStaffStatus !== 'active'
+      // A former practitioner's historical exemption remains authoritative
+      // until the clinic adopts a new deposit-policy version. Their staff
+      // status must not interrupt booking or payment for everyone else.
       || policy.exemptStaffName.trim().toLowerCase() !== authority.exemptPractitionerDisplayName.toLowerCase()
     );
     if (drift) {
