@@ -131,7 +131,7 @@ function renderClientConsultationFormPage(model = {}) {
     <p class="intro-note">Fields marked <span class="required">*</span> are required. We have prefilled profile details where possible, but you can correct them here without changing your Shiloh client profile.</p>
     ${summaryError}
     <form method="post" action="/forms/f/${escapeHtml(model.accessToken || '')}" data-client-consultation-form novalidate>
-      <input type="hidden" name="submission_proof" value="${escapeHtml(model.submissionProof || '')}">
+      ${model.submissionProof ? `<input type="hidden" name="submission_proof" value="${escapeHtml(model.submissionProof)}">` : ''}
       ${sections}
       <section class="consent"><h2>Consent & declaration</h2><p>Please read this carefully before signing.</p><div class="declaration">${escapeHtml(form.consentText || '')}</div>
         <div class="check-row"><input type="checkbox" id="consent_acknowledged" name="consent_acknowledged" value="yes"${consentChecked} required><label for="consent_acknowledged">I have read and agree to the declaration above. <span class="required" aria-label="required">*</span></label></div>

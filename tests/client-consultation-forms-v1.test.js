@@ -15,6 +15,7 @@ const clientScript = fs.readFileSync(path.join(root, 'public/assets/forms/client
 const forms = require('../src/services/clientConsultationForms');
 const routes = require('../src/routes/clientConsultationForms');
 const presentation = require('../src/presentation/clientConsultationFormUx');
+const { renderTrialForm } = require('../src/presentation/consultationFormTrialUx');
 
 function fixtureForm() {
   return {
@@ -181,6 +182,11 @@ test('same-origin submission guard rejects a foreign origin and accepts same hos
   assert.equal(routes.sameOriginSubmission(makeReq('https://app.shilohmtc.co.za')), true);
   assert.equal(routes.sameOriginSubmission(makeReq('https://example.com')), false);
   assert.equal(routes.sameOriginSubmission(makeReq('')), true);
+});
+
+test('the separate private trial does not send a client submission proof', () => {
+  const trial = renderTrialForm({ form: fixtureForm(), prefill: {} }, Buffer.alloc(32, 7).toString('base64url'));
+  assert.doesNotMatch(trial, /name="submission_proof"/);
 });
 
 test('a rendered form submits from an opaque mobile origin with a signed proof, without persisting that proof', async () => {
