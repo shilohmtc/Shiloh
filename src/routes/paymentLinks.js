@@ -59,7 +59,8 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema 
       );
       const request = result.rows[0];
       if (!request) return paymentUnavailable(res, 404, 'Payment status not found.');
-      const statusRequest = request.expires_at && new Date(request.expires_at).getTime() <= Date.now() && String(request.state) === 'pending'
+      const terminal = ['paid', 'failed', 'cancelled', 'expired', 'refunded'].includes(String(request.state));
+      const statusRequest = request.expires_at && new Date(request.expires_at).getTime() <= Date.now() && !terminal
         ? { ...request, state: 'expired' } : request;
       return res.status(200).type('html').set({
         'Cache-Control': 'no-store',

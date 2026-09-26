@@ -244,6 +244,26 @@ test('terminal payment links lead to the status page and never redirect back to 
   }
 });
 
+test('an expired issued link explains that payment is not confirmed', async () => {
+  const app = express();
+  app.use('/pay', createPaymentLinkRouter({
+    db: { query: async () => ({ rows: [{ state: 'link_issued', amount: '125.00', payer_mobile: '27716742646', expires_at: '2020-01-01T00:00:00Z' }] }) },
+  }));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  try {
+    const base = `http://127.0.0.1:${server.address().port}/pay`;
+    const response = await fetch(`${base}/request_699_token`, { redirect: 'manual' });
+    assert.equal(response.status, 410);
+    assert.match(await response.text(), /Payment not confirmed/);
+    const page = await (await fetch(`${base}/status/request_699_token`)).text();
+    assert.match(page, /Payment not confirmed/);
+    assert.match(page, /contact the clinic before trying again/);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
 test('cancelled booking payment links fail closed before policy acceptance or Ozow redirect', async () => {
   const app = express();
   app.use('/pay', createPaymentLinkRouter({
