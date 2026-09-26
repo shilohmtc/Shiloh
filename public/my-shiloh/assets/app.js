@@ -233,14 +233,22 @@
   }
 
   function shareIcon() {
-    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const namespace = 'http://www.w3.org/2000/svg';
+    const icon = document.createElementNS(namespace, 'svg');
+    const path = document.createElementNS(namespace, 'path');
     icon.setAttribute('viewBox', '0 0 24 24');
     icon.setAttribute('width', '20');
     icon.setAttribute('height', '20');
     icon.setAttribute('aria-hidden', 'true');
     icon.setAttribute('focusable', 'false');
     icon.classList.add('install-share-icon');
-    icon.innerHTML = '<path d="M12 15V3m0 0-4 4m4-4 4 4M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>';
+    path.setAttribute('d', 'M12 15V3m0 0-4 4m4-4 4 4M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', 'currentColor');
+    path.setAttribute('stroke-width', '1.8');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    icon.appendChild(path);
     return icon;
   }
 
