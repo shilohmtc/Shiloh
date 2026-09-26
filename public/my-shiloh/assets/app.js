@@ -232,10 +232,28 @@
     if (installTrigger && !standalone()) installTrigger.hidden = false;
   }
 
+  function shareIcon() {
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    icon.setAttribute('viewBox', '0 0 24 24');
+    icon.setAttribute('width', '20');
+    icon.setAttribute('height', '20');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.setAttribute('focusable', 'false');
+    icon.classList.add('install-share-icon');
+    icon.innerHTML = '<path d="M12 15V3m0 0-4 4m4-4 4 4M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>';
+    return icon;
+  }
+
   function setInstallStep(index, title, copy) {
     const titleNode = installStepTitles.find((node) => node.dataset.installStepTitle === String(index));
     const copyNode = installStepCopies.find((node) => node.dataset.installStepCopy === String(index));
-    if (titleNode) titleNode.textContent = title;
+    if (titleNode) {
+      titleNode.textContent = title;
+      if (/^Tap Share/.test(title)) {
+        titleNode.textContent = '';
+        titleNode.append(shareIcon(), document.createTextNode(' Tap Share'));
+      }
+    }
     if (copyNode) copyNode.textContent = copy;
   }
 
@@ -255,7 +273,7 @@
           ? 'You can add My Shiloh straight from Chrome — no App Store download is needed.'
           : 'Use your browser’s Share menu — no App Store download is needed.';
       }
-      setInstallStep(1, 'Tap Share ↑', isIosChrome() ? 'Use the Share button beside the address bar.' : 'Use your browser’s Share button.');
+      setInstallStep(1, 'Tap Share', isIosChrome() ? 'Use the Share button beside the address bar.' : 'Use your browser’s Share button.');
       setInstallStep(2, 'Choose Add to Home Screen', 'Scroll if you do not see it straight away.');
       setInstallStep(3, 'Tap Add', 'My Shiloh will appear on your Home Screen.');
       return;
@@ -265,7 +283,7 @@
       if (installEyebrow) installEyebrow.textContent = 'Install My Shiloh on iPhone';
       if (installTitle) installTitle.textContent = 'Three quick steps.';
       if (installLead) installLead.textContent = 'Stay in Safari — no App Store download is needed.';
-      setInstallStep(1, 'Tap Share ↑', 'Use Safari’s Share button.');
+      setInstallStep(1, 'Tap Share', 'Use Safari’s Share button.');
       setInstallStep(2, 'Choose Add to Home Screen', 'Scroll if you do not see it straight away.');
       setInstallStep(3, 'Turn on Open as Web App, then tap Add', 'My Shiloh will appear on your Home Screen.');
       return;
