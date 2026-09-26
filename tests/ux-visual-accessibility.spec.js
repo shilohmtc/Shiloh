@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
+const { buildClientExperience } = require('../src/services/myShilohExperienceOrchestrator');
 
 test('Workspace vouchers stay contained and selectable on Phone and Desktop', async ({ page }, testInfo) => {
   await page.route('**/calendar/vouchers/walk-in', async (route) => route.fulfill({
@@ -297,6 +298,47 @@ test('My Shiloh presents a client request as planning on phone and desktop', asy
       .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter(item => ['serious','critical'].includes(item.impact))).toEqual([]);
     await page.screenshot({ path: testInfo.outputPath(`my-shiloh-request-planning-${viewport.name}.png`), fullPage: true, animations: 'disabled' });
+  }
+});
+
+test('My Shiloh shows a pending time change while preserving the current appointment on phone and desktop', async ({ page }, testInfo) => {
+  const appointment = {
+    id: 901, startsAt: '2026-09-27T08:00:00.000Z', endsAt: '2026-09-27T09:00:00.000Z',
+    status: 'confirmed', services: ['Hot Stone Massage'], practitioners: ['Abigail'],
+  };
+  const experience = buildClientExperience({
+    generatedAt: '2026-09-26T10:00:00.000Z', client: { id: 55, name: 'Naledi Mokoena' },
+    nextAppointment: appointment,
+    pendingRescheduleRequests: [{ ...appointment, proposedStartsAt: '2026-09-30T08:00:00.000Z' }],
+    forms: [], payment: { state: 'paid' },
+  });
+  await page.route('**/my-shiloh/api/experience', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify(experience),
+  }));
+  for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--appointment-change-requested&viewMode=story', { waitUntil: 'networkidle' });
+    await page.evaluate(() => {
+      localStorage.setItem('my-shiloh-install-whatsapp-verified-v1', '1');
+      Object.defineProperty(window.navigator, 'standalone', { configurable: true, get: () => true });
+    });
+    await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
+    await expect(page.locator('[data-client-experience-home]')).toContainText('Your time change is awaiting review.');
+    const booking = page.locator('[data-client-experience-bookings] .action-card').first();
+    await expect(booking).toContainText('Change requested');
+    await expect(booking).toContainText('27 Sept');
+    await expect(booking).toContainText('30 Sept');
+    await expect(booking).toContainText('until the change is approved');
+    await expect(booking.locator('a')).toContainText('request');
+    await expect(page.locator('[data-client-experience-bookings] .action-card')).toHaveCount(1);
+    const bounds = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }));
+    expect(bounds.document).toBeLessThanOrEqual(bounds.viewport);
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-client-experience-home]')
+      .include('[data-client-experience-bookings]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(accessibility.violations.filter(item => ['serious', 'critical'].includes(item.impact))).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`my-shiloh-change-requested-${viewport.name}.png`), fullPage: true, animations: 'disabled' });
   }
 });
 
