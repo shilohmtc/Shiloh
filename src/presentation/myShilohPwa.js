@@ -6,7 +6,7 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 
-const MY_SHILOH_ASSET_VERSION = '20260926-website-install-share-icon-v1';
+const MY_SHILOH_ASSET_VERSION = '20260926-client-payment-recovery-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -336,7 +336,7 @@ function renderMyShilohPage({
     </section>
   </main>
 
-  <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}" hidden>
+  <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}" data-client-payment-whatsapp="${escapeHtml(String(whatsappNumber || '').replace(/\D/g, ''))}" hidden>
     <header class="topbar">
       <a class="brand" href="#home" aria-label="My Shiloh home">
         <span class="brand-mark brand-mark--header" aria-hidden="true"><img src="/my-shiloh/assets/icon-192.png" alt=""></span>
