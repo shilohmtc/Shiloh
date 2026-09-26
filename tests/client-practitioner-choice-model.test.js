@@ -25,17 +25,15 @@ const serviceIntent = {
   status: 'collecting',
 };
 
-test('booking entry presents the four client service families as a genuine WhatsApp list', () => {
+test('booking entry presents the available client service families as a genuine WhatsApp list', () => {
   const view = bookingDiscoveryInteractive();
   assert.equal(view.type, 'list');
   assert.deepEqual(view.rows.map((row) => row.id), [
-    'client_family_beauty',
     'client_family_massage',
     'client_family_lymphatic',
     'client_family_pedicure',
   ]);
   assert.deepEqual(view.rows.map((row) => row.title), [
-    'Beauty & Aesthetics',
     'Massage Treatments',
     'Lymphatic Drainage',
     'Elim MediHeel Pedicures',
@@ -76,10 +74,10 @@ test('standard discovery keeps Any available explicit and service-scoped', () =>
   assert.match(discovery, /st\.client_bookable = TRUE/);
 });
 
-test('typed booking entry is redirected into the same four-family discovery list when service is missing', () => {
+test('typed booking entry is redirected into the same available-family discovery list when service is missing', () => {
   const decorated = decorateClientBookingResult({ handled: true, intent: { ...serviceIntent, service_text: null, service_verified: null } });
   assert.equal(decorated.interactive.type, 'list');
-  assert.deepEqual(decorated.interactive.rows.map((row) => row.id), ['client_family_beauty', 'client_family_massage', 'client_family_lymphatic', 'client_family_pedicure']);
+  assert.deepEqual(decorated.interactive.rows.map((row) => row.id), ['client_family_massage', 'client_family_lymphatic', 'client_family_pedicure']);
 });
 
 test('practitioner requirement copy never labels the treatment team as employees', () => {

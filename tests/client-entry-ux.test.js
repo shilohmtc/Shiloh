@@ -9,18 +9,17 @@ const familyDiscovery = require('../src/services/clientServiceFamilyDiscovery');
 const { CLIENT_COPY } = require('../src/config/clientCopy');
 const bookingUiSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'clientBookingInteractive.js'), 'utf8');
 
-test('registered client discovery uses a four-choice WhatsApp list', () => {
+test('registered client discovery uses the available-family WhatsApp list', () => {
   const interactive = bookingUi.bookingDiscoveryInteractive();
   assert.equal(interactive.type, 'list');
   assert.match(interactive.body, /What would you like to book/);
   assert.deepEqual(
     interactive.rows.map((row) => row.id),
-    ['client_family_beauty', 'client_family_massage', 'client_family_lymphatic', 'client_family_pedicure']
+    ['client_family_massage', 'client_family_lymphatic', 'client_family_pedicure']
   );
   assert.deepEqual(
     interactive.rows.map(({ title, description }) => ({ title, description })),
     [
-      { title: 'Beauty & Aesthetics', description: 'View beauty & aesthetics treatments' },
       { title: 'Massage Treatments', description: 'View massage treatments' },
       { title: 'Lymphatic Drainage', description: 'View lymphatic drainage treatments' },
       { title: 'Elim MediHeel Pedicures', description: 'View pedicure treatments' },
