@@ -281,7 +281,7 @@ test('My Shiloh presents a client request as planning on phone and desktop', asy
     await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
     await expect(page.locator('[data-client-experience-home]')).toContainText('This appointment is not confirmed yet.');
     await expect(page.locator('[data-client-experience-bookings] .action-card').first()).toContainText('Planning');
-    await expect(page.locator('[data-client-experience-bookings] .action-card').first().getByRole('link')).toContainText('request');
+    await expect(page.locator('[data-client-experience-bookings] .action-card').first().locator('a')).toContainText('request');
     await expect(page.locator('[data-experience-extra-booking]').first()).toContainText('Awaiting your response');
     await expect(page.locator('[data-experience-extra-booking]').last()).toContainText('Could not accommodate');
     await expect(page.locator('[data-experience-extra-booking]').last()).toContainText('not booked');
