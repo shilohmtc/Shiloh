@@ -2071,6 +2071,7 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
     await expect(page.locator('[data-review-practitioner]')).toHaveText('Christel');
     await expect(page.locator('[data-review-deposit]')).toHaveText('50% after approval');
     await page.locator('[data-occasion-note]').fill('Birthday treat for two');
+    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-booking-occasion-review-${viewport.name}.png`), fullPage:true, animations:'disabled' });
     await page.locator('[data-policy-accepted]').check();
     await page.getByRole('button', { name:'Send booking request' }).click();
 
@@ -2124,6 +2125,10 @@ test('Reception planning card shows a client occasion on Phone and Desktop', asy
     await page.goto('/iframe.html?id=workspace-production-surfaces--reception-planning-queue&viewMode=story', { waitUntil:'networkidle' });
     const card = page.locator('[data-booking-request="801"]');
     await expect(card).toContainText('Birthday treat for two');
+    if (viewport.name === 'desktop') {
+      const copyWidth = await card.locator('.appointment-copy').evaluate(node => node.getBoundingClientRect().width);
+      expect(copyWidth).toBeGreaterThan(120);
+    }
     const accessibility = await new AxeBuilder({ page }).include('[data-dashboard-attention-panel]')
       .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
