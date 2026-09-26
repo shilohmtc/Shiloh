@@ -66,9 +66,9 @@ async function recordAcceptance(phone, channel = POLICY_CHANNEL) {
 
 async function declinePolicy(phone) { await ensurePolicySchema(); await pool.query("DELETE FROM booking_intents WHERE phone = $1", [phone]); }
 
-async function stageCreatedBookingForApproval(result, { occasionNote = null } = {}) {
+async function stageCreatedBookingForApproval(result, { occasionNote = null, specialOccasion = null } = {}) {
   if (!result?.handled || result.status !== "created" || !result.appointmentId) return result;
-  const approval = await createPendingBookingApproval(pool, { appointmentId: result.appointmentId, occasionNote });
+  const approval = await createPendingBookingApproval(pool, { appointmentId: result.appointmentId, occasionNote, specialOccasion });
   if (!approval) { logger.error({ appointmentId: result.appointmentId }, "Client booking hold created without resolvable canonical assignments"); return { ...result, status: "resolution_setup_failed", reply: `Your appointment request #${result.appointmentId} has been placed on hold, but I could not safely assign it for Workspace resolution. The time remains held and no final confirmation has been sent. Shiloh needs to review this request manually.` }; }
 
   let depositNotice = null;

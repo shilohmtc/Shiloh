@@ -2070,13 +2070,20 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
     await expect(page.locator('[data-review-service]')).toContainText('Hot Stone Massage');
     await expect(page.locator('[data-review-practitioner]')).toHaveText('Christel');
     await expect(page.locator('[data-review-deposit]')).toHaveText('50% after approval');
-    await page.locator('[data-occasion-note]').fill('Birthday treat for two');
-    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-booking-occasion-review-${viewport.name}.png`), fullPage:true, animations:'disabled' });
     await page.locator('[data-policy-accepted]').check();
+    await page.getByRole('button', { name:'Send booking request' }).click();
+    await expect(page.locator('[data-confirm-status]')).toContainText('Please choose Yes or No');
+    await page.locator('[data-special-occasion][value="yes"]').check();
+    await page.getByRole('button', { name:'Send booking request' }).click();
+    await expect(page.locator('[data-confirm-status]')).toContainText('tell Reception what the occasion is');
+    await page.locator('[data-occasion-note]').fill('Birthday treat for two');
+    await expect(page.locator('[data-confirm-status]')).toBeEmpty();
+    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-booking-occasion-review-${viewport.name}.png`), fullPage:true, animations:'disabled' });
     await page.getByRole('button', { name:'Send booking request' }).click();
 
     await expect(page.getByRole('heading', { name:'Booking request sent.' })).toBeVisible();
     expect(confirmations.at(-1).body.occasionNote).toBe('Birthday treat for two');
+    expect(confirmations.at(-1).body.specialOccasion).toBe(true);
     await expect(page.getByText(/selected time is being held while the Shiloh team confirms it/)).toBeVisible();
     await expect(page.getByRole('link', { name:'View My Shiloh bookings' })).toHaveAttribute('href', '/my-shiloh/#bookings');
 
@@ -2114,6 +2121,7 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
       staffId:11,
       startsAt:'2026-09-30T08:00:00.000Z',
       policyAccepted:true,
+      specialOccasion:true,
       occasionNote:'Birthday treat for two',
     });
   }

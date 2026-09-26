@@ -349,7 +349,7 @@ function createMyShilohRouter({
     try {
       setNoStoreJson(res);
       const payload = req.body && typeof req.body === 'object' ? req.body : {};
-      const allowed = new Set(['serviceId','staffId','startsAt','policyAccepted','occasionNote']);
+      const allowed = new Set(['serviceId','staffId','startsAt','policyAccepted','specialOccasion','occasionNote']);
       if (Object.keys(payload).some((key) => !allowed.has(key))) {
         return res.status(422).json({ error:'Please reload My Shiloh and try again', requestId:req.id });
       }
@@ -359,6 +359,7 @@ function createMyShilohRouter({
         staffId:payload.staffId,
         startsAt:payload.startsAt,
         policyAccepted:payload.policyAccepted === true,
+        specialOccasion:payload.specialOccasion,
         occasionNote:payload.occasionNote,
       });
       return res.status(201).json(result);

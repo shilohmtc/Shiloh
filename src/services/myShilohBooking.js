@@ -292,6 +292,7 @@ function createMyShilohBookingService({
     staffId,
     startsAt,
     policyAccepted,
+    specialOccasion,
     occasionNote,
   } = {}) {
     if (policyAccepted !== true) {
@@ -302,6 +303,15 @@ function createMyShilohBookingService({
       );
     }
     const note = cleanOccasionNote(occasionNote);
+    if (typeof specialOccasion !== 'boolean') {
+      throw new MyShilohBookingError('BOOKING_OCCASION_CHOICE_REQUIRED', 'Please choose Yes or No for a special occasion.', 422);
+    }
+    if (specialOccasion && !note) {
+      throw new MyShilohBookingError('BOOKING_OCCASION_REQUIRED', 'Please tell Reception what the occasion is.', 422);
+    }
+    if (!specialOccasion && note) {
+      throw new MyShilohBookingError('BOOKING_OCCASION_CONFLICT', 'Please check your special occasion answer.', 422);
+    }
     const { client, phone } = await clientIdentity(crmV2ClientId);
     const service = await canonicalService(serviceId);
     const practitionerId = positiveId(staffId, 'BOOKING_PRACTITIONER_INVALID');
@@ -374,7 +384,7 @@ function createMyShilohBookingService({
           409,
         );
       }
-      const staged = await stageApproval(created, { occasionNote: note });
+      const staged = await stageApproval(created, { occasionNote: note, specialOccasion });
       const policy = await depositPolicy.loadPolicy(db);
       const depositExempt = Number(practitioner.id) === Number(policy.exemptStaffId);
       return {
