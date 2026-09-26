@@ -2120,6 +2120,7 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
       staffId:11,
       startsAt:'2026-09-30T08:00:00.000Z',
       policyAccepted:true,
+      specialOccasion:true,
       occasionNote:'Birthday treat for two',
     });
   }
