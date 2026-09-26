@@ -306,6 +306,19 @@ test('Needs Attention projects pending and awaiting-client booking requests with
   assert.match(clientScript, /requestStatus/);
 });
 
+test('Needs Attention distinguishes a pending time change from the unchanged appointment', () => {
+  const html = renderDashboardPage({
+    mode: 'owner_overview', displayName: 'Christel', appointments: [], teamGroups: [], carryOver: [],
+    bookingRequests: [], awaitingFinalization: [], holidayDecisions: [], recentActivity: [],
+    rescheduleRequests: [{ requestId: 801, appointmentId: 501, clientName: 'Client A', serviceName: 'Massage', staffName: 'Abigail', originalStartsAt: '2026-09-27T08:00:00Z', proposedStartsAt: '2026-09-30T08:00:00Z' }],
+    calendar: { timeline: { staff: [] } }, operationalDateKey: '2026-09-26', requestedDateKey: '2026-09-26',
+  });
+  assert.match(html, /data-dashboard-reschedule-request="801"/);
+  assert.match(html, /Time change requested/);
+  assert.match(html, /current booking remains unchanged/);
+  assert.doesNotMatch(html, /data-booking-action="accept"/);
+});
+
 test('Workspace booking-request action re-resolves authority and forwards only controlled inputs', async () => {
   const calls = [];
   const bookingRequestService = {

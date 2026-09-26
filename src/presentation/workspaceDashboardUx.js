@@ -123,6 +123,10 @@ function bookingRequestItem(item, model) {
   return `<article class="booking-request" id="booking-request-${escapeHtml(item.appointmentId)}" data-booking-request="${escapeHtml(item.appointmentId)}" data-requested-revision="${escapeHtml(item.requestedRevision || '')}"><div class="appointment-main"><span class="appointment-time">${escapeHtml(dateTimeLabel(item.requestedStartsAt))}</span><div class="appointment-copy"><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(item.serviceName)} · ${escapeHtml(item.staffName)}</span></div><span class="status-pill pending">${escapeHtml(status)}</span></div>${proposal}<div class="request-actions">${!awaiting && !item.planningStartedAt ? '<button class="action-button" type="button" data-booking-action="start_planning">Start planning</button>' : ''}<button class="action-button complete" type="button" data-booking-action="accept"${awaiting ? ' disabled' : ''}>Accept requested appointment</button><button class="action-button cannot" type="button" data-booking-action="cannot_accommodate">Cannot accommodate</button></div><div class="proposal-fields"><label class="proposal-field"><span>Alternative date</span><input type="date" data-proposal-date></label><label class="proposal-field"><span>Alternative time</span><input type="time" step="900" data-proposal-time></label>${staffPicker}<button class="action-button" type="button" data-booking-action="propose">Propose alternative</button><p class="operation-status request-operation-status" data-booking-request-status aria-live="polite"></p></div></article>`;
 }
 
+function rescheduleRequestItem(item) {
+  return `<article class="booking-request" data-dashboard-reschedule-request="${escapeHtml(item.requestId)}"><div class="appointment-main"><span class="appointment-time">${escapeHtml(dateTimeLabel(item.proposedStartsAt))}</span><div class="appointment-copy"><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(item.serviceName)} · ${escapeHtml(item.staffName)}</span></div><span class="status-pill pending">Time change requested</span></div><p class="request-note">Current appointment: ${escapeHtml(dateTimeLabel(item.originalStartsAt))}. Requested: ${escapeHtml(dateTimeLabel(item.proposedStartsAt))}. The current booking remains unchanged. Coordinate with the practitioner and client before deciding; this request still follows its existing approval path.</p></article>`;
+}
+
 function scheduleBody(model) {
   if (!['owner_overview', 'business_overview'].includes(model.mode)) {
     return `<div class="schedule">${model.appointments.map((item) => appointmentItem(item, model)).join('') || '<div class="empty">You have no appointments today.</div>'}</div>`;
@@ -156,18 +160,20 @@ function renderDashboardPage(model, { staffAccessScriptPath = '/calendar/staff/c
   const heading = isBusinessOverview ? 'Today across the team' : 'My day';
   const closures = (model.closures || []).map((item) => `<div class="closure">Closed · ${escapeHtml(item.reason || 'Clinic closure')}</div>`).join('');
   const bookingRequests = model.bookingRequests || [];
+  const rescheduleRequests = model.rescheduleRequests || [];
   const awaitingFinalization = model.awaitingFinalization || [];
   const holidayDecisions = model.holidayDecisions || [];
-  const attentionCount = awaitingFinalization.length + bookingRequests.length + holidayDecisions.length;
+  const attentionCount = awaitingFinalization.length + bookingRequests.length + rescheduleRequests.length + holidayDecisions.length;
   const actionableCount = awaitingFinalization.filter((item) => item.canFinalize).length;
   const requestCards = bookingRequests.map(item => bookingRequestItem(item, model)).join('');
+  const rescheduleCards = rescheduleRequests.map(rescheduleRequestItem).join('');
   const finalizationCount = awaitingFinalization.length;
   const finalizationSummary = finalizationCount ? `<div class="attention-summary"><strong>${finalizationCount} ${finalizationCount === 1 ? 'visit is' : 'visits are'} awaiting practitioner finalization.</strong><br>${model.canFinalizeAllBusiness ? 'Authorized all-business backup actions are available below.' : isBusinessOverview ? 'Assigned practitioners finalize their own visits; review the exact visit below.' : actionableCount === finalizationCount ? 'Record Completed or No-show directly below.' : `${actionableCount} can be finalized here; shared visits must be completed by their assigned practitioner.`}</div>` : '';
   const finalizationCards = awaitingFinalization.map(item => appointmentItem(item, model, { manageLabel: 'Review visit', idPrefix: 'dashboard-attention-appointment', attention: true })).join('');
   const finalizationQueue = finalizationCards ? `<div class="attention-queue" data-dashboard-attention-queue>${finalizationCards}</div>` : '';
   const holidayCards = holidayDecisions.map(item => `<div class="booking-request" data-dashboard-holiday-decision><strong>${escapeHtml(item.holidayName)}</strong><p class="request-note">${escapeHtml(item.exceptionDate)} · Clinic hours decision needed</p><div class="request-actions"><a class="button" href="${escapeHtml(item.href)}">Set holiday hours</a></div></div>`).join('');
-  const hasAttention = Boolean(holidayCards || requestCards || finalizationSummary || finalizationQueue);
-  const attention = hasAttention ? `${holidayCards}${requestCards}${finalizationSummary}${finalizationQueue}` : '';
+  const hasAttention = Boolean(holidayCards || requestCards || rescheduleCards || finalizationSummary || finalizationQueue);
+  const attention = hasAttention ? `${holidayCards}${requestCards}${rescheduleCards}${finalizationSummary}${finalizationQueue}` : '';
   const carryOver = model.carryOver || [];
   const activity = (model.recentActivity || []).map((item) => activityItem(item, model)).join('') || '<div class="empty">No completed or no-show visits are recorded today yet.</div>';
   let communications = '<div class="empty">No client-notification issue is currently available in this access.</div>';

@@ -152,6 +152,51 @@ async function listUnresolvedBookingRequests({ db = pool, principal, now = new D
   }));
 }
 
+async function listPendingRescheduleRequests({ db = pool, principal, now = new Date() }) {
+  const scope = await coordinationScopeForPrincipal(db, principal);
+  if (scope.kind === 'none') return [];
+  const result = await db.query(`
+    SELECT request.id,request.appointment_id,request.approver_staff_id,
+           request.original_starts_at,request.original_ends_at,request.proposed_starts_at,
+           COALESCE(v2.name,c.display_name,a.source_client_name,'Client') AS client_name,
+           COALESCE(s.name,aps.service_name_snapshot,a.title,'Shiloh appointment') AS service_name,
+           COALESCE(st.display_name,ast.staff_name_snapshot,'Shiloh practitioner') AS staff_name,
+           team.id AS team_id
+      FROM appointment_reschedule_requests request
+      JOIN appointments a ON a.id=request.appointment_id
+      JOIN appointment_staff ast ON ast.appointment_id=a.id AND ast.position=1
+      JOIN appointment_services aps ON aps.appointment_id=a.id AND aps.position=1
+      LEFT JOIN clients c ON c.id=a.client_id
+      LEFT JOIN crm_v2_clients v2 ON v2.id=a.crm_v2_client_id AND v2.status='active'
+      LEFT JOIN staff st ON st.id=ast.staff_id
+      LEFT JOIN services s ON s.id=aps.service_id
+      LEFT JOIN staff_operational_team_members tm ON tm.staff_id=request.approver_staff_id AND tm.active=TRUE
+      LEFT JOIN staff_operational_teams team ON team.id=tm.team_id AND team.active=TRUE
+     WHERE request.status='pending'
+       AND st.id IS NOT NULL
+       AND COALESCE(st.business_role,'') <> 'tenant_practitioner'
+       AND a.status IN ('scheduled','confirmed')
+       AND a.starts_at>=$1
+       AND a.starts_at=request.original_starts_at
+       AND a.ends_at=request.original_ends_at
+       AND ast.staff_id=request.approver_staff_id
+       AND aps.service_id=request.service_id
+       AND ((request.crm_v2_client_id IS NOT NULL AND a.crm_v2_client_id=request.crm_v2_client_id AND v2.id IS NOT NULL)
+         OR (request.client_id IS NOT NULL AND a.client_id=request.client_id))
+     ORDER BY request.proposed_starts_at,request.id
+     LIMIT 100`, [now]);
+  const seen = new Set();
+  return (result.rows || []).filter(row => {
+    if (seen.has(Number(row.id)) || !rowVisibleToScope(row, principal, scope)) return false;
+    seen.add(Number(row.id));
+    return true;
+  }).map(row => ({
+    requestId: Number(row.id), appointmentId: Number(row.appointment_id),
+    clientName: row.client_name, serviceName: row.service_name, staffName: row.staff_name,
+    originalStartsAt: row.original_starts_at, proposedStartsAt: row.proposed_starts_at,
+  }));
+}
+
 async function loadRoutingTarget(db, appointmentId) {
   const id = positiveId(appointmentId);
   if (!id) return null;
@@ -216,6 +261,7 @@ module.exports = {
   teamForStaffIds,
   rowVisibleToScope,
   listUnresolvedBookingRequests,
+  listPendingRescheduleRequests,
   requireRoutingAuthority,
   acceptRequestedAppointment,
   startReceptionPlanning,

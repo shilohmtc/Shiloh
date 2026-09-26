@@ -344,6 +344,26 @@ test('My Shiloh shows a pending time change while preserving the current appoint
   }
 });
 
+test('Reception can see a pending time change without an unsafe decision action on phone and desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=workspace-production-surfaces--reception-time-change-attention&viewMode=story', { waitUntil: 'networkidle' });
+    const request = page.locator('[data-dashboard-reschedule-request="901"]');
+    await expect(request).toContainText('Time change requested');
+    await expect(request).toContainText('Current appointment:');
+    await expect(request).toContainText('Requested:');
+    await expect(request).toContainText('current booking remains unchanged');
+    await expect(request.locator('button')).toHaveCount(0);
+    const bounds = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }));
+    expect(bounds.document).toBeLessThanOrEqual(bounds.viewport);
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-dashboard-attention-panel]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(item => ['serious','critical'].includes(item.impact))).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`reception-time-change-${viewport.name}.png`), fullPage: true, animations: 'disabled' });
+  }
+});
+
 test('My Shiloh Home summary cards are tappable and redeemed welcome voucher clears from Home', async ({ page }, testInfo) => {
   await page.route('**/my-shiloh/api/experience', async (route) => route.fulfill({
     status: 200,
