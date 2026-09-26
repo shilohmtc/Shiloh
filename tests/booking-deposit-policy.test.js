@@ -131,6 +131,32 @@ test('deposit approval readiness fails before acceptance when the canonical pric
   );
 });
 
+test('a former practitioner does not take the clinic-wide deposit policy offline', async () => {
+  const db = {
+    async query(sql) {
+      assert.match(sql, /FROM clinic_booking_deposit_policy/);
+      return { rows: [{
+        id: 1,
+        enabled: true,
+        rate_basis_points: 5000,
+        free_notice_hours: 48,
+        partial_notice_hours: 24,
+        partial_forfeit_basis_points: 5000,
+        late_forfeit_basis_points: 10000,
+        no_show_forfeit_basis_points: 10000,
+        exempt_staff_id: 13,
+        exempt_staff_name: 'Marietjie',
+        exempt_staff_status: 'inactive',
+        effective_from: '2026-09-23T00:00:00.000Z',
+        policy_version: BOOKING_POLICY_VERSION,
+      }] };
+    },
+  };
+  const loaded = await createBookingDepositPolicyService({ db }).loadPolicy();
+  assert.equal(loaded.exemptStaffId, 13);
+  assert.equal(loaded.exemptStaffStatus, 'inactive');
+});
+
 test('ordinary non-Marietjie bookings require 50 percent', () => {
   const service = createBookingDepositPolicyService({ db: {} });
   const calculated = service.calculate({
