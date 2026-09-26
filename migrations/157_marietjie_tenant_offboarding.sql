@@ -8,8 +8,10 @@ DECLARE
   matched_staff INTEGER;
   matched_principals INTEGER;
   future_bookings INTEGER;
+  cancelled_bookings INTEGER := 0;
   archived_relationships INTEGER;
   hidden_services INTEGER;
+  future_appointment RECORD;
 BEGIN
   SELECT COUNT(*), MIN(id)
     INTO matched_staff, practitioner_id
@@ -41,16 +43,108 @@ BEGIN
     RAISE EXCEPTION 'Marietjie deposit policy reference drifted; tenant offboarding refused';
   END IF;
 
+  PERFORM pg_advisory_xact_lock(practitioner_id);
+  PERFORM 1 FROM staff WHERE id=practitioner_id FOR UPDATE;
+
   SELECT COUNT(DISTINCT a.id) INTO future_bookings
     FROM appointments a
     JOIN appointment_staff ast ON ast.appointment_id=a.id
    WHERE ast.staff_id=practitioner_id
      AND a.starts_at>NOW()
      AND a.status IN ('scheduled','confirmed');
-  -- Marietjie handles her remaining future appointments herself. Do not
-  -- deactivate her while Shiloh might still send reminders for them.
-  IF future_bookings > 0 THEN
-    RAISE EXCEPTION 'Marietjie has % future appointments to resolve manually before tenant offboarding; no changes were made', future_bookings;
+  -- Reject shared or payment-linked appointments rather than silently
+  -- cancelling another practitioner's booking or a Shiloh payment account.
+  IF EXISTS (
+    SELECT 1 FROM appointments a
+    JOIN appointment_staff ast ON ast.appointment_id=a.id
+   WHERE ast.staff_id=practitioner_id
+     AND a.starts_at>NOW()
+     AND a.status IN ('scheduled','confirmed')
+     AND (
+       EXISTS (SELECT 1 FROM appointment_staff other_staff
+                WHERE other_staff.appointment_id=a.id
+                  AND other_staff.staff_id IS DISTINCT FROM practitioner_id)
+       OR EXISTS (SELECT 1 FROM appointment_group_members gm
+                   WHERE gm.appointment_id=a.id)
+       OR EXISTS (SELECT 1 FROM booking_payment_accounts pa
+                   WHERE pa.appointment_id=a.id)
+       OR EXISTS (SELECT 1 FROM booking_deposit_requirement_members dm
+                   WHERE dm.appointment_id=a.id)
+     )
+  ) THEN
+    RAISE EXCEPTION 'Marietjie tenant offboarding found a shared or payment-linked future booking; no changes were made';
+  END IF;
+
+  -- These tenant-only entries leave Shiloh's active calendar. Marietjie will
+  -- handle client arrangements herself. Historical snapshots remain intact.
+  FOR future_appointment IN
+    SELECT a.id,a.status FROM appointments a
+     WHERE a.starts_at>NOW()
+       AND a.status IN ('scheduled','confirmed')
+       AND EXISTS (SELECT 1 FROM appointment_staff ast
+                    WHERE ast.appointment_id=a.id
+                      AND ast.staff_id=practitioner_id)
+     ORDER BY a.id FOR UPDATE OF a
+  LOOP
+    UPDATE appointments SET status='cancelled',updated_at=NOW()
+     WHERE id=future_appointment.id;
+    UPDATE appointment_lifecycle SET status='cancelled',updated_at=NOW()
+     WHERE appointment_id=future_appointment.id AND status<>'cancelled';
+    INSERT INTO appointment_status_history
+      (appointment_id,from_status,to_status,changed_by,reason)
+    VALUES (future_appointment.id,future_appointment.status,'cancelled',
+            'system:marietjie_tenant_offboarding',
+            'Independent tenant will arrange this appointment manually');
+    INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
+    VALUES ('staff.tenant_future_booking_removed','appointment',future_appointment.id,
+            jsonb_build_object('priorStatus',future_appointment.status,
+                               'tenantStaffId',practitioner_id,
+                               'clientContactHandledByTenant',TRUE,
+                               'paymentAccountsChanged',0));
+    cancelled_bookings := cancelled_bookings + 1;
+  END LOOP;
+
+  IF cancelled_bookings <> future_bookings THEN
+    RAISE EXCEPTION 'Marietjie future booking count changed during offboarding; no changes were made';
+  END IF;
+
+  UPDATE appointment_booking_approvals
+     SET status='declined',decided_at=COALESCE(decided_at,NOW()),
+         decision_note='Independent tenant will handle appointment manually',
+         updated_at=NOW()
+   WHERE status='pending'
+     AND appointment_id IN (
+       SELECT a.id FROM appointments a
+       JOIN appointment_staff ast ON ast.appointment_id=a.id
+        WHERE ast.staff_id=practitioner_id
+          AND a.starts_at>NOW() AND a.status='cancelled'
+     );
+  UPDATE appointment_reschedule_requests
+     SET status='superseded',decided_at=COALESCE(decided_at,NOW()),
+         decision_note='Independent tenant will handle appointment manually',
+         updated_at=NOW()
+   WHERE status IN ('pending','notification_failed')
+     AND appointment_id IN (
+       SELECT a.id FROM appointments a
+       JOIN appointment_staff ast ON ast.appointment_id=a.id
+        WHERE ast.staff_id=practitioner_id
+          AND a.starts_at>NOW() AND a.status='cancelled'
+     );
+
+  -- Prevent an already queued booking-change message from following a
+  -- cancelled tenant appointment. No new client message is queued here.
+  IF to_regclass('public.customer_change_notifications') IS NOT NULL THEN
+    UPDATE customer_change_notifications
+       SET status='suppressed',
+           suppression_reason='independent_tenant_manual_handoff',
+           suppressed_at=COALESCE(suppressed_at,NOW()),updated_at=NOW()
+     WHERE appointment_id IN (
+       SELECT a.id FROM appointments a
+       JOIN appointment_staff ast ON ast.appointment_id=a.id
+        WHERE ast.staff_id=practitioner_id
+          AND a.starts_at>NOW()
+          AND a.status='cancelled'
+     ) AND status IN ('pending','failed');
   END IF;
 
   UPDATE crm_v2_client_relationships
@@ -90,8 +184,8 @@ BEGIN
           jsonb_build_object(
             'archivedTenantRelationships',archived_relationships,
             'hiddenExclusiveServices',hidden_services,
-            'futureBookingsForManualReview',future_bookings,
-            'appointmentsChanged',0,
+            'futureBookingsFound',future_bookings,
+            'futureBookingsRemovedFromCalendar',cancelled_bookings,
             'paymentEntriesChanged',0
           ));
 END $$;
