@@ -27,6 +27,21 @@ function productionSurface(client = null) {
 }
 
 
+function installShareIconMarkup() {
+  return '<svg class="install-share-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M12 15V3m0 0-4 4m4-4 4 4M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+
+function applyInstallStep(surface, index, title, copy) {
+  const number = String(index);
+  const titleNode = surface.querySelector(`[data-install-step-title="${number}"]`);
+  const copyNode = surface.querySelector(`[data-install-step-copy="${number}"]`);
+  if (titleNode) {
+    if (/^Tap Share/.test(title)) titleNode.innerHTML = `${installShareIconMarkup()} Tap Share`;
+    else titleNode.textContent = title;
+  }
+  if (copyNode) copyNode.textContent = copy;
+}
+
 function bookingSurface() {
   const page = renderMyShilohBookingPage({
     catalogue: [
@@ -170,16 +185,12 @@ export const IPhoneInstallGuide = {
     if (title) title.textContent = 'Three quick steps.';
     if (lead) lead.textContent = 'Stay in Safari — no App Store download is needed.';
     const steps = [
-      ['Tap Share ↑', 'Use Safari’s Share button.'],
+      ['Tap Share', 'Use Safari’s Share button.'],
       ['Choose Add to Home Screen', 'Scroll if you do not see it straight away.'],
       ['Turn on Open as Web App, then tap Add', 'My Shiloh will appear on your Home Screen.'],
     ];
     steps.forEach(([stepTitle, stepCopy], index) => {
-      const number = String(index + 1);
-      const titleNode = surface.querySelector(`[data-install-step-title="${number}"]`);
-      const copyNode = surface.querySelector(`[data-install-step-copy="${number}"]`);
-      if (titleNode) titleNode.textContent = stepTitle;
-      if (copyNode) copyNode.textContent = stepCopy;
+      applyInstallStep(surface, index + 1, stepTitle, stepCopy);
     });
     const extra = surface.querySelector('[data-install-step-extra]');
     if (extra) extra.hidden = true;
@@ -205,16 +216,12 @@ export const IPhoneChromeInstallGuide = {
     if (title) title.textContent = 'Three quick steps.';
     if (lead) lead.textContent = 'You can add My Shiloh straight from Chrome — no App Store download is needed.';
     const steps = [
-      ['Tap Share ↑', 'Use the Share button beside the address bar.'],
+      ['Tap Share', 'Use the Share button beside the address bar.'],
       ['Choose Add to Home Screen', 'Scroll if you do not see it straight away.'],
       ['Tap Add', 'My Shiloh will appear on your Home Screen.'],
     ];
     steps.forEach(([stepTitle, stepCopy], index) => {
-      const number = String(index + 1);
-      const titleNode = surface.querySelector(`[data-install-step-title="${number}"]`);
-      const copyNode = surface.querySelector(`[data-install-step-copy="${number}"]`);
-      if (titleNode) titleNode.textContent = stepTitle;
-      if (copyNode) copyNode.textContent = stepCopy;
+      applyInstallStep(surface, index + 1, stepTitle, stepCopy);
     });
     return surface;
   },
