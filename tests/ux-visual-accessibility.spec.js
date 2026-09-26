@@ -286,6 +286,9 @@ test('My Shiloh presents a client request as planning on phone and desktop', asy
     await expect(page.locator('[data-experience-extra-booking]').last()).toContainText('Could not accommodate');
     await expect(page.locator('[data-experience-extra-booking]').last()).toContainText('not booked');
     await expect(page.locator('[data-client-experience-bookings] .action-card').first()).not.toContainText('Upcoming appointment');
+    await page.locator('[data-view-target="bookings"]').click();
+    await expect(page.locator('[data-view="bookings"]')).toBeVisible();
+    await expect(page.getByText('Could not accommodate')).toBeVisible();
     const bounds = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }));
     expect(bounds.document).toBeLessThanOrEqual(bounds.viewport);
     const accessibility = await new AxeBuilder({ page })
