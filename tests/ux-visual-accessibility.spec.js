@@ -2077,6 +2077,7 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
     await page.getByRole('button', { name:'Send booking request' }).click();
     await expect(page.locator('[data-confirm-status]')).toContainText('tell Reception what the occasion is');
     await page.locator('[data-occasion-note]').fill('Birthday treat for two');
+    await expect(page.locator('[data-confirm-status]')).toBeEmpty();
     await page.screenshot({ path:testInfo.outputPath(`my-shiloh-booking-occasion-review-${viewport.name}.png`), fullPage:true, animations:'disabled' });
     await page.getByRole('button', { name:'Send booking request' }).click();
 

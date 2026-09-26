@@ -13,6 +13,7 @@ const policyAccepted=root.querySelector('[data-policy-accepted]');
 const occasionNote=root.querySelector('[data-occasion-note]');
 const occasionDetails=root.querySelector('[data-occasion-details]');
 root.querySelectorAll('[data-special-occasion]').forEach(option=>option.addEventListener('change',()=>{occasionDetails.hidden=option.value!=='yes';if(option.value==='no')occasionNote.value='';setStatus(confirmStatus,'');}));
+occasionNote?.addEventListener('input',()=>setStatus(confirmStatus,''));
 const submit=root.querySelector('[data-submit-booking]');
 const rate=Number(root.dataset.depositRate||50);
 function step(number){steps.forEach(node=>{node.hidden=Number(node.dataset.step)!==Number(number)});progress.forEach(node=>node.classList.toggle('is-active',Number(node.dataset.progress)===Math.min(Number(number),4)));window.scrollTo({top:0,behavior:'smooth'});}
