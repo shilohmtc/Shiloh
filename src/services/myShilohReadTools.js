@@ -17,7 +17,7 @@ const READ_TOOL_DEFINITIONS = Object.freeze([
   {
     type: 'function',
     name: TOOL_NAMES.NEXT_APPOINTMENT,
-    description: 'Get the authenticated client’s next canonical Shiloh appointment. Use this instead of guessing appointment details.',
+    description: 'Get the authenticated client’s next canonical Shiloh appointment and its booking-request approval state. Pending requests are not confirmed bookings.',
     strict: true,
     parameters: {
       type: 'object',
@@ -29,7 +29,7 @@ const READ_TOOL_DEFINITIONS = Object.freeze([
   {
     type: 'function',
     name: TOOL_NAMES.UPCOMING_BOOKINGS,
-    description: 'Get up to five upcoming canonical Shiloh bookings for the authenticated client.',
+    description: 'Get up to five upcoming canonical Shiloh appointments with booking-request approval states. Pending requests are not confirmed bookings.',
     strict: true,
     parameters: {
       type: 'object',
@@ -128,6 +128,7 @@ function publicAppointment(appointment) {
     startsAt: appointment.startsAt,
     endsAt: appointment.endsAt,
     status: String(appointment.status || ''),
+    bookingRequestStatus: appointment.bookingRequestStatus || null,
     services: Array.isArray(appointment.services) ? appointment.services.map(String).filter(Boolean) : [],
     practitioners: Array.isArray(appointment.practitioners) ? appointment.practitioners.map(String).filter(Boolean) : [],
   };

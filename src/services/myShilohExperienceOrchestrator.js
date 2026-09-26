@@ -105,9 +105,30 @@ function buildClientExperience(context) {
   const appointment = appointmentDisplay(context.nextAppointment);
   const forms = formPosition(context.forms);
   const payment = paymentPosition(context.payment);
+  const activeRequests = Array.isArray(context.activeRequests) ? context.activeRequests : context.activeRequest ? [context.activeRequest] : [];
+  const request = activeRequests[0];
+  const requestDisplay = appointmentDisplay(request);
+  const proposalActive = request?.bookingRequestStatus === 'awaiting_client_confirmation'
+    && request.proposedStartsAt && request.proposalExpiresAt
+    && new Date(request.proposalExpiresAt).getTime() > new Date(context.generatedAt || Date.now()).getTime();
+  const proposalDisplay = proposalActive ? appointmentDisplay({ ...request, startsAt: request.proposedStartsAt }) : null;
 
   let home;
-  if (!appointment) {
+  if (requestDisplay) {
+    home = proposalDisplay ? {
+      eyebrow: 'Your booking request',
+      headline: 'Shiloh has offered another time.',
+      summary: `The proposed ${requestDisplay.service} is for ${proposalDisplay.date} at ${proposalDisplay.time}. Please reply to the Shiloh message with your choice. This appointment is not confirmed yet.`,
+      status: 'Awaiting your response',
+      primaryAction: { kind: 'navigate', label: 'View request', href: '#bookings' },
+    } : {
+      eyebrow: 'Your booking request',
+      headline: 'Shiloh is planning your request.',
+      summary: `You requested ${requestDisplay.service} for ${requestDisplay.date} at ${requestDisplay.time}. Reception will review the arrangement before confirming it. This appointment is not confirmed yet.`,
+      status: 'Requested',
+      primaryAction: { kind: 'navigate', label: 'View request', href: '#bookings' },
+    };
+  } else if (!appointment) {
     home = {
       eyebrow: 'Your Shiloh',
       headline: `Ready when you are, ${name}.`,
@@ -152,7 +173,9 @@ function buildClientExperience(context) {
     };
   }
 
-  const prompts = appointment
+  const prompts = requestDisplay
+    ? ['What is the status of my request?', 'Can I change my requested time?', 'When will Shiloh confirm my appointment?', 'Can I speak to Reception?']
+    : appointment
     ? [
       'What do I need before my appointment?',
       'Can I move my appointment?',
@@ -172,7 +195,14 @@ function buildClientExperience(context) {
     client: { firstName: name },
     home: {
       ...home,
-      facts: appointment
+      facts: requestDisplay ? [
+          {
+            key: 'appointment', label: 'Booking request', value: home.status,
+            href: '#bookings', message: 'Your request is waiting for the next planning step.',
+          },
+          { key: 'forms', label: 'Forms', value: 'Nothing to do yet', href: null, message: 'Shiloh will let you know if a form is needed.' },
+          { key: 'payment', label: 'Payment', value: 'No action yet', href: null, message: 'No payment action is due from this request yet.' },
+        ] : appointment
         ? [
           {
             key: 'appointment',
@@ -241,13 +271,38 @@ function buildClientExperience(context) {
         ],
     },
     bookings: {
-      upcoming: appointment ? [{
+      upcoming: requestDisplay ? [
+        ...activeRequests.map(item => {
+          const requested = appointmentDisplay(item);
+          const activeProposal = item.bookingRequestStatus === 'awaiting_client_confirmation'
+            && item.proposedStartsAt && item.proposalExpiresAt
+            && new Date(item.proposalExpiresAt).getTime() > new Date(context.generatedAt || Date.now()).getTime();
+          const offered = activeProposal ? appointmentDisplay({ ...item, startsAt: item.proposedStartsAt }) : null;
+          return {
+            id: item.id, service: requested?.service || 'Shiloh appointment',
+            practitioner: requested?.practitioner || 'Shiloh',
+            date: offered?.date || requested?.date,
+            time: offered?.time || requested?.time,
+            status: offered ? 'Awaiting your response' : 'Requested',
+            nextAction: offered
+              ? 'Reply to the Shiloh message about the proposed time. Reception will confirm the appointment after your response.'
+              : 'Reception is reviewing your request. The appointment has not been confirmed.',
+          };
+        }),
+        ...(appointment && !activeRequests.some(item => item.id === context.nextAppointment.id) ? [{
+          id: context.nextAppointment.id, service: appointment.service, practitioner: appointment.practitioner,
+          date: appointment.date, time: appointment.time,
+          status: context.nextAppointment.status,
+          nextAction: payment.state === 'deposit_required' ? payment.label : 'Your appointment details are available here.',
+        }] : []),
+      ] : appointment ? [{
         id: context.nextAppointment.id,
         service: appointment.service,
         practitioner: appointment.practitioner,
         date: appointment.date,
         time: appointment.time,
         status: context.nextAppointment.status,
+        nextAction: payment.state === 'deposit_required' ? payment.label : 'Your appointment details are available here.',
         forms: forms.label,
         payment: payment.label,
       }] : [],

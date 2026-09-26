@@ -282,8 +282,9 @@ test('Needs Attention projects pending and awaiting-client booking requests with
   assert.equal(listInput.now, NOW);
   assert.equal(model.bookingRequests.length, 2);
   const html = renderDashboardPage(model);
-  assert.match(html, /Needs staff resolution/);
-  assert.match(html, /Awaiting client/);
+  assert.match(html, /Requested · Reception planning/);
+  assert.match(html, /Awaiting client response/);
+  assert.match(html, /This request is not confirmed yet/);
   assert.match(html, />Accept requested appointment</);
   assert.match(html, />Propose alternative</);
   assert.match(html, />Cannot accommodate</);

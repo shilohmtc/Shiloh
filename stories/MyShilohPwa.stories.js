@@ -115,6 +115,37 @@ export const AuthenticatedHome = {
   }),
 };
 
+export const BookingRequestPlanning = {
+  render: () => {
+    const surface = AuthenticatedHome.render();
+    const home = surface.querySelector('[data-client-experience-home]');
+    if (home) {
+      const eyebrow = home.querySelector('.eyebrow');
+      if (eyebrow) eyebrow.textContent = 'Your booking request';
+      home.querySelector('h2').textContent = 'Shiloh is planning your request.';
+      home.querySelector(':scope > p').textContent = 'You requested Hot Stone Massage for Fri, 2 Oct at 10:00. Reception will review the arrangement before confirming it. This appointment is not confirmed yet.';
+      const status = home.querySelector('.status-pill');
+      if (status) status.textContent = 'Requested';
+      const values = { appointment: 'Requested', forms: 'Nothing to do yet', payment: 'No action yet' };
+      home.querySelectorAll('[data-client-experience-fact]').forEach((button) => {
+        const value = button.querySelector('strong');
+        if (value) value.textContent = values[button.dataset.factKey] || '';
+      });
+      const action = document.createElement('a');
+      action.className = 'button button--primary experience-primary';
+      action.href = '#bookings';
+      action.textContent = 'View request';
+      home.appendChild(action);
+    }
+    const bookings = surface.querySelector('[data-client-experience-bookings] .action-card');
+    if (bookings) {
+      bookings.querySelector('h2').textContent = 'Requested';
+      bookings.querySelector('p').textContent = 'Hot Stone Massage · Fri, 2 Oct · 10:00 · Reception is reviewing your request. The appointment has not been confirmed.';
+    }
+    return surface;
+  },
+};
+
 export const AuthenticatedProfile = {
   render: () => {
     const surface = productionSurface({

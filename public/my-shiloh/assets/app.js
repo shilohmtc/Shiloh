@@ -433,17 +433,35 @@
     if (experienceBookings) {
       const primary = experienceBookings.querySelector('.action-card');
       if (primary) {
-        const heading = primary.querySelector('h2');
-        const copy = primary.querySelector('p');
-        const action = primary.querySelector('.button');
-        if (upcoming) {
-          if (heading) heading.textContent = String(upcoming.service || 'Upcoming appointment');
-          if (copy) copy.textContent = [upcoming.date, upcoming.time, upcoming.practitioner].filter(Boolean).join(' · ');
+        experienceBookings.querySelectorAll('[data-experience-extra-booking]').forEach((card) => card.remove());
+        const renderBooking = (card, booking, index) => {
+          const number = card.querySelector('.action-number');
+          const heading = card.querySelector('h2');
+          const copy = card.querySelector('p');
+          const action = card.querySelector('.button');
+          if (number) number.textContent = String(index + 1).padStart(2, '0');
+          const isRequest = booking.status === 'Requested' || booking.status === 'Awaiting your response';
+          if (heading) heading.textContent = isRequest ? String(booking.status) : String(booking.service || 'Upcoming appointment');
+          if (copy) copy.textContent = [[booking.service, booking.date, booking.time, booking.practitioner].filter(Boolean).join(' · '), booking.nextAction].filter(Boolean).join(' — ');
           if (action) {
-            action.textContent = 'Ask Shiloh about this booking';
+            action.textContent = isRequest ? 'Ask Shiloh about this request' : 'Ask Shiloh about this booking';
             action.href = '#shiloh';
           }
+        };
+        if (upcoming) {
+          renderBooking(primary, upcoming, 0);
+          let precedingCard = primary;
+          experience.bookings.upcoming.slice(1).forEach((booking, index) => {
+            const card = primary.cloneNode(true);
+            card.dataset.experienceExtraBooking = '';
+            renderBooking(card, booking, index + 1);
+            precedingCard.after(card);
+            precedingCard = card;
+          });
         } else {
+          const heading = primary.querySelector('h2');
+          const copy = primary.querySelector('p');
+          const action = primary.querySelector('.button');
           if (heading) heading.textContent = 'Book something new';
           if (copy) copy.textContent = 'You don’t have an upcoming appointment at the moment.';
           if (action) {

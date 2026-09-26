@@ -37,6 +37,10 @@ test('authenticated client context is keyed only by CRM V2 identity and projects
           rowCount: 1,
         };
       }
+      if (sql.includes('myShilohClientContext:active-booking-request')) {
+        assert.deepEqual(values, [55]);
+        return { rows: [], rowCount: 0 };
+      }
       if (sql.includes('myShilohClientContext:forms-status-only')) {
         assert.deepEqual(values, [55, 901]);
         return {
@@ -78,6 +82,8 @@ test('authenticated client context is keyed only by CRM V2 identity and projects
 
   assert.equal(context.client.name, 'Naledi Mokoena');
   assert.equal(context.nextAppointment.id, 901);
+  assert.equal(context.activeRequest, null);
+  assert.deepEqual(context.activeRequests, []);
   assert.deepEqual(context.nextAppointment.services, ['Hot Stone Massage']);
   assert.deepEqual(context.nextAppointment.practitioners, ['Marietjie']);
   assert.equal(context.forms[0].actionRequired, true);
@@ -85,6 +91,63 @@ test('authenticated client context is keyed only by CRM V2 identity and projects
   assert.equal(context.payment.outstanding, '500.00');
   assert.equal(context.payment.activePaymentPath, '/pay/PAYREQ_123456');
   assert.equal(calls.some(call => call.values.includes(55)), true);
+});
+
+test('a canonical client request takes priority over an upcoming visit without appearing confirmed or payable', () => {
+  const base = {
+    generatedAt: '2026-09-26T10:00:00.000Z',
+    client: { id: 55, name: 'Naledi Mokoena' },
+    nextAppointment: { id: 901, startsAt: '2026-09-27T08:00:00.000Z', services: ['Massage'], practitioners: ['Abigail'], status: 'confirmed' },
+    forms: [{ title: 'Form', actionRequired: true }],
+    payment: { state: 'unpaid', depositState: 'awaiting', activePaymentPath: '/pay/existing_booking' },
+    activeRequest: { id: 902, startsAt: '2026-10-02T08:00:00.000Z', services: ['Facial'], practitioners: ['Christel'], bookingRequestStatus: 'pending' },
+  };
+  const requested = buildClientExperience(base);
+  assert.equal(requested.home.status, 'Requested');
+  assert.match(requested.home.summary, /not confirmed yet/i);
+  assert.equal(requested.home.primaryAction.href, '#bookings');
+  assert.equal(requested.bookings.upcoming[0].id, 902);
+  assert.doesNotMatch(JSON.stringify(requested.home), /\/pay\/existing_booking/);
+
+  const multiple = buildClientExperience({ ...base, activeRequests: [base.activeRequest, {
+    ...base.activeRequest, id: 903, startsAt: '2026-10-04T08:00:00.000Z',
+  }] });
+  assert.deepEqual(multiple.bookings.upcoming.map(item => item.id), [902, 903, 901]);
+
+  const offered = buildClientExperience({ ...base, activeRequest: {
+    ...base.activeRequest,
+    bookingRequestStatus: 'awaiting_client_confirmation',
+    proposedStartsAt: '2026-10-03T08:00:00.000Z',
+    proposalExpiresAt: '2026-09-27T10:00:00.000Z',
+  } });
+  assert.equal(offered.home.status, 'Awaiting your response');
+  assert.match(offered.bookings.upcoming[0].nextAction, /Reply to the Shiloh message/);
+
+  const expired = buildClientExperience({ ...base, generatedAt: '2026-09-28T10:00:00.000Z', activeRequest: {
+    ...base.activeRequest,
+    bookingRequestStatus: 'awaiting_client_confirmation',
+    proposedStartsAt: '2026-10-03T08:00:00.000Z',
+    proposalExpiresAt: '2026-09-27T10:00:00.000Z',
+  } });
+  assert.equal(expired.home.status, 'Requested');
+});
+
+test('active request is scoped to the signed-in CRM client and reads the existing approval state', async () => {
+  const db = { async query(sql, values) {
+    assert.match(sql, /a\.crm_v2_client_id=\$1 AND a\.client_id IS NULL/);
+    assert.match(sql, /aba\.status IN \('pending','awaiting_client_confirmation'\)/);
+    assert.deepEqual(values, [55]);
+    return { rows: [{
+      id: 902, crm_v2_client_id: 55, starts_at: '2026-10-02T08:00:00.000Z', ends_at: '2026-10-02T09:00:00.000Z',
+      status: 'scheduled', booking_request_status: 'awaiting_client_confirmation',
+      proposed_starts_at: '2026-10-03T08:00:00.000Z', proposal_expires_at: '2026-09-27T10:00:00.000Z',
+      services: [{ name: 'Facial' }], practitioners: [{ name: 'Christel' }],
+    }] };
+  } };
+  const request = await createMyShilohClientContextService({ db }).loadActiveBookingRequest(55);
+  assert.equal(request.bookingRequestStatus, 'awaiting_client_confirmation');
+  assert.equal(request.proposedStartsAt, '2026-10-03T08:00:00.000Z');
+  assert.deepEqual(request.services, ['Facial']);
 });
 
 test('Shiloh experience prioritises client action without becoming booking, forms or payment authority', () => {
