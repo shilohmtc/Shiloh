@@ -82,6 +82,20 @@ test('explicit team coordination narrows a business-wide principal and projects 
   assert.match(rows[0].staffName, /Christel team/);
 });
 
+test('owner sees and may resolve requests across teams despite a historical team scope', async () => {
+  const owner = principal({ business_role: 'owner', calendarAuthority: { businessRole: 'owner', calendarScope: 'all_business' } });
+  const db = dbWith({
+    scopes: { 100: { scope_kind: 'team', team_id: 11, team_name: 'Christel team' } },
+    unresolved: requestRows,
+    targets: { 502: { appointment_id: 502, approver_staff_id: 5, requested_staff_ids: [5], team_id: 12 } },
+  });
+  const rows = await routing.listUnresolvedBookingRequests({ db, principal: owner });
+  assert.deepEqual(rows.map(row => row.appointmentId), [501, 502]);
+  assert.equal(rows.every(row => row.coordinationScope === 'global'), true);
+  const permitted = await routing.requireRoutingAuthority(db, owner, 502);
+  assert.equal(permitted.scope.kind, 'global');
+});
+
 test('a practitioner team scope does not expose or resolve client-originated requests', async () => {
   const marietjie = principal({
     id: 104, staff_id: 5, business_role: 'tenant_practitioner', calendar_scope: 'own_services',

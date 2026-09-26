@@ -45,6 +45,9 @@ async function coordinationScopeForPrincipal(db, principal) {
   // Client-originated requests are planned by Reception. An old explicit team/self
   // coordination row must not restore practitioner approval authority.
   if (!isDerivedGlobalCoordinator(principal)) return { kind: 'none', teamId: null, teamName: null, explicit: false };
+  // The owner must see the full Reception queue even when an older team-lead
+  // row still associates their staff identity with one practitioner team.
+  if (principalRole(principal) === 'owner') return { kind: 'global', teamId: null, teamName: null, explicit: false };
   const configured = await db.query(`
     SELECT brcs.scope_kind,brcs.team_id,t.display_name AS team_name
       FROM booking_request_coordination_scopes brcs

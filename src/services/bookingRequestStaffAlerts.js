@@ -60,13 +60,14 @@ async function alertRecipients(db, context) {
   const result = await db.query(`
     SELECT DISTINCT a.id AS admin_id,a.normalized_whatsapp,a.display_name,
            CASE
+             WHEN a.business_role='owner' THEN 'global'
              WHEN brcs.admin_id IS NOT NULL THEN brcs.scope_kind
              WHEN a.business_role=ANY($2::text[]) AND a.calendar_scope='all_business' THEN 'global'
              ELSE 'self'
            END AS effective_scope,
            brcs.team_id,
            CASE
-             WHEN brcs.admin_id IS NOT NULL AND brcs.scope_kind='team' THEN (
+             WHEN a.business_role<>'owner' AND brcs.admin_id IS NOT NULL AND brcs.scope_kind='team' THEN (
                SELECT COUNT(DISTINCT pending.appointment_id)::int
                  FROM appointment_booking_approvals pending
                  JOIN staff_operational_team_members pending_tm
@@ -89,6 +90,8 @@ async function alertRecipients(db, context) {
        AND a.business_role=ANY($2::text[])
        AND a.calendar_scope='all_business'
        AND (
+         (a.business_role='owner' AND (brcs.admin_id IS NULL OR brcs.receive_alerts=TRUE))
+         OR
          (brcs.admin_id IS NOT NULL AND brcs.receive_alerts=TRUE AND (
             brcs.scope_kind='global' OR (brcs.scope_kind='team' AND brcs.team_id=$1)
           ))
