@@ -1,4 +1,5 @@
 const path = require('path');
+const crypto = require('crypto');
 const express = require('express');
 const clientConsultationForms = require('../services/clientConsultationForms');
 const { createConsultationFormTrialRouter } = require('./consultationFormTrial');
@@ -29,6 +30,25 @@ function sameOriginSubmission(req) {
   } catch (_error) {
     return false;
   }
+}
+
+// A signed form proof lets browsers with an opaque or rewritten navigation
+// origin submit the exact bearer form they opened without relaxing the guard
+// for a foreign page that does not possess the rendered form.
+function submissionProof(accessToken, env = process.env) {
+  const key = clientConsultationForms.parseDataKey(env);
+  return crypto.createHmac('sha256', key)
+    .update(`client-consultation-submit-v1\n${clientConsultationForms.normalizeAccessToken(accessToken)}`)
+    .digest('base64url');
+}
+
+function validSubmissionProof(accessToken, submitted, env = process.env) {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(String(submitted || ''))) return false;
+  try {
+    const actual = Buffer.from(String(submitted), 'base64url');
+    const expected = Buffer.from(submissionProof(accessToken, env), 'base64url');
+    return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+  } catch (_error) { return false; }
 }
 
 function safeError(error) {
@@ -77,6 +97,7 @@ function createClientConsultationFormsRouter({
       return res.status(200).type('html').send(renderForm({
         ...model,
         accessToken: req.params.accessToken,
+        submissionProof: submissionProof(req.params.accessToken, env),
       }));
     } catch (error) {
       const safe = safeError(error);
@@ -89,11 +110,12 @@ function createClientConsultationFormsRouter({
     limit: '96kb',
     parameterLimit: 250,
   }), async (req, res) => {
-    if (!sameOriginSubmission(req)) {
+    if (!sameOriginSubmission(req) && !validSubmissionProof(req.params.accessToken, req.body?.submission_proof, env)) {
       return res.status(403).type('html').send(renderUnavailable({ message: 'This consultation form could not be submitted from that page.' }));
     }
     try {
-      await service.submitForm(req.params.accessToken, req.body || {});
+      const { submission_proof: _submissionProof, ...answers } = req.body || {};
+      await service.submitForm(req.params.accessToken, answers);
       return res.status(200).type('html').send(renderCompleted());
     } catch (error) {
       if (Number(error?.httpStatus) === 422) {
@@ -103,6 +125,7 @@ function createClientConsultationFormsRouter({
           return res.status(422).type('html').send(renderForm({
             ...model,
             accessToken: req.params.accessToken,
+            submissionProof: submissionProof(req.params.accessToken, env),
             values: error.values || {},
             fieldErrors: error.fieldErrors || {},
             formError: error.message,
@@ -122,6 +145,8 @@ function createClientConsultationFormsRouter({
 module.exports = {
   setClientFormSecurityHeaders,
   sameOriginSubmission,
+  submissionProof,
+  validSubmissionProof,
   safeError,
   createClientConsultationFormsRouter,
 };

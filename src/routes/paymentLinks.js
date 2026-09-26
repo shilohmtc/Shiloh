@@ -51,7 +51,7 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema 
     if (!requestKey) return paymentUnavailable(res, 404, 'Payment status not found.');
     try {
       const result = await db.query(
-        `SELECT amount,state
+        `SELECT amount,state,expires_at
            FROM payment_requests
           WHERE request_key=$1
           LIMIT 1`,
@@ -59,11 +59,14 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema 
       );
       const request = result.rows[0];
       if (!request) return paymentUnavailable(res, 404, 'Payment status not found.');
+      const terminal = ['paid', 'failed', 'cancelled', 'expired', 'refunded'].includes(String(request.state));
+      const statusRequest = request.expires_at && new Date(request.expires_at).getTime() <= Date.now() && !terminal
+        ? { ...request, state: 'expired' } : request;
       return res.status(200).type('html').set({
         'Cache-Control': 'no-store',
         'Referrer-Policy': 'no-referrer',
         'X-Content-Type-Options': 'nosniff',
-      }).send(renderPaymentStatusPage({ requestKey, request }));
+      }).send(renderPaymentStatusPage({ requestKey, request: statusRequest }));
     } catch (error) {
       return next(error);
     }
@@ -81,10 +84,10 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema 
       if (request.gift_voucher_order_id) return res.redirect(303, `/gift-vouchers/${requestKey}`);
       if (!request.payer_mobile) return paymentUnavailable(res, 409, 'This payment link has no verified payer contact.');
       if (['paid', 'failed', 'cancelled', 'expired', 'refunded'].includes(String(request.state))) {
-        return paymentUnavailable(res, 410, 'This payment request is no longer available.');
+        return res.redirect(303, `/pay/status/${requestKey}`);
       }
       if (request.expires_at && new Date(request.expires_at).getTime() <= Date.now()) {
-        return paymentUnavailable(res, 410, 'This payment link has expired.');
+        return res.redirect(303, `/pay/status/${requestKey}`);
       }
       const target = validateOzowTarget(request);
       if (!target) return paymentUnavailable(res, 502, 'This payment link is unavailable.');
@@ -130,10 +133,12 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema 
         return res.redirect(303, `/gift-vouchers/${requestKey}`);
       }
       if (['paid', 'failed', 'cancelled', 'expired', 'refunded'].includes(String(request.state))) {
-        return paymentUnavailable(res, 410, 'This payment request is no longer available.');
+        return res.redirect(303, `/pay/status/${requestKey}`);
       }
       if (request.expires_at && new Date(request.expires_at).getTime() <= Date.now()) {
-        return paymentUnavailable(res, 410, 'This payment link has expired.');
+        return res.status(410).type('html').set({
+          'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff',
+        }).send(renderPaymentStatusPage({ requestKey, request: { ...request, state: 'expired' } }));
       }
       if (request.gift_voucher_order_id) return res.redirect(303, `/gift-vouchers/${requestKey}`);
       if (!validateOzowTarget(request)) return paymentUnavailable(res, 409, 'This payment link is not ready yet.');
