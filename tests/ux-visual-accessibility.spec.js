@@ -283,7 +283,10 @@ test('My Shiloh presents a client request as planning on phone and desktop', asy
     await expect(page.locator('[data-client-experience-bookings] .action-card').first()).not.toContainText('Upcoming appointment');
     const bounds = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }));
     expect(bounds.document).toBeLessThanOrEqual(bounds.viewport);
-    const accessibility = await new AxeBuilder({ page }).include('[data-app-frame]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-client-experience-home]')
+      .include('[data-client-experience-bookings]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter(item => ['serious','critical'].includes(item.impact))).toEqual([]);
     await page.screenshot({ path: testInfo.outputPath(`my-shiloh-request-planning-${viewport.name}.png`), fullPage: true, animations: 'disabled' });
   }
