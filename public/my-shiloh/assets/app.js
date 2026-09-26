@@ -1232,8 +1232,8 @@
       if (data.status === 'pending_approval') {
         const details = [appointment.service, appointment.proposedDate, appointment.proposedTime].filter(Boolean).join(' · ');
         appendShilohMessage('shiloh', data.message || (details
-          ? `Your reschedule request for ${details} has been sent for practitioner approval. Your current appointment stays unchanged until it is approved.`
-          : 'Your reschedule request has been sent for practitioner approval. Your current appointment stays unchanged until it is approved.'));
+          ? `Your time-change request for ${details} is with Reception for planning. Your current appointment stays unchanged until the new arrangement is confirmed.`
+          : 'Your time-change request is with Reception for planning. Your current appointment stays unchanged until the new arrangement is confirmed.'));
       } else {
         const details = [appointment.service, appointment.date, appointment.time].filter(Boolean).join(' · ');
         appendShilohMessage('shiloh', details
@@ -1327,7 +1327,7 @@
       : action.type === 'consultation_form'
       ? 'Only you can open this form after signing in.'
       : action.type === 'reschedule_appointment'
-      ? 'Submitting this request does not move the appointment immediately. The assigned practitioner still needs to approve it.'
+      ? 'Submitting this request does not move the appointment immediately. Reception will review the arrangement and confirm any change.'
       : action.paymentNote || '');
 
     const actions = document.createElement('div');

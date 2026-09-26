@@ -102,7 +102,7 @@ rescheduleAvailability.processClientRescheduleAvailabilityMessage = async functi
     .replace('Please confirm this reschedule:', '*Request this reschedule?*')
     .replace(
       'Nothing has changed yet.',
-      'Your current appointment remains confirmed. The requested new time will only replace it after the practitioner approves the change.'
+      'Your current appointment remains confirmed. The requested new time will only replace it after the clinic confirms the change.'
     );
   return { ...result, interactive: { ...result.interactive, body: nextBody, buttons: nextButtons } };
 };

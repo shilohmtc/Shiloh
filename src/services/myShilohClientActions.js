@@ -296,7 +296,7 @@ function createMyShilohClientActionService({
           currentTime: currentDisplay.time,
           proposedDate: proposedDisplay.date,
           proposedTime: proposedDisplay.time,
-          note: 'Your current appointment stays confirmed until you submit this request and the assigned practitioner approves the new time.',
+          note: 'Your current appointment stays confirmed until you submit this request and Reception confirms the new arrangement.',
           confirmLabel: 'Request reschedule',
           declineLabel: 'Keep current time',
           expiresAt: expiresAt.toISOString(),

@@ -153,21 +153,6 @@ async function loadAppointmentForRequest(phone, appointmentId, db = pool, lock =
   return result.rows[0] || null;
 }
 
-async function resolveApproverContact(staffId, db = pool) {
-  const result = await db.query(`
-    SELECT id,staff_id,display_name,normalized_whatsapp
-      FROM staff_admin_accounts
-     WHERE staff_id=$1
-       AND active=TRUE
-       AND normalized_whatsapp IS NOT NULL
-     ORDER BY id
-  `, [staffId]);
-  if (result.rowCount !== 1) {
-    return { ok: false, reason: result.rowCount ? 'approver_identity_ambiguous' : 'approver_whatsapp_unavailable' };
-  }
-  return { ok: true, admin: result.rows[0] };
-}
-
 async function resolveAdminByWhatsApp(sender, db = pool) {
   const result = await db.query(`
     SELECT id,staff_id,display_name,normalized_whatsapp
@@ -254,40 +239,8 @@ function requestFailureReply(reason, staffName = 'the practitioner') {
     booking_proposal_hold_conflict: 'That requested time is already being held for a client booking proposal.',
     complex_practitioner_setup: 'This appointment has a complex practitioner setup, so the clinic team needs to help reschedule it safely.',
     complex_service_setup: 'This appointment has a complex service setup, so the clinic team needs to help reschedule it safely.',
-    approver_whatsapp_unavailable: `I can’t safely send ${staffName} the required approval request right now.`,
-    approver_identity_ambiguous: `I can’t safely resolve one authorized WhatsApp approver for ${staffName}.`,
   };
   return `${copy[reason] || 'I couldn’t safely create that reschedule request.'}\n\nYour current appointment is unchanged.`;
-}
-
-async function sendApprovalRequest(request, appointment, approver) {
-  const configured = String(process.env.WHATSAPP_RESCHEDULE_APPROVAL_REQUEST_TEMPLATE || '').trim();
-  if (configured !== APPROVAL_TEMPLATE) throw new Error('Reschedule approval request template is not configured to the frozen contract');
-  await sendWhatsAppTemplate(
-    approver.normalized_whatsapp,
-    APPROVAL_TEMPLATE,
-    [
-      appointment.client_name,
-      appointment.service_name,
-      fmtDateTime(appointment.starts_at),
-      fmtDateTime(request.proposed_starts_at),
-      String(appointment.id),
-    ],
-    process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en',
-    [`${APPROVE_PREFIX}${request.id}`, `${DECLINE_PREFIX}${request.id}`]
-  );
-}
-
-async function markNotificationFailed(requestId, appointmentId, error) {
-  await pool.query(`
-    UPDATE appointment_reschedule_requests
-       SET status='notification_failed',decision_note=$2,updated_at=NOW()
-     WHERE id=$1 AND status='pending'
-  `, [requestId, String(error.message || error).slice(0, 1000)]);
-  await pool.query(`
-    INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
-    VALUES ('client.reschedule_approval.notification_failed','appointment',$1,$2::jsonb)
-  `, [appointmentId, JSON.stringify({ requestId: Number(requestId), error: String(error.message || error).slice(0, 500) })]);
 }
 
 async function resolveRescheduleRequestIdentity({ db, phone, appointment }) {
@@ -328,8 +281,8 @@ async function insertPendingRescheduleRequest(db, {
   return db.query(`
     INSERT INTO appointment_reschedule_requests
       (appointment_id,client_id,crm_v2_client_id,service_id,approver_staff_id,requested_by_phone,
-       original_starts_at,original_ends_at,proposed_starts_at,proposed_ends_at,status)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending')
+       original_starts_at,original_ends_at,proposed_starts_at,proposed_ends_at,status,decision_owner)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending','reception')
     ON CONFLICT (appointment_id) WHERE status='pending' DO NOTHING
     RETURNING *
   `, [
@@ -359,14 +312,10 @@ async function createPendingRescheduleRequest(phone, intent) {
   if (!(duration > 0)) return { status: 'invalid_duration', reply: 'This appointment does not have a valid duration, so the clinic team needs to help reschedule it safely. Your current appointment is unchanged.' };
   const proposedEndsAt = new Date(proposedStartsAt.getTime() + duration);
 
-  const approver = await resolveApproverContact(appointment.staff_id);
-  if (!approver.ok) return { status: approver.reason, reply: requestFailureReply(approver.reason, appointment.staff_name) };
-
   const initial = await validateCandidate({ appointment, proposedStartsAt, proposedEndsAt });
   if (!initial.ok) return { status: initial.reason, reply: requestFailureReply(initial.reason, appointment.staff_name) };
   const db = await pool.connect();
   let request;
-  let notificationAppointment = appointment;
   try {
     await db.query('BEGIN');
     await db.query('SELECT pg_advisory_xact_lock($1::bigint)', [Number(appointment.staff_id)]);
@@ -398,7 +347,6 @@ async function createPendingRescheduleRequest(phone, intent) {
         reply: 'The exact canonical client identity changed while I was checking this request. Your current appointment is unchanged; please contact the clinic team.',
       };
     }
-    notificationAppointment = { ...locked, client_name: authority.clientName };
     const inserted = await insertPendingRescheduleRequest(db, {
       appointment: locked,
       authority,
@@ -418,6 +366,7 @@ async function createPendingRescheduleRequest(phone, intent) {
       requestId: Number(request.id),
       proposedStartsAt: proposedStartsAt.toISOString(),
       approverStaffId: Number(locked.staff_id),
+      decisionOwner: 'reception',
       ...authority.audit,
     })]);
     await db.query('COMMIT');
@@ -428,26 +377,13 @@ async function createPendingRescheduleRequest(phone, intent) {
     db.release();
   }
 
-  try {
-    await sendApprovalRequest(request, notificationAppointment, approver.admin);
-    await pool.query(`UPDATE appointment_reschedule_requests SET approver_notified_at=NOW(),updated_at=NOW() WHERE id=$1 AND status='pending'`, [request.id]);
-    await pool.query(`
-      INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
-      VALUES ('client.reschedule_approval.approver_notified','appointment',$1,$2::jsonb)
-    `, [appointment.id, JSON.stringify({ requestId: Number(request.id), approverStaffId: Number(appointment.staff_id), approverAdminId: Number(approver.admin.id) })]);
-  } catch (error) {
-    logger.error({ err: error, appointmentId: appointment.id, requestId: Number(request.id) }, 'Client reschedule approval notification failed');
-    await markNotificationFailed(request.id, appointment.id, error);
-    return { status: 'notification_failed', reply: `I couldn’t safely send ${appointment.staff_name} the required approval request, so no change request is being held. Your current appointment remains unchanged.` };
-  }
-
   return {
     status: 'pending_approval',
     requestId: Number(request.id),
     reply: [
       '*Reschedule request sent 🌿*',
       '',
-      `We’ve asked ${appointment.staff_name} to approve your requested new time.`,
+      'Reception will plan your requested new time before confirming any change.',
       '',
       `*Current:* ${fmtDateTime(appointment.starts_at)}`,
       `*Requested:* ${fmtDateTime(proposedStartsAt)}`,
@@ -462,14 +398,15 @@ async function loadRequestContext(requestId, db = pool, lock = false) {
     SELECT request.id,request.appointment_id,request.client_id,request.crm_v2_client_id,
            request.service_id AS requested_service_id,request.approver_staff_id,request.requested_by_phone,
            request.original_starts_at,request.original_ends_at,request.proposed_starts_at,request.proposed_ends_at,
-           request.status AS request_status,request.requested_at,request.approver_notified_at,
+           request.status AS request_status,request.decision_owner,request.requested_at,request.approver_notified_at,
            a.client_id AS appointment_client_id,a.crm_v2_client_id AS appointment_crm_v2_client_id,
            a.location_id,a.starts_at AS current_starts_at,a.ends_at AS current_ends_at,a.status AS appointment_status,
            CASE WHEN a.crm_v2_client_id IS NOT NULL THEN 'crm_v2' ELSE 'legacy' END AS identity_model,
            COALESCE(v2.name,c.display_name,a.source_client_name,'Client') AS client_name,
            COALESCE(s.name,aps.service_name_snapshot,a.title,'Shiloh appointment') AS service_name,
            COALESCE(st.display_name,ast.staff_name_snapshot,'Shiloh practitioner') AS staff_name,
-           ast.staff_id AS current_staff_id,aps.service_id AS current_service_id,
+           ast.staff_id AS current_staff_id,st.id AS current_staff_record_id,st.business_role AS current_staff_business_role,
+           aps.service_id AS current_service_id,
            (SELECT COUNT(*)::int FROM appointment_staff x WHERE x.appointment_id=a.id) AS staff_count,
            (SELECT COUNT(*)::int FROM appointment_services x WHERE x.appointment_id=a.id) AS service_count,
            CASE WHEN a.crm_v2_client_id IS NOT NULL THEN v2.normalized_mobile ELSE
@@ -593,14 +530,16 @@ async function queueApprovedCustomerUpdate(appointmentId) {
   return queueCustomerChangeNotification(appointmentId, 'time');
 }
 
-async function approveRequest(admin, requestId) {
+async function approveRequest(admin, requestId, { decisionOwner = 'practitioner', authorize = null } = {}) {
   const db = await pool.connect();
   let context = null;
   try {
     await db.query('BEGIN');
     context = await loadRequestContext(requestId, db, true);
     if (!context) { await db.query('ROLLBACK'); return { handled: true, reply: 'That reschedule approval request no longer exists.' }; }
-    if (Number(admin.staff_id) !== Number(context.approver_staff_id)) { await db.query('ROLLBACK'); return { handled: true, reply: 'You are not authorized to decide this reschedule request, so no change was made.' }; }
+    if (context.decision_owner !== decisionOwner) { await db.query('ROLLBACK'); return { handled: true, status: 'forbidden', reply: 'This request belongs to another decision path. No change was made.' }; }
+    if (authorize) await authorize(db, context);
+    else if (Number(admin.staff_id) !== Number(context.approver_staff_id)) { await db.query('ROLLBACK'); return { handled: true, reply: 'You are not authorized to decide this reschedule request, so no change was made.' }; }
     if (context.request_status !== 'pending') { await db.query('ROLLBACK'); return { handled: true, reply: `This reschedule request has already been ${context.request_status}.` }; }
     if (!canonicalStillMatchesRequest(context)) {
       await supersedeRequest(db, context, admin.id, 'canonical appointment changed before approval');
@@ -656,13 +595,14 @@ async function approveRequest(admin, requestId) {
     await db.query(`UPDATE appointment_lifecycle SET appointment_at=$1,appointment_ends_at=$2,reminder_sent_at=NULL,updated_at=NOW() WHERE appointment_id=$3`, [proposedStartsAt, proposedEndsAt, context.appointment_id]);
 
     await db.query(`UPDATE appointment_reschedule_requests SET status='approved',decided_at=NOW(),decided_by_admin_id=$2,updated_at=NOW() WHERE id=$1 AND status='pending'`, [context.id, admin.id]);
-    await db.query(`INSERT INTO appointment_status_history(appointment_id,from_status,to_status,changed_by,reason) VALUES($1,$2,$2,$3,'Client reschedule approved by practitioner')`, [context.appointment_id, context.appointment_status, `staff_admin:${admin.id}`]);
+    await db.query(`INSERT INTO appointment_status_history(appointment_id,from_status,to_status,changed_by,reason) VALUES($1,$2,$2,$3,$4)`, [context.appointment_id, context.appointment_status, `staff_admin:${admin.id}`, decisionOwner === 'reception' ? 'Client reschedule confirmed by Reception' : 'Client reschedule approved by practitioner']);
     const timeAudit = await db.query(`
       INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
       VALUES ('appointment.time_updated','appointment',$1,$2::jsonb)
       RETURNING id
     `, [context.appointment_id, JSON.stringify({
       source: 'client_reschedule_approval',
+      decisionOwner,
       requestId: Number(context.id),
       requestedByPhone: context.requested_by_phone,
       approvedByAdminId: Number(admin.id),
@@ -679,12 +619,14 @@ async function approveRequest(admin, requestId) {
     `, [context.appointment_id, JSON.stringify({ requestId: Number(context.id), timeAuditEventId: Number(timeAudit.rows[0].id), approvedByAdminId: Number(admin.id), approvedByName: admin.display_name })]);
     await db.query('COMMIT');
 
+    let customerUpdateQueued = false;
     try {
-      await queueApprovedCustomerUpdate(context.appointment_id);
+      const delivery = await queueApprovedCustomerUpdate(context.appointment_id);
+      customerUpdateQueued = delivery.queued === true || delivery.reason === 'already_queued';
     } catch (notificationError) {
       logger.error({ err: notificationError, appointmentId: Number(context.appointment_id), requestId: Number(context.id) }, 'Approved client reschedule customer notification queue failed');
     }
-    return { handled: true, status: 'approved', reply: `Approved by ${admin.display_name}. Appointment #${context.appointment_id} has been moved to ${fmtDateTime(proposedStartsAt)} and the client update has been queued.` };
+    return { handled: true, status: 'approved', reply: `Confirmed by ${admin.display_name}. Appointment #${context.appointment_id} has been moved to ${fmtDateTime(proposedStartsAt)}. ${customerUpdateQueued ? 'The client update has been queued.' : 'The client update could not be queued; review Messages and contact the client.'}` };
   } catch (error) {
     try { await db.query('ROLLBACK'); } catch (_) {}
     throw error;
@@ -693,14 +635,16 @@ async function approveRequest(admin, requestId) {
   }
 }
 
-async function declineRequest(admin, requestId) {
+async function declineRequest(admin, requestId, { decisionOwner = 'practitioner', authorize = null } = {}) {
   const db = await pool.connect();
   let context;
   try {
     await db.query('BEGIN');
     context = await loadRequestContext(requestId, db, true);
     if (!context) { await db.query('ROLLBACK'); return { handled: true, reply: 'That reschedule approval request no longer exists.' }; }
-    if (Number(admin.staff_id) !== Number(context.approver_staff_id)) { await db.query('ROLLBACK'); return { handled: true, reply: 'You are not authorized to decide this reschedule request, so no change was made.' }; }
+    if (context.decision_owner !== decisionOwner) { await db.query('ROLLBACK'); return { handled: true, status: 'forbidden', reply: 'This request belongs to another decision path. No change was made.' }; }
+    if (authorize) await authorize(db, context);
+    else if (Number(admin.staff_id) !== Number(context.approver_staff_id)) { await db.query('ROLLBACK'); return { handled: true, reply: 'You are not authorized to decide this reschedule request, so no change was made.' }; }
     if (context.request_status !== 'pending') { await db.query('ROLLBACK'); return { handled: true, reply: `This reschedule request has already been ${context.request_status}.` }; }
     if (!canonicalStillMatchesRequest(context)) {
       await supersedeRequest(db, context, admin.id, 'canonical appointment changed before decline');
@@ -722,6 +666,7 @@ async function declineRequest(admin, requestId) {
     `, [context.appointment_id, JSON.stringify({
       requestId: Number(context.id),
       declinedByAdminId: Number(admin.id),
+      decisionOwner,
       declinedByName: admin.display_name,
       identityModel: context.identity_model,
       clientId: context.client_id,
@@ -753,6 +698,7 @@ async function processRescheduleApprovalDecision(sender, text) {
   if (!admin) return { handled: true, reply: 'I can’t resolve this WhatsApp number to exactly one active staff admin identity, so no reschedule decision was recorded.' };
   const context = await loadRequestContext(decision.requestId);
   if (!context) return { handled: true, reply: 'That reschedule approval request no longer exists.' };
+  if (context.decision_owner !== 'practitioner') return { handled: true, reply: 'Reception is handling this time-change request. No change was made.' };
   if (Number(admin.staff_id) !== Number(context.approver_staff_id)) return { handled: true, reply: 'You are not authorized to decide this reschedule request, so no change was made.' };
   try {
     return decision.decision === 'approved'
@@ -762,6 +708,15 @@ async function processRescheduleApprovalDecision(sender, text) {
     logger.error({ err: error, requestId: decision.requestId, decision: decision.decision }, 'Client reschedule approval decision failed');
     return { handled: true, reply: 'I couldn’t safely complete that reschedule decision. The canonical appointment was not intentionally changed; please review the request again or contact the clinic team.' };
   }
+}
+
+async function decideReceptionReschedule({ admin, requestId, decision, authorize }) {
+  if (typeof authorize !== 'function' || !Number.isSafeInteger(Number(admin?.id)) || Number(admin.id) <= 0) {
+    throw new Error('An authenticated Reception decision authority is required');
+  }
+  if (decision === 'approve') return approveRequest(admin, requestId, { decisionOwner: 'reception', authorize });
+  if (decision === 'decline') return declineRequest(admin, requestId, { decisionOwner: 'reception', authorize });
+  throw new Error('Invalid Reception time-change decision');
 }
 
 module.exports = {
@@ -780,6 +735,7 @@ module.exports = {
   insertPendingRescheduleRequest,
   createPendingRescheduleRequest,
   processRescheduleApprovalDecision,
+  decideReceptionReschedule,
   loadRequestContext,
   canonicalStillMatchesRequest,
   revalidateDecisionIdentity,

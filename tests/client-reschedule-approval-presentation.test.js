@@ -10,7 +10,7 @@ test('enabled reschedule approval flow presents a request rather than an immedia
   assert.match(patch, /\*Request this reschedule\?\*/);
   assert.match(patch, /title: 'Request change'/);
   assert.match(patch, /current appointment remains confirmed/i);
-  assert.match(patch, /only replace it after the practitioner approves the change/i);
+  assert.match(patch, /only replace it after the clinic confirms the change/i);
 });
 
 test('legacy confirmation presentation remains untouched while the feature gate is off', () => {

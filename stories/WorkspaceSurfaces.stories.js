@@ -278,7 +278,7 @@ export const ReceptionTimeChangeAttention = {
     displayName: 'Christel',
     bookingRequests: [],
     rescheduleRequests: [
-      { requestId: 901, appointmentId: 801, clientName: 'Client A', serviceName: 'Hot Stone Massage', staffName: 'Abigail', originalStartsAt: '2026-09-27T08:00:00.000Z', proposedStartsAt: '2026-09-30T08:00:00.000Z' },
+      { requestId: 901, appointmentId: 801, decisionOwner: 'reception', clientName: 'Client A', serviceName: 'Hot Stone Massage', staffName: 'Abigail', originalStartsAt: '2026-09-27T08:00:00.000Z', proposedStartsAt: '2026-09-30T08:00:00.000Z' },
     ],
   }), dashboardClientScript()),
 };

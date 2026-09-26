@@ -1,5 +1,6 @@
 const { pool } = require('../db/pool');
 const bookingRequests = require('./clientBookingApproval');
+const rescheduleRequests = require('./clientRescheduleApproval');
 
 const GLOBAL_COORDINATION_ROLES = new Set(['owner', 'business_admin', 'booking_operator']);
 
@@ -156,7 +157,7 @@ async function listPendingRescheduleRequests({ db = pool, principal, now = new D
   const scope = await coordinationScopeForPrincipal(db, principal);
   if (scope.kind === 'none') return [];
   const result = await db.query(`
-    SELECT request.id,request.appointment_id,request.approver_staff_id,
+    SELECT request.id,request.appointment_id,request.approver_staff_id,request.decision_owner,
            request.original_starts_at,request.original_ends_at,request.proposed_starts_at,
            COALESCE(v2.name,c.display_name,a.source_client_name,'Client') AS client_name,
            COALESCE(s.name,aps.service_name_snapshot,a.title,'Shiloh appointment') AS service_name,
@@ -193,9 +194,38 @@ async function listPendingRescheduleRequests({ db = pool, principal, now = new D
     return true;
   }).map(row => ({
     requestId: Number(row.id), appointmentId: Number(row.appointment_id),
+    decisionOwner: row.decision_owner,
     clientName: row.client_name, serviceName: row.service_name, staffName: row.staff_name,
     originalStartsAt: row.original_starts_at, proposedStartsAt: row.proposed_starts_at,
   }));
+}
+
+async function requireReceptionRescheduleAuthority(db, principal, context) {
+    const scope = await coordinationScopeForPrincipal(db, principal);
+    if (!positiveId(context.current_staff_record_id) || context.current_staff_business_role === 'tenant_practitioner' || scope.kind === 'none') {
+      throw new BookingRequestRoutingError('RESCHEDULE_DECISION_FORBIDDEN', 'Reception access is required.', 403);
+    }
+    if (scope.kind !== 'global') {
+      const team = await teamForStaffIds(db, [context.approver_staff_id]);
+      if (!team || team.id !== scope.teamId) {
+        throw new BookingRequestRoutingError('RESCHEDULE_DECISION_TEAM_FORBIDDEN', 'This time change is outside your Reception team.', 403);
+      }
+    }
+}
+
+async function decideReceptionReschedule({ principal, requestId, decision } = {}) {
+  const id = positiveId(requestId);
+  if (!id || !['approve','decline'].includes(decision)) {
+    throw new BookingRequestRoutingError('RESCHEDULE_DECISION_INVALID', 'Choose a valid time-change request and action.', 400);
+  }
+  const adminId = positiveId(principal?.id || principal?.calendarAuthority?.operatorAdminId);
+  if (!adminId) throw new BookingRequestRoutingError('RESCHEDULE_DECISION_FORBIDDEN', 'Reception access is required.', 403);
+  const result = await rescheduleRequests.decideReceptionReschedule({
+    admin: { id: adminId, staff_id: principalStaffId(principal), display_name: principal?.display_name || 'Reception' },
+    requestId: id, decision, authorize: (db, context) => requireReceptionRescheduleAuthority(db, principal, context),
+  });
+  if (result.status === 'forbidden') throw new BookingRequestRoutingError('RESCHEDULE_DECISION_OWNER_CHANGED', result.reply, 409);
+  return result;
 }
 
 async function loadRoutingTarget(db, appointmentId) {
@@ -263,6 +293,8 @@ module.exports = {
   rowVisibleToScope,
   listUnresolvedBookingRequests,
   listPendingRescheduleRequests,
+  requireReceptionRescheduleAuthority,
+  decideReceptionReschedule,
   requireRoutingAuthority,
   acceptRequestedAppointment,
   startReceptionPlanning,

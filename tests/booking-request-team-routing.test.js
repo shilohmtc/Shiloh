@@ -117,6 +117,16 @@ test('pending time changes reach Christel and scoped Reception without exposing 
   assert.deepEqual(await routing.listPendingRescheduleRequests({ ...input, principal: practitioner }), []);
 });
 
+test('Reception time-change decisions recheck the principal and practitioner team inside the transaction', async () => {
+  const owner = principal({ business_role: 'owner', calendarAuthority: { businessRole: 'owner', calendarScope: 'all_business' } });
+  const context = { approver_staff_id: 5, current_staff_record_id: 5, current_staff_business_role: 'employee_practitioner' };
+  const db = dbWith({ scopes: { 100: { scope_kind: 'team', team_id: 11 } }, teamsByStaff: { 5: 12 } });
+  await routing.requireReceptionRescheduleAuthority(db, owner, context);
+  await assert.rejects(routing.requireReceptionRescheduleAuthority(db, principal(), context), error => error.code === 'RESCHEDULE_DECISION_TEAM_FORBIDDEN');
+  await assert.rejects(routing.requireReceptionRescheduleAuthority(db, principal({ business_role: 'employee_practitioner' }), context), error => error.code === 'RESCHEDULE_DECISION_FORBIDDEN');
+  await assert.rejects(routing.requireReceptionRescheduleAuthority(db, owner, { ...context, current_staff_business_role: 'tenant_practitioner' }), error => error.code === 'RESCHEDULE_DECISION_FORBIDDEN');
+});
+
 test('a practitioner team scope does not expose or resolve client-originated requests', async () => {
   const marietjie = principal({
     id: 104, staff_id: 5, business_role: 'tenant_practitioner', calendar_scope: 'own_services',
