@@ -260,7 +260,7 @@ test('Needs Attention projects pending and awaiting-client booking requests with
   const requests = [
     {
       appointmentId: 7651, effectiveStatus: 'pending', clientName: 'Request Client', serviceName: 'Treatment',
-      staffName: 'Canonical Practitioner', requestedStartsAt: '2026-09-09T08:00:00.000Z', requestedRevision: '2026-09-05T06:30:00.000Z',
+      staffName: 'Canonical Practitioner', occasionNote: '<script>birthday</script>', requestedStartsAt: '2026-09-09T08:00:00.000Z', requestedRevision: '2026-09-05T06:30:00.000Z',
     },
     {
       appointmentId: 7652, effectiveStatus: 'awaiting_client_confirmation', clientName: 'Awaiting Client', serviceName: 'Treatment',
@@ -286,6 +286,8 @@ test('Needs Attention projects pending and awaiting-client booking requests with
   assert.match(html, /data-booking-action="start_planning"/);
   assert.match(html, /Awaiting client response/);
   assert.match(html, /This request is not confirmed yet/);
+  assert.match(html, /Occasion:<\/strong> &lt;script&gt;birthday&lt;\/script&gt;/);
+  assert.doesNotMatch(html, /<script>birthday<\/script>/);
   assert.match(html, />Accept requested appointment</);
   assert.match(html, />Propose alternative</);
   assert.match(html, />Cannot accommodate</);

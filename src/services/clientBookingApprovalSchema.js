@@ -48,6 +48,7 @@ async function ensureBookingApprovalInfrastructure(db = pool) {
     `client_responded_at TIMESTAMPTZ`,
     `planning_started_at TIMESTAMPTZ`,
     `planning_by_admin_id BIGINT REFERENCES staff_admin_accounts(id)`,
+    `client_occasion_note TEXT`,
   ];
   for (const definition of additions) {
     const column = definition.split(/\s+/)[0];

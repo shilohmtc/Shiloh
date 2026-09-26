@@ -55,6 +55,14 @@ function exactStart(value) {
   return date;
 }
 
+function cleanOccasionNote(value) {
+  if (value == null || value === '') return null;
+  if (typeof value !== 'string') throw new MyShilohBookingError('BOOKING_OCCASION_INVALID', 'Please shorten your occasion note.', 422);
+  const note = value.replace(/\s+/g, ' ').trim();
+  if (note.length > 160) throw new MyShilohBookingError('BOOKING_OCCASION_TOO_LONG', 'Please keep your occasion note under 160 characters.', 422);
+  return note || null;
+}
+
 function localDate(value) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Africa/Johannesburg',
@@ -284,6 +292,7 @@ function createMyShilohBookingService({
     staffId,
     startsAt,
     policyAccepted,
+    occasionNote,
   } = {}) {
     if (policyAccepted !== true) {
       throw new MyShilohBookingError(
@@ -292,6 +301,7 @@ function createMyShilohBookingService({
         422,
       );
     }
+    const note = cleanOccasionNote(occasionNote);
     const { client, phone } = await clientIdentity(crmV2ClientId);
     const service = await canonicalService(serviceId);
     const practitionerId = positiveId(staffId, 'BOOKING_PRACTITIONER_INVALID');
@@ -364,7 +374,7 @@ function createMyShilohBookingService({
           409,
         );
       }
-      const staged = await stageApproval(created);
+      const staged = await stageApproval(created, { occasionNote: note });
       const policy = await depositPolicy.loadPolicy(db);
       const depositExempt = Number(practitioner.id) === Number(policy.exemptStaffId);
       return {
@@ -402,6 +412,7 @@ module.exports = {
   positiveId,
   exactDate,
   exactStart,
+  cleanOccasionNote,
   localDate,
   localTime,
   slotDto,
