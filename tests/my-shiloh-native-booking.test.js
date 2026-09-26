@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { createMyShilohBookingService } = require('../src/services/myShilohBooking');
+const { createMyShilohBookingService, cleanOccasionNote, MyShilohBookingError } = require('../src/services/myShilohBooking');
 const { renderMyShilohBookingPage, cleanPolicyText } = require('../src/presentation/myShilohBooking');
 const { renderMyShilohPage } = require('../src/presentation/myShilohPwa');
 const { buildClientExperience } = require('../src/services/myShilohExperienceOrchestrator');
@@ -63,6 +63,7 @@ test('native booking page is a My Shiloh treatment-practitioner-time-review wiza
   assert.match(html, /50% is required after Shiloh approves/);
   assert.doesNotMatch(html, /Marietjie/i);
   assert.match(html, /data-submit-booking/);
+  assert.match(html, /data-occasion-note maxlength="160"/);
   assert.match(html, /\/my-shiloh\/assets\/booking\.js/);
   assert.doesNotMatch(html, /wa\.me|whatsapp:\/\//i);
 });
@@ -136,7 +137,7 @@ test('native booking request is bound to signed-in CRM V2 identity and stages Wo
     ensurePolicy:async()=>calls.push(['ensurePolicy']),
     acceptPolicy:async(phone, channel)=>{ calls.push(['acceptPolicy',phone,channel]); return { phone }; },
     commitBooking:async(phone, options)=>{ calls.push(['commit',phone,options]); return { handled:true,status:'created',appointmentId:812 }; },
-    stageApproval:async result=>{ calls.push(['stage',result.appointmentId]); return { ...result,status:'pending_resolution' }; },
+    stageApproval:async (result, options)=>{ calls.push(['stage',result.appointmentId,options]); return { ...result,status:'pending_resolution' }; },
     depositPolicy:{ async loadPolicy(){ return { rateBasisPoints:5000, exemptStaffId:13 }; } },
     now:()=>new Date('2026-09-23T18:00:00.000Z'),
   });
@@ -147,14 +148,25 @@ test('native booking request is bound to signed-in CRM V2 identity and stages Wo
     staffId:11,
     startsAt,
     policyAccepted:true,
+    occasionNote:'  Birthday   treat for two ',
   });
 
   assert.equal(result.status, 'pending_resolution');
   assert.equal(result.appointmentId, 812);
   assert.deepEqual(calls.find(item=>item[0]==='acceptPolicy'), ['acceptPolicy','27821234567','my_shiloh']);
   assert.deepEqual(calls.find(item=>item[0]==='commit'), ['commit','27821234567',{ crmV2ClientId:55 }]);
-  assert.deepEqual(calls.find(item=>item[0]==='stage'), ['stage',812]);
+  assert.deepEqual(calls.find(item=>item[0]==='stage'), ['stage',812,{ occasionNote:'Birthday treat for two' }]);
   assert.equal(queries.some(call=>call.sql.includes('INSERT INTO appointments')), false);
+});
+
+test('occasion details are bounded before booking writes', () => {
+  assert.equal(cleanOccasionNote('  Anniversary   surprise  '), 'Anniversary surprise');
+  assert.equal(cleanOccasionNote('  '), null);
+  assert.throws(() => cleanOccasionNote('x'.repeat(161)), MyShilohBookingError);
+  assert.throws(() => cleanOccasionNote({ text:'birthday' }), MyShilohBookingError);
+  const approval = read('src/services/clientBookingApproval.js');
+  assert.match(approval, /client_occasion_note=EXCLUDED\.client_occasion_note/);
+  assert.match(approval, /\[positiveId\(appointmentId\), occasionNote\]/);
 });
 
 

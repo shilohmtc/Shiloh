@@ -156,21 +156,21 @@ async function loadRequest(db, appointmentId, lock = false) {
   return result.rows?.[0] || null;
 }
 
-async function createPendingBookingApproval(db, { appointmentId }) {
+async function createPendingBookingApproval(db, { appointmentId, occasionNote = null }) {
   await ensureBookingApprovalInfrastructure(db);
   const result = await db.query(`
     INSERT INTO appointment_booking_approvals (
       appointment_id,approver_staff_id,status,approval_mode,
       requested_client_id,requested_crm_v2_client_id,requested_client_phone,
       requested_location_id,requested_staff_id,requested_staff_ids,requested_service_id,requested_service_ids,
-      requested_starts_at,requested_ends_at,requested_revision
+      requested_starts_at,requested_ends_at,requested_revision,client_occasion_note
     )
     SELECT a.id,ast.staff_id,'pending','standard',a.client_id,a.crm_v2_client_id,
            CASE WHEN a.crm_v2_client_id IS NOT NULL THEN v2.normalized_mobile ELSE
              (SELECT normalized_value FROM client_contacts cc WHERE cc.client_id=a.client_id
                AND LOWER(cc.contact_type) IN ('whatsapp','mobile','phone','telephone')
                AND cc.normalized_value IS NOT NULL ORDER BY cc.is_primary DESC,cc.id LIMIT 1) END,
-           a.location_id,ast.staff_id,staff_snapshot.ids,aps.service_id,service_snapshot.ids,a.starts_at,a.ends_at,a.updated_at
+           a.location_id,ast.staff_id,staff_snapshot.ids,aps.service_id,service_snapshot.ids,a.starts_at,a.ends_at,a.updated_at,$2
       FROM appointments a
       JOIN appointment_staff ast ON ast.appointment_id=a.id AND ast.position=1
       JOIN appointment_services aps ON aps.appointment_id=a.id AND aps.position=1
@@ -191,11 +191,12 @@ async function createPendingBookingApproval(db, { appointmentId }) {
       requested_starts_at=EXCLUDED.requested_starts_at,
       requested_ends_at=EXCLUDED.requested_ends_at,
       requested_revision=EXCLUDED.requested_revision,
+      client_occasion_note=EXCLUDED.client_occasion_note,
       planning_started_at=NULL,
       planning_by_admin_id=NULL,
       updated_at=NOW()
     WHERE appointment_booking_approvals.status='pending'
-    RETURNING *`, [positiveId(appointmentId)]);
+    RETURNING *`, [positiveId(appointmentId), occasionNote]);
   return result.rows?.[0] || null;
 }
 

@@ -60,7 +60,7 @@ const requestRows = [
     appointment_id: 501, approver_staff_id: 3, status: 'pending', requested_at: new Date(),
     requested_starts_at: new Date('2026-09-10T08:00:00Z'), requested_ends_at: new Date('2026-09-10T09:00:00Z'),
     requested_revision: new Date('2026-09-09T06:00:00Z'), requested_staff_ids: [3, 4],
-    client_name: 'Client A', service_name: 'Massage', staff_name: 'Christel', team_id: 11, team_name: 'Christel team',
+    client_name: 'Client A', service_name: 'Massage', staff_name: 'Christel', team_id: 11, team_name: 'Christel team', client_occasion_note: 'Birthday treat for two',
     proposed_staff_id: null, proposal_version: 0, proposal_expires_at: null,
   },
   {
@@ -86,6 +86,7 @@ test('explicit team coordination narrows a business-wide principal and projects 
   assert.equal(rows.length, 1);
   assert.equal(rows[0].appointmentId, 501);
   assert.equal(rows[0].teamName, 'Christel team');
+  assert.equal(rows[0].occasionNote, 'Birthday treat for two');
   assert.match(rows[0].staffName, /Christel team/);
 });
 

@@ -2070,10 +2070,12 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
     await expect(page.locator('[data-review-service]')).toContainText('Hot Stone Massage');
     await expect(page.locator('[data-review-practitioner]')).toHaveText('Christel');
     await expect(page.locator('[data-review-deposit]')).toHaveText('50% after approval');
+    await page.locator('[data-occasion-note]').fill('Birthday treat for two');
     await page.locator('[data-policy-accepted]').check();
     await page.getByRole('button', { name:'Send booking request' }).click();
 
     await expect(page.getByRole('heading', { name:'Booking request sent.' })).toBeVisible();
+    expect(confirmations.at(-1).body.occasionNote).toBe('Birthday treat for two');
     await expect(page.getByText(/selected time is being held while the Shiloh team confirms it/)).toBeVisible();
     await expect(page.getByRole('link', { name:'View My Shiloh bookings' })).toHaveAttribute('href', '/my-shiloh/#bookings');
 
@@ -2111,7 +2113,21 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
       staffId:11,
       startsAt:'2026-09-30T08:00:00.000Z',
       policyAccepted:true,
+      occasionNote:'Birthday treat for two',
     });
+  }
+});
+
+test('Reception planning card shows a client occasion on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=workspace-production-surfaces--reception-planning-queue&viewMode=story', { waitUntil:'networkidle' });
+    const card = page.locator('[data-booking-request="801"]');
+    await expect(card).toContainText('Birthday treat for two');
+    const accessibility = await new AxeBuilder({ page }).include('[data-dashboard-attention-panel]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`reception-occasion-${viewport.name}.png`), fullPage:true, animations:'disabled' });
   }
 });
 
