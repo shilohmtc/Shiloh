@@ -386,6 +386,7 @@ function createWorkspaceDashboardService({
   async function resolveBookingRequest({ adminId, viewer, sessionPrincipal = null, appointmentId, expectedRevision, action, startsAt, staffId, serviceId } = {}) {
     const { principal } = await resolveAuthority(adminId, viewer, sessionPrincipal);
     const input = { principal, appointmentId, expectedRevision };
+    if (action === 'start_planning' && typeof bookingRequestService.startReceptionPlanning === 'function') return bookingRequestService.startReceptionPlanning(input);
     if (action === 'accept' && typeof bookingRequestService.acceptRequestedAppointment === 'function') return bookingRequestService.acceptRequestedAppointment(input);
     if (action === 'propose' && typeof bookingRequestService.proposeAlternative === 'function') return bookingRequestService.proposeAlternative({ ...input, startsAt, staffId, serviceId });
     if (action === 'cannot_accommodate' && typeof bookingRequestService.cannotAccommodate === 'function') return bookingRequestService.cannotAccommodate(input);

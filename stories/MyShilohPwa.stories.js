@@ -146,6 +146,20 @@ export const BookingRequestPlanning = {
   },
 };
 
+export const ReceptionPlanningStarted = {
+  render: () => {
+    const surface = BookingRequestPlanning.render();
+    const home = surface.querySelector('[data-client-experience-home]');
+    const status = home?.querySelector('.status-pill');
+    if (status) status.textContent = 'Planning';
+    const fact = home?.querySelector('[data-client-experience-fact][data-fact-key="appointment"] strong');
+    if (fact) fact.textContent = 'Planning';
+    const title = surface.querySelector('[data-client-experience-bookings] .action-card h2');
+    if (title) title.textContent = 'Planning';
+    return surface;
+  },
+};
+
 export const AuthenticatedProfile = {
   render: () => {
     const surface = productionSurface({

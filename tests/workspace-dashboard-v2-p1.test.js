@@ -283,6 +283,7 @@ test('Needs Attention projects pending and awaiting-client booking requests with
   assert.equal(model.bookingRequests.length, 2);
   const html = renderDashboardPage(model);
   assert.match(html, /Requested · Reception planning/);
+  assert.match(html, /data-booking-action="start_planning"/);
   assert.match(html, /Awaiting client response/);
   assert.match(html, /This request is not confirmed yet/);
   assert.match(html, />Accept requested appointment</);
@@ -301,6 +302,7 @@ test('Needs Attention projects pending and awaiting-client booking requests with
   assert.match(clientScript, /date\+'T'\+time\+':00\+02:00'/);
   assert.match(clientScript, /Choose an alternative date and time\./);
   assert.match(clientScript, /Checking this alternative…/);
+  assert.match(clientScript, /Starting planning…/);
   assert.match(clientScript, /requestStatus/);
 });
 

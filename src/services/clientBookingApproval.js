@@ -191,6 +191,8 @@ async function createPendingBookingApproval(db, { appointmentId }) {
       requested_starts_at=EXCLUDED.requested_starts_at,
       requested_ends_at=EXCLUDED.requested_ends_at,
       requested_revision=EXCLUDED.requested_revision,
+      planning_started_at=NULL,
+      planning_by_admin_id=NULL,
       updated_at=NOW()
     WHERE appointment_booking_approvals.status='pending'
     RETURNING *`, [positiveId(appointmentId)]);
@@ -319,6 +321,24 @@ function requireResolvable(principal, row, expectedRevision, allowedStates = ACT
     throw new BookingRequestError('BOOKING_REQUEST_STALE', 'This request changed. Refresh Workspace before trying again.', 409);
   }
   if (!requestSnapshotMatches(row)) throw new BookingRequestError('BOOKING_REQUEST_CANONICAL_DRIFT', 'The canonical appointment changed after the client request. No resolution was recorded.', 409);
+}
+
+async function startReceptionPlanning({ dbPool = pool, principal, appointmentId, expectedRevision } = {}) {
+  const id = positiveId(appointmentId);
+  return inTransaction(dbPool, async db => {
+    const row = await loadRequest(db, id, true);
+    requireResolvable(principal, row, expectedRevision, new Set(['pending']));
+    if (!expectedRevision) throw new BookingRequestError('BOOKING_REQUEST_STALE', 'Refresh this request before starting planning.', 409);
+    if (row.planning_started_at) return { ok: true, appointmentId: id, status: 'planning', alreadyStarted: true };
+    const updated = await db.query(`UPDATE appointment_booking_approvals
+      SET planning_started_at=NOW(),planning_by_admin_id=$2,updated_at=NOW()
+      WHERE appointment_id=$1 AND status='pending' AND planning_started_at IS NULL
+        AND requested_revision=$3::timestamptz RETURNING planning_started_at`,
+    [id, principal.id, expectedRevision]);
+    if (updated.rowCount !== 1) throw new BookingRequestError('BOOKING_REQUEST_STALE', 'This request changed. Refresh Workspace before trying again.', 409);
+    await audit(db, principal, 'client.booking_request.planning_started', id);
+    return { ok: true, appointmentId: id, status: 'planning' };
+  });
 }
 
 async function acceptRequestedAppointment({
@@ -605,6 +625,7 @@ module.exports = {
   createPendingBookingApproval,
   listUnresolvedBookingRequests,
   canonicalWindowAvailable,
+  startReceptionPlanning,
   acceptRequestedAppointment,
   proposeAlternative,
   cannotAccommodate,

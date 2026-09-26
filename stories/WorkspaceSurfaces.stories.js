@@ -262,6 +262,16 @@ export default {
 };
 
 export const DashboardOperational = { render: () => interactiveProductionSurface(renderDashboardPage(dashboardModel()), dashboardClientScript()) };
+export const ReceptionPlanningQueue = {
+  render: () => interactiveProductionSurface(renderDashboardPage({
+    ...dashboardModel(),
+    displayName: 'Shiloh Reception',
+    bookingRequests: [
+      { appointmentId: 801, status: 'pending', clientName: 'Client A', serviceName: 'Massage', staffName: 'Abigail', requestedStartsAt: '2026-09-28T08:00:00.000Z', requestedRevision: '2026-09-26T09:00:00.000Z' },
+      { appointmentId: 802, status: 'pending', planningStartedAt: '2026-09-26T10:00:00.000Z', clientName: 'Client B', serviceName: 'Facial', staffName: 'Christel', requestedStartsAt: '2026-09-28T10:00:00.000Z', requestedRevision: '2026-09-26T09:30:00.000Z' },
+    ],
+  }), dashboardClientScript()),
+};
 export const DashboardActiveNoShow = { render: () => interactiveProductionSurface(renderDashboardPage(activeNoShowDashboardModel()), dashboardClientScript()) };
 export const NavigationDrawerOpen = { render: workspaceNavigationOpenStory };
 export const ClientAppointmentHistory = { render: () => productionSurface(renderClientDetailPageWithCommunications(clientModel(), { calendarNavigationAllowed: true, notificationActionAllowed: true })) };

@@ -54,6 +54,7 @@ function appointmentFromRow(row) {
     endsAt: new Date(row.ends_at).toISOString(),
     status: String(row.status || ''),
     bookingRequestStatus: row.booking_request_status ? String(row.booking_request_status) : null,
+    planningStartedAt: row.planning_started_at ? new Date(row.planning_started_at).toISOString() : null,
     proposedStartsAt: row.proposed_starts_at ? new Date(row.proposed_starts_at).toISOString() : null,
     proposalExpiresAt: row.proposal_expires_at ? new Date(row.proposal_expires_at).toISOString() : null,
     totalPrice: decimal(row.total_price),
@@ -201,7 +202,7 @@ function createMyShilohClientContextService({
     const result = await db.query(
       `/* myShilohClientContext:active-booking-request */
        SELECT a.id,a.crm_v2_client_id,a.starts_at,a.ends_at,a.status,
-              aba.status AS booking_request_status,aba.proposed_starts_at,aba.proposal_expires_at,
+              aba.status AS booking_request_status,aba.planning_started_at,aba.proposed_starts_at,aba.proposal_expires_at,
               a.total_price,a.currency,
               COALESCE((SELECT jsonb_agg(jsonb_build_object('name',aps.service_name_snapshot) ORDER BY aps.position,aps.id)
                           FROM appointment_services aps WHERE aps.appointment_id=a.id),'[]'::jsonb) AS services,

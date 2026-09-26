@@ -94,7 +94,7 @@ function rowVisibleToScope(row, principal, scope) {
 
 async function rawUnresolvedRows(db) {
   const result = await db.query(`
-    SELECT aba.appointment_id,aba.approver_staff_id,aba.status,aba.requested_at,
+    SELECT aba.appointment_id,aba.approver_staff_id,aba.status,aba.requested_at,aba.planning_started_at,
            aba.requested_starts_at,aba.requested_ends_at,aba.requested_revision,
            aba.requested_staff_ids,aba.proposed_starts_at,aba.proposed_ends_at,
            aba.proposed_staff_id,aba.proposal_version,aba.proposal_expires_at,
@@ -130,6 +130,7 @@ async function listUnresolvedBookingRequests({ db = pool, principal, now = new D
   return rows.filter(row => rowVisibleToScope(row, principal, scope)).map(row => ({
     appointmentId: Number(row.appointment_id),
     status: row.status,
+    planningStartedAt: row.planning_started_at || null,
     effectiveStatus: row.status === 'awaiting_client_confirmation' && new Date(row.proposal_expires_at).getTime() <= now.getTime()
       ? 'pending' : row.status,
     clientName: row.client_name,
@@ -192,6 +193,11 @@ async function acceptRequestedAppointment(input = {}) {
   return bookingRequests.acceptRequestedAppointment(input);
 }
 
+async function startReceptionPlanning(input = {}) {
+  await requireRoutingAuthority(input.db || pool, input.principal, input.appointmentId);
+  return bookingRequests.startReceptionPlanning(input);
+}
+
 async function proposeAlternative(input = {}) {
   await requireRoutingAuthority(input.db || pool, input.principal, input.appointmentId, { destinationStaffId: input.staffId });
   return bookingRequests.proposeAlternative(input);
@@ -212,6 +218,7 @@ module.exports = {
   listUnresolvedBookingRequests,
   requireRoutingAuthority,
   acceptRequestedAppointment,
+  startReceptionPlanning,
   proposeAlternative,
   cannotAccommodate,
 };
