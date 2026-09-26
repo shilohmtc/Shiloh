@@ -133,6 +133,7 @@ export const BookingRequestPlanning = {
       });
       const action = document.createElement('a');
       action.className = 'button button--primary experience-primary';
+      action.dataset.clientExperiencePrimary = '';
       action.href = '#bookings';
       action.textContent = 'View request';
       home.appendChild(action);
@@ -175,6 +176,7 @@ export const AppointmentChangeRequested = {
       if (fact) fact.textContent = 'Change requested';
       const action = document.createElement('a');
       action.className = 'button button--primary experience-primary';
+      action.dataset.clientExperiencePrimary = '';
       action.href = '#bookings';
       action.textContent = 'View request';
       home.appendChild(action);

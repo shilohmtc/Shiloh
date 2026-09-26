@@ -324,6 +324,7 @@ test('My Shiloh shows a pending time change while preserving the current appoint
     });
     await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
     await expect(page.locator('[data-client-experience-home]')).toContainText('Your time change is awaiting review.');
+    await expect(page.locator('[data-client-experience-home] [data-client-experience-primary]')).toHaveCount(1);
     const booking = page.locator('[data-client-experience-bookings] .action-card').first();
     await expect(booking).toContainText('Change requested');
     await expect(booking).toContainText('27 Sept');
