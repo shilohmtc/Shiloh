@@ -115,11 +115,11 @@ function welcomeVoucherDashboardPanel(campaign) {
 
 function bookingRequestItem(item, model) {
   const awaiting = item.effectiveStatus === 'awaiting_client_confirmation';
-  const status = awaiting ? 'Awaiting client' : 'Needs staff resolution';
+  const status = awaiting ? 'Awaiting client response' : 'Requested · Reception planning';
   const staffPicker = ['owner_overview', 'business_overview'].includes(model.mode)
     ? `<label class="proposal-field"><span>Alternative practitioner</span><select data-proposal-staff><option value="">Current practitioner</option>${(model.calendar.timeline?.staff || []).map(person => `<option value="${escapeHtml(person.id)}"${Number(person.id) === Number(item.proposedStaffId || 0) ? ' selected' : ''}>${escapeHtml(person.displayName)}</option>`).join('')}</select></label>`
     : '';
-  const proposal = awaiting ? `<p class="request-note">Proposed ${escapeHtml(dateTimeLabel(item.proposedStartsAt))} with ${escapeHtml(item.proposedStaffName || item.staffName)}. The client must accept before confirmation.</p>` : '';
+  const proposal = awaiting ? `<p class="request-note">Proposed ${escapeHtml(dateTimeLabel(item.proposedStartsAt))} with ${escapeHtml(item.proposedStaffName || item.staffName)}. The client must accept before confirmation.</p>` : '<p class="request-note">Reception chooses the arrangement. This request is not confirmed yet.</p>';
   return `<article class="booking-request" id="booking-request-${escapeHtml(item.appointmentId)}" data-booking-request="${escapeHtml(item.appointmentId)}" data-requested-revision="${escapeHtml(item.requestedRevision || '')}"><div class="appointment-main"><span class="appointment-time">${escapeHtml(dateTimeLabel(item.requestedStartsAt))}</span><div class="appointment-copy"><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(item.serviceName)} · ${escapeHtml(item.staffName)}</span></div><span class="status-pill pending">${escapeHtml(status)}</span></div>${proposal}<div class="request-actions"><button class="action-button complete" type="button" data-booking-action="accept"${awaiting ? ' disabled' : ''}>Accept requested appointment</button><button class="action-button cannot" type="button" data-booking-action="cannot_accommodate">Cannot accommodate</button></div><div class="proposal-fields"><label class="proposal-field"><span>Alternative date</span><input type="date" data-proposal-date></label><label class="proposal-field"><span>Alternative time</span><input type="time" step="900" data-proposal-time></label>${staffPicker}<button class="action-button" type="button" data-booking-action="propose">Propose alternative</button><p class="operation-status request-operation-status" data-booking-request-status aria-live="polite"></p></div></article>`;
 }
 

@@ -534,8 +534,8 @@ async function main() {
         assert.match(metrics.dashboardCommunicationText, /Client notification needs attention/);
         if (metrics.dashboardActions) assert.ok(metrics.minDashboardActionHeight >= (phone ? 44 : 36), `${name} has undersized outcome actions`);
         assert.equal(metrics.bookingRequests, 2, `${name} does not project both unresolved booking-request states`);
-        assert.match(metrics.bookingRequestText, /Needs staff resolution/);
-        assert.match(metrics.bookingRequestText, /Awaiting client/);
+        assert.match(metrics.bookingRequestText, /Requested · Reception planning/);
+        assert.match(metrics.bookingRequestText, /Awaiting client response/);
         assert.ok(metrics.bookingActionLabels.includes('Accept requested appointment'));
         assert.ok(metrics.bookingActionLabels.includes('Propose alternative'));
         assert.ok(metrics.bookingActionLabels.includes('Cannot accommodate'));

@@ -53,6 +53,9 @@ function appointmentFromRow(row) {
     startsAt: new Date(row.starts_at).toISOString(),
     endsAt: new Date(row.ends_at).toISOString(),
     status: String(row.status || ''),
+    bookingRequestStatus: row.booking_request_status ? String(row.booking_request_status) : null,
+    proposedStartsAt: row.proposed_starts_at ? new Date(row.proposed_starts_at).toISOString() : null,
+    proposalExpiresAt: row.proposal_expires_at ? new Date(row.proposal_expires_at).toISOString() : null,
     totalPrice: decimal(row.total_price),
     currency: String(row.currency || 'ZAR'),
     services: Array.isArray(row.services)
@@ -93,7 +96,7 @@ function createMyShilohClientContextService({
        SELECT a.id,a.crm_v2_client_id,
               COALESCE(linked_group.starts_at,a.starts_at) AS starts_at,
               COALESCE(linked_group.ends_at,a.ends_at) AS ends_at,
-              a.status,
+              a.status,aba.status AS booking_request_status,
               COALESCE(linked_group.final_total,linked_group.total_price,a.total_price) AS total_price,
               a.currency,
               COALESCE((
@@ -123,6 +126,7 @@ function createMyShilohClientContextService({
                  WHERE ast.appointment_id=a.id
               ),'[]'::jsonb) AS practitioners
          FROM appointments a
+         LEFT JOIN appointment_booking_approvals aba ON aba.appointment_id=a.id
          LEFT JOIN appointment_group_members group_seed ON group_seed.appointment_id=a.id
          LEFT JOIN appointment_groups linked_group ON linked_group.id=group_seed.group_id
         WHERE a.crm_v2_client_id=$1
@@ -146,7 +150,7 @@ function createMyShilohClientContextService({
        SELECT a.id,a.crm_v2_client_id,
               COALESCE(linked_group.starts_at,a.starts_at) AS starts_at,
               COALESCE(linked_group.ends_at,a.ends_at) AS ends_at,
-              a.status,
+              a.status,aba.status AS booking_request_status,
               COALESCE(linked_group.final_total,linked_group.total_price,a.total_price) AS total_price,
               a.currency,
               COALESCE((
@@ -176,6 +180,7 @@ function createMyShilohClientContextService({
                  WHERE ast.appointment_id=a.id
               ),'[]'::jsonb) AS practitioners
          FROM appointments a
+         LEFT JOIN appointment_booking_approvals aba ON aba.appointment_id=a.id
          LEFT JOIN appointment_group_members group_seed ON group_seed.appointment_id=a.id
          LEFT JOIN appointment_groups linked_group ON linked_group.id=group_seed.group_id
         WHERE a.crm_v2_client_id=$1
@@ -188,6 +193,32 @@ function createMyShilohClientContextService({
       [id, [...UPCOMING_APPOINTMENT_STATUSES], now(), boundedLimit],
     );
     return result.rows.map(appointmentFromRow);
+  }
+
+  async function loadActiveBookingRequests(crmV2ClientId) {
+    const id = positiveId(crmV2ClientId);
+    if (!id) return [];
+    const result = await db.query(
+      `/* myShilohClientContext:active-booking-request */
+       SELECT a.id,a.crm_v2_client_id,a.starts_at,a.ends_at,a.status,
+              aba.status AS booking_request_status,aba.proposed_starts_at,aba.proposal_expires_at,
+              a.total_price,a.currency,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('name',aps.service_name_snapshot) ORDER BY aps.position,aps.id)
+                          FROM appointment_services aps WHERE aps.appointment_id=a.id),'[]'::jsonb) AS services,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('name',ast.staff_name_snapshot) ORDER BY ast.position,ast.id)
+                          FROM appointment_staff ast WHERE ast.appointment_id=a.id),'[]'::jsonb) AS practitioners
+         FROM appointment_booking_approvals aba
+         JOIN appointments a ON a.id=aba.appointment_id
+        WHERE a.crm_v2_client_id=$1 AND a.client_id IS NULL
+          AND a.status NOT IN ('cancelled','no_show')
+          AND aba.status IN ('pending','awaiting_client_confirmation')
+        ORDER BY aba.requested_at DESC,a.id DESC`, [id],
+    );
+    return result.rows.map(appointmentFromRow);
+  }
+
+  async function loadActiveBookingRequest(crmV2ClientId) {
+    return (await loadActiveBookingRequests(crmV2ClientId))[0] || null;
   }
 
   async function loadForms(crmV2ClientId, appointmentId) {
@@ -305,7 +336,9 @@ function createMyShilohClientContextService({
   async function getContext({ crmV2ClientId } = {}) {
     const client = await loadClient(crmV2ClientId);
     if (!client) return null;
-    const appointment = await loadNextAppointment(client.id);
+    const [appointment, activeRequests] = await Promise.all([
+      loadNextAppointment(client.id), loadActiveBookingRequests(client.id),
+    ]);
     const [forms, payment] = appointment
       ? await Promise.all([
         loadForms(client.id, appointment.id),
@@ -318,6 +351,8 @@ function createMyShilohClientContextService({
       generatedAt: now().toISOString(),
       client,
       nextAppointment: appointment,
+      activeRequest: activeRequests[0] || null,
+      activeRequests,
       forms,
       payment,
     };
@@ -327,6 +362,8 @@ function createMyShilohClientContextService({
     loadClient,
     loadNextAppointment,
     loadUpcomingAppointments,
+    loadActiveBookingRequest,
+    loadActiveBookingRequests,
     loadForms,
     loadPayment,
     getContext,

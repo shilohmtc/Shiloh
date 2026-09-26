@@ -248,6 +248,50 @@ test('My Shiloh personal details stay contained and accessible on Phone and Desk
   }
 });
 
+test('My Shiloh presents a client request as planning on phone and desktop', async ({ page }, testInfo) => {
+  await page.route('**/my-shiloh/api/experience', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({
+      version: 'my_shiloh_client_experience_v1', generatedAt: '2026-09-26T10:00:00.000Z', client: { firstName: 'Christel' },
+      home: {
+        eyebrow: 'Your booking request', headline: 'Shiloh is planning your request.',
+        summary: 'You requested Hot Stone Massage for Fri, 2 Oct at 10:00. Reception will review the arrangement before confirming it. This appointment is not confirmed yet.',
+        status: 'Requested', primaryAction: { kind: 'navigate', label: 'View request', href: '#bookings' },
+        facts: [
+          { key: 'appointment', label: 'Booking request', value: 'Requested', href: '#bookings', message: 'Your request is waiting for the next planning step.' },
+          { key: 'forms', label: 'Forms', value: 'Nothing to do yet', href: null, message: 'Shiloh will let you know if a form is needed.' },
+          { key: 'payment', label: 'Payment', value: 'No action yet', href: null, message: 'No payment action is due from this request yet.' },
+        ],
+      },
+      bookings: { upcoming: [
+        { service: 'Hot Stone Massage', date: 'Fri, 2 Oct', time: '10:00', practitioner: 'Christel', status: 'Requested', nextAction: 'Reception is reviewing your request. The appointment has not been confirmed.' },
+        { service: 'Facial', date: 'Sat, 3 Oct', time: '11:00', practitioner: 'Abigail', status: 'Awaiting your response', nextAction: 'Reply to the Shiloh message about the proposed time.' },
+      ] },
+      assistant: { prompts: ['What is the status of my request?'], contextReady: true },
+    }),
+  }));
+  for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--booking-request-planning&viewMode=story', { waitUntil: 'networkidle' });
+    await page.evaluate(() => {
+      localStorage.setItem('my-shiloh-install-whatsapp-verified-v1', '1');
+      Object.defineProperty(window.navigator, 'standalone', { configurable: true, get: () => true });
+    });
+    await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
+    await expect(page.locator('[data-client-experience-home]')).toContainText('This appointment is not confirmed yet.');
+    await expect(page.locator('[data-client-experience-bookings] .action-card').first()).toContainText('Requested');
+    await expect(page.locator('[data-experience-extra-booking]')).toContainText('Awaiting your response');
+    await expect(page.locator('[data-client-experience-bookings] .action-card').first()).not.toContainText('Upcoming appointment');
+    const bounds = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }));
+    expect(bounds.document).toBeLessThanOrEqual(bounds.viewport);
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-client-experience-home]')
+      .include('[data-client-experience-bookings]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(item => ['serious','critical'].includes(item.impact))).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`my-shiloh-request-planning-${viewport.name}.png`), fullPage: true, animations: 'disabled' });
+  }
+});
+
 test('My Shiloh Home summary cards are tappable and redeemed welcome voucher clears from Home', async ({ page }, testInfo) => {
   await page.route('**/my-shiloh/api/experience', async (route) => route.fulfill({
     status: 200,
