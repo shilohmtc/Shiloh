@@ -147,10 +147,10 @@ test('migration assigns least privilege, reconciles roster and never embeds priv
   assert.doesNotMatch(migration, /INSERT INTO appointments|UPDATE appointments|INSERT INTO clients|UPDATE clients|send|google/i);
 });
 
-test('ILince booking-request resolution is linked-staff Workspace authority, not WhatsApp contact authority', () => {
+test('client booking-request resolution requires business-wide Reception authority, not WhatsApp contact authority', () => {
   const approval = read('src/services/clientBookingApproval.js');
   const migration = read('migrations/088_calendar_staff_roster_booking_authority.sql');
-  assert.match(approval, /Number\(row\.approver_staff_id\) === Number\(principal\.staff_id\)/);
+  assert.match(approval, /BUSINESS_WIDE_ROLES\.has\(role\) && scope === 'all_business'/);
   assert.doesNotMatch(approval, /resolveApproverContact|normalized_whatsapp/);
   assert.match(migration, /WHERE id=ilince_admin_id/);
   assert.match(migration, /- 'appointment:create'/);

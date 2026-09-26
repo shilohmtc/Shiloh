@@ -34,12 +34,17 @@ function principalStaffId(principal) {
 }
 
 function isDerivedGlobalCoordinator(principal) {
-  return GLOBAL_COORDINATION_ROLES.has(principalRole(principal)) && principalCalendarScope(principal) === 'all_business';
+  const role = principalRole(principal);
+  return GLOBAL_COORDINATION_ROLES.has(role) && principalCalendarScope(principal) === 'all_business'
+    && (role !== 'booking_operator' || principal?.permissions?.['appointment:create'] === true);
 }
 
 async function coordinationScopeForPrincipal(db, principal) {
   const adminId = positiveId(principal?.id || principal?.calendarAuthority?.operatorAdminId);
   if (!adminId) return { kind: 'none', teamId: null, teamName: null, explicit: false };
+  // Client-originated requests are planned by Reception. An old explicit team/self
+  // coordination row must not restore practitioner approval authority.
+  if (!isDerivedGlobalCoordinator(principal)) return { kind: 'none', teamId: null, teamName: null, explicit: false };
   const configured = await db.query(`
     SELECT brcs.scope_kind,brcs.team_id,t.display_name AS team_name
       FROM booking_request_coordination_scopes brcs
@@ -56,7 +61,7 @@ async function coordinationScopeForPrincipal(db, principal) {
     };
   }
   if (isDerivedGlobalCoordinator(principal)) return { kind: 'global', teamId: null, teamName: null, explicit: false };
-  return { kind: 'self', teamId: null, teamName: null, explicit: false };
+  return { kind: 'none', teamId: null, teamName: null, explicit: false };
 }
 
 async function teamForStaffIds(db, staffIds) {

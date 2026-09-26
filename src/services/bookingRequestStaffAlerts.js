@@ -86,6 +86,8 @@ async function alertRecipients(db, context) {
      WHERE a.active=TRUE
        AND a.normalized_whatsapp IS NOT NULL
        AND BTRIM(a.normalized_whatsapp)<>''
+       AND a.business_role=ANY($2::text[])
+       AND a.calendar_scope='all_business'
        AND (
          (brcs.admin_id IS NOT NULL AND brcs.receive_alerts=TRUE AND (
             brcs.scope_kind='global' OR (brcs.scope_kind='team' AND brcs.team_id=$1)

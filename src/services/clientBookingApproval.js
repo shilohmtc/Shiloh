@@ -91,11 +91,8 @@ function operatorCanResolve(principal, row) {
   if (!principal || !row) return false;
   const role = String(principal.business_role || principal.calendarAuthority?.businessRole || '').toLowerCase();
   const scope = String(principal.calendar_scope || principal.calendarAuthority?.calendarScope || '').toLowerCase();
-  if (BUSINESS_WIDE_ROLES.has(role) && scope === 'all_business') {
-    return role !== 'booking_operator' || principal.permissions?.['appointment:create'] === true;
-  }
-  if (principal.staff_id && Number(row.approver_staff_id) === Number(principal.staff_id)) return true;
-  return false;
+  return BUSINESS_WIDE_ROLES.has(role) && scope === 'all_business'
+    && (role !== 'booking_operator' || principal.permissions?.['appointment:create'] === true);
 }
 
 function hasBusinessWideAuthority(principal) {
