@@ -2,6 +2,8 @@
 
 This integration reports unhandled Node.js/runtime errors, startup failures, and errors that reach the final Express error handler. Unexpected PostgreSQL pool errors and failed scheduled booking-integrity scans are also captured with controlled error-kind/code tags. It does not add tracing, replay, log forwarding, provider monitoring, or business analytics.
 
+Client-impacting handled failures are captured selectively: a blocked consultation submission only when its link still opens an active form, a temporary form open/submit failure, or an active Shiloh payment link without a valid Ozow target. These events carry fixed codes and declared route patterns, not the form token, answers, appointment identity, payment key or provider URL. Expected expired/paid/cancelled links and ordinary validation errors are not Sentry incidents. A legacy raw Ozow URL bypasses Shiloh and cannot be observed by this server; Workspace problem reports and payment reconciliation remain necessary.
+
 ## Privacy boundary
 
 Sentry is initialized with `sendDefaultPii: false`, zero breadcrumbs, and a deliberately small integration allowlist. Automatic request data, HTTP, console, local-variable, and module inventory integrations are excluded.

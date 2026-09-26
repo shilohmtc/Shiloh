@@ -245,8 +245,10 @@ test('terminal payment links lead to the status page and never redirect back to 
 });
 
 test('an expired issued link explains that payment is not confirmed', async () => {
+  const incidents = [];
   const app = express();
   app.use('/pay', createPaymentLinkRouter({
+    monitor: { captureException(error, tags) { incidents.push({ error, tags }); } },
     db: { query: async () => ({ rows: [{ state: 'link_issued', amount: '125.00', payer_mobile: '27716742646', expires_at: '2020-01-01T00:00:00Z' }] }) },
   }));
   const server = app.listen(0, '127.0.0.1');
@@ -259,6 +261,32 @@ test('an expired issued link explains that payment is not confirmed', async () =
     const page = await (await fetch(`${base}/status/request_699_token`)).text();
     assert.match(page, /Payment not confirmed/);
     assert.match(page, /contact the clinic before trying again/);
+    assert.equal(incidents.length, 0);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
+test('an active payment link without a valid provider target reports a safe operational incident', async () => {
+  const incidents = [];
+  const app = express();
+  app.use('/pay', createPaymentLinkRouter({
+    monitor: { captureException(error, tags) { incidents.push({ error, tags }); } },
+    db: { query: async () => ({ rows: [{ state: 'link_issued', provider: 'ozow', provider_payment_url: 'https://other.example/private-key', payer_mobile: '27820000000' }] }) },
+  }));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/pay/secret_request_key`);
+    assert.equal(response.status, 409);
+    assert.equal(incidents.length, 1);
+    assert.deepEqual(incidents[0].tags, {
+      'error.kind': 'payment_link_unavailable',
+      'error.code': 'PAYMENT_PROVIDER_TARGET_INVALID',
+      'http.method': 'GET',
+      'http.route': '/pay/:requestKey',
+    });
+    assert.doesNotMatch(JSON.stringify(incidents[0].tags), /secret_request_key|27820000000|other\.example/);
   } finally {
     await new Promise(resolve => server.close(resolve));
   }
