@@ -121,13 +121,14 @@ test('public navigation gives returning clients a distinct My Shiloh entry witho
   assert.match(html, /class="mobile-client"[^>]*><span>My Shiloh<\/span><small>My bookings &amp; profile<\/small><\/a>/);
 });
 
-test('home includes an understated returning-client My Shiloh entry point', () => {
+test('home includes a clear My Shiloh install and returning-client entry point', () => {
   const html = renderHome(catalogue);
   assert.match(html, /class="client-portal"/);
-  assert.match(html, /Already part of Shiloh\?/);
+  assert.match(html, /Keep Shiloh one tap away\./);
+  assert.match(html, /href="\/my-shiloh\/" data-my-shiloh-install-link>Install My Shiloh<\/a>/);
   assert.match(html, /href="\/my-shiloh\/"[^>]*>Open My Shiloh<\/a>/);
-  assert.match(html, /No app-store download required/);
-  assert.match(html, /appointment, form and payment views will live here as the client experience grows/i);
+  assert.match(html, /No App Store or Play Store download required/);
+  assert.match(html, /bookings, Wallet, notifications and your private client space/i);
 });
 
 test('home includes a resilient, accessible Google review carousel without exposing credentials', () => {
