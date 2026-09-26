@@ -6,7 +6,7 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 
-const MY_SHILOH_ASSET_VERSION = '20260926-smart-install-greeting-v1';
+const MY_SHILOH_ASSET_VERSION = '20260926-website-install-share-icon-v1';
 
 function escapeHtml(value = '') {
   return String(value)
