@@ -133,7 +133,7 @@ test('My Shiloh install client distinguishes iPhone Safari, iPhone Chrome and An
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v24/);
+  assert.match(worker, /my-shiloh-shell-v25/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /booking\.js/);
