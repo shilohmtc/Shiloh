@@ -49,9 +49,8 @@ BEGIN
    WHERE ast.staff_id=practitioner_id
      AND a.starts_at>NOW()
      AND a.status IN ('scheduled','confirmed');
-  IF future_bookings > 0 THEN
-    RAISE EXCEPTION 'Marietjie clinic handoff found % future appointments requiring review; no changes were made', future_bookings;
-  END IF;
+  -- Christel will handle these appointments manually. Keep their booking and
+  -- payment history intact so no paid booking is silently lost or forfeited.
 
   INSERT INTO crm_v2_client_relationships
     (client_id,relationship_type,owner_staff_id,status,source)
@@ -123,6 +122,7 @@ BEGIN
             'archivedTenantRelationships',archived_relationships,
             'hiddenExclusiveServices',hidden_services,
             'convertedServiceVisibility',converted_services,
+            'futureBookingsForManualReview',future_bookings,
             'appointmentsChanged',0,
             'paymentEntriesChanged',0
           ));
