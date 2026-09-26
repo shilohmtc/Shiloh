@@ -7,6 +7,7 @@ const {
   BOOKING_POLICY_TEXT,
 } = require('../config/bookingPolicyAuthority');
 const { ensurePolicySchema } = require('../services/bookingPolicy');
+const { resolveWhatsAppNumber } = require('../services/publicWhatsApp');
 
 function safePaymentRequestKey(value) {
   const key = String(value || '').trim();
@@ -42,7 +43,7 @@ function validateOzowTarget(request) {
   return target;
 }
 
-function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema } = {}) {
+function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema, whatsappNumber = resolveWhatsAppNumber } = {}) {
   const router = express.Router();
   router.use(express.urlencoded({ extended: false }));
 
@@ -51,9 +52,13 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema 
     if (!requestKey) return paymentUnavailable(res, 404, 'Payment status not found.');
     try {
       const result = await db.query(
-        `SELECT amount,state,expires_at
-           FROM payment_requests
-          WHERE request_key=$1
+        `SELECT pr.amount,pr.state,pr.expires_at,
+                COALESCE(pr.deposit_member_appointment_id,bpa.appointment_id) AS appointment_id,
+                ap.status AS appointment_status
+           FROM payment_requests pr
+           LEFT JOIN booking_payment_accounts bpa ON bpa.id=pr.payment_account_id
+           LEFT JOIN appointments ap ON ap.id=COALESCE(pr.deposit_member_appointment_id,bpa.appointment_id)
+          WHERE pr.request_key=$1
           LIMIT 1`,
         [requestKey],
       );
@@ -62,11 +67,12 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema 
       const terminal = ['paid', 'failed', 'cancelled', 'expired', 'refunded'].includes(String(request.state));
       const statusRequest = request.expires_at && new Date(request.expires_at).getTime() <= Date.now() && !terminal
         ? { ...request, state: 'expired' } : request;
+      const number = ['failed', 'cancelled', 'expired', 'refunded'].includes(String(statusRequest.state)) && request.appointment_id && request.appointment_status !== 'cancelled' ? await whatsappNumber() : null;
       return res.status(200).type('html').set({
         'Cache-Control': 'no-store',
         'Referrer-Policy': 'no-referrer',
         'X-Content-Type-Options': 'nosniff',
-      }).send(renderPaymentStatusPage({ requestKey, request: statusRequest }));
+      }).send(renderPaymentStatusPage({ requestKey, request: statusRequest, whatsappNumber: number }));
     } catch (error) {
       return next(error);
     }

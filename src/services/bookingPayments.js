@@ -469,6 +469,15 @@ function createBookingPaymentService({
       const existing = await client.query(`SELECT * FROM payment_requests WHERE request_key=$1`, [key]); row = existing.rows[0];
       if (row && (Number(row.payment_account_id) !== Number(account.id) || Number(row.amount) !== Number(normalizedAmount))) throw new BookingPaymentError('PAYMENT_IDEMPOTENCY_MISMATCH', 'That operation identifier was already used for another payment request.', 409);
       if (!row) {
+        const active = await client.query(
+          `SELECT request_key FROM payment_requests
+            WHERE payment_account_id=$1 AND amount=$2 AND payer_mobile=$3
+              AND state IN ('link_issued','pending') AND provider_payment_url IS NOT NULL
+              AND (expires_at IS NULL OR expires_at>NOW())
+            LIMIT 1`,
+          [account.id, normalizedAmount, String(payerMobile || subject.clientMobile).trim()],
+        );
+        if (active.rows.length) throw new BookingPaymentError('PAYMENT_LINK_ALREADY_ACTIVE', 'An active link for this payer and amount already exists. Copy that link from Payment requests instead.', 409);
         const payerClientId=await resolvePayer(client,subject,payerMobile||subject.clientMobile);
         if(subject.groupId&&!payerClientId)throw new BookingPaymentError('PAYMENT_PAYER_CLIENT_REQUIRED','Choose a payer whose mobile number matches an active Shiloh client before creating a group payment link.',409);
         row = (await client.query(`INSERT INTO payment_requests(payment_account_id,request_key,provider,amount,payer_name,payer_mobile,created_by_admin_id,payer_crm_v2_client_id) VALUES($1,$2,'ozow',$3,$4,$5,$6,$7) RETURNING *`, [account.id,key,normalizedAmount,String(payerName || subject.clientName).trim() || null,String(payerMobile || subject.clientMobile).trim() || null,operator.id,payerClientId])).rows[0];

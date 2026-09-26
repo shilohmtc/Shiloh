@@ -5,7 +5,8 @@ const { renderPaymentStatusPage } = paymentStatusPresentation;
 function surface(state) {
   const html = renderPaymentStatusPage({
     requestKey: 'example_reference',
-    request: { amount: '125.00', state },
+    request: { amount: '295.00', state, appointment_id:779, appointment_status:'scheduled' },
+    whatsappNumber: '27820001234',
   });
   const style = html.match(/<style>([\s\S]*?)<\/style>/)?.[1] || '';
   const body = html.match(/<body[^>]*>([\s\S]*?)<\/body>/)?.[1] || '';
