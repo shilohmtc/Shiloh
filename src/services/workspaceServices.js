@@ -5,6 +5,33 @@ const { serviceVisibilityAllows } = require('./calendarAuthorization');
 const SERVICES_VIEW_CAPABILITY = 'services:view';
 const SERVICES_MANAGE_CAPABILITY = 'services:manage';
 const SERVICES_LIST_PAGE_SIZE = 30;
+// Retired tenant-only catalogue rows are kept for historical references, but
+// they do not belong in the clinic's Services workspace, including All.
+const RETIRED_TENANT_SERVICE_CLAUSE = `NOT (
+  svc.status='inactive'
+  AND EXISTS (
+    SELECT 1 FROM staff_services retired_assignment
+    JOIN staff retired_staff ON retired_staff.id=retired_assignment.staff_id
+    WHERE retired_assignment.service_id=svc.id
+      AND retired_staff.resource_type='practitioner'
+      AND retired_staff.status='inactive'
+      AND EXISTS (
+        SELECT 1 FROM staff_admin_accounts retired_account
+        WHERE retired_account.staff_id=retired_staff.id
+          AND retired_account.business_role='tenant_practitioner'
+          AND retired_account.active=FALSE
+      )
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM staff_services clinic_assignment
+    WHERE clinic_assignment.service_id=svc.id
+      AND NOT EXISTS (
+        SELECT 1 FROM staff_admin_accounts tenant_account
+        WHERE tenant_account.staff_id=clinic_assignment.staff_id
+          AND tenant_account.business_role='tenant_practitioner'
+      )
+  )
+)`;
 
 class WorkspaceServicesError extends Error {
   constructor(code, message, httpStatus, details = null) {
@@ -281,7 +308,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
     const serviceStatus = normalizeStatus(status);
     const safeOffset = normalizeOffset(offset);
     const values = [];
-    const where = [];
+    const where = [RETIRED_TENANT_SERVICE_CLAUSE];
     if (isTenantAssignedServicesAuthority(authority)) {
       values.push(authority.linkedStaffId);
       const linkedStaffParam = `$${values.length}`;
@@ -411,6 +438,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
          LEFT JOIN service_categories sc ON sc.id=svc.category_id
          LEFT JOIN service_visibility_policies visibility ON visibility.service_id=svc.id
         WHERE svc.id=$1
+          AND ${RETIRED_TENANT_SERVICE_CLAUSE}
           ${assignmentClause}
         LIMIT 1`,
       detailValues
@@ -476,7 +504,8 @@ function createWorkspaceServicesService({ db = pool } = {}) {
          FROM services svc
          LEFT JOIN service_categories sc ON sc.id=svc.category_id
          LEFT JOIN service_visibility_policies visibility ON visibility.service_id=svc.id
-        WHERE svc.id=$1
+       WHERE svc.id=$1
+          AND ${RETIRED_TENANT_SERVICE_CLAUSE}
           ${assignmentClause}
         FOR UPDATE OF svc`,
       mutationValues
