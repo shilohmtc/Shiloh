@@ -63,6 +63,8 @@ test('native booking page is a My Shiloh treatment-practitioner-time-review wiza
   assert.match(html, /50% is required after Shiloh approves/);
   assert.doesNotMatch(html, /Marietjie/i);
   assert.match(html, /data-submit-booking/);
+  assert.match(html, /data-special-occasion> Yes/);
+  assert.match(html, /data-special-occasion> No/);
   assert.match(html, /data-occasion-note maxlength="160"/);
   assert.match(html, /\/my-shiloh\/assets\/booking\.js/);
   assert.doesNotMatch(html, /wa\.me|whatsapp:\/\//i);
@@ -148,6 +150,7 @@ test('native booking request is bound to signed-in CRM V2 identity and stages Wo
     staffId:11,
     startsAt,
     policyAccepted:true,
+    specialOccasion:true,
     occasionNote:'  Birthday   treat for two ',
   });
 
@@ -155,7 +158,9 @@ test('native booking request is bound to signed-in CRM V2 identity and stages Wo
   assert.equal(result.appointmentId, 812);
   assert.deepEqual(calls.find(item=>item[0]==='acceptPolicy'), ['acceptPolicy','27821234567','my_shiloh']);
   assert.deepEqual(calls.find(item=>item[0]==='commit'), ['commit','27821234567',{ crmV2ClientId:55 }]);
-  assert.deepEqual(calls.find(item=>item[0]==='stage'), ['stage',812,{ occasionNote:'Birthday treat for two' }]);
+  assert.deepEqual(calls.find(item=>item[0]==='stage'), ['stage',812,{ occasionNote:'Birthday treat for two', specialOccasion:true }]);
+  await service.createRequest({ crmV2ClientId:55, serviceId:7, staffId:11, startsAt, policyAccepted:true, specialOccasion:false });
+  assert.deepEqual(calls.filter(item=>item[0]==='stage').at(-1), ['stage',812,{ occasionNote:null, specialOccasion:false }]);
   assert.equal(queries.some(call=>call.sql.includes('INSERT INTO appointments')), false);
 });
 
@@ -166,7 +171,15 @@ test('occasion details are bounded before booking writes', () => {
   assert.throws(() => cleanOccasionNote({ text:'birthday' }), MyShilohBookingError);
   const approval = read('src/services/clientBookingApproval.js');
   assert.match(approval, /client_occasion_note=EXCLUDED\.client_occasion_note/);
-  assert.match(approval, /\[positiveId\(appointmentId\), occasionNote\]/);
+  assert.match(approval, /\[positiveId\(appointmentId\), occasionNote, specialOccasion\]/);
+});
+
+test('a client must answer the occasion question and describe a Yes before any booking write', async () => {
+  const service = createMyShilohBookingService({ db:{ async query(){ throw new Error('Booking query must not run'); } } });
+  const request = { policyAccepted:true, crmV2ClientId:55, serviceId:7, staffId:11, startsAt:'2026-09-30T08:00:00.000Z' };
+  await assert.rejects(service.createRequest(request), { code:'BOOKING_OCCASION_CHOICE_REQUIRED' });
+  await assert.rejects(service.createRequest({ ...request, specialOccasion:true }), { code:'BOOKING_OCCASION_REQUIRED' });
+  await assert.rejects(service.createRequest({ ...request, specialOccasion:false, occasionNote:'Birthday' }), { code:'BOOKING_OCCASION_CONFLICT' });
 });
 
 

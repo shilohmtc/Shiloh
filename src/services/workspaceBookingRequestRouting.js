@@ -95,7 +95,7 @@ function rowVisibleToScope(row, principal, scope) {
 
 async function rawUnresolvedRows(db) {
   const result = await db.query(`
-    SELECT aba.appointment_id,aba.approver_staff_id,aba.status,aba.requested_at,aba.planning_started_at,aba.client_occasion_note,
+    SELECT aba.appointment_id,aba.approver_staff_id,aba.status,aba.requested_at,aba.planning_started_at,aba.client_occasion_note,aba.client_special_occasion,
            aba.requested_starts_at,aba.requested_ends_at,aba.requested_revision,
            aba.requested_staff_ids,aba.proposed_starts_at,aba.proposed_ends_at,
            aba.proposed_staff_id,aba.proposal_version,aba.proposal_expires_at,
@@ -133,6 +133,7 @@ async function listUnresolvedBookingRequests({ db = pool, principal, now = new D
     status: row.status,
     planningStartedAt: row.planning_started_at || null,
     occasionNote: row.client_occasion_note || null,
+    specialOccasion: row.client_special_occasion,
     effectiveStatus: row.status === 'awaiting_client_confirmation' && new Date(row.proposal_expires_at).getTime() <= now.getTime()
       ? 'pending' : row.status,
     clientName: row.client_name,
