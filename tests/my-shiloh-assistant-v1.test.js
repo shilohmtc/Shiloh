@@ -91,7 +91,7 @@ test('My Shiloh instructions keep AI read-only and canonical client context abov
   assert.match(instructions, /AI has no tool that can press a confirmation button, cancel an appointment, move an appointment or approve a reschedule/i);
   assert.match(instructions, /Never claim the cancellation or reschedule is complete merely because preparation succeeded/i);
   assert.match(instructions, /first use find_available_slots/i);
-  assert.match(instructions, /does not bypass practitioner approval/i);
+  assert.match(instructions, /authorized clinic decision is still required/i);
   assert.match(instructions, /use the matching read tool/i);
   assert.match(instructions, /availability check, not a reservation or booking/i);
   assert.match(instructions, /Never infer health information/);

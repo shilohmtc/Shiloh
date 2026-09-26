@@ -260,20 +260,20 @@ test('Johannesburg slot conversion stays explicit at the practitioner approval h
   });
 });
 
-test('Shiloh prompt requires availability first and preserves client + practitioner confirmation boundaries', () => {
+test('Shiloh prompt requires availability first and preserves client and clinic decision boundaries', () => {
   const prompt = read('src/services/orchestrator.js');
   assert.match(prompt, /first use find_available_slots/);
   assert.match(prompt, /exact startsAt value/);
-  assert.match(prompt, /does not bypass practitioner approval/);
+  assert.match(prompt, /authorized clinic decision is still required/);
   assert.match(prompt, /AI has no tool that can press a confirmation button/);
 });
 
-test('confirmation API and browser accept pending practitioner approval without claiming the move happened', () => {
+test('confirmation API and browser accept a pending clinic decision without claiming the move happened', () => {
   const route = read('src/routes/myShiloh.js');
   const app = read('public/my-shiloh/assets/app.js');
   assert.match(route, /result\.ok && result\.status === 'pending_approval'/);
   assert.match(route, /current appointment is unchanged/i);
   assert.match(app, /data\.status === 'pending_approval'/);
-  assert.match(app, /practitioner approval/i);
+  assert.match(app, /Reception for planning/i);
   assert.doesNotMatch(app, /Your appointment has been rescheduled/);
 });

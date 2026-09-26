@@ -208,6 +208,24 @@ function createWorkspaceOperationalRouter({
   router.post('/booking-requests/:appointmentId/cannot_accommodate', sameOrigin, requireCsrf,
     (req, res) => bookingRequestAction(req, res, 'cannot_accommodate'));
 
+  router.post('/reschedule-requests/:requestId/:decision', sameOrigin, requireCsrf, async (req, res) => {
+    try {
+      const result = await dashboardService.resolveRescheduleRequest({
+        adminId: req.staffBrowserSession?.adminId,
+        viewer: req.staffBrowserSession?.viewer,
+        ...(req.staffBrowserSession?.accountPrincipal
+          ? { sessionPrincipal: req.staffBrowserSession.accountPrincipal }
+          : {}),
+        requestId: req.params.requestId,
+        decision: req.params.decision,
+      });
+      return res.status(200).json(result);
+    } catch (error) {
+      const safe = dashboardMutationError(error);
+      return res.status(safe.status).json({ error: safe.message, code: safe.code, requestId: req.id });
+    }
+  });
+
   return router;
 }
 

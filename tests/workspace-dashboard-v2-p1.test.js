@@ -307,16 +307,21 @@ test('Needs Attention projects pending and awaiting-client booking requests with
 });
 
 test('Needs Attention distinguishes a pending time change from the unchanged appointment', () => {
-  const html = renderDashboardPage({
+  const model = {
     mode: 'owner_overview', displayName: 'Christel', appointments: [], teamGroups: [], carryOver: [],
     bookingRequests: [], awaitingFinalization: [], holidayDecisions: [], recentActivity: [],
-    rescheduleRequests: [{ requestId: 801, appointmentId: 501, clientName: 'Client A', serviceName: 'Massage', staffName: 'Abigail', originalStartsAt: '2026-09-27T08:00:00Z', proposedStartsAt: '2026-09-30T08:00:00Z' }],
+    rescheduleRequests: [{ requestId: 801, appointmentId: 501, decisionOwner: 'practitioner', clientName: 'Client A', serviceName: 'Massage', staffName: 'Abigail', originalStartsAt: '2026-09-27T08:00:00Z', proposedStartsAt: '2026-09-30T08:00:00Z' }],
     calendar: { timeline: { staff: [] } }, operationalDateKey: '2026-09-26', requestedDateKey: '2026-09-26',
-  });
+  };
+  const html = renderDashboardPage(model);
   assert.match(html, /data-dashboard-reschedule-request="801"/);
   assert.match(html, /Time change requested/);
   assert.match(html, /current booking remains unchanged/);
   assert.doesNotMatch(html, /data-booking-action="accept"/);
+  assert.doesNotMatch(html, /data-reschedule-decision="approve"/);
+  const receptionHtml = renderDashboardPage({ ...model, rescheduleRequests: [{ ...model.rescheduleRequests[0], decisionOwner: 'reception' }] });
+  assert.match(receptionHtml, /data-reschedule-decision="approve"/);
+  assert.match(receptionHtml, /data-reschedule-decision="decline"/);
 });
 
 test('Workspace booking-request action re-resolves authority and forwards only controlled inputs', async () => {
@@ -396,4 +401,28 @@ test('booking-request routes preserve session, same-origin and CSRF boundaries',
     adminId: 7, viewer: session.viewer, appointmentId: '7651', action: 'propose',
     expectedRevision: '2026-09-05T06:30:00.000Z', startsAt: '2026-09-11T08:00:00.000Z', staffId: 11, serviceId: undefined,
   });
+});
+
+test('Reception time-change decision requires session, same origin and CSRF', async () => {
+  const calls = [];
+  const session = { ok: true, adminId: 7, viewer: { calendarScope: 'all_business' }, csrfHash: 'test' };
+  const sessionService = {
+    async validateSessionToken(token) { return token === 'valid' ? session : { ok: false }; },
+    validateCsrfToken(current, token) { return current === session && token === 'csrf'; },
+  };
+  const app = express();
+  app.use(express.json());
+  app.use('/calendar/workspace', createWorkspaceOperationalRouter({ env: ENABLED_ENV, sessionService,
+    dashboardService: {
+      async resolveRescheduleRequest(input) { calls.push(input); return { status: 'approved', reply: 'Confirmed' }; },
+    },
+  }));
+  await withServer(app, async base => {
+    const url = `${base}/calendar/workspace/reschedule-requests/45/approve`;
+    assert.equal((await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status, 401);
+    assert.equal((await fetch(url, { method: 'POST', headers: { cookie: 'shiloh_staff_session=valid', 'content-type': 'application/json' }, body: '{}' })).status, 403);
+    assert.equal((await fetch(url, { method: 'POST', headers: { cookie: 'shiloh_staff_session=valid', origin: base, 'content-type': 'application/json', 'x-shiloh-csrf-token': 'bad' }, body: '{}' })).status, 403);
+    assert.equal((await fetch(url, { method: 'POST', headers: { cookie: 'shiloh_staff_session=valid', origin: base, 'content-type': 'application/json', 'x-shiloh-csrf-token': 'csrf' }, body: '{}' })).status, 200);
+  });
+  assert.deepEqual(calls, [{ adminId: 7, viewer: session.viewer, requestId: '45', decision: 'approve' }]);
 });

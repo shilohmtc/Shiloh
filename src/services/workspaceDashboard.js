@@ -395,7 +395,15 @@ function createWorkspaceDashboardService({
     throw new WorkspaceDashboardError('WORKSPACE_BOOKING_REQUEST_INVALID', 'Choose a valid booking-request resolution.', 400);
   }
 
-  return { buildModel, finalizeVisit, resolveBookingRequest };
+  async function resolveRescheduleRequest({ adminId, viewer, sessionPrincipal = null, requestId, decision } = {}) {
+    const { principal } = await resolveAuthority(adminId, viewer, sessionPrincipal);
+    if (typeof bookingRequestService.decideReceptionReschedule !== 'function') {
+      throw new WorkspaceDashboardError('WORKSPACE_RESCHEDULE_UNAVAILABLE', 'Reception time-change decisions are unavailable.', 503);
+    }
+    return bookingRequestService.decideReceptionReschedule({ principal, requestId, decision });
+  }
+
+  return { buildModel, finalizeVisit, resolveBookingRequest, resolveRescheduleRequest };
 }
 
 const service = createWorkspaceDashboardService({

@@ -33,7 +33,7 @@ const ACTION_TOOL_DEFINITIONS = Object.freeze([
   {
     type: 'function',
     name: ACTION_TOOL_NAMES.PREPARE_RESCHEDULE,
-    description: 'Prepare a reschedule request for the authenticated client’s next appointment using an exact startsAt returned by find_available_slots. This never moves the appointment; client confirmation is still required and practitioner approval remains authoritative.',
+    description: 'Prepare a reschedule request for the authenticated client’s next appointment using an exact startsAt returned by find_available_slots. This never moves the appointment; client confirmation and the authorized clinic decision are still required.',
     strict: true,
     parameters: {
       type: 'object',

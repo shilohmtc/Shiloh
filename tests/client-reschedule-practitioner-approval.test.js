@@ -86,20 +86,21 @@ test('explicit change boundaries reconcile stale pending requests so they cannot
   assert.match(webhook, /processRescheduleApprovalDecision\(from,text\)/);
 });
 
-test('approval transport contract is frozen and uses deterministic decision payloads', () => {
+test('in-flight practitioner decision payloads remain recognized while new requests use Reception', () => {
   assert.match(service, /shiloh_reschedule_approval_request_v1/);
   assert.match(service, /shiloh_reschedule_declined_v1/);
   assert.match(service, /reschedule_approval_approve_/);
   assert.match(service, /reschedule_approval_decline_/);
-  assert.match(service, /WHATSAPP_RESCHEDULE_APPROVAL_REQUEST_TEMPLATE/);
+  assert.match(service, /status,decision_owner\)/);
   assert.match(service, /WHATSAPP_RESCHEDULE_DECLINED_TEMPLATE/);
   assert.doesNotMatch(service, /submit.*Template|graph\.facebook\.com/i);
 });
 
-test('practitioner decision is authorized through exactly one active staff admin WhatsApp identity', () => {
+test('legacy practitioner decisions require exact active WhatsApp identity and practitioner ownership', () => {
   assert.match(service, /staff_admin_accounts/);
-  assert.match(service, /result\.rowCount !== 1/);
+  assert.match(service, /result\.rowCount === 1/);
   assert.match(service, /Number\(admin\.staff_id\) !== Number\(context\.approver_staff_id\)/);
+  assert.match(service, /context\.decision_owner !== 'practitioner'/);
   assert.match(service, /You are not authorized to decide this reschedule request/);
   const webhook = fs.readFileSync(path.join(root, 'src', 'controllers', 'webhookController.js'), 'utf8');
   assert.match(webhook, /processRescheduleApprovalDecision\(from,text\)/);

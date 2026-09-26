@@ -353,7 +353,8 @@ test('Reception can see a pending time change without an unsafe decision action 
     await expect(request).toContainText('Current appointment:');
     await expect(request).toContainText('Requested:');
     await expect(request).toContainText('current booking remains unchanged');
-    await expect(request.locator('button')).toHaveCount(0);
+    await expect(request.getByRole('button', { name: 'Confirm time change' })).toBeVisible();
+    await expect(request.getByRole('button', { name: 'Cannot accommodate' })).toBeVisible();
     const bounds = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }));
     expect(bounds.document).toBeLessThanOrEqual(bounds.viewport);
     const accessibility = await new AxeBuilder({ page })

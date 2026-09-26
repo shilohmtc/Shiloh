@@ -34,12 +34,13 @@ function configureTargets() {
   process.env.WHATSAPP_RESCHEDULE_DECLINED_TEMPLATE = 'shiloh_reschedule_declined_v1';
 }
 
-test('application payload order and deterministic quick-reply payload contract match frozen provider definitions', () => {
+test('legacy provider definitions remain frozen while new requests use Reception', () => {
   const requestDefinition = buildDefinition('reschedule_approval_request');
   const declinedDefinition = buildDefinition('reschedule_declined');
   assert.deepEqual(TARGET_KEYS, ['reschedule_approval_request', 'reschedule_declined']);
-  assert.match(approvalService, /appointment\.client_name,[\s\S]*appointment\.service_name,[\s\S]*fmtDateTime\(appointment\.starts_at\),[\s\S]*fmtDateTime\(request\.proposed_starts_at\),[\s\S]*String\(appointment\.id\)/);
-  assert.match(approvalService, /`\$\{APPROVE_PREFIX\}\$\{request\.id\}`,[\s\S]*`\$\{DECLINE_PREFIX\}\$\{request\.id\}`/);
+  assert.match(approvalService, /'pending','reception'/);
+  assert.doesNotMatch(approvalService, /sendApprovalRequest\(/);
+  assert.match(approvalService, /context\.decision_owner !== 'practitioner'/);
   assert.match(approvalService, /context\.client_name,[\s\S]*context\.service_name,[\s\S]*fmtDateTime\(context\.proposed_starts_at\),[\s\S]*fmtDateTime\(context\.original_starts_at\),[\s\S]*String\(context\.appointment_id\)/);
   assert.match(approvalService, /\['client_reschedule_booking'\]/);
   assert.deepEqual(requestDefinition.components[1].buttons.map((button) => button.text), ['Approve', 'Decline']);

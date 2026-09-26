@@ -698,7 +698,7 @@ function createMyShilohRouter({
         return res.status(200).json({
           status: 'pending_approval',
           appointment: result.appointment,
-          message: result.reply || 'Your reschedule request was sent for practitioner approval.',
+          message: result.reply || 'Your time-change request was sent to Reception for planning.',
         });
       }
       const status = result.status === 'appointment_started' ? 409
@@ -720,9 +720,9 @@ function createMyShilohRouter({
                 : ['slot_unavailable','clinic_hours','staff_schedule','crm_conflict','reschedule_hold_conflict','booking_proposal_hold_conflict'].includes(String(result.status || ''))
                   ? 'That replacement time is no longer safely available. Your current appointment is unchanged.'
                   : result.status === 'already_pending'
-                    ? 'A reschedule request is already awaiting practitioner approval for this appointment.'
+                    ? 'A time-change request is already awaiting a decision for this appointment.'
                     : result.status === 'notification_failed' || result.status === 'approval_request_failed'
-                      ? 'The reschedule approval request could not be sent safely. Your current appointment is unchanged.'
+                      ? 'The time-change request could not be saved safely. Your current appointment is unchanged.'
                       : 'That confirmation is no longer valid.';
       return res.status(status).json({ error, status: result.status || 'invalid', requestId: req.id });
     } catch (error) {
