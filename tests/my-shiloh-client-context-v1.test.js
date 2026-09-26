@@ -45,6 +45,10 @@ test('authenticated client context is keyed only by CRM V2 identity and projects
         assert.deepEqual(values, [55]);
         return { rows: [], rowCount: 0 };
       }
+      if (sql.includes('myShilohClientContext:pending-reschedule-requests')) {
+        assert.equal(values[0], 55);
+        return { rows: [], rowCount: 0 };
+      }
       if (sql.includes('myShilohClientContext:forms-status-only')) {
         assert.deepEqual(values, [55, 901]);
         return {
@@ -89,6 +93,7 @@ test('authenticated client context is keyed only by CRM V2 identity and projects
   assert.equal(context.activeRequest, null);
   assert.deepEqual(context.activeRequests, []);
   assert.deepEqual(context.declinedRequests, []);
+  assert.deepEqual(context.pendingRescheduleRequests, []);
   assert.deepEqual(context.nextAppointment.services, ['Hot Stone Massage']);
   assert.deepEqual(context.nextAppointment.practitioners, ['Marietjie']);
   assert.equal(context.forms[0].actionRequired, true);
@@ -96,6 +101,46 @@ test('authenticated client context is keyed only by CRM V2 identity and projects
   assert.equal(context.payment.outstanding, '500.00');
   assert.equal(context.payment.activePaymentPath, '/pay/PAYREQ_123456');
   assert.equal(calls.some(call => call.values.includes(55)), true);
+});
+
+test('pending CRM reschedule retains the original appointment and proposed time as separate facts', async () => {
+  const service = createMyShilohClientContextService({
+    db: { async query(sql, values) {
+      assert.match(sql, /request\.crm_v2_client_id=\$1 AND request\.client_id IS NULL/);
+      assert.match(sql, /a\.crm_v2_client_id=\$1 AND a\.client_id IS NULL/);
+      assert.match(sql, /a\.starts_at=request\.original_starts_at AND a\.ends_at=request\.original_ends_at/);
+      assert.match(sql, /request\.status='pending'/);
+      assert.deepEqual(values, [55, new Date('2026-09-26T10:00:00.000Z')]);
+      return { rows: [{ id: 901, crm_v2_client_id: 55,
+        starts_at: '2026-09-27T08:00:00.000Z', ends_at: '2026-09-27T09:00:00.000Z',
+        proposed_starts_at: '2026-09-30T08:00:00.000Z', status: 'confirmed',
+        services: [{ name: 'Hot Stone Massage' }], practitioners: [{ name: 'Abigail' }],
+      }] };
+    } },
+    now: () => new Date('2026-09-26T10:00:00.000Z'),
+  });
+  const pending = await service.loadPendingRescheduleRequests(55);
+  const experience = buildClientExperience({
+    generatedAt: '2026-09-26T10:00:00.000Z', client: { id: 55, name: 'Naledi Mokoena' },
+    nextAppointment: pending[0], pendingRescheduleRequests: pending,
+    forms: [], payment: { state: 'paid' },
+  });
+  assert.equal(experience.home.status, 'Change requested');
+  assert.match(experience.home.summary, /current appointment remains/i);
+  assert.match(experience.home.summary, /30 Sep/);
+  assert.equal(experience.bookings.upcoming.length, 1);
+  assert.match(experience.bookings.upcoming[0].date, /Sun, 27 Sep/);
+  assert.match(experience.bookings.upcoming[0].nextAction, /until the change is approved/i);
+  assert.equal(experience.home.facts.find(item => item.key === 'payment').value, 'Paid');
+
+  const earlierVisit = buildClientExperience({
+    generatedAt: '2026-09-26T10:00:00.000Z', client: { id: 55, name: 'Naledi Mokoena' },
+    nextAppointment: { id: 900, startsAt: '2026-09-26T13:00:00.000Z', services: ['Facial'], practitioners: ['Abigail'], status: 'confirmed' },
+    pendingRescheduleRequests: pending,
+    forms: [{ title: 'Facial form', actionRequired: true }], payment: { state: 'paid' },
+  });
+  assert.equal(earlierVisit.home.status, 'Action needed');
+  assert.deepEqual(earlierVisit.bookings.upcoming.map(item => item.id), [900, 901]);
 });
 
 test('a canonical client request takes priority over an upcoming visit without appearing confirmed or payable', () => {
