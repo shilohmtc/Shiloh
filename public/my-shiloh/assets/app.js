@@ -440,7 +440,7 @@
           const copy = card.querySelector('p');
           const action = card.querySelector('.button');
           if (number) number.textContent = String(index + 1).padStart(2, '0');
-          const isRequest = booking.status === 'Requested' || booking.status === 'Awaiting your response';
+          const isRequest = booking.status === 'Requested' || booking.status === 'Planning' || booking.status === 'Awaiting your response';
           if (heading) heading.textContent = isRequest ? String(booking.status) : String(booking.service || 'Upcoming appointment');
           if (copy) copy.textContent = [[booking.service, booking.date, booking.time, booking.practitioner].filter(Boolean).join(' · '), booking.nextAction].filter(Boolean).join(' — ');
           if (action) {
@@ -475,6 +475,20 @@
             action.href = '/my-shiloh/book';
           }
         }
+        const history = Array.isArray(experience.bookings?.history) ? experience.bookings.history : [];
+        history.forEach((booking) => {
+          const card = document.createElement('article');
+          card.className = 'action-card';
+          card.dataset.experienceExtraBooking = '';
+          const details = document.createElement('div');
+          const heading = document.createElement('h2');
+          heading.textContent = String(booking.status || 'Past request');
+          const copy = document.createElement('p');
+          copy.textContent = [[booking.service, booking.date, booking.time, booking.practitioner].filter(Boolean).join(' · '), booking.nextAction].filter(Boolean).join(' — ');
+          details.append(heading, copy);
+          card.append(details);
+          primary.parentElement.append(card);
+        });
       }
     }
 
