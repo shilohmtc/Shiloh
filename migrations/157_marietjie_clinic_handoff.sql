@@ -7,6 +7,7 @@ DECLARE
   practitioner_id BIGINT;
   matched_staff INTEGER;
   matched_principals INTEGER;
+  future_bookings INTEGER;
   promoted_clients INTEGER;
   archived_relationships INTEGER;
   hidden_services INTEGER;
@@ -40,6 +41,16 @@ BEGIN
      WHERE id=1 AND exempt_staff_id=practitioner_id
   ) THEN
     RAISE EXCEPTION 'Marietjie deposit policy reference drifted; clinic handoff refused';
+  END IF;
+
+  SELECT COUNT(DISTINCT a.id) INTO future_bookings
+    FROM appointments a
+    JOIN appointment_staff ast ON ast.appointment_id=a.id
+   WHERE ast.staff_id=practitioner_id
+     AND a.starts_at>NOW()
+     AND a.status IN ('scheduled','confirmed');
+  IF future_bookings > 0 THEN
+    RAISE EXCEPTION 'Marietjie clinic handoff found % future appointments requiring review; no changes were made', future_bookings;
   END IF;
 
   INSERT INTO crm_v2_client_relationships
