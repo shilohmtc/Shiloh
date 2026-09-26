@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const express = require('express');
 
 const root = path.join(__dirname, '..');
 const migration = fs.readFileSync(path.join(root, 'migrations/132_secure_client_consultation_forms.sql'), 'utf8');
@@ -180,6 +181,51 @@ test('same-origin submission guard rejects a foreign origin and accepts same hos
   assert.equal(routes.sameOriginSubmission(makeReq('https://app.shilohmtc.co.za')), true);
   assert.equal(routes.sameOriginSubmission(makeReq('https://example.com')), false);
   assert.equal(routes.sameOriginSubmission(makeReq('')), true);
+});
+
+test('a rendered form submits from an opaque mobile origin with a signed proof, without persisting that proof', async () => {
+  const token = Buffer.alloc(32, 7).toString('base64url');
+  const env = {
+    SHILOH_CLIENT_CONSULTATION_FORMS_ENABLED: 'true',
+    CONSULTATION_FORM_DATA_KEY: Buffer.alloc(32, 9).toString('base64url'),
+  };
+  let submissions = 0;
+  const app = express();
+  app.use('/forms', routes.createClientConsultationFormsRouter({
+    env,
+    service: {
+      isClientConsultationFormsEnabled: () => true,
+      parseDataKey: () => Buffer.alloc(32, 9),
+      openForm: async () => ({ form: fixtureForm(), prefill: {} }),
+      submitForm: async (_token, answers) => {
+        assert.equal(Object.hasOwn(answers, 'submission_proof'), false);
+        assert.equal(answers.consent_acknowledged, 'yes');
+        submissions += 1;
+      },
+    },
+  }));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  try {
+    const base = `http://127.0.0.1:${server.address().port}/forms/f/${token}`;
+    const page = await (await fetch(base)).text();
+    const proof = page.match(/name="submission_proof" value="([A-Za-z0-9_-]+)"/)?.[1];
+    assert.equal(proof, routes.submissionProof(token, env));
+    assert.equal(routes.validSubmissionProof(token, proof, env), true);
+    assert.equal(routes.validSubmissionProof(Buffer.alloc(32, 8).toString('base64url'), proof, env), false);
+    const post = async value => fetch(base, {
+      method: 'POST',
+      headers: { Origin: 'null', 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ consent_acknowledged: 'yes', ...(value ? { submission_proof: value } : {}) }),
+    });
+    assert.equal((await post()).status, 403);
+    assert.equal((await post('tampered')).status, 403);
+    assert.equal(submissions, 0);
+    assert.equal((await post(proof)).status, 200);
+    assert.equal(submissions, 1);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
 });
 
 test('progressive enhancement contains no browser storage or logging of sensitive answers', () => {
