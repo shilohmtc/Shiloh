@@ -102,6 +102,8 @@ test('Workspace Services list preserves visibility and SQL-scopes tenant practit
   const ownerList = await createWorkspaceServicesService({ db: owner.db }).listServices({ adminId: 71, status: 'all' });
   assert.deepEqual(ownerList.services.map(row => row.id), [1]);
   assert.match(owner.calls.find(call => call.sql.includes('workspaceServices:list')).sql, /visibility\.owner_staff_id IS NULL/);
+  assert.match(owner.calls.find(call => call.sql.includes('workspaceServices:list')).sql, /retired_account\.business_role='tenant_practitioner'/);
+  assert.match(owner.calls.find(call => call.sql.includes('workspaceServices:list')).sql, /NOT EXISTS \(\s*SELECT 1 FROM staff_services clinic_assignment/);
 
   const booking = readDb({ admin: principal({ role: 'booking_operator' }), listRows: rows });
   const bookingList = await createWorkspaceServicesService({ db: booking.db }).listServices({ adminId: 71, status: 'all' });
@@ -143,6 +145,7 @@ test('tenant-private detail is hidden from unrelated principals and missing tena
   assert.equal(detail.service.id, 2);
   assert.equal(Object.prototype.hasOwnProperty.call(detail.service, 'private_owner_staff_id'), false);
   const ownDetailSql = own.calls.find(call => call.sql.includes('workspaceServices:detail'));
+  assert.match(ownDetailSql.sql, /retired_account\.active=FALSE/);
   assert.match(ownDetailSql.sql, /EXISTS \( SELECT 1 FROM staff_services scoped WHERE scoped\.service_id=svc\.id AND scoped\.staff_id=\$2 \)/);
   assert.deepEqual(ownDetailSql.params, [2, 11]);
 });
