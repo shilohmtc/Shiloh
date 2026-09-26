@@ -23,7 +23,7 @@ function principal(overrides = {}) {
   };
 }
 
-function dbWith({ scopes = {}, unresolved = [], targets = {}, teamsByStaff = {} } = {}) {
+function dbWith({ scopes = {}, unresolved = [], reschedules = [], targets = {}, teamsByStaff = {} } = {}) {
   return {
     async query(sql, params = []) {
       if (sql.includes('FROM booking_request_coordination_scopes brcs') && sql.includes('LIMIT 1')) {
@@ -32,6 +32,13 @@ function dbWith({ scopes = {}, unresolved = [], targets = {}, teamsByStaff = {} 
       }
       if (sql.includes('FROM appointment_booking_approvals aba') && sql.includes("WHERE aba.status IN ('pending','awaiting_client_confirmation')")) {
         return { rowCount: unresolved.length, rows: unresolved };
+      }
+      if (sql.includes('FROM appointment_reschedule_requests request')) {
+        assert.match(sql, /st\.business_role.*tenant_practitioner/);
+        assert.match(sql, /a\.starts_at=request\.original_starts_at/);
+        assert.match(sql, /team\.id=\$2/);
+        if (params[1] != null) assert.equal(params[1], 11);
+        return { rowCount: reschedules.length, rows: reschedules };
       }
       if (sql.includes('WHERE aba.appointment_id=$1') && sql.includes('requested_staff_ids')) {
         const row = targets[Number(params[0])] || null;
@@ -94,6 +101,20 @@ test('owner sees and may resolve requests across teams despite a historical team
   assert.equal(rows.every(row => row.coordinationScope === 'global'), true);
   const permitted = await routing.requireRoutingAuthority(db, owner, 502);
   assert.equal(permitted.scope.kind, 'global');
+});
+
+test('pending time changes reach Christel and scoped Reception without exposing them to practitioners', async () => {
+  const reschedules = [
+    { id: 801, appointment_id: 501, approver_staff_id: 3, team_id: 11, client_name: 'Client A', service_name: 'Massage', staff_name: 'Christel', original_starts_at: '2026-09-27T08:00:00Z', proposed_starts_at: '2026-09-30T08:00:00Z' },
+    { id: 802, appointment_id: 502, approver_staff_id: 5, team_id: 12, client_name: 'Client B', service_name: 'Facial', staff_name: 'Abigail', original_starts_at: '2026-09-28T08:00:00Z', proposed_starts_at: '2026-10-01T08:00:00Z' },
+  ];
+  const db = dbWith({ scopes: { 100: { scope_kind: 'team', team_id: 11 } }, reschedules });
+  const input = { db, now: new Date('2026-09-26T08:00:00Z') };
+  const owner = principal({ business_role: 'owner', calendarAuthority: { businessRole: 'owner', calendarScope: 'all_business' } });
+  assert.deepEqual((await routing.listPendingRescheduleRequests({ ...input, principal: owner })).map(row => row.requestId), [801, 802]);
+  assert.deepEqual((await routing.listPendingRescheduleRequests({ ...input, principal: principal() })).map(row => row.requestId), [801]);
+  const practitioner = principal({ business_role: 'employee_practitioner', calendar_scope: 'own_appointments' });
+  assert.deepEqual(await routing.listPendingRescheduleRequests({ ...input, principal: practitioner }), []);
 });
 
 test('a practitioner team scope does not expose or resolve client-originated requests', async () => {

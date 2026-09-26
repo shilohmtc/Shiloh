@@ -272,6 +272,16 @@ export const ReceptionPlanningQueue = {
     ],
   }), dashboardClientScript()),
 };
+export const ReceptionTimeChangeAttention = {
+  render: () => interactiveProductionSurface(renderDashboardPage({
+    ...dashboardModel(),
+    displayName: 'Christel',
+    bookingRequests: [],
+    rescheduleRequests: [
+      { requestId: 901, appointmentId: 801, clientName: 'Client A', serviceName: 'Hot Stone Massage', staffName: 'Abigail', originalStartsAt: '2026-09-27T08:00:00.000Z', proposedStartsAt: '2026-09-30T08:00:00.000Z' },
+    ],
+  }), dashboardClientScript()),
+};
 export const DashboardActiveNoShow = { render: () => interactiveProductionSurface(renderDashboardPage(activeNoShowDashboardModel()), dashboardClientScript()) };
 export const NavigationDrawerOpen = { render: workspaceNavigationOpenStory };
 export const ClientAppointmentHistory = { render: () => productionSurface(renderClientDetailPageWithCommunications(clientModel(), { calendarNavigationAllowed: true, notificationActionAllowed: true })) };

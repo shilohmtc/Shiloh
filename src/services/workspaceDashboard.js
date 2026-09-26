@@ -293,8 +293,9 @@ function createWorkspaceDashboardService({
       .filter(item => ['completed', 'no_show'].includes(String(item.status || '').toLowerCase()))
       .sort((a, b) => new Date(b.endsAt).getTime() - new Date(a.endsAt).getTime())
       .slice(0, 6);
-    const [bookingRequests, holidayDecisions] = await Promise.all([
+    const [bookingRequests, rescheduleRequests, holidayDecisions] = await Promise.all([
       bookingRequestService.listUnresolvedBookingRequests({ principal, now }),
+      bookingRequestService.listPendingRescheduleRequests?.({ principal, now }) || [],
       authority.mode === 'owner_overview' && holidayAttentionService?.listHolidayDecisions
         ? holidayAttentionService.listHolidayDecisions({ now }) : [],
     ]);
@@ -339,6 +340,7 @@ function createWorkspaceDashboardService({
         : [],
       awaitingFinalization,
       bookingRequests,
+      rescheduleRequests,
       holidayDecisions,
       recentActivity,
       closures: calendar.timeline?.closures || [],
