@@ -160,3 +160,15 @@ export const MarietjieServiceManagement = {
 export const UncategorisedServiceManagement = {
   render: () => productionSurface(uncategorisedDetailHtml()),
 };
+
+export const ChristelCategoryManagement = {
+  render: () => productionSurface(renderServicesListPage({
+    authority: { displayName: 'Christel', businessRole: 'owner', serviceScope: 'all_services' },
+    services: [], hasMore: false, offset: 0, pageSize: 30, status: 'active',
+    categories: [
+      { id: 3, name: 'Massage', displayOrder: 3, status: 'active', serviceCount: 14 },
+      { id: 2, name: 'Facials', displayOrder: 2, status: 'active', serviceCount: 5 },
+      { id: 18, name: 'New category', displayOrder: 4, status: 'active', serviceCount: 0 },
+    ],
+  }, { ...options, staffNavigationAllowed: true })),
+};
