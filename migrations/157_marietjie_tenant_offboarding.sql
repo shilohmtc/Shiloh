@@ -70,6 +70,12 @@ BEGIN
                    WHERE pa.appointment_id=a.id)
        OR EXISTS (SELECT 1 FROM booking_deposit_requirement_members dm
                    WHERE dm.appointment_id=a.id)
+       OR EXISTS (SELECT 1 FROM package_session_redemptions pr
+                   WHERE pr.appointment_id=a.id AND pr.status='reserved')
+       OR EXISTS (SELECT 1 FROM loyalty_redemptions lr
+                   WHERE lr.appointment_id=a.id AND lr.status IN ('pending','committed'))
+       OR EXISTS (SELECT 1 FROM loyalty_wallet_entries we
+                   WHERE we.appointment_id=a.id)
      )
   ) THEN
     RAISE EXCEPTION 'Marietjie tenant offboarding found a shared or payment-linked future booking; no changes were made';
@@ -112,7 +118,7 @@ BEGIN
      SET status='declined',decided_at=COALESCE(decided_at,NOW()),
          decision_note='Independent tenant will handle appointment manually',
          updated_at=NOW()
-   WHERE status='pending'
+   WHERE status IN ('pending','awaiting_client_confirmation')
      AND appointment_id IN (
        SELECT a.id FROM appointments a
        JOIN appointment_staff ast ON ast.appointment_id=a.id
