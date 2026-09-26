@@ -185,8 +185,6 @@ export const IPhoneInstallGuide = {
     if (extra) extra.hidden = true;
     const tip = surface.querySelector('[data-install-tip]');
     if (tip) tip.hidden = true;
-    const copyAction = surface.querySelector('[data-install-copy-link]');
-    if (copyAction) copyAction.hidden = true;
     return surface;
   },
 };
@@ -200,16 +198,16 @@ export const IPhoneChromeInstallGuide = {
     const eyebrow = surface.querySelector('[data-install-eyebrow]');
     const title = surface.querySelector('[data-install-title]');
     const lead = surface.querySelector('[data-install-lead]');
-    if (gateTitle) gateTitle.textContent = 'Open My Shiloh in Safari to install.';
-    if (gateCopy) gateCopy.textContent = 'iPhone installs My Shiloh from Safari. Copy the link, open Safari and paste it.';
-    if (gateAction) gateAction.textContent = 'Open in Safari';
-    if (eyebrow) eyebrow.textContent = 'Open My Shiloh in Safari';
-    if (title) title.textContent = 'Start in Safari.';
-    if (lead) lead.textContent = 'iPhone installs My Shiloh from Safari. Copy the link below, then paste it into Safari.';
+    if (gateTitle) gateTitle.textContent = 'Add My Shiloh to your iPhone.';
+    if (gateCopy) gateCopy.textContent = 'You’re in Chrome. Use Share to add My Shiloh to your Home Screen.';
+    if (gateAction) gateAction.textContent = 'Show iPhone steps';
+    if (eyebrow) eyebrow.textContent = 'Install My Shiloh on iPhone';
+    if (title) title.textContent = 'Three quick steps.';
+    if (lead) lead.textContent = 'You can add My Shiloh straight from Chrome — no App Store download is needed.';
     const steps = [
-      ['Copy the My Shiloh link', 'Use the button below.'],
-      ['Open Safari and paste the link', 'Open My Shiloh there.'],
-      ['Tap Share ↑, then Add to Home Screen', 'Turn on Open as Web App and tap Add.'],
+      ['Tap Share ↑', 'Use the Share button beside the address bar.'],
+      ['Choose Add to Home Screen', 'Scroll if you do not see it straight away.'],
+      ['Tap Add', 'My Shiloh will appear on your Home Screen.'],
     ];
     steps.forEach(([stepTitle, stepCopy], index) => {
       const number = String(index + 1);
@@ -218,11 +216,6 @@ export const IPhoneChromeInstallGuide = {
       if (titleNode) titleNode.textContent = stepTitle;
       if (copyNode) copyNode.textContent = stepCopy;
     });
-    const copyAction = surface.querySelector('[data-install-copy-link]');
-    if (copyAction) {
-      copyAction.hidden = false;
-      copyAction.textContent = 'Copy My Shiloh link';
-    }
     return surface;
   },
 };

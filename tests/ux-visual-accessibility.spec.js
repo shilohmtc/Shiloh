@@ -1541,7 +1541,6 @@ test('iPhone Safari install guide fits without scrolling and is accessible on Ph
     await expect(sheet.getByText('Tap Share ↑', { exact: true })).toBeVisible();
     await expect(sheet.getByText('Choose Add to Home Screen', { exact: true })).toBeVisible();
     await expect(sheet.getByText('Turn on Open as Web App, then tap Add', { exact: true })).toBeVisible();
-    await expect(sheet.getByRole('button', { name: 'Copy My Shiloh link' })).toBeHidden();
 
     const metrics = await panel.evaluate((node) => ({
       viewportWidth: window.innerWidth,
@@ -1572,7 +1571,7 @@ test('iPhone Safari install guide fits without scrolling and is accessible on Ph
   }
 });
 
-test('iPhone Chrome install guide sends clients to Safari without scrolling', async ({ page }, testInfo) => {
+test('iPhone Chrome install guide adds My Shiloh directly without scrolling', async ({ page }, testInfo) => {
   for (const viewport of [
     { name: 'phone', width: 390, height: 844 },
     { name: 'desktop', width: 1280, height: 900 },
@@ -1583,13 +1582,14 @@ test('iPhone Chrome install guide sends clients to Safari without scrolling', as
     const gate = page.locator('[data-install-gate]');
     const sheet = page.locator('[data-install-sheet]');
     const panel = sheet.locator('.install-sheet__panel');
-    await expect(gate.getByRole('heading', { name: 'Open My Shiloh in Safari to install.' })).toBeVisible();
-    await expect(gate.getByRole('button', { name: 'Open in Safari' })).toBeVisible();
-    await expect(sheet.getByRole('heading', { name: 'Start in Safari.' })).toBeVisible();
-    await expect(sheet.getByText('Copy the My Shiloh link', { exact: true })).toBeVisible();
-    await expect(sheet.getByText('Open Safari and paste the link', { exact: true })).toBeVisible();
-    await expect(sheet.getByText('Tap Share ↑, then Add to Home Screen', { exact: true })).toBeVisible();
-    await expect(sheet.getByRole('button', { name: 'Copy My Shiloh link' })).toBeVisible();
+    await expect(gate.getByRole('heading', { name: 'Add My Shiloh to your iPhone.' })).toBeVisible();
+    await expect(gate.getByRole('button', { name: 'Show iPhone steps' })).toBeVisible();
+    await expect(gate.getByText('You’re in Chrome. Use Share to add My Shiloh to your Home Screen.')).toBeVisible();
+    await expect(sheet.getByRole('heading', { name: 'Three quick steps.' })).toBeVisible();
+    await expect(sheet.getByText('You can add My Shiloh straight from Chrome — no App Store download is needed.')).toBeVisible();
+    await expect(sheet.getByText('Tap Share ↑', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('Choose Add to Home Screen', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('Tap Add', { exact: true })).toBeVisible();
 
     const metrics = await panel.evaluate((node) => ({
       scrollHeight: node.scrollHeight,

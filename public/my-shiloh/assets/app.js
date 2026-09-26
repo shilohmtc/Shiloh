@@ -19,8 +19,6 @@
   const installStepCopies = [...document.querySelectorAll('[data-install-step-copy]')];
   const installStepExtra = document.querySelector('[data-install-step-extra]');
   const installTip = document.querySelector('[data-install-tip]');
-  const installCopyAction = document.querySelector('[data-install-copy-link]');
-  const installCopyStatus = document.querySelector('[data-install-copy-status]');
   const clientGreeting = document.querySelector('[data-client-greeting]');
   const INSTALL_VERIFIED_KEY = 'my-shiloh-install-whatsapp-verified-v1';
   const offlineBanner = document.querySelector('[data-offline-banner]');
@@ -122,6 +120,10 @@
     return /android/i.test(window.navigator.userAgent || '');
   }
 
+  function isIosChrome() {
+    return isIos() && /crios/i.test(window.navigator.userAgent || '');
+  }
+
   function isIosSafari() {
     if (!isIos()) return false;
     const userAgent = window.navigator.userAgent || '';
@@ -196,15 +198,15 @@
     if (!browserGated) return;
 
     if (isIos()) {
-      if (isIosSafari()) {
-        if (installGateTitle) installGateTitle.textContent = 'Add My Shiloh to your iPhone.';
-        if (installGateCopy) installGateCopy.textContent = 'You’re in Safari. Add My Shiloh to your Home Screen in three quick steps.';
-        if (installGateAction) installGateAction.textContent = 'Show iPhone steps';
-      } else {
-        if (installGateTitle) installGateTitle.textContent = 'Open My Shiloh in Safari to install.';
-        if (installGateCopy) installGateCopy.textContent = 'iPhone installs My Shiloh from Safari. Copy the link, open Safari and paste it.';
-        if (installGateAction) installGateAction.textContent = 'Open in Safari';
+      if (installGateTitle) installGateTitle.textContent = 'Add My Shiloh to your iPhone.';
+      if (installGateCopy) {
+        installGateCopy.textContent = isIosSafari()
+          ? 'You’re in Safari. Add My Shiloh to your Home Screen in three quick steps.'
+          : isIosChrome()
+            ? 'You’re in Chrome. Use Share to add My Shiloh to your Home Screen.'
+            : 'Use your browser’s Share menu to add My Shiloh to your Home Screen.';
       }
+      if (installGateAction) installGateAction.textContent = 'Show iPhone steps';
       return;
     }
 
@@ -240,24 +242,22 @@
   function resetInstallGuideExtras() {
     if (installStepExtra) installStepExtra.hidden = true;
     if (installTip) installTip.hidden = true;
-    if (installCopyAction) installCopyAction.hidden = true;
-    if (installCopyStatus) {
-      installCopyStatus.hidden = true;
-      installCopyStatus.textContent = '';
-    }
   }
 
   function renderInstallGuide() {
     resetInstallGuideExtras();
 
     if (isIos() && !isIosSafari()) {
-      if (installEyebrow) installEyebrow.textContent = 'Open My Shiloh in Safari';
-      if (installTitle) installTitle.textContent = 'Start in Safari.';
-      if (installLead) installLead.textContent = 'iPhone installs My Shiloh from Safari. Copy the link below, then paste it into Safari.';
-      setInstallStep(1, 'Copy the My Shiloh link', 'Use the button below.');
-      setInstallStep(2, 'Open Safari and paste the link', 'Open My Shiloh there.');
-      setInstallStep(3, 'Tap Share ↑, then Add to Home Screen', 'Turn on Open as Web App and tap Add.');
-      if (installCopyAction) installCopyAction.hidden = false;
+      if (installEyebrow) installEyebrow.textContent = 'Install My Shiloh on iPhone';
+      if (installTitle) installTitle.textContent = 'Three quick steps.';
+      if (installLead) {
+        installLead.textContent = isIosChrome()
+          ? 'You can add My Shiloh straight from Chrome — no App Store download is needed.'
+          : 'Use your browser’s Share menu — no App Store download is needed.';
+      }
+      setInstallStep(1, 'Tap Share ↑', isIosChrome() ? 'Use the Share button beside the address bar.' : 'Use your browser’s Share button.');
+      setInstallStep(2, 'Choose Add to Home Screen', 'Scroll if you do not see it straight away.');
+      setInstallStep(3, 'Tap Add', 'My Shiloh will appear on your Home Screen.');
       return;
     }
 
@@ -287,38 +287,6 @@
     setInstallStep(1, 'Open your browser menu or Share button', 'Use your browser’s sharing or install menu.');
     setInstallStep(2, 'Choose Add to Home Screen or Install app', 'Your browser will show the installation option.');
     setInstallStep(3, 'Open My Shiloh', 'Tap the new My Shiloh icon on your Home Screen.');
-  }
-
-  async function copyMyShilohLink() {
-    const installUrl = `${window.location.origin}/my-shiloh/`;
-    let copied = false;
-    try {
-      if (window.navigator.clipboard?.writeText) {
-        await window.navigator.clipboard.writeText(installUrl);
-        copied = true;
-      }
-    } catch (_) {}
-
-    if (!copied) {
-      try {
-        const input = document.createElement('textarea');
-        input.value = installUrl;
-        input.setAttribute('readonly', '');
-        input.style.position = 'fixed';
-        input.style.opacity = '0';
-        document.body.appendChild(input);
-        input.select();
-        copied = document.execCommand('copy');
-        input.remove();
-      } catch (_) {}
-    }
-
-    if (installCopyStatus) {
-      installCopyStatus.hidden = false;
-      installCopyStatus.textContent = copied
-        ? 'Copied. Open Safari and paste the link.'
-        : `Copy this address into Safari: ${installUrl}`;
-    }
   }
 
   function openInstallGuide() {
@@ -370,8 +338,6 @@
     }
     openInstallGuide();
   });
-
-  installCopyAction?.addEventListener('click', copyMyShilohLink);
 
   document.querySelectorAll('[data-install-close]').forEach((button) => {
     button.addEventListener('click', closeInstallGuide);

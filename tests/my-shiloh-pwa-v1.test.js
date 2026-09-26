@@ -121,13 +121,13 @@ test('My Shiloh greeting uses Johannesburg time boundaries', () => {
 test('My Shiloh install client distinguishes iPhone Safari, iPhone Chrome and Android', () => {
   const client = read('public/my-shiloh/assets/app.js');
   const styles = read('public/my-shiloh/assets/app.css');
+  assert.match(client, /function isIosChrome\(\)/);
   assert.match(client, /function isIosSafari\(\)/);
   assert.match(client, /crios\|fxios\|edgios\|opios/i);
-  assert.match(client, /Open My Shiloh in Safari to install\./);
-  assert.match(client, /Copy My Shiloh link/);
+  assert.match(client, /You’re in Chrome\. Use Share to add My Shiloh to your Home Screen\./);
+  assert.match(client, /You can add My Shiloh straight from Chrome/);
   assert.match(client, /deferredInstallPrompt \? 'Install My Shiloh' : 'Show Android steps'/);
   assert.match(styles, /max-height:calc\(100dvh - 12px\)/);
-  assert.match(styles, /\.install-copy-status/);
 });
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {

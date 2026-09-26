@@ -467,8 +467,6 @@ function renderMyShilohPage({
         <li data-install-step-extra hidden><span class="install-step__number">4</span><div><strong data-install-step-title="4"></strong><span data-install-step-copy="4"></span></div></li>
       </ol>
       <div class="install-tip" data-install-tip hidden></div>
-      <button class="button button--soft button--wide install-copy" type="button" data-install-copy-link hidden>Copy My Shiloh link</button>
-      <p class="install-copy-status" data-install-copy-status role="status" aria-live="polite" hidden></p>
       <button class="button button--primary button--wide" type="button" data-install-close>Got it</button>
     </section>
   </div>
