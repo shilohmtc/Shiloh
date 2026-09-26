@@ -66,6 +66,7 @@ test('authenticated My Shiloh Home exposes tappable summary cards without duplic
   assert.match(html, /data-client-experience-fact[^>]*data-fact-key="forms"/);
   assert.match(html, /data-client-experience-fact[^>]*data-fact-key="payment"/);
   assert.match(html, /data-client-experience-fact-status/);
+  assert.match(html, /welcome drink on arrival.*coffee bar.*variety of teas/);
   assert.doesNotMatch(html, /onclick=/i);
 });
 

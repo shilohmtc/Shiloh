@@ -57,6 +57,7 @@ test('Home discovers live categories while Services preserves canonical service 
   const services = renderTreatments(catalogue);
 
   assert.match(home, /data-public-service-discovery/);
+  assert.match(home, /welcome drink on arrival.*coffee bar.*variety of teas/);
   assert.match(home, /data-public-service-category="Massage"/);
   assert.match(home, /data-public-service-category="Pedicures &amp; Foot Care"/);
   assert.match(home, /Deep Tissue Massage/);

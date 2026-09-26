@@ -430,6 +430,7 @@ test('My Shiloh Home summary cards are tappable and redeemed welcome voucher cle
     await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
 
     const focus = page.locator('[data-client-experience-home]');
+    await expect(focus.getByText(/Every Shiloh visit includes a welcome drink on arrival/)).toBeVisible();
     await expect(focus.getByRole('button', { name: /Appointment: None upcoming/ })).toBeVisible();
     await expect(focus.getByRole('button', { name: /Forms: Nothing waiting/ })).toBeVisible();
     await expect(focus.getByRole('button', { name: /Payment: No active booking/ })).toBeVisible();
@@ -1443,6 +1444,7 @@ for (const viewport of [
       await expect(surface.locator('a[href="/my-shiloh/"]').first()).toBeAttached();
 
       if (name === 'home') {
+        await expect(surface.getByText(/Every Shiloh visit includes a welcome drink on arrival/)).toBeVisible();
         await expect(surface.locator('[data-public-service-discovery]')).toBeVisible();
         await expect(surface.locator('[data-google-reviews]')).toBeVisible();
         await expect(surface.locator('[data-reviews-rail] .review-card')).toHaveCount(3);
