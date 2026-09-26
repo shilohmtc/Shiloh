@@ -1,8 +1,8 @@
 'use strict';
 
-const ASSET_VERSION = '20260926-smart-install-greeting-v1';
-const SHELL_CACHE = 'my-shiloh-shell-v24';
-const STATIC_CACHE = 'my-shiloh-static-v24';
+const ASSET_VERSION = '20260926-website-install-share-icon-v1';
+const SHELL_CACHE = 'my-shiloh-shell-v25';
+const STATIC_CACHE = 'my-shiloh-static-v25';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',
