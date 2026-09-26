@@ -1,6 +1,7 @@
 const express = require('express');
 const workspaceServices = require('../services/workspaceServices');
 const workspaceServiceCreation = require('../services/workspaceServiceCreation');
+const workspaceServiceCategories = require('../services/workspaceServiceCategories');
 const {
   requireStaffSession,
   sameOriginGuard,
@@ -33,6 +34,7 @@ function createWorkspaceServicesMutationRouter({
   sessionService,
   service = workspaceServices,
   creationService = workspaceServiceCreation,
+  categoryService = workspaceServiceCategories,
 } = {}) {
   if (!sessionService) throw new Error('Workspace Services mutations require the existing staff browser session service');
   const router = express.Router();
@@ -75,6 +77,18 @@ function createWorkspaceServicesMutationRouter({
       return sendMutationError(error, req, res, next);
     }
   });
+
+  for (const action of ['create', 'edit', 'delete']) {
+    router.post(action === 'create' ? '/categories/create' : `/categories/:id/${action}`, ...mutationChain, async (req, res, next) => {
+      try {
+        const result = await categoryService.mutate({
+          adminId: req.staffBrowserSession?.adminId, id: req.params?.id,
+          name: req.body?.name, order: req.body?.displayOrder, action,
+        });
+        return res.status(action === 'create' ? 201 : 200).json(result);
+      } catch (error) { return sendMutationError(error, req, res, next); }
+    });
+  }
 
   router.post('/:id/description', ...mutationChain, async (req, res, next) => {
     try {

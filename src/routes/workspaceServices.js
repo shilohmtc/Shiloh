@@ -1,6 +1,7 @@
 const express = require('express');
 const workspaceServices = require('../services/workspaceServices');
 const workspaceServiceCreation = require('../services/workspaceServiceCreation');
+const workspaceServiceCategories = require('../services/workspaceServiceCategories');
 const workspaceClients = require('../services/workspaceClients');
 const workspaceStaff = require('../services/workspaceStaff');
 const {
@@ -68,6 +69,7 @@ function createWorkspaceServicesListHandler({
   env = process.env,
   service = workspaceServices,
   creationService = workspaceServiceCreation,
+  categoryService = workspaceServiceCategories,
   clientAccessService = workspaceClients,
   staffAccessService = workspaceStaff,
   renderPage = renderServicesListPage,
@@ -86,6 +88,9 @@ function createWorkspaceServicesListHandler({
         offset: req.query?.offset,
       });
       const options = await detailPageOptions(req, service, clientAccessService, staffAccessService, staffAccessPath);
+      if (options.manageAllowed && categoryService.canManageCategories?.(model.authority)) {
+        model.categories = await categoryService.list(req.staffBrowserSession?.adminId);
+      }
       let html = renderPage(model, options);
       try { if (await creationService.resolveCreateAccess(req.staffBrowserSession?.adminId)) html = injectCreateAction(html); }
       catch (_error) {}
@@ -126,6 +131,7 @@ function createWorkspaceServicesRouter({ sessionService, ...options } = {}) {
   if (!sessionService) throw new Error('Workspace Services requires the existing staff browser session service');
   const service = options.service || workspaceServices;
   const creationService = options.creationService || workspaceServiceCreation;
+  const categoryService = options.categoryService || workspaceServiceCategories;
   const router = express.Router();
   router.get('/nav.js', (_req, res) => {
     res.setHeader('Cache-Control', 'private, no-store, max-age=0');
@@ -175,7 +181,7 @@ function createWorkspaceServicesRouter({ sessionService, ...options } = {}) {
       return res.status(safe.status).type('text/plain').send(safe.message);
     }
   });
-  router.get('/', createWorkspaceServicesListHandler({ ...options, service, creationService }));
+  router.get('/', createWorkspaceServicesListHandler({ ...options, service, creationService, categoryService }));
   router.get('/:id', createWorkspaceServiceDetailHandler({ ...options, service }));
   return router;
 }
