@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const express = require('express');
 const { createWorkspaceServiceCategories } = require('../src/services/workspaceServiceCategories');
 const { createWorkspaceServicesMutationRouter } = require('../src/routes/workspaceServicesMutations');
+const { createWorkspaceServicesListHandler } = require('../src/routes/workspaceServices');
 const { renderServicesListPage, workspaceServicesManageClientScript } = require('../src/presentation/workspaceServicesUx');
 
 function fakeDb({ used = 0, duplicate = false } = {}) {
@@ -100,4 +101,24 @@ test('category HTTP changes require session, same origin and CSRF', async () => 
     assert.equal(response.status, 201);
     assert.deepEqual(calls, [{ adminId: 51, id: undefined, name: 'Body Treatments', order: 4, action: 'create' }]);
   } finally { await new Promise(resolve => server.close(resolve)); }
+});
+
+test('ordinary practitioner Services page never attempts a category catalogue query', async () => {
+  let categoryReads = 0;
+  const handler = createWorkspaceServicesListHandler({
+    env: { SHILOH_CALENDAR_READONLY_UX_ENABLED: 'true', SHILOH_STAFF_BROWSER_SESSION_CALENDAR_BRIDGE_ENABLED: 'true' },
+    service: {
+      async listServices() { return { authority: { displayName: 'Marietjie', businessRole: 'tenant_practitioner', serviceScope: 'own_services' }, services: [], offset: 0, pageSize: 30 }; },
+      async resolveManageAccess() { return { displayName: 'Marietjie' }; },
+    },
+    categoryService: { canManageCategories() { categoryReads += 1; return false; }, async list() { throw new Error('Not available'); } },
+    creationService: { async resolveCreateAccess() { return null; } },
+    clientAccessService: { async resolveAccess() { return null; } },
+    staffAccessService: { async resolveAccess() { return null; } },
+  });
+  const response = { setHeader() {}, status(n) { this.code = n; return this; }, type() { return this; }, send(html) { this.html = html; return this; } };
+  await handler({ staffBrowserSession: { adminId: 81 }, query: {} }, response);
+  assert.equal(response.code, 200);
+  assert.equal(categoryReads, 1);
+  assert.doesNotMatch(response.html, /data-category-create/);
 });

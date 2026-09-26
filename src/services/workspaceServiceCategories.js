@@ -83,4 +83,4 @@ function createWorkspaceServiceCategories({ db = pool, manageAccess = resolveMan
   return { requireAccess, list, mutate };
 }
 
-module.exports = { createWorkspaceServiceCategories, ...createWorkspaceServiceCategories() };
+module.exports = { createWorkspaceServiceCategories, canManageCategories: allowed, ...createWorkspaceServiceCategories() };

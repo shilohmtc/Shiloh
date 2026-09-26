@@ -88,8 +88,9 @@ function createWorkspaceServicesListHandler({
         offset: req.query?.offset,
       });
       const options = await detailPageOptions(req, service, clientAccessService, staffAccessService, staffAccessPath);
-      try { model.categories = await categoryService.list(req.staffBrowserSession?.adminId); }
-      catch (error) { if (error?.httpStatus !== 403) throw error; }
+      if (options.manageAllowed && categoryService.canManageCategories?.(model.authority)) {
+        model.categories = await categoryService.list(req.staffBrowserSession?.adminId);
+      }
       let html = renderPage(model, options);
       try { if (await creationService.resolveCreateAccess(req.staffBrowserSession?.adminId)) html = injectCreateAction(html); }
       catch (_error) {}
