@@ -5,6 +5,7 @@ const {
   PUBLIC_TAGLINE,
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
+const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 
 const MY_SHILOH_ASSET_VERSION = '20260926-client-payment-recovery-v1';
 
@@ -111,6 +112,7 @@ function renderMyShilohPage({
           <span class="status-pill">Secure</span>
         </div>
         <p>Shiloh is bringing together what matters for your next visit.</p>
+        <p>${escapeHtml(STANDARD_HOSPITALITY)}</p>
         <div class="focus-grid" aria-label="Your Shiloh details">
           <button class="focus-fact" type="button" data-client-experience-fact data-fact-key="appointment"><span>Appointment</span><strong>Checking</strong><b aria-hidden="true">›</b></button>
           <button class="focus-fact" type="button" data-client-experience-fact data-fact-key="forms"><span>Forms</span><strong>Checking</strong><b aria-hidden="true">›</b></button>

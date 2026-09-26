@@ -6,6 +6,8 @@
 //
 // `confirmed` entries may answer directly. `unconfirmed` entries intentionally
 // fail closed until the clinic owner supplies an approved policy answer.
+const STANDARD_HOSPITALITY = 'Every Shiloh visit includes a welcome drink on arrival. You can also help yourself at our coffee bar, with coffee and a variety of teas available during your visit.';
+
 const CLINIC_FAQ_POLICY = Object.freeze([
   Object.freeze({
     id: 'professional-conduct',
@@ -21,6 +23,20 @@ const CLINIC_FAQ_POLICY = Object.freeze([
     ]),
     answer: 'Shiloh services are strictly professional and non-sexual. Inappropriate comments, requests or behaviour can end the session; the session remains payable, and future appointments may be refused.',
     provenance: 'Owner-provided clinic policy retained 2026-08-18',
+  }),
+  Object.freeze({
+    id: 'standard-hospitality',
+    status: 'confirmed',
+    title: 'Standard Shiloh hospitality',
+    topics: Object.freeze(['welcome drink', 'coffee bar', 'coffee', 'tea', 'teas', 'hot drinks']),
+    aliases: Object.freeze([
+      'is a welcome drink included',
+      'do you have a coffee bar',
+      'do you offer coffee or tea',
+      'what drinks are included with my visit',
+    ]),
+    answer: STANDARD_HOSPITALITY,
+    provenance: 'Owner-approved SH-05 hospitality direction 2026-09-25, roadmap #879',
   }),
   Object.freeze({
     id: 'refreshments-cooldrinks',
@@ -83,6 +99,7 @@ const CLINIC_FAQ_POLICY = Object.freeze([
 const FAQ_UNKNOWN_REPLY = 'I do not have a maintained Shiloh policy for that yet, and I do not want to guess. Please ask the clinic team to confirm.';
 
 module.exports = {
+  STANDARD_HOSPITALITY,
   CLINIC_FAQ_POLICY,
   FAQ_UNKNOWN_REPLY,
 };

@@ -66,6 +66,7 @@ test('native booking page is a My Shiloh treatment-practitioner-time-review wiza
   assert.match(html, /data-special-occasion> Yes/);
   assert.match(html, /data-special-occasion> No/);
   assert.match(html, /data-occasion-note maxlength="160"/);
+  assert.match(html, /welcome drink on arrival.*coffee bar.*variety of teas/);
   assert.match(html, /\/my-shiloh\/assets\/booking\.js/);
   assert.doesNotMatch(html, /wa\.me|whatsapp:\/\//i);
 });

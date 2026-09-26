@@ -120,3 +120,15 @@ test('#884 unknown maintained-topic context is explicit enough for LLM compositi
   assert.match(knowledge.content, /NO MAINTAINED CLINIC POLICY/);
   assert.match(knowledge.content, /ask the client to confirm with the clinic team/i);
 });
+
+test('approved welcome drink and coffee bar answer without promising unapproved extras', () => {
+  for (const question of ['is a welcome drink included', 'do you have a coffee bar', 'do you offer coffee or tea']) {
+    const result = processClinicFaqMessage(question);
+    assert.equal(result.resolution.entry?.id, 'standard-hospitality', question);
+    assert.match(result.reply, /welcome drink on arrival/);
+    assert.match(result.reply, /coffee bar.*variety of teas/);
+    assert.doesNotMatch(result.reply, /champagne|snacks|food|platter/i);
+  }
+  assert.equal(processClinicFaqMessage('do you serve champagne').reply, FAQ_UNKNOWN_REPLY);
+  assert.equal(processClinicFaqMessage('do you have cooldrinks').reply, FAQ_UNKNOWN_REPLY);
+});
