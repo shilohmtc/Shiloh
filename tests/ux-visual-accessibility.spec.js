@@ -1538,7 +1538,9 @@ test('iPhone Safari install guide fits without scrolling and is accessible on Ph
     await expect(gate.getByRole('button', { name: 'Show iPhone steps' })).toBeVisible();
     await expect(sheet.getByRole('heading', { name: 'Three quick steps.' })).toBeVisible();
     await expect(sheet.getByText('Stay in Safari — no App Store download is needed.')).toBeVisible();
-    await expect(sheet.getByText('Tap Share ↑', { exact: true })).toBeVisible();
+    const safariShareStep = sheet.locator('[data-install-step-title="1"]');
+    await expect(safariShareStep).toContainText('Tap Share');
+    await expect(safariShareStep.locator('svg.install-share-icon[aria-hidden="true"]')).toHaveCount(1);
     await expect(sheet.getByText('Choose Add to Home Screen', { exact: true })).toBeVisible();
     await expect(sheet.getByText('Turn on Open as Web App, then tap Add', { exact: true })).toBeVisible();
 
@@ -1587,7 +1589,9 @@ test('iPhone Chrome install guide adds My Shiloh directly without scrolling', as
     await expect(gate.getByText('You’re in Chrome. Use Share to add My Shiloh to your Home Screen.')).toBeVisible();
     await expect(sheet.getByRole('heading', { name: 'Three quick steps.' })).toBeVisible();
     await expect(sheet.getByText('You can add My Shiloh straight from Chrome — no App Store download is needed.')).toBeVisible();
-    await expect(sheet.getByText('Tap Share ↑', { exact: true })).toBeVisible();
+    const chromeShareStep = sheet.locator('[data-install-step-title="1"]');
+    await expect(chromeShareStep).toContainText('Tap Share');
+    await expect(chromeShareStep.locator('svg.install-share-icon[aria-hidden="true"]')).toHaveCount(1);
     await expect(sheet.getByText('Choose Add to Home Screen', { exact: true })).toBeVisible();
     await expect(sheet.getByText('Tap Add', { exact: true })).toBeVisible();
 
