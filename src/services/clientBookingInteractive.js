@@ -43,7 +43,6 @@ function treatmentTeamLines() {
     'Shiloh’s client-facing treatment team:',
     '• Christel — Massage practitioner',
     '• Abigail — Massage & Lymphatic Drainage practitioner',
-    '• Marietjie — Beauty & Aesthetics practitioner',
   ];
 }
 
@@ -57,7 +56,6 @@ function bookingDiscoveryInteractive() {
     ].join('\n'),
     buttonText: 'Choose service',
     rows: [
-      { id: 'client_family_beauty', title: 'Beauty & Aesthetics', description: 'View beauty & aesthetics treatments' },
       { id: 'client_family_massage', title: 'Massage Treatments', description: 'View massage treatments' },
       { id: 'client_family_lymphatic', title: 'Lymphatic Drainage', description: 'View lymphatic drainage treatments' },
       { id: 'client_family_pedicure', title: 'Elim MediHeel Pedicures', description: 'View pedicure treatments' },
