@@ -164,6 +164,7 @@ test('cancelled booking payment UI disables collection, hides stale copy links a
   assert.match(ux, /No further deposit should be collected/);
   assert.match(ux, /bookingCancelled \? 'Cancelled booking'/);
   assert.match(ux, /!bookingCancelled && item\.provider_payment_url/);
+  assert.match(ux, /securePaymentUrl\(item\.request_key\)/);
   assert.match(ux, /data-refund-form/);
   assert.match(ux, /paymentReview \|\| bookingCancelled/);
 });

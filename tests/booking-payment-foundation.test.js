@@ -21,3 +21,17 @@ test('Ozow notification hashes use the documented fixed response field order',()
 test('linked payment UI supports split balance and does not claim booking confirmation',()=>{const html=renderCalendarPaymentPage({model:{subject:{appointmentId:701,groupId:55},payment:{state:'partially_paid',amountDue:'1240.00',netPaid:'500.00',outstanding:'740.00',requests:[],entries:[]},authority:{canCollect:true,canRefund:false,ozowConfigured:false}}});assert.match(html,/Linked booking #55/);assert.match(html,/R\s?740[,.]00/);assert.match(html,/separate requests for a couple or group/);assert.match(html,/Payment never changes attendance or booking status/);assert.match(calendarPaymentLinkClientScript(),/calendar\/payments\/appointments/);});
 test('payment-link form prefills the booking payer and requires confirmation',()=>{const html=renderCalendarPaymentPage({model:{subject:{appointmentId:699,clientName:'Jean-Pierre Botha',clientMobile:'0716724646'},payment:{state:'unpaid',amountDue:'20.00',netPaid:'0.00',outstanding:'20.00',requests:[],entries:[]},authority:{canCollect:true,canRefund:true,ozowConfigured:true}}});assert.match(html,/name="payerName" value="Jean-Pierre Botha"/);assert.match(html,/name="payerMobile"[^>]+value="0716724646"/);assert.match(html,/name="payerConfirmed"/);assert.match(calendarPaymentsClientScript(),/data-payer-confirmation/);});
 test('payment-link form falls back to the latest payer mobile when the booking contact is missing',()=>{const html=renderCalendarPaymentPage({model:{subject:{appointmentId:699,clientName:'Jean-Pierre Botha',clientMobile:''},payment:{state:'unpaid',amountDue:'20.00',netPaid:'0.00',outstanding:'20.00',requests:[{amount:'20.00',state:'link_issued',payer_name:'Jean-Pierre Botha',payer_mobile:'0716724646',provider_payment_url:''}],entries:[]},authority:{canCollect:true,canRefund:true,ozowConfigured:true}}});assert.match(html,/name="payerMobile"[^>]+value="0716724646"/);});
+
+test('Workspace copies the guarded Shiloh payment link, never the raw Ozow target', () => {
+  const providerUrl = 'https://pay.ozow.com/request/opaque';
+  const html = renderCalendarPaymentPage({ model: {
+    subject: { appointmentId: 699, clientName: 'Test Client', clientMobile: '0716724646' },
+    payment: { state: 'unpaid', amountDue: '20.00', netPaid: '0.00', outstanding: '20.00', requests: [{ amount: '20.00', state: 'link_issued', request_key: 'request_699_token', provider_payment_url: providerUrl }], entries: [] },
+    authority: { canCollect: true, canRefund: false, ozowConfigured: true },
+  } });
+  assert.match(html, /data-copy-link="https:\/\/app\.shilohmtc\.co\.za\/pay\/request_699_token"/);
+  assert.doesNotMatch(html, /data-copy-link="https:\/\/pay\.ozow\.com/);
+  const script = calendarPaymentsClientScript();
+  assert.match(script, /clipboard\.writeText\(location\.origin\+'\/pay\/'\+encodeURIComponent\(key\)\)/);
+  assert.doesNotMatch(script, /clipboard\.writeText\(data\.request\.provider_payment_url\)/);
+});

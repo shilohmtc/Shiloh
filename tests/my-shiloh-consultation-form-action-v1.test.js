@@ -118,6 +118,7 @@ test('My Shiloh route and browser action use a fixed path with authenticated ser
   const browser = read('public/my-shiloh/assets/app.js');
   assert.match(route, /router\.get\('\/my-shiloh\/forms\/complete', requireSession/);
   assert.match(route, /openForSession\(\{[\s\S]*req\.myShilohClientSession\.crmV2ClientId/);
+  assert.match(route, /submissionProof: submissionProof\(opened\.accessToken, env\)/);
   assert.doesNotMatch(route, /req\.params\.(?:client|form|practitioner|service)Id/);
   assert.match(browser, /String\(action\.href \|\| ''\) !== '\/my-shiloh\/forms\/complete'/);
   assert.match(browser, /open\.textContent = String\(action\.label \|\| 'Complete form'\)/);
