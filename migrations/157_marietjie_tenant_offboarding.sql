@@ -1,5 +1,5 @@
--- Owner-approved clinic handoff. Retain the one canonical CRM V2 identity,
--- all appointment snapshots and every payment/ledger record.
+-- Retire an independent tenant's live presence without changing ownership
+-- or visibility of their historical bookings, clients and payments.
 -- Run only through the controlled single-migration release gate.
 
 DO $$
@@ -8,10 +8,8 @@ DECLARE
   matched_staff INTEGER;
   matched_principals INTEGER;
   future_bookings INTEGER;
-  promoted_clients INTEGER;
   archived_relationships INTEGER;
   hidden_services INTEGER;
-  converted_services INTEGER;
 BEGIN
   SELECT COUNT(*), MIN(id)
     INTO matched_staff, practitioner_id
@@ -21,7 +19,7 @@ BEGIN
      AND status='active';
 
   IF matched_staff <> 1 THEN
-    RAISE EXCEPTION 'Marietjie clinic handoff requires exactly one active practitioner; found %', matched_staff;
+    RAISE EXCEPTION 'Marietjie tenant offboarding requires exactly one active practitioner; found %', matched_staff;
   END IF;
 
   SELECT COUNT(*) INTO matched_principals
@@ -31,7 +29,7 @@ BEGIN
      AND active=TRUE;
 
   IF matched_principals <> 1 THEN
-    RAISE EXCEPTION 'Marietjie clinic handoff requires exactly one active tenant Workspace principal; found %', matched_principals;
+    RAISE EXCEPTION 'Marietjie tenant offboarding requires exactly one active tenant Workspace principal; found %', matched_principals;
   END IF;
 
   -- The deposit-policy exemption still refers to this historical staff ID.
@@ -40,7 +38,7 @@ BEGIN
     SELECT 1 FROM clinic_booking_deposit_policy
      WHERE id=1 AND exempt_staff_id=practitioner_id
   ) THEN
-    RAISE EXCEPTION 'Marietjie deposit policy reference drifted; clinic handoff refused';
+    RAISE EXCEPTION 'Marietjie deposit policy reference drifted; tenant offboarding refused';
   END IF;
 
   SELECT COUNT(DISTINCT a.id) INTO future_bookings
@@ -49,20 +47,11 @@ BEGIN
    WHERE ast.staff_id=practitioner_id
      AND a.starts_at>NOW()
      AND a.status IN ('scheduled','confirmed');
-  -- Christel will handle these appointments manually. Keep their booking and
-  -- payment history intact so no paid booking is silently lost or forfeited.
-
-  INSERT INTO crm_v2_client_relationships
-    (client_id,relationship_type,owner_staff_id,status,source)
-  SELECT r.client_id,'clinic',NULL,
-         CASE WHEN c.status='archived' THEN 'archived' ELSE r.status END,
-         'marietjie_clinic_handoff'
-    FROM crm_v2_client_relationships r
-    JOIN crm_v2_clients c ON c.id=r.client_id
-   WHERE r.relationship_type='tenant_staff'
-     AND r.owner_staff_id=practitioner_id
-  ON CONFLICT (client_id) WHERE relationship_type='clinic' DO NOTHING;
-  GET DIAGNOSTICS promoted_clients = ROW_COUNT;
+  -- Marietjie handles her remaining future appointments herself. Do not
+  -- deactivate her while Shiloh might still send reminders for them.
+  IF future_bookings > 0 THEN
+    RAISE EXCEPTION 'Marietjie has % future appointments to resolve manually before tenant offboarding; no changes were made', future_bookings;
+  END IF;
 
   UPDATE crm_v2_client_relationships
      SET status='archived',updated_at=NOW()
@@ -88,25 +77,6 @@ BEGIN
      );
   GET DIAGNOSTICS hidden_services = ROW_COUNT;
 
-  -- Retain the previous visibility mapping for review or a manual rollback.
-  -- An old tenant-private service history is now ordinary clinic history.
-  CREATE TABLE IF NOT EXISTS offboarded_tenant_service_visibility (
-    service_id BIGINT PRIMARY KEY REFERENCES services(id) ON DELETE RESTRICT,
-    owner_staff_id BIGINT NOT NULL REFERENCES staff(id) ON DELETE RESTRICT,
-    prior_visibility_scope TEXT NOT NULL,
-    handed_off_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
-  INSERT INTO offboarded_tenant_service_visibility
-    (service_id,owner_staff_id,prior_visibility_scope)
-  SELECT service_id,owner_staff_id,visibility_scope
-    FROM service_visibility_policies
-   WHERE owner_staff_id=practitioner_id;
-
-  -- This changes visibility classification, never appointment or payment data.
-  DELETE FROM service_visibility_policies
-   WHERE owner_staff_id=practitioner_id;
-  GET DIAGNOSTICS converted_services = ROW_COUNT;
-
   UPDATE staff_admin_accounts
      SET active=FALSE,updated_at=NOW()
    WHERE staff_id=practitioner_id AND active=TRUE;
@@ -116,12 +86,10 @@ BEGIN
    WHERE id=practitioner_id;
 
   INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
-  VALUES ('staff.marietjie_clinic_handoff','staff',practitioner_id,
+  VALUES ('staff.marietjie_tenant_offboarding','staff',practitioner_id,
           jsonb_build_object(
-            'promotedClientRelationships',promoted_clients,
             'archivedTenantRelationships',archived_relationships,
             'hiddenExclusiveServices',hidden_services,
-            'convertedServiceVisibility',converted_services,
             'futureBookingsForManualReview',future_bookings,
             'appointmentsChanged',0,
             'paymentEntriesChanged',0
