@@ -162,18 +162,17 @@ export const IPhoneInstallGuide = {
     const gateCopy = surface.querySelector('[data-install-gate-copy]');
     if (action) action.textContent = 'Show iPhone steps';
     if (gateTitle) gateTitle.textContent = 'Add My Shiloh to your iPhone.';
-    if (gateCopy) gateCopy.textContent = 'Keep bookings, Wallet, notifications and Shiloh support one tap away on your Home Screen.';
+    if (gateCopy) gateCopy.textContent = 'You’re in Safari. Add My Shiloh to your Home Screen in three quick steps.';
     const eyebrow = surface.querySelector('[data-install-eyebrow]');
     const title = surface.querySelector('[data-install-title]');
     const lead = surface.querySelector('[data-install-lead]');
     if (eyebrow) eyebrow.textContent = 'Install My Shiloh on iPhone';
-    if (title) title.textContent = 'Four quick steps and you’re in.';
-    if (lead) lead.textContent = 'My Shiloh installs from Safari — no App Store download is needed.';
+    if (title) title.textContent = 'Three quick steps.';
+    if (lead) lead.textContent = 'Stay in Safari — no App Store download is needed.';
     const steps = [
-      ['Open this page in Safari', 'If you opened My Shiloh inside another app, use its menu to open this page in Safari.'],
-      ['Tap the Share button', 'Look for the square with the upward arrow in Safari.'],
-      ['Choose Add to Home Screen', 'Scroll the Share menu if you do not see it straight away.'],
-      ['Turn on Open as Web App, then tap Add', 'Open the new My Shiloh icon from your Home Screen when installation finishes.'],
+      ['Tap Share ↑', 'Use Safari’s Share button.'],
+      ['Choose Add to Home Screen', 'Scroll if you do not see it straight away.'],
+      ['Turn on Open as Web App, then tap Add', 'My Shiloh will appear on your Home Screen.'],
     ];
     steps.forEach(([stepTitle, stepCopy], index) => {
       const number = String(index + 1);
@@ -183,15 +182,68 @@ export const IPhoneInstallGuide = {
       if (copyNode) copyNode.textContent = stepCopy;
     });
     const extra = surface.querySelector('[data-install-step-extra]');
-    if (extra) extra.hidden = false;
+    if (extra) extra.hidden = true;
     const tip = surface.querySelector('[data-install-tip]');
-    if (tip) {
-      tip.hidden = false;
-      tip.innerHTML = '<strong>Already installed?</strong><span>Close this browser page and open the My Shiloh icon on your Home Screen.</span>';
+    if (tip) tip.hidden = true;
+    const copyAction = surface.querySelector('[data-install-copy-link]');
+    if (copyAction) copyAction.hidden = true;
+    return surface;
+  },
+};
+
+export const IPhoneChromeInstallGuide = {
+  render: () => {
+    const surface = IPhoneInstallGuide.render();
+    const gateTitle = surface.querySelector('[data-install-gate-title]');
+    const gateCopy = surface.querySelector('[data-install-gate-copy]');
+    const gateAction = surface.querySelector('[data-install-gate-action]');
+    const eyebrow = surface.querySelector('[data-install-eyebrow]');
+    const title = surface.querySelector('[data-install-title]');
+    const lead = surface.querySelector('[data-install-lead]');
+    if (gateTitle) gateTitle.textContent = 'Open My Shiloh in Safari to install.';
+    if (gateCopy) gateCopy.textContent = 'iPhone installs My Shiloh from Safari. Copy the link, open Safari and paste it.';
+    if (gateAction) gateAction.textContent = 'Open in Safari';
+    if (eyebrow) eyebrow.textContent = 'Open My Shiloh in Safari';
+    if (title) title.textContent = 'Start in Safari.';
+    if (lead) lead.textContent = 'iPhone installs My Shiloh from Safari. Copy the link below, then paste it into Safari.';
+    const steps = [
+      ['Copy the My Shiloh link', 'Use the button below.'],
+      ['Open Safari and paste the link', 'Open My Shiloh there.'],
+      ['Tap Share ↑, then Add to Home Screen', 'Turn on Open as Web App and tap Add.'],
+    ];
+    steps.forEach(([stepTitle, stepCopy], index) => {
+      const number = String(index + 1);
+      const titleNode = surface.querySelector(`[data-install-step-title="${number}"]`);
+      const copyNode = surface.querySelector(`[data-install-step-copy="${number}"]`);
+      if (titleNode) titleNode.textContent = stepTitle;
+      if (copyNode) copyNode.textContent = stepCopy;
+    });
+    const copyAction = surface.querySelector('[data-install-copy-link]');
+    if (copyAction) {
+      copyAction.hidden = false;
+      copyAction.textContent = 'Copy My Shiloh link';
     }
     return surface;
   },
 };
+
+export const AndroidInstallDoorway = {
+  render: () => {
+    const surface = productionSurface();
+    const gate = surface.querySelector('[data-install-gate]');
+    const frame = surface.querySelector('[data-app-frame]');
+    if (gate) gate.hidden = false;
+    if (frame) frame.hidden = true;
+    const gateTitle = surface.querySelector('[data-install-gate-title]');
+    const gateCopy = surface.querySelector('[data-install-gate-copy]');
+    const action = surface.querySelector('[data-install-gate-action]');
+    if (gateTitle) gateTitle.textContent = 'Add My Shiloh to your phone.';
+    if (gateCopy) gateCopy.textContent = 'Tap below and Android will add My Shiloh to your Home Screen.';
+    if (action) action.textContent = 'Install My Shiloh';
+    return surface;
+  },
+};
+
 
 export const StandaloneGuestSignIn = {
   render: () => {

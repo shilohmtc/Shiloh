@@ -1,8 +1,8 @@
 'use strict';
 
-const ASSET_VERSION = '20260925-iphone-install-polish-v1';
-const SHELL_CACHE = 'my-shiloh-shell-v23';
-const STATIC_CACHE = 'my-shiloh-static-v23';
+const ASSET_VERSION = '20260926-smart-install-greeting-v1';
+const SHELL_CACHE = 'my-shiloh-shell-v24';
+const STATIC_CACHE = 'my-shiloh-static-v24';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',

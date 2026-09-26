@@ -6,7 +6,7 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 
-const MY_SHILOH_ASSET_VERSION = '20260925-iphone-install-polish-v1';
+const MY_SHILOH_ASSET_VERSION = '20260926-smart-install-greeting-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -85,7 +85,7 @@ function renderMyShilohPage({
   const hero = authenticated
     ? `<div class="hero">
         <p class="eyebrow">Welcome back</p>
-        <h1 id="home-title">${escapeHtml(greeting)}, ${firstName}.</h1>
+        <h1 id="home-title" data-client-greeting data-first-name="${firstName}">${escapeHtml(greeting)}, ${firstName}.</h1>
         <p class="hero-copy">You’re safely signed in. Your appointments, forms, payments and rewards are ready whenever you need them.</p>
         <div class="hero-actions">
           <a class="button button--primary" href="/my-shiloh/book">Book an appointment</a>
@@ -467,6 +467,8 @@ function renderMyShilohPage({
         <li data-install-step-extra hidden><span class="install-step__number">4</span><div><strong data-install-step-title="4"></strong><span data-install-step-copy="4"></span></div></li>
       </ol>
       <div class="install-tip" data-install-tip hidden></div>
+      <button class="button button--soft button--wide install-copy" type="button" data-install-copy-link hidden>Copy My Shiloh link</button>
+      <p class="install-copy-status" data-install-copy-status role="status" aria-live="polite" hidden></p>
       <button class="button button--primary button--wide" type="button" data-install-close>Got it</button>
     </section>
   </div>

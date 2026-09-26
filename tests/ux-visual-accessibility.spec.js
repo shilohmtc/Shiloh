@@ -1521,7 +1521,7 @@ test('My Shiloh install guidance appears only after Show install steps is tapped
   await expect(sheet.getByText('Open My Shiloh', { exact: true })).toBeVisible();
 });
 
-test('polished iPhone install guide is clear and accessible on Phone and Desktop', async ({ page }, testInfo) => {
+test('iPhone Safari install guide fits without scrolling and is accessible on Phone and Desktop', async ({ page }, testInfo) => {
   for (const viewport of [
     { name: 'phone', width: 390, height: 844 },
     { name: 'desktop', width: 1280, height: 900 },
@@ -1531,26 +1531,29 @@ test('polished iPhone install guide is clear and accessible on Phone and Desktop
 
     const gate = page.locator('[data-install-gate]');
     const sheet = page.locator('[data-install-sheet]');
+    const panel = sheet.locator('.install-sheet__panel');
     await expect(gate).toBeVisible();
     await expect(sheet).toBeVisible();
     await expect(gate.getByRole('heading', { name: 'Add My Shiloh to your iPhone.' })).toBeVisible();
     await expect(gate.getByRole('button', { name: 'Show iPhone steps' })).toBeVisible();
-    await expect(sheet.getByRole('heading', { name: 'Four quick steps and you’re in.' })).toBeVisible();
-    await expect(sheet.getByText('My Shiloh installs from Safari — no App Store download is needed.')).toBeVisible();
-    await expect(sheet.getByText('Open this page in Safari', { exact: true })).toBeVisible();
-    await expect(sheet.getByText('Tap the Share button', { exact: true })).toBeVisible();
+    await expect(sheet.getByRole('heading', { name: 'Three quick steps.' })).toBeVisible();
+    await expect(sheet.getByText('Stay in Safari — no App Store download is needed.')).toBeVisible();
+    await expect(sheet.getByText('Tap Share ↑', { exact: true })).toBeVisible();
     await expect(sheet.getByText('Choose Add to Home Screen', { exact: true })).toBeVisible();
     await expect(sheet.getByText('Turn on Open as Web App, then tap Add', { exact: true })).toBeVisible();
-    await expect(sheet.getByText('Already installed?', { exact: true })).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Copy My Shiloh link' })).toBeHidden();
 
-    const metrics = await sheet.evaluate((node) => ({
+    const metrics = await panel.evaluate((node) => ({
       viewportWidth: window.innerWidth,
       documentWidth: document.documentElement.scrollWidth,
+      scrollHeight: node.scrollHeight,
+      clientHeight: node.clientHeight,
       shortTargets: [...node.querySelectorAll('button,a')]
         .filter((target) => target.getClientRects().length && target.getBoundingClientRect().height < 44)
         .map((target) => target.textContent.trim() || target.getAttribute('aria-label')),
     }));
     expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+    expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.clientHeight + 1);
     expect(metrics.shortTargets).toEqual([]);
 
     const accessibility = await new AxeBuilder({ page })
@@ -1558,15 +1561,110 @@ test('polished iPhone install guide is clear and accessible on Phone and Desktop
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
-    expect(serious, `Serious accessibility violations in iPhone install guide on ${viewport.name}: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+    expect(serious, `Serious accessibility violations in iPhone Safari install guide on ${viewport.name}: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
 
     await page.screenshot({
-      path: testInfo.outputPath(`my-shiloh-iphone-install-guide-${viewport.name}.png`),
+      path: testInfo.outputPath(`my-shiloh-iphone-safari-install-guide-${viewport.name}.png`),
       fullPage: true,
       animations: 'disabled',
       caret: 'hide',
     });
   }
+});
+
+test('iPhone Chrome install guide sends clients to Safari without scrolling', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name: 'phone', width: 390, height: 844 },
+    { name: 'desktop', width: 1280, height: 900 },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--i-phone-chrome-install-guide&viewMode=story', { waitUntil: 'networkidle' });
+
+    const gate = page.locator('[data-install-gate]');
+    const sheet = page.locator('[data-install-sheet]');
+    const panel = sheet.locator('.install-sheet__panel');
+    await expect(gate.getByRole('heading', { name: 'Open My Shiloh in Safari to install.' })).toBeVisible();
+    await expect(gate.getByRole('button', { name: 'Open in Safari' })).toBeVisible();
+    await expect(sheet.getByRole('heading', { name: 'Start in Safari.' })).toBeVisible();
+    await expect(sheet.getByText('Copy the My Shiloh link', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('Open Safari and paste the link', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('Tap Share ↑, then Add to Home Screen', { exact: true })).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Copy My Shiloh link' })).toBeVisible();
+
+    const metrics = await panel.evaluate((node) => ({
+      scrollHeight: node.scrollHeight,
+      clientHeight: node.clientHeight,
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      shortTargets: [...node.querySelectorAll('button,a')]
+        .filter((target) => target.getClientRects().length && target.getBoundingClientRect().height < 44)
+        .map((target) => target.textContent.trim() || target.getAttribute('aria-label')),
+    }));
+    expect(metrics.documentWidth).toBeLessThanOrEqual(metrics.viewportWidth);
+    expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.clientHeight + 1);
+    expect(metrics.shortTargets).toEqual([]);
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-install-sheet]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact))).toEqual([]);
+
+    await page.screenshot({
+      path: testInfo.outputPath(`my-shiloh-iphone-chrome-install-guide-${viewport.name}.png`),
+      fullPage: true,
+      animations: 'disabled',
+      caret: 'hide',
+    });
+  }
+});
+
+test('Android install doorway keeps the native install action primary on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name: 'phone', width: 390, height: 844 },
+    { name: 'desktop', width: 1280, height: 900 },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--android-install-doorway&viewMode=story', { waitUntil: 'networkidle' });
+    const gate = page.locator('[data-install-gate]');
+    await expect(gate.getByRole('heading', { name: 'Add My Shiloh to your phone.' })).toBeVisible();
+    await expect(gate.getByRole('button', { name: 'Install My Shiloh' })).toBeVisible();
+    await expect(gate.getByText('Tap below and Android will add My Shiloh to your Home Screen.')).toBeVisible();
+
+    const accessibility = await new AxeBuilder({ page })
+      .include('[data-install-gate]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact))).toEqual([]);
+
+    await page.screenshot({
+      path: testInfo.outputPath(`my-shiloh-android-install-doorway-${viewport.name}.png`),
+      fullPage: true,
+      animations: 'disabled',
+      caret: 'hide',
+    });
+  }
+});
+
+test('My Shiloh refreshes an authenticated greeting from current Johannesburg time', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-home&viewMode=story', { waitUntil: 'networkidle' });
+  await page.evaluate(() => {
+    localStorage.setItem('my-shiloh-install-whatsapp-verified-v1', '1');
+    Object.defineProperty(window.navigator, 'standalone', { configurable: true, get: () => true });
+    const RealDate = window.Date;
+    const fixed = new RealDate('2026-09-26T04:41:00.000Z');
+    class FixedDate extends RealDate {
+      constructor(...args) {
+        if (args.length) super(...args);
+        else super(fixed.getTime());
+      }
+      static now() { return fixed.getTime(); }
+    }
+    window.Date = FixedDate;
+  });
+  await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
+  await expect(page.getByRole('heading', { name: 'Good morning, Christel.' })).toBeVisible();
 });
 
 
