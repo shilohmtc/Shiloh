@@ -139,6 +139,15 @@ async function run() {
       .evaluate((node) => getComputedStyle(node).gridTemplateColumns);
     if (phoneColumns.split(' ').filter(Boolean).length !== 1)
       throw new Error(`Phone hero must collapse to one column; got ${phoneColumns}`);
+    if (!(await phone.locator('[data-my-shiloh-install-entry]').isVisible()))
+      throw new Error('Phone home must expose the My Shiloh install entry');
+    const phoneInstall = phone.locator('[data-my-shiloh-install-link]');
+    if (!(await phoneInstall.isVisible()))
+      throw new Error('Phone home must show Install My Shiloh');
+    if ((await phoneInstall.getAttribute('href')) !== '/my-shiloh/')
+      throw new Error('Phone My Shiloh install entry must use the canonical My Shiloh route');
+    if ((await phoneInstall.evaluate((node) => node.getBoundingClientRect().height)) < 44)
+      throw new Error('Phone My Shiloh install action must be at least 44px high');
     if (!(await phone.locator('[data-public-visit-shiloh]').isVisible()))
       throw new Error('Phone home must show the Heidelberg town-centre story');
     const phoneLocalColumns = await phone
@@ -202,6 +211,10 @@ async function run() {
       throw new Error('Desktop local story must use the approved neighbour authority');
     if ((await desktop.locator('[data-public-visit-shiloh] .neighbour-list a[target="_blank"]').count()) !== 8)
       throw new Error('Desktop local story neighbour chips must link to Google Maps');
+    if (!(await desktop.locator('[data-my-shiloh-install-link]').isVisible()))
+      throw new Error('Desktop home must show Install My Shiloh');
+    if ((await desktop.locator('[data-my-shiloh-install-link]').getAttribute('href')) !== '/my-shiloh/')
+      throw new Error('Desktop My Shiloh install entry must use the canonical My Shiloh route');
     if ((await desktop.locator('[data-public-service-category]').count()) !== 7)
       throw new Error('Desktop home must show the seven public service families');
     const desktopCardBalance = await desktop.locator('.category-discovery-grid').evaluate((grid) => {
