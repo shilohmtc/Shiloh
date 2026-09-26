@@ -195,8 +195,9 @@ test('every normal browser is an installation doorway while standalone mode keep
   assert.match(presentation, /data-install-gate-action>Install My Shiloh<\/button>/);
   assert.match(client, /deferredInstallPrompt && isAndroid\(\)/);
   assert.match(client, /Show iPhone steps/);
-  assert.match(client, /Open this page in Safari/);
-  assert.match(client, /Tap the Share button/);
+  assert.match(client, /function isIosChrome\(\)/);
+  assert.match(client, /You’re in Chrome\. Use Share to add My Shiloh to your Home Screen\./);
+  assert.match(client, /Tap Share ↑/);
   assert.match(client, /Choose Add to Home Screen/);
   assert.match(client, /Open as Web App, then tap Add/);
   assert.match(client, /appinstalled[\s\S]*resetInstallationVerification\(\)/);

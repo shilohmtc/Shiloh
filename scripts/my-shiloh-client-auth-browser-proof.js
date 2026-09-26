@@ -243,7 +243,7 @@ async function runViewport(browser, name, viewport) {
   const browserContext = await browser.newContext({ viewport });
   const browserPage = await browserContext.newPage();
   await browserPage.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
-  await browserPage.getByRole('heading', { name: 'Keep My Shiloh one tap away.' }).waitFor();
+  await browserPage.getByRole('heading', { name: 'Add My Shiloh to your Home Screen.' }).waitFor();
   if (await browserPage.getByRole('button', { name: 'Continue with WhatsApp' }).count()) {
     throw new Error('normal browser must not expose My Shiloh sign-in before installation');
   }
@@ -317,7 +317,7 @@ async function runViewport(browser, name, viewport) {
   await authenticatedBrowserContext.addCookies(authenticatedCookies);
   const authenticatedBrowserPage = await authenticatedBrowserContext.newPage();
   await authenticatedBrowserPage.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
-  await authenticatedBrowserPage.getByRole('heading', { name: 'Keep My Shiloh one tap away.' }).waitFor();
+  await authenticatedBrowserPage.getByRole('heading', { name: 'Add My Shiloh to your Home Screen.' }).waitFor();
   if (!(await authenticatedBrowserPage.locator('[data-app-frame]').isHidden())) {
     throw new Error('authenticated browser must keep the My Shiloh client shell hidden');
   }

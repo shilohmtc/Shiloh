@@ -5,6 +5,7 @@ const path = require('node:path');
 const {
   renderMyShilohPage,
   whatsappUrl,
+  johannesburgGreeting,
   MY_SHILOH_ASSET_VERSION,
 } = require('../src/presentation/myShilohPwa');
 
