@@ -31,7 +31,7 @@ test('#765 future booking requests use canonical assignment snapshots with no pe
     assert.doesNotMatch(source, /juvan|dummy test|jean-pierre|abigail|christel/i);
   }
   assert.doesNotMatch(approval, /resolveJuvanApprovalPolicy|resolveDummyTestApprovalPolicy|controlled_juvan_primary_backup/i);
-  assert.match(approval, /Number\(row\.approver_staff_id\) === Number\(principal\.staff_id\)/);
+  assert.match(approval, /BUSINESS_WIDE_ROLES\.has\(role\) && scope === 'all_business'/);
 });
 
 test('Reset Juvan and historical identity verification remain technical-only', () => {

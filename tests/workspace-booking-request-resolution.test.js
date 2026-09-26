@@ -62,7 +62,7 @@ function row(overrides = {}) {
 }
 
 function principal(overrides = {}) {
-  return { id: 7, staff_id: 11, business_role: 'employee_practitioner', calendar_scope: 'own_appointments', ...overrides };
+  return { id: 7, staff_id: 11, business_role: 'business_admin', calendar_scope: 'all_business', ...overrides };
 }
 
 function fakePool(initialRow) {
@@ -136,7 +136,7 @@ test('client proposal delivery exposes two native reply-button choices within pr
 test('resolver authority is target-specific, with business-wide owner backup and no person-name policy', () => {
   const request = row();
   assert.equal(operatorCanResolve(principal(), request), true);
-  assert.equal(operatorCanResolve(principal({ staff_id: 99 }), request), false);
+  assert.equal(operatorCanResolve(principal({ staff_id: 11, business_role: 'employee_practitioner', calendar_scope: 'own_appointments' }), request), false);
   assert.equal(operatorCanResolve(principal({ staff_id: 99, business_role: 'owner', calendar_scope: 'all_business' }), request), true);
   assert.equal(requestSnapshotMatches(request), true);
   assert.equal(requestSnapshotMatches(row({ current_staff_id: 12 })), false);
@@ -268,12 +268,12 @@ test('Cannot accommodate terminalizes the request, appointment and lifecycle ato
 test('own-scope practitioner cannot propose a different practitioner and V1 never changes service', async () => {
   const staffDb = fakePool(row());
   await assert.rejects(proposeAlternative({
-    dbPool: staffDb, principal: principal(), appointmentId: 7651, expectedRevision: REVISION,
+    dbPool: staffDb, principal: principal({ business_role: 'employee_practitioner', calendar_scope: 'own_appointments' }), appointmentId: 7651, expectedRevision: REVISION,
     startsAt: '2026-09-11T08:00:00.000Z', staffId: 12,
     now: new Date('2026-09-08T10:00:00.000Z'),
     validateWindow: async () => ({ ok: true, canonical: { display_name: 'Other' } }),
     sendProposal: async () => {},
-  }), error => error.code === 'BOOKING_REQUEST_TARGET_FORBIDDEN' && error.httpStatus === 403);
+  }), error => error.code === 'BOOKING_REQUEST_FORBIDDEN' && error.httpStatus === 403);
 
   const ownerServiceDb = fakePool(row());
   await assert.rejects(proposeAlternative({

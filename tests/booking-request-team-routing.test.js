@@ -12,6 +12,7 @@ function principal(overrides = {}) {
     staff_id: null,
     business_role: 'booking_operator',
     calendar_scope: 'all_business',
+    permissions: { 'appointment:create': true },
     calendarAuthority: {
       operatorAdminId: 100,
       linkedStaffId: null,
@@ -81,7 +82,7 @@ test('explicit team coordination narrows a business-wide principal and projects 
   assert.match(rows[0].staffName, /Christel team/);
 });
 
-test('Marietjie team scope does not expose Christel team requests', async () => {
+test('a practitioner team scope does not expose or resolve client-originated requests', async () => {
   const marietjie = principal({
     id: 104, staff_id: 5, business_role: 'tenant_practitioner', calendar_scope: 'own_services',
     calendarAuthority: { operatorAdminId: 104, linkedStaffId: 5, businessRole: 'tenant_practitioner', calendarScope: 'own_services' },
@@ -91,7 +92,18 @@ test('Marietjie team scope does not expose Christel team requests', async () => 
     unresolved: requestRows,
   });
   const rows = await routing.listUnresolvedBookingRequests({ db, principal: marietjie });
-  assert.deepEqual(rows.map(row => row.appointmentId), [502]);
+  assert.deepEqual(rows, []);
+  await assert.rejects(
+    routing.requireRoutingAuthority(dbWith({ scopes: { 104: { scope_kind: 'team', team_id: 12 } }, targets: { 502: requestRows[1] } }), marietjie, 502),
+    error => error.code === 'BOOKING_REQUEST_TEAM_FORBIDDEN',
+  );
+});
+
+test('a booking operator without appointment creation authority cannot coordinate requests', async () => {
+  const operator = principal({ permissions: { 'appointment:create': false } });
+  assert.equal(routing.isDerivedGlobalCoordinator(operator), false);
+  const rows = await routing.listUnresolvedBookingRequests({ db: dbWith({ unresolved: requestRows }), principal: operator });
+  assert.deepEqual(rows, []);
 });
 
 test('team routing rejects cross-team resolution and cross-team alternative practitioner before canonical mutation', async () => {
