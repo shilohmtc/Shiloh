@@ -133,6 +133,7 @@ export const BookingRequestPlanning = {
       });
       const action = document.createElement('a');
       action.className = 'button button--primary experience-primary';
+      action.dataset.clientExperiencePrimary = '';
       action.href = '#bookings';
       action.textContent = 'View request';
       home.appendChild(action);
@@ -156,6 +157,35 @@ export const ReceptionPlanningStarted = {
     if (fact) fact.textContent = 'Planning';
     const title = surface.querySelector('[data-client-experience-bookings] .action-card h2');
     if (title) title.textContent = 'Planning';
+    return surface;
+  },
+};
+
+export const AppointmentChangeRequested = {
+  render: () => {
+    const surface = AuthenticatedHome.render();
+    const home = surface.querySelector('[data-client-experience-home]');
+    if (home) {
+      const eyebrow = home.querySelector('.eyebrow');
+      if (eyebrow) eyebrow.textContent = 'Your appointment';
+      home.querySelector('h2').textContent = 'Your time change is awaiting review.';
+      home.querySelector(':scope > p').textContent = 'Hot Stone Massage: You asked to move to Wed, 30 Sept at 10:00. Your current appointment remains at Sun, 27 Sept at 10:00 until the change is approved.';
+      const status = home.querySelector('.status-pill');
+      if (status) status.textContent = 'Change requested';
+      const fact = home.querySelector('[data-client-experience-fact][data-fact-key="appointment"] strong');
+      if (fact) fact.textContent = 'Change requested';
+      const action = document.createElement('a');
+      action.className = 'button button--primary experience-primary';
+      action.dataset.clientExperiencePrimary = '';
+      action.href = '#bookings';
+      action.textContent = 'View request';
+      home.appendChild(action);
+    }
+    const bookings = surface.querySelector('[data-client-experience-bookings] .action-card');
+    if (bookings) {
+      bookings.querySelector('h2').textContent = 'Change requested';
+      bookings.querySelector('p').textContent = 'Hot Stone Massage · Sun, 27 Sept · 10:00 · You asked to move to Wed, 30 Sept at 10:00. Your current appointment remains at Sun, 27 Sept at 10:00 until the change is approved.';
+    }
     return surface;
   },
 };

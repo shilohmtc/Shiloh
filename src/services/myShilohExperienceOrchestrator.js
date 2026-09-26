@@ -108,6 +108,21 @@ function buildClientExperience(context) {
   const activeRequests = Array.isArray(context.activeRequests) ? context.activeRequests : context.activeRequest ? [context.activeRequest] : [];
   const request = activeRequests[0];
   const requestDisplay = appointmentDisplay(request);
+  const pendingRescheduleRequests = Array.isArray(context.pendingRescheduleRequests) ? context.pendingRescheduleRequests : [];
+  const pendingRescheduleCards = pendingRescheduleRequests.map(item => {
+    const current = appointmentDisplay(item);
+    const proposed = appointmentDisplay({ ...item, startsAt: item.proposedStartsAt });
+    return {
+      id: item.id, service: current?.service || 'Shiloh appointment',
+      practitioner: current?.practitioner || 'Shiloh',
+      date: current?.date, time: current?.time,
+      status: 'Change requested',
+      nextAction: proposed && current
+        ? `You asked to move to ${proposed.date} at ${proposed.time}. Your current appointment remains at ${current.date} at ${current.time} until the change is approved.`
+        : 'Your request to change the appointment is awaiting review. The current time remains unchanged.',
+    };
+  });
+  const nextAppointmentChange = pendingRescheduleCards.find(item => item.id === context.nextAppointment?.id);
   const proposalActive = request?.bookingRequestStatus === 'awaiting_client_confirmation'
     && request.proposedStartsAt && request.proposalExpiresAt
     && new Date(request.proposalExpiresAt).getTime() > new Date(context.generatedAt || Date.now()).getTime();
@@ -126,6 +141,15 @@ function buildClientExperience(context) {
       headline: 'Shiloh is planning your request.',
       summary: `You requested ${requestDisplay.service} for ${requestDisplay.date} at ${requestDisplay.time}. Reception will review the arrangement before confirming it. This appointment is not confirmed yet.`,
       status: request.planningStartedAt ? 'Planning' : 'Requested',
+      primaryAction: { kind: 'navigate', label: 'View request', href: '#bookings' },
+    };
+  } else if (nextAppointmentChange) {
+    const change = nextAppointmentChange;
+    home = {
+      eyebrow: 'Your appointment',
+      headline: 'Your time change is awaiting review.',
+      summary: `${change.service}: ${change.nextAction}`,
+      status: 'Change requested',
       primaryAction: { kind: 'navigate', label: 'View request', href: '#bookings' },
     };
   } else if (!appointment) {
@@ -175,6 +199,8 @@ function buildClientExperience(context) {
 
   const prompts = requestDisplay
     ? ['What is the status of my request?', 'Can I change my requested time?', 'When will Shiloh confirm my appointment?', 'Can I speak to Reception?']
+    : nextAppointmentChange
+    ? ['What is the status of my time change?', 'Is my original appointment still booked?', 'Can I speak to Reception?', 'What do I need before my visit?']
     : appointment
     ? [
       'What do I need before my appointment?',
@@ -202,6 +228,10 @@ function buildClientExperience(context) {
           },
           { key: 'forms', label: 'Forms', value: 'Nothing to do yet', href: null, message: 'Shiloh will let you know if a form is needed.' },
           { key: 'payment', label: 'Payment', value: 'No action yet', href: null, message: 'No payment action is due from this request yet.' },
+        ] : nextAppointmentChange ? [
+          { key: 'appointment', label: 'Appointment', value: 'Change requested', href: '#bookings', message: 'Your current appointment remains unchanged while the request is reviewed.' },
+          { key: 'forms', label: 'Forms', value: forms.label, href: forms.state === 'action_required' ? '/my-shiloh/forms/complete' : null, message: forms.state === 'action_required' ? 'Open your waiting consultation form.' : 'Nothing waiting right now.' },
+          { key: 'payment', label: 'Payment', value: payment.label, href: payment.actionPath, message: 'Your existing booking payment position remains unchanged.' },
         ] : appointment
         ? [
           {
@@ -299,14 +329,15 @@ function buildClientExperience(context) {
               : 'Reception is reviewing your request. The appointment has not been confirmed.',
           };
         }),
-        ...(appointment && !activeRequests.some(item => item.id === context.nextAppointment.id) ? [{
+        ...pendingRescheduleCards,
+        ...(appointment && !activeRequests.some(item => item.id === context.nextAppointment.id) && !pendingRescheduleCards.some(item => item.id === context.nextAppointment.id) ? [{
           id: context.nextAppointment.id, service: appointment.service, practitioner: appointment.practitioner,
           date: appointment.date, time: appointment.time,
           status: context.nextAppointment.status,
           nextAction: payment.state === 'deposit_required' ? payment.label : 'Your appointment details are available here.',
           paymentHelpNeeded: payment.state === 'deposit_required' && !payment.actionPath,
         }] : []),
-      ] : appointment ? [{
+      ] : appointment ? [...(nextAppointmentChange ? [nextAppointmentChange] : [{
         id: context.nextAppointment.id,
         service: appointment.service,
         practitioner: appointment.practitioner,
@@ -317,7 +348,7 @@ function buildClientExperience(context) {
         paymentHelpNeeded: payment.state === 'deposit_required' && !payment.actionPath,
         forms: forms.label,
         payment: payment.label,
-      }] : [],
+      }]), ...pendingRescheduleCards.filter(item => item.id !== context.nextAppointment.id)] : pendingRescheduleCards,
     },
     assistant: {
       prompts,

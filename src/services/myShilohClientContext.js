@@ -246,6 +246,33 @@ function createMyShilohClientContextService({
     return result.rows.map(appointmentFromRow);
   }
 
+  async function loadPendingRescheduleRequests(crmV2ClientId) {
+    const id = positiveId(crmV2ClientId);
+    if (!id) return [];
+    const result = await db.query(
+      `/* myShilohClientContext:pending-reschedule-requests */
+       SELECT a.id,a.crm_v2_client_id,a.starts_at,a.ends_at,a.status,
+              request.proposed_starts_at,request.requested_at,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('name',aps.service_name_snapshot) ORDER BY aps.position,aps.id)
+                          FROM appointment_services aps WHERE aps.appointment_id=a.id),'[]'::jsonb) AS services,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('name',ast.staff_name_snapshot) ORDER BY ast.position,ast.id)
+                          FROM appointment_staff ast WHERE ast.appointment_id=a.id),'[]'::jsonb) AS practitioners
+         FROM appointment_reschedule_requests request
+         JOIN appointments a ON a.id=request.appointment_id
+        WHERE request.crm_v2_client_id=$1 AND request.client_id IS NULL
+          AND a.crm_v2_client_id=$1 AND a.client_id IS NULL
+          AND a.status IN ('scheduled','confirmed') AND a.ends_at>$2::timestamptz
+          AND a.starts_at=request.original_starts_at AND a.ends_at=request.original_ends_at
+          AND request.status='pending'
+        ORDER BY request.requested_at DESC,request.id DESC
+        LIMIT 5`, [id, now()],
+    );
+    return result.rows.map(row => ({
+      ...appointmentFromRow(row),
+      proposedStartsAt: new Date(row.proposed_starts_at).toISOString(),
+    }));
+  }
+
   async function loadForms(crmV2ClientId, appointmentId) {
     const clientId = positiveId(crmV2ClientId);
     const bookingId = positiveId(appointmentId);
@@ -361,8 +388,9 @@ function createMyShilohClientContextService({
   async function getContext({ crmV2ClientId } = {}) {
     const client = await loadClient(crmV2ClientId);
     if (!client) return null;
-    const [appointment, activeRequests, declinedRequests] = await Promise.all([
-      loadNextAppointment(client.id), loadActiveBookingRequests(client.id), loadDeclinedBookingRequests(client.id),
+    const [appointment, activeRequests, declinedRequests, pendingRescheduleRequests] = await Promise.all([
+      loadNextAppointment(client.id), loadActiveBookingRequests(client.id),
+      loadDeclinedBookingRequests(client.id), loadPendingRescheduleRequests(client.id),
     ]);
     const [forms, payment] = appointment
       ? await Promise.all([
@@ -379,6 +407,7 @@ function createMyShilohClientContextService({
       activeRequest: activeRequests[0] || null,
       activeRequests,
       declinedRequests,
+      pendingRescheduleRequests,
       forms,
       payment,
     };
@@ -391,6 +420,7 @@ function createMyShilohClientContextService({
     loadActiveBookingRequest,
     loadActiveBookingRequests,
     loadDeclinedBookingRequests,
+    loadPendingRescheduleRequests,
     loadForms,
     loadPayment,
     getContext,

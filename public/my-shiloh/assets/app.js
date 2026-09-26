@@ -440,7 +440,7 @@
           const copy = card.querySelector('p');
           const action = card.querySelector('.button');
           if (number) number.textContent = String(index + 1).padStart(2, '0');
-          const isRequest = booking.status === 'Requested' || booking.status === 'Planning' || booking.status === 'Awaiting your response';
+          const isRequest = booking.status === 'Requested' || booking.status === 'Planning' || booking.status === 'Awaiting your response' || booking.status === 'Change requested';
           if (heading) heading.textContent = isRequest ? String(booking.status) : String(booking.service || 'Upcoming appointment');
           if (copy) copy.textContent = [[booking.service, booking.date, booking.time, booking.practitioner].filter(Boolean).join(' · '), booking.nextAction].filter(Boolean).join(' — ');
           if (action) {
