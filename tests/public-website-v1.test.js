@@ -257,6 +257,15 @@ test('Visit and the assistant use direct accommodation sources without Hello Hei
   assert.doesNotMatch(guide, /Hello Heidelberg/i);
 });
 
+test('public website gives clients a direct My Shiloh install entry without creating a second app', () => {
+  const home = renderHome(catalogue);
+  assert.match(home, /data-my-shiloh-install-entry/);
+  assert.match(home, /data-my-shiloh-install-link/);
+  assert.match(home, />Install My Shiloh<\/a>/);
+  assert.match(home, /href="\/my-shiloh\/" data-my-shiloh-install-link/);
+  assert.match(home, /No App Store or Play Store download required/);
+});
+
 test('public pages include search and sharing metadata', () => {
   for (const html of [
     renderHome(catalogue),
