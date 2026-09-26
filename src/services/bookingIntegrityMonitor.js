@@ -2,6 +2,7 @@ const { pool } = require('../db/pool');
 const { checkCalendarAvailabilityOnCalendar, calendarEnabled } = require('./googleBookingCalendar');
 const { normalizePhone } = require('./clientIdentityOnboarding');
 const logger = require('../lib/logger');
+const observability = require('../lib/observability');
 
 const PRACTITIONER_CALENDARS = Object.freeze([
   { name: 'Christel', env: 'GOOGLE_CHRISTEL_CALENDAR_ID' },
@@ -175,6 +176,7 @@ function startBookingIntegrityScheduler() {
       logger.info({ bookingLike: result.issues?.length || 0, scanned: result.scanned || 0 }, 'Booking integrity scan completed');
     } catch (error) {
       logger.error({ err: error }, 'Booking integrity scan failed');
+      observability.captureException(error, { 'error.kind': 'booking_integrity_scan', 'error.code': error?.code });
     }
   };
   setTimeout(run, 20000).unref();

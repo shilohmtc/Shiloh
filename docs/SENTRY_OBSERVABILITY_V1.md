@@ -1,6 +1,6 @@
 # Shiloh Sentry Observability V1
 
-This integration reports unhandled Node.js/runtime errors, startup failures, and errors that reach the final Express error handler. It does not add tracing, replay, log forwarding, provider monitoring, or business analytics.
+This integration reports unhandled Node.js/runtime errors, startup failures, and errors that reach the final Express error handler. Unexpected PostgreSQL pool errors and failed scheduled booking-integrity scans are also captured with controlled error-kind/code tags. It does not add tracing, replay, log forwarding, provider monitoring, or business analytics.
 
 ## Privacy boundary
 
@@ -38,6 +38,10 @@ No other Render variable is required for V1. With `SENTRY_DSN` unset or blank, S
 6. Add secret environment variable `SENTRY_DSN` with the copied DSN. Optionally add `SENTRY_ENVIRONMENT=production`; no release variable is needed when `RENDER_GIT_COMMIT` is available.
 7. Save only after Control approves release/configuration. The resulting restart/deploy must be verified against the exact approved release SHA.
 8. After release, use a deliberate non-sensitive test error path or another Control-approved synthetic check; never submit a real client message or appointment as test data.
+
+## Alert and response check
+
+Sentry initialization in Render proves that the application attempted to enable monitoring; it does not prove event delivery or alert routing. In the owner-approved Sentry project, check that new production issues notify the responsible operator, verify the destination with a safe synthetic event, and record who acknowledges and follows up. Keep client data out of test events. For database-pool and booking-integrity-scan issues, check Render logs and `/health` using the event release and safe error kind/code; review the existing Workspace problem reports and booking-integrity exceptions where relevant. Do not automatically retry a booking, payment, or message action based only on a Sentry event.
 
 ## Rollback
 
