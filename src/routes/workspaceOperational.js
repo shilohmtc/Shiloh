@@ -201,6 +201,8 @@ function createWorkspaceOperationalRouter({
 
   router.post('/booking-requests/:appointmentId/accept', sameOrigin, requireCsrf,
     (req, res) => bookingRequestAction(req, res, 'accept'));
+  router.post('/booking-requests/:appointmentId/start_planning', sameOrigin, requireCsrf,
+    (req, res) => bookingRequestAction(req, res, 'start_planning'));
   router.post('/booking-requests/:appointmentId/propose', sameOrigin, requireCsrf,
     (req, res) => bookingRequestAction(req, res, 'propose'));
   router.post('/booking-requests/:appointmentId/cannot_accommodate', sameOrigin, requireCsrf,

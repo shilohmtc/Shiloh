@@ -109,6 +109,11 @@ test('a canonical client request takes priority over an upcoming visit without a
   assert.equal(requested.bookings.upcoming[0].id, 902);
   assert.doesNotMatch(JSON.stringify(requested.home), /\/pay\/existing_booking/);
 
+  const planning = buildClientExperience({ ...base, activeRequest: { ...base.activeRequest, planningStartedAt: '2026-09-26T10:00:00.000Z' } });
+  assert.equal(planning.home.status, 'Planning');
+  assert.equal(planning.bookings.upcoming[0].status, 'Planning');
+  assert.match(planning.bookings.upcoming[0].nextAction, /not been confirmed/);
+
   const multiple = buildClientExperience({ ...base, activeRequests: [base.activeRequest, {
     ...base.activeRequest, id: 903, startsAt: '2026-10-04T08:00:00.000Z',
   }] });
@@ -136,6 +141,7 @@ test('active request is scoped to the signed-in CRM client and reads the existin
   const db = { async query(sql, values) {
     assert.match(sql, /a\.crm_v2_client_id=\$1 AND a\.client_id IS NULL/);
     assert.match(sql, /aba\.status IN \('pending','awaiting_client_confirmation'\)/);
+    assert.match(sql, /aba\.planning_started_at/);
     assert.deepEqual(values, [55]);
     return { rows: [{
       id: 902, crm_v2_client_id: 55, starts_at: '2026-10-02T08:00:00.000Z', ends_at: '2026-10-02T09:00:00.000Z',

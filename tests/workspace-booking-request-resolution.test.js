@@ -12,6 +12,7 @@ const {
   operatorCanResolve,
   requestSnapshotMatches,
   acceptRequestedAppointment,
+  startReceptionPlanning,
   proposeAlternative,
   cannotAccommodate,
   processClientBookingProposalMessage,
@@ -86,6 +87,11 @@ function fakePool(initialRow) {
         state.row.proposal_version = Number(state.row.proposal_version || 0) + 1;
         return { rows: [{ proposal_version: state.row.proposal_version }], rowCount: 1 };
       }
+      if (sql.includes('SET planning_started_at=NOW()')) {
+        if (state.row.planning_started_at || state.row.status !== 'pending') return { rows: [], rowCount: 0 };
+        state.row.planning_started_at = '2026-09-08T10:00:00Z';
+        return { rows: [{ planning_started_at: state.row.planning_started_at }], rowCount: 1 };
+      }
       if (sql.includes("SET status='approved'")) state.row.status = 'approved';
       else if (sql.includes("SET status='declined'")) state.row.status = 'declined';
       else if (sql.includes("SET status='pending'")) state.row.status = 'pending';
@@ -141,6 +147,27 @@ test('resolver authority is target-specific, with business-wide owner backup and
   assert.equal(requestSnapshotMatches(request), true);
   assert.equal(requestSnapshotMatches(row({ current_staff_id: 12 })), false);
   assert.equal(requestSnapshotMatches(row({ current_revision: '2026-09-08T09:01:00.000Z' })), false);
+});
+
+test('Reception Planning persists on the canonical request without confirming or moving the appointment', async () => {
+  const db = fakePool(row());
+  const input = { dbPool: db, principal: principal(), appointmentId: 7651, expectedRevision: REVISION };
+  assert.equal((await startReceptionPlanning(input)).status, 'planning');
+  assert.equal(db.state.row.status, 'pending');
+  assert.equal(db.state.calls.filter(call => call.sql.includes('planning_started_at=NOW()')).length, 1);
+  assert.equal(db.state.calls.filter(call => call.sql.includes('INSERT INTO crm_audit_events')).length, 1);
+  assert.equal(db.state.calls.some(call => call.sql.startsWith('UPDATE appointments')), false);
+  assert.equal((await startReceptionPlanning(input)).alreadyStarted, true);
+  assert.equal(db.state.calls.filter(call => call.sql.includes('INSERT INTO crm_audit_events')).length, 1);
+  const denied = fakePool(row());
+  await assert.rejects(startReceptionPlanning({ dbPool: denied, principal: principal({ business_role: 'employee_practitioner', calendar_scope: 'own_appointments' }), appointmentId: 7651, expectedRevision: REVISION }), { code: 'BOOKING_REQUEST_FORBIDDEN' });
+  assert.equal(denied.state.calls.some(call => call.sql.includes('planning_started_at=NOW()')), false);
+  const drifted = fakePool(row({ current_revision: '2026-09-08T09:01:00Z' }));
+  await assert.rejects(startReceptionPlanning({ dbPool: drifted, principal: principal(), appointmentId: 7651, expectedRevision: REVISION }), { code: 'BOOKING_REQUEST_CANONICAL_DRIFT' });
+  const migration = fs.readFileSync(path.join(__dirname, '..', 'migrations', '159_booking_request_reception_planning.sql'), 'utf8');
+  assert.match(migration, /ALTER TABLE appointment_booking_approvals/);
+  assert.match(migration, /planning_started_at TIMESTAMPTZ/);
+  assert.doesNotMatch(migration, /UPDATE appointment_booking_approvals/);
 });
 
 test('Accept requested appointment locks, revalidates, writes one terminal decision and sends confirmation after commit', async () => {

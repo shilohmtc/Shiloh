@@ -125,7 +125,7 @@ function buildClientExperience(context) {
       eyebrow: 'Your booking request',
       headline: 'Shiloh is planning your request.',
       summary: `You requested ${requestDisplay.service} for ${requestDisplay.date} at ${requestDisplay.time}. Reception will review the arrangement before confirming it. This appointment is not confirmed yet.`,
-      status: 'Requested',
+      status: request.planningStartedAt ? 'Planning' : 'Requested',
       primaryAction: { kind: 'navigate', label: 'View request', href: '#bookings' },
     };
   } else if (!appointment) {
@@ -283,7 +283,7 @@ function buildClientExperience(context) {
             practitioner: requested?.practitioner || 'Shiloh',
             date: offered?.date || requested?.date,
             time: offered?.time || requested?.time,
-            status: offered ? 'Awaiting your response' : 'Requested',
+            status: offered ? 'Awaiting your response' : item.planningStartedAt ? 'Planning' : 'Requested',
             nextAction: offered
               ? 'Reply to the Shiloh message about the proposed time. Reception will confirm the appointment after your response.'
               : 'Reception is reviewing your request. The appointment has not been confirmed.',
