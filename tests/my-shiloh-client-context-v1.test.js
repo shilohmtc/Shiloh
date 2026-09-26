@@ -210,6 +210,19 @@ test('payment action becomes primary only when forms need no client action', () 
 
   assert.equal(experience.home.status, 'Payment');
   assert.equal(experience.home.primaryAction.href, '/pay/PAYREQ_123456');
+  assert.equal(experience.bookings.upcoming[0].paymentHelpNeeded, false);
+});
+
+test('client booking can request WhatsApp help when its deposit awaits a missing link', () => {
+  const experience = buildClientExperience({
+    generatedAt: '2026-09-26T12:00:00.000Z',
+    client: { id: 55, name: 'Client Example' },
+    nextAppointment: { id: 779, status:'scheduled',startsAt:'2026-09-29T08:00:00.000Z',endsAt:'2026-09-29T09:30:00.000Z',services:['Swedish Massage'],practitioners:['Ilince'] },
+    forms: [],
+    payment: { state:'unpaid',depositState:'awaiting',depositOutstanding:'295.00',activePaymentPath:null },
+  });
+  assert.equal(experience.bookings.upcoming[0].paymentHelpNeeded, true);
+  assert.equal(experience.bookings.upcoming[0].id, 779);
 });
 
 test('no upcoming appointment produces a calm booking entry instead of invented client facts', () => {

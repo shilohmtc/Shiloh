@@ -444,8 +444,14 @@
           if (heading) heading.textContent = isRequest ? String(booking.status) : String(booking.service || 'Upcoming appointment');
           if (copy) copy.textContent = [[booking.service, booking.date, booking.time, booking.practitioner].filter(Boolean).join(' · '), booking.nextAction].filter(Boolean).join(' — ');
           if (action) {
-            action.textContent = isRequest ? 'Ask Shiloh about this request' : 'Ask Shiloh about this booking';
-            action.href = '#shiloh';
+            const clinicNumber = String(appFrame?.dataset.clientPaymentWhatsapp || '').replace(/\D/g, '');
+            const canAskForLink = !isRequest && booking.paymentHelpNeeded === true && Number.isSafeInteger(Number(booking.id)) && Number(booking.id) > 0 && clinicNumber;
+            action.textContent = canAskForLink ? 'Request a new payment link' : isRequest ? 'Ask Shiloh about this request' : 'Ask Shiloh about this booking';
+            action.href = canAskForLink
+              ? `https://wa.me/${clinicNumber}?text=${encodeURIComponent(`Hi Shiloh, please help me with a payment link for booking #${booking.id}. Please check the payment status first.`)}`
+              : '#shiloh';
+            if (canAskForLink) { action.target = '_blank'; action.rel = 'noopener noreferrer'; }
+            else { action.removeAttribute('target'); action.removeAttribute('rel'); }
           }
         };
         if (upcoming) {

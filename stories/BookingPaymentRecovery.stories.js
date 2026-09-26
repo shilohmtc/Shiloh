@@ -13,6 +13,7 @@ export default { title: 'Workspace/Booking payment recovery', parameters: { layo
 export const ReplacementRequest = {
   render: () => surface(renderCalendarPaymentPage({ model: {
     subject: { appointmentId: 779, clientName: 'Test Client', clientMobile: '0712345678' },
+    consultationRecovery: [{ status:'sent', linkAvailable:false }],
     payment: {
       state: 'unpaid', amountDue: '640.00', netPaid: '0.00', rewardsApplied: '0.00', outstanding: '640.00',
       requests: [
@@ -21,5 +22,14 @@ export const ReplacementRequest = {
       ], entries: [],
     },
     authority: { canCollect: true, canRefund: false, ozowConfigured: true },
+} })),
+};
+
+export const CancelledLink = {
+  render: () => surface(renderCalendarPaymentPage({ model: {
+    subject: { appointmentId:779,clientName:'Test Client',clientMobile:'0712345678' },
+    consultationRecovery: [{ status:'sent',linkAvailable:false }],
+    payment: { state:'unpaid',amountDue:'590.00',netPaid:'0.00',rewardsApplied:'0.00',outstanding:'590.00',requests:[{amount:'295.00',state:'cancelled',request_key:'old_request_779'}],entries:[] },
+    authority: { canCollect:true,canRefund:false,ozowConfigured:true },
   } })),
 };

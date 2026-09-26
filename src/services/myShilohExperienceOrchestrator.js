@@ -294,6 +294,7 @@ function buildClientExperience(context) {
           date: appointment.date, time: appointment.time,
           status: context.nextAppointment.status,
           nextAction: payment.state === 'deposit_required' ? payment.label : 'Your appointment details are available here.',
+          paymentHelpNeeded: payment.state === 'deposit_required' && !payment.actionPath,
         }] : []),
       ] : appointment ? [{
         id: context.nextAppointment.id,
@@ -303,6 +304,7 @@ function buildClientExperience(context) {
         time: appointment.time,
         status: context.nextAppointment.status,
         nextAction: payment.state === 'deposit_required' ? payment.label : 'Your appointment details are available here.',
+        paymentHelpNeeded: payment.state === 'deposit_required' && !payment.actionPath,
         forms: forms.label,
         payment: payment.label,
       }] : [],
