@@ -11,6 +11,7 @@ const { createMyShilohAssistantService, MyShilohAssistantError } = require('../s
 const { createMyShilohClientActionService } = require('../services/myShilohClientActions');
 const { createMyShilohConsultationFormActionService } = require('../services/myShilohConsultationFormActions');
 const clientConsultationForms = require('../services/clientConsultationForms');
+const { submissionProof } = require('./clientConsultationForms');
 const {
   renderClientConsultationFormPage,
   renderCompletedPage,
@@ -770,6 +771,7 @@ function createMyShilohRouter({
       return res.status(200).type('html').send(renderClientConsultationFormPage({
         ...opened.model,
         accessToken: opened.accessToken,
+        submissionProof: submissionProof(opened.accessToken, env),
       }));
     } catch (error) {
       const status = Number(error?.httpStatus) === 410 ? 410
