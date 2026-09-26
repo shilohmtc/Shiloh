@@ -164,6 +164,9 @@ test('Reception Planning persists on the canonical request without confirming or
   assert.equal(denied.state.calls.some(call => call.sql.includes('planning_started_at=NOW()')), false);
   const drifted = fakePool(row({ current_revision: '2026-09-08T09:01:00Z' }));
   await assert.rejects(startReceptionPlanning({ dbPool: drifted, principal: principal(), appointmentId: 7651, expectedRevision: REVISION }), { code: 'BOOKING_REQUEST_CANONICAL_DRIFT' });
+  const awaitingClient = fakePool(row({ status: 'awaiting_client_confirmation' }));
+  await assert.rejects(startReceptionPlanning({ dbPool: awaitingClient, principal: principal(), appointmentId: 7651, expectedRevision: REVISION }), { code: 'BOOKING_REQUEST_ALREADY_RESOLVED' });
+  assert.equal(awaitingClient.state.calls.some(call => call.sql.includes('planning_started_at=NOW()')), false);
   const migration = fs.readFileSync(path.join(__dirname, '..', 'migrations', '159_booking_request_reception_planning.sql'), 'utf8');
   assert.match(migration, /ALTER TABLE appointment_booking_approvals/);
   assert.match(migration, /planning_started_at TIMESTAMPTZ/);
