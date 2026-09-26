@@ -196,9 +196,11 @@ test('a rendered form submits from an opaque mobile origin with a signed proof, 
     CONSULTATION_FORM_DATA_KEY: Buffer.alloc(32, 9).toString('base64url'),
   };
   let submissions = 0;
+  const incidents = [];
   const app = express();
   app.use('/forms', routes.createClientConsultationFormsRouter({
     env,
+    monitor: { captureException(error, tags) { incidents.push({ error, tags }); } },
     service: {
       isClientConsultationFormsEnabled: () => true,
       parseDataKey: () => Buffer.alloc(32, 9),
@@ -227,8 +229,17 @@ test('a rendered form submits from an opaque mobile origin with a signed proof, 
     assert.equal((await post()).status, 403);
     assert.equal((await post('tampered')).status, 403);
     assert.equal(submissions, 0);
+    assert.equal(incidents.length, 2);
+    assert.deepEqual(incidents[0].tags, {
+      'error.kind': 'client_form_submission',
+      'error.code': 'SUBMISSION_PROOF_REJECTED',
+      'http.method': 'POST',
+      'http.route': '/forms/f/:accessToken',
+    });
+    assert.doesNotMatch(JSON.stringify(incidents.map(incident => incident.tags)), new RegExp(token));
     assert.equal((await post(proof)).status, 200);
     assert.equal(submissions, 1);
+    assert.equal(incidents.length, 2);
   } finally {
     await new Promise(resolve => server.close(resolve));
   }

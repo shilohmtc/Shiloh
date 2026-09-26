@@ -2,6 +2,7 @@ const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 const clientConsultationForms = require('../services/clientConsultationForms');
+const observability = require('../lib/observability');
 const { createConsultationFormTrialRouter } = require('./consultationFormTrial');
 const {
   renderClientConsultationFormPage,
@@ -66,6 +67,7 @@ function createClientConsultationFormsRouter({
   renderUnavailable = renderUnavailablePage,
   trialService,
   trialLog,
+  monitor = observability,
 } = {}) {
   const router = express.Router();
 
@@ -101,6 +103,7 @@ function createClientConsultationFormsRouter({
       }));
     } catch (error) {
       const safe = safeError(error);
+      if (safe.status === 503) monitor.captureException(error, { 'error.kind': 'client_form_unavailable', 'error.code': 'FORM_OPEN_UNAVAILABLE', 'http.method': 'GET', 'http.route': '/forms/f/:accessToken' });
       return res.status(safe.status).type('html').send(renderUnavailable({ message: safe.message }));
     }
   });
@@ -111,6 +114,10 @@ function createClientConsultationFormsRouter({
     parameterLimit: 250,
   }), async (req, res) => {
     if (!sameOriginSubmission(req) && !validSubmissionProof(req.params.accessToken, req.body?.submission_proof, env)) {
+      try {
+        const form = await service.openForm(req.params.accessToken);
+        if (!form.completed) monitor.captureException(new Error('Active consultation form submission blocked'), { 'error.kind': 'client_form_submission', 'error.code': 'SUBMISSION_PROOF_REJECTED', 'http.method': 'POST', 'http.route': '/forms/f/:accessToken' });
+      } catch (_error) { /* Unknown or expired links are not operational incidents. */ }
       return res.status(403).type('html').send(renderUnavailable({ message: 'This consultation form could not be submitted from that page.' }));
     }
     try {
@@ -135,6 +142,7 @@ function createClientConsultationFormsRouter({
         }
       }
       const safe = safeError(error);
+      if (safe.status === 503) monitor.captureException(error, { 'error.kind': 'client_form_unavailable', 'error.code': 'FORM_SUBMIT_UNAVAILABLE', 'http.method': 'POST', 'http.route': '/forms/f/:accessToken' });
       return res.status(safe.status).type('html').send(renderUnavailable({ message: safe.message }));
     }
   });

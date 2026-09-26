@@ -1,5 +1,6 @@
 const express = require('express');
 const { pool } = require('../db/pool');
+const observability = require('../lib/observability');
 const { renderPaymentStatusPage } = require('../presentation/paymentStatusUx');
 const { renderPaymentPolicyPage } = require('../presentation/paymentPolicyUx');
 const {
@@ -43,7 +44,7 @@ function validateOzowTarget(request) {
   return target;
 }
 
-function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema, whatsappNumber = resolveWhatsAppNumber } = {}) {
+function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema, whatsappNumber = resolveWhatsAppNumber, monitor = observability } = {}) {
   const router = express.Router();
   router.use(express.urlencoded({ extended: false }));
 
@@ -96,7 +97,10 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema,
         return res.redirect(303, `/pay/status/${requestKey}`);
       }
       const target = validateOzowTarget(request);
-      if (!target) return paymentUnavailable(res, 502, 'This payment link is unavailable.');
+      if (!target) {
+        monitor.captureException(new Error('Active payment provider link unavailable'), { 'error.kind': 'payment_link_unavailable', 'error.code': 'PAYMENT_PROVIDER_TARGET_INVALID', 'http.method': 'POST', 'http.route': '/pay/:requestKey/accept' });
+        return paymentUnavailable(res, 502, 'This payment link is unavailable.');
+      }
 
       await policySchema();
       await db.query(
@@ -147,7 +151,10 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema,
         }).send(renderPaymentStatusPage({ requestKey, request: { ...request, state: 'expired' } }));
       }
       if (request.gift_voucher_order_id) return res.redirect(303, `/gift-vouchers/${requestKey}`);
-      if (!validateOzowTarget(request)) return paymentUnavailable(res, 409, 'This payment link is not ready yet.');
+      if (!validateOzowTarget(request)) {
+        monitor.captureException(new Error('Active payment provider link unavailable'), { 'error.kind': 'payment_link_unavailable', 'error.code': 'PAYMENT_PROVIDER_TARGET_INVALID', 'http.method': 'GET', 'http.route': '/pay/:requestKey' });
+        return paymentUnavailable(res, 409, 'This payment link is not ready yet.');
+      }
 
       return res.status(200).type('html').set({
         'Cache-Control': 'no-store',
