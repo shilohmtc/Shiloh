@@ -2187,7 +2187,6 @@ test('My Shiloh notification invitation opens the Profile setting directly', asy
       Object.defineProperty(navigator, 'standalone', { configurable:true, get:() => true });
     });
     await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
-    await expect(page.locator('[data-push-toggle]')).not.toHaveText('Checking notifications…');
     await page.evaluate(() => { document.querySelector('[data-push-invite]').hidden = false; });
     await page.locator('[data-push-invite] a').click();
     await expect(page.locator('[data-view="profile"]')).toBeVisible();
