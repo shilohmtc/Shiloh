@@ -96,6 +96,22 @@ test('Home choosing help opens in-app Shiloh for clients and keeps guest and Rec
   assert.match(card(guest), /href="https:\/\/wa\.me\/27830000000\?text=/);
 });
 
+test('Bookings help stays in My Shiloh for clients and names the guest and Reception boundaries', () => {
+  const client = { id:'912', name:'Christel Botha', firstName:'Christel' };
+  const signed = renderMyShilohPage({ whatsappNumber:'27830000000', client });
+  const guest = renderMyShilohPage({ whatsappNumber:'27830000000' });
+  const reception = renderMyShilohPage({
+    whatsappNumber:'27830000000', humanWhatsAppNumber:'0662399138',
+    humanHandoffActive:true, client,
+  });
+  const bookings = (html) => html.match(/<section class="view" id="bookings"[\s\S]*?<\/section>/)?.[0] || '';
+  assert.match(bookings(signed), /Ask Shiloh here to help/);
+  assert.match(bookings(signed), /href="#shiloh">Ask Shiloh<\/a>/);
+  assert.doesNotMatch(bookings(signed), /wa\.me/);
+  assert.match(bookings(guest), /href="https:\/\/wa\.me\/[^"]+" rel="noopener noreferrer">Ask Shiloh on WhatsApp/);
+  assert.match(bookings(reception), /href="https:\/\/wa\.me\/27662399138[^"]*" rel="noopener noreferrer">Ask Reception/);
+});
+
 test('My Shiloh uses WhatsApp only as an explicit client handoff in the guest shell', () => {
   const url = whatsappUrl('+27 83 000 0000', 'Hello Shiloh');
   assert.equal(url, 'https://wa.me/27830000000?text=Hello%20Shiloh');
@@ -164,7 +180,7 @@ test('My Shiloh install client distinguishes iPhone Safari, iPhone Chrome and An
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v31/);
+  assert.match(worker, /my-shiloh-shell-v32/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /booking\.js/);
