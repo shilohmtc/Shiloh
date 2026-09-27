@@ -7,7 +7,7 @@ const {
 } = require('../services/publicPresentation');
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 
-const MY_SHILOH_ASSET_VERSION = '20260926-client-payment-recovery-v1';
+const MY_SHILOH_ASSET_VERSION = '20260927-signin-boundary-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -95,11 +95,10 @@ function renderMyShilohPage({
       </div>`
     : `<div class="hero">
         <p class="eyebrow">Welcome to My Shiloh</p>
-        <h1 id="home-title">Your Shiloh, all in one place.</h1>
-        <p class="hero-copy">Use WhatsApp to confirm it’s you and open your personal Shiloh space. No password or email needed.</p>
+        <h1 id="home-title">Sign in to My Shiloh.</h1>
+        <p class="hero-copy">Sign in with WhatsApp to book in My Shiloh and see your personal appointments. No password or email needed.</p>
         <div class="hero-actions">
           <button class="button button--primary" type="button" data-client-auth-start>Continue with WhatsApp</button>
-          <a class="button button--soft" href="/book">Book an appointment</a>
         </div>
         <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
         ${authFinishForm('my-shiloh-home-code')}
@@ -356,13 +355,12 @@ function renderMyShilohPage({
     <main id="main-content" class="app-main">
       <section class="view is-active" id="home" data-view="home" aria-labelledby="home-title">
         ${hero}
-        ${authenticated ? '' : welcomeVoucher}
-        ${focus}
+        ${authenticated ? focus : welcomeVoucher}
         ${authenticated ? `<section class="notification-centre" aria-labelledby="notification-centre-title" data-client-notification-centre>
           <div class="section-heading"><div><p class="eyebrow">Updates</p><h2 id="notification-centre-title">Your latest Shiloh updates.</h2></div><a class="text-link" href="#profile">Notification settings</a></div>
           <div class="notification-centre__list" data-client-notification-list aria-live="polite"><p class="notification-centre__empty">Checking for updates…</p></div>
         </section>` : ''}
-        <section class="section-block" aria-labelledby="discover-title">
+        ${authenticated ? `<section class="section-block" aria-labelledby="discover-title">
           <div class="section-heading">
             <div><p class="eyebrow">Discover</p><h2 id="discover-title">Start with what you need.</h2></div>
             <a class="text-link" href="/treatments">See all services</a>
@@ -373,10 +371,10 @@ function renderMyShilohPage({
           <div class="quiet-icon" aria-hidden="true">S</div>
           <div><p class="eyebrow">Shiloh is close</p><h2>Need help choosing?</h2><p>Tell Shiloh what you feel like booking and continue the conversation on WhatsApp.</p></div>
           <a class="circle-link" href="${escapeHtml(askShiloh)}" aria-label="Ask Shiloh on WhatsApp" rel="noopener noreferrer">→</a>
-        </section>
+        </section>` : ''}
       </section>
 
-      <section class="view" id="bookings" data-view="bookings" aria-labelledby="bookings-title" hidden>
+      ${authenticated ? `<section class="view" id="bookings" data-view="bookings" aria-labelledby="bookings-title" hidden>
         <div class="page-intro">
           <p class="eyebrow">Bookings</p>
           <h1 id="bookings-title">Your time with Shiloh.</h1>
@@ -442,16 +440,16 @@ function renderMyShilohPage({
 
       <section class="view" id="profile" data-view="profile" aria-labelledby="profile-title" hidden>
         ${profile}
-      </section>
+      </section>` : ''}
     </main>
 
-    <nav class="bottom-nav" aria-label="My Shiloh">
+    ${authenticated ? `<nav class="bottom-nav" aria-label="My Shiloh">
       <a href="#home" data-view-target="home" aria-current="page"><span class="nav-icon" aria-hidden="true">⌂</span><span>Home</span></a>
       <a href="#bookings" data-view-target="bookings"><span class="nav-icon" aria-hidden="true">□</span><span>Bookings</span></a>
       <a class="nav-shiloh" href="#shiloh" data-view-target="shiloh"><span class="nav-orb" aria-hidden="true">S</span><span>Shiloh</span></a>
       <a href="#wallet" data-view-target="wallet"><span class="nav-icon" aria-hidden="true">▱</span><span>Wallet</span></a>
       <a href="#profile" data-view-target="profile"><span class="nav-icon" aria-hidden="true">○</span><span>Profile</span></a>
-    </nav>
+    </nav>` : ''}
   </div>
 
   <div class="install-sheet" data-install-sheet hidden>

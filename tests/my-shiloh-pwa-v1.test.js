@@ -30,8 +30,8 @@ const catalogue = [
   },
 ];
 
-test('My Shiloh renders the approved five-tab PWA shell with public-safe service data', () => {
-  const html = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue });
+test('My Shiloh keeps the five-tab shell and catalogue inside the signed-in app', () => {
+  const html = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue, client: { id: 42, name: 'Client', firstName: 'Client' } });
   assert.match(html, /<title>My Shiloh<\/title>/);
   assert.match(html, /rel="manifest" href="\/my-shiloh\/manifest\.webmanifest"/);
   assert.match(html, /rel="apple-touch-icon" sizes="180x180" href="\/my-shiloh\/assets\/apple-touch-icon-180\.png/);
@@ -56,6 +56,14 @@ test('My Shiloh renders the approved five-tab PWA shell with public-safe service
   assert.doesNotMatch(html, /ADMIN_API_KEY|x-admin-key/i);
 });
 
+test('signed-out My Shiloh offers sign-in without app navigation or a website booking escape', () => {
+  const html = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue });
+  assert.match(html, /Continue with WhatsApp/);
+  assert.match(html, /Sign in with WhatsApp to book in My Shiloh/);
+  assert.doesNotMatch(html, /<nav class="bottom-nav"|href="\/book"|href="\/my-shiloh\/book"/);
+  assert.match(read('public/my-shiloh/assets/app.js'), /clientAuthenticated === 'true' && viewNames\.has\(name\)/);
+});
+
 test('authenticated My Shiloh Home exposes tappable summary cards without duplicating authority', () => {
   const html = renderMyShilohPage({
     whatsappNumber: '27830000000',
@@ -70,13 +78,14 @@ test('authenticated My Shiloh Home exposes tappable summary cards without duplic
   assert.doesNotMatch(html, /onclick=/i);
 });
 
-test('My Shiloh uses WhatsApp only as an explicit client handoff in the guest shell', () => {
+test('My Shiloh signed-out shell keeps the WhatsApp sign-in as its only journey', () => {
   const url = whatsappUrl('+27 83 000 0000', 'Hello Shiloh');
   assert.equal(url, 'https://wa.me/27830000000?text=Hello%20Shiloh');
   assert.equal(whatsappUrl(null), '/contact');
   const html = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue: [] });
-  assert.match(html, /https:\/\/wa\.me\/27830000000\?text=/);
-  assert.match(html, /Book an appointment/);
+  assert.match(html, /Sign in to My Shiloh/);
+  assert.match(html, /data-client-auth-start/);
+  assert.doesNotMatch(html, /https:\/\/wa\.me\/27830000000\?text=|Book an appointment/);
 });
 
 test('My Shiloh route is no-store, no-index and mounted without reusing staff authentication', () => {
@@ -134,7 +143,7 @@ test('My Shiloh install client distinguishes iPhone Safari, iPhone Chrome and An
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v25/);
+  assert.match(worker, /my-shiloh-shell-v26/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /booking\.js/);

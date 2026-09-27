@@ -149,3 +149,9 @@ The next roadmap item should be taken from the current GitHub roadmap rather tha
 ## Updating this handbook
 
 Update this file when the platform map, integration ownership, source-of-truth boundary or safe operating path changes. Keep detailed implementation in the relevant source file, migration, runbook, issue or external system. Add the date and evidence for meaningful checkpoints, and link to the existing canonical record instead of creating a duplicate policy.
+
+# Interface confirmation standard
+
+Workspace and My Shiloh consequential actions use a Shiloh-styled confirmation dialog with the item name, a plain description of the consequence, a safe cancel choice and an action-specific verb. Never use a browser-native `confirm()` box or a generic “OK” for destructive, financial, access or client-notification actions. On phones the dialog sits above the bottom edge with reachable buttons. Cancel and Escape return focus to the initiating control. The dialog is only a presentation safeguard; the canonical server authority rechecks eligibility, revision, permissions and idempotency before mutation. The shared Workspace presentation primitive is `src/presentation/shilohConfirmation.js`; migrate older confirmation sites as their surfaces are changed.
+
+Signed-out My Shiloh is a sign-in doorway. Its app navigation and booking journey appear only after a verified client session; public website browsing stays available independently from the public site.

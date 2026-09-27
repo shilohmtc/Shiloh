@@ -2,6 +2,36 @@ const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { buildClientExperience } = require('../src/services/myShilohExperienceOrchestrator');
 
+test('My Shiloh signed-out doorway keeps booking inside the verified app on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--guest-home&viewMode=story', { waitUntil:'networkidle' });
+    await expect(page.getByRole('heading', { name:'Sign in to My Shiloh.' })).toBeVisible();
+    await expect(page.getByRole('button', { name:'Continue with WhatsApp' })).toBeVisible();
+    await expect(page.locator('.bottom-nav')).toHaveCount(0);
+    await expect(page.locator('a[href="/book"],a[href="/my-shiloh/book"]')).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
+    const accessibility = await new AxeBuilder({ page }).include('[data-app-frame]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(item => ['serious','critical'].includes(item.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-signin-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+  }
+});
+
+test('Workspace category deletion uses a named Shiloh dialog on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=workspace-services--category-delete-confirmation&viewMode=story', { waitUntil:'networkidle' });
+    const dialog = page.getByRole('dialog', { name:'Delete “Facial Waxing”?' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name:'Keep category' })).toBeVisible();
+    await expect(dialog.getByRole('button', { name:'Delete category' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
+    const accessibility = await new AxeBuilder({ page }).include('[data-shiloh-confirmation]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(item => ['serious','critical'].includes(item.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`workspace-category-confirm-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+  }
+});
+
 test('Workspace vouchers stay contained and selectable on Phone and Desktop', async ({ page }, testInfo) => {
   await page.route('**/calendar/vouchers/walk-in', async (route) => route.fulfill({
     status: 200,

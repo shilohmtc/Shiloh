@@ -79,13 +79,14 @@
   const completionCode = completionCodeFromHash();
 
   function selectedView() {
+    if (appFrame?.dataset.clientAuthenticated !== 'true') return 'home';
     const fromHash = String(window.location.hash || '').replace(/^#/, '');
     if (fromHash === 'welcome-voucher') return 'wallet';
     return viewNames.has(fromHash) ? fromHash : 'home';
   }
 
   function activateView(name) {
-    const target = viewNames.has(name) ? name : 'home';
+    const target = appFrame?.dataset.clientAuthenticated === 'true' && viewNames.has(name) ? name : 'home';
     for (const view of views) {
       const active = view.dataset.view === target;
       view.hidden = !active;

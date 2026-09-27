@@ -172,3 +172,19 @@ export const ChristelCategoryManagement = {
     ],
   }, { ...options, staffNavigationAllowed: true })),
 };
+
+export const CategoryDeleteConfirmation = {
+  render: () => productionSurface(renderServicesListPage({
+    authority: { displayName: 'Christel', businessRole: 'owner', serviceScope: 'all_services' },
+    services: [], hasMore: false, offset: 0, pageSize: 30, status: 'active',
+    categories: [{ id: 18, name: 'Facial Waxing', displayOrder: 16, status: 'active', serviceCount: 0 }],
+  }, { ...options, staffNavigationAllowed: true })),
+  play: async ({ canvasElement }) => {
+    const dialog = canvasElement.querySelector('[data-shiloh-confirmation]');
+    dialog.querySelector('[data-shiloh-confirm-title]').textContent = 'Delete “Facial Waxing”?';
+    dialog.querySelector('[data-shiloh-confirm-description]').textContent = 'This empty category will be permanently removed. Services in other categories will stay as they are.';
+    dialog.querySelector('[data-shiloh-confirm-cancel]').textContent = 'Keep category';
+    dialog.querySelector('[data-shiloh-confirm-accept]').textContent = 'Delete category';
+    dialog.showModal();
+  },
+};

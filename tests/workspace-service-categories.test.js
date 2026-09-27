@@ -74,6 +74,9 @@ test('category UI appears for authorized list and supports create, edit, delete 
   assert.doesNotMatch(renderServicesListPage({ ...model, categories: undefined }, { manageAllowed: false }), /data-category-create/);
   const script = workspaceServicesManageClientScript();
   for (const action of ['create', 'edit', 'delete']) assert.match(script, new RegExp('data-category-' + action));
+  assert.match(script, /confirmShiloh\(/);
+  assert.match(script, /Delete category/);
+  assert.doesNotMatch(script, /window\.confirm\(/);
 });
 
 test('category HTTP changes require session, same origin and CSRF', async () => {

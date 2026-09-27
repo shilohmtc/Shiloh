@@ -27,7 +27,8 @@ test('signed-in My Shiloh booking stays inside the app instead of /book', () => 
     catalogue: [],
     client: null,
   });
-  assert.match(guest, /href="\/book">Book an appointment/);
+  assert.doesNotMatch(guest, /href="\/book"|href="\/my-shiloh\/book"/);
+  assert.match(guest, /Continue with WhatsApp/);
 
   const experience = buildClientExperience({
     generatedAt:'2026-09-23T18:00:00.000Z',
