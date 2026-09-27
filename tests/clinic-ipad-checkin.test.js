@@ -87,3 +87,19 @@ test('device activation requires existing clinic client management authority',as
   assert.equal(queries.length,1);
   assert.doesNotMatch(JSON.stringify(queries),new RegExp(rawDevice));
 });
+
+test('disabled device immediately loses its check-in capability',async () => {
+  let disabled=false;
+  const db={ query:async (sql)=>{
+    if (sql.includes('UPDATE clinic_checkin_devices')) { disabled=true; return { rowCount:1,rows:[{id:9}] }; }
+    if (sql.includes('SELECT id,activated_by_admin_id')) return { rows:disabled?[]:[{id:9,activated_by_admin_id:7}] };
+    throw new Error('Unexpected database query');
+  } };
+  const service=createClinicIpadCheckinService({
+    db,
+    clientMutations:{ resolveManageAccess:async()=>({ operatorAdminId:7,clientScope:{kind:'clinic'} }) },
+  });
+  assert.equal((await service.deviceFor(rawDevice)).id,9);
+  assert.equal(await service.revoke(7,9),true);
+  assert.equal(await service.deviceFor(rawDevice),null);
+});

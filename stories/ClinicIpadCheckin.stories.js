@@ -1,4 +1,4 @@
-const { welcome, details, done, setup } = require('../src/presentation/clinicIpadCheckinUx');
+const { welcome, details, done, setup, devices } = require('../src/presentation/clinicIpadCheckinUx');
 
 function frame(markup) {
   const body = markup.match(/<body>([\s\S]*)<\/body>/)?.[1] || '';
@@ -12,3 +12,4 @@ export const ValidationError = { render:() => frame(details({ error:'Please chec
 export const Saved = { render:() => frame(done()) };
 export const ExistingClient = { render:() => frame(done({ needsStaff:true })) };
 export const StaffSetup = { render:() => frame(setup()) };
+export const StaffDevices = { render:() => frame(devices([{ id:1,created_at:'2026-09-27T08:00:00Z',revoked_at:null }])) };

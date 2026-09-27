@@ -105,6 +105,17 @@ function createClinicIpadSetupRouter({ env = process.env, sessionService, servic
       return res.type('html').send(ux.setup());
     } catch (error) { next(error); }
   });
+  router.get('/devices.js',staff,(_req,res) => res.type('application/javascript').send(`(function(){document.querySelectorAll('[data-revoke]').forEach(button=>button.addEventListener('click',async()=>{const status=document.querySelector('[data-status]');button.disabled=true;try{const c=await fetch('/calendar/staff-auth/csrf',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(!c.ok)throw Error('Please sign in again.');const csrf=await c.json();const r=await fetch('/calendar/check-in/revoke',{method:'POST',headers:{'Content-Type':'application/json','X-Shiloh-Csrf-Token':csrf.csrfToken},body:JSON.stringify({deviceId:button.dataset.revoke})});if(!r.ok)throw Error('Could not disable this iPad.');location.reload();}catch(e){status.textContent=e.message;button.disabled=false;}}))})();`));
+  router.get('/devices',staff,async (req,res,next) => {
+    try { return res.type('html').send(ux.devices(await service.listDevices(req.staffBrowserSession.adminId))); }
+    catch (error) { next(error); }
+  });
+  router.post('/revoke',sameOriginGuard({ env }),staff,csrfGuard({ service:sessionService }),async (req,res,next) => {
+    try {
+      const revoked = await service.revoke(req.staffBrowserSession.adminId,req.body?.deviceId);
+      return res.status(revoked ? 200 : 404).json({ revoked });
+    } catch (error) { next(error); }
+  });
   router.post('/activate',sameOriginGuard({ env }),staff,csrfGuard({ service:sessionService }),async (req,res,next) => {
     try {
       const activated = await service.activate(req.staffBrowserSession.adminId);

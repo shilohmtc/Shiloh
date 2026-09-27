@@ -53,6 +53,14 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
     return result.rowCount === 1;
   }
 
+  async function listDevices(adminId) {
+    if (!await canActivate(adminId)) throw new CheckinError('Clinic client management access is required.', 403);
+    const result = await db.query(
+      `SELECT id,created_at,revoked_at FROM clinic_checkin_devices
+       ORDER BY created_at DESC,id DESC LIMIT 30`);
+    return result.rows;
+  }
+
   async function begin(rawDeviceToken) {
     const device = await deviceFor(rawDeviceToken);
     if (!device) throw new CheckinError('Please ask reception to set up this iPad.', 401);
@@ -140,7 +148,7 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
     } finally { connection.release(); }
   }
 
-  return { canActivate, activate, revoke, deviceFor, begin, active, finish, register };
+  return { canActivate, activate, revoke, listDevices, deviceFor, begin, active, finish, register };
 }
 
 module.exports = { createClinicIpadCheckinService, CheckinError, SESSION_MS, validToken };
