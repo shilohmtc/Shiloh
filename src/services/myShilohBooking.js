@@ -174,7 +174,7 @@ function createMyShilohBookingService({
         WHERE s.id=$1
           AND COALESCE(s.variable_price,FALSE)=FALSE
           AND s.price IS NOT NULL
-          AND NOT (s.external_source='shiloh_special')
+          AND s.external_source IS DISTINCT FROM 'shiloh_special'
           AND NOT EXISTS (
             SELECT 1 FROM service_packages sp
              WHERE sp.session_service_id=s.id

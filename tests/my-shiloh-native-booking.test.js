@@ -212,6 +212,31 @@ test('ordinary My Shiloh catalogue excludes special, package-session and variabl
   assert.deepEqual(rows.map(row=>row.id), [44]);
 });
 
+test('an ordinary service with a null source reaches the practitioner step while special services remain excluded', async () => {
+  const db = {
+    async query(sql, values = []) {
+      if (sql.includes('FROM services s') && sql.includes('WHERE s.id=$1')) {
+        assert.match(sql, /s\.external_source IS DISTINCT FROM 'shiloh_special'/);
+        return Number(values[0]) === 44
+          ? { rows:[{ id:44, name:'Toe Gel Only', status:'active', price:'250.00', variable_price:false, duration_minutes:30, category_name:'Pedicures & Foot Care' }] }
+          : { rows:[] };
+      }
+      if (sql.includes('FROM staff') && sql.includes('client_bookable=TRUE')) return { rows:[{ id:11 }] };
+      throw new Error(`Unexpected query: ${sql}`);
+    },
+  };
+  const service = createMyShilohBookingService({
+    db,
+    eligibleStaff:async()=>[{ id:11, display_name:'Christel' }],
+    depositPolicy:{ async loadPolicy(){ return { rateBasisPoints:5000, exemptStaffId:null }; } },
+  });
+  const ordinary = await service.practitioners({ serviceId:44 });
+  assert.equal(ordinary.service.name, 'Toe Gel Only');
+  assert.equal(ordinary.service.price, 250);
+  assert.deepEqual(ordinary.practitioners.map(row=>row.name), ['Christel']);
+  await assert.rejects(service.practitioners({ serviceId:66 }), { code:'BOOKING_SERVICE_CHANGED' });
+});
+
 
 test('My Shiloh catalogue and practitioner step exclude tenant-practitioner services without changing canonical service ownership', async () => {
   const db = {
