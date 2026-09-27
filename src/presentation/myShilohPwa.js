@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-booking-entry-v1';
+const MY_SHILOH_ASSET_VERSION = '20260927-whatsapp-continuation-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -414,7 +414,12 @@ function renderMyShilohPage({
               <p>${humanHandoffActive ? `Hi ${firstName} 🌿 Reception is now helping you.` : `Hi ${firstName} 🌿 Ask me anything about your Shiloh visit, booking, forms or payment status.`}</p>
             </div>
           </div>
-          ${humanHandoffActive ? `<p class="assistant-chat__note" role="status">Reception is handling your request. Shiloh’s automatic replies are paused until Reception closes the handoff. Continue with Reception on the clinic WhatsApp number.</p>` : `<div class="prompt-grid" aria-label="Suggested questions" data-client-experience-prompts>
+          ${humanHandoffActive ? `<p class="assistant-chat__note" role="status">Reception is handling your request. Shiloh’s automatic replies are paused until Reception closes the handoff. Continue with Reception on the clinic WhatsApp number.</p>` : `<div class="assistant-continuation" data-whatsapp-continuation hidden>
+            <p>You recently chatted with Shiloh on WhatsApp. Bring the last exchange into this private conversation?</p>
+            <button class="button button--soft" type="button" data-whatsapp-continuation-accept>Continue from WhatsApp</button>
+            <span role="status" data-whatsapp-continuation-status></span>
+          </div>
+          <div class="prompt-grid" aria-label="Suggested questions" data-client-experience-prompts>
             <button type="button" data-shiloh-prompt><span>Prepare</span><strong>What do I need before my appointment?</strong></button>
             <button type="button" data-shiloh-prompt><span>Manage</span><strong>Can I move my appointment?</strong></button>
             <button type="button" data-shiloh-prompt><span>Status</span><strong>What is my appointment status?</strong></button>

@@ -40,6 +40,9 @@
   const shilohChatForm = document.querySelector('[data-shiloh-chat-form]');
   const shilohChatInput = document.querySelector('[data-shiloh-chat-input]');
   const shilohChatSend = document.querySelector('[data-shiloh-chat-send]');
+  const whatsappContinuation = document.querySelector('[data-whatsapp-continuation]');
+  const whatsappContinuationAccept = document.querySelector('[data-whatsapp-continuation-accept]');
+  const whatsappContinuationStatus = document.querySelector('[data-whatsapp-continuation-status]');
   const shilohPromptButtons = [...document.querySelectorAll('[data-shiloh-prompt]')];
   const clientProfileForm = document.querySelector('[data-client-profile-form]');
   const clientProfileStatus = document.querySelector('[data-client-profile-status]');
@@ -96,6 +99,7 @@
       if (item.dataset.viewTarget === target) item.setAttribute('aria-current', 'page');
       else item.removeAttribute('aria-current');
     }
+    if (target === 'shiloh') loadWhatsAppContinuation();
     const notificationTitle = target === 'profile' && window.location.hash === '#profile-notifications' && !appFrame?.hidden
       ? document.querySelector('#notifications-title') : null;
     if (notificationTitle) {
@@ -1425,6 +1429,38 @@
     bubble.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
     return bubble;
   }
+
+  async function loadWhatsAppContinuation() {
+    if (!whatsappContinuation || appFrame?.dataset.clientAuthenticated !== 'true') return;
+    try {
+      const response = await fetch('/my-shiloh/api/shiloh/whatsapp-continuation', {
+        credentials:'same-origin', cache:'no-store', headers:{ Accept:'application/json' },
+      });
+      const data = await response.json().catch(() => ({}));
+      whatsappContinuation.hidden = !response.ok || data.available !== true;
+    } catch (_) { whatsappContinuation.hidden = true; }
+  }
+
+  whatsappContinuationAccept?.addEventListener('click', async () => {
+    whatsappContinuationAccept.disabled = true;
+    if (whatsappContinuationStatus) whatsappContinuationStatus.textContent = 'Bringing your recent conversation here…';
+    try {
+      const token = await freshCsrfToken();
+      const response = await postJson('/my-shiloh/api/shiloh/whatsapp-continuation', {}, {
+        'x-shiloh-csrf-token':token,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.exchange?.clientMessage || !data.exchange?.shilohReply) {
+        throw new Error(data.error || 'Your recent conversation could not be brought here.');
+      }
+      whatsappContinuation.hidden = true;
+      appendShilohMessage('shiloh', 'Here is our last exchange on WhatsApp. You can continue here in My Shiloh.');
+      appendShilohMessage('user', data.exchange.clientMessage);
+      appendShilohMessage('shiloh', data.exchange.shilohReply);
+    } catch (error) {
+      if (whatsappContinuationStatus) whatsappContinuationStatus.textContent = error.message || 'Please try again.';
+    } finally { whatsappContinuationAccept.disabled = false; }
+  });
 
   function appendClientRecovery(message) {
     appendShilohMessage('shiloh', `${String(message || 'That did not work.')}\n\nNothing has been changed. Try once more, or report the problem if it continues.`);

@@ -50,6 +50,7 @@ const publicWebsiteRoutes = require("./src/routes/publicWebsite");
 const serviceRoutes = require("./src/routes/services");
 const { createClientConsultationFormsRouter } = require("./src/routes/clientConsultationForms");
 const { checkDatabase, startConversationSessionCleanupScheduler } = require("./src/services/memory");
+const { startClientWhatsAppContinuationCleanupScheduler } = require('./src/services/clientWhatsAppContinuation');
 const { startTemporarySessionCleanupScheduler } = require("./src/services/temporarySessionRetention");
 const { startGoogleBusinessProfileSyncScheduler } = require("./src/services/googleBusinessProfileSync");
 const { startAppointmentLifecycleScheduler } = require("./src/services/appointmentLifecycle");
@@ -135,7 +136,7 @@ async function start() {
   try { await runConfiguredClientProvenanceAudit(logger); } catch (error) { logger.error({ err: error }, "Read-only CRM provenance audit failed"); }
   await provisionWorkspaceBookingRequestAlertIfExplicitlyEnabled();
   await provisionProblemReportResolvedTemplateIfExplicitlyEnabled();
-  server = app.listen(PORT, () => { logger.info({ port: PORT }, "Shiloh started"); startConversationSessionCleanupScheduler(); startTemporarySessionCleanupScheduler(); startGoogleBusinessProfileSyncScheduler(); startAppointmentLifecycleScheduler(); startCustomerCareScheduler(); startBookingIntegrityScheduler(); startCustomerBookingConfirmationScheduler(); startConsultationFormDeliveryScheduler(); startMandatoryDemoCleanupScheduler(); startAttendanceFinalizationReminderScheduler(); startHistoricalFinalizationPromptScheduler(); startProblemReportNotificationScheduler(); });
+  server = app.listen(PORT, () => { logger.info({ port: PORT }, "Shiloh started"); startConversationSessionCleanupScheduler(); startClientWhatsAppContinuationCleanupScheduler(); startTemporarySessionCleanupScheduler(); startGoogleBusinessProfileSyncScheduler(); startAppointmentLifecycleScheduler(); startCustomerCareScheduler(); startBookingIntegrityScheduler(); startCustomerBookingConfirmationScheduler(); startConsultationFormDeliveryScheduler(); startMandatoryDemoCleanupScheduler(); startAttendanceFinalizationReminderScheduler(); startHistoricalFinalizationPromptScheduler(); startProblemReportNotificationScheduler(); });
 }
 start().catch(async (error) => {
   observability.captureException(error, { "error.kind": "startup", "error.code": error?.code, "runtime.phase": "startup" });

@@ -276,6 +276,8 @@ h3{font-size:20px;line-height:1.12}
 .assistant-composer textarea:focus-visible{outline:2px solid var(--leaf-dark);outline-offset:2px}
 .assistant-composer .button{min-width:70px;min-height:48px;padding:10px 12px}
 .assistant-chat__note{margin:10px 2px 5px;color:var(--muted);font-size:10px}
+.assistant-continuation{margin:12px 2px;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--sage-2)}
+.assistant-continuation p{margin:0 0 9px;font-size:12px}.assistant-continuation .button{min-height:42px}.assistant-continuation [role="status"]{display:block;margin-top:7px;font-size:11px;color:var(--muted)}
 .assistant-whatsapp-fallback{display:inline-flex;margin:4px 2px 0}
 .client-action-card{justify-self:stretch;max-width:100%;padding:17px;border-radius:20px;background:linear-gradient(145deg,#fff7f2,#fffdf9);border:1px solid rgba(123,67,61,.18);box-shadow:0 10px 26px rgba(91,52,47,.08)}
 .client-action-card__eyebrow{display:block;margin-bottom:7px;color:#7b433d;text-transform:uppercase;letter-spacing:.1em;font-size:9px;font-weight:900}

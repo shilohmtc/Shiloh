@@ -5,6 +5,8 @@ const clientContext = require('./myShilohClientContext');
 const { createMyShilohReadTools } = require('./myShilohReadTools');
 const { createMyShilohActionTools } = require('./myShilohActionTools');
 const { createClientHumanHandoffService } = require('./clientHumanHandoffs');
+const { createClientWhatsAppContinuationService } = require('./clientWhatsAppContinuation');
+const logger = require('../lib/logger');
 
 const MAX_MESSAGE_CHARS = 1000;
 const MESSAGE_WINDOW_MS = 60 * 1000;
@@ -93,6 +95,7 @@ function createMyShilohAssistantService({
   clearConversationSession = clearSession,
   limiter = createMessageLimiter(),
   handoffService = { async activeForClient() { return null; } },
+  continuationService = { async claimedForSession() { return null; } },
 } = {}) {
   if (!contextService || typeof contextService.getContext !== 'function') {
     throw new Error('My Shiloh client context service is required');
@@ -137,10 +140,17 @@ function createMyShilohAssistantService({
     }
 
     let preparedAction = null;
+    let whatsappContinuation = null;
+    try {
+      whatsappContinuation = await continuationService.claimedForSession({ crmV2ClientId:clientId, sessionId });
+    } catch (error) {
+      logger.error({ err:error }, 'Could not load client-approved WhatsApp context');
+    }
     const replyText = await ai(key, cleanMessage, {
       conversationKey: key,
       profileOverride: { name: firstName(context.client.name) },
       clientContext: context,
+      whatsappContinuation,
       surface: 'my_shiloh',
       tools: [...readTools.definitions, ...actionTools.definitions],
       toolExecutor: async (name, args) => {
@@ -208,7 +218,10 @@ function createMyShilohAssistantService({
   };
 }
 
-const service = createMyShilohAssistantService({ handoffService:createClientHumanHandoffService() });
+const service = createMyShilohAssistantService({
+  handoffService:createClientHumanHandoffService(),
+  continuationService:createClientWhatsAppContinuationService(),
+});
 
 module.exports = {
   MAX_MESSAGE_CHARS,
