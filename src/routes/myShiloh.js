@@ -278,7 +278,10 @@ function createMyShilohRouter({
     return res.status(200).type('html').sendFile(path.join(ROOT, 'offline.html'));
   });
 
-  router.get('/my-shiloh/book', requireSession, async (req, res, next) => {
+  router.get('/my-shiloh/book', optionalSession, (req, res, next) => {
+    if (!req.myShilohClientSession) return res.redirect(303, '/my-shiloh/#home');
+    return next();
+  }, requireSession, async (req, res, next) => {
     try {
       const welcomeVoucherMode = String(req.query?.welcomeVoucher || '') === '1';
       let voucher = null;

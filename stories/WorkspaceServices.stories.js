@@ -172,3 +172,16 @@ export const ChristelCategoryManagement = {
     ],
   }, { ...options, staffNavigationAllowed: true })),
 };
+
+export const CategoryDeletionConfirmation = {
+  render: ChristelCategoryManagement.render,
+  play: async ({ canvasElement }) => {
+    const dialog = canvasElement.querySelector('[data-shiloh-confirm]');
+    dialog.querySelector('[data-shiloh-confirm-title]').textContent = 'Delete “New category”?';
+    dialog.querySelector('[data-shiloh-confirm-copy]').textContent = 'This empty category will be removed from Shiloh. You cannot undo this action.';
+    dialog.querySelector('[data-shiloh-confirm-cancel]').textContent = 'Keep category';
+    dialog.querySelector('[data-shiloh-confirm-action]').textContent = 'Delete category';
+    dialog.showModal();
+    dialog.querySelector('[data-shiloh-confirm-cancel]').focus();
+  },
+};

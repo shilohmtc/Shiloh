@@ -96,7 +96,7 @@ test('welcome voucher treatment discovery stays inside the installed My Shiloh s
   assert.doesNotMatch(app, /Find a qualifying treatment'[\s\S]{0,100}href = '\/book'/);
   assert.match(app, /refreshAuthenticatedClientState/);
   assert.match(app, /visibilityState === 'visible'[\s\S]*refreshAuthenticatedClientState/);
-  assert.match(routes, /router\.get\('\/my-shiloh\/book', requireSession/);
+  assert.match(routes, /router\.get\('\/my-shiloh\/book', optionalSession,[\s\S]*?requireSession, async/);
   assert.match(routes, /voucher\?\.state !== 'available'/);
 });
 

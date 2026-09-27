@@ -99,6 +99,13 @@ Useful canonical documents include [`PRODUCTION-RUNBOOK.md`](PRODUCTION-RUNBOOK.
 
 For interface work, include Storybook review, desktop and phone Playwright coverage, accessibility checks and relevant visual evidence. For payment or messaging work, distinguish application records, provider callbacks and human/client acceptance.
 
+### Accepted interface boundaries — 2026-09-27
+
+- Signed-out My Shiloh visitors can explore services and contact Shiloh, but booking actions lead to the existing WhatsApp sign-in. The private booking page and booking APIs remain session-bound; a direct guest visit to the booking page returns to the sign-in entry. Public website booking remains a separate public entry point.
+- Workspace confirmations use the shared `workspaceConfirmation` presentation component. Name the affected item, state the consequence, and label both the safe and committing actions. Start with Services category deletion, service deactivation and practitioner removal. Keep the existing server-side Services authority and validation as the final decision.
+
+These are accepted implementation standards; release and production verification are tracked by the corresponding pull request and deployment evidence.
+
 ## Runtime, data and security notes
 
 - Render is the production hosting boundary; do not claim a deployment without the exact deployed commit.
