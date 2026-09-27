@@ -218,7 +218,7 @@ async function queueCustomerChangeNotification(appointmentId, changeKind) {
   return { queued: true, auditEventId: audit.id, attempted };
 }
 
-async function attemptCustomerChangeNotification(auditEventId) {
+async function attemptCustomerChangeNotification(auditEventId, { env = process.env } = {}) {
   await ensureCustomerChangeNotificationTable();
   const queued = await pool.query(`
     SELECT audit_event_id,appointment_id,change_kind,status,attempt_count,suppression_reason,suppressed_at
@@ -252,6 +252,14 @@ async function attemptCustomerChangeNotification(auditEventId) {
     changeKind: item.change_kind,
     auditEventId,
   });
+
+  // An intentional transport pause is known before any provider request. Keep
+  // the row pending so it can be reviewed or resumed, rather than claiming it
+  // as a possibly accepted send that Reception must treat as uncertain.
+  if (UPDATE_KINDS.has(item.change_kind) && env.WHATSAPP_BOOKING_UPDATE_ENABLED !== 'true') {
+    await pool.query(`UPDATE customer_change_notifications SET status='pending',last_error='booking_update_delivery_disabled',updated_at=NOW() WHERE audit_event_id=$1 AND status IN ('pending','failed')`, [auditEventId]);
+    return { sent: false, reason: 'booking_update_delivery_disabled' };
+  }
 
   let templateStatus;
   try {
@@ -331,17 +339,18 @@ async function attemptCustomerChangeNotification(auditEventId) {
   return { sent: true, templateName };
 }
 
-async function flushCustomerChangeNotifications() {
+async function flushCustomerChangeNotifications({ env = process.env } = {}) {
   await ensureCustomerChangeNotificationTable();
   const result = await pool.query(`
     SELECT audit_event_id
       FROM customer_change_notifications
      WHERE status IN ('pending','failed')
        AND attempt_count < $1
+       AND ($2::boolean OR change_kind='cancellation')
        AND updated_at <= NOW() - INTERVAL '5 minutes'
      ORDER BY created_at
-     LIMIT 25`, [MAX_PRE_SEND_ATTEMPTS]);
-  for (const row of result.rows) await attemptCustomerChangeNotification(row.audit_event_id);
+     LIMIT 25`, [MAX_PRE_SEND_ATTEMPTS, env.WHATSAPP_BOOKING_UPDATE_ENABLED === 'true']);
+  for (const row of result.rows) await attemptCustomerChangeNotification(row.audit_event_id, { env });
   return { attempted: result.rowCount };
 }
 
