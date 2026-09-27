@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-nav-mark-v1';
+const MY_SHILOH_ASSET_VERSION = '20260927-bookings-help-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -84,11 +84,11 @@ function renderMyShilohPage({
     : /^27[678]\d{8}$/.test(suppliedHumanDigits) ? suppliedHumanDigits : '';
   const speakToReception = humanDigits ? whatsappUrl(humanDigits,
     'Hi Reception, I am using My Shiloh and would like to speak with a person.') : null;
-  const manageBooking = whatsappUrl(
-    whatsappNumber,
-    'Hi Shiloh, I am in My Shiloh and would like help with an appointment.',
-  );
   const authenticated = Boolean(client?.id && client?.firstName);
+  const bookingsHelpHref = humanHandoffActive && speakToReception ? speakToReception
+    : authenticated ? '#shiloh' : askShiloh;
+  const bookingsHelpLabel = humanHandoffActive && speakToReception ? 'Ask Reception'
+    : authenticated ? 'Ask Shiloh' : 'Ask Shiloh on WhatsApp';
   const choosingHelpCopy = authenticated
     ? humanHandoffActive
       ? 'Reception is helping you. Open Shiloh to see how to continue.'
@@ -391,8 +391,8 @@ function renderMyShilohPage({
           </article>
           <article class="action-card">
             <span class="action-number">02</span>
-            <div><h2>Change an appointment</h2><p>Ask Shiloh to help you reschedule or cancel your appointment.</p></div>
-            <a class="button button--soft" href="${escapeHtml(humanHandoffActive && speakToReception ? speakToReception : manageBooking)}" rel="noopener noreferrer">${humanHandoffActive && speakToReception ? 'Ask Reception' : 'Ask Shiloh'}</a>
+            <div><h2>Change an appointment</h2><p>${authenticated && !humanHandoffActive ? 'Ask Shiloh here to help you reschedule or cancel your appointment.' : 'Ask for help to reschedule or cancel your appointment.'}</p></div>
+            <a class="button button--soft" href="${escapeHtml(bookingsHelpHref)}"${bookingsHelpHref.startsWith('#') ? '' : ' rel="noopener noreferrer"'}>${bookingsHelpLabel}</a>
           </article>
         </div>
       </section>

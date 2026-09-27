@@ -130,6 +130,26 @@ test('signed-in choosing help opens the in-app conversation on phone and desktop
   }
 });
 
+test('signed-in Bookings help opens Shiloh inside My Shiloh on phone and desktop', async ({ page }) => {
+  for (const viewport of [{ width:390, height:844 }, { width:1280, height:900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-home&viewMode=story', { waitUntil:'networkidle' });
+    await page.evaluate(() => {
+      localStorage.setItem('my-shiloh-install-whatsapp-verified-v1', '1');
+      Object.defineProperty(navigator, 'standalone', { configurable:true, get:() => true });
+    });
+    await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
+    await page.locator('[data-view-target="bookings"]').click();
+    const help = page.locator('[data-view="bookings"] .action-card').filter({ hasText:'Change an appointment' });
+    await expect(help).toContainText('Ask Shiloh here');
+    await help.getByRole('link', { name:'Ask Shiloh' }).click();
+    await expect(page.locator('[data-view="shiloh"]')).toBeVisible();
+    await expect(page.locator('[data-shiloh-chat-form]')).toBeVisible();
+    const accessibility = await new AxeBuilder({ page }).include('[data-view="bookings"]').include('[data-view="shiloh"]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+  }
+});
+
 test('My Shiloh guest booking stays behind WhatsApp sign-in on phone and desktop', async ({ page }, testInfo) => {
   await page.addInitScript(() => { Object.defineProperty(navigator, 'standalone', { value:true, configurable:true }); });
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
