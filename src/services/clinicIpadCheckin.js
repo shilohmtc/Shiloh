@@ -17,12 +17,15 @@ function token() { return crypto.randomBytes(32).toString('base64url'); }
 function digest(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
 function validToken(value) { return TOKEN_PATTERN.test(String(value || '')); }
 function newSetupCode() { return String(crypto.randomInt(0,10_000_000_000)).padStart(10,'0'); }
+function newPairId() { return crypto.randomBytes(16).toString('base64url'); }
+function validPairId(value) { return /^[A-Za-z0-9_-]{22}$/.test(String(value||'')); }
 
 class CheckinError extends Error {
   constructor(message, status = 400) { super(message); this.httpStatus = status; }
 }
 
 function createClinicIpadCheckinService({ db = pool, now = () => new Date(), randomToken = token, randomSetupCode = newSetupCode,
+  randomPairId = newPairId,
   clientMutations = createWorkspaceClientMutationService({ db }),
   formsAuthority = createWorkspaceFormsService({ db }), formService = clientForms } = {}) {
   async function canActivate(adminId) {
@@ -84,6 +87,56 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
       return { deviceId:device.rows[0].id,token:value };
     } catch(error) { await connection.query('ROLLBACK'); throw error; }
     finally { connection.release(); }
+  }
+
+  async function startPair() {
+    const value=randomToken(),pairId=randomPairId();
+    if (!validToken(value) || !validPairId(pairId)) throw new Error('Invalid generated iPad pairing');
+    await db.query(
+      `INSERT INTO clinic_checkin_pairings(pair_id,device_token_hash,expires_at)
+       VALUES($1,$2,$3)`,[pairId,digest(value),new Date(now().getTime()+5*60*1000)]);
+    return { pairId,token:value };
+  }
+
+  async function pairFor(rawToken,pairId) {
+    if (!validToken(rawToken) || !validPairId(pairId)) return null;
+    const result=await db.query(
+      `SELECT device_id FROM clinic_checkin_pairings
+       WHERE pair_id=$1 AND device_token_hash=$2 AND expires_at>$3 LIMIT 1`,
+      [pairId,digest(rawToken),now()]);
+    return result.rows[0]||null;
+  }
+
+  async function pairDetails(adminId,pairId) {
+    if (!await canActivate(adminId)) throw new CheckinError('Clinic client management access is required.',403);
+    if (!validPairId(pairId)) throw new CheckinError('Invalid iPad pairing.',404);
+    const result=await db.query(
+      `SELECT device_id FROM clinic_checkin_pairings WHERE pair_id=$1 AND expires_at>$2 LIMIT 1`,
+      [pairId,now()]);
+    return result.rows[0]||null;
+  }
+
+  async function approvePair(adminId,pairId) {
+    const authority=await canActivate(adminId);
+    if (!authority) throw new CheckinError('Clinic client management access is required.',403);
+    if (!validPairId(pairId)) throw new CheckinError('Invalid iPad pairing.',404);
+    const connection=await db.connect();
+    try {
+      await connection.query('BEGIN');
+      const pending=await connection.query(
+        `SELECT device_token_hash FROM clinic_checkin_pairings
+         WHERE pair_id=$1 AND expires_at>$2 AND approved_at IS NULL FOR UPDATE`,[pairId,now()]);
+      if (!pending.rowCount) throw new CheckinError('This QR code has expired or was already approved.',409);
+      const device=await connection.query(
+        `INSERT INTO clinic_checkin_devices(token_hash,activated_by_admin_id)
+         VALUES($1,$2) RETURNING id`,[pending.rows[0].device_token_hash,authority.operatorAdminId]);
+      await connection.query(
+        `UPDATE clinic_checkin_pairings SET approved_by_admin_id=$2,approved_at=$3,device_id=$4
+         WHERE pair_id=$1`,[pairId,authority.operatorAdminId,now(),device.rows[0].id]);
+      await connection.query('COMMIT');
+      return {deviceId:device.rows[0].id};
+    }catch(error){await connection.query('ROLLBACK');throw error;}
+    finally{connection.release();}
   }
 
   async function revoke(adminId, deviceId) {
@@ -373,7 +426,7 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
     } finally { connection.release(); }
   }
 
-  return { canActivate, activate, createSetupCode, redeemSetupCode, revoke, listDevices, listFormAssignments, queueForm,
+  return { canActivate, activate, createSetupCode, redeemSetupCode, startPair, pairFor, pairDetails, approvePair, revoke, listDevices, listFormAssignments, queueForm,
     readyForm, beginForm, formAccess, finishForm, cancelDeviceForm,
     deviceFor, begin, active, finish, register };
 }

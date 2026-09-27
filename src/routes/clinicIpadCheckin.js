@@ -2,6 +2,7 @@
 
 const express = require('express');
 const path = require('path');
+const QRCode = require('qrcode');
 const { createHmac, timingSafeEqual, randomBytes } = require('crypto');
 const { createClinicIpadCheckinService, CheckinError, validToken } = require('../services/clinicIpadCheckin');
 const { createConsultationFormDeliveryService } = require('../services/consultationFormDelivery');
@@ -15,7 +16,9 @@ const DEVICE_IDLE_SECONDS = 30*24*60*60;
 const VISIT_COOKIE = 'shiloh_checkin_visit';
 const FORM_COOKIE = 'shiloh_checkin_form';
 const SETUP_COOKIE = 'shiloh_checkin_setup';
+const PAIR_COOKIE = 'shiloh_checkin_pair';
 const setupAttempts = new Map();
+const pairStarts = new Map();
 function formToken(deviceToken) {
   return createHmac('sha256',deviceToken).update('shiloh-clinic-ipad-form-v1').digest('base64url');
 }
@@ -62,6 +65,38 @@ function createClinicIpadPublicRouter({ env = process.env, service = createClini
     ]
   }));
   router.use(express.urlencoded({ extended:false,limit:'4kb',parameterLimit:8 }));
+  router.get('/pair.js',(_req,res)=>res.type('application/javascript').send('setTimeout(()=>location.reload(),3000);'));
+  router.get('/pair',async(req,res,next)=>{
+    try {
+      if (await service.deviceFor(parseCookieValue(req.headers.cookie,DEVICE_COOKIE))) return res.redirect(303,'/check-in/');
+      const existing=parseCookieValue(req.headers.cookie,PAIR_COOKIE);
+      const match=/^([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{43})$/.exec(existing||'');
+      let pairing=match?await service.pairFor(match[2],match[1]):null;
+      if (pairing?.device_id) {
+        const device=await service.deviceFor(match[2]);
+        if (!device || String(device.id)!==String(pairing.device_id)) throw new CheckinError('This iPad pairing could not be completed.',409);
+        res.setHeader('Set-Cookie',[
+          cookie(DEVICE_COOKIE,match[2],{env,seconds:DEVICE_IDLE_SECONDS}),
+          cookie(PAIR_COOKIE,'',{env,seconds:0}),
+          serializeExpiredSessionCookie({env}),serializeExpiredClientSessionCookie({env}),serializeExpiredClientAuthCookie({env}),
+        ]);
+        return res.redirect(303,'/check-in/');
+      }
+      let pairId=pairing?match[1]:null;
+      if (!pairId) {
+        const key=req.ip||req.socket.remoteAddress||'unknown',time=Date.now();
+        const starts=(pairStarts.get(key)||[]).filter(at=>time-at<10*60*1000);
+        if (starts.length>=10) return res.status(429).type('html').send(ux.shell('<h1>Ask reception for help.</h1><p>Too many setup QR codes were requested. Please wait ten minutes before trying again.</p>'));
+        starts.push(time);pairStarts.set(key,starts);
+        const created=await service.startPair();pairId=created.pairId;
+        res.append('Set-Cookie',cookie(PAIR_COOKIE,`${pairId}.${created.token}`,{env,seconds:5*60}));
+      }
+      const url=new URL('/calendar/check-in/approve-pair',expectedOrigin(req));
+      url.searchParams.set('pair',pairId);
+      const svg=await QRCode.toString(url.href,{type:'svg',width:280,margin:2});
+      return res.type('html').send(ux.pair(svg,pairId));
+    }catch(error){next(error);}
+  });
   router.post('/redeem-code',async(req,res,next)=>{
     const nonce=parseCookieValue(req.headers.cookie,SETUP_COOKIE);
     const entered=req.body?.setupNonce;
@@ -190,6 +225,7 @@ function createClinicIpadSetupRouter({ env = process.env, sessionService, servic
   if (!sessionService) throw new Error('Staff browser session service required');
   const router = express.Router();
   const staff = requireStaffSession({ service:sessionService, env });
+  const staffPhone = requireStaffSession({ service:sessionService, env,humanNavigationSigninPath:'/calendar/staff' });
   router.use((_req,res,next) => { headers(res); next(); });
   router.use((_req,res,next) => String(env.SHILOH_CLINIC_IPAD_CHECKIN_ENABLED).toLowerCase() === 'true' ? next() : res.sendStatus(404));
   router.get('/setup.js',staff,(_req,res) => res.type('application/javascript').send(`(function(){const button=document.querySelector('[data-activate]'),status=document.querySelector('[data-status]');button.addEventListener('click',async()=>{button.disabled=true;try{const c=await fetch('/calendar/staff-auth/csrf',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(!c.ok)throw Error('Please sign in again.');const csrf=await c.json();const r=await fetch('/calendar/check-in/activate',{method:'POST',headers:{'Content-Type':'application/json','X-Shiloh-Csrf-Token':csrf.csrfToken},body:'{}'});if(!r.ok)throw Error('Activation failed. Please ask reception for help.');location.replace('/check-in/');}catch(e){status.textContent=e.message;button.disabled=false;}})})();`));
@@ -199,6 +235,18 @@ function createClinicIpadSetupRouter({ env = process.env, sessionService, servic
       if (!authority) return res.sendStatus(403);
       return res.type('html').send(ux.setup());
     } catch (error) { next(error); }
+  });
+  router.get('/approve-pair.js',staff,(_req,res)=>res.type('application/javascript').send(`(function(){const button=document.querySelector('[data-approve-pair]'),status=document.querySelector('[data-status]');button.addEventListener('click',async()=>{button.disabled=true;try{const c=await fetch('/calendar/staff-auth/csrf',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(!c.ok)throw Error('Please sign in to Workspace on this phone and scan the QR again.');const csrf=await c.json();const r=await fetch('/calendar/check-in/approve-pair',{method:'POST',headers:{'Content-Type':'application/json','X-Shiloh-Csrf-Token':csrf.csrfToken},body:JSON.stringify({pairId:button.dataset.approvePair})});if(!r.ok)throw Error('This QR code expired or could not be approved. Show a new QR on the iPad.');status.textContent='Approved. The iPad will open check-in automatically.';}catch(e){status.textContent=e.message;button.disabled=false;}})})();`));
+  router.get('/approve-pair',staffPhone,async(req,res,next)=>{
+    try {
+      const pairing=await service.pairDetails(req.staffBrowserSession.adminId,req.query.pair);
+      if (!pairing) return res.status(410).type('html').send(ux.shell('<h1>QR code expired.</h1><p>Show a new QR code on the iPad and scan it again.</p>'));
+      return res.type('html').send(ux.approvePair(req.query.pair,Boolean(pairing.device_id)));
+    }catch(error){next(error);}
+  });
+  router.post('/approve-pair',sameOriginGuard({env}),staff,csrfGuard({service:sessionService}),async(req,res,next)=>{
+    try {return res.status(200).json(await service.approvePair(req.staffBrowserSession.adminId,req.body?.pairId));}
+    catch(error){next(error);}
   });
   router.get('/devices.js',staff,(_req,res) => res.type('application/javascript').send(`(function(){
 const status=document.querySelector('[data-status]'),options=document.querySelector('[data-form-options]');
