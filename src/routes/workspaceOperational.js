@@ -7,6 +7,7 @@ const {
   renderDashboardPage,
   renderDashboardUnavailablePage,
   dashboardClientScript,
+  planningRequestClientScript,
 } = require('../presentation/workspaceDashboardUx');
 const { decorateWorkspaceAppointmentLinks } = require('../presentation/calendarAppointmentDetailLinks');
 const { workspaceNavigationClientScript } = require('../presentation/workspaceShell');
@@ -117,7 +118,7 @@ function createWorkspaceOperationalRouter({
   router.use(requireSession);
 
   router.get('/client.js', (_req, res) => {
-    return res.status(200).type('application/javascript').send(dashboardClientScript());
+    return res.status(200).type('application/javascript').send(dashboardClientScript() + '\n' + planningRequestClientScript());
   });
 
   router.get('/navigation', async (req, res) => {
@@ -207,6 +208,23 @@ function createWorkspaceOperationalRouter({
     (req, res) => bookingRequestAction(req, res, 'propose'));
   router.post('/booking-requests/:appointmentId/cannot_accommodate', sameOrigin, requireCsrf,
     (req, res) => bookingRequestAction(req, res, 'cannot_accommodate'));
+
+  router.post('/planning-requests/:requestId/:action', sameOrigin, requireCsrf, async (req, res) => {
+    try {
+      const result = await dashboardService.resolvePlanningRequest({
+        adminId:req.staffBrowserSession?.adminId,
+        viewer:req.staffBrowserSession?.viewer,
+        ...(req.staffBrowserSession?.accountPrincipal ? { sessionPrincipal:req.staffBrowserSession.accountPrincipal } : {}),
+        requestId:req.params.requestId,
+        action:req.params.action,
+        appointmentId:req.body?.appointmentId,
+      });
+      return res.status(200).json(result);
+    } catch (error) {
+      const safe = dashboardMutationError(error);
+      return res.status(safe.status).json({ error:safe.message, code:safe.code, requestId:req.id });
+    }
+  });
 
   router.post('/reschedule-requests/:requestId/:decision', sameOrigin, requireCsrf, async (req, res) => {
     try {

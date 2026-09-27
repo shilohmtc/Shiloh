@@ -123,6 +123,14 @@ function bookingRequestItem(item, model) {
   return `<article class="booking-request" id="booking-request-${escapeHtml(item.appointmentId)}" data-booking-request="${escapeHtml(item.appointmentId)}" data-requested-revision="${escapeHtml(item.requestedRevision || '')}"><div class="appointment-main"><span class="appointment-time">${escapeHtml(dateTimeLabel(item.requestedStartsAt))}</span><div class="appointment-copy"><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(item.serviceName)} · ${escapeHtml(item.staffName)}</span></div><span class="status-pill pending">${escapeHtml(status)}</span></div>${proposal}${item.occasionNote ? `<p class="request-note"><strong>Occasion:</strong> ${escapeHtml(item.occasionNote)}</p>` : ''}<div class="request-actions">${!awaiting && !item.planningStartedAt ? '<button class="action-button" type="button" data-booking-action="start_planning">Start planning</button>' : ''}<button class="action-button complete" type="button" data-booking-action="accept"${awaiting ? ' disabled' : ''}>Accept requested appointment</button><button class="action-button cannot" type="button" data-booking-action="cannot_accommodate">Cannot accommodate</button></div><div class="proposal-fields"><label class="proposal-field"><span>Alternative date</span><input type="date" data-proposal-date></label><label class="proposal-field"><span>Alternative time</span><input type="time" step="900" data-proposal-time></label>${staffPicker}<button class="action-button" type="button" data-booking-action="propose">Propose alternative</button><p class="operation-status request-operation-status" data-booking-request-status aria-live="polite"></p></div></article>`;
 }
 
+function planningRequestItem(item) {
+  const kind = item.request_kind === 'group' ? 'Group visit or event' : 'Flexible visit';
+  const date = item.preferred_date ? String(item.preferred_date).slice(0,10) : 'Date flexible';
+  const daypart = item.preferred_daypart && item.preferred_daypart !== 'any' ? item.preferred_daypart : 'Time flexible';
+  const appointments = (item.candidate_appointments || []).map(candidate => `<option value="${escapeHtml(candidate.id)}">${escapeHtml(dateTimeLabel(candidate.startsAt))}</option>`).join('');
+  return `<article class="booking-request" data-dashboard-planning-request="${escapeHtml(item.id)}"><div class="appointment-main"><span class="appointment-time">Request</span><div class="appointment-copy"><strong>${escapeHtml(item.client_name)}</strong><span>${escapeHtml(kind)} · ${escapeHtml(item.service_name || item.service_detail)}</span></div><span class="status-pill pending">${item.status === 'planning' ? 'Planning' : 'Requested'}</span></div><p class="request-note">${escapeHtml(date)} · ${escapeHtml(daypart)}${item.guest_count ? ` · About ${escapeHtml(item.guest_count)} guests` : ''}${item.practitioner_name ? ` · Prefers ${escapeHtml(item.practitioner_name)}` : ''}</p>${item.special_occasion ? `<p class="request-note"><strong>Occasion:</strong> ${escapeHtml(item.occasion_note)}</p>` : ''}${item.client_note ? `<p class="request-note"><strong>Client note:</strong> ${escapeHtml(item.client_note)}</p>` : ''}<p class="request-note">This request has not booked a time or requested payment.</p><div class="request-actions">${item.status === 'requested' ? '<button class="action-button" type="button" data-planning-action="start_planning">Start planning</button>' : ''}</div><div class="proposal-fields"><label class="proposal-field"><span>Appointment arranged for this client</span><select data-planning-appointment><option value="">Choose their scheduled appointment</option>${appointments}</select></label><button class="action-button complete" type="button" data-planning-action="arranged"${appointments ? '' : ' disabled'}>Link arranged appointment</button><button class="action-button cannot" type="button" data-planning-show-decline>Cannot accommodate</button><div data-planning-decline hidden><p class="request-note">This closes the request without changing any appointment. Confirm only after speaking with the client.</p><button class="action-button cannot" type="button" data-planning-action="decline">Confirm cannot accommodate</button><button class="action-button" type="button" data-planning-cancel-decline>Keep planning</button></div><p class="operation-status request-operation-status" data-planning-status role="status" aria-live="polite"></p></div></article>`;
+}
+
 function rescheduleRequestItem(item) {
   return `<article class="booking-request reschedule-request" data-dashboard-reschedule-request="${escapeHtml(item.requestId)}"><div class="appointment-main"><span class="appointment-time">${escapeHtml(dateTimeLabel(item.proposedStartsAt))}</span><div class="appointment-copy"><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(item.serviceName)} · ${escapeHtml(item.staffName)}</span></div><span class="status-pill pending">Time change requested</span></div><p class="request-note">Current appointment: ${escapeHtml(dateTimeLabel(item.originalStartsAt))}. Requested: ${escapeHtml(dateTimeLabel(item.proposedStartsAt))}. The current booking remains unchanged. Coordinate with the practitioner and client before deciding; ${item.decisionOwner === 'reception' ? 'Reception will decide this request after checking the clinic schedule.' : 'This older request still follows its practitioner approval path.'}</p>${item.decisionOwner === 'reception' ? '<div class="request-actions"><button class="action-button complete" type="button" data-reschedule-decision="approve">Confirm time change</button><button class="action-button cannot" type="button" data-reschedule-decision="decline">Cannot accommodate</button></div><p class="operation-status request-operation-status" data-reschedule-status aria-live="polite"></p>' : ''}</article>`;
 }
@@ -158,26 +166,55 @@ function dashboardClientScript() {
   return baseDashboardClientScript() + `(function(){'use strict';document.addEventListener('click',async function(event){var button=event.target.closest('[data-reschedule-decision]');if(!button)return;var card=button.closest('[data-dashboard-reschedule-request]');if(!card)return;var decision=button.dataset.rescheduleDecision;if(decision!=='approve'&&decision!=='decline')return;if(!window.confirm(decision==='approve'?'Confirm this client time change after checking the current appointment and availability?':'Decline this time change? The original appointment will remain unchanged.'))return;var status=card.querySelector('[data-reschedule-status]');var controls=card.querySelectorAll('button');controls.forEach(function(item){item.disabled=true;});if(status)status.textContent='Checking the current request…';try{var csrfResponse=await fetch('/calendar/staff-auth/csrf',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:'{}'});var csrfBody=await csrfResponse.json();if(!csrfResponse.ok||!csrfBody.csrfToken)throw new Error('Your secure session has expired.');var response=await fetch('/calendar/workspace/reschedule-requests/'+encodeURIComponent(card.dataset.dashboardRescheduleRequest)+'/'+decision,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json','x-shiloh-csrf-token':csrfBody.csrfToken},body:'{}'});var result=await response.json();if(!response.ok)throw new Error(result.error||'No time change was made.');if(status)status.textContent=result.reply||'Request resolved. Refreshing Dashboard…';window.setTimeout(function(){window.location.reload();},600);}catch(error){if(status)status.textContent=error.message||'No time change was made.';controls.forEach(function(item){item.disabled=false;});button.focus();}});})();`;
 }
 
+function planningRequestClientScript() {
+  return `(()=>{'use strict';document.addEventListener('click',async event=>{
+    const button=event.target.closest('[data-planning-action],[data-planning-show-decline],[data-planning-cancel-decline]');
+    if(!button)return;
+    const card=button.closest('[data-dashboard-planning-request]');if(!card)return;
+    const decline=card.querySelector('[data-planning-decline]');
+    if(button.hasAttribute('data-planning-show-decline')){decline.hidden=false;decline.querySelector('button').focus();return;}
+    if(button.hasAttribute('data-planning-cancel-decline')){decline.hidden=true;card.querySelector('[data-planning-show-decline]').focus();return;}
+    const action=button.dataset.planningAction;
+    if(!['start_planning','decline','arranged'].includes(action))return;
+    const status=card.querySelector('[data-planning-status]');
+    const appointment=card.querySelector('[data-planning-appointment]');
+    if(action==='arranged'&&!appointment.value){status.textContent='Choose the appointment arranged for this client.';appointment.focus();return;}
+    button.disabled=true;status.textContent='Checking the current request…';
+    try{
+      const csrf=await fetch('/calendar/staff-auth/csrf',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:'{}'});
+      const token=await csrf.json();if(!csrf.ok||!token.csrfToken)throw new Error('Your secure session has expired.');
+      const response=await fetch('/calendar/workspace/planning-requests/'+encodeURIComponent(card.dataset.dashboardPlanningRequest)+'/'+action,{
+        method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json','x-shiloh-csrf-token':token.csrfToken},
+        body:JSON.stringify(action==='arranged'?{appointmentId:Number(appointment.value)}:{}),
+      });
+      const result=await response.json();if(!response.ok)throw new Error(result.error||'The request was not changed.');
+      status.textContent='Request updated. Refreshing…';setTimeout(()=>location.reload(),500);
+    }catch(error){status.textContent=error.message;button.disabled=false;button.focus();}
+  });})();`;
+}
+
 function renderDashboardPage(model, { staffAccessScriptPath = '/calendar/staff/client.js', dashboardScriptPath = '/calendar/workspace/client.js', navigation = {} } = {}) {
   const nextOperationalDay = model.requestedDateKey !== model.operationalDateKey;
   const isBusinessOverview = ['owner_overview', 'business_overview'].includes(model.mode);
   const heading = isBusinessOverview ? 'Today across the team' : 'My day';
   const closures = (model.closures || []).map((item) => `<div class="closure">Closed · ${escapeHtml(item.reason || 'Clinic closure')}</div>`).join('');
   const bookingRequests = model.bookingRequests || [];
+  const planningRequests = model.planningRequests || [];
   const rescheduleRequests = model.rescheduleRequests || [];
   const awaitingFinalization = model.awaitingFinalization || [];
   const holidayDecisions = model.holidayDecisions || [];
-  const attentionCount = awaitingFinalization.length + bookingRequests.length + rescheduleRequests.length + holidayDecisions.length;
+  const attentionCount = awaitingFinalization.length + bookingRequests.length + planningRequests.length + rescheduleRequests.length + holidayDecisions.length;
   const actionableCount = awaitingFinalization.filter((item) => item.canFinalize).length;
   const requestCards = bookingRequests.map(item => bookingRequestItem(item, model)).join('');
+  const planningCards = planningRequests.map(planningRequestItem).join('');
   const rescheduleCards = rescheduleRequests.map(rescheduleRequestItem).join('');
   const finalizationCount = awaitingFinalization.length;
   const finalizationSummary = finalizationCount ? `<div class="attention-summary"><strong>${finalizationCount} ${finalizationCount === 1 ? 'visit is' : 'visits are'} awaiting practitioner finalization.</strong><br>${model.canFinalizeAllBusiness ? 'Authorized all-business backup actions are available below.' : isBusinessOverview ? 'Assigned practitioners finalize their own visits; review the exact visit below.' : actionableCount === finalizationCount ? 'Record Completed or No-show directly below.' : `${actionableCount} can be finalized here; shared visits must be completed by their assigned practitioner.`}</div>` : '';
   const finalizationCards = awaitingFinalization.map(item => appointmentItem(item, model, { manageLabel: 'Review visit', idPrefix: 'dashboard-attention-appointment', attention: true })).join('');
   const finalizationQueue = finalizationCards ? `<div class="attention-queue" data-dashboard-attention-queue>${finalizationCards}</div>` : '';
   const holidayCards = holidayDecisions.map(item => `<div class="booking-request" data-dashboard-holiday-decision><strong>${escapeHtml(item.holidayName)}</strong><p class="request-note">${escapeHtml(item.exceptionDate)} · Clinic hours decision needed</p><div class="request-actions"><a class="button" href="${escapeHtml(item.href)}">Set holiday hours</a></div></div>`).join('');
-  const hasAttention = Boolean(holidayCards || requestCards || rescheduleCards || finalizationSummary || finalizationQueue);
-  const attention = hasAttention ? `${holidayCards}${requestCards}${rescheduleCards}${finalizationSummary}${finalizationQueue}` : '';
+  const hasAttention = Boolean(holidayCards || requestCards || planningCards || rescheduleCards || finalizationSummary || finalizationQueue);
+  const attention = hasAttention ? `${holidayCards}${requestCards}${planningCards}${rescheduleCards}${finalizationSummary}${finalizationQueue}` : '';
   const carryOver = model.carryOver || [];
   const activity = (model.recentActivity || []).map((item) => activityItem(item, model)).join('') || '<div class="empty">No completed or no-show visits are recorded today yet.</div>';
   let communications = '<div class="empty">No client-notification issue is currently available in this access.</div>';
@@ -199,6 +236,7 @@ module.exports = {
   practitionerNames,
   statusPresentation,
   dashboardClientScript,
+  planningRequestClientScript,
   formatRand,
   welcomeVoucherDashboardPanel,
   renderDashboardPage,

@@ -50,6 +50,46 @@ test('Services confirmation names the category and restores focus on cancel', as
   }
 });
 
+test('flexible and group requests reach Reception without claiming a booking on Phone and Desktop', async ({ page }, testInfo) => {
+  const submissions=[];
+  await page.route('**/my-shiloh/api/planning-requests', async route => {
+    submissions.push(route.request().postDataJSON());
+    await route.fulfill({ status:201, contentType:'application/json', body:JSON.stringify({ id:81,status:'requested',created:true }) });
+  });
+  for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1280,height:900 }]) {
+    await page.setViewportSize({ width:viewport.width,height:viewport.height });
+    await page.goto('/iframe.html?id=client-planning-requests--group-occasion&viewMode=story', { waitUntil:'networkidle' });
+    await page.addScriptTag({ url:'/my-shiloh/assets/planning-request.js' });
+    await expect(page.getByRole('heading', { name:/Let’s plan your visit/ })).toBeVisible();
+    await page.getByLabel('Treatment or experience you have in mind').fill('Birthday spa afternoon');
+    await page.getByLabel('About how many guests?').fill('4');
+    await page.getByLabel('Tell us about the occasion').fill('Birthday');
+    const formAxe=await new AxeBuilder({ page }).include('[data-planning-page]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(formAxe.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`client-group-form-${viewport.name}.png`),fullPage:true,animations:'disabled' });
+    await page.getByRole('button', { name:'Send to Reception' }).click();
+    await expect(page.getByRole('heading', { name:'We’ve received your request.' })).toBeVisible();
+    expect(submissions.at(-1)).toMatchObject({ kind:'group',guestCount:'4',specialOccasion:true,occasionNote:'Birthday' });
+    await expect(page.getByText('This is not a confirmed appointment.')).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+    expect(overflow).toBe(false);
+    const axe = await new AxeBuilder({ page }).include('[data-planning-page]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(axe.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`client-group-request-${viewport.name}.png`),fullPage:true,animations:'disabled' });
+
+    await page.goto('/iframe.html?id=client-planning-requests--reception-attention&viewMode=story', { waitUntil:'networkidle' });
+    const card=page.locator('[data-dashboard-planning-request="81"]');
+    await expect(card).toContainText('Birthday');
+    await expect(card).toContainText('has not booked a time or requested payment');
+    const receptionAxe=await new AxeBuilder({ page }).include('[data-dashboard-attention-panel]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(receptionAxe.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`reception-group-request-${viewport.name}.png`),fullPage:true,animations:'disabled' });
+  }
+});
+
 test('Workspace vouchers stay contained and selectable on Phone and Desktop', async ({ page }, testInfo) => {
   await page.route('**/calendar/vouchers/walk-in', async (route) => route.fulfill({
     status: 200,

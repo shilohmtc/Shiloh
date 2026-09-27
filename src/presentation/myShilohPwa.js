@@ -69,11 +69,17 @@ function johannesburgGreeting(now = new Date()) {
 
 function renderMyShilohPage({
   whatsappNumber = null,
+  humanWhatsAppNumber = null,
   catalogue = [],
   client = null,
   now = new Date(),
 } = {}) {
   const askShiloh = whatsappUrl(whatsappNumber);
+  const suppliedHumanDigits = String(humanWhatsAppNumber || '').replace(/\D/g, '');
+  const humanDigits = /^0[678]\d{8}$/.test(suppliedHumanDigits) ? `27${suppliedHumanDigits.slice(1)}`
+    : /^27[678]\d{8}$/.test(suppliedHumanDigits) ? suppliedHumanDigits : '';
+  const speakToReception = humanDigits ? whatsappUrl(humanDigits,
+    'Hi Reception, I am using My Shiloh and would like to speak with a person.') : null;
   const manageBooking = whatsappUrl(
     whatsappNumber,
     'Hi Shiloh, I am in My Shiloh and would like help with an appointment.',
@@ -426,8 +432,10 @@ function renderMyShilohPage({
           </form>
           <p class="assistant-chat__note">For any change, Shiloh will show you what will happen and ask you to confirm.</p>
           <a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Prefer WhatsApp? Continue there →</a>
+          ${speakToReception ? `<a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(speakToReception)}" rel="noopener noreferrer">Speak to Reception on WhatsApp →</a>` : ''}
         </section>` : `
         <a class="button button--primary button--wide" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Chat with Shiloh on WhatsApp</a>
+        ${speakToReception ? `<a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(speakToReception)}" rel="noopener noreferrer">Speak to Reception on WhatsApp →</a>` : ''}
         <div class="prompt-grid" aria-label="Things Shiloh can help with">
           <article><span>Choose</span><strong>What would suit me?</strong></article>
           <article><span>Manage</span><strong>Move my appointment</strong></article>
