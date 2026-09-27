@@ -15,6 +15,10 @@ test('website service selection survives sign-in and resolves against the curren
   app.use(createMyShilohRouter({
     sessionService,
     catalogueProvider: async () => [{ id:101, name:'Deep Tissue <Massage>', category:'Massage' }],
+    bookingService: {
+      async catalogue() { return [{ id:101, name:'Deep Tissue <Massage>', category:'Massage', price:'R500' }]; },
+      async policy() { return { rateBasisPoints:5000 }; },
+    },
     planningService: { async practitioners() { return []; }, async forClient() { return []; } },
   }));
   const server = app.listen(0, '127.0.0.1');
@@ -42,6 +46,20 @@ test('website service selection survives sign-in and resolves against the curren
     assert.match(html, /name="serviceDetail"[^>]*>Deep Tissue &lt;Massage&gt;<\/textarea>/);
     assert.doesNotMatch(html, /<Massage>/);
     assert.match(html, /Nothing is booked or charged yet/);
+
+    const signedBooking = await fetch(`${base}/my-shiloh/book?service=101`, {
+      headers: { cookie:'shiloh_client_session=valid' },
+    });
+    assert.equal(signedBooking.status, 200);
+    const bookingHtml = await signedBooking.text();
+    assert.match(bookingHtml, /data-selected-service-id="101"/);
+    assert.match(bookingHtml, /data-service-id="101"/);
+    assert.match(bookingHtml, /data-service-name="Deep Tissue &lt;Massage&gt;"/);
+    const signedUnsafeBooking = await fetch(`${base}/my-shiloh/book?service=bad`, {
+      headers: { cookie:'shiloh_client_session=valid' },
+    });
+    assert.equal(signedUnsafeBooking.status, 200);
+    assert.match(await signedUnsafeBooking.text(), /data-selected-service-id=""/);
 
     const signedUnknown = await fetch(`${base}/my-shiloh/request?service=999`, {
       headers: { cookie:'shiloh_client_session=valid' },

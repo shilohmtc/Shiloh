@@ -1922,6 +1922,13 @@ test('website treatment code carries a booking choice into the installed app on 
     await page.locator('[data-view-target="bookings"]').click();
     const form = page.locator('[data-website-treatment-form]');
     await expect(form).toBeVisible();
+    if (viewport.name === 'phone') {
+      const inputBox = await form.locator('input').boundingBox();
+      const buttonBox = await form.getByRole('button', { name:'Continue treatment' }).boundingBox();
+      expect(inputBox.width).toBeGreaterThan(230);
+      expect(buttonBox.y).toBeGreaterThan(inputBox.y + inputBox.height);
+    }
+    await page.screenshot({ path:testInfo.outputPath(`website-treatment-code-${viewport.name}.png`), fullPage:true, animations:'disabled' });
     await form.getByRole('textbox', { name:'Have a treatment code from the website?' }).fill('103');
     await page.route('**/my-shiloh/book?service=103', (route) => route.fulfill({ status:200, contentType:'text/html', body:'<h1>Booking choice carried through</h1>' }));
     await form.getByRole('button', { name:'Continue treatment' }).click();
