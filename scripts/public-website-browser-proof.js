@@ -173,9 +173,9 @@ async function run() {
       throw new Error('Phone booking must show the saved service summary');
     if (!(await phone.locator('#service-1.selected[data-selected-service="true"]').isVisible()))
       throw new Error('Phone booking must highlight the canonical selected service');
-    const phoneWhatsAppUrl = await phone.locator('.mobile-book').getAttribute('href');
-    if (!decodeURIComponent(phoneWhatsAppUrl || '').includes('Deep Tissue Massage'))
-      throw new Error('Phone WhatsApp handoff must preserve the selected service');
+    const phoneBookingUrl = await phone.locator('.mobile-book').getAttribute('href');
+    if (phoneBookingUrl !== '/my-shiloh/book?service=1')
+      throw new Error('Phone My Shiloh handoff must preserve the selected canonical service ID');
     await assertAccessible(phone, 'Phone booking selection');
     await phone.screenshot({
       path: path.join(evidenceDir, 'phone-booking-selection-390x844.png'),
@@ -271,9 +271,9 @@ async function run() {
       throw new Error('Desktop booking must show the saved service summary');
     if (!(await desktop.locator('#service-1.selected[data-selected-service="true"]').isVisible()))
       throw new Error('Desktop booking must highlight the canonical selected service');
-    const desktopWhatsAppUrl = await desktop.locator('.cta').getAttribute('href');
-    if (!decodeURIComponent(desktopWhatsAppUrl || '').includes('Deep Tissue Massage'))
-      throw new Error('Desktop WhatsApp handoff must preserve the selected service');
+    const desktopBookingUrl = await desktop.locator('.cta').getAttribute('href');
+    if (desktopBookingUrl !== '/my-shiloh/book?service=1')
+      throw new Error('Desktop My Shiloh handoff must preserve the selected canonical service ID');
     await assertAccessible(desktop, 'Desktop booking selection');
     await desktop.screenshot({
       path: path.join(evidenceDir, 'desktop-booking-selection-1440x1000.png'),
