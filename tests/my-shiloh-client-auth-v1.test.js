@@ -216,7 +216,7 @@ test('My Shiloh is the canonical installed-app display name', () => {
   assert.equal(manifest.name, 'My Shiloh');
   assert.equal(manifest.short_name, 'My Shiloh');
   assert.match(presentation, /apple-mobile-web-app-title" content="My Shiloh"/);
-  assert.match(presentation, /data-install-trigger hidden>Install My Shiloh<\/button>/);
+  assert.match(presentation, /data-install-gate-action>Install My Shiloh<\/button>/);
 });
 
 test('first installed-app launch uses only a non-sensitive convenience marker and WhatsApp remains authority', () => {
