@@ -13,6 +13,7 @@ This file records the disposition of production environment keys audited in #654
 - `SHILOH_CALENDAR_READONLY_UX_ENABLED` — current Workspace Calendar feature control.
 - `SHILOH_STAFF_BROWSER_SESSION_CALENDAR_BRIDGE_ENABLED` — current authenticated Workspace Calendar bridge.
 - `WHATSAPP_BOOKING_UPDATE_ENABLED`, `WHATSAPP_RESCHEDULE_APPROVAL_ENABLED` — current fail-closed delivery gates.
+- `SHILOH_CLIENT_REMINDER_APP_ONLY_ENABLED` — optional per-client reminder cutover, off unless explicitly set to `true`. An app wake accepted by a push service can replace that client's WhatsApp reminder; otherwise the existing approved WhatsApp reminder stays in use. When no WhatsApp reminder template is configured, only clients with an active app push subscription can be claimed, and unaccepted app delivery leaves the reminder retryable. This flag does not establish coverage for clients without push permission or replace the other Meta templates.
 - Current Shiloh message-contract bindings: `WHATSAPP_BIRTHDAY_TEMPLATE`, `WHATSAPP_BOOKING_CONFIRMATION_TEMPLATE`, `WHATSAPP_BOOKING_DECLINED_TEMPLATE`, `WHATSAPP_BOOKING_UPDATE_TEMPLATE`, `WHATSAPP_CANCELLATION_CONFIRMATION_TEMPLATE`, `WHATSAPP_FOLLOWUP_ACTIONS_TEMPLATE`, `WHATSAPP_REMINDER_ACTIONS_TEMPLATE`, `WHATSAPP_RESCHEDULE_APPROVAL_REQUEST_TEMPLATE`, `WHATSAPP_RESCHEDULE_CONFIRMATION_TEMPLATE`, `WHATSAPP_RESCHEDULE_DECLINED_TEMPLATE`.
 
 ## Remove from persistent production configuration — retired or one-shot state
