@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const vm = require('node:vm');
 
 const {
   validEndpoint,
@@ -14,6 +15,7 @@ const {
   createPinnedLookup,
   parseVapid,
   vapidAuthorization,
+  createMyShilohPushService,
 } = require('../src/services/myShilohPush');
 
 const root = path.resolve(__dirname, '..');
@@ -112,6 +114,67 @@ test('push schema is client-bound delivery state, not a second business authorit
   assert.match(migration, /my_shiloh_push_notifications/);
   assert.match(migration, /category IN \('appointment','forms','payment','voucher','rewards','system'\)/);
   assert.doesNotMatch(migration, /marketing|promotional|client_name|mobile_number|appointment_status|payment_state/i);
+});
+
+test('push delivery takes the newest unread events and advances the cursor past older events', async () => {
+  const calls = [];
+  const service = createMyShilohPushService({ db: { async query(sql, params) {
+    calls.push({ sql, params });
+    if (sql.includes('FROM my_shiloh_push_subscriptions')) return { rows: [{ id: 4, last_notification_id: 10 }] };
+    if (sql.includes('FROM my_shiloh_push_notifications')) return { rowCount: 2, rows: [
+      { id: 30, category: 'appointment', title: 'Latest', body: 'Latest booking update', created_at: '2026-09-27T14:40:00Z', target_path: '/my-shiloh/#bookings' },
+      { id: 29, category: 'appointment', title: 'Earlier', body: 'Earlier booking update', created_at: '2026-09-27T14:39:00Z', target_path: '/my-shiloh/#bookings' },
+    ] };
+    return { rowCount: 1, rows: [] };
+  } } });
+  const result = await service.pending({ crmV2ClientId: 7, endpoint: 'https://push.example.test/device' });
+  assert.deepEqual(result.notifications.map(item => item.id), [29, 30]);
+  assert.match(calls[1].sql, /ORDER BY id DESC\s+LIMIT/);
+  assert.deepEqual(calls[2].params.slice(0, 2), [4, 30]);
+});
+
+test('new push subscriptions start after existing notification history', () => {
+  const push = read('src/services/myShilohPush.js');
+  assert.match(push, /SELECT MAX\(id\) FROM my_shiloh_push_notifications WHERE crm_v2_client_id=\$1/);
+});
+
+test('old or multiple queued events show one safe alert instead of contradictory appointment alerts', async () => {
+  const handlers = {};
+  const shown = [];
+  let notices = [];
+  const context = {
+    self: {
+      addEventListener: (type, handler) => { handlers[type] = handler; },
+      registration: {
+        pushManager: { getSubscription: async () => ({ endpoint: 'https://push.example.test/device' }) },
+        showNotification: async (title, options) => { shown.push({ title, ...options }); },
+      },
+      navigator: {},
+    },
+    fetch: async () => ({ ok: true, json: async () => ({ notifications: notices }) }),
+    indexedDB: { open: () => { throw new Error('Badge storage unavailable in test'); } },
+    URL,
+    Date,
+  };
+  vm.runInNewContext(read('public/my-shiloh/sw.js'), context);
+  const wake = async () => {
+    let pending;
+    handlers.push({ waitUntil: (promise) => { pending = promise; } });
+    await pending;
+  };
+  const fresh = { id: 30, title: 'Appointment confirmed', body: 'Confirmed', targetPath: '/my-shiloh/#bookings', createdAt: new Date().toISOString() };
+  notices = [{ ...fresh, id: 29, title: 'Appointment cancelled' }, fresh];
+  await wake();
+  assert.deepEqual(shown.map(item => item.title), ['My Shiloh updates']);
+  assert.match(shown[0].body, /latest booking details/);
+  shown.length = 0;
+  notices = [{ ...fresh, createdAt: new Date(Date.now() - 60 * 60 * 1000).toISOString() }];
+  await wake();
+  assert.deepEqual(shown.map(item => item.title), ['My Shiloh updates']);
+  shown.length = 0;
+  notices = [fresh];
+  await wake();
+  assert.deepEqual(shown.map(item => item.title), ['Appointment confirmed']);
 });
 
 test('push subscription routes stay behind the verified My Shiloh session and CSRF boundary', () => {

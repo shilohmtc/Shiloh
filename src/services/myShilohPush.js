@@ -241,8 +241,9 @@ function createMyShilohPushService({
     const authSecret = cleanText(auth, 128, 'Push auth secret');
     const result = await db.query(
       `INSERT INTO my_shiloh_push_subscriptions
-         (crm_v2_client_id,endpoint,p256dh,auth,user_agent,enabled,revoked_at,updated_at)
-       VALUES($1,$2,$3,$4,$5,TRUE,NULL,$6)
+         (crm_v2_client_id,endpoint,p256dh,auth,user_agent,enabled,revoked_at,updated_at,last_notification_id)
+       VALUES($1,$2,$3,$4,$5,TRUE,NULL,$6,
+         (SELECT MAX(id) FROM my_shiloh_push_notifications WHERE crm_v2_client_id=$1))
        ON CONFLICT (endpoint) DO UPDATE SET
          crm_v2_client_id=EXCLUDED.crm_v2_client_id,
          p256dh=EXCLUDED.p256dh,
@@ -251,6 +252,11 @@ function createMyShilohPushService({
          enabled=TRUE,
          revoked_at=NULL,
          updated_at=EXCLUDED.updated_at,
+         last_notification_id=CASE
+           WHEN my_shiloh_push_subscriptions.crm_v2_client_id=EXCLUDED.crm_v2_client_id
+             AND my_shiloh_push_subscriptions.enabled=TRUE
+           THEN my_shiloh_push_subscriptions.last_notification_id
+           ELSE EXCLUDED.last_notification_id END,
          last_push_error=NULL
        RETURNING id`,
       [clientId, cleanEndpoint, key, authSecret, String(userAgent || '').slice(0, 500) || null, now()],
@@ -377,17 +383,17 @@ function createMyShilohPushService({
     )).rows[0];
     if (!subscription) return { notifications: [] };
     const result = await db.query(
-      `SELECT id,category,title,body,target_path
+      `SELECT id,category,title,body,target_path,created_at
          FROM my_shiloh_push_notifications
         WHERE crm_v2_client_id=$1
           AND id>COALESCE($2,0)
           AND expires_at>$3
-        ORDER BY id ASC
+        ORDER BY id DESC
         LIMIT $4`,
       [clientId, subscription.last_notification_id, now(), MAX_PENDING],
     );
     if (result.rowCount) {
-      const lastId = Number(result.rows[result.rows.length - 1].id);
+      const lastId = Number(result.rows[0].id);
       await db.query(
         `UPDATE my_shiloh_push_subscriptions
             SET last_notification_id=$2,updated_at=$3
@@ -396,11 +402,12 @@ function createMyShilohPushService({
       );
     }
     return {
-      notifications: result.rows.map((row) => ({
+      notifications: result.rows.slice().reverse().map((row) => ({
         id: Number(row.id),
         category: row.category,
         title: row.title,
         body: row.body,
+        createdAt: row.created_at,
         targetPath: safeTargetPath(row.target_path),
       })),
     };
