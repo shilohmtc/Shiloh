@@ -88,6 +88,16 @@ const fakeAssistantService = {
     if (/payment/i.test(message)) {
       return { reply: 'Yes — your payment is recorded as paid for this booking.', contextVersion: 'my_shiloh_client_context_v1' };
     }
+    if (/group visit/i.test(message)) {
+      return {
+        reply: 'Open the form below to review and send your plans to Reception. Nothing is booked yet.',
+        contextVersion: 'my_shiloh_client_context_v1',
+        action: { type:'planning_request', title:'Tell Reception your plans',
+          detail:'Share a flexible time, group visit or special occasion with the clinic team.',
+          note:'Reception will arrange the details with you. This does not book an appointment.',
+          label:'Open request form', href:'/my-shiloh/request' },
+      };
+    }
     if (/move|reschedule/i.test(message)) {
       return {
         reply: 'I prepared the new time for you. Please review the confirmation card below — your current appointment is unchanged.',
@@ -365,6 +375,18 @@ async function runViewport(browser, name, viewport) {
   await page.locator('[data-shiloh-chat-input]').fill('Has my payment been received?');
   await page.locator('[data-shiloh-chat-form]').getByRole('button', { name: 'Send' }).click();
   await page.waitForFunction(() => document.body.textContent.includes('payment is recorded as paid'));
+
+  await page.locator('[data-shiloh-chat-input]').fill('I want a group visit');
+  await page.locator('[data-shiloh-chat-form]').getByRole('button', { name: 'Send' }).click();
+  const planningLink = page.locator('[data-client-action-card] a');
+  await planningLink.waitFor();
+  if (await planningLink.getAttribute('href') !== '/my-shiloh/request') {
+    throw new Error('assistant did not open the canonical Reception request form');
+  }
+  if (!/Nothing is submitted until you review and send/.test(await page.locator('[data-client-action-card]').textContent())) {
+    throw new Error('assistant planning card claimed a request was already submitted');
+  }
+  await page.screenshot({ path:path.join(out, `${name}-assistant-reception-planning.png`), fullPage:true });
 
   await page.locator('[data-shiloh-chat-input]').fill('Move my appointment to Friday at 09:00');
   await page.locator('[data-shiloh-chat-form]').getByRole('button', { name: 'Send' }).click();

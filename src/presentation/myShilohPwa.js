@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-voucher-and-composer-v1';
+const MY_SHILOH_ASSET_VERSION = '20260927-composer-and-ai-planning-v1';
 
 function escapeHtml(value = '') {
   return String(value)

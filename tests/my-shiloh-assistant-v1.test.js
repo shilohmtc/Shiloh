@@ -15,9 +15,29 @@ const {
   createMessageLimiter,
   createMyShilohAssistantService,
 } = require('../src/services/myShilohAssistant');
+const { ACTION_TOOL_NAMES, PLANNING_REQUEST_TOOL_DEFINITION, createMyShilohActionTools } = require('../src/services/myShilohActionTools');
 
 const root = path.join(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
+
+test('assistant opens the canonical Reception request form without creating a request', async () => {
+  assert.equal(PLANNING_REQUEST_TOOL_DEFINITION.name, ACTION_TOOL_NAMES.OPEN_PLANNING_REQUEST);
+  assert.deepEqual(PLANNING_REQUEST_TOOL_DEFINITION.parameters.required, []);
+  const tools = createMyShilohActionTools({
+    actionService: { async prepareCancellation() { throw new Error('unexpected write'); }, async prepareReschedule() { throw new Error('unexpected write'); } },
+    formActionService: { async prepareFormAction() { throw new Error('unexpected write'); } },
+  });
+  const action = await tools.execute(ACTION_TOOL_NAMES.OPEN_PLANNING_REQUEST, {}, { sessionId:55, crmV2ClientId:912 });
+  assert.equal(action.clientAction.href, '/my-shiloh/request');
+  assert.equal(action.clientAction.type, 'planning_request');
+  assert.match(action.modelResult.message, /Nothing has been submitted or booked/);
+  const instructions = buildInstructions({ surface:'my_shiloh' });
+  assert.match(instructions, /open_my_reception_planning_request/);
+  assert.match(instructions, /client must review and submit/);
+  const script = read('public/my-shiloh/assets/app.js');
+  assert.match(script, /action\.type === 'planning_request' && String\(action\.href \|\| ''\) !== '\/my-shiloh\/request'/);
+  assert.match(script, /open\.href = '\/my-shiloh\/request'/);
+});
 
 function fakeReadTools() {
   return {

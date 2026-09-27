@@ -174,6 +174,9 @@ function createMyShilohAssistantService({
     if (preparedAction?.type === 'profile_details') {
       safeReply = 'You can update your personal details securely in your Profile. Use the button below to open them.';
     }
+    if (preparedAction?.type === 'planning_request') {
+      safeReply = 'I can help you start a request for Reception. Open the form below to review and send your plans. Nothing is booked yet.';
+    }
     if (!safeReply) {
       throw new MyShilohAssistantError(
         'MY_SHILOH_ASSISTANT_EMPTY',
