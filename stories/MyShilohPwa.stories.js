@@ -1,8 +1,10 @@
 import presentation from '../src/presentation/myShilohPwa.js';
 import bookingPresentation from '../src/presentation/myShilohBooking.js';
+import bookingPolicyAuthority from '../src/config/bookingPolicyAuthority.js';
 
 const { renderMyShilohPage } = presentation;
 const { renderMyShilohBookingPage } = bookingPresentation;
+const { BOOKING_POLICY_TEXT } = bookingPolicyAuthority;
 
 const catalogue = [
   { id: 101, name: 'Full Body Swedish', category: 'Massage', duration: '60 min', price: 'R720' },
@@ -51,7 +53,7 @@ function bookingSurface() {
     ],
     clientFirstName: 'Christel',
     csrfToken: 'storybook-csrf',
-    bookingPolicyText: 'Shiloh Massage Therapy & Aesthetic Clinic — Booking Policy & Terms\n\nPlease arrive on time.\n\nTo continue, accept the terms below.',
+    bookingPolicyText: BOOKING_POLICY_TEXT,
     depositPolicy: {
       rateBasisPoints: 5000,
       freeNoticeHours: 48,
