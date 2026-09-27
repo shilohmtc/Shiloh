@@ -264,6 +264,11 @@ export const PasskeyProfile = {
       view.hidden = !active;
       view.classList.toggle('is-active', active);
     });
+    const devices = surface.querySelector('[data-passkey-devices]');
+    if (devices) devices.innerHTML = `<ul class="passkey-device-list">
+      <li class="passkey-device"><div><strong>iPhone</strong><small>Saved 27 Sep 2026 · Last used 27 Sep 2026</small></div><button class="button button--soft" type="button" aria-label="Remove iPhone passkey">Remove</button></li>
+      <li class="passkey-device"><div><strong>Mac</strong><small>Saved 26 Sep 2026 · Not used yet</small></div><button class="button button--soft" type="button" aria-label="Remove Mac passkey">Remove</button></li>
+    </ul>`;
     return surface;
   },
 };
