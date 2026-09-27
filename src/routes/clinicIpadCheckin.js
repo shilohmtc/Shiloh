@@ -2,6 +2,7 @@
 
 const express = require('express');
 const path = require('path');
+const { createHmac, timingSafeEqual } = require('crypto');
 const { createClinicIpadCheckinService, CheckinError } = require('../services/clinicIpadCheckin');
 const { createConsultationFormDeliveryService } = require('../services/consultationFormDelivery');
 const { requireStaffSession, sameOriginGuard, csrfGuard, parseCookieValue, expectedOrigin,
@@ -13,6 +14,15 @@ const DEVICE_COOKIE = 'shiloh_checkin_device';
 const DEVICE_IDLE_SECONDS = 30*24*60*60;
 const VISIT_COOKIE = 'shiloh_checkin_visit';
 const FORM_COOKIE = 'shiloh_checkin_form';
+function formToken(deviceToken) {
+  return createHmac('sha256',deviceToken).update('shiloh-clinic-ipad-form-v1').digest('base64url');
+}
+function hasFormToken(req) {
+  const provided = req.body?.checkinFormToken;
+  if (typeof provided !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(provided)) return false;
+  const expected = formToken(req.checkinDeviceToken);
+  return timingSafeEqual(Buffer.from(provided),Buffer.from(expected));
+}
 function cookie(name, value, { env = process.env, seconds = 0 } = {}) {
   const path = name === FORM_COOKIE ? '/forms' : '/check-in';
   const parts = [`${name}=${value}`, `Path=${path}`, 'HttpOnly', 'SameSite=Strict', `Max-Age=${seconds}`];
@@ -60,24 +70,31 @@ function createClinicIpadPublicRouter({ env = process.env, service = createClini
       await service.cancelDeviceForm(req.checkinDeviceToken);
       res.append('Set-Cookie',cookie(VISIT_COOKIE,'',{ env,seconds:0 }));
       res.append('Set-Cookie',cookie(FORM_COOKIE,'',{ env,seconds:0 }));
-      return res.type('html').send(ux.welcome({ formReady:await service.readyForm(req.checkinDeviceToken) }));
+      return res.type('html').send(ux.welcome({ formReady:await service.readyForm(req.checkinDeviceToken),csrfToken:formToken(req.checkinDeviceToken) }));
     } catch (error) { next(error); }
   });
   router.get('/thank-you',(_req,res) => res.type('html').send(ux.done()));
   router.get('/verify',async (req,res,next) => {
     try {
       if (!await service.readyForm(req.checkinDeviceToken)) return res.redirect(303,'/check-in/');
-      return res.type('html').send(ux.verify());
+      return res.type('html').send(ux.verify({csrfToken:formToken(req.checkinDeviceToken)}));
     } catch(error) { next(error); }
   });
   router.get('/details', async (req,res,next) => {
     try {
       const visit = parseCookieValue(req.headers.cookie,VISIT_COOKIE);
       if (!await service.active(req.checkinDeviceToken,visit)) return res.redirect(303,'/check-in/');
-      return res.type('html').send(ux.details());
+      return res.type('html').send(ux.details({csrfToken:formToken(req.checkinDeviceToken)}));
     } catch (error) { next(error); }
   });
-  router.use((req,res,next) => originMatches(req) ? next() : res.sendStatus(403));
+  router.use((req,res,next) => {
+    if (originMatches(req)) return next();
+    // Safari may omit Origin and Fetch Metadata for native form navigation.
+    // Accept that case only with a token rendered on this verified iPad.
+    const origin=req.get('origin'),site=req.get('sec-fetch-site');
+    if ((!origin || origin==='null') && site!=='cross-site' && hasFormToken(req)) return next();
+    return res.sendStatus(403);
+  });
   router.post('/start', async (req,res,next) => {
     try {
       const prior = parseCookieValue(req.headers.cookie,VISIT_COOKIE);
@@ -90,7 +107,7 @@ function createClinicIpadPublicRouter({ env = process.env, service = createClini
   router.post('/start-form', async (req,res,next) => {
     try {
       const form = await service.beginForm(req.checkinDeviceToken,req.body);
-      if (!form.verified && !form.formToken) return res.status(422).type('html').send(ux.verify({error:'Those details did not match. Please check them or ask reception for help.'}));
+      if (!form.verified && !form.formToken) return res.status(422).type('html').send(ux.verify({error:'Those details did not match. Please check them or ask reception for help.',csrfToken:formToken(req.checkinDeviceToken)}));
       res.append('Set-Cookie',cookie(FORM_COOKIE,form.visitToken,{ env,seconds:40*60 }));
       return res.redirect(303,`/forms/f/${form.formToken}`);
     } catch (error) { next(error); }
@@ -104,7 +121,7 @@ function createClinicIpadPublicRouter({ env = process.env, service = createClini
       return res.type('html').send(ux.done({ needsStaff:result.state==='needs_staff' }));
     } catch (error) {
       if (error instanceof CheckinError && error.httpStatus === 422) {
-        return res.status(422).type('html').send(ux.details({ error:error.message, values:req.body }));
+        return res.status(422).type('html').send(ux.details({ error:error.message, values:req.body,csrfToken:formToken(req.checkinDeviceToken) }));
       }
       if (error instanceof CheckinError && error.httpStatus === 410) return res.redirect(303,'/check-in/');
       next(error);

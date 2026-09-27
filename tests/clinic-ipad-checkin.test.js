@@ -120,6 +120,34 @@ test('opaque Chromium form origin requires same-origin navigation metadata',()=>
   assert.equal(originMatches(req),false);
 });
 
+test('Safari form posts without Origin use the iPad page token, while cross-site posts remain blocked',async()=>{
+  const service={
+    deviceFor:async token=>token===rawDevice?{id:1}:null,
+    finish:async()=>true,cancelDeviceForm:async()=>{},readyForm:async()=>false,
+    begin:async()=>({token:rawVisit}),active:async()=>({id:2}),
+  };
+  await withServer(service,async base=>{
+    const cookie=`shiloh_checkin_device=${rawDevice}`;
+    const welcome=await fetch(`${base}/check-in/`,{headers:{Cookie:cookie}});
+    const html=await welcome.text();
+    const token=html.match(/name="checkinFormToken" value="([A-Za-z0-9_-]{43})"/)?.[1];
+    assert.ok(token);
+    const form=new URLSearchParams({checkinFormToken:token});
+    const headers={Cookie:cookie,'Content-Type':'application/x-www-form-urlencoded'};
+    const missing=await fetch(`${base}/check-in/start`,{method:'POST',headers,body:'',redirect:'manual'});
+    assert.equal(missing.status,403);
+    const crossSite=await fetch(`${base}/check-in/start`,{method:'POST',headers:{...headers,Origin:'https://other.example'},body:form,redirect:'manual'});
+    assert.equal(crossSite.status,403);
+    const foreignMetadata=await fetch(`${base}/check-in/start`,{method:'POST',headers:{...headers,'Sec-Fetch-Site':'cross-site'},body:form,redirect:'manual'});
+    assert.equal(foreignMetadata.status,403);
+    const safari=await fetch(`${base}/check-in/start`,{method:'POST',headers,body:form,redirect:'manual'});
+    assert.equal(safari.status,303);
+    assert.equal(safari.headers.get('location'),'/check-in/details');
+    const opaqueSafari=await fetch(`${base}/check-in/start`,{method:'POST',headers:{...headers,Origin:'null'},body:form,redirect:'manual'});
+    assert.equal(opaqueSafari.status,303);
+  });
+});
+
 test('a prepared form remains hidden until the client confirms their mobile and date of birth',async () => {
   const service={ deviceFor:async()=>({ id:1 }),readyForm:async()=>true,
     beginForm:async (_token,details)=>details.mobile==='0821234567'&&details.dateOfBirth==='1985-05-14'
