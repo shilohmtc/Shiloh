@@ -9,6 +9,8 @@ const {
   MY_SHILOH_WELCOME_VOUCHER_URL,
   clientHomeInteractive,
   welcomeVoucherReply,
+  MY_SHILOH_WEBSITE_PROMPT,
+  myShilohAwarenessReply,
 } = require('../presentation/whatsappClientMenu');
 
 const SERVICE_PAGE_SIZE = 9;
@@ -473,6 +475,10 @@ async function processClientDiscoveryMessage(sender, text) {
   if (isHomeCommand(raw)) {
     await clearIntent(sender);
     return { handled: true, interactive: clientHomeInteractive() };
+  }
+
+  if (value === MY_SHILOH_WEBSITE_PROMPT.toLowerCase()) {
+    return { handled: true, reply: myShilohAwarenessReply() };
   }
 
   if (['client_welcome_voucher', 'get r100 voucher', 'install my shiloh', 'my shiloh'].includes(value)) {
