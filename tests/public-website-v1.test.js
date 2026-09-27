@@ -11,6 +11,16 @@ const {
   renderPrivacy,
 } = require('../src/services/publicWebsite');
 const { renderBookingPage } = require('../src/services/publicBookingPageEditorial');
+const { MY_SHILOH_WEBSITE_PROMPT } = require('../src/presentation/whatsappClientMenu');
+
+test('contact introduction starts a visitor-authored WhatsApp message without changing booking links', () => {
+  const contact = renderContact();
+  const expected = `https://wa.me/27662399138?text=${encodeURIComponent(MY_SHILOH_WEBSITE_PROMPT)}`.replaceAll('&', '&amp;');
+  assert.ok(contact.includes(`href="${expected}" rel="noopener" data-my-shiloh-whatsapp-intro`));
+  assert.match(contact, /Reception is still here to help on 066 239 9138/);
+  assert.match(contact, /message BIRTHDAY ON to Shiloh on WhatsApp/);
+  assert.match(contact, /href="\/book"[^>]*>View services &amp; book/);
+});
 const {
   PUBLIC_BRAND_ASSET_VERSION,
   renderSiteHeader,
@@ -135,7 +145,7 @@ test('home includes a clear My Shiloh install and returning-client entry point',
   assert.match(html, /href="\/my-shiloh\/" data-my-shiloh-install-link>Install My Shiloh<\/a>/);
   assert.match(html, /href="\/my-shiloh\/"[^>]*>Open My Shiloh<\/a>/);
   assert.match(html, /No App Store or Play Store download required/);
-  assert.match(html, /bookings, Wallet, notifications and your private client space/i);
+  assert.match(html, /bookings, latest appointment details and Wallet/i);
 });
 
 test('home includes a resilient, accessible Google review carousel without exposing credentials', () => {

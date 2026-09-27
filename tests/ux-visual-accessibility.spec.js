@@ -1700,6 +1700,13 @@ for (const viewport of [
       await expect(surface.getByRole('heading', { level: 1 })).toBeVisible();
       await expect(surface.locator('a[href="/book"]').first()).toBeAttached();
       await expect(surface.locator('a[href="/my-shiloh/"]').first()).toBeAttached();
+      await expect(surface.getByRole('complementary', { name: 'Discover My Shiloh' })).toContainText('Eligible first-time registrations');
+
+      if (name === 'contact') {
+        const entry = surface.locator('[data-my-shiloh-contact-entry]');
+        await expect(entry.getByRole('link', { name: 'Open My Shiloh' })).toBeVisible();
+        await expect(entry.getByRole('link', { name: 'Ask on WhatsApp' })).toHaveAttribute('href', /wa\.me\/27662399138\?text=Hi%20Shiloh%2C%20tell%20me%20about%20My%20Shiloh/);
+      }
 
       if (name === 'home') {
         await expect(surface.getByText(/Every Shiloh visit includes a welcome drink on arrival/)).toBeVisible();

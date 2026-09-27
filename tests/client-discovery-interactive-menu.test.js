@@ -8,6 +8,7 @@ const webhookPath = path.join(__dirname, '..', 'src', 'controllers', 'webhookCon
 const source = fs.readFileSync(discoveryPath, 'utf8');
 const webhook = fs.readFileSync(webhookPath, 'utf8');
 const { clientHomeInteractive, isHomeCommand, processClientDiscoveryMessage, selectClientBookableServiceByName, servicePageInteractive, welcomeVoucherReply, welcomeVoucherRequestedService, SERVICE_PAGE_SIZE } = require(discoveryPath);
+const { MY_SHILOH_WEBSITE_PROMPT, myShilohAwarenessReply } = require('../src/presentation/whatsappClientMenu');
 
 test('client home uses exactly three genuine WhatsApp reply-button actions', () => {
   const home = clientHomeInteractive();
@@ -22,7 +23,7 @@ test('client home uses exactly three genuine WhatsApp reply-button actions', () 
     'Browse services',
     'Book now',
   ]);
-  assert.match(home.body, /Install \*My Shiloh\* on your phone/);
+  assert.match(home.body, /My Shiloh keeps your bookings/);
   assert.match(home.body, /R100 welcome voucher/);
   assert.ok(home.buttons.every((button) => button.title.length <= 20));
 });
@@ -40,6 +41,17 @@ test('R100 first action is handled before catalogue or booking queries', async (
   assert.equal(result.handled, true);
   assert.equal(result.reply, welcomeVoucherReply());
   assert.equal(result.interactive, undefined);
+});
+
+test('website introduction responds only after its exact visitor message and leaves booking intent alone', async () => {
+  const result = await processClientDiscoveryMessage('27820000000', MY_SHILOH_WEBSITE_PROMPT);
+  assert.deepEqual(result, { handled: true, reply: myShilohAwarenessReply() });
+  assert.match(result.reply, /turn on notifications if you would like appointment alerts/);
+  assert.match(result.reply, /whether you qualify/);
+  assert.match(result.reply, /birthday wishes/);
+  assert.match(result.reply, /Reception is here for you/);
+  const booking = await processClientDiscoveryMessage('27820000000', "Hi Shiloh 👋 I'd like to book an appointment.");
+  assert.equal(booking.handled, false);
 });
 
 test('My Shiloh voucher handoff preserves the selected treatment and bypasses treatment re-selection', () => {

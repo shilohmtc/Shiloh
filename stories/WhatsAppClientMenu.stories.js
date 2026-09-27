@@ -1,6 +1,6 @@
 import discovery from '../src/presentation/whatsappClientMenu.js';
 
-const { clientHomeInteractive, welcomeVoucherReply } = discovery;
+const { clientHomeInteractive, welcomeVoucherReply, myShilohAwarenessReply } = discovery;
 
 function escapeHtml(value = '') {
   return String(value)
@@ -35,4 +35,8 @@ export const WelcomeVoucherFirst = {
 
 export const WelcomeVoucherReply = {
   render: () => phoneFrame(`<section class="wa-bubble" aria-label="My Shiloh welcome voucher"><div class="wa-copy">${messageMarkup(welcomeVoucherReply()).replace(/(https:\/\/[^<]+)/, '<span class="wa-link">$1</span>')}</div></section>`),
+};
+
+export const WebsiteIntroductionReply = {
+  render: () => phoneFrame(`<section class="wa-bubble" aria-label="My Shiloh website introduction"><div class="wa-copy">${messageMarkup(myShilohAwarenessReply()).replace(/(https:\/\/[^<]+)/, '<span class="wa-link">$1</span>')}</div></section>`),
 };
