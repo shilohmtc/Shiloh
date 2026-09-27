@@ -134,7 +134,7 @@ h3{font-size:20px;line-height:1.12}
 .welcome-voucher__steps{display:grid;gap:7px;margin:12px 0;padding:0;list-style:none}.welcome-voucher__steps li{display:flex;gap:8px;align-items:center;font-size:12px;font-weight:750}.welcome-voucher__steps li::before{content:'○';color:var(--gold);font-size:17px}.welcome-voucher__steps li.is-complete::before{content:'✓';color:var(--leaf-dark)}
 .welcome-voucher__bookings{display:grid;gap:8px}.welcome-voucher__booking{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:11px;border-radius:14px;background:#fff;border:1px solid var(--line)}.welcome-voucher__booking strong,.welcome-voucher__booking span{display:block}.welcome-voucher__booking span{margin-top:3px;color:var(--muted);font-size:10px}.welcome-voucher__booking .button{min-height:40px;padding:8px 12px;font-size:11px}
 .welcome-voucher details{margin-top:12px;color:var(--muted);font-size:11px}.welcome-voucher summary{cursor:pointer;font-weight:850;color:var(--leaf-dark)}.welcome-voucher details ul{padding-left:18px}.welcome-voucher__status{min-height:18px;margin-top:10px!important;font-weight:750}.welcome-voucher__status[data-state="error"]{color:#8a413b}.welcome-voucher__status[data-state="success"]{color:var(--leaf-dark)}
-.quiet-icon{display:grid;place-items:center;width:45px;height:45px;border-radius:50%;background:#faf7f0 url('/my-shiloh/assets/icon-192.png') center/cover no-repeat;color:transparent;font-size:0}
+.quiet-icon,.nav-orb{display:grid;place-items:center;width:45px;height:45px;border-radius:50%;background:#faf7f0 url('/my-shiloh/assets/icon-192.png') center/cover no-repeat;color:transparent;font-size:0}
 .circle-link{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#fff;text-decoration:none;font-size:20px}
 .page-intro{padding:28px 1px 18px}
 .page-intro h1{max-width:500px}
@@ -179,7 +179,7 @@ h3{font-size:20px;line-height:1.12}
 .bottom-nav a[aria-current="page"]{color:var(--leaf-dark);background:#e4ebe0}
 .nav-icon{display:block;flex:none}
 .nav-shiloh{position:relative;grid-column:3}
-.nav-orb{display:grid;place-items:center;width:35px;height:35px;margin-top:-17px;border-radius:50%;background:#faf7f0 url('/my-shiloh/assets/icon-192.png') center/cover no-repeat;color:transparent;border:4px solid var(--paper);box-shadow:0 6px 18px rgba(46,64,51,.25);font-size:0}
+.nav-orb{flex:none;margin-top:-13px}
 .wallet-intro{padding-bottom:12px}.wallet-stack{display:grid;gap:12px}.wallet-stack .quiet-card{margin:0}.wallet-stack .quiet-card .eyebrow{color:var(--leaf-dark)}.wallet-stack .quiet-card p:last-child{color:#4f5d56}.wallet-stack+.section-block{margin-top:24px}
 .install-sheet{position:fixed;inset:0;z-index:100}
 .install-sheet__backdrop{position:absolute;inset:0;width:100%;border:0;background:rgba(32,43,36,.42);backdrop-filter:blur(4px)}
