@@ -2663,6 +2663,7 @@ test('deposit policy is unmistakable before Ozow on Phone and Desktop', async ({
     await expect(policy.getByRole('heading', { name: 'Respect, Safety & Belongings' })).toBeVisible();
     await expect(policy.getByText('Updated 25 September 2026')).toHaveCount(0);
     await expect(policy.getByText('Version 2026-09-25-v3')).toHaveCount(0);
+    await expect(policy.getByText('Version 2026-09-27-v4')).toHaveCount(0);
     await expect(policy.getByText(/reply exactly: I AGREE/i)).toHaveCount(0);
     await expect(policy.getByText(/If you do not agree, reply/i)).toHaveCount(0);
     await expect(policy.getByRole('button', { name: 'Accept & continue to secure payment' })).toBeVisible();

@@ -213,7 +213,7 @@ test('payment links show the booking policy before redirecting to Ozow', async (
     assert.doesNotMatch(body, /reply exactly/i);
     assert.doesNotMatch(body, /\*Respect, Safety & Belongings\*/);
     assert.doesNotMatch(body, /Updated 25 September 2026/);
-    assert.doesNotMatch(body, /Version 2026-09-25-v3/);
+    assert.doesNotMatch(body, /Version 2026-09-27-v4/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

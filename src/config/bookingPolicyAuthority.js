@@ -1,7 +1,7 @@
 'use strict';
 
-const BOOKING_POLICY_VERSION = '2026-09-25-v3';
-const BOOKING_POLICY_UPDATED = '25 September 2026';
+const BOOKING_POLICY_VERSION = '2026-09-27-v4';
+const BOOKING_POLICY_UPDATED = '27 September 2026';
 
 const DEPOSIT_RULES = Object.freeze({
   rateBasisPoints: 5000,
@@ -130,7 +130,7 @@ const BOOKING_POLICY_TEXT = [
   'Please arrive on time. Late arrival may require a shorter treatment so later clients are not delayed, and the full treatment fee may still apply.',
   '',
   '*Booking Deposit*',
-  `A ${percentText(basisPointsPercent(DEPOSIT_RULES.rateBasisPoints))}% booking deposit is required for new bookings.`,
+  `A ${percentText(basisPointsPercent(DEPOSIT_RULES.rateBasisPoints))}% booking deposit is required for all appointments.`,
   'Your deposit forms part of the total cost of your treatment — it is not an additional fee. Once your deposit has been received and verified by Shiloh, your appointment is confirmed.',
   '',
   '*Cancellations & Rescheduling*',

@@ -24,8 +24,8 @@ test('clinic-device acceptance is future-appointment scoped and client-linked', 
   const calls = [];
   const acceptance = {
     id: 501,
-    policy_version: '2026-09-25-v3',
-    accepted_at: '2026-09-25T08:32:00.000Z',
+    policy_version: '2026-09-27-v4',
+    accepted_at: '2026-09-27T08:32:00.000Z',
     channel: 'clinic_device',
   };
   const client = {
