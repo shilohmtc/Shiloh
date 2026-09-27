@@ -2477,10 +2477,17 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
 
     await expect(page.getByRole('heading', { name:'Choose a date and time.' })).toBeVisible();
     await page.locator('[data-booking-date]').fill('2026-09-30');
+    await expect(page.locator('[data-progress="3"]')).toHaveClass(/is-active/);
+    await expect(page.locator('[data-step="4"]')).toBeHidden();
     await page.getByRole('button', { name:'Show available times' }).click();
     await page.getByRole('button', { name:/10:00–11:15/ }).click();
 
     await expect(page.getByRole('heading', { name:'Review your booking request.' })).toBeVisible();
+    if (viewport.name === 'phone') {
+      const reviewPosition = await page.locator('[data-step="4"]').evaluate(node => node.getBoundingClientRect().top);
+      expect(reviewPosition).toBeGreaterThanOrEqual(60);
+      expect(reviewPosition).toBeLessThan(120);
+    }
     await expect(page.locator('[data-review-service]')).toContainText('Hot Stone Massage');
     await expect(page.locator('[data-review-practitioner]')).toHaveText('Christel');
     await expect(page.locator('[data-review-deposit]')).toHaveText('50% after approval');

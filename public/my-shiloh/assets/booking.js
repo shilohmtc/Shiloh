@@ -16,7 +16,7 @@ root.querySelectorAll('[data-special-occasion]').forEach(option=>option.addEvent
 occasionNote?.addEventListener('input',()=>setStatus(confirmStatus,''));
 const submit=root.querySelector('[data-submit-booking]');
 const rate=Number(root.dataset.depositRate||50);
-function step(number){steps.forEach(node=>{node.hidden=Number(node.dataset.step)!==Number(number)});progress.forEach(node=>node.classList.toggle('is-active',Number(node.dataset.progress)===Math.min(Number(number),4)));window.scrollTo({top:0,behavior:'smooth'});}
+function step(number){let activeStep=null;steps.forEach(node=>{node.hidden=Number(node.dataset.step)!==Number(number);if(!node.hidden)activeStep=node;});progress.forEach(node=>node.classList.toggle('is-active',Number(node.dataset.progress)===Math.min(Number(number),4)));activeStep?.scrollIntoView({block:'start',behavior:'auto'});}
 function setStatus(node,message='',kind=''){if(!node)return;node.textContent=message;node.dataset.state=kind;}
 function localDateLabel(value){const date=new Date(value);return Number.isNaN(date.getTime())?'':new Intl.DateTimeFormat('en-ZA',{timeZone:'Africa/Johannesburg',weekday:'short',day:'numeric',month:'short',year:'numeric'}).format(date);}
 async function json(url,options={}){const response=await fetch(url,{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json',...(options.headers||{})},...options});const body=await response.json().catch(()=>({}));if(!response.ok){const error=new Error(body.error||'That step could not be completed.');error.code=body.code;error.resolution=body.resolution;throw error;}return body;}
