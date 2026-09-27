@@ -7,7 +7,7 @@ const {
 } = require('../services/publicPresentation');
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-signin-boundary-v2';
+const MY_SHILOH_ASSET_VERSION = '20260927-headerless-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -345,14 +345,6 @@ function renderMyShilohPage({
   </main>
 
   <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}" data-client-payment-whatsapp="${escapeHtml(String(whatsappNumber || '').replace(/\D/g, ''))}" hidden>
-    <header class="topbar">
-      <a class="brand" href="#home" aria-label="My Shiloh home">
-        <span class="brand-mark brand-mark--header" aria-hidden="true"><img src="/my-shiloh/assets/icon-192.png" alt=""></span>
-        <span class="brand-copy"><strong>Shiloh</strong><small>My Shiloh</small></span>
-      </a>
-      <button class="install-button" type="button" data-install-trigger hidden>Install My Shiloh</button>
-    </header>
-
     <div class="network-banner" data-offline-banner hidden role="status">You are offline. My Shiloh will reconnect automatically.</div>
     <div class="app-update-banner" data-app-update hidden role="status" aria-live="polite">
       <div><strong>A new My Shiloh update is ready.</strong><span>Update now to use the latest version.</span></div>

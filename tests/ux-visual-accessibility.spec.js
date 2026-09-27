@@ -3,6 +3,24 @@ const AxeBuilder = require('@axe-core/playwright').default;
 const { buildClientExperience } = require('../src/services/myShilohExperienceOrchestrator');
 const { workspaceServicesManageClientScript } = require('../src/presentation/workspaceServicesUx');
 
+test('My Shiloh home starts without a duplicate header on phone and desktop', async ({ page }, testInfo) => {
+  for (const state of ['standalone-guest-sign-in', 'authenticated-home']) {
+    for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+      await page.setViewportSize({ width:viewport.width, height:viewport.height });
+      await page.goto(`/iframe.html?id=client-my-shiloh-pwa--${state}&viewMode=story`, { waitUntil:'networkidle' });
+      const frame = page.locator('[data-app-frame]');
+      await expect(frame).toBeVisible();
+      await expect(frame.locator('.topbar')).toHaveCount(0);
+      await expect(frame.locator('[data-view="home"] h1')).toBeVisible();
+      await expect(frame.locator('[data-view-target="shiloh"]')).toContainText('Shiloh');
+      await expect(frame.locator('[data-view-target="home"]')).toContainText('Home');
+      const accessibility = await new AxeBuilder({ page }).include('[data-view="home"] .hero').include('.bottom-nav').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+      expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+      await page.screenshot({ path:testInfo.outputPath(`my-shiloh-headerless-${state}-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+    }
+  }
+});
+
 test('My Shiloh guest booking stays behind WhatsApp sign-in on phone and desktop', async ({ page }, testInfo) => {
   await page.addInitScript(() => { Object.defineProperty(navigator, 'standalone', { value:true, configurable:true }); });
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {

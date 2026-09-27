@@ -37,8 +37,8 @@ test('My Shiloh renders the approved five-tab PWA shell with public-safe service
   assert.match(html, /rel="apple-touch-icon" sizes="180x180" href="\/my-shiloh\/assets\/apple-touch-icon-180\.png/);
   assert.match(html, new RegExp(`app\\.css\\?v=${MY_SHILOH_ASSET_VERSION}`));
   assert.match(html, new RegExp(`app\\.js\\?v=${MY_SHILOH_ASSET_VERSION}`));
-  assert.match(html, /brand-mark--header/);
-  assert.match(html, /<strong>Shiloh<\/strong><small>My Shiloh<\/small>/);
+  assert.doesNotMatch(html, /class="topbar"|brand-mark--header|brand-copy/);
+  assert.match(html, /data-view-target="shiloh"/);
   assert.doesNotMatch(html, /class="brand-logo"/);
   assert.match(html, /data-view-target="home"/);
   assert.match(html, /data-view-target="bookings"/);
