@@ -25,6 +25,44 @@ test('human handoff pauses assistant and appears in Reception on Phone and Deskt
 });
 const { workspaceServicesManageClientScript } = require('../src/presentation/workspaceServicesUx');
 
+test('redeemed welcome offer does not appear on the signed-out Home', async ({ page }) => {
+  await page.goto('/iframe.html?id=client-my-shiloh-pwa--standalone-guest-sign-in&viewMode=story', { waitUntil:'networkidle' });
+  const home = page.locator('[data-view="home"]');
+  await expect(home.getByRole('button', { name:'Continue with WhatsApp' })).toBeVisible();
+  await expect(home.locator('.welcome-voucher')).toHaveCount(0);
+});
+
+test('Shiloh message composer stays compact and legible on phone and desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone',width:390,height:650 },{ name:'desktop',width:1280,height:900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-assistant-composer&viewMode=story', { waitUntil:'networkidle' });
+    const composer = page.locator('[data-shiloh-chat-form]');
+    const input = composer.getByRole('textbox', { name:'Message Shiloh' });
+    const send = composer.getByRole('button', { name:'Send' });
+    await input.focus();
+    await input.fill('Can you help me with my appointment?');
+    const geometry = await composer.evaluate((form) => {
+      const input = form.querySelector('textarea');
+      const button = form.querySelector('button');
+      const field = input.getBoundingClientRect();
+      const action = button.getBoundingClientRect();
+      return { fontSize:parseFloat(getComputedStyle(input).fontSize),fieldHeight:field.height,buttonHeight:action.height,
+        sameRow:action.left >= field.right && Math.abs(action.bottom - field.bottom) <= 2,
+        contained:action.right <= document.documentElement.clientWidth,
+        scrollWidth:document.documentElement.scrollWidth,viewport:document.documentElement.clientWidth };
+    });
+    expect(geometry.fontSize).toBeGreaterThanOrEqual(16);
+    expect(geometry.fieldHeight).toBeGreaterThanOrEqual(44);
+    expect(geometry.buttonHeight).toBeGreaterThanOrEqual(44);
+    expect(geometry.sameRow).toBe(true);
+    expect(geometry.contained).toBe(true);
+    expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.viewport);
+    const accessibility = await new AxeBuilder({ page }).include('[data-shiloh-chat-form]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-composer-focused-${viewport.name}.png`), fullPage:false, animations:'disabled' });
+  }
+});
+
 test('My Shiloh home starts without a duplicate header on phone and desktop', async ({ page }, testInfo) => {
   for (const state of ['standalone-guest-sign-in', 'authenticated-home']) {
     for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {

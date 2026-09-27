@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-handoff-and-fallback-v1';
+const MY_SHILOH_ASSET_VERSION = '20260927-voucher-and-composer-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -172,16 +172,7 @@ function renderMyShilohPage({
           <p class="welcome-voucher__status" data-welcome-voucher-status role="status" aria-live="polite"></p>
         </div>
       </section>`
-    : `<section class="welcome-voucher" id="welcome-voucher" aria-labelledby="welcome-voucher-title">
-        <div class="welcome-voucher__value" aria-hidden="true">R100</div>
-        <div class="welcome-voucher__body">
-          <p class="eyebrow">First-time My Shiloh sign-up</p>
-          <h2 id="welcome-voucher-title">Complete your registration. Unlock R100.</h2>
-          <p>Verify with WhatsApp and complete your personal details to receive a once-off R100 voucher for a treatment of R450 or more.</p>
-          <button class="button button--primary" type="button" data-client-auth-start>Claim my R100</button>
-          <small>One per verified client · Valid for 60 days · Terms apply</small>
-        </div>
-      </section>`;
+    : '';
 
   const profile = authenticated
     ? `<div class="page-intro">
@@ -358,7 +349,6 @@ function renderMyShilohPage({
     <main id="main-content" class="app-main">
       <section class="view is-active" id="home" data-view="home" aria-labelledby="home-title">
         ${hero}
-        ${authenticated ? '' : welcomeVoucher}
         ${focus}
         ${authenticated ? `<section class="notification-centre" aria-labelledby="notification-centre-title" data-client-notification-centre>
           <div class="section-heading"><div><p class="eyebrow">Updates</p><h2 id="notification-centre-title">Your latest Shiloh updates.</h2></div><a class="text-link" href="#profile">Notification settings</a></div>
@@ -423,7 +413,7 @@ function renderMyShilohPage({
           </div>
           <form class="assistant-composer" data-shiloh-chat-form>
             <label class="sr-only" for="my-shiloh-message">Message Shiloh</label>
-            <textarea id="my-shiloh-message" data-shiloh-chat-input rows="2" maxlength="1000" placeholder="Ask Shiloh…" autocomplete="off"></textarea>
+            <textarea id="my-shiloh-message" data-shiloh-chat-input rows="1" maxlength="1000" placeholder="Ask Shiloh…" autocomplete="off"></textarea>
             <button class="button button--primary" type="submit" data-shiloh-chat-send>Send</button>
           </form>
           <p class="assistant-chat__note">For any change, Shiloh will show you what will happen and ask you to confirm.</p>

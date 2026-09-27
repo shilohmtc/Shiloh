@@ -117,6 +117,22 @@ export const AuthenticatedHome = {
   }),
 };
 
+export const AuthenticatedAssistantComposer = {
+  render: () => {
+    const surface = AuthenticatedHome.render();
+    surface.querySelectorAll('[data-view]').forEach((view) => {
+      const active = view.dataset.view === 'shiloh';
+      view.hidden = !active;
+      view.classList.toggle('is-active', active);
+    });
+    surface.querySelectorAll('[data-view-target]').forEach((item) => {
+      if (item.dataset.viewTarget === 'shiloh') item.setAttribute('aria-current', 'page');
+      else item.removeAttribute('aria-current');
+    });
+    return surface;
+  },
+};
+
 export const BookingRequestPlanning = {
   render: () => {
     const surface = AuthenticatedHome.render();
