@@ -150,6 +150,7 @@ test('guest and authenticated My Shiloh renders are distinct without server-rend
 
 test('returning from WhatsApp auto-completes in the original context with a usable code fallback', () => {
   const client = read('public/my-shiloh/assets/app.js');
+  const presentation = read('src/presentation/myShilohPwa.js');
   const styles = read('public/my-shiloh/assets/app.css');
   assert.match(client, /whatsappHandoffStarted = true;[\s\S]*openWhatsAppDirect\(whatsappAppUrl, whatsappFallbackUrl\)/);
   assert.match(client, /postJson\('\/my-shiloh\/auth\/status'\)/);
@@ -163,8 +164,8 @@ test('returning from WhatsApp auto-completes in the original context with a usab
   assert.match(client, /visibilitychange/);
   assert.match(client, /addEventListener\('focus', welcomeBackFromWhatsApp\)/);
   assert.match(client, /authStatusCheckInFlight = false/);
-  assert.match(client, /Waiting for your message/);
-  assert.match(client, /open automatically/);
+  assert.match(client, /Waiting for your WhatsApp message/);
+  assert.match(presentation, /open your account automatically/);
   assert.match(client, /updateViaCache: 'none'/);
   assert.match(client, /INSTALL_VERIFIED_KEY = 'my-shiloh-install-whatsapp-verified-v1'/);
   assert.match(client, /localStorage\.setItem\(INSTALL_VERIFIED_KEY, '1'\)/);

@@ -410,7 +410,7 @@ test('My Shiloh WhatsApp automatic return is clear and accessible on Phone and D
     const appFrame = page.locator('[data-app-frame]');
     const home = appFrame.locator('[data-view="home"]');
     await expect(home.getByRole('heading',{name:'Your Shiloh, all in one place.'})).toBeVisible();
-    await expect(home.getByText('Waiting for your message. Tap Send in WhatsApp, then return to My Shiloh.')).toBeVisible();
+    await expect(home.getByText('Waiting for your WhatsApp message…')).toBeVisible();
     const disclosure = home.locator('[data-client-auth-code-disclosure]');
     await expect(disclosure).not.toHaveAttribute('open');
     await expect(disclosure.locator('summary')).toBeVisible();
@@ -2136,7 +2136,8 @@ test('My Shiloh opens installed WhatsApp directly before web fallback', async ({
   await gate.getByRole('button', { name: 'Open WhatsApp to verify' }).click();
 
   await expect.poll(() => page.evaluate(() => window.__myShilohDirectWhatsApp)).toContain('whatsapp://send?phone=27830000000');
-  await expect(gate.locator('[data-auth-status]')).toContainText('Tap Send in WhatsApp');
+  await expect(gate.locator('.auth-hint')).toContainText('Tap Send in WhatsApp');
+  await expect(gate.locator('[data-auth-status]')).toContainText('Waiting for your WhatsApp message');
   await page.waitForTimeout(2100);
   expect(await page.evaluate(() => window.__myShilohFallbackSeen)).toBe(false);
   await expect(gate).toBeVisible();

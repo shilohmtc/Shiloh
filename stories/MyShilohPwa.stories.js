@@ -87,7 +87,7 @@ export const WhatsAppAutomaticReturn = {
     form?.classList.add('is-waiting');
     if (status) {
       status.dataset.state = 'waiting';
-      status.textContent = 'Waiting for your message. Tap Send in WhatsApp, then return to My Shiloh.';
+      status.textContent = 'Waiting for your WhatsApp message…';
     }
     return surface;
   },

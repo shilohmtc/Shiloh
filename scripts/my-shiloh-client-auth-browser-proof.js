@@ -298,7 +298,7 @@ async function runViewport(browser, name, viewport) {
   await page.getByRole('button', { name: 'Open WhatsApp to verify' }).click();
   await page.waitForURL('**/fake-whatsapp');
   await page.goBack({ waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => document.body.textContent.includes('Waiting for your message'));
+  await page.waitForFunction(() => document.body.textContent.includes('Waiting for your WhatsApp message'));
   await page.screenshot({ path: path.join(out, `${name}-auth-return.png`), fullPage: true });
   verified = true;
   await page.waitForFunction(() => localStorage.getItem('my-shiloh-install-whatsapp-verified-v1') === '1');
