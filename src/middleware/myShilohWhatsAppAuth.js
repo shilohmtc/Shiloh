@@ -1,9 +1,10 @@
 'use strict';
 
 const { pool } = require('../db/pool');
-const { sendWhatsAppMessage } = require('../services/whatsapp');
+const { sendWhatsAppSignInMessage } = require('../services/whatsapp');
 const { createClientBrowserSessionService } = require('../services/clientBrowserSession');
 const logger = require('../lib/logger');
+const { metaSignInOnly } = require('../services/metaSignInOnly');
 
 const LOGIN_PREFIX = 'MY SHILOH SIGN IN';
 
@@ -21,7 +22,7 @@ function extractMyShilohLoginToken(message) {
 
 function createMyShilohWhatsAppAuthMiddleware({
   service = createClientBrowserSessionService({ db: pool }),
-  sendMessage = sendWhatsAppMessage,
+  sendMessage = sendWhatsAppSignInMessage,
   log = logger,
 } = {}) {
   return async function myShilohWhatsAppAuth(req, res, next) {
@@ -52,7 +53,9 @@ function createMyShilohWhatsAppAuthMiddleware({
       } else if (result.code === 'CLIENT_AUTH_PROFILE_UNAVAILABLE') {
         await sendMessage(
           from,
-          `I couldn't connect this WhatsApp number to an active My Shiloh client profile yet. 🌿\n\nYou can keep chatting with Shiloh here, or return to My Shiloh after your client profile is active.`,
+          metaSignInOnly()
+            ? `I couldn't connect this WhatsApp number to an active My Shiloh client profile yet. 🌿\n\nPlease contact Shiloh Reception to check your client profile.`
+            : `I couldn't connect this WhatsApp number to an active My Shiloh client profile yet. 🌿\n\nYou can keep chatting with Shiloh here, or return to My Shiloh after your client profile is active.`,
         );
       } else {
         await sendMessage(

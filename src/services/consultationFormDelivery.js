@@ -2,6 +2,7 @@ const { pool } = require('../db/pool');
 const logger = require('../lib/logger');
 const clientConsultationForms = require('./clientConsultationForms');
 const { sendWhatsAppTemplate } = require('./whatsapp');
+const { metaSignInOnly } = require('./metaSignInOnly');
 const { assertTemplateSendAllowed } = require('./metaTemplateContracts');
 const {
   loadBookingConfirmationAuthority,
@@ -349,6 +350,7 @@ function createConsultationFormDeliveryService({
       }
     }
 
+    if (metaSignInOnly(env)) return { sent: false, reason: 'meta_signin_only' };
     if (!contractPreflighted) {
       try { await preflightTemplateSend(assertSendAllowed); }
       catch (_error) { return { sent: false, reason: 'template_not_ready' }; }

@@ -266,6 +266,22 @@ test('no accepted app wake and no template leave a retryable confirmation obliga
   assert.equal(db.state.audits.some(event => event.action === 'customer.booking_confirmation_sent'), false);
 });
 
+test('sign-in-only cut leaves an unaccepted booking confirmation pending without a Meta send', async () => {
+  const db = appClientDeliveryDb(994);
+  let whatsappCalls = 0;
+  const result = await confirmation.sendCustomerBookingConfirmationForAppointment(994, {
+    ...deliveryOptions(db, async () => { whatsappCalls += 1; return { messages: [{ id: 'unexpected' }] }; }),
+    env: { SHILOH_META_SIGNIN_ONLY_ENABLED: 'true', SHILOH_BOOKING_CONFIRMATION_APP_ONLY_ENABLED: 'true',
+      WHATSAPP_BOOKING_CONFIRMATION_TEMPLATE: 'shiloh_booking_confirmation_v2' },
+    notifyApp: async () => ({ queued: true, accepted: 0 }),
+  });
+  assert.equal(result.reason, 'meta_signin_only');
+  assert.equal(result.retryable, true);
+  assert.equal(whatsappCalls, 0);
+  assert.notEqual(db.state.delivery.status, 'sent');
+  assert.equal(db.state.audits.some(event => event.action === 'customer.booking_confirmation_sent'), false);
+});
+
 test('accepted app wake with failed evidence write never retries or sends WhatsApp', async () => {
   const db = appClientDeliveryDb(993);
   const query = db.query.bind(db);

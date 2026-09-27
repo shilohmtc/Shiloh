@@ -1,5 +1,6 @@
 const axios = require("axios");
 const logger = require("../lib/logger");
+const { assertNonAuthMetaAllowed } = require('./metaSignInOnly');
 
 function messagesUrl() {
   return `https://graph.facebook.com/v23.0/${process.env.PHONE_NUMBER_ID}/messages`;
@@ -27,7 +28,7 @@ function triggerBookingCustomerConfirmation(message = "") {
   });
 }
 
-async function sendWhatsAppMessage(to, message) {
+async function postWhatsAppMessage(to, message) {
   try {
     const response = await axios.post(
       messagesUrl(),
@@ -61,7 +62,18 @@ async function sendWhatsAppMessage(to, message) {
   }
 }
 
+async function sendWhatsAppMessage(to, message) {
+  assertNonAuthMetaAllowed();
+  return postWhatsAppMessage(to, message);
+}
+
+// Only the verified client/staff sign-in middleware may call this entry point.
+async function sendWhatsAppSignInMessage(to, message) {
+  return postWhatsAppMessage(to, message);
+}
+
 async function sendWhatsAppReplyButtons(to, body, buttons = []) {
+  assertNonAuthMetaAllowed();
   const safeBody = String(body || "").trim();
   if (!safeBody) throw new Error("WhatsApp reply-button body is required");
   if (!Array.isArray(buttons) || buttons.length < 1 || buttons.length > 3) {
@@ -109,6 +121,7 @@ async function sendWhatsAppReplyButtons(to, body, buttons = []) {
 }
 
 async function sendWhatsAppCtaUrl(to, body, displayText, url) {
+  assertNonAuthMetaAllowed();
   const safeBody = String(body || "").trim();
   const safeDisplayText = String(displayText || "").trim();
   const safeUrl = String(url || "").trim();
@@ -156,6 +169,7 @@ async function sendWhatsAppCtaUrl(to, body, displayText, url) {
 }
 
 async function sendWhatsAppList(to, body, buttonText, rows = [], sectionTitle = "Choose") {
+  assertNonAuthMetaAllowed();
   const safeBody = String(body || "").trim();
   const safeButton = String(buttonText || "").trim();
   const safeSection = String(sectionTitle || "Choose").trim();
@@ -209,6 +223,7 @@ async function sendWhatsAppList(to, body, buttonText, rows = [], sectionTitle = 
 }
 
 async function sendWhatsAppTemplate(to, templateName, bodyParameters = [], languageCode = "en", quickReplyPayloads = [], urlButtonParameters = []) {
+  assertNonAuthMetaAllowed();
   const { assertTemplateSendAllowed } = require("./metaTemplateContracts");
   await assertTemplateSendAllowed(templateName, languageCode);
   if (!templateName) {
@@ -290,4 +305,4 @@ async function sendWhatsAppTemplate(to, templateName, bodyParameters = [], langu
   }
 }
 
-module.exports = { sendWhatsAppMessage, sendWhatsAppReplyButtons, sendWhatsAppCtaUrl, sendWhatsAppList, sendWhatsAppTemplate };
+module.exports = { sendWhatsAppMessage, sendWhatsAppSignInMessage, sendWhatsAppReplyButtons, sendWhatsAppCtaUrl, sendWhatsAppList, sendWhatsAppTemplate };

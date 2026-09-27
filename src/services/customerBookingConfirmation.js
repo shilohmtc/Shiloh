@@ -6,6 +6,7 @@ const {
   sendWhatsAppCtaUrl,
   sendWhatsAppReplyButtons,
 } = require('./whatsapp');
+const { metaSignInOnly } = require('./metaSignInOnly');
 const { postConfirmationButtons, bookingConfirmationV2QuickReplyPayloads } = require('./clientBookingInteractive');
 const { createAppointment: enrollAppointmentLifecycle } = require('./appointmentLifecycle');
 const { resolveClientFacingName } = require('./clientFacingNameAuthority');
@@ -465,6 +466,11 @@ async function sendCustomerBookingConfirmation(data,{
         JSON.stringify({crmV2ClientId:Number(authority.crm_v2_client_id),identityModel:'crm_v2_exact_mobile',channel:'my_shiloh',notificationId:appDelivery.notificationId||null,lifecycleEnrolled:true,idempotentDelivery:true}),
       ]);
       return {sent:true,deliveryStatus:'sent',channel:'my_shiloh',notificationId:appDelivery.notificationId||null};
+    }
+    if(metaSignInOnly(env)){
+      await releaseBookingConfirmationClaim(appointmentId,'meta_signin_only',db);
+      claimed=false;
+      return {sent:false,reason:'meta_signin_only',deliveryStatus:'retry_pending',retryable:true};
     }
     // Free-form WhatsApp cannot replace a paused template for an app cutover.
     // Leave the durable obligation retryable until a real channel is available.
