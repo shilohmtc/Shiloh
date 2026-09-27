@@ -1761,6 +1761,20 @@ test('public website Storybook exposes catalogue and WhatsApp unavailable states
   await expect(page.locator('a[href^="https://wa.me/"]')).toHaveCount(0);
 });
 
+test('selected website service follows the Reception planning link on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1440, height:1000 }]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=public-website-production-pages--book-with-selection&viewMode=story', { waitUntil:'networkidle' });
+    const link = page.locator('[data-website-planning-entry] a');
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute('href', '/my-shiloh/request?service=101');
+    const axe = await new AxeBuilder({ page }).include('[data-website-planning-entry]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(axe.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`website-planning-service-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+  }
+});
+
 
 test('My Shiloh install doorway is clear, contained and accessible on Phone and Desktop', async ({ page }, testInfo) => {
   for (const viewport of [

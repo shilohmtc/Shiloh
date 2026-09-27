@@ -4,6 +4,7 @@ const path = require('path');
 const express = require('express');
 const { pool } = require('../db/pool');
 const { getPublicServiceCatalogue } = require('../services/publicServiceCatalogue');
+const { normalizePublicServiceId } = require('../services/publicPresentation');
 const { resolveWhatsAppNumber } = require('../services/publicWhatsApp');
 const { createClientBrowserSessionService, SESSION_TTL_MS, CHALLENGE_TTL_MS } = require('../services/clientBrowserSession');
 const { createMyShilohExperienceOrchestrator } = require('../services/myShilohExperienceOrchestrator');
@@ -330,14 +331,17 @@ function createMyShilohRouter({
   });
 
   router.get('/my-shiloh/request', optionalSession, (req, res, next) => {
-    if (!req.myShilohClientSession) return res.redirect(303, '/my-shiloh/#plan-visit');
+    const serviceId = normalizePublicServiceId(req.query?.service);
+    if (!req.myShilohClientSession) return res.redirect(303, `/my-shiloh/${serviceId ? `?service=${encodeURIComponent(serviceId)}` : ''}#plan-visit`);
     return next();
   }, requireSession, async (req, res, next) => {
     try {
-      const [rotated, practitioners, requests] = await Promise.all([
+      const serviceId = normalizePublicServiceId(req.query?.service);
+      const [rotated, practitioners, requests, catalogue] = await Promise.all([
         sessionService.rotateCsrfToken(req.myShilohClientSession.sessionId),
         planningService.practitioners(),
         planningService.forClient(req.myShilohClientSession.crmV2ClientId),
+        serviceId ? catalogueProvider() : Promise.resolve(null),
       ]);
       if (!rotated.ok) return res.status(401).type('text/plain').send('Unauthorized');
       setMyShilohPageHeaders(res, { allowInlineStyles:true });
@@ -346,6 +350,7 @@ function createMyShilohRouter({
         csrfToken:rotated.csrfToken,
         practitioners,
         requests,
+        serviceDetail: Array.isArray(catalogue) ? String(catalogue.find(item => String(item.id) === serviceId)?.name || '') : '',
         humanWhatsAppNumber:env.SHILOH_HUMAN_WHATSAPP_NUMBER,
       }));
     } catch (error) { return next(error); }
