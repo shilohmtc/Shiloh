@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('node:module');
+const enabled = { env: { WHATSAPP_BOOKING_UPDATE_ENABLED: 'true' } };
+const disabled = { env: { WHATSAPP_BOOKING_UPDATE_ENABLED: 'false' } };
 
 function loadService({ templateApproved = true, templateStatusFails = false, providerFails = false, auditFails = false } = {}) {
   const state = { status: 'pending', attemptCount: 0, lastError: null, providerCalls: 0, inAppCalls: 0, auditCalls: 0 };
@@ -24,14 +26,14 @@ function loadService({ templateApproved = true, templateStatusFails = false, pro
     if (sql.includes("SET status='sent'")) { state.status = 'sent'; state.lastError = null; return { rowCount: 1 }; }
     if (sql.includes("SET status='failed'")) { state.status = 'failed'; state.attemptCount++; state.lastError = values[1]; return { rowCount: 1 }; }
     if (sql.includes("last_error='provider_outcome_uncertain'")) { state.lastError = 'provider_outcome_uncertain'; return { rowCount: 1 }; }
-    if (sql.includes("SET status='pending'")) { state.status = 'pending'; state.lastError = values[1]; return { rowCount: 1 }; }
+    if (sql.includes("SET status='pending'")) { state.status = 'pending'; state.lastError = sql.includes('booking_update_delivery_disabled') ? 'booking_update_delivery_disabled' : values[1]; return { rowCount: 1 }; }
     if (sql.includes('INSERT INTO crm_audit_events')) {
       state.auditCalls++;
       if (auditFails) throw new Error('audit write failed');
       return { rowCount: 1 };
     }
     if (sql.includes('SELECT audit_event_id') && sql.includes('LIMIT 25')) {
-      const eligible = ['pending', 'failed'].includes(state.status) && state.attemptCount < values[0];
+      const eligible = ['pending', 'failed'].includes(state.status) && state.attemptCount < values[0] && values[1];
       return { rowCount: eligible ? 1 : 0, rows: eligible ? [{ audit_event_id: 701 }] : [] };
     }
     throw new Error(`Unexpected SQL: ${sql.slice(0, 80)}`);
@@ -70,7 +72,7 @@ function loadService({ templateApproved = true, templateStatusFails = false, pro
 
 test('in-app booking change queues despite unapproved WhatsApp template', async () => {
   const { service, state } = loadService({ templateApproved: false });
-  const outcome = await service.attemptCustomerChangeNotification(701);
+  const outcome = await service.attemptCustomerChangeNotification(701, enabled);
   assert.equal(outcome.reason, 'template_not_approved');
   assert.equal(state.inAppCalls, 1);
   assert.equal(state.providerCalls, 0);
@@ -78,31 +80,45 @@ test('in-app booking change queues despite unapproved WhatsApp template', async 
 
 test('uncertain provider outcome stays claimed and cannot send again', async () => {
   const { service, state } = loadService({ providerFails: true });
-  const outcome = await service.attemptCustomerChangeNotification(701);
+  const outcome = await service.attemptCustomerChangeNotification(701, enabled);
   assert.equal(outcome.reason, 'provider_outcome_uncertain');
   assert.equal(state.status, 'sending');
   assert.equal(state.lastError, 'provider_outcome_uncertain');
   assert.equal(state.inAppCalls, 1);
-  assert.equal((await service.flushCustomerChangeNotifications()).attempted, 0);
-  assert.equal((await service.attemptCustomerChangeNotification(701)).reason, 'provider_outcome_uncertain');
+  assert.equal((await service.flushCustomerChangeNotifications(enabled)).attempted, 0);
+  assert.equal((await service.attemptCustomerChangeNotification(701, enabled)).reason, 'provider_outcome_uncertain');
   assert.equal(state.providerCalls, 1);
 });
 
 test('pre-send template status failures stop after three attempts', async () => {
   const { service, state } = loadService({ templateStatusFails: true });
-  assert.equal((await service.attemptCustomerChangeNotification(701)).reason, 'provider_status_error');
-  assert.equal((await service.flushCustomerChangeNotifications()).attempted, 1);
-  assert.equal((await service.flushCustomerChangeNotifications()).attempted, 1);
+  assert.equal((await service.attemptCustomerChangeNotification(701, enabled)).reason, 'provider_status_error');
+  assert.equal((await service.flushCustomerChangeNotifications(enabled)).attempted, 1);
+  assert.equal((await service.flushCustomerChangeNotifications(enabled)).attempted, 1);
   assert.equal(state.attemptCount, 3);
-  assert.equal((await service.flushCustomerChangeNotifications()).attempted, 0);
+  assert.equal((await service.flushCustomerChangeNotifications(enabled)).attempted, 0);
   assert.equal(state.providerCalls, 0);
 });
 
 test('audit failure after provider acceptance does not reopen delivery', async () => {
   const { service, state } = loadService({ auditFails: true });
-  assert.equal((await service.attemptCustomerChangeNotification(701)).sent, true);
+  assert.equal((await service.attemptCustomerChangeNotification(701, enabled)).sent, true);
   assert.equal(state.status, 'sent');
   assert.equal(state.auditCalls, 1);
-  assert.equal((await service.flushCustomerChangeNotifications()).attempted, 0);
+  assert.equal((await service.flushCustomerChangeNotifications(enabled)).attempted, 0);
+  assert.equal(state.providerCalls, 1);
+});
+
+test('disabled booking-update transport remains pending without an uncertain provider claim', async () => {
+  const { service, state } = loadService();
+  const paused = await service.attemptCustomerChangeNotification(701, disabled);
+  assert.equal(paused.reason, 'booking_update_delivery_disabled');
+  assert.equal(state.status, 'pending');
+  assert.equal(state.lastError, 'booking_update_delivery_disabled');
+  assert.equal(state.attemptCount, 0);
+  assert.equal(state.inAppCalls, 1);
+  assert.equal(state.providerCalls, 0);
+  assert.equal((await service.flushCustomerChangeNotifications(disabled)).attempted, 0);
+  assert.equal((await service.attemptCustomerChangeNotification(701, enabled)).sent, true);
   assert.equal(state.providerCalls, 1);
 });
