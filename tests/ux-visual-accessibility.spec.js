@@ -2491,6 +2491,15 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
     await expect(page.locator('[data-review-service]')).toContainText('Hot Stone Massage');
     await expect(page.locator('[data-review-practitioner]')).toHaveText('Christel');
     await expect(page.locator('[data-review-deposit]')).toHaveText('50% after approval');
+    const policy = page.locator('.terms');
+    const policyControl = policy.locator('summary');
+    await expect(policyControl).toContainText('Tap to open');
+    if (viewport.name === 'phone') {
+      const policyTop = await policyControl.evaluate(node => node.getBoundingClientRect().top);
+      expect(policyTop).toBeLessThan(viewport.height);
+    }
+    await policyControl.click();
+    await expect(policy.locator('pre')).toContainText('Please arrive on time.');
     await page.locator('[data-policy-accepted]').check();
     await page.getByRole('button', { name:'Send booking request' }).click();
     await expect(page.locator('[data-confirm-status]')).toContainText('Please choose Yes or No');
