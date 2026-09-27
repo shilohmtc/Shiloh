@@ -19,6 +19,7 @@ const {
 } = require('../presentation/clientConsultationFormUx');
 const { renderMyShilohPage } = require('../presentation/myShilohPwa');
 const { renderMyShilohBookingPage } = require('../presentation/myShilohBooking');
+const { renderPlanningRequestPage } = require('../presentation/myShilohPlanningRequest');
 const { createGiftVoucherService, GiftVoucherError } = require('../services/giftVouchers');
 const { renderClientVoucherPage, renderPublicVoucherPage } = require('../presentation/giftVoucherUx');
 const { createShilohRewardsService, ShilohRewardsError } = require('../services/shilohRewards');
@@ -28,6 +29,8 @@ const { createMyShilohWelcomeVoucherService, MyShilohWelcomeVoucherError } = req
 const { createProblemReportService, ProblemReportError } = require('../services/problemReports');
 const { defaultPushService } = require('../services/myShilohPush');
 const { createMyShilohBookingService, MyShilohBookingError } = require('../services/myShilohBooking');
+const { createClientPlanningRequestService, ClientPlanningRequestError } = require('../services/clientPlanningRequests');
+const { createClientHumanHandoffService, ClientHumanHandoffError } = require('../services/clientHumanHandoffs');
 const { POLICY_TEXT } = require('../services/bookingPolicy');
 const {
   sameOriginGuard,
@@ -103,6 +106,8 @@ function createMyShilohRouter({
   problemReportService = createProblemReportService({ db: pool }),
   pushService = defaultPushService,
   bookingService = createMyShilohBookingService({ db: pool, catalogueProvider }),
+  planningService = createClientPlanningRequestService({ db: pool }),
+  humanHandoffService = createClientHumanHandoffService({ db: pool }),
 } = {}) {
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
@@ -134,7 +139,7 @@ function createMyShilohRouter({
     fallthrough: false,
     setHeaders(res, filePath) {
       res.setHeader('X-Content-Type-Options', 'nosniff');
-      if (['app.css', 'app.js', 'booking.js'].includes(path.basename(filePath))) {
+      if (['app.css', 'app.js', 'booking.js', 'planning-request.js'].includes(path.basename(filePath))) {
         res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
       }
     },
@@ -278,7 +283,10 @@ function createMyShilohRouter({
     return res.status(200).type('html').sendFile(path.join(ROOT, 'offline.html'));
   });
 
-  router.get('/my-shiloh/book', requireSession, async (req, res, next) => {
+  router.get('/my-shiloh/book', optionalSession, (req, res, next) => {
+    if (!req.myShilohClientSession) return res.redirect(303, '/my-shiloh/#home');
+    return next();
+  }, requireSession, async (req, res, next) => {
     try {
       const welcomeVoucherMode = String(req.query?.welcomeVoucher || '') === '1';
       let voucher = null;
@@ -317,6 +325,54 @@ function createMyShilohRouter({
       }));
     } catch (error) {
       if (error instanceof MyShilohWelcomeVoucherError) return res.redirect(303, '/my-shiloh/#welcome-voucher');
+      return next(error);
+    }
+  });
+
+  router.get('/my-shiloh/request', requireSession, async (req, res, next) => {
+    try {
+      const [rotated, practitioners, requests] = await Promise.all([
+        sessionService.rotateCsrfToken(req.myShilohClientSession.sessionId),
+        planningService.practitioners(),
+        planningService.forClient(req.myShilohClientSession.crmV2ClientId),
+      ]);
+      if (!rotated.ok) return res.status(401).type('text/plain').send('Unauthorized');
+      setMyShilohPageHeaders(res, { allowInlineStyles:true });
+      return res.status(200).type('html').send(renderPlanningRequestPage({
+        clientFirstName:req.myShilohClientSession.client.firstName,
+        csrfToken:rotated.csrfToken,
+        practitioners,
+        requests,
+        humanWhatsAppNumber:env.SHILOH_HUMAN_WHATSAPP_NUMBER,
+      }));
+    } catch (error) { return next(error); }
+  });
+
+  router.post('/my-shiloh/api/planning-requests', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const payload = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+      const allowed = new Set(['submissionKey','kind','serviceDetail','preferredDate','preferredDaypart',
+        'practitionerId','guestCount','specialOccasion','occasionNote','clientNote']);
+      if (Object.keys(payload).some(key => !allowed.has(key))) return res.status(422).json({ error:'Please reload My Shiloh and try again.', requestId:req.id });
+      const result = await planningService.submit({ ...payload, crmV2ClientId:req.myShilohClientSession.crmV2ClientId });
+      return res.status(result.created ? 201 : 200).json(result);
+    } catch (error) {
+      if (error instanceof ClientPlanningRequestError) return res.status(error.httpStatus).json({ error:error.message, code:error.code, requestId:req.id });
+      return next(error);
+    }
+  });
+
+  router.post('/my-shiloh/api/human-handoff', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      if (req.body && (typeof req.body !== 'object' || Array.isArray(req.body) || Object.keys(req.body).length)) {
+        return res.status(422).json({ error:'Please reload My Shiloh and try again.', requestId:req.id });
+      }
+      const result = await humanHandoffService.request(req.myShilohClientSession.crmV2ClientId);
+      return res.status(result.created ? 201 : 200).json(result);
+    } catch (error) {
+      if (error instanceof ClientHumanHandoffError) return res.status(error.httpStatus).json({ error:error.message, code:error.code, requestId:req.id });
       return next(error);
     }
   });
@@ -800,12 +856,15 @@ function createMyShilohRouter({
 
   router.get(['/my-shiloh', '/my-shiloh/'], optionalSession, async (req, res) => {
     setMyShilohPageHeaders(res);
-    const [whatsappNumber, catalogue] = await Promise.all([
+    const [whatsappNumber, catalogue, humanHandoff] = await Promise.all([
       whatsappResolver(),
       catalogueProvider(),
+      req.myShilohClientSession ? humanHandoffService.activeForClient(req.myShilohClientSession.crmV2ClientId) : null,
     ]);
     return res.status(200).type('html').send(renderMyShilohPage({
       whatsappNumber,
+      humanWhatsAppNumber: env.SHILOH_HUMAN_WHATSAPP_NUMBER,
+      humanHandoffActive:Boolean(humanHandoff),
       catalogue: catalogue || [],
       client: req.myShilohClientSession?.client || null,
     }));

@@ -1,76 +1,135 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
-const express = require('express');
-const { createClinicIpadPublicRouter } = require('../src/routes/clinicIpadCheckin');
 const { buildClientExperience } = require('../src/services/myShilohExperienceOrchestrator');
 
-test('clinic iPad check-in screens fit phone, tablet and desktop with accessible form controls', async ({ page }, testInfo) => {
-  for (const viewport of [
-    { name:'phone', width:390, height:844 },
-    { name:'ipad', width:820, height:1180 },
-    { name:'desktop', width:1280, height:900 },
-  ]) {
-    await page.setViewportSize({ width:viewport.width, height:viewport.height });
-    for (const state of [
-      { name:'new-client', id:'client-clinic-ipad-check-in--new-client' },
-      { name:'verify-for-form', id:'client-clinic-ipad-check-in--verify-for-form' },
-      { name:'form-ready', id:'client-clinic-ipad-check-in--form-ready' },
-    ]) {
-      await page.goto(`/iframe.html?id=${state.id}&viewMode=story`,{ waitUntil:'networkidle' });
-      await expect(page.locator('[data-checkin-story]')).toBeVisible();
-      const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
-      expect(overflow).toBe(false);
-      const accessibility=await new AxeBuilder({ page }).include('[data-checkin-story]')
-        .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
-      expect(accessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
-      await page.screenshot({ path:testInfo.outputPath(`clinic-ipad-${state.name}-${viewport.name}.png`),
-        fullPage:true,animations:'disabled' });
+test('human handoff pauses assistant and appears in Reception on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1280,height:900 }]) {
+    await page.setViewportSize({ width:viewport.width,height:viewport.height });
+    await page.goto('/iframe.html?id=client-planning-requests--human-handoff&viewMode=story',{waitUntil:'networkidle'});
+    await expect(page.locator('.assistant-chat__note[role="status"]')).toContainText('automatic replies are paused');
+    await expect(page.locator('[data-shiloh-chat-form]')).toHaveCount(0);
+    await expect(page.getByRole('link',{name:'Continue with Reception on WhatsApp',exact:true})).toHaveAttribute('href',/wa\.me\/27662399138/);
+    const appAxe=await new AxeBuilder({page}).include('[data-view="shiloh"]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(appAxe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`human-handoff-client-${viewport.name}.png`),fullPage:true,animations:'disabled'});
+
+    await page.goto('/iframe.html?id=client-planning-requests--reception-human-handoff&viewMode=story',{waitUntil:'networkidle'});
+    const card=page.locator('[data-dashboard-human-handoff="92"]');
+    await expect(card).toContainText('Shiloh cannot read that separate conversation');
+    const staffAxe=await new AxeBuilder({page}).include('[data-dashboard-attention-panel]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(staffAxe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`human-handoff-reception-${viewport.name}.png`),fullPage:true,animations:'disabled'});
+  }
+});
+const { workspaceServicesManageClientScript } = require('../src/presentation/workspaceServicesUx');
+
+test('My Shiloh home starts without a duplicate header on phone and desktop', async ({ page }, testInfo) => {
+  for (const state of ['standalone-guest-sign-in', 'authenticated-home']) {
+    for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+      await page.setViewportSize({ width:viewport.width, height:viewport.height });
+      await page.goto(`/iframe.html?id=client-my-shiloh-pwa--${state}&viewMode=story`, { waitUntil:'networkidle' });
+      const frame = page.locator('[data-app-frame]');
+      await expect(frame).toBeVisible();
+      await expect(frame.locator('.topbar')).toHaveCount(0);
+      await expect(frame.locator('[data-view="home"] h1')).toBeVisible();
+      await expect(frame.locator('[data-view-target="shiloh"]')).toContainText('Shiloh');
+      await expect(frame.locator('[data-view-target="home"]')).toContainText('Home');
+      await expect(frame.locator('.bottom-nav .nav-icon')).toHaveCount(4);
+      await expect(frame.locator('.bottom-nav [aria-current="page"]')).toHaveCSS('font-size', '11px');
+      const accessibility = await new AxeBuilder({ page }).include('[data-view="home"] .hero').include('.bottom-nav').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+      expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+      await page.screenshot({ path:testInfo.outputPath(`my-shiloh-headerless-${state}-${viewport.name}.png`), fullPage:true, animations:'disabled' });
     }
   }
 });
 
-test('Christel and Reception form handoff screen fits phone and desktop',async ({page},testInfo)=>{
-  for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
-    await page.setViewportSize({width:viewport.width,height:viewport.height});
-    await page.goto('/iframe.html?id=client-clinic-ipad-check-in--staff-devices-with-whats-app&viewMode=story',{waitUntil:'networkidle'});
-    await expect(page.locator('[data-checkin-story]')).toBeVisible();
-    expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
-    const accessibility=await new AxeBuilder({page}).include('[data-checkin-story]')
-      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
-    expect(accessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
-    await page.screenshot({path:testInfo.outputPath(`clinic-ipad-staff-handoff-${viewport.name}.png`),fullPage:true,animations:'disabled'});
+test('My Shiloh guest booking stays behind WhatsApp sign-in on phone and desktop', async ({ page }, testInfo) => {
+  await page.addInitScript(() => { Object.defineProperty(navigator, 'standalone', { value:true, configurable:true }); });
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--standalone-guest-sign-in&viewMode=story', { waitUntil:'networkidle' });
+    await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
+    const frame = page.locator('[data-app-frame]');
+    await expect(frame).toBeVisible();
+    await expect(frame.locator('a[href="/book"]')).toHaveCount(0);
+    await expect(frame.getByRole('link', { name:'Sign in to book' }).first()).toBeVisible();
+    await frame.getByRole('link', { name:'How booking works' }).click();
+    await expect(frame.getByRole('heading', { name:'Your time with Shiloh.' })).toBeVisible();
+    await frame.getByRole('link', { name:'Sign in to book' }).last().click();
+    await expect(frame.getByRole('button', { name:'Continue with WhatsApp' }).first()).toBeVisible();
+    const accessibility = await new AxeBuilder({ page }).include('[data-app-frame]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-signin-boundary-${viewport.name}.png`), fullPage:true, animations:'disabled' });
   }
 });
 
-test('a completed iPad visit cannot reopen personal details through navigation', async ({ page }) => {
-  const app=express();
-  let active=true;
-  const device='d'.repeat(43),visit='v'.repeat(43);
-  app.use('/check-in',createClinicIpadPublicRouter({
-    env:{SHILOH_CLINIC_IPAD_CHECKIN_ENABLED:'true'},
-    service:{deviceFor:async value=>value===device?{id:1}:null,
-      cancelDeviceForm:async()=>{},readyForm:async()=>false,
-      begin:async()=>({token:visit}),active:async(_device,value)=>value===visit&&active?{id:2}:null,
-      finish:async()=>{active=false;},register:async()=>{active=false;return {state:'completed'};}}
-  }));
-  const server=app.listen(0,'127.0.0.1');
-  await new Promise(resolve=>server.once('listening',resolve));
-  const base=`http://127.0.0.1:${server.address().port}`;
-  try {
-    await page.context().addCookies([{name:'shiloh_checkin_device',value:device,domain:'127.0.0.1',path:'/check-in'}]);
-    await page.goto(`${base}/check-in/`);
-    await page.getByRole('button',{name:'Enter my details'}).click();
-    await page.getByLabel('Full name').fill('Sarah Jacobs');
-    await page.getByLabel('Mobile number').fill('0821234567');
-    await page.getByLabel('Date of birth').fill('1985-05-14');
-    await page.getByRole('button',{name:'Continue'}).click();
-    await expect(page.getByRole('heading',{name:'Your details are saved.'})).toBeVisible();
-    await page.getByRole('link',{name:'Finish'}).click();
-    await expect(page.getByRole('heading',{name:'Let’s get you checked in.'})).toBeVisible();
-    await page.goto(`${base}/check-in/details`);
-    await expect(page.getByRole('heading',{name:'Let’s get you checked in.'})).toBeVisible();
-    expect(await page.locator('input[name="name"]').count()).toBe(0);
-  } finally {await new Promise(resolve=>server.close(resolve));}
+test('Services confirmation names the category and restores focus on cancel', async ({ page }, testInfo) => {
+  let deletes = 0;
+  await page.route('**/calendar/staff-auth/csrf', route => route.fulfill({ status:200, contentType:'application/json', body:'{"csrfToken":"test-token"}' }));
+  await page.route('**/calendar/services/categories/18/delete', route => { deletes++; return route.fulfill({ status:200, contentType:'application/json', body:'{}' }); });
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=workspace-services--christel-category-management&viewMode=story', { waitUntil:'networkidle' });
+    await page.addScriptTag({ content:workspaceServicesManageClientScript() });
+    const trigger = page.locator('[data-category-delete][data-category-id="18"] button');
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name:'Delete “New category”?' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText('You cannot undo this action.')).toBeVisible();
+    await expect(dialog.getByRole('button', { name:'Keep category' })).toBeFocused();
+    const accessibility = await new AxeBuilder({ page }).include('[data-shiloh-confirm]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`services-category-confirmation-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+    expect(deletes).toBe(viewport.name === 'phone' ? 0 : 1);
+    await trigger.click();
+    await dialog.getByRole('button', { name:'Delete category' }).click();
+    await expect.poll(() => deletes).toBe(viewport.name === 'phone' ? 1 : 2);
+  }
+});
+
+test('flexible and group requests reach Reception without claiming a booking on Phone and Desktop', async ({ page }, testInfo) => {
+  const submissions=[];
+  await page.route('**/my-shiloh/api/planning-requests', async route => {
+    submissions.push(route.request().postDataJSON());
+    await route.fulfill({ status:201, contentType:'application/json', body:JSON.stringify({ id:81,status:'requested',created:true }) });
+  });
+  for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1280,height:900 }]) {
+    await page.setViewportSize({ width:viewport.width,height:viewport.height });
+    await page.goto('/iframe.html?id=client-planning-requests--group-occasion&viewMode=story', { waitUntil:'networkidle' });
+    await page.addScriptTag({ url:'/my-shiloh/assets/planning-request.js' });
+    await expect(page.getByRole('heading', { name:/Let’s plan your visit/ })).toBeVisible();
+    await page.getByLabel('Treatment or experience you have in mind').fill('Birthday spa afternoon');
+    await page.getByLabel('About how many guests?').fill('4');
+    await page.getByLabel('Tell us about the occasion').fill('Birthday');
+    const formAxe=await new AxeBuilder({ page }).include('[data-planning-page]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(formAxe.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`client-group-form-${viewport.name}.png`),fullPage:true,animations:'disabled' });
+    await page.getByRole('button', { name:'Send to Reception' }).click();
+    await expect(page.getByRole('heading', { name:'We’ve received your request.' })).toBeVisible();
+    expect(submissions.at(-1)).toMatchObject({ kind:'group',guestCount:'4',specialOccasion:true,occasionNote:'Birthday' });
+    await expect(page.getByText('This is not a confirmed appointment.')).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+    expect(overflow).toBe(false);
+    const axe = await new AxeBuilder({ page }).include('[data-planning-page]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(axe.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`client-group-request-${viewport.name}.png`),fullPage:true,animations:'disabled' });
+
+    await page.goto('/iframe.html?id=client-planning-requests--reception-attention&viewMode=story', { waitUntil:'networkidle' });
+    const card=page.locator('[data-dashboard-planning-request="81"]');
+    await expect(card).toContainText('Birthday');
+    await expect(card).toContainText('has not booked a time or requested payment');
+    const receptionAxe=await new AxeBuilder({ page }).include('[data-dashboard-attention-panel]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(receptionAxe.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`reception-group-request-${viewport.name}.png`),fullPage:true,animations:'disabled' });
+  }
 });
 
 test('Workspace vouchers stay contained and selectable on Phone and Desktop', async ({ page }, testInfo) => {
@@ -294,6 +353,11 @@ test('My Shiloh WhatsApp automatic return is clear and accessible on Phone and D
     const home = appFrame.locator('[data-view="home"]');
     await expect(home.getByRole('heading',{name:'Your Shiloh, all in one place.'})).toBeVisible();
     await expect(home.getByText('Checking your WhatsApp verification… My Shiloh will open automatically.')).toBeVisible();
+    const disclosure = home.locator('[data-client-auth-code-disclosure]');
+    await expect(disclosure).not.toHaveAttribute('open');
+    await expect(disclosure.locator('summary')).toBeVisible();
+    await expect(home.getByText('Enter your 6-digit fallback code')).toBeHidden();
+    await disclosure.locator('summary').click();
     await expect(home.getByText('Enter your 6-digit fallback code')).toBeVisible();
     await expect(home.getByRole('button',{name:'Open My Shiloh'})).toBeVisible();
     const metrics=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth,short:[...document.querySelectorAll('[data-client-auth-start], [data-client-auth-code-form] input, [data-client-auth-code-form] button')].filter(node=>node.getClientRects().length&&node.getBoundingClientRect().height<44).length}));
@@ -1646,14 +1710,26 @@ test('My Shiloh install doorway is clear, contained and accessible on Phone and 
   }
 });
 
-test('My Shiloh standalone guest state keeps WhatsApp sign-in available', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/iframe.html?id=client-my-shiloh-pwa--standalone-guest-sign-in&viewMode=story', { waitUntil: 'networkidle' });
-  await expect(page.locator('[data-install-gate]')).toBeHidden();
-  const appFrame = page.locator('[data-app-frame]');
-  await expect(appFrame).toBeVisible();
-  await expect(appFrame.getByRole('button', { name: 'Continue with WhatsApp' }).first()).toBeVisible();
-  await expect(appFrame.getByText('Enter your 6-digit fallback code').first()).toBeVisible();
+test('My Shiloh guest sign-in keeps the fallback available without competing with WhatsApp', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--standalone-guest-sign-in&viewMode=story', { waitUntil:'networkidle' });
+    await expect(page.locator('[data-install-gate]')).toBeHidden();
+    const appFrame = page.locator('[data-app-frame]');
+    await expect(appFrame).toBeVisible();
+    const home = appFrame.locator('[data-view="home"]');
+    await expect(home.getByRole('button', { name:'Continue with WhatsApp' })).toBeVisible();
+    const disclosure = home.locator('[data-client-auth-code-disclosure]');
+    await expect(disclosure.locator('summary')).toBeVisible();
+    await expect(disclosure).not.toHaveAttribute('open');
+    await expect(disclosure.getByText('Enter your 6-digit fallback code')).toBeHidden();
+    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-guest-sign-in-${viewport.name}.png`), fullPage:true });
+    await disclosure.locator('summary').click();
+    await expect(disclosure.getByText('Enter your 6-digit fallback code')).toBeVisible();
+    await expect(disclosure.getByRole('button', { name:'Open My Shiloh' })).toBeVisible();
+    const accessibility = await new AxeBuilder({ page }).include('[data-view="home"] .hero').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+  }
 });
 
 

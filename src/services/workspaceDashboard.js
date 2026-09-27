@@ -11,6 +11,8 @@ const { finalizeAppointment } = require('./adminAppointmentFinalization');
 const { canCertifyAppointment } = require('./attendanceFinalizationAuthority');
 const { dateKeyInBusinessTimezone, isOperationalDateKey } = require('./operationalCalendar');
 const bookingRequestResolution = require('./workspaceBookingRequestRouting');
+const { createClientPlanningRequestService } = require('./clientPlanningRequests');
+const { createClientHumanHandoffService } = require('./clientHumanHandoffs');
 const workspaceHolidayAttention = require('./workspaceHolidayAttention');
 const workspaceWelcomeVoucherCampaign = require('./workspaceWelcomeVoucherCampaign');
 
@@ -19,6 +21,12 @@ const OWNER_ROLES = new Set(['owner', 'business_admin']);
 const BUSINESS_OVERVIEW_ROLES = new Set(['owner', 'business_admin', 'booking_operator']);
 const NO_BOOKING_REQUESTS = {
   async listUnresolvedBookingRequests() { return []; },
+};
+const NO_PLANNING_REQUESTS = {
+  async forReception() { return []; },
+};
+const NO_HUMAN_HANDOFFS = {
+  async forReception() { return []; },
 };
 const NO_DASHBOARD_BACKLOG = {
   async listUnresolvedPastAppointments() { return { staff: [], appointments: [] }; },
@@ -203,6 +211,8 @@ function createWorkspaceDashboardService({
   finalizeAppointmentFn = finalizeAppointment,
   canCertifyAppointmentFn = canCertifyAppointment,
   bookingRequestService = NO_BOOKING_REQUESTS,
+  planningRequestService = NO_PLANNING_REQUESTS,
+  humanHandoffService = NO_HUMAN_HANDOFFS,
   backlogService = NO_DASHBOARD_BACKLOG,
   holidayAttentionService = NO_HOLIDAY_ATTENTION,
   welcomeVoucherCampaignService = NO_WELCOME_VOUCHER_CAMPAIGN,
@@ -293,11 +303,13 @@ function createWorkspaceDashboardService({
       .filter(item => ['completed', 'no_show'].includes(String(item.status || '').toLowerCase()))
       .sort((a, b) => new Date(b.endsAt).getTime() - new Date(a.endsAt).getTime())
       .slice(0, 6);
-    const [bookingRequests, rescheduleRequests, holidayDecisions] = await Promise.all([
+    const [bookingRequests, rescheduleRequests, holidayDecisions, planningRequests, humanHandoffs] = await Promise.all([
       bookingRequestService.listUnresolvedBookingRequests({ principal, now }),
       bookingRequestService.listPendingRescheduleRequests?.({ principal, now }) || [],
       authority.mode === 'owner_overview' && holidayAttentionService?.listHolidayDecisions
         ? holidayAttentionService.listHolidayDecisions({ now }) : [],
+      planningRequestService.forReception(principal),
+      humanHandoffService.forReception(principal),
     ]);
 
     let communications = null;
@@ -340,6 +352,8 @@ function createWorkspaceDashboardService({
         : [],
       awaitingFinalization,
       bookingRequests,
+      planningRequests,
+      humanHandoffs,
       rescheduleRequests,
       holidayDecisions,
       recentActivity,
@@ -403,11 +417,23 @@ function createWorkspaceDashboardService({
     return bookingRequestService.decideReceptionReschedule({ principal, requestId, decision });
   }
 
-  return { buildModel, finalizeVisit, resolveBookingRequest, resolveRescheduleRequest };
+  async function resolvePlanningRequest({ adminId, viewer, sessionPrincipal = null, requestId, action, appointmentId } = {}) {
+    const { principal } = await resolveAuthority(adminId, viewer, sessionPrincipal);
+    return planningRequestService.decide({ principal, id:requestId, action, appointmentId });
+  }
+
+  async function closeHumanHandoff({ adminId, viewer, sessionPrincipal = null, handoffId } = {}) {
+    const { principal } = await resolveAuthority(adminId, viewer, sessionPrincipal);
+    return humanHandoffService.close({ principal, id:handoffId });
+  }
+
+  return { buildModel, finalizeVisit, resolveBookingRequest, resolveRescheduleRequest, resolvePlanningRequest, closeHumanHandoff };
 }
 
 const service = createWorkspaceDashboardService({
   bookingRequestService: bookingRequestResolution,
+  planningRequestService: createClientPlanningRequestService(),
+  humanHandoffService: createClientHumanHandoffService(),
   backlogService: workspaceDashboardBacklog,
   holidayAttentionService: workspaceHolidayAttention,
   welcomeVoucherCampaignService: workspaceWelcomeVoucherCampaign,

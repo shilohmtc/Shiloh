@@ -6,8 +6,9 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
+const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260926-client-payment-recovery-v1';
+const MY_SHILOH_ASSET_VERSION = '20260927-handoff-and-fallback-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -25,10 +26,10 @@ function whatsappUrl(number, message = 'Hi Shiloh, I am using My Shiloh and woul
 }
 
 function serviceCards(catalogue = [], authenticated = false) {
-  const bookingHref = authenticated ? '/my-shiloh/book' : '/book';
+  const bookingHref = authenticated ? '/my-shiloh/book' : '#home';
   const services = sanitizePublicCatalogue(catalogue).slice(0, 4);
   if (!services.length) {
-    return `<article class="service-card service-card--empty"><span class="service-kicker">Services</span><h3>Explore what feels right.</h3><p>Our live service list is temporarily unavailable. Shiloh can still help you choose.</p><a class="text-link" href="${bookingHref}">Open booking</a></article>`;
+    return `<article class="service-card service-card--empty"><span class="service-kicker">Services</span><h3>Explore what feels right.</h3><p>Our live service list is temporarily unavailable. Shiloh can still help you choose.</p><a class="text-link" href="${bookingHref}">${authenticated ? 'Open booking' : 'Sign in to book'}</a></article>`;
   }
 
   return services
@@ -36,15 +37,16 @@ function serviceCards(catalogue = [], authenticated = false) {
       <span class="service-kicker">${escapeHtml(service.category || 'Service')}</span>
       <h3>${escapeHtml(service.name)}</h3>
       <div class="service-meta"><span>${escapeHtml(service.duration || '')}</span><strong>${escapeHtml(service.price || '')}</strong></div>
-      <a class="service-link" href="${authenticated ? `/my-shiloh/book?service=${encodeURIComponent(service.id)}` : bookingHref}">Book this service</a>
+      <a class="service-link" href="${authenticated ? `/my-shiloh/book?service=${encodeURIComponent(service.id)}` : bookingHref}">${authenticated ? 'Book this service' : 'Sign in to book'}</a>
     </article>`)
     .join('');
 }
 
 function authFinishForm(inputId = 'my-shiloh-code') {
-  return `<form class="auth-code-form" data-client-auth-code-form>
+  return `<details class="auth-code-disclosure" data-client-auth-code-disclosure>
+    <summary>Need another way? <span>Enter a code</span></summary>
+    <form class="auth-code-form" data-client-auth-code-form>
     <div class="auth-code-heading">
-      <span>Need another way?</span>
       <strong>Enter your 6-digit fallback code</strong>
       <p>Use this only if My Shiloh does not open automatically after you return.</p>
     </div>
@@ -53,7 +55,8 @@ function authFinishForm(inputId = 'my-shiloh-code') {
       <input id="${escapeHtml(inputId)}" data-client-auth-code inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" placeholder="123 456" aria-label="6-digit code from Shiloh">
       <button class="button button--primary" type="submit">Open My Shiloh</button>
     </div>
-  </form>`;
+    </form>
+  </details>`;
 }
 
 function johannesburgGreeting(now = new Date()) {
@@ -69,11 +72,18 @@ function johannesburgGreeting(now = new Date()) {
 
 function renderMyShilohPage({
   whatsappNumber = null,
+  humanWhatsAppNumber = null,
+  humanHandoffActive = false,
   catalogue = [],
   client = null,
   now = new Date(),
 } = {}) {
   const askShiloh = whatsappUrl(whatsappNumber);
+  const suppliedHumanDigits = String(humanWhatsAppNumber || '').replace(/\D/g, '');
+  const humanDigits = /^0[678]\d{8}$/.test(suppliedHumanDigits) ? `27${suppliedHumanDigits.slice(1)}`
+    : /^27[678]\d{8}$/.test(suppliedHumanDigits) ? suppliedHumanDigits : '';
+  const speakToReception = humanDigits ? whatsappUrl(humanDigits,
+    'Hi Reception, I am using My Shiloh and would like to speak with a person.') : null;
   const manageBooking = whatsappUrl(
     whatsappNumber,
     'Hi Shiloh, I am in My Shiloh and would like help with an appointment.',
@@ -90,7 +100,7 @@ function renderMyShilohPage({
         <p class="hero-copy">You’re safely signed in. Your appointments, forms, payments and rewards are ready whenever you need them.</p>
         <div class="hero-actions">
           <a class="button button--primary" href="/my-shiloh/book">Book an appointment</a>
-          <a class="button button--soft" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Ask Shiloh</a>
+          <a class="button button--soft" href="${escapeHtml(humanHandoffActive && speakToReception ? speakToReception : askShiloh)}" rel="noopener noreferrer">${humanHandoffActive && speakToReception ? 'Continue with Reception' : 'Ask Shiloh'}</a>
         </div>
       </div>`
     : `<div class="hero">
@@ -99,7 +109,7 @@ function renderMyShilohPage({
         <p class="hero-copy">Use WhatsApp to confirm it’s you and open your personal Shiloh space. No password or email needed.</p>
         <div class="hero-actions">
           <button class="button button--primary" type="button" data-client-auth-start>Continue with WhatsApp</button>
-          <a class="button button--soft" href="/book">Book an appointment</a>
+          <a class="button button--soft" href="#bookings">How booking works</a>
         </div>
         <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
         ${authFinishForm('my-shiloh-home-code')}
@@ -339,14 +349,6 @@ function renderMyShilohPage({
   </main>
 
   <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}" data-client-payment-whatsapp="${escapeHtml(String(whatsappNumber || '').replace(/\D/g, ''))}" hidden>
-    <header class="topbar">
-      <a class="brand" href="#home" aria-label="My Shiloh home">
-        <span class="brand-mark brand-mark--header" aria-hidden="true"><img src="/my-shiloh/assets/icon-192.png" alt=""></span>
-        <span class="brand-copy"><strong>Shiloh</strong><small>My Shiloh</small></span>
-      </a>
-      <button class="install-button" type="button" data-install-trigger hidden>Install My Shiloh</button>
-    </header>
-
     <div class="network-banner" data-offline-banner hidden role="status">You are offline. My Shiloh will reconnect automatically.</div>
     <div class="app-update-banner" data-app-update hidden role="status" aria-live="polite">
       <div><strong>A new My Shiloh update is ready.</strong><span>Update now to use the latest version.</span></div>
@@ -372,7 +374,7 @@ function renderMyShilohPage({
         <section class="quiet-card">
           <div class="quiet-icon" aria-hidden="true">S</div>
           <div><p class="eyebrow">Shiloh is close</p><h2>Need help choosing?</h2><p>Tell Shiloh what you feel like booking and continue the conversation on WhatsApp.</p></div>
-          <a class="circle-link" href="${escapeHtml(askShiloh)}" aria-label="Ask Shiloh on WhatsApp" rel="noopener noreferrer">→</a>
+          <a class="circle-link" href="${escapeHtml(humanHandoffActive && speakToReception ? speakToReception : askShiloh)}" aria-label="${humanHandoffActive && speakToReception ? 'Continue with Reception on WhatsApp' : 'Ask Shiloh on WhatsApp'}" rel="noopener noreferrer">→</a>
         </section>
       </section>
 
@@ -380,18 +382,18 @@ function renderMyShilohPage({
         <div class="page-intro">
           <p class="eyebrow">Bookings</p>
           <h1 id="bookings-title">Your time with Shiloh.</h1>
-          <p>${authenticated ? 'Your appointments and visit details will appear here.' : 'Sign in to see your appointments, or continue with Shiloh on WhatsApp.'}</p>
+          <p>${authenticated ? 'Your appointments and visit details will appear here.' : 'Sign in with WhatsApp to see your appointments and request a new booking.'}</p>
         </div>
         <div class="stack" data-client-experience-bookings>
           <article class="action-card action-card--accent">
             <span class="action-number">01</span>
-            <div><h2>${authenticated ? 'Loading your next booking…' : 'Book something new'}</h2><p>${authenticated ? 'We’re bringing your next appointment into view.' : 'Browse the live service list, then ask Shiloh to find a time that suits you.'}</p></div>
-            <a class="button button--primary" href="${authenticated ? '/my-shiloh/book' : '/book'}">Book an appointment</a>
+            <div><h2>${authenticated ? 'Loading your next booking…' : 'Book something new'}</h2><p>${authenticated ? 'We’re bringing your next appointment into view.' : 'Confirm it’s you with WhatsApp first. Then choose your treatment and request a time in My Shiloh.'}</p></div>
+            <a class="button button--primary" href="${authenticated ? '/my-shiloh/book' : '#home'}">${authenticated ? 'Book an appointment' : 'Sign in to book'}</a>
           </article>
           <article class="action-card">
             <span class="action-number">02</span>
             <div><h2>Change an appointment</h2><p>Ask Shiloh to help you reschedule or cancel your appointment.</p></div>
-            <a class="button button--soft" href="${escapeHtml(manageBooking)}" rel="noopener noreferrer">Ask Shiloh</a>
+            <a class="button button--soft" href="${escapeHtml(humanHandoffActive && speakToReception ? speakToReception : manageBooking)}" rel="noopener noreferrer">${humanHandoffActive && speakToReception ? 'Ask Reception' : 'Ask Shiloh'}</a>
           </article>
         </div>
       </section>
@@ -402,7 +404,7 @@ function renderMyShilohPage({
           <p class="eyebrow">Your wellness assistant</p>
           <h1 id="shiloh-title">Shiloh, right where you need it.</h1>
           <p>${authenticated
-            ? 'Ask naturally about your appointments, forms, payments or rewards.'
+            ? humanHandoffActive ? 'Reception is handling your request. Continue with the clinic team on WhatsApp.' : 'Ask naturally about your appointments, forms, payments or rewards.'
             : 'Sign in for personal help, or continue the conversation on WhatsApp.'}</p>
         </div>
         ${authenticated ? `
@@ -410,10 +412,10 @@ function renderMyShilohPage({
           <div class="assistant-chat__messages" data-shiloh-messages aria-live="polite" aria-relevant="additions">
             <div class="chat-bubble chat-bubble--shiloh">
               <span>Shiloh</span>
-              <p>Hi ${firstName} 🌿 Ask me anything about your Shiloh visit, booking, forms or payment status.</p>
+              <p>${humanHandoffActive ? `Hi ${firstName} 🌿 Reception is now helping you.` : `Hi ${firstName} 🌿 Ask me anything about your Shiloh visit, booking, forms or payment status.`}</p>
             </div>
           </div>
-          <div class="prompt-grid" aria-label="Suggested questions" data-client-experience-prompts>
+          ${humanHandoffActive ? `<p class="assistant-chat__note" role="status">Reception is handling your request. Shiloh’s automatic replies are paused until Reception closes the handoff. Continue with Reception on the clinic WhatsApp number.</p>` : `<div class="prompt-grid" aria-label="Suggested questions" data-client-experience-prompts>
             <button type="button" data-shiloh-prompt><span>Prepare</span><strong>What do I need before my appointment?</strong></button>
             <button type="button" data-shiloh-prompt><span>Manage</span><strong>Can I move my appointment?</strong></button>
             <button type="button" data-shiloh-prompt><span>Status</span><strong>What is my appointment status?</strong></button>
@@ -425,9 +427,11 @@ function renderMyShilohPage({
             <button class="button button--primary" type="submit" data-shiloh-chat-send>Send</button>
           </form>
           <p class="assistant-chat__note">For any change, Shiloh will show you what will happen and ask you to confirm.</p>
-          <a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Prefer WhatsApp? Continue there →</a>
+          <a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Prefer WhatsApp? Continue there →</a>`}
+          ${speakToReception ? `<a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(speakToReception)}" rel="noopener noreferrer"${humanHandoffActive ? '' : ' data-human-handoff-start'}>${humanHandoffActive ? 'Continue with Reception on WhatsApp →' : 'Speak to Reception on WhatsApp →'}</a>${humanHandoffActive ? '' : `<p class="assistant-chat__note" data-human-handoff-status role="status" aria-live="polite"></p><a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(speakToReception)}" rel="noopener noreferrer" data-human-handoff-direct hidden>Open Reception directly</a>`}` : ''}
         </section>` : `
         <a class="button button--primary button--wide" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Chat with Shiloh on WhatsApp</a>
+        ${speakToReception ? `<a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(speakToReception)}" rel="noopener noreferrer">Speak to Reception on WhatsApp →</a>` : ''}
         <div class="prompt-grid" aria-label="Things Shiloh can help with">
           <article><span>Choose</span><strong>What would suit me?</strong></article>
           <article><span>Manage</span><strong>Move my appointment</strong></article>
@@ -446,11 +450,11 @@ function renderMyShilohPage({
     </main>
 
     <nav class="bottom-nav" aria-label="My Shiloh">
-      <a href="#home" data-view-target="home" aria-current="page"><span class="nav-icon" aria-hidden="true">⌂</span><span>Home</span></a>
-      <a href="#bookings" data-view-target="bookings"><span class="nav-icon" aria-hidden="true">□</span><span>Bookings</span></a>
+      <a href="#home" data-view-target="home" aria-current="page">${renderShilohIcon('home', { size: 21, className: 'nav-icon' })}<span>Home</span></a>
+      <a href="#bookings" data-view-target="bookings">${renderShilohIcon('calendar', { size: 21, className: 'nav-icon' })}<span>Bookings</span></a>
       <a class="nav-shiloh" href="#shiloh" data-view-target="shiloh"><span class="nav-orb" aria-hidden="true">S</span><span>Shiloh</span></a>
-      <a href="#wallet" data-view-target="wallet"><span class="nav-icon" aria-hidden="true">▱</span><span>Wallet</span></a>
-      <a href="#profile" data-view-target="profile"><span class="nav-icon" aria-hidden="true">○</span><span>Profile</span></a>
+      <a href="#wallet" data-view-target="wallet">${renderShilohIcon('wallet', { size: 21, className: 'nav-icon' })}<span>Wallet</span></a>
+      <a href="#profile" data-view-target="profile">${renderShilohIcon('person', { size: 21, className: 'nav-icon' })}<span>Profile</span></a>
     </nav>
   </div>
 

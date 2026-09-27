@@ -37,14 +37,17 @@ test('My Shiloh renders the approved five-tab PWA shell with public-safe service
   assert.match(html, /rel="apple-touch-icon" sizes="180x180" href="\/my-shiloh\/assets\/apple-touch-icon-180\.png/);
   assert.match(html, new RegExp(`app\\.css\\?v=${MY_SHILOH_ASSET_VERSION}`));
   assert.match(html, new RegExp(`app\\.js\\?v=${MY_SHILOH_ASSET_VERSION}`));
-  assert.match(html, /brand-mark--header/);
-  assert.match(html, /<strong>Shiloh<\/strong><small>My Shiloh<\/small>/);
+  assert.doesNotMatch(html, /class="topbar"|brand-mark--header|brand-copy/);
+  assert.match(html, /data-view-target="shiloh"/);
   assert.doesNotMatch(html, /class="brand-logo"/);
   assert.match(html, /data-view-target="home"/);
   assert.match(html, /data-view-target="bookings"/);
   assert.match(html, /data-view-target="shiloh"/);
   assert.match(html, /data-view-target="wallet"/);
   assert.match(html, /data-view-target="profile"/);
+  for (const icon of ['home', 'calendar', 'wallet', 'person']) {
+    assert.match(html, new RegExp(`data-shiloh-icon="${icon}"`));
+  }
   assert.doesNotMatch(html, /data-notification-badge|nav-icon--badged/);
   assert.match(html, /id="wallet" data-view="wallet"/);
   assert.match(html, /Your Shiloh value, together/);
@@ -76,14 +79,14 @@ test('My Shiloh uses WhatsApp only as an explicit client handoff in the guest sh
   assert.equal(whatsappUrl(null), '/contact');
   const html = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue: [] });
   assert.match(html, /https:\/\/wa\.me\/27830000000\?text=/);
-  assert.match(html, /Book an appointment/);
+  assert.match(html, /Sign in to book/);
 });
 
 test('My Shiloh route is no-store, no-index and mounted without reusing staff authentication', () => {
   const route = read('src/routes/myShiloh.js');
   const app = read('app.js');
   assert.match(route, /Cache-Control', 'private, no-store, max-age=0'/);
-  assert.match(route, /\['app\.css', 'app\.js', 'booking\.js'\][\s\S]*Cache-Control', 'public, max-age=0, must-revalidate'/);
+  assert.match(route, /\['app\.css', 'app\.js', 'booking\.js', 'planning-request\.js'\][\s\S]*Cache-Control', 'public, max-age=0, must-revalidate'/);
   assert.match(route, /X-Robots-Tag', 'noindex, nofollow, noarchive'/);
   assert.match(route, /Content-Security-Policy/);
   assert.match(route, /getPublicServiceCatalogue/);

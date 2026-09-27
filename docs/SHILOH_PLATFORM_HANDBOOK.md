@@ -27,7 +27,7 @@ Shiloh is one clinic platform with several connected surfaces:
 | Render | Hosting, runtime, deployment and managed PostgreSQL | Render service/deployment state and repository release evidence |
 
 The iPad intake is gated by `SHILOH_CLINIC_IPAD_CHECKIN_ENABLED` and defaults off. The flag stays off until the release quality gates and the real-device handoff checks in issue #1198 are complete. This is a release status, not a clinic policy.
-The production deployment must apply `163_clinic_ipad_checkin.sql` through the existing controlled-release migration authority. Coordinate the Render deployment so the new release and `SHILOH_CONTROLLED_RELEASE_MIGRATION=163_clinic_ipad_checkin.sql` arrive together; setting that value against an older release or deploying the migration without it will fail the startup guard.
+The production deployment must apply `165_clinic_ipad_checkin.sql` through the existing controlled-release migration authority. Coordinate the Render deployment so the new release and `SHILOH_CONTROLLED_RELEASE_MIGRATION=165_clinic_ipad_checkin.sql` arrive together; setting that value against an older release or deploying the migration without it will fail the startup guard.
 
 ## System map
 
@@ -103,6 +103,14 @@ Useful canonical documents include [`PRODUCTION-RUNBOOK.md`](PRODUCTION-RUNBOOK.
 8. Verify the requested production behavior and record remaining owner acceptance or follow-up on the existing roadmap.
 
 For interface work, include Storybook review, desktop and phone Playwright coverage, accessibility checks and relevant visual evidence. For payment or messaging work, distinguish application records, provider callbacks and human/client acceptance.
+
+### Accepted interface boundaries — 2026-09-27
+
+- Signed-out My Shiloh visitors can explore services and contact Shiloh, but booking actions lead to the existing WhatsApp sign-in. The private booking page and booking APIs remain session-bound; a direct guest visit to the booking page returns to the sign-in entry. Public website booking remains a separate public entry point.
+- My Shiloh uses its bottom navigation for Home and the Shiloh assistant. The duplicate top-left logo/name header is removed; the middle tab stays labelled “Shiloh” because it opens the assistant. Installation retains its separate doorway.
+- Workspace confirmations use the shared `workspaceConfirmation` presentation component. Name the affected item, state the consequence, and label both the safe and committing actions. Start with Services category deletion, service deactivation and practitioner removal. Keep the existing server-side Services authority and validation as the final decision.
+
+These are accepted implementation standards; release and production verification are tracked by the corresponding pull request and deployment evidence.
 
 ## Runtime, data and security notes
 

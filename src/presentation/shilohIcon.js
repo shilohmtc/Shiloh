@@ -1,6 +1,8 @@
 const {
   Calendar,
+  House,
   User,
+  Wallet,
   Users,
   Search,
   ChevronLeft,
@@ -15,7 +17,9 @@ const {
 
 const SHILOH_ICONS = Object.freeze({
   calendar: Calendar,
+  home: House,
   person: User,
+  wallet: Wallet,
   people: Users,
   search: Search,
   previous: ChevronLeft,

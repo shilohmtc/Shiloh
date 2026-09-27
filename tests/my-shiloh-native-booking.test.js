@@ -27,7 +27,9 @@ test('signed-in My Shiloh booking stays inside the app instead of /book', () => 
     catalogue: [],
     client: null,
   });
-  assert.match(guest, /href="\/book">Book an appointment/);
+  assert.match(guest, /href="#bookings">How booking works/);
+  assert.match(guest, /href="#home">Sign in to book/);
+  assert.doesNotMatch(guest, /href="\/book"/);
 
   const experience = buildClientExperience({
     generatedAt:'2026-09-23T18:00:00.000Z',
@@ -73,7 +75,7 @@ test('native booking page is a My Shiloh treatment-practitioner-time-review wiza
 
 test('booking routes are session-owned and confirmation is same-origin + CSRF protected', () => {
   const route = read('src/routes/myShiloh.js');
-  assert.match(route, /router\.get\('\/my-shiloh\/book', requireSession/);
+  assert.match(route, /router\.get\('\/my-shiloh\/book', optionalSession,[\s\S]*?requireSession, async/);
   assert.match(route, /router\.get\('\/my-shiloh\/api\/booking\/practitioners', requireSession/);
   assert.match(route, /router\.get\('\/my-shiloh\/api\/booking\/availability', requireSession/);
   assert.match(route, /router\.post\('\/my-shiloh\/api\/booking\/confirm', sameOrigin, requireSession, requireCsrf/);
