@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   APP_HOST,
+  APP_ORIGIN,
   PUBLIC_SITE_ORIGIN,
   canonicalHostRedirect,
   requestHostname,
@@ -74,6 +75,15 @@ test('keeps app-only sessions, installed apps, forms and provider callbacks on t
   ]) {
     assert.equal(run({ host: APP_HOST, path, originalUrl: path }).nextCalled, true, path);
   }
+});
+
+test('opens My Shiloh installation pages on the passkey host from alternate Shiloh addresses', () => {
+  for (const host of ['shilohmtc.co.za', 'www.shilohmtc.co.za', 'shiloh-whatsapp-bot.onrender.com']) {
+    assert.deepEqual(run({ host, path: '/my-shiloh/', originalUrl: '/my-shiloh/?service=7' }).redirect,
+      { status: 308, location: `${APP_ORIGIN}/my-shiloh/?service=7` });
+  }
+  assert.equal(run({ host: 'www.shilohmtc.co.za', path: '/my-shiloh/sw.js' }).nextCalled, true);
+  assert.equal(run({ host: APP_HOST, path: '/my-shiloh/' }).nextCalled, true);
 });
 
 test('does not redirect non-idempotent app-host requests or unrelated hosts', () => {
