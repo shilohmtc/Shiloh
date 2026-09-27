@@ -7,6 +7,7 @@ function frame(markup) {
 }
 export default { title:'Client/Clinic iPad check-in' };
 export const Welcome = { render:() => frame(welcome()) };
+export const SetupNeeded = { render:() => frame(welcome({setup:true})) };
 export const NewClient = { render:() => frame(details()) };
 export const FormReady = { render:() => frame(welcome({formReady:true})) };
 export const VerifyForForm = { render:() => frame(verify()) };

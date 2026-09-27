@@ -11,6 +11,7 @@ test('clinic iPad check-in screens fit phone, tablet and desktop with accessible
   ]) {
     await page.setViewportSize({ width:viewport.width, height:viewport.height });
     for (const state of [
+      { name:'setup-needed', id:'client-clinic-ipad-check-in--setup-needed' },
       { name:'new-client', id:'client-clinic-ipad-check-in--new-client' },
       { name:'verify-for-form', id:'client-clinic-ipad-check-in--verify-for-form' },
       { name:'form-ready', id:'client-clinic-ipad-check-in--form-ready' },
