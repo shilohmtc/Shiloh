@@ -242,7 +242,7 @@ async function attemptCustomerChangeNotification(auditEventId, { env = process.e
   if (await suppressEndedBookingUpdate(item)) {
     return { sent: false, reason: 'appointment_already_ended', suppressed: true };
   }
-  await queueBookingChangeMyShilohNotification({
+  const appDetails = {
     appointmentId: appointment.id,
     crmV2ClientId: appointment.crm_v2_client_id,
     clientName: appointment.client_name,
@@ -251,7 +251,54 @@ async function attemptCustomerChangeNotification(auditEventId, { env = process.e
     endsAt: appointment.ends_at,
     changeKind: item.change_kind,
     auditEventId,
-  });
+  };
+  const appOnlyEligible = env.SHILOH_BOOKING_CHANGE_APP_ONLY_ENABLED === 'true'
+    && appointment.client_id == null
+    && Number.isSafeInteger(Number(appointment.crm_v2_client_id))
+    && Number(appointment.crm_v2_client_id) > 0
+    && Boolean(appointment.crm_v2_client_name);
+  if (appOnlyEligible) {
+    // Claim before the push wake. If recording acceptance fails, the sending
+    // state prevents a later retry from also sending a WhatsApp template.
+    const appClaim = await pool.query(`
+      UPDATE customer_change_notifications
+         SET status='sending',last_error=NULL,updated_at=NOW()
+       WHERE audit_event_id=$1 AND status IN ('pending','failed')
+         AND (change_kind='cancellation' OR EXISTS (
+           SELECT 1 FROM appointments a WHERE a.id=appointment_id AND a.ends_at>NOW()
+         ))
+       RETURNING audit_event_id`, [auditEventId]);
+    if (!appClaim.rowCount) {
+      if (await suppressEndedBookingUpdate(item)) return { sent: false, reason: 'appointment_already_ended', suppressed: true };
+      return { sent: false, reason: 'already_sending_or_sent' };
+    }
+    let appDelivery;
+    try {
+      appDelivery = await queueBookingChangeMyShilohNotification(appDetails);
+    } catch (error) {
+      logger.error({ err: error, auditEventId: Number(auditEventId) }, 'Booking change app wake failed');
+    }
+    if (appDelivery?.queued === true && Number(appDelivery.accepted) > 0) {
+      // A failed write deliberately leaves the claim in sending for review.
+      const recorded = await pool.query(`UPDATE customer_change_notifications SET status='sent',sent_at=NOW(),updated_at=NOW(),last_error=NULL WHERE audit_event_id=$1 AND status='sending' RETURNING audit_event_id`, [auditEventId]);
+      if (!recorded.rowCount) return { sent: false, reason: 'app_outcome_uncertain' };
+      try {
+        await pool.query(`INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata) VALUES($1,'appointment',$2,$3::jsonb)`, [
+          item.change_kind === 'cancellation' ? 'customer.cancellation_confirmation_sent' : 'customer.booking_update_confirmation_sent',
+          String(appointment.id),
+          JSON.stringify({ sourceAuditEventId: Number(auditEventId), changeKind: item.change_kind, channel: 'my_shiloh', notificationId: appDelivery.notificationId || null, idempotentDelivery: true }),
+        ]);
+      } catch (error) {
+        logger.error({ err: error, auditEventId: Number(auditEventId) }, 'Booking change app delivery recorded but audit write failed');
+      }
+      return { sent: true, channel: 'my_shiloh', notificationId: appDelivery.notificationId || null };
+    }
+    // No accepted wake: preserve the normal approved-template fallback.
+    const released = await pool.query(`UPDATE customer_change_notifications SET status='pending',last_error='app_wake_unaccepted',updated_at=NOW() WHERE audit_event_id=$1 AND status='sending' RETURNING audit_event_id`, [auditEventId]);
+    if (!released.rowCount) return { sent: false, reason: 'app_outcome_uncertain' };
+  } else {
+    await queueBookingChangeMyShilohNotification(appDetails);
+  }
 
   // An intentional transport pause is known before any provider request. Keep
   // the row pending so it can be reviewed or resumed, rather than claiming it
@@ -349,7 +396,7 @@ async function flushCustomerChangeNotifications({ env = process.env } = {}) {
        AND ($2::boolean OR change_kind='cancellation')
        AND updated_at <= NOW() - INTERVAL '5 minutes'
      ORDER BY created_at
-     LIMIT 25`, [MAX_PRE_SEND_ATTEMPTS, env.WHATSAPP_BOOKING_UPDATE_ENABLED === 'true']);
+     LIMIT 25`, [MAX_PRE_SEND_ATTEMPTS, env.WHATSAPP_BOOKING_UPDATE_ENABLED === 'true' || env.SHILOH_BOOKING_CHANGE_APP_ONLY_ENABLED === 'true']);
   for (const row of result.rows) await attemptCustomerChangeNotification(row.audit_event_id, { env });
   return { attempted: result.rowCount };
 }

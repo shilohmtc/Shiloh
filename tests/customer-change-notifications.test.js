@@ -55,7 +55,7 @@ test('uncertain provider responses and post-acceptance audit failures cannot tri
   assert.match(service, /if \(item\.status === 'sending'\) return/);
   assert.match(service, /last_error='provider_outcome_uncertain'/);
   assert.match(service, /WHERE audit_event_id=\$1 AND status='sending'/);
-  const claim = service.indexOf("SET status='sending'");
+  const claim = service.indexOf("SET status='sending',attempt_count=attempt_count+1");
   const provider = service.indexOf('provider = await sendWhatsAppTemplate(');
   const accepted = service.indexOf("SET status='sent'", provider);
   const audit = service.indexOf('INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)', provider);
@@ -78,7 +78,7 @@ test('ended booking updates are terminally suppressed before provider checks and
   assert.ok(suppressionChecks.length >= 2, 'expected an early stale guard and a pre-claim recheck');
   assert.ok(suppressionChecks[0] < providerCheck, 'stale rows must be suppressed before provider/configuration checks');
 
-  const claim = service.indexOf("SET status='sending'");
+  const claim = service.indexOf("SET status='sending',attempt_count=attempt_count+1");
   assert.ok(claim > 0);
   assert.ok(suppressionChecks.some((index) => index > providerCheck && index < claim), 'appointment end must be rechecked after provider lookup and before send claim');
 });
