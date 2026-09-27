@@ -4,7 +4,6 @@
   const viewNames = new Set(['home', 'bookings', 'shiloh', 'wallet', 'profile']);
   const views = [...document.querySelectorAll('[data-view]')];
   const navItems = [...document.querySelectorAll('[data-view-target]')];
-  const installTrigger = document.querySelector('[data-install-trigger]');
   const installSheet = document.querySelector('[data-install-sheet]');
   const installGate = document.querySelector('[data-install-gate]');
   const installVerificationGate = document.querySelector('[data-install-verification-gate]');
@@ -228,10 +227,6 @@
     if (installGateAction) installGateAction.textContent = 'Show install steps';
   }
 
-  function showInstallButton() {
-    if (installTrigger && !standalone()) installTrigger.hidden = false;
-  }
-
   function shareIcon() {
     const namespace = 'http://www.w3.org/2000/svg';
     const icon = document.createElementNS(namespace, 'svg');
@@ -327,18 +322,16 @@
     if (!installSheet) return;
     installSheet.hidden = true;
     document.body.style.overflow = '';
-    (installGateAction && !installGateAction.hidden ? installGateAction : installTrigger)?.focus();
+    installGateAction?.focus();
   }
 
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault();
     deferredInstallPrompt = event;
-    showInstallButton();
     renderAppMode();
   });
 
   renderAppMode();
-  if (isIos() && !standalone()) showInstallButton();
 
   installGateAction?.addEventListener('click', async () => {
     if (deferredInstallPrompt && isAndroid()) {
@@ -348,18 +341,6 @@
       if (choice?.outcome === 'accepted') resetInstallationVerification();
       deferredInstallPrompt = null;
       renderAppMode();
-      return;
-    }
-    openInstallGuide();
-  });
-
-  installTrigger?.addEventListener('click', async () => {
-    if (deferredInstallPrompt) {
-      deferredInstallPrompt.prompt();
-      const choice = await deferredInstallPrompt.userChoice;
-      if (choice?.outcome === 'accepted') resetInstallationVerification();
-      deferredInstallPrompt = null;
-      if (standalone()) installTrigger.hidden = true;
       return;
     }
     openInstallGuide();
@@ -375,7 +356,6 @@
 
   window.addEventListener('appinstalled', () => {
     resetInstallationVerification();
-    if (installTrigger) installTrigger.hidden = true;
     deferredInstallPrompt = null;
     if (installGateAction) installGateAction.hidden = true;
     if (installGateStatus) installGateStatus.textContent = 'Open the My Shiloh icon on your Home Screen to continue.';
