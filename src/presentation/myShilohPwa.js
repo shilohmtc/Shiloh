@@ -7,7 +7,7 @@ const {
 } = require('../services/publicPresentation');
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-signin-boundary-v1';
+const MY_SHILOH_ASSET_VERSION = '20260927-signin-boundary-v2';
 
 function escapeHtml(value = '') {
   return String(value)

@@ -43,7 +43,7 @@ test('Services confirmation names the category and restores focus on cancel', as
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
     await expect(trigger).toBeFocused();
-    expect(deletes).toBe(0);
+    expect(deletes).toBe(viewport.name === 'phone' ? 0 : 1);
     await trigger.click();
     await dialog.getByRole('button', { name:'Delete category' }).click();
     await expect.poll(() => deletes).toBe(viewport.name === 'phone' ? 1 : 2);

@@ -1,6 +1,6 @@
 :root{
   --ink:#25332c;
-  --muted:#66726b;
+  --muted:#566259;
   --cream:#f7f3ec;
   --paper:#fffdf9;
   --sage:#dfe8dc;
@@ -9,7 +9,7 @@
   --leaf-dark:#2e4033;
   --blush:#ecdcd6;
   --sand:#e8dfd2;
-  --gold:#a17a4b;
+  --gold:#79552d;
   --line:rgba(37,51,44,.11);
   --shadow:0 22px 60px rgba(48,61,52,.12);
   --safe-bottom:env(safe-area-inset-bottom,0px);
