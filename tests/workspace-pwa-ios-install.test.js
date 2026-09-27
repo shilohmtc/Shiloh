@@ -24,7 +24,7 @@ test('#794 iPhone install guidance stores only a tab-scoped presentation dismiss
   assert.match(client, /sessionStorage\.setItem\(INSTALL_DISMISS_KEY,'1'\)/);
   assert.match(client, /INSTALL_DISMISS_KEY='shiloh-ios-install-dismissed-v1'/);
   assert.doesNotMatch(client, /localStorage|indexedDB|document\.cookie/i);
-  assert.doesNotMatch(client, /PushManager|showNotification/i);
+  assert.doesNotMatch(client, /showNotification/i);
   assert.match(client, /addEventListener\('beforeinstallprompt',event=>\{if\(!androidDevice\(\)\|\|standalone\(\)\)return;/);
   assert.doesNotMatch(client, /INSERT INTO|UPDATE\s+staff_|DELETE FROM|Authorization|Bearer\s/i);
 });

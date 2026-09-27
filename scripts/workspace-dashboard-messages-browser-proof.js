@@ -405,7 +405,9 @@ const METRICS_EXPRESSION = `(() => {
     minDashboardActionHeight:(()=>{const nodes=Array.from(document.querySelectorAll('[data-dashboard-finalize]'));return nodes.length?Math.min(...nodes.map(node=>node.getBoundingClientRect().height)):0;})(),
     dashboardCommunicationText:document.querySelector('[data-dashboard-communications-panel]')?.textContent.trim()||'',
     accountFooterVisible:visible(document.querySelector('[data-workspace-account-footer]')),
-    accountFooterText:document.querySelector('[data-workspace-account-footer]')?.textContent.trim()||'',
+    accountFooterText:[...document.querySelector('[data-workspace-account-footer]')?.children||[]]
+      .filter(node=>!node.matches('[data-workspace-notifications]')).map(node=>node.textContent).join(' ').trim(),
+    hasNotificationsToggle:!!document.querySelector('[data-workspace-push-toggle]'),
     servicesCopy:document.querySelector('[data-services-list-view]')?.parentElement?.textContent.trim()||'',
     addServiceVisible:visible(document.querySelector('[data-service-primary-action] a')),
     addStaffVisible:visible(document.querySelector('[data-staff-primary-action] a')),
@@ -508,6 +510,7 @@ async function main() {
           assert.ok(metrics.minNavTargetHeight >= 44, `${name} has a drawer target below 44px`);
           assert.equal(metrics.accountFooterVisible, true, `${name} does not show the account footer in the open drawer`);
           assert.match(metrics.accountFooterText, /Signed in as\s*Clinic Owner\s*Sign out/);
+          assert.equal(metrics.hasNotificationsToggle,true, `${name} is missing the Workspace notifications control`);
         } else {
           assert.equal(metrics.drawerOpen, false);
           assert.ok(metrics.navRight <= 1, `${name} leaves the closed drawer on-screen`);
