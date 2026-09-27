@@ -103,6 +103,7 @@ For interface work, include Storybook review, desktop and phone Playwright cover
 
 - Signed-out My Shiloh visitors can explore services and contact Shiloh, but booking actions lead to the existing WhatsApp sign-in. The private booking page and booking APIs remain session-bound; a direct guest visit to the booking page returns to the sign-in entry. Public website booking remains a separate public entry point.
 - My Shiloh uses its bottom navigation for Home and the Shiloh assistant. The duplicate top-left logo/name header is removed; the middle tab stays labelled “Shiloh” because it opens the assistant. Installation retains its separate doorway.
+- The once-off welcome voucher is presented inside My Shiloh only after client verification and an eligibility check. A signed-out visit must not imply that the visitor can claim the offer; redeemed clients should not see the offer again. The public website can still describe the promotion before identity is known.
 - Workspace confirmations use the shared `workspaceConfirmation` presentation component. Name the affected item, state the consequence, and label both the safe and committing actions. Start with Services category deletion, service deactivation and practitioner removal. Keep the existing server-side Services authority and validation as the final decision.
 
 These are accepted implementation standards; release and production verification are tracked by the corresponding pull request and deployment evidence.

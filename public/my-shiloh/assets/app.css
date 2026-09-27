@@ -246,9 +246,10 @@ h3{font-size:20px;line-height:1.12}
 .chat-bubble span{display:block;margin-bottom:4px;color:var(--gold);font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
 .chat-bubble p{margin:0;white-space:pre-wrap;font-size:13px}
 .chat-bubble[data-pending="true"]{opacity:.7}
-.assistant-composer{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:9px;align-items:end;margin-top:12px}
-.assistant-composer textarea{width:100%;min-height:54px;max-height:150px;resize:vertical;border:1px solid rgba(70,87,70,.2);border-radius:15px;padding:13px 14px;background:#fff;color:var(--ink);font:inherit;font-size:14px}
-.assistant-composer .button{min-width:84px}
+.assistant-composer{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end;margin-top:12px}
+.assistant-composer textarea{display:block;width:100%;min-height:48px;max-height:120px;resize:none;overflow-y:auto;border:1px solid rgba(70,87,70,.25);border-radius:15px;padding:11px 14px;background:#fff;color:var(--ink);font:inherit;font-size:16px;line-height:24px}
+.assistant-composer textarea:focus-visible{outline:2px solid var(--leaf-dark);outline-offset:2px}
+.assistant-composer .button{min-width:70px;min-height:48px;padding:10px 12px}
 .assistant-chat__note{margin:10px 2px 5px;color:var(--muted);font-size:10px}
 .assistant-whatsapp-fallback{display:inline-flex;margin:4px 2px 0}
 .client-action-card{justify-self:stretch;max-width:100%;padding:17px;border-radius:20px;background:linear-gradient(145deg,#fff7f2,#fffdf9);border:1px solid rgba(123,67,61,.18);box-shadow:0 10px 26px rgba(91,52,47,.08)}
@@ -274,7 +275,7 @@ h3{font-size:20px;line-height:1.12}
 .auth-code-row .button{min-height:46px}
 @media(max-width:480px){.profile-fields{grid-template-columns:1fr}.profile-field--wide{grid-column:auto}}
 @media(max-width:520px){.welcome-voucher{grid-template-columns:1fr}.welcome-voucher__value{width:64px;height:64px;font-size:21px}.welcome-voucher__booking{grid-template-columns:1fr}.welcome-voucher__booking .button{width:100%}}
-@media(max-width:420px){.auth-code-row{grid-template-columns:1fr}.auth-code-row .button{width:100%}.assistant-composer{grid-template-columns:1fr}.assistant-composer .button{width:100%}.client-action-card__actions{grid-template-columns:1fr}.client-action-card__actions .button{width:100%}}
+@media(max-width:420px){.auth-code-row{grid-template-columns:1fr}.auth-code-row .button{width:100%}.client-action-card__actions{grid-template-columns:1fr}.client-action-card__actions .button{width:100%}}
 
 
 /* Guest browser installation doorway: browser installs, standalone app signs in. */
