@@ -182,7 +182,7 @@ function buildClientExperience(context) {
       eyebrow: 'Before your visit',
       headline: depositRequired ? 'Your booking is awaiting its deposit.' : 'Your booking is nearly ready.',
       summary: depositRequired
-        ? `${appointment.service} is held for ${appointment.date} at ${appointment.time}. Pay the ${payment.ratePercent}% booking deposit to secure it. ${payment.freeNoticeHours}+ hours notice has no cancellation penalty; ${payment.partialNoticeHours}–${payment.freeNoticeHours} hours may forfeit ${payment.partialForfeitPercent}% of the deposit; under ${payment.partialNoticeHours} hours or a no-show may forfeit ${payment.lateForfeitPercent}%.`
+        ? `${appointment.service} is held for ${appointment.date} at ${appointment.time}.`
         : `${appointment.service} is booked for ${appointment.date} at ${appointment.time}. A secure payment option is available.`,
       status: depositRequired ? 'Deposit' : 'Payment',
       primaryAction: { kind: 'navigate', label: depositRequired ? 'Pay deposit' : 'Open payment', href: payment.actionPath },

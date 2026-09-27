@@ -49,6 +49,8 @@ flowchart TD
 
 The application and database are the operational core. Calendar, messaging and payments are integrations around that core; they must not silently become competing authorities for canonical booking, client or policy data.
 
+My Shiloh Home shows a short deposit prompt with the amount and payment action; the booking and payment pages carry the full policy. Clients can archive and restore Updates on their current phone. This stores only bounded notification IDs for that signed-in client in the installed app; it does not delete server notifications, change booking or payment state, or sync the archive to another phone.
+
 ## Tool and integration inventory
 
 | Tool or integration | Role | Current handling | Authority / safe note |
