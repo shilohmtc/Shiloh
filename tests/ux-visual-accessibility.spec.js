@@ -1737,7 +1737,7 @@ for (const viewport of [
       await expect(surface).toBeVisible();
       await expect(surface.getByRole('heading', { level: 1 })).toBeVisible();
       await expect(surface.locator('a[href="/book"]').first()).toBeAttached();
-      await expect(surface.locator('a[href="/my-shiloh/"]').first()).toBeAttached();
+      await expect(surface.locator('a[href="https://app.shilohmtc.co.za/my-shiloh/"]').first()).toBeAttached();
       if (name !== 'book') {
         await expect(surface.locator('.welcome-offer')).toContainText('Eligible first-time registrations');
       }
@@ -1789,7 +1789,7 @@ for (const viewport of [
       }
 
       if (name === 'contact') {
-        await expect(surface.getByRole('link', { name: 'Send your plans to Reception in My Shiloh' })).toHaveAttribute('href', '/my-shiloh/request');
+        await expect(surface.getByRole('link', { name: 'Send your plans to Reception in My Shiloh' })).toHaveAttribute('href', 'https://app.shilohmtc.co.za/my-shiloh/request');
       }
 
       const geometry = await surface.evaluate(() => ({
