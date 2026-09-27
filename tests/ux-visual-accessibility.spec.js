@@ -1789,7 +1789,7 @@ for (const viewport of [
       }
 
       if (name === 'contact') {
-        await expect(surface.getByRole('link', { name: 'Send your plans to Reception in My Shiloh' })).toHaveAttribute('href', '/my-shiloh/request');
+        await expect(surface.getByRole('link', { name: 'Send your plans to Reception in My Shiloh' })).toHaveAttribute('href', 'https://app.shilohmtc.co.za/my-shiloh/request');
       }
 
       const geometry = await surface.evaluate(() => ({
