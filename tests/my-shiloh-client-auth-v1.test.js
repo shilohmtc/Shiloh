@@ -225,6 +225,19 @@ test('My Shiloh is the canonical installed-app display name', () => {
   assert.match(presentation, /data-install-gate-action>Install My Shiloh<\/button>/);
 });
 
+test('website treatment handoff only exposes a canonical catalogue code and keeps the booking session-bound', () => {
+  const catalogue = [{ id: 103, name: 'Toe Gel Only' }];
+  const selected = renderMyShilohPage({ catalogue, selectedServiceId: '103' });
+  assert.match(selected, /data-website-treatment-handoff data-service-code="103" hidden/);
+  assert.match(selected, /Your website choice: <strong>Toe Gel Only<\/strong>/);
+  const guestBookings = selected.match(/<section class="view" id="bookings"[\s\S]*?<\/section>/)?.[0] || '';
+  assert.doesNotMatch(guestBookings, /data-website-treatment-form/);
+  const signedIn = renderMyShilohPage({ catalogue, client: { id: 5, firstName: 'Jean' } });
+  assert.match(signedIn, /data-website-treatment-form/);
+  assert.doesNotMatch(renderMyShilohPage({ catalogue, selectedServiceId: '999' }), /data-website-treatment-handoff/);
+  assert.doesNotMatch(renderMyShilohPage({ catalogue, selectedServiceId: '103"><script>' }), /data-website-treatment-handoff/);
+});
+
 test('first installed-app launch uses only a non-sensitive convenience marker and WhatsApp remains authority', () => {
   const client = read('public/my-shiloh/assets/app.js');
   const presentation = read('src/presentation/myShilohPwa.js');

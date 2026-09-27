@@ -1893,6 +1893,43 @@ test('My Shiloh install doorway is clear, contained and accessible on Phone and 
   }
 });
 
+test('website treatment code carries a booking choice into the installed app on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--website-treatment-handoff&viewMode=story&service=103#book-online', { waitUntil:'networkidle' });
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, 'clipboard', { configurable:true, value:{ writeText:async (value) => { window.copiedTreatmentCode = value; } } });
+    });
+    await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
+    const handoff = page.locator('[data-website-treatment-handoff]');
+    await expect(handoff).toBeVisible();
+    await expect(page.locator('[data-install-gate]').getByRole('heading', { name:'Continue your chosen treatment in My Shiloh.' })).toBeVisible();
+    await expect(page.locator('[data-install-gate]').getByRole('button', { name:'New here? Show install steps' })).toBeVisible();
+    await expect(handoff).toContainText('Signature Pedicure');
+    await expect(handoff).toContainText('103');
+    await handoff.getByRole('button', { name:'Copy treatment code' }).click();
+    expect(await page.evaluate(() => window.copiedTreatmentCode)).toBe('103');
+    const gateAxe = await new AxeBuilder({ page }).include('[data-install-gate]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(gateAxe.violations.filter((item) => ['serious','critical'].includes(item.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`website-treatment-handoff-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-home&viewMode=story', { waitUntil:'networkidle' });
+    await page.evaluate(() => {
+      localStorage.setItem('my-shiloh-install-whatsapp-verified-v1', '1');
+      Object.defineProperty(navigator, 'standalone', { configurable:true, get:() => true });
+    });
+    await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
+    await page.locator('[data-view-target="bookings"]').click();
+    const form = page.locator('[data-website-treatment-form]');
+    await expect(form).toBeVisible();
+    await form.getByRole('textbox', { name:'Have a treatment code from the website?' }).fill('103');
+    await page.route('**/my-shiloh/book?service=103', (route) => route.fulfill({ status:200, contentType:'text/html', body:'<h1>Booking choice carried through</h1>' }));
+    await form.getByRole('button', { name:'Continue treatment' }).click();
+    await expect(page.getByRole('heading', { name:'Booking choice carried through' })).toBeVisible();
+    await expect(page).toHaveURL(/\/my-shiloh\/book\?service=103$/);
+  }
+});
+
 test('My Shiloh guest sign-in keeps the fallback available without competing with WhatsApp', async ({ page }, testInfo) => {
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
     await page.setViewportSize(viewport);
