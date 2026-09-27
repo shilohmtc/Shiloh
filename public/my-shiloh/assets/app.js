@@ -812,7 +812,7 @@
         setAuthControlsDisabled(false);
         for (const form of authCodeForms) form.classList.add('is-waiting');
         if (announce) {
-          setAuthStatus('Checking your WhatsApp verification… My Shiloh will open automatically.', 'waiting');
+          setAuthStatus('Waiting for your message. Tap Send in WhatsApp, then return to My Shiloh.', 'waiting');
         }
         scheduleAuthStatusCheck();
         return;
@@ -847,7 +847,7 @@
     setAuthControlsDisabled(false);
     if (whatsappHandoffStarted) {
       for (const form of authCodeForms) form.classList.add('is-waiting');
-      setAuthStatus('Welcome back. Checking your WhatsApp verification…', 'waiting');
+      setAuthStatus('Welcome back. Checking for your message. If it is still in WhatsApp, tap Send there.', 'waiting');
     }
     checkClientAuthStatus({ announce: whatsappHandoffStarted });
   }
@@ -1537,7 +1537,7 @@
     if (!standalone() || authActionInFlight) return;
     authActionInFlight = true;
     setAuthControlsDisabled(true);
-    setAuthStatus('Opening WhatsApp for secure verification…', 'working');
+    setAuthStatus('Opening WhatsApp. Tap Send on the prepared message.', 'working');
     try {
       const response = await postJson('/my-shiloh/auth/start');
       const data = await response.json().catch(() => ({}));
@@ -1548,7 +1548,7 @@
       authActionInFlight = false;
       setAuthCodeControlsDisabled(false);
       for (const form of authCodeForms) form.classList.add('is-waiting');
-      setAuthStatus('WhatsApp is opening. Verify there, then return here — My Shiloh will open automatically.', 'waiting');
+      setAuthStatus('Tap Send in WhatsApp, then return here. My Shiloh will open automatically.', 'waiting');
       window.setTimeout(welcomeBackFromWhatsApp, 1500);
       openWhatsAppDirect(whatsappAppUrl, whatsappFallbackUrl);
     } catch (error) {

@@ -216,6 +216,7 @@ h3{font-size:20px;line-height:1.12}
   *,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
 .auth-status{min-height:20px;margin-top:12px;color:var(--muted);font-size:12px;font-weight:700}
+.auth-hint{margin:12px 0 0;color:var(--muted);font-size:13px;line-height:1.5}
 .auth-status[data-state="working"],.auth-status[data-state="waiting"]{color:#6b5a38}
 .auth-status[data-state="success"]{color:var(--leaf-dark)}
 .auth-status[data-state="error"]{color:#8a413b}

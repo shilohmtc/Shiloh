@@ -43,7 +43,7 @@ const { workspaceServicesManageClientScript } = require('../src/presentation/wor
 test('redeemed welcome offer does not appear on the signed-out Home', async ({ page }) => {
   await page.goto('/iframe.html?id=client-my-shiloh-pwa--standalone-guest-sign-in&viewMode=story', { waitUntil:'networkidle' });
   const home = page.locator('[data-view="home"]');
-  await expect(home.getByRole('button', { name:'Continue with WhatsApp' })).toBeVisible();
+  await expect(home.getByRole('button', { name:'Open WhatsApp to verify' })).toBeVisible();
   await expect(home.locator('.welcome-voucher')).toHaveCount(0);
 });
 
@@ -108,6 +108,7 @@ test('My Shiloh guest booking stays behind WhatsApp sign-in on phone and desktop
     await expect(frame).toBeVisible();
     await expect(frame.locator('a[href="/book"]')).toHaveCount(0);
     await expect(frame.getByRole('link', { name:'Sign in to book' }).first()).toBeVisible();
+    await expect(frame.locator('[data-view="home"] .auth-hint')).toContainText('Tap Send in WhatsApp');
     await expect(frame.locator('.booking-steps li')).toHaveCount(3);
     await expect(frame.locator('.booking-steps')).toContainText('Reception confirms your appointment before it’s booked.');
     await frame.getByRole('link', { name:'How booking works' }).click();
@@ -115,7 +116,7 @@ test('My Shiloh guest booking stays behind WhatsApp sign-in on phone and desktop
     await frame.locator('[data-view-target="bookings"]').click();
     await expect(frame.getByRole('heading', { name:'Your time with Shiloh.' })).toBeVisible();
     await frame.getByRole('link', { name:'Sign in to book' }).last().click();
-    await expect(frame.getByRole('button', { name:'Continue with WhatsApp' }).first()).toBeVisible();
+    await expect(frame.getByRole('button', { name:'Open WhatsApp to verify' }).first()).toBeVisible();
     const accessibility = await new AxeBuilder({ page }).include('[data-app-frame]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
     await page.screenshot({ path:testInfo.outputPath(`my-shiloh-signin-boundary-${viewport.name}.png`), fullPage:true, animations:'disabled' });
@@ -409,7 +410,7 @@ test('My Shiloh WhatsApp automatic return is clear and accessible on Phone and D
     const appFrame = page.locator('[data-app-frame]');
     const home = appFrame.locator('[data-view="home"]');
     await expect(home.getByRole('heading',{name:'Your Shiloh, all in one place.'})).toBeVisible();
-    await expect(home.getByText('Checking your WhatsApp verification… My Shiloh will open automatically.')).toBeVisible();
+    await expect(home.getByText('Waiting for your message. Tap Send in WhatsApp, then return to My Shiloh.')).toBeVisible();
     const disclosure = home.locator('[data-client-auth-code-disclosure]');
     await expect(disclosure).not.toHaveAttribute('open');
     await expect(disclosure.locator('summary')).toBeVisible();
@@ -1828,7 +1829,7 @@ test('My Shiloh guest sign-in keeps the fallback available without competing wit
     const appFrame = page.locator('[data-app-frame]');
     await expect(appFrame).toBeVisible();
     const home = appFrame.locator('[data-view="home"]');
-    await expect(home.getByRole('button', { name:'Continue with WhatsApp' })).toBeVisible();
+    await expect(home.getByRole('button', { name:'Open WhatsApp to verify' })).toBeVisible();
     const disclosure = home.locator('[data-client-auth-code-disclosure]');
     await expect(disclosure.locator('summary')).toBeVisible();
     await expect(disclosure).not.toHaveAttribute('open');
@@ -2061,7 +2062,7 @@ test('My Shiloh first installed launch asks for one WhatsApp verification on Pho
     await expect(page.locator('[data-install-gate]')).toBeHidden();
     await expect(page.locator('[data-app-frame]')).toBeHidden();
     await expect(page.getByRole('heading', { name: 'Confirm it’s you to finish setting up My Shiloh.' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Verify with WhatsApp' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Open WhatsApp to verify' })).toBeVisible();
     await expect(page.getByText('Verify with WhatsApp once on this installation. After that, just open My Shiloh normally.')).toBeVisible();
     await expect(page.getByText('Good evening, Jean-Pierre.')).toBeHidden();
 
@@ -2132,9 +2133,10 @@ test('My Shiloh opens installed WhatsApp directly before web fallback', async ({
   await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
   const gate = page.locator('[data-install-verification-gate]');
   await expect(gate).toBeVisible();
-  await gate.getByRole('button', { name: 'Verify with WhatsApp' }).click();
+  await gate.getByRole('button', { name: 'Open WhatsApp to verify' }).click();
 
   await expect.poll(() => page.evaluate(() => window.__myShilohDirectWhatsApp)).toContain('whatsapp://send?phone=27830000000');
+  await expect(gate.locator('[data-auth-status]')).toContainText('Tap Send in WhatsApp');
   await page.waitForTimeout(2100);
   expect(await page.evaluate(() => window.__myShilohFallbackSeen)).toBe(false);
   await expect(gate).toBeVisible();
