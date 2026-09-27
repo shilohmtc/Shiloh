@@ -353,6 +353,14 @@
 
   renderAppMode();
 
+  function continuePlanningVisit() {
+    if (window.location.hash !== '#plan-visit' || !standalone()
+      || installationVerificationRequired() || appFrame?.dataset.clientAuthenticated !== 'true') return false;
+    window.location.replace('/my-shiloh/request');
+    return true;
+  }
+  continuePlanningVisit();
+
   installGateAction?.addEventListener('click', async () => {
     if (deferredInstallPrompt && isAndroid()) {
       const prompt = deferredInstallPrompt;
@@ -786,7 +794,7 @@
         markInstallationVerified();
         renderAppMode();
         setAuthStatus('Verified. Opening your My Shiloh…', 'success');
-        window.location.replace('/my-shiloh/');
+        window.location.replace(window.location.hash === '#plan-visit' ? '/my-shiloh/#plan-visit' : '/my-shiloh/');
         return;
       }
       if (response.status === 202 && data.status === 'waiting_for_whatsapp') {
@@ -1559,7 +1567,7 @@
       markInstallationVerified();
       renderAppMode();
       setAuthStatus('Verified. Opening your My Shiloh…', 'success');
-      window.location.replace('/my-shiloh/');
+      window.location.replace(window.location.hash === '#plan-visit' ? '/my-shiloh/#plan-visit' : '/my-shiloh/');
     } catch (error) {
       setAuthStatus(error.message || 'That one-time code could not be verified.', 'error');
       setAuthControlsDisabled(false);

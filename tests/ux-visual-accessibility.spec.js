@@ -1703,6 +1703,12 @@ for (const viewport of [
 
       if (name === 'book') {
         await expect(surface.getByText('Restorative foot care.', { exact: true })).toBeVisible();
+        await expect(surface.locator('[data-website-planning-entry]')).toBeVisible();
+        await expect(surface.getByRole('link', { name: /Plan a flexible or group visit in My Shiloh/ })).toHaveAttribute('href', '/my-shiloh/request');
+      }
+
+      if (name === 'contact') {
+        await expect(surface.getByRole('link', { name: 'Send your plans to Reception in My Shiloh' })).toHaveAttribute('href', '/my-shiloh/request');
       }
 
       const geometry = await surface.evaluate(() => ({

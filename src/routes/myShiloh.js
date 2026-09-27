@@ -329,7 +329,10 @@ function createMyShilohRouter({
     }
   });
 
-  router.get('/my-shiloh/request', requireSession, async (req, res, next) => {
+  router.get('/my-shiloh/request', optionalSession, (req, res, next) => {
+    if (!req.myShilohClientSession) return res.redirect(303, '/my-shiloh/#plan-visit');
+    return next();
+  }, requireSession, async (req, res, next) => {
     try {
       const [rotated, practitioners, requests] = await Promise.all([
         sessionService.rotateCsrfToken(req.myShilohClientSession.sessionId),
