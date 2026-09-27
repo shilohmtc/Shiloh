@@ -27,7 +27,10 @@ function headers(res) {
 }
 function originMatches(req) {
   const origin = req.get('origin');
-  if (!origin) return false;
+  // Chromium sends Origin: null for native form posts from a no-referrer page.
+  // Fetch Metadata still identifies the same-origin top-level navigation.
+  if (!origin || origin === 'null') return req.get('sec-fetch-site') === 'same-origin'
+    && req.get('sec-fetch-mode') === 'navigate' && req.get('sec-fetch-dest') === 'document';
   try { return new URL(origin).origin === expectedOrigin(req); }
   catch (_error) { return false; }
 }

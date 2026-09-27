@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const express = require('express');
-const { createClinicIpadPublicRouter,createClinicIpadSetupRouter } = require('../src/routes/clinicIpadCheckin');
+const { createClinicIpadPublicRouter,createClinicIpadSetupRouter,originMatches } = require('../src/routes/clinicIpadCheckin');
 const { createClientConsultationFormsRouter } = require('../src/routes/clientConsultationForms');
 const { validToken, createClinicIpadCheckinService } = require('../src/services/clinicIpadCheckin');
 const ux = require('../src/presentation/clinicIpadCheckinUx');
@@ -64,6 +64,8 @@ test('client form requires a provisioned device and never exposes another client
     assert.equal(active.headers.get('cache-control'),'private, no-store, max-age=0');
     const crossSite=await fetch(`${base}/check-in/details`,{ method:'POST',headers:{ Cookie:cookie,Origin:'https://other.example','Content-Type':'application/x-www-form-urlencoded' },body:'name=Sarah' });
     assert.equal(crossSite.status,403);
+    const opaqueCrossSite=await fetch(`${base}/check-in/details`,{method:'POST',headers:{Cookie:cookie,Origin:'null','Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'navigate','Sec-Fetch-Dest':'document','Content-Type':'application/x-www-form-urlencoded'},body:'name=Sarah'});
+    assert.equal(opaqueCrossSite.status,403);
     const saved=await fetch(`${base}/check-in/details`,{ method:'POST',headers:{ Cookie:cookie,Origin:base,'Content-Type':'application/x-www-form-urlencoded' },body:'name=Sarah+Jacobs&mobile=0821234567&dateOfBirth=1985-05-14' });
     assert.equal(saved.status,200);
     assert.match(saved.headers.get('set-cookie'),/shiloh_checkin_visit=; Path=\/check-in/);
@@ -72,6 +74,16 @@ test('client form requires a provisioned device and never exposes another client
     assert.equal(welcome.status,200);
     assert.deepEqual(calls,['finished']);
   });
+});
+
+test('opaque Chromium form origin requires same-origin navigation metadata',()=>{
+  const header={'origin':'null','sec-fetch-site':'same-origin','sec-fetch-mode':'navigate','sec-fetch-dest':'document'};
+  const req={get:name=>header[name]};
+  assert.equal(originMatches(req),true);
+  header['sec-fetch-site']='cross-site';
+  assert.equal(originMatches(req),false);
+  delete header['sec-fetch-site'];
+  assert.equal(originMatches(req),false);
 });
 
 test('a prepared form remains hidden until the client confirms their mobile and date of birth',async () => {
