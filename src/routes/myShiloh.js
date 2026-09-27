@@ -96,6 +96,11 @@ function normalizeAuthHandoff(value) {
   return { appUrl, fallbackUrl };
 }
 
+function browserUsesPasskeyOrigin(req, expectedOrigin) {
+  try { return new URL(req.get?.('origin') || req.headers?.origin).origin === expectedOrigin; }
+  catch (_) { return false; }
+}
+
 function createMyShilohRouter({
   env = process.env,
   sessionService = createClientBrowserSessionService({ db: pool }),
@@ -454,7 +459,7 @@ function createMyShilohRouter({
     try {
       setNoStoreJson(res);
       const passkeyOrigin = passkeyEnrollmentService.policy().origin;
-      if (passkeyOrigin && req.get('host')?.toLowerCase() !== new URL(passkeyOrigin).host) {
+      if (passkeyOrigin && !browserUsesPasskeyOrigin(req, passkeyOrigin)) {
         return res.status(409).json({ error: 'Open My Shiloh at app.shilohmtc.co.za to save a passkey.', requestId: req.id });
       }
       const result = await passkeyEnrollmentService.begin({
@@ -523,7 +528,7 @@ function createMyShilohRouter({
     try {
       setNoStoreJson(res);
       const passkeyOrigin = passkeyEnrollmentService.policy().origin;
-      if (passkeyOrigin && req.get('host')?.toLowerCase() !== new URL(passkeyOrigin).host) {
+      if (passkeyOrigin && !browserUsesPasskeyOrigin(req, passkeyOrigin)) {
         return res.status(409).json({ error: 'Open My Shiloh at app.shilohmtc.co.za to use your passkey.', requestId: req.id });
       }
       const result = await passkeyAuthenticationService.begin({
@@ -1043,4 +1048,5 @@ module.exports = {
   setNoStoreJson,
   defaultAuthUrlBuilder,
   normalizeAuthHandoff,
+  browserUsesPasskeyOrigin,
 };
