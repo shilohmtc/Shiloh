@@ -178,7 +178,12 @@ async function main() {
     const phoneProfile = path.join(temp, 'phone-profile');
     const phonePng = path.join(OUT_DIR, 'phone-390x844.png');
     await captureScreenshot(chrome, [`--user-data-dir=${phoneProfile}`, androidUa, '--window-size=390,844', `--screenshot=${phonePng}`, `${origin}/proof-auth`], phonePng);
-    const phoneDom = await chromeRun(chrome, [`--user-data-dir=${phoneProfile}`, androidUa, '--window-size=390,844', '--virtual-time-budget=1600', '--dump-dom', `${origin}/proof-auth`]);
+    let phoneDom = '';
+    // First launch installs the worker; a second navigation allows activation on slower CI runners.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      phoneDom = await chromeRun(chrome, [`--user-data-dir=${phoneProfile}`, androidUa, '--window-size=390,844', '--virtual-time-budget=4000', '--dump-dom', `${origin}/proof-auth`]);
+      if (/data-sw-ready="true"/.test(phoneDom)) break;
+    }
     assert.match(phoneDom, /data-authenticated-workspace/);
     assert.match(phoneDom, /data-root-overflow="false"/);
     assert.match(phoneDom, /manifest\.webmanifest\?v=official-brand-v2/);
