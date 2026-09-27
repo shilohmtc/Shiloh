@@ -23,7 +23,8 @@ test('human handoff pauses assistant and appears in Reception on Phone and Deskt
     await page.goto('/iframe.html?id=client-planning-requests--human-handoff&viewMode=story',{waitUntil:'networkidle'});
     await expect(page.locator('.assistant-chat__note[role="status"]')).toContainText('automatic replies are paused');
     await expect(page.locator('[data-shiloh-chat-form]')).toHaveCount(0);
-    await expect(page.getByRole('link',{name:'Continue with Reception on WhatsApp',exact:true})).toHaveAttribute('href',/wa\.me\/27662399138/);
+    await expect(page.locator('[data-view="home"]').getByRole('link',{name:'Open Shiloh in My Shiloh'})).toHaveAttribute('href','#shiloh');
+    await expect(page.locator('.assistant-chat').getByRole('link',{name:/Continue with Reception on WhatsApp/})).toHaveAttribute('href',/wa\.me\/27662399138/);
     const appAxe=await new AxeBuilder({page}).include('[data-view="shiloh"]')
       .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(appAxe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
