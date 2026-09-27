@@ -72,6 +72,7 @@ function createBookingPaymentService({
   rewards = createShilohRewardsService({ db }),
   notifyClient = null,
   deposits = createBookingDepositPolicyService({ db }),
+  env = process.env,
 } = {}) {
   const pushNotify = notifyClient || (db === pool ? queueClientNotification : null);
   async function syncRewardsAfterPayment() {
@@ -162,6 +163,64 @@ function createBookingPaymentService({
         )).rows[0] || row;
       }
       if (row.provider_payment_url && String(row.state) === 'link_issued' && !row.deposit_notification_sent_at) {
+        const appOnlyEnabled = env.SHILOH_DEPOSIT_NOTICE_APP_ONLY_ENABLED === 'true' && Boolean(pushNotify)
+          && Number(row.payer_crm_v2_client_id) > 0
+          && Number(row.payer_crm_v2_client_id) === Number(plan.member.crmV2ClientId);
+        if (appOnlyEnabled) {
+          const identity = await db.query(`SELECT 1 FROM appointments a JOIN crm_v2_clients c
+            ON c.id=a.crm_v2_client_id AND c.status='active'
+            WHERE a.id=$1 AND a.client_id IS NULL AND c.id=$2`,
+          [plan.member.appointmentId, row.payer_crm_v2_client_id]);
+          if (identity.rowCount) {
+            const claim = await db.query(`UPDATE payment_requests SET deposit_notice_state='sending',updated_at=NOW()
+              WHERE id=$1 AND state='link_issued' AND deposit_notice_state='pending'
+                AND deposit_notification_sent_at IS NULL RETURNING *`, [row.id]);
+            if (!claim.rowCount) {
+              created.push(row);
+              continue;
+            }
+            let appDelivery;
+            try {
+              appDelivery = await pushNotify({
+                crmV2ClientId: Number(row.payer_crm_v2_client_id),
+                eventKey: `deposit-request:${row.id}:link-issued`,
+                category: 'payment',
+                title: 'Booking deposit required',
+                body: `Your 50% Shiloh booking deposit of ${formatRand(row.amount)} is ready to pay.`,
+                targetPath: '/my-shiloh/#bookings',
+              });
+            } catch (error) {
+              logger.warn({ err: error, paymentRequestId: row.id }, 'Deposit app wake failed');
+            }
+            if (appDelivery?.queued === true && Number(appDelivery.accepted) > 0) {
+              const recorded = await db.query(`UPDATE payment_requests SET deposit_notice_state='sent',deposit_notice_channel='my_shiloh',
+                deposit_notification_sent_at=NOW(),updated_at=NOW() WHERE id=$1 AND deposit_notice_state='sending' RETURNING *`, [row.id]);
+              if (!recorded.rowCount) throw new Error('Accepted deposit app notice requires a durable delivery record');
+              created.push(recorded.rows[0]);
+              continue;
+            }
+            // The app wake did not reach a push service. Try the existing Meta
+            // template under the same claim; uncertain provider errors stay claimed.
+            const fallback = await sendPaymentTemplate({
+              templateKey: PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST,
+              to: row.payer_mobile || plan.member.clientMobile,
+              bodyParameters: [row.payer_name || plan.member.clientName || 'there', formatRand(row.amount),
+                plan.member.serviceName, depositDate(plan.member.startsAt), depositTime(plan.member.startsAt), String(plan.member.appointmentId)],
+              urlButtonParameter: row.request_key,
+              environment: env,
+              send: sendTemplate,
+            });
+            if (fallback.sent) {
+              row = (await db.query(`UPDATE payment_requests SET deposit_notice_state='sent',deposit_notice_channel='whatsapp',
+                deposit_notification_sent_at=NOW(),updated_at=NOW() WHERE id=$1 AND deposit_notice_state='sending' RETURNING *`, [row.id])).rows[0] || row;
+            } else if (fallback.reason !== 'provider_send_failed') {
+              await db.query(`UPDATE payment_requests SET deposit_notice_state='pending',updated_at=NOW()
+                WHERE id=$1 AND deposit_notice_state='sending'`, [row.id]);
+            }
+            created.push(row);
+            continue;
+          }
+        }
         const notice = await sendPaymentTemplate({
           templateKey: PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST,
           to: row.payer_mobile || plan.member.clientMobile,
@@ -174,6 +233,7 @@ function createBookingPaymentService({
             String(plan.member.appointmentId),
           ],
           urlButtonParameter: row.request_key,
+          environment: env,
           send: sendTemplate,
         });
         if (notice.sent) {
