@@ -312,9 +312,8 @@ test('My Shiloh Home asks for the deposit before claiming the booking is ready',
   assert.equal(experience.home.status, 'Deposit');
   assert.equal(experience.home.primaryAction.label, 'Pay deposit');
   assert.match(experience.home.headline, /awaiting its deposit/);
-  assert.match(experience.home.summary, /50% booking deposit/);
-  assert.match(experience.home.summary, /48\+ hours notice/);
-  assert.match(experience.home.summary, /24–48 hours/);
+  assert.match(experience.home.summary, /is held for/);
+  assert.doesNotMatch(experience.home.summary, /deposit|cancellation|forfeit/i);
 });
 
 test('My Shiloh keeps an awaiting deposit visible when its payment link is unavailable', () => {

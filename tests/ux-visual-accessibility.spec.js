@@ -743,6 +743,22 @@ test('My Shiloh shows the Updates section when a client has a real update', asyn
   const centre = page.locator('[data-client-notification-centre]');
   await expect(centre).toBeVisible();
   await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toHaveAttribute('href', '/my-shiloh/#bookings');
+  await centre.getByRole('button', { name:'Archive Appointment reminder' }).click();
+  await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toHaveCount(0);
+  await expect(centre.getByRole('button', { name:'Show archived (1)' })).toBeVisible();
+  await page.reload({ waitUntil:'networkidle' });
+  await page.evaluate(() => {
+    localStorage.setItem('my-shiloh-install-whatsapp-verified-v1', '1');
+    Object.defineProperty(navigator, 'standalone', { configurable:true, get:() => true });
+  });
+  await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
+  await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toHaveCount(0);
+  await centre.getByRole('button', { name:'Show archived (1)' }).click();
+  await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toBeVisible();
+  await centre.getByRole('button', { name:'Restore Appointment reminder' }).click();
+  await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toHaveCount(0);
+  await centre.getByRole('button', { name:'Show current updates' }).click();
+  await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toBeVisible();
 });
 
 test('Shiloh Rewards is clear, responsive and accessible on Phone and Desktop', async ({page},testInfo)=>{
@@ -809,7 +825,8 @@ test('My Shiloh deposit request is clear and accessible on Phone and Desktop', a
     await expect(home.getByRole('heading',{name:'Your booking is awaiting its deposit.'})).toBeVisible();
     await expect(home.getByText('R340 deposit required')).toBeVisible();
     await expect(home.getByRole('link',{name:'Pay deposit'})).toHaveAttribute('href','/pay/dep_storybook123');
-    await expect(home.getByText(/Pay the 50% booking deposit to secure it/)).toBeVisible();
+    await expect(home.getByText(/is held for/)).toBeVisible();
+    await expect(home.getByText(/cancellation penalty|may forfeit/)).toHaveCount(0);
     const metrics=await home.evaluate(node=>({
       viewport:innerWidth,
       document:document.documentElement.scrollWidth,

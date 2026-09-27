@@ -238,17 +238,23 @@ test('website treatment handoff only exposes a canonical catalogue code and keep
   assert.doesNotMatch(renderMyShilohPage({ catalogue, selectedServiceId: '103"><script>' }), /data-website-treatment-handoff/);
 });
 
-test('first installed-app launch uses only a non-sensitive convenience marker and WhatsApp remains authority', () => {
+test('installed app stores only verification convenience and bounded opaque update archive IDs; WhatsApp remains authority', () => {
   const client = read('public/my-shiloh/assets/app.js');
   const presentation = read('src/presentation/myShilohPwa.js');
 
   assert.match(client, /INSTALL_VERIFIED_KEY = 'my-shiloh-install-whatsapp-verified-v1'/);
   const writes = [...client.matchAll(/localStorage\.setItem\(([^,]+),\s*([^\)]+)\)/g)]
     .map((match) => [match[1].trim(), match[2].trim()]);
-  assert.deepEqual(writes, [["INSTALL_VERIFIED_KEY", "'1'"]]);
+  assert.deepEqual(writes, [
+    ["INSTALL_VERIFIED_KEY", "'1'"],
+    ['notificationArchiveKey', 'JSON.stringify([...archivedUpdateIds].slice(-100'],
+  ]);
+  assert.match(client, /my-shiloh-archived-updates-v1:\$\{appFrame\.dataset\.notificationClientId\}/);
+  assert.match(client, /archivedUpdateIds\.add\(id\)/);
+  assert.doesNotMatch(client, /localStorage\.setItem\([^\n]*(?:title|body|targetPath|auth)/i);
   assert.match(client, /markInstallationVerified\(\)[\s\S]*window\.location\.replace\('\/my-shiloh\/'\)/);
   assert.match(client, /resetInstallationVerification\(\)/);
-  assert.doesNotMatch(client, /localStorage\.setItem\([^\n]*(?:token|client|mobile|name|voucher|csrf|session)/i);
+  assert.doesNotMatch(client, /localStorage\.setItem\([^\n]*(?:token|mobile|name|voucher|csrf|session)/i);
   assert.doesNotMatch(client, /sessionStorage|indexedDB|document\.cookie/i);
   assert.match(presentation, /Verify with WhatsApp once on this installation/);
 });

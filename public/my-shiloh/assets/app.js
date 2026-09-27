@@ -61,6 +61,18 @@
   const clientProblemReportStatus = document.querySelector('[data-client-problem-report-status]');
   const clientProblemReportList = document.querySelector('[data-client-problem-report-list]');
   const clientNotificationList = document.querySelector('[data-client-notification-list]');
+  const clientArchiveToggle = document.querySelector('[data-client-archive-toggle]');
+  const notificationArchiveKey = appFrame?.dataset.notificationClientId
+    ? `my-shiloh-archived-updates-v1:${appFrame.dataset.notificationClientId}` : null;
+  let archivedUpdateIds = new Set();
+  let showArchivedUpdates = false;
+  let latestNotifications = [];
+  if (notificationArchiveKey) {
+    try {
+      const stored = JSON.parse(localStorage.getItem(notificationArchiveKey) || '[]');
+      if (Array.isArray(stored)) archivedUpdateIds = new Set(stored.filter(id => typeof id === 'string').slice(-100));
+    } catch (_) {}
+  }
   let deferredInstallPrompt = null;
   let authActionInFlight = false;
   let authStatusCheckInFlight = false;
@@ -1182,11 +1194,25 @@
 
   function renderClientNotifications(notifications) {
     if (!clientNotificationList) return;
+    latestNotifications = Array.isArray(notifications) ? notifications : [];
     const centre = clientNotificationList.closest('[data-client-notification-centre]');
-    if (centre) centre.hidden = !Array.isArray(notifications) || notifications.length === 0;
+    if (centre) centre.hidden = latestNotifications.length === 0;
     clientNotificationList.replaceChildren();
-    if (!Array.isArray(notifications) || notifications.length === 0) return;
-    for (const notification of notifications) {
+    const archived = latestNotifications.filter(notification => archivedUpdateIds.has(String(notification.id)));
+    const visible = latestNotifications.filter(notification => archivedUpdateIds.has(String(notification.id)) === showArchivedUpdates);
+    if (clientArchiveToggle) {
+      clientArchiveToggle.hidden = archived.length === 0 && !showArchivedUpdates;
+      clientArchiveToggle.textContent = showArchivedUpdates ? 'Show current updates' : `Show archived (${archived.length})`;
+    }
+    if (visible.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'notification-centre__empty';
+      empty.textContent = showArchivedUpdates ? 'No archived updates on this phone.' : 'No current updates. Your booking details are still available in Bookings.';
+      clientNotificationList.append(empty);
+    }
+    for (const notification of visible) {
+      const row = document.createElement('div');
+      row.className = 'notification-centre__row';
       const card = document.createElement('a');
       card.className = 'notification-centre__item';
       card.href = String(notification.targetPath || '/my-shiloh/');
@@ -1194,9 +1220,29 @@
       const title = document.createElement('strong'); title.textContent = String(notification.title || 'My Shiloh update');
       const body = document.createElement('span'); body.textContent = String(notification.body || '');
       card.append(title, body);
-      clientNotificationList.append(card);
+      const action = document.createElement('button');
+      action.type = 'button';
+      action.className = 'notification-centre__archive';
+      action.textContent = showArchivedUpdates ? 'Restore' : 'Archive';
+      action.setAttribute('aria-label', `${action.textContent} ${title.textContent}`);
+      action.addEventListener('click', () => {
+        const id = String(notification.id);
+        if (showArchivedUpdates) archivedUpdateIds.delete(id);
+        else archivedUpdateIds.add(id);
+        if (notificationArchiveKey) {
+          try { localStorage.setItem(notificationArchiveKey, JSON.stringify([...archivedUpdateIds].slice(-100))); } catch (_) {}
+        }
+        renderClientNotifications(latestNotifications);
+      });
+      row.append(card, action);
+      clientNotificationList.append(row);
     }
   }
+
+  clientArchiveToggle?.addEventListener('click', () => {
+    showArchivedUpdates = !showArchivedUpdates;
+    renderClientNotifications(latestNotifications);
+  });
 
   async function clearHomeScreenAppBadge() {
     if (!standalone()) return;

@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-treatment-handoff-v4';
+const MY_SHILOH_ASSET_VERSION = '20260927-updates-archive-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -354,7 +354,7 @@ function renderMyShilohPage({
     </section>
   </main>
 
-  <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}" data-client-payment-whatsapp="${escapeHtml(String(whatsappNumber || '').replace(/\D/g, ''))}" hidden>
+  <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}" data-notification-client-id="${authenticated ? Number(client.id) : ''}" data-client-payment-whatsapp="${escapeHtml(String(whatsappNumber || '').replace(/\D/g, ''))}" hidden>
     <div class="network-banner" data-offline-banner hidden role="status">You are offline. My Shiloh will reconnect automatically.</div>
     <div class="app-update-banner" data-app-update hidden role="status" aria-live="polite">
       <div><strong>A new My Shiloh update is ready.</strong><span>Update now to use the latest version.</span></div>
@@ -372,6 +372,7 @@ function renderMyShilohPage({
         ${authenticated ? `<section class="notification-centre" aria-labelledby="notification-centre-title" data-client-notification-centre hidden>
           <div class="section-heading"><div><p class="eyebrow">Updates</p><h2 id="notification-centre-title">Your latest Shiloh updates.</h2></div><a class="text-link" href="#profile-notifications">Notification settings</a></div>
           <div class="notification-centre__list" data-client-notification-list aria-live="polite"><p class="notification-centre__empty">Checking for updates…</p></div>
+          <button class="notification-centre__toggle" type="button" data-client-archive-toggle hidden>Show archived</button>
         </section>` : ''}
         <section class="section-block" aria-labelledby="discover-title">
           <div class="section-heading">
