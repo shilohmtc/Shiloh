@@ -166,6 +166,10 @@ export const BookWithSelection = {
   render: () => productionPage(renderBookingPage('27830000000', catalogue, 101)),
 };
 
+export const BookWithReceptionChoice = {
+  render: () => productionPage(renderBookingPage('27830000000', catalogue, 404, { bookableIds: new Set([101, 202, 303]) })),
+};
+
 export const CatalogueUnavailable = {
   render: () => productionPage(renderTreatments([])),
 };

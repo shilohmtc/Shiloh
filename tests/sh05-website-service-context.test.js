@@ -28,6 +28,12 @@ test('website service selection survives sign-in and resolves against the curren
     const unknown = await fetch(`${base}/my-shiloh/request?service=bad`, { redirect:'manual' });
     assert.equal(unknown.headers.get('location'), '/my-shiloh/#plan-visit');
 
+    const unsignedBooking = await fetch(`${base}/my-shiloh/book?service=101`, { redirect:'manual' });
+    assert.equal(unsignedBooking.status, 303);
+    assert.equal(unsignedBooking.headers.get('location'), '/my-shiloh/?service=101#book-online');
+    const unsafeBooking = await fetch(`${base}/my-shiloh/book?service=bad`, { redirect:'manual' });
+    assert.equal(unsafeBooking.headers.get('location'), '/my-shiloh/#book-online');
+
     const signed = await fetch(`${base}/my-shiloh/request?service=101`, {
       headers: { cookie:'shiloh_client_session=valid' },
     });

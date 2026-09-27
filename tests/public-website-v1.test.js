@@ -331,7 +331,8 @@ test('routing reuses canonical catalogue and leaves /book and /health intact', (
   const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
   assert.match(websiteRoute, /getPublicServiceCatalogue/);
   assert.match(bookRoute, /router\.get\('\/book'/);
-  assert.match(bookRoute, /renderBookingPage\(number, catalogue \|\| \[\], req\.query\.service\)/);
+  assert.match(bookRoute, /renderBookingPage\(number, catalogue \|\| \[\], req\.query\.service, \{/);
+  assert.match(bookRoute, /bookableIds: new Set\(bookable\.map/);
   assert.match(app, /publicWebsiteRoutes/);
   assert.match(app, /app\.get\("\/health"/);
   assert.match(app, /app\.use\("\/assets\/website", express\.static/);

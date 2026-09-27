@@ -34,8 +34,8 @@ function insertInsideShilohSignatures(html, catalogue = []) {
   return html;
 }
 
-function renderBookingPage(number, catalogue = [], selectedServiceId = '') {
-  let html = base.renderBookingPage(number, catalogue, selectedServiceId);
+function renderBookingPage(number, catalogue = [], selectedServiceId = '', options = {}) {
+  let html = base.renderBookingPage(number, catalogue, selectedServiceId, options);
 
   html = html.replace('<body>', `<body>${renderSiteHeader('/book')}`);
   html = html.replace('<main>', '<main id="main-content">');

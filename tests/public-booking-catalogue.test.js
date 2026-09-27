@@ -22,6 +22,7 @@ test('catalogue renders approved public service descriptions but not private boo
   assert.match(html, /90 min/);
   assert.match(html, /R590/);
   assert.match(html, /Book this service/);
+  assert.match(html, /href="\/my-shiloh\/book\?service=1"/);
   assert.match(html, /A relaxing full body massage/);
   assert.doesNotMatch(html, /Private operational note/);
 });
@@ -45,7 +46,7 @@ test('public page uses only committed Phase 1 image references and does not clai
 });
 
 
-test('canonical service ID carries the public selection into booking and WhatsApp', () => {
+test('canonical service ID carries the public selection into My Shiloh booking', () => {
   const catalogue = [
     {
       id: 42,
@@ -66,10 +67,7 @@ test('canonical service ID carries the public selection into booking and WhatsAp
   assert.match(html, /Continue with this service/);
   const selectedUrl = html.match(/class="cta" href="([^"]+)"/)?.[1];
   assert.ok(selectedUrl);
-  assert.match(
-    decodeURIComponent(selectedUrl.replaceAll('&#039;', "'")),
-    /I'd like to book Neo Pelvic Session\./,
-  );
+  assert.equal(selectedUrl, '/my-shiloh/book?service=42');
   assert.doesNotMatch(html, /\btherapy\b/i);
 });
 
@@ -82,4 +80,15 @@ test('unknown or unsafe service IDs never create a selected booking state', () =
   const html = renderBookingPage('+27 82 326 9871', catalogue, '<script>');
   assert.doesNotMatch(html, /Your choice is saved/);
   assert.doesNotMatch(html, /data-selected-service="true"/);
+});
+
+test('special services open an authenticated Reception request instead of an unavailable time picker', () => {
+  const catalogue = [
+    { id: 42, name: 'Full Body Swedish', category: 'Massage', duration: '60 min', price: 'R590' },
+    { id: 99, name: 'Tailored package', category: 'Services', duration: 'Varies', price: 'On consultation' },
+  ];
+  const html = renderBookingPage('27662399138', catalogue, 99, { bookableIds: new Set([42]) });
+  assert.match(html, /href="\/my-shiloh\/book\?service=42"[^>]*>Book this service/);
+  assert.match(html, /href="\/my-shiloh\/request\?service=99"[^>]*>Ask Reception about this/);
+  assert.match(html, /class="cta" href="\/my-shiloh\/request\?service=99"[^>]*>Ask Reception in My Shiloh/);
 });
