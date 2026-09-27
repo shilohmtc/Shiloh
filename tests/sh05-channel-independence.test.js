@@ -32,7 +32,7 @@ test('SH-05 preserves the booking mutation when My Shiloh is unavailable', async
 });
 
 test('booking confirmations queue My Shiloh before the WhatsApp provider is called', () => {
-  const queue = booking.indexOf('queueBookingConfirmationMyShilohNotification({');
+  const queue = booking.indexOf('const appDelivery=await notifyApp({');
   const provider = booking.indexOf('sendTemplate(phone,template');
   const fallback = booking.indexOf('sendMessage(phone,lines.join');
   assert.ok(queue > 0);

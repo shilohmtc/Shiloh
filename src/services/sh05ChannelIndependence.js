@@ -40,6 +40,7 @@ async function queueIndependentMyShilohNotification(details, { channel = 'my_shi
       status: result?.queued === true ? 'queued' : 'failed',
       reason: result?.reason || null,
       notificationId: result?.notificationId || null,
+      accepted: result?.queued === true ? Number(result?.accepted) || 0 : 0,
       channel,
     };
     logger.info({ appointmentId: details.appointmentId, crmV2ClientId: clientId, ...outcome }, 'SH-05 My Shiloh notification channel outcome');

@@ -275,11 +275,11 @@ async function markBookingConfirmationFailure(appointmentId,reason,{clientId=nul
   ]);
 }
 
-async function markBookingConfirmationUncertain(appointmentId,db=pool){
+async function markBookingConfirmationUncertain(appointmentId,db=pool,reason='provider_delivery_unknown'){
   await db.query(`
     UPDATE customer_message_deliveries
-       SET status='uncertain',updated_at=NOW(),next_attempt_at=NOW(),last_error='provider_delivery_unknown'
-     WHERE appointment_id=$1 AND message_kind='booking_confirmation' AND status='sending'`,[appointmentId]);
+       SET status='uncertain',updated_at=NOW(),next_attempt_at=NOW(),last_error=$2
+     WHERE appointment_id=$1 AND message_kind='booking_confirmation' AND status='sending'`,[appointmentId,reason]);
 }
 
 function providerOutcome(row={}){
@@ -383,11 +383,13 @@ async function sendCustomerBookingConfirmation(data,{
   env=process.env,
   recovery=false,
   controlledE2e=false,
+  notifyApp=queueBookingConfirmationMyShilohNotification,
 }={}){
   const {appointmentId,clientId,clientName:_suppliedClientName,serviceName,staffName,locationName,startsAt,endsAt,source='shiloh'}=data;
   let claimed=false;
   let providerAttempted=false;
   let providerAccepted=false;
+  let appAccepted=false;
   let acceptedProviderMessageId=null;
   try{
     await queueCustomerBookingConfirmation(appointmentId,{db,recovery});
@@ -418,14 +420,6 @@ async function sendCustomerBookingConfirmation(data,{
       const state=existing.rows[0];
       return {sent:false,reason:state?.status==='sent'?'already_sent':state?.last_error||'already_sent_or_in_progress',deliveryStatus:state?.status||'unknown'};
     }
-    await queueBookingConfirmationMyShilohNotification({
-      appointmentId,
-      crmV2ClientId: authority.crm_v2_client_id,
-      clientName,
-      serviceName,
-      startsAt,
-      endsAt,
-    });
     const token=await ensureToken(appointmentId,db);const root=baseUrl();
     const ics=root?`${root}/calendar/${token}.ics`:'';
     const google=googleCalendarUrl({serviceName,staffName,locationName,startsAt,endsAt});
@@ -453,6 +447,32 @@ async function sendCustomerBookingConfirmation(data,{
       therapist:staffName,
       source,
     });
+
+    const appDelivery=await notifyApp({
+      appointmentId,
+      crmV2ClientId: authority.crm_v2_client_id,
+      clientName,
+      serviceName,
+      startsAt,
+      endsAt,
+    });
+    if(env.SHILOH_BOOKING_CONFIRMATION_APP_ONLY_ENABLED==='true'
+      &&identityModel==='crm_v2'&&appDelivery?.queued===true&&Number(appDelivery.accepted)>0){
+      appAccepted=true;
+      await markBookingConfirmationSent(appointmentId,{templateName:null,providerMessageId:null,resetProviderEvidence:recovery},db);
+      await db.query(`INSERT INTO crm_audit_events (action,entity_type,entity_id,metadata) VALUES ('customer.booking_confirmation_sent','appointment',$1,$2::jsonb)`,[
+        appointmentId,
+        JSON.stringify({crmV2ClientId:Number(authority.crm_v2_client_id),identityModel:'crm_v2_exact_mobile',channel:'my_shiloh',notificationId:appDelivery.notificationId||null,lifecycleEnrolled:true,idempotentDelivery:true}),
+      ]);
+      return {sent:true,deliveryStatus:'sent',channel:'my_shiloh',notificationId:appDelivery.notificationId||null};
+    }
+    // Free-form WhatsApp cannot replace a paused template for an app cutover.
+    // Leave the durable obligation retryable until a real channel is available.
+    if(env.SHILOH_BOOKING_CONFIRMATION_APP_ONLY_ENABLED==='true'&&!template){
+      await releaseBookingConfirmationClaim(appointmentId,'no_confirmed_delivery_channel',db);
+      claimed=false;
+      return {sent:false,reason:'no_confirmed_delivery_channel',deliveryStatus:'retry_pending',retryable:true};
+    }
 
     let confirmationActions={googleCalendar:false,appleOutlook:false,changeButtons:false,postConfirmationMenu:false};
     if(template){
@@ -496,14 +516,17 @@ async function sendCustomerBookingConfirmation(data,{
     await db.query(`INSERT INTO crm_audit_events (action,entity_type,entity_id,metadata) VALUES ('customer.booking_confirmation_sent','appointment',$1,$2::jsonb)`,[appointmentId,JSON.stringify(sentAuditMetadata)]);
     return {sent:true,deliveryStatus:'sent',templateName:template||null,providerMessageId:acceptedProviderMessageId,supplementalActionsSuppressed,confirmationActions};
   }catch(error){
-    if(claimed&&!providerAccepted){
+    if(claimed&&appAccepted){
+      try{await markBookingConfirmationUncertain(appointmentId,db,'app_delivery_evidence_unknown');}
+      catch(releaseError){logger.error({err:releaseError,appointmentId},'Booking confirmation app acceptance recovery failed');}
+    }else if(claimed&&!providerAccepted){
       try{
         if(providerAttempted&&!error.response)await markBookingConfirmationUncertain(appointmentId,db);
         else await releaseBookingConfirmationClaim(appointmentId,providerAttempted?'provider_rejected':'pre_send_failure',db);
       }catch(releaseError){logger.error({err:releaseError,appointmentId},'Booking confirmation claim release failed');}
     }
     logger.error({err:error,appointmentId,providerAccepted},'Customer booking confirmation failed');
-    const uncertain=providerAccepted||(providerAttempted&&!error.response);
+    const uncertain=appAccepted||providerAccepted||(providerAttempted&&!error.response);
     return {sent:false,reason:uncertain?'delivery_state_uncertain':'send_failed',deliveryStatus:uncertain?'uncertain':'retry_pending',retryable:!uncertain};
   }
 }
