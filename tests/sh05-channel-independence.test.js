@@ -52,9 +52,11 @@ test('appointment reminders queue My Shiloh before WhatsApp and isolate either c
   assert.match(lifecycle.slice(tryStart, send), /catch/);
 });
 
-test('booking changes queue My Shiloh before WhatsApp delivery', () => {
+test('booking changes queue My Shiloh before WhatsApp template/provider checks', () => {
   const change = changes.indexOf('queueBookingChangeMyShilohNotification({');
+  const template = changes.indexOf('templateStatus = await getTemplateStatus()', change);
   const provider = changes.indexOf('sendWhatsAppTemplate(', change);
   assert.ok(change > 0);
+  assert.ok(template > change);
   assert.ok(provider > change);
 });
