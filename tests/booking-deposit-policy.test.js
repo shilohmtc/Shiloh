@@ -32,7 +32,7 @@ const policy = {
   noShowForfeitBasisPoints: 10000,
   exemptStaffId: 13,
   effectiveFrom: new Date('2026-09-23T00:00:00.000Z'),
-  policyVersion: '2026-09-25-v3',
+  policyVersion: '2026-09-27-v4',
 };
 
 function member({ appointmentId, amount, staffIds }) {
@@ -100,7 +100,7 @@ test('deposit approval readiness fails before acceptance when the canonical pric
             exempt_staff_name: 'Marietjie',
             exempt_staff_status: 'active',
             effective_from: '2026-09-23T00:00:00.000Z',
-            policy_version: '2026-09-25-v3',
+            policy_version: '2026-09-27-v4',
           }],
         };
       }
@@ -219,10 +219,11 @@ test('booking and deposit flows share one current Booking Policy authority', () 
   const booking = read('src/services/bookingPolicy.js');
   const deposit = read('src/services/bookingDepositPolicy.js');
   const migration = read('migrations/154_booking_policy_client_language_v3.sql');
-  assert.match(authority, /BOOKING_POLICY_VERSION = '2026-09-25-v3'/);
+  assert.match(authority, /BOOKING_POLICY_VERSION = '2026-09-27-v4'/);
   assert.match(authority, /exemptPractitionerDisplayName: 'Marietjie'/);
-  assert.equal(BOOKING_POLICY_VERSION, '2026-09-25-v3');
+  assert.equal(BOOKING_POLICY_VERSION, '2026-09-27-v4');
   assert.match(BOOKING_POLICY_TEXT, /50% booking deposit/);
+  assert.match(BOOKING_POLICY_TEXT, /50% booking deposit is required for all appointments/);
   assert.match(BOOKING_POLICY_TEXT, /48 hours or more before your appointment/);
   assert.match(BOOKING_POLICY_TEXT, /24–48 hours before your appointment/);
   assert.doesNotMatch(BOOKING_POLICY_TEXT, /Marietjie/);
@@ -232,6 +233,9 @@ test('booking and deposit flows share one current Booking Policy authority', () 
   assert.match(deposit, /BOOKING_POLICY_AUTHORITY/);
   assert.match(deposit, /DEPOSIT_POLICY_DRIFT/);
   assert.match(migration, /policy_version='2026-09-25-v3'/);
+  const wordingMigration = read('migrations/170_booking_policy_all_appointments_wording.sql');
+  assert.match(wordingMigration, /policy_version='2026-09-27-v4'/);
+  assert.doesNotMatch(wordingMigration, /effective_from\s*=/i);
 });
 
 test('appointment 758 correction is exact, guarded and restores the R250 booking total', () => {
