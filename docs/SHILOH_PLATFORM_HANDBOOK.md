@@ -27,6 +27,7 @@ Shiloh is one clinic platform with several connected surfaces:
 | Render | Hosting, runtime, deployment and managed PostgreSQL | Render service/deployment state and repository release evidence |
 
 The iPad intake is gated by `SHILOH_CLINIC_IPAD_CHECKIN_ENABLED` and defaults off. The flag stays off until the release quality gates and the real-device handoff checks in issue #1198 are complete. This is a release status, not a clinic policy.
+The production deployment must apply `163_clinic_ipad_checkin.sql` through the existing controlled-release migration authority. Coordinate the Render deployment so the new release and `SHILOH_CONTROLLED_RELEASE_MIGRATION=163_clinic_ipad_checkin.sql` arrive together; setting that value against an older release or deploying the migration without it will fail the startup guard.
 
 ## System map
 
