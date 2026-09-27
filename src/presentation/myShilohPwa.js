@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-nav-and-handoff-v1';
+const MY_SHILOH_ASSET_VERSION = '20260927-handoff-and-fallback-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -43,9 +43,10 @@ function serviceCards(catalogue = [], authenticated = false) {
 }
 
 function authFinishForm(inputId = 'my-shiloh-code') {
-  return `<form class="auth-code-form" data-client-auth-code-form>
+  return `<details class="auth-code-disclosure" data-client-auth-code-disclosure>
+    <summary>Need another way? <span>Enter a code</span></summary>
+    <form class="auth-code-form" data-client-auth-code-form>
     <div class="auth-code-heading">
-      <span>Need another way?</span>
       <strong>Enter your 6-digit fallback code</strong>
       <p>Use this only if My Shiloh does not open automatically after you return.</p>
     </div>
@@ -54,7 +55,8 @@ function authFinishForm(inputId = 'my-shiloh-code') {
       <input id="${escapeHtml(inputId)}" data-client-auth-code inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" placeholder="123 456" aria-label="6-digit code from Shiloh">
       <button class="button button--primary" type="submit">Open My Shiloh</button>
     </div>
-  </form>`;
+    </form>
+  </details>`;
 }
 
 function johannesburgGreeting(now = new Date()) {

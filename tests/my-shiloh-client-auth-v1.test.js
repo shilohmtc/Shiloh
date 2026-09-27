@@ -127,6 +127,8 @@ test('guest and authenticated My Shiloh renders are distinct without server-rend
   const guest = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue: [] });
   assert.match(guest, /Continue with WhatsApp/);
   assert.match(guest, /Need another way\?/);
+  assert.match(guest, /<details class="auth-code-disclosure" data-client-auth-code-disclosure>/);
+  assert.match(guest, /<summary>Need another way\? <span>Enter a code<\/span><\/summary>/);
   assert.match(guest, /Enter your 6-digit fallback code/);
   assert.match(guest, /Open My Shiloh/);
   assert.doesNotMatch(guest, /canonical CRM|client context|staff\/Admin authority|PWA cache|booking authority|Revocable/i);
@@ -167,6 +169,7 @@ test('returning from WhatsApp auto-completes in the original context with a usab
   assert.match(client, /localStorage\.setItem\(INSTALL_VERIFIED_KEY, '1'\)/);
   assert.doesNotMatch(client, /sessionStorage|indexedDB/);
   assert.match(styles, /\.auth-code-form\.is-waiting/);
+  assert.match(client, /data-client-auth-code-disclosure/);
   assert.match(styles, /\.assistant-chat__messages\{display:grid;gap:10px;padding:4px 2px 10px\}/);
   assert.doesNotMatch(styles, /\.assistant-chat__messages\{[^}]*overflow-y:auto/);
   assert.doesNotMatch(styles, /\.assistant-chat__messages\{[^}]*max-height/);

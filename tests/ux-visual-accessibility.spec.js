@@ -353,6 +353,11 @@ test('My Shiloh WhatsApp automatic return is clear and accessible on Phone and D
     const home = appFrame.locator('[data-view="home"]');
     await expect(home.getByRole('heading',{name:'Your Shiloh, all in one place.'})).toBeVisible();
     await expect(home.getByText('Checking your WhatsApp verification… My Shiloh will open automatically.')).toBeVisible();
+    const disclosure = home.locator('[data-client-auth-code-disclosure]');
+    await expect(disclosure).not.toHaveAttribute('open');
+    await expect(disclosure.locator('summary')).toBeVisible();
+    await expect(home.getByText('Enter your 6-digit fallback code')).toBeHidden();
+    await disclosure.locator('summary').click();
     await expect(home.getByText('Enter your 6-digit fallback code')).toBeVisible();
     await expect(home.getByRole('button',{name:'Open My Shiloh'})).toBeVisible();
     const metrics=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth,short:[...document.querySelectorAll('[data-client-auth-start], [data-client-auth-code-form] input, [data-client-auth-code-form] button')].filter(node=>node.getClientRects().length&&node.getBoundingClientRect().height<44).length}));
@@ -1705,14 +1710,26 @@ test('My Shiloh install doorway is clear, contained and accessible on Phone and 
   }
 });
 
-test('My Shiloh standalone guest state keeps WhatsApp sign-in available', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/iframe.html?id=client-my-shiloh-pwa--standalone-guest-sign-in&viewMode=story', { waitUntil: 'networkidle' });
-  await expect(page.locator('[data-install-gate]')).toBeHidden();
-  const appFrame = page.locator('[data-app-frame]');
-  await expect(appFrame).toBeVisible();
-  await expect(appFrame.getByRole('button', { name: 'Continue with WhatsApp' }).first()).toBeVisible();
-  await expect(appFrame.getByText('Enter your 6-digit fallback code').first()).toBeVisible();
+test('My Shiloh guest sign-in keeps the fallback available without competing with WhatsApp', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--standalone-guest-sign-in&viewMode=story', { waitUntil:'networkidle' });
+    await expect(page.locator('[data-install-gate]')).toBeHidden();
+    const appFrame = page.locator('[data-app-frame]');
+    await expect(appFrame).toBeVisible();
+    const home = appFrame.locator('[data-view="home"]');
+    await expect(home.getByRole('button', { name:'Continue with WhatsApp' })).toBeVisible();
+    const disclosure = home.locator('[data-client-auth-code-disclosure]');
+    await expect(disclosure.locator('summary')).toBeVisible();
+    await expect(disclosure).not.toHaveAttribute('open');
+    await expect(disclosure.getByText('Enter your 6-digit fallback code')).toBeHidden();
+    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-guest-sign-in-${viewport.name}.png`), fullPage:true });
+    await disclosure.locator('summary').click();
+    await expect(disclosure.getByText('Enter your 6-digit fallback code')).toBeVisible();
+    await expect(disclosure.getByRole('button', { name:'Open My Shiloh' })).toBeVisible();
+    const accessibility = await new AxeBuilder({ page }).include('[data-view="home"] .hero').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+  }
 });
 
 
