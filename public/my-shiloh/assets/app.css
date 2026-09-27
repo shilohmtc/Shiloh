@@ -228,6 +228,7 @@ h3{font-size:20px;line-height:1.12}
 .auth-status[data-state="working"],.auth-status[data-state="waiting"]{color:#6b5a38}
 .auth-status[data-state="success"]{color:var(--leaf-dark)}
 .auth-status[data-state="error"]{color:#8a413b}
+.passkey-choice{margin-top:10px}
 .button:disabled{opacity:.58;cursor:wait;transform:none;box-shadow:none}
 .profile-auth-card{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:14px;margin:0 0 14px;padding:17px;border-radius:20px;background:linear-gradient(145deg,var(--sage-2),#fff);border:1px solid var(--line)}
 .profile-auth-card__identity{min-width:0}

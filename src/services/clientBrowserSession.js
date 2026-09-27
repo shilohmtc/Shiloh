@@ -257,6 +257,46 @@ function createClientBrowserSessionService({
     }
   }
 
+  // Called inside the caller's transaction only after its independent
+  // WhatsApp or WebAuthn verification and active CRM ownership check.
+  async function insertVerifiedSession(client, owner, current, authMethod, fingerprint) {
+    if (!['whatsapp_challenge', 'passkey'].includes(authMethod)) throw new Error('invalid client session method');
+    const sessionToken = randomOpaqueToken(randomBytes);
+    const csrfToken = randomOpaqueToken(randomBytes);
+    const expiresAt = new Date(current.getTime() + sessionTtlMs);
+    const inserted = await client.query(
+      `INSERT INTO client_browser_sessions
+         (crm_v2_client_id, token_hash, csrf_hash, issued_at, expires_at, reauthenticated_at,
+          auth_method, client_fingerprint_hash)
+       VALUES ($1, $2, $3, $4, $5, $4, $6, $7)
+       RETURNING id`,
+      [owner.id, sha256(sessionToken), sha256(csrfToken), current, expiresAt, authMethod, fingerprint],
+    );
+    return {
+      ok: true, status: 'authenticated', sessionToken, csrfToken,
+      sessionId: inserted.rows[0].id, expiresAt, client: publicClient(owner),
+    };
+  }
+
+  async function issueVerifiedPasskeySession({ transaction, crmV2ClientId, requestFingerprintHash = null } = {}) {
+    if (!transaction || typeof transaction.query !== 'function' ||
+        !Number.isSafeInteger(Number(crmV2ClientId)) || Number(crmV2ClientId) <= 0) {
+      return { ok: false, code: 'CLIENT_AUTH_PROFILE_UNAVAILABLE' };
+    }
+    const owner = await transaction.query(
+      `SELECT id, name FROM crm_v2_clients WHERE id = $1 AND status = 'active' FOR SHARE`,
+      [crmV2ClientId],
+    );
+    if (owner.rowCount !== 1) return { ok: false, code: 'CLIENT_AUTH_PROFILE_UNAVAILABLE' };
+    const fingerprint = normalizedFingerprint(requestFingerprintHash);
+    const result = await insertVerifiedSession(transaction, owner.rows[0], now(), 'passkey', fingerprint);
+    await audit(transaction, 'session_issued', {
+      clientId: owner.rows[0].id, sessionId: result.sessionId,
+      requestFingerprintHash: fingerprint, metadata: { authMethod: 'passkey' },
+    });
+    return result;
+  }
+
   async function finishChallenge({
     browserToken,
     completionCode = null,
@@ -347,25 +387,7 @@ function createClientBrowserSessionService({
         return { ok: false, code: 'CLIENT_AUTH_PROFILE_UNAVAILABLE' };
       }
 
-      const sessionToken = randomOpaqueToken(randomBytes);
-      const csrfToken = randomOpaqueToken(randomBytes);
-      const expiresAt = new Date(current.getTime() + sessionTtlMs);
-      const inserted = await client.query(
-        `INSERT INTO client_browser_sessions
-           (crm_v2_client_id, token_hash, csrf_hash, issued_at, expires_at, reauthenticated_at,
-            auth_method, client_fingerprint_hash)
-         VALUES ($1, $2, $3, $4, $5, $4, 'whatsapp_challenge', $6)
-         RETURNING id`,
-        [
-          owner.rows[0].id,
-          sha256(sessionToken),
-          sha256(csrfToken),
-          current,
-          expiresAt,
-          fingerprint,
-        ],
-      );
-      const sessionId = inserted.rows[0].id;
+      const result = await insertVerifiedSession(client, owner.rows[0], current, 'whatsapp_challenge', fingerprint);
       await client.query(
         `UPDATE client_browser_auth_challenges
             SET consumed_at = $2,
@@ -376,7 +398,7 @@ function createClientBrowserSessionService({
       await audit(client, 'session_issued', {
         clientId: owner.rows[0].id,
         challengeId: challenge.id,
-        sessionId,
+        sessionId: result.sessionId,
         requestFingerprintHash: fingerprint,
         metadata: {
           authMethod: 'whatsapp_challenge',
@@ -384,15 +406,7 @@ function createClientBrowserSessionService({
         },
       });
       await client.query('COMMIT');
-      return {
-        ok: true,
-        status: 'authenticated',
-        sessionToken,
-        csrfToken,
-        sessionId,
-        expiresAt,
-        client: publicClient(owner.rows[0]),
-      };
+      return result;
     } catch (error) {
       try { await client.query('ROLLBACK'); } catch (_) {}
       throw error;
@@ -497,6 +511,7 @@ function createClientBrowserSessionService({
     verifyWhatsAppChallenge,
     completeChallenge,
     completeVerifiedChallenge,
+    issueVerifiedPasskeySession,
     validateSessionToken,
     rotateCsrfToken,
     revokeSession,
