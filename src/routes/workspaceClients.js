@@ -62,7 +62,9 @@ function createWorkspaceClientListHandler({
         status: req.query?.status,
         offset: req.query?.offset,
       });
-      const html = injectManagement(renderPage(model, pageOptions(req, staffAccessPath)), model);
+      const html = injectManagement(renderPage(model, pageOptions(req, staffAccessPath)), model, {
+        checkinEnabled:String(env.SHILOH_CLINIC_IPAD_CHECKIN_ENABLED).toLowerCase() === 'true',
+      });
       return res.status(200).type('html').send(html);
     } catch (error) {
       const safe = safeError(error);

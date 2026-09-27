@@ -1,4 +1,4 @@
-const { welcome, details, done, setup, devices } = require('../src/presentation/clinicIpadCheckinUx');
+const { welcome, details, verify, done, setup, devices } = require('../src/presentation/clinicIpadCheckinUx');
 
 function frame(markup) {
   const body = markup.match(/<body>([\s\S]*)<\/body>/)?.[1] || '';
@@ -8,6 +8,8 @@ function frame(markup) {
 export default { title:'Client/Clinic iPad check-in' };
 export const Welcome = { render:() => frame(welcome()) };
 export const NewClient = { render:() => frame(details()) };
+export const FormReady = { render:() => frame(welcome({formReady:true})) };
+export const VerifyForForm = { render:() => frame(verify()) };
 export const ValidationError = { render:() => frame(details({ error:'Please check your name and mobile number.', values:{ name:'Sarah Jacobs',mobile:'082 123 4567' } })) };
 export const Saved = { render:() => frame(done()) };
 export const ExistingClient = { render:() => frame(done({ needsStaff:true })) };

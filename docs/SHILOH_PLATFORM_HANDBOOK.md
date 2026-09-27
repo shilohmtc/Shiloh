@@ -26,7 +26,7 @@ Shiloh is one clinic platform with several connected surfaces:
 | Shiloh CRM | Client, booking and operational records | PostgreSQL schema, migrations and repository services |
 | Render | Hosting, runtime, deployment and managed PostgreSQL | Render service/deployment state and repository release evidence |
 
-The iPad intake prototype is gated by `SHILOH_CLINIC_IPAD_CHECKIN_ENABLED` and defaults off. The flag must stay off until appointment-bound forms, device revocation and the real-device handoff checks in issue #1198 are complete. This is a release status, not a clinic policy.
+The iPad intake is gated by `SHILOH_CLINIC_IPAD_CHECKIN_ENABLED` and defaults off. The flag stays off until the release quality gates and the real-device handoff checks in issue #1198 are complete. This is a release status, not a clinic policy.
 
 ## System map
 
