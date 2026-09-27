@@ -17,7 +17,7 @@ Refund records require the narrower `payment:refund` capability. The initial mig
 
 Shiloh has one client-facing **Booking Policy & Terms** authority. The deposit tables below are a technical enforcement mirror of that same policy, layered on top of the existing payment ledger; they are not a second clinic policy.
 
-- New future bookings require a **50% booking deposit**.
+- The Booking Policy & Terms states that **all appointments require a 50% booking deposit**. This applies to appointments booked under the policy; existing bookings made before its effective timestamp are not enrolled retroactively.
 - Appointments provided by **Marietjie are exempt**. The exemption resolves through her canonical active staff record; it is not a presentation-only name check.
 - The client-facing general policy does not publish that practitioner-specific exception. Shiloh applies it internally and tells an affected client simply that no booking deposit is required for that appointment.
 - Linked/group bookings calculate the deposit only on non-Marietjie member allocations.

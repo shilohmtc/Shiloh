@@ -2,7 +2,7 @@ import presentation from '../src/presentation/inPersonBookingPolicyUx.js';
 import authority from '../src/config/bookingPolicyAuthority.js';
 
 const { renderInPersonBookingPolicyPage } = presentation;
-const { BOOKING_POLICY_TEXT } = authority;
+const { BOOKING_POLICY_TEXT, BOOKING_POLICY_VERSION } = authority;
 
 function productionSurface(html) {
   const styles = [...String(html).matchAll(/<style>([\s\S]*?)<\/style>/g)].map(match => match[1]).join('\n');
@@ -23,7 +23,7 @@ export const AwaitingClientAcceptance = {
     startsAt: '2026-09-30T08:00:00.000Z',
     serviceText: 'Hot Stone Massage',
     therapistText: 'Christel',
-    policyVersion: '2026-09-25-v3',
+    policyVersion: BOOKING_POLICY_VERSION,
     policyText: BOOKING_POLICY_TEXT,
     acceptance: null,
   })),
@@ -37,8 +37,8 @@ export const AcceptedOnClinicDevice = {
     startsAt: '2026-09-30T08:00:00.000Z',
     serviceText: 'Hot Stone Massage',
     therapistText: 'Christel',
-    policyVersion: '2026-09-25-v3',
+    policyVersion: BOOKING_POLICY_VERSION,
     policyText: BOOKING_POLICY_TEXT,
-    acceptance: { policy_version:'2026-09-25-v3', channel:'clinic_device', accepted_at:'2026-09-25T08:32:00.000Z' },
+    acceptance: { policy_version:BOOKING_POLICY_VERSION, channel:'clinic_device', accepted_at:'2026-09-27T08:32:00.000Z' },
   })),
 };

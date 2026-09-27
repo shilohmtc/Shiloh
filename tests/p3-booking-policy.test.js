@@ -9,9 +9,11 @@ const {
 } = require("../src/services/bookingPolicy");
 
 test("booking policy is versioned and requires explicit acceptance", () => {
-  assert.equal(POLICY_VERSION, "2026-09-25-v3");
+  assert.equal(POLICY_VERSION, "2026-09-27-v4");
   assert.match(POLICY_TEXT, /strictly professional and non-sexual/i);
   assert.match(POLICY_TEXT, /50% booking deposit/i);
+  assert.match(POLICY_TEXT, /50% booking deposit is required for all appointments/i);
+  assert.doesNotMatch(POLICY_TEXT, /50% booking deposit is required for new bookings/i);
   assert.match(POLICY_TEXT, /48 hours or more before your appointment/i);
   assert.match(POLICY_TEXT, /24–48 hours/i);
   assert.doesNotMatch(POLICY_TEXT, /Marietjie/i);
@@ -46,7 +48,7 @@ test("all active client cancellation copy reuses the unified booking policy auth
 
   assert.match(appointmentChange, /bookingPolicyAuthority/);
   assert.match(myShilohActions, /bookingPolicyAuthority/);
-  assert.match(authority, /BOOKING_POLICY_VERSION = '2026-09-25-v3'/);
+  assert.match(authority, /BOOKING_POLICY_VERSION = '2026-09-27-v4'/);
   assert.doesNotMatch(appointmentChange, /24-hour cancellation policy|may apply a 50% fee/i);
   assert.doesNotMatch(myShilohActions, /24-hour cancellation policy|may apply a 50% fee/i);
 });
