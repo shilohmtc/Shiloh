@@ -139,7 +139,7 @@ test('guest and authenticated My Shiloh renders are distinct without server-rend
     client: { id: '912', name: 'Christel Botha', firstName: 'Christel' },
     now: new Date('2026-09-18T18:00:00.000Z'),
   });
-  assert.match(signed, /Good evening, Christel/);
+  assert.match(signed, /Good evening, <span>Christel\.<\/span>/);
   assert.match(signed, /data-client-authenticated="true"/);
   assert.match(signed, /Your personal Shiloh space is open and ready/);
   assert.doesNotMatch(signed, /canonical CRM|client context|staff\/Admin authority|PWA cache|booking authority|Revocable/i);

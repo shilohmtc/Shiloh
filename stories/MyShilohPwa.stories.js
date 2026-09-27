@@ -117,6 +117,19 @@ export const AuthenticatedHome = {
   }),
 };
 
+export const LongNameNotificationInvite = {
+  render: () => {
+    const surface = productionSurface({
+      id: '914',
+      name: 'Alexandra-Marguerite van der Merwe',
+      firstName: 'Alexandra-Marguerite',
+    });
+    const invite = surface.querySelector('[data-push-invite]');
+    if (invite) invite.hidden = false;
+    return surface;
+  },
+};
+
 export const AuthenticatedAssistantComposer = {
   render: () => {
     const surface = AuthenticatedHome.render();
