@@ -19,10 +19,14 @@ Shiloh is one clinic platform with several connected surfaces:
 | --- | --- | --- |
 | Public website and booking | Public information and client booking entry point | Repository application and canonical Services/booking authorities |
 | My Shiloh | Client-facing account, booking and care experience | Repository routes, services, migrations and relevant tests |
+| Reception iPad check-in | Client-only walk-in intake and appointment-bound forms; accepted direction, not live | [Issue #1198](https://github.com/shilohmtc/Shiloh/issues/1198), CRM V2 and consultation-form authorities |
+
 | Shiloh Workspace | Authenticated staff operations | Repository routes, permissions, Workspace UI and production evidence |
 | Shiloh AI Assistant | Customer-facing WhatsApp conversations and workflow entry | Meta/WhatsApp integration, assistant services and business policies |
 | Shiloh CRM | Client, booking and operational records | PostgreSQL schema, migrations and repository services |
 | Render | Hosting, runtime, deployment and managed PostgreSQL | Render service/deployment state and repository release evidence |
+
+The iPad intake prototype is gated by `SHILOH_CLINIC_IPAD_CHECKIN_ENABLED` and defaults off. The flag must stay off until appointment-bound forms, device revocation and the real-device handoff checks in issue #1198 are complete. This is a release status, not a clinic policy.
 
 ## System map
 
