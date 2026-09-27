@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-treatment-handoff-v3';
+const MY_SHILOH_ASSET_VERSION = '20260927-treatment-handoff-v4';
 
 function escapeHtml(value = '') {
   return String(value)
