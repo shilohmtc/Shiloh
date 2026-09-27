@@ -23,7 +23,8 @@ test('human handoff pauses assistant and appears in Reception on Phone and Deskt
     await page.goto('/iframe.html?id=client-planning-requests--human-handoff&viewMode=story',{waitUntil:'networkidle'});
     await expect(page.locator('.assistant-chat__note[role="status"]')).toContainText('automatic replies are paused');
     await expect(page.locator('[data-shiloh-chat-form]')).toHaveCount(0);
-    await expect(page.getByRole('link',{name:'Continue with Reception on WhatsApp',exact:true})).toHaveAttribute('href',/wa\.me\/27662399138/);
+    await expect(page.locator('[data-view="home"]').getByRole('link',{name:'Open Shiloh in My Shiloh'})).toHaveAttribute('href','#shiloh');
+    await expect(page.locator('.assistant-chat').getByRole('link',{name:/Continue with Reception on WhatsApp/})).toHaveAttribute('href',/wa\.me\/27662399138/);
     const appAxe=await new AxeBuilder({page}).include('[data-view="shiloh"]')
       .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(appAxe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
@@ -95,6 +96,30 @@ test('My Shiloh home starts without a duplicate header on phone and desktop', as
       expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
       await page.screenshot({ path:testInfo.outputPath(`my-shiloh-headerless-${state}-${viewport.name}.png`), fullPage:true, animations:'disabled' });
     }
+  }
+});
+
+test('signed-in choosing help opens the in-app conversation on phone and desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-home&viewMode=story', { waitUntil:'networkidle' });
+    await page.evaluate(() => {
+      localStorage.setItem('my-shiloh-install-whatsapp-verified-v1', '1');
+      Object.defineProperty(navigator, 'standalone', { configurable:true, get:() => true });
+    });
+    await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
+    const card = page.locator('[data-view="home"] .quiet-card').filter({ hasText:'Need help choosing?' });
+    await expect(card).toContainText('chat here in My Shiloh');
+    const link = card.getByRole('link', { name:'Open Shiloh in My Shiloh' });
+    await expect(link).toHaveAttribute('href', '#shiloh');
+    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-choosing-help-home-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+    await link.click();
+    await expect(page.locator('[data-view="shiloh"]')).toBeVisible();
+    await expect(page.locator('[data-view-target="shiloh"]')).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('[data-shiloh-chat-form]')).toBeVisible();
+    const accessibility = await new AxeBuilder({ page }).include('[data-view="shiloh"]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-choosing-help-chat-${viewport.name}.png`), fullPage:true, animations:'disabled' });
   }
 });
 
