@@ -1737,7 +1737,7 @@ for (const viewport of [
       await expect(surface).toBeVisible();
       await expect(surface.getByRole('heading', { level: 1 })).toBeVisible();
       await expect(surface.locator('a[href="/book"]').first()).toBeAttached();
-      await expect(surface.locator('a[href="/my-shiloh/"]').first()).toBeAttached();
+      await expect(surface.locator('a[href="https://app.shilohmtc.co.za/my-shiloh/"]').first()).toBeAttached();
       if (name !== 'book') {
         await expect(surface.locator('.welcome-offer')).toContainText('Eligible first-time registrations');
       }
