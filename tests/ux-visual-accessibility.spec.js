@@ -416,7 +416,7 @@ test('WhatsApp client menu leads with the My Shiloh R100 welcome voucher on Phon
   for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto('/iframe.html?id=whatsapp-client-menu--welcome-voucher-first&viewMode=story', { waitUntil: 'networkidle' });
-    await expect(page.getByText('Install My Shiloh on your phone')).toBeVisible();
+    await expect(page.locator('.wa-copy')).toContainText('My Shiloh keeps your bookings');
     const buttons = page.locator('.wa-action');
     await expect(buttons).toHaveCount(3);
     await expect(buttons.nth(0)).toHaveText('Get R100 voucher');
@@ -1700,7 +1700,7 @@ for (const viewport of [
       await expect(surface.getByRole('heading', { level: 1 })).toBeVisible();
       await expect(surface.locator('a[href="/book"]').first()).toBeAttached();
       await expect(surface.locator('a[href="/my-shiloh/"]').first()).toBeAttached();
-      await expect(surface.getByRole('complementary', { name: 'Discover My Shiloh' })).toContainText('Eligible first-time registrations');
+      await expect(surface.locator('.welcome-offer')).toContainText('Eligible first-time registrations');
 
       if (name === 'contact') {
         const entry = surface.locator('[data-my-shiloh-contact-entry]');
