@@ -83,7 +83,7 @@ test('My Shiloh route is no-store, no-index and mounted without reusing staff au
   const route = read('src/routes/myShiloh.js');
   const app = read('app.js');
   assert.match(route, /Cache-Control', 'private, no-store, max-age=0'/);
-  assert.match(route, /\['app\.css', 'app\.js', 'booking\.js'\][\s\S]*Cache-Control', 'public, max-age=0, must-revalidate'/);
+  assert.match(route, /\['app\.css', 'app\.js', 'booking\.js', 'planning-request\.js'\][\s\S]*Cache-Control', 'public, max-age=0, must-revalidate'/);
   assert.match(route, /X-Robots-Tag', 'noindex, nofollow, noarchive'/);
   assert.match(route, /Content-Security-Policy/);
   assert.match(route, /getPublicServiceCatalogue/);
