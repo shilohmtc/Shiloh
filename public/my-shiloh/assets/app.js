@@ -25,6 +25,7 @@
   const appUpdateAction = document.querySelector('[data-app-update-action]');
   const pushToggle = document.querySelector('[data-push-toggle]');
   const pushStatus = document.querySelector('[data-push-status]');
+  const pushInvite = document.querySelector('[data-push-invite]');
   const appFrame = document.querySelector('[data-app-frame]');
   const authStartButtons = [...document.querySelectorAll('[data-client-auth-start]')];
   const authLogoutButtons = [...document.querySelectorAll('[data-client-auth-logout]')];
@@ -145,7 +146,10 @@
     if (!clientGreeting) return;
     const firstName = String(clientGreeting.dataset.firstName || '').trim();
     if (!firstName) return;
-    clientGreeting.textContent = `${johannesburgGreetingNow()}, ${firstName}.`;
+    clientGreeting.replaceChildren(`${johannesburgGreetingNow()}, `);
+    const name = document.createElement('span');
+    name.textContent = `${firstName}.`;
+    clientGreeting.appendChild(name);
   }
 
   function browserNeedsInstall() {
@@ -882,6 +886,7 @@
 
   async function refreshPushUi() {
     if (!pushToggle) return;
+    if (pushInvite) pushInvite.hidden = true;
     if (!pushSupported()) {
       pushToggle.disabled = true;
       pushToggle.textContent = standalone()
@@ -919,6 +924,7 @@
       pushToggle.disabled = false;
       pushToggle.dataset.enabled = subscription ? 'true' : 'false';
       pushToggle.textContent = subscription ? 'Turn off notifications' : 'Turn on notifications';
+      if (pushInvite) pushInvite.hidden = Boolean(subscription);
       setPushStatus(subscription
         ? 'Notifications are on for this phone.'
         : 'Notifications are off. Turn them on when you’re ready.', subscription ? 'success' : '');
@@ -930,13 +936,14 @@
   }
 
   async function enablePushNotifications() {
+    // iOS requires the permission request to remain inside the client's tap gesture.
+    let permission = Notification.permission;
+    if (permission === 'default') permission = await Notification.requestPermission();
+    if (permission !== 'granted') throw new Error('Notifications were not allowed on this phone.');
     const registration = await pushRegistration();
     const config = await fetchPushConfig();
     if (!registration || !config.configured || !config.publicKey) throw new Error('Notifications are temporarily unavailable.');
     if (registration.waiting && navigator.serviceWorker.controller) throw new Error('Update My Shiloh first, then turn on notifications.');
-    let permission = Notification.permission;
-    if (permission === 'default') permission = await Notification.requestPermission();
-    if (permission !== 'granted') throw new Error('Notifications were not allowed on this phone.');
     let subscription = await registration.pushManager.getSubscription();
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({
@@ -981,8 +988,11 @@
       else await enablePushNotifications();
       await refreshPushUi();
     } catch (error) {
-      setPushStatus(error.message || 'Notifications could not be changed.', 'error');
-      pushToggle.disabled = false;
+      if (Notification.permission === 'denied') await refreshPushUi();
+      else {
+        setPushStatus(error.message || 'Notifications could not be changed.', 'error');
+        pushToggle.disabled = false;
+      }
     } finally {
       pushBusy = false;
     }

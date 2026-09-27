@@ -2141,6 +2141,23 @@ test('My Shiloh notification opt-in is client-controlled and accessible on Phone
   }
 });
 
+test('My Shiloh long names and appointment notification invitation fit Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone', width:320, height:720 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--long-name-notification-invite&viewMode=story', { waitUntil:'networkidle' });
+    const greeting = page.locator('[data-client-greeting]');
+    const invite = page.locator('[data-push-invite]');
+    await expect(greeting).toContainText('Alexandra-Marguerite');
+    await expect(invite.getByRole('link', { name:'Set up notifications' })).toHaveAttribute('href', '#profile');
+    await expect(invite).toBeVisible();
+    const geometry = await page.evaluate(() => ({ width:innerWidth, scrollWidth:document.documentElement.scrollWidth }));
+    expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.width);
+    const accessibility = await new AxeBuilder({ page }).include('[data-push-invite]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-name-notifications-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+  }
+});
+
 
 test('unified Booking Policy & Terms is readable and accessible on Phone and Desktop', async ({ page }, testInfo) => {
   for (const viewport of [

@@ -120,7 +120,11 @@ test('My Shiloh greeting uses Johannesburg time boundaries', () => {
   });
   assert.match(html, /data-client-greeting/);
   assert.match(html, /data-first-name="Jean-Pierre"/);
-  assert.match(html, /Good morning, Jean-Pierre\./);
+  assert.match(html, /Good morning, <span>Jean-Pierre\.<\/span>/);
+  assert.match(html, /data-push-invite hidden/);
+  assert.match(html, /profile-auth-card__identity/);
+  assert.match(read('public/my-shiloh/assets/app.css'), /\.hero-greeting span\{[^}]*overflow-wrap:anywhere/);
+  assert.match(read('public/my-shiloh/assets/app.css'), /\.profile-auth-card strong\{overflow-wrap:anywhere\}/);
 });
 
 test('My Shiloh install client distinguishes iPhone Safari, iPhone Chrome and Android', () => {

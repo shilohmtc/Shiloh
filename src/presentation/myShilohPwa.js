@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-composer-and-ai-planning-v1';
+const MY_SHILOH_ASSET_VERSION = '20260927-ai-planning-name-notifications-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -96,7 +96,7 @@ function renderMyShilohPage({
   const hero = authenticated
     ? `<div class="hero">
         <p class="eyebrow">Welcome back</p>
-        <h1 id="home-title" data-client-greeting data-first-name="${firstName}">${escapeHtml(greeting)}, ${firstName}.</h1>
+        <h1 id="home-title" class="hero-greeting" data-client-greeting data-first-name="${firstName}">${escapeHtml(greeting)}, <span>${firstName}.</span></h1>
         <p class="hero-copy">You’re safely signed in. Your appointments, forms, payments and rewards are ready whenever you need them.</p>
         <div class="hero-actions">
           <a class="button button--primary" href="/my-shiloh/book">Book an appointment</a>
@@ -182,7 +182,7 @@ function renderMyShilohPage({
       </div>
       <div class="profile-auth-card">
         <div class="profile-avatar" aria-hidden="true">${firstName.charAt(0).toUpperCase()}</div>
-        <div><span>Signed in as</span><strong>${clientName}</strong><small>Verified with WhatsApp</small></div>
+        <div class="profile-auth-card__identity"><span>Signed in as</span><strong>${clientName}</strong><small>Verified with WhatsApp</small></div>
       </div>
       <section class="profile-editor" aria-labelledby="personal-details-title">
         <div class="profile-editor__heading">
@@ -350,6 +350,10 @@ function renderMyShilohPage({
       <section class="view is-active" id="home" data-view="home" aria-labelledby="home-title">
         ${hero}
         ${focus}
+        ${authenticated ? `<aside class="notification-invite" data-push-invite hidden aria-labelledby="notification-invite-title">
+          <div><p class="eyebrow">Appointment updates</p><h2 id="notification-invite-title">Stay ready for your next visit.</h2><p>Turn on My Shiloh notifications for booking and appointment reminders on this phone.</p></div>
+          <a class="button button--soft" href="#profile">Set up notifications</a>
+        </aside>` : ''}
         ${authenticated ? `<section class="notification-centre" aria-labelledby="notification-centre-title" data-client-notification-centre>
           <div class="section-heading"><div><p class="eyebrow">Updates</p><h2 id="notification-centre-title">Your latest Shiloh updates.</h2></div><a class="text-link" href="#profile">Notification settings</a></div>
           <div class="notification-centre__list" data-client-notification-list aria-live="polite"><p class="notification-centre__empty">Checking for updates…</p></div>
