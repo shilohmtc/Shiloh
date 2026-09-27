@@ -53,7 +53,7 @@ test('appointment reminders queue My Shiloh before WhatsApp and isolate either c
 });
 
 test('booking changes queue My Shiloh before WhatsApp template/provider checks', () => {
-  const change = changes.indexOf('queueBookingChangeMyShilohNotification({');
+  const change = changes.indexOf('queueBookingChangeMyShilohNotification(appDetails)');
   const template = changes.indexOf('templateStatus = await getTemplateStatus()', change);
   const provider = changes.indexOf('sendWhatsAppTemplate(', change);
   assert.ok(change > 0);
