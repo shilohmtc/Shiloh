@@ -105,7 +105,7 @@ async function updateAppointmentStatus(id, status) {
   return result.rows[0] || null;
 }
 
-async function claimDueReminder(db = pool) {
+async function claimDueReminder(db = pool, { appOnly = false } = {}) {
   if (db === pool) await ensureTable();
   const result = await db.query(
     `WITH due AS (
@@ -119,6 +119,10 @@ async function claimDueReminder(db = pool) {
           AND (al.appointment_id IS NULL OR (ap.id IS NOT NULL AND ap.status IN ('scheduled','confirmed')))
           AND COALESCE(ap.starts_at,al.appointment_at)>NOW()
           AND COALESCE(ap.starts_at,al.appointment_at)<=NOW()+($1*INTERVAL '1 hour')
+          AND (NOT $2::boolean OR (al.crm_v2_client_id IS NOT NULL AND EXISTS (
+            SELECT 1 FROM my_shiloh_push_subscriptions s
+             WHERE s.crm_v2_client_id=al.crm_v2_client_id AND s.enabled=TRUE AND s.revoked_at IS NULL
+          )))
           AND NOT EXISTS (
             SELECT 1
               FROM appointment_change_intents aci
@@ -137,7 +141,7 @@ async function claimDueReminder(db = pool) {
             updated_at=NOW()
        FROM due
       WHERE lifecycle.id=due.id
-     RETURNING lifecycle.*`, [REMINDER_HOURS]
+     RETURNING lifecycle.*`, [REMINDER_HOURS, appOnly]
   );
   return result.rows[0] || null;
 }
@@ -206,9 +210,10 @@ async function deliverClaimedReminder(appointment, reminderTemplate, reminderAct
     });
   }
   const notifyClient = deps.notifyClient || null;
+  let appDelivery = null;
   if (notifyClient && Number.isSafeInteger(Number(appointment.crm_v2_client_id)) && Number(appointment.crm_v2_client_id) > 0) {
     try {
-      await notifyClient({
+      appDelivery = await notifyClient({
         crmV2ClientId: Number(appointment.crm_v2_client_id),
         eventKey: `appointment-reminder:${appointment.appointment_id || appointment.id}:${new Date(appointment.appointment_at).toISOString()}`,
         category: 'appointment',
@@ -220,6 +225,12 @@ async function deliverClaimedReminder(appointment, reminderTemplate, reminderAct
       logger.warn({ err: error, appointmentId: appointment.appointment_id || appointment.id }, 'My Shiloh reminder notification failed independently');
     }
   }
+  // Pause WhatsApp for this client only after a push service accepted the wake.
+  // Clients without an active subscription keep the existing template route.
+  if (env.SHILOH_CLIENT_REMINDER_APP_ONLY_ENABLED === 'true' && Number(appDelivery?.accepted) > 0) {
+    return { sent: true, channel: 'my_shiloh', notificationId: appDelivery.notificationId };
+  }
+  if (!reminderTemplate) throw new Error('No confirmed reminder delivery channel is available');
   return send(
     appointment.phone,
     reminderTemplate,
@@ -234,10 +245,11 @@ async function processReminders() {
   const reminderTemplate=reminderActionsTemplate||process.env.WHATSAPP_REMINDER_TEMPLATE;
   const followupActionsTemplate=process.env.WHATSAPP_FOLLOWUP_ACTIONS_TEMPLATE;
   const followupTemplate=followupActionsTemplate||process.env.WHATSAPP_FOLLOWUP_TEMPLATE;
-  if(!reminderTemplate&&!followupTemplate)return;
+  const appOnlyReminders = process.env.SHILOH_CLIENT_REMINDER_APP_ONLY_ENABLED === 'true';
+  if(!reminderTemplate&&!followupTemplate&&!appOnlyReminders)return;
 
-  if(reminderTemplate){
-    for(let i=0;i<20;i+=1){const appointment=await claimDueReminder();if(!appointment)break;try{await deliverClaimedReminder(appointment,reminderTemplate,reminderActionsTemplate,{notifyClient:queueClientNotification});logger.info({appointmentId:appointment.appointment_id||appointment.id,actionTemplate:Boolean(reminderActionsTemplate)},"Customer appointment reminder sent");}catch(error){await undoClaim(appointment.id,"reminder_sent_at");logger.error({err:error,appointmentId:appointment.appointment_id||appointment.id},"Appointment reminder failed");break;}}
+  if(reminderTemplate||appOnlyReminders){
+    for(let i=0;i<20;i+=1){const appointment=await claimDueReminder(pool,{appOnly:!reminderTemplate});if(!appointment)break;try{const delivery=await deliverClaimedReminder(appointment,reminderTemplate,reminderActionsTemplate,{notifyClient:queueClientNotification});logger.info({appointmentId:appointment.appointment_id||appointment.id,channel:delivery?.channel||'whatsapp',actionTemplate:Boolean(reminderActionsTemplate)},"Customer appointment reminder sent");}catch(error){await undoClaim(appointment.id,"reminder_sent_at");logger.error({err:error,appointmentId:appointment.appointment_id||appointment.id},"Appointment reminder failed");break;}}
   }
 
   if(followupTemplate){
