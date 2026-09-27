@@ -18,6 +18,12 @@ function clientAuthCookieName(env = process.env) {
     : 'shiloh_client_auth';
 }
 
+function clientPasskeyAuthCookieName(env = process.env) {
+  return String(env.NODE_ENV || '').toLowerCase() === 'production'
+    ? '__Host-shiloh_client_passkey_auth'
+    : 'shiloh_client_passkey_auth';
+}
+
 function cookieParts(name, value, {
   env = process.env,
   maxAgeSeconds = 0,
@@ -57,12 +63,25 @@ function serializeExpiredClientAuthCookie({ env = process.env } = {}) {
   return [...cookieParts(clientAuthCookieName(env), '', { env, maxAgeSeconds: 0 }), 'Expires=Thu, 01 Jan 1970 00:00:00 GMT'].join('; ');
 }
 
+function serializeClientPasskeyAuthCookie(token, { env = process.env, maxAgeSeconds = 5 * 60 } = {}) {
+  return cookieParts(clientPasskeyAuthCookieName(env), token, { env, maxAgeSeconds }).join('; ');
+}
+
+function serializeExpiredClientPasskeyAuthCookie({ env = process.env } = {}) {
+  return [...cookieParts(clientPasskeyAuthCookieName(env), '', { env, maxAgeSeconds: 0 }),
+    'Expires=Thu, 01 Jan 1970 00:00:00 GMT'].join('; ');
+}
+
 function clientSessionTokenFromRequest(req, env = process.env) {
   return parseCookieValue(req.headers?.cookie, clientSessionCookieName(env));
 }
 
 function clientAuthTokenFromRequest(req, env = process.env) {
   return parseCookieValue(req.headers?.cookie, clientAuthCookieName(env));
+}
+
+function clientPasskeyAuthTokenFromRequest(req, env = process.env) {
+  return parseCookieValue(req.headers?.cookie, clientPasskeyAuthCookieName(env));
 }
 
 function requireClientSession({ service, env = process.env } = {}) {
@@ -100,12 +119,16 @@ module.exports = {
   requestFingerprintHash,
   clientSessionCookieName,
   clientAuthCookieName,
+  clientPasskeyAuthCookieName,
   serializeClientSessionCookie,
   serializeExpiredClientSessionCookie,
   serializeClientAuthCookie,
   serializeExpiredClientAuthCookie,
+  serializeClientPasskeyAuthCookie,
+  serializeExpiredClientPasskeyAuthCookie,
   clientSessionTokenFromRequest,
   clientAuthTokenFromRequest,
+  clientPasskeyAuthTokenFromRequest,
   requireClientSession,
   optionalClientSession,
   clientCsrfGuard,

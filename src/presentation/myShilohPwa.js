@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-updates-archive-v1';
+const MY_SHILOH_ASSET_VERSION = '20260927-client-passkeys-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -77,6 +77,8 @@ function renderMyShilohPage({
   catalogue = [],
   selectedServiceId = '',
   client = null,
+  passkeysAvailable = false,
+  signInMethod = 'whatsapp_challenge',
   now = new Date(),
 } = {}) {
   const askShiloh = whatsappUrl(whatsappNumber);
@@ -102,6 +104,9 @@ function renderMyShilohPage({
   const greeting = authenticated ? johannesburgGreeting(now) : null;
   const clientName = authenticated ? escapeHtml(client.name || client.firstName) : '';
   const firstName = authenticated ? escapeHtml(client.firstName) : '';
+  const passkeySignInButton = passkeysAvailable
+    ? '<button class="button button--soft button--wide passkey-choice" type="button" data-passkey-sign-in>Sign in with a passkey</button>'
+    : '';
 
   const hero = authenticated
     ? `<div class="hero">
@@ -112,8 +117,9 @@ function renderMyShilohPage({
     : `<div class="hero">
         <p class="eyebrow">Welcome to My Shiloh</p>
         <h1 id="home-title">Your Shiloh, all in one place.</h1>
-        <p class="hero-copy">Use WhatsApp to confirm it’s you and open your personal Shiloh space. No password or email needed.</p>
+        <p class="hero-copy">${passkeysAvailable ? 'Use a passkey or WhatsApp to open your personal Shiloh space. No password or email needed.' : 'Use WhatsApp to confirm it’s you and open your personal Shiloh space. No password or email needed.'}</p>
         <div class="hero-actions">
+          ${passkeySignInButton}
           <button class="button button--primary" type="button" data-client-auth-start>Open WhatsApp to verify</button>
           <a class="button button--soft" href="#how-booking-works" data-booking-steps-link>How booking works</a>
         </div>
@@ -188,8 +194,14 @@ function renderMyShilohPage({
       </div>
       <div class="profile-auth-card">
         <div class="profile-avatar" aria-hidden="true">${firstName.charAt(0).toUpperCase()}</div>
-        <div class="profile-auth-card__identity"><span>Signed in as</span><strong>${clientName}</strong><small>Verified with WhatsApp</small></div>
+        <div class="profile-auth-card__identity"><span>Signed in as</span><strong>${clientName}</strong><small>${signInMethod === 'passkey' ? 'Signed in with a passkey' : 'Verified with WhatsApp'}</small></div>
       </div>
+      ${passkeysAvailable ? `<section class="profile-editor" aria-labelledby="passkey-title">
+        <div class="profile-editor__heading"><div><p class="eyebrow">Sign-in</p><h2 id="passkey-title">Make next time easier.</h2></div></div>
+        <p>Save a passkey on this device, then use your screen lock to open My Shiloh next time. WhatsApp stays available if you need it.</p>
+        <button class="button button--soft button--wide" type="button" data-passkey-enroll>Save a passkey</button>
+        <p class="profile-editor__status" data-passkey-enroll-status role="status" aria-live="polite"></p>
+      </section>` : ''}
       <section class="profile-editor" aria-labelledby="personal-details-title">
         <div class="profile-editor__heading">
           <div><p class="eyebrow">Personal details</p><h2 id="personal-details-title">Keep your details up to date.</h2></div>
@@ -266,6 +278,7 @@ function renderMyShilohPage({
         <p>Use WhatsApp to confirm it’s you. You’ll never need a password.</p>
       </div>
       <button class="button button--primary button--wide" type="button" data-client-auth-start>Open WhatsApp to verify</button>
+      ${passkeySignInButton}
       <p class="auth-hint">Tap Send in WhatsApp, then return to My Shiloh. We’ll open your account automatically.</p>
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
       ${authFinishForm('my-shiloh-profile-code')}
@@ -296,6 +309,7 @@ function renderMyShilohPage({
         <p>Sign in to see your vouchers, rewards and payment shortcuts.</p>
       </div>
       <button class="button button--primary button--wide" type="button" data-client-auth-start>Open WhatsApp to verify</button>
+      ${passkeySignInButton}
       <p class="auth-hint">Tap Send in WhatsApp, then return to My Shiloh. We’ll open your account automatically.</p>
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
       ${authFinishForm('my-shiloh-wallet-code')}`;
@@ -348,6 +362,7 @@ function renderMyShilohPage({
       <h1 id="install-verification-title">Confirm it’s you to finish setting up My Shiloh.</h1>
       <p class="install-gate__copy">Verify with WhatsApp once on this installation. After that, just open My Shiloh normally.</p>
       <button class="button button--primary button--wide" type="button" data-client-auth-start>Open WhatsApp to verify</button>
+      ${passkeySignInButton}
       <p class="auth-hint">Tap Send in WhatsApp, then return to My Shiloh. We’ll open your account automatically.</p>
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
       ${authFinishForm('my-shiloh-install-code')}
