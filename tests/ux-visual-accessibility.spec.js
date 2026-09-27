@@ -110,6 +110,13 @@ test('signed-in choosing help opens the in-app conversation on phone and desktop
     await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
     const card = page.locator('[data-view="home"] .quiet-card').filter({ hasText:'Need help choosing?' });
     await expect(card).toContainText('chat here in My Shiloh');
+    const cardMark = await card.locator('.quiet-icon').boundingBox();
+    const navMark = await page.locator('.bottom-nav .nav-orb').boundingBox();
+    const navLabel = await page.locator('.bottom-nav .nav-shiloh > span:last-child').boundingBox();
+    expect(cardMark && navMark && navLabel).toBeTruthy();
+    expect(navMark.width).toBe(cardMark.width);
+    expect(navMark.height).toBe(cardMark.height);
+    expect(navMark.y + navMark.height).toBeLessThanOrEqual(navLabel.y);
     const link = card.getByRole('link', { name:'Open Shiloh in My Shiloh' });
     await expect(link).toHaveAttribute('href', '#shiloh');
     await page.screenshot({ path:testInfo.outputPath(`my-shiloh-choosing-help-home-${viewport.name}.png`), fullPage:true, animations:'disabled' });
