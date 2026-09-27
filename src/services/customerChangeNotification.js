@@ -22,6 +22,7 @@ const ACTION_ALIASES_BY_KIND = Object.freeze({
 });
 const UPDATE_KINDS = new Set(['service', 'practitioner', 'time', 'price']);
 const RETRY_MS = 5 * 60 * 1000;
+const MAX_PRE_SEND_ATTEMPTS = 3;
 let tableReady = false;
 let scheduler = null;
 let templateStatusCache = null;
@@ -227,49 +228,20 @@ async function attemptCustomerChangeNotification(auditEventId) {
   if (!item) return { sent: false, reason: 'not_queued' };
   if (item.status === 'sent') return { sent: false, reason: 'already_sent' };
   if (item.status === 'suppressed') return { sent: false, reason: 'already_suppressed' };
+  if (item.status === 'sending') return { sent: false, reason: 'provider_outcome_uncertain' };
   if (await suppressEndedBookingUpdate(item)) {
     return { sent: false, reason: 'appointment_already_ended', suppressed: true };
   }
 
-  let templateStatus;
-  try {
-    templateStatus = await getTemplateStatus();
-  } catch (error) {
-    await pool.query(`UPDATE customer_change_notifications SET status='failed',attempt_count=attempt_count+1,last_error=$2,updated_at=NOW() WHERE audit_event_id=$1`, [auditEventId, String(error.message || error).slice(0, 1000)]);
-    return { sent: false, reason: 'provider_status_error' };
-  }
-
-  const preferredTemplateKey = item.change_kind === 'cancellation' ? 'cancellation_confirmation_v2' : 'booking_update';
-  const fallbackTemplateKey = item.change_kind === 'cancellation' ? 'cancellation_confirmation' : null;
-  const preferredTemplateName = approvedTemplate(templateStatus, preferredTemplateKey);
-  const fallbackTemplateName = fallbackTemplateKey ? approvedTemplate(templateStatus, fallbackTemplateKey) : null;
-  const templateKey = preferredTemplateName ? preferredTemplateKey : fallbackTemplateName ? fallbackTemplateKey : preferredTemplateKey;
-  const templateName = preferredTemplateName || fallbackTemplateName;
-  if (!templateName) {
-    await pool.query(`UPDATE customer_change_notifications SET status='pending',last_error=$2,updated_at=NOW() WHERE audit_event_id=$1`, [auditEventId, `${preferredTemplateKey}_not_approved`]);
-    return { sent: false, reason: 'template_not_approved', templateKey: preferredTemplateKey };
-  }
-
+  // The in-app notification is independent of WhatsApp template approval and delivery.
   const appointment = await loadAppointmentSnapshot(item.appointment_id);
   if (!appointment) {
-    await pool.query(`UPDATE customer_change_notifications SET status='failed',attempt_count=attempt_count+1,last_error='appointment_not_found',updated_at=NOW() WHERE audit_event_id=$1`, [auditEventId]);
+    await pool.query(`UPDATE customer_change_notifications SET status='failed',attempt_count=attempt_count+1,last_error='appointment_not_found',updated_at=NOW() WHERE audit_event_id=$1 AND status IN ('pending','failed')`, [auditEventId]);
     return { sent: false, reason: 'appointment_not_found' };
   }
   if (await suppressEndedBookingUpdate(item)) {
     return { sent: false, reason: 'appointment_already_ended', suppressed: true };
   }
-  if (!appointment.client_phone) {
-    await pool.query(`UPDATE customer_change_notifications SET status='failed',attempt_count=attempt_count+1,last_error='client_phone_not_found',updated_at=NOW() WHERE audit_event_id=$1`, [auditEventId]);
-    return { sent: false, reason: 'client_phone_not_found' };
-  }
-
-  const claimed = await pool.query(`
-    UPDATE customer_change_notifications
-       SET status='sending',attempt_count=attempt_count+1,last_error=NULL,updated_at=NOW()
-     WHERE audit_event_id=$1 AND status IN ('pending','failed')
-     RETURNING audit_event_id`, [auditEventId]);
-  if (!claimed.rowCount) return { sent: false, reason: 'already_sending_or_sent' };
-
   await queueBookingChangeMyShilohNotification({
     appointmentId: appointment.id,
     crmV2ClientId: appointment.crm_v2_client_id,
@@ -280,6 +252,41 @@ async function attemptCustomerChangeNotification(auditEventId) {
     changeKind: item.change_kind,
     auditEventId,
   });
+
+  let templateStatus;
+  try {
+    templateStatus = await getTemplateStatus();
+  } catch (error) {
+    await pool.query(`UPDATE customer_change_notifications SET status='failed',attempt_count=attempt_count+1,last_error=$2,updated_at=NOW() WHERE audit_event_id=$1 AND status IN ('pending','failed')`, [auditEventId, String(error.message || error).slice(0, 1000)]);
+    return { sent: false, reason: 'provider_status_error' };
+  }
+
+  const preferredTemplateKey = item.change_kind === 'cancellation' ? 'cancellation_confirmation_v2' : 'booking_update';
+  const fallbackTemplateKey = item.change_kind === 'cancellation' ? 'cancellation_confirmation' : null;
+  const preferredTemplateName = approvedTemplate(templateStatus, preferredTemplateKey);
+  const fallbackTemplateName = fallbackTemplateKey ? approvedTemplate(templateStatus, fallbackTemplateKey) : null;
+  const templateKey = preferredTemplateName ? preferredTemplateKey : fallbackTemplateName ? fallbackTemplateKey : preferredTemplateKey;
+  const templateName = preferredTemplateName || fallbackTemplateName;
+  if (!templateName) {
+    await pool.query(`UPDATE customer_change_notifications SET status='pending',last_error=$2,updated_at=NOW() WHERE audit_event_id=$1 AND status IN ('pending','failed')`, [auditEventId, `${preferredTemplateKey}_not_approved`]);
+    return { sent: false, reason: 'template_not_approved', templateKey: preferredTemplateKey };
+  }
+
+  if (await suppressEndedBookingUpdate(item)) {
+    return { sent: false, reason: 'appointment_already_ended', suppressed: true };
+  }
+  if (!appointment.client_phone) {
+    await pool.query(`UPDATE customer_change_notifications SET status='failed',attempt_count=attempt_count+1,last_error='client_phone_not_found',updated_at=NOW() WHERE audit_event_id=$1 AND status IN ('pending','failed')`, [auditEventId]);
+    return { sent: false, reason: 'client_phone_not_found' };
+  }
+
+  const claimed = await pool.query(`
+    UPDATE customer_change_notifications
+       SET status='sending',attempt_count=attempt_count+1,last_error=NULL,updated_at=NOW()
+     WHERE audit_event_id=$1 AND status IN ('pending','failed')
+     RETURNING audit_event_id`, [auditEventId]);
+  if (!claimed.rowCount) return { sent: false, reason: 'already_sending_or_sent' };
+
   const date = fmtDate(appointment.starts_at);
   const start = fmtTime(appointment.starts_at);
   const timeRange = `${start}–${fmtTime(appointment.ends_at)}`;
@@ -290,14 +297,26 @@ async function attemptCustomerChangeNotification(auditEventId) {
     params = [appointment.client_name || 'there', appointment.service_name, appointment.staff_name, date, timeRange, priceLabel(appointment.total_price), String(appointment.id)];
   }
 
+  let provider;
   try {
-    const provider = await sendWhatsAppTemplate(
+    provider = await sendWhatsAppTemplate(
       appointment.client_phone,
       templateName,
       params,
       process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en'
     );
-    await pool.query(`UPDATE customer_change_notifications SET status='sent',sent_at=NOW(),updated_at=NOW(),last_error=NULL WHERE audit_event_id=$1`, [auditEventId]);
+  } catch (error) {
+    // A timeout or provider error can occur after acceptance. Never automatically
+    // send this audit event again without a verified provider outcome.
+    await pool.query(`UPDATE customer_change_notifications SET last_error='provider_outcome_uncertain',updated_at=NOW() WHERE audit_event_id=$1 AND status='sending'`, [auditEventId]);
+    logger.error({ err: error, appointmentId: appointment.id, auditEventId: Number(auditEventId), changeKind: item.change_kind }, 'Customer booking-change delivery needs human review');
+    return { sent: false, reason: 'provider_outcome_uncertain' };
+  }
+
+  // If the database cannot record acceptance, leave the claim in sending for
+  // Reception review rather than retrying a possibly delivered message.
+  await pool.query(`UPDATE customer_change_notifications SET status='sent',sent_at=NOW(),updated_at=NOW(),last_error=NULL WHERE audit_event_id=$1 AND status='sending'`, [auditEventId]);
+  try {
     await pool.query(`
       INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
       VALUES($1,'appointment',$2,$3::jsonb)`, [
@@ -305,13 +324,11 @@ async function attemptCustomerChangeNotification(auditEventId) {
       String(appointment.id),
       JSON.stringify({ sourceAuditEventId: Number(auditEventId), changeKind: item.change_kind, templateName, providerMessageId: provider?.messages?.[0]?.id || null, idempotentDelivery: true, nameAuthorityId: appointment.name_authority_id || null }),
     ]);
-    logger.info({ appointmentId: appointment.id, auditEventId: Number(auditEventId), changeKind: item.change_kind, templateName }, 'Customer booking-change confirmation sent');
-    return { sent: true, templateName };
   } catch (error) {
-    await pool.query(`UPDATE customer_change_notifications SET status='failed',last_error=$2,updated_at=NOW() WHERE audit_event_id=$1`, [auditEventId, String(error.response?.data?.error?.message || error.message || error).slice(0, 1000)]);
-    logger.error({ err: error, appointmentId: appointment.id, auditEventId: Number(auditEventId), changeKind: item.change_kind }, 'Customer booking-change confirmation failed; queued for retry');
-    return { sent: false, reason: 'send_failed' };
+    logger.error({ err: error, appointmentId: appointment.id, auditEventId: Number(auditEventId) }, 'Customer booking-change sent but audit record failed');
   }
+  logger.info({ appointmentId: appointment.id, auditEventId: Number(auditEventId), changeKind: item.change_kind, templateName }, 'Customer booking-change confirmation sent');
+  return { sent: true, templateName };
 }
 
 async function flushCustomerChangeNotifications() {
@@ -320,9 +337,10 @@ async function flushCustomerChangeNotifications() {
     SELECT audit_event_id
       FROM customer_change_notifications
      WHERE status IN ('pending','failed')
+       AND attempt_count < $1
        AND updated_at <= NOW() - INTERVAL '5 minutes'
      ORDER BY created_at
-     LIMIT 25`);
+     LIMIT 25`, [MAX_PRE_SEND_ATTEMPTS]);
   for (const row of result.rows) await attemptCustomerChangeNotification(row.audit_event_id);
   return { attempted: result.rowCount };
 }

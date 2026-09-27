@@ -41,13 +41,26 @@ test('authenticated Calendar reschedules queue the latest customer confirmation 
   assert.match(route, /reason: 'queue_failed'/);
 });
 
-test('delivery is audit-event idempotent and retries provider or send failures', () => {
+test('delivery is audit-event idempotent and only retries bounded pre-send failures', () => {
   assert.match(service, /audit_event_id BIGINT PRIMARY KEY/);
   assert.match(service, /status TEXT NOT NULL CHECK \(status IN \('pending','sending','sent','failed','suppressed'\)\)/);
   assert.match(service, /ON CONFLICT \(audit_event_id\) DO NOTHING/);
   assert.match(service, /template_not_approved/);
-  assert.match(service, /queued for retry/);
+  assert.match(service, /MAX_PRE_SEND_ATTEMPTS = 3/);
+  assert.match(service, /attempt_count < \$1/);
   assert.match(service, /INTERVAL '5 minutes'/);
+});
+
+test('uncertain provider responses and post-acceptance audit failures cannot trigger duplicate sends', () => {
+  assert.match(service, /if \(item\.status === 'sending'\) return/);
+  assert.match(service, /last_error='provider_outcome_uncertain'/);
+  assert.match(service, /WHERE audit_event_id=\$1 AND status='sending'/);
+  const claim = service.indexOf("SET status='sending'");
+  const provider = service.indexOf('provider = await sendWhatsAppTemplate(');
+  const accepted = service.indexOf("SET status='sent'", provider);
+  const audit = service.indexOf('INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)', provider);
+  assert.ok(claim > 0 && provider > claim && accepted > provider && audit > accepted);
+  assert.doesNotMatch(service.slice(provider), /SET status='failed'/);
 });
 
 test('ended booking updates are terminally suppressed before provider checks and rechecked before send claim', () => {
