@@ -1251,25 +1251,26 @@
   }
 
   function renderClientAction(action) {
-    if (!shilohMessages || !['cancel_appointment', 'reschedule_appointment', 'consultation_form', 'profile_details'].includes(action?.type)) return null;
-    if (!['consultation_form', 'profile_details'].includes(action.type) && !/^[A-Za-z0-9_-]{43}$/.test(String(action.token || ''))) return null;
+    if (!shilohMessages || !['cancel_appointment', 'reschedule_appointment', 'consultation_form', 'profile_details', 'planning_request'].includes(action?.type)) return null;
+    if (!['consultation_form', 'profile_details', 'planning_request'].includes(action.type) && !/^[A-Za-z0-9_-]{43}$/.test(String(action.token || ''))) return null;
     if (action.type === 'consultation_form' && String(action.href || '') !== '/my-shiloh/forms/complete') return null;
     if (action.type === 'profile_details' && String(action.href || '') !== '#profile') return null;
+    if (action.type === 'planning_request' && String(action.href || '') !== '/my-shiloh/request') return null;
 
     shilohMessages.querySelector('[data-client-action-card]')?.remove();
 
     const card = document.createElement('section');
     card.className = 'client-action-card';
     card.dataset.clientActionCard = '';
-    card.setAttribute('aria-label', ['consultation_form', 'profile_details'].includes(action.type)
-      ? (action.type === 'profile_details' ? 'Open personal details' : 'Open consultation form')
+    card.setAttribute('aria-label', ['consultation_form', 'profile_details', 'planning_request'].includes(action.type)
+      ? (action.type === 'profile_details' ? 'Open personal details' : action.type === 'planning_request' ? 'Open Reception planning request' : 'Open consultation form')
       : action.type === 'reschedule_appointment'
         ? 'Confirm appointment reschedule request'
         : 'Confirm appointment cancellation');
 
     const eyebrow = document.createElement('span');
     eyebrow.className = 'client-action-card__eyebrow';
-    eyebrow.textContent = ['consultation_form', 'profile_details'].includes(action.type) ? 'Action available' : 'Confirmation required';
+    eyebrow.textContent = ['consultation_form', 'profile_details', 'planning_request'].includes(action.type) ? 'Action available' : 'Confirmation required';
 
     const heading = document.createElement('h3');
     heading.textContent = String(action.title || (action.type === 'profile_details' ? 'Update your personal details' : action.type === 'consultation_form' ? 'Complete your consultation form' : 'Cancel this appointment?'));
@@ -1278,6 +1279,8 @@
     detail.className = 'client-action-card__detail';
     detail.textContent = action.type === 'profile_details'
       ? String(action.detail || 'Review your private profile details in My Shiloh.')
+      : action.type === 'planning_request'
+      ? String(action.detail || 'Tell Reception about your flexible or group visit.')
       : action.type === 'consultation_form'
       ? String(action.detail || 'A consultation form is waiting for you in My Shiloh.')
       : action.type === 'reschedule_appointment'
@@ -1297,6 +1300,8 @@
     policy.className = 'client-action-card__policy';
     policy.textContent = String(action.type === 'profile_details'
       ? action.note || 'Your verified WhatsApp number cannot be changed here.'
+      : action.type === 'planning_request'
+      ? action.note || 'Reception will review your request. No appointment is booked yet.'
       : action.type === 'consultation_form'
       ? 'Open your form to continue safely.'
       : action.type === 'reschedule_appointment' ? action.note || '' : action.policy || '');
@@ -1305,6 +1310,8 @@
     payment.className = 'client-action-card__note';
     payment.textContent = String(action.type === 'profile_details'
       ? 'Nothing changes until you review and save the form.'
+      : action.type === 'planning_request'
+      ? 'Nothing is submitted until you review and send the request form.'
       : action.type === 'consultation_form'
       ? 'Only you can open this form after signing in.'
       : action.type === 'reschedule_appointment'
@@ -1314,10 +1321,13 @@
     const actions = document.createElement('div');
     actions.className = 'client-action-card__actions';
 
-    if (['consultation_form', 'profile_details'].includes(action.type)) {
+    if (['consultation_form', 'profile_details', 'planning_request'].includes(action.type)) {
       const open = document.createElement('a');
       open.className = 'button button--primary';
-      if (action.type === 'profile_details') {
+      if (action.type === 'planning_request') {
+        open.href = '/my-shiloh/request';
+        open.textContent = String(action.label || 'Open request form');
+      } else if (action.type === 'profile_details') {
         open.href = '#profile';
         open.textContent = String(action.label || 'Open personal details');
       } else {

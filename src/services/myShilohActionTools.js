@@ -15,6 +15,7 @@ const ACTION_TOOL_NAMES = Object.freeze({
   PREPARE_RESCHEDULE: 'prepare_my_reschedule',
   PREPARE_CONSULTATION_FORM: 'prepare_my_consultation_form',
   OPEN_PROFILE: 'open_my_personal_details',
+  OPEN_PLANNING_REQUEST: 'open_my_reception_planning_request',
 });
 
 const ACTION_TOOL_DEFINITIONS = Object.freeze([
@@ -75,6 +76,14 @@ const PROFILE_TOOL_DEFINITION = Object.freeze({
   },
 });
 
+const PLANNING_REQUEST_TOOL_DEFINITION = Object.freeze({
+  type: 'function',
+  name: ACTION_TOOL_NAMES.OPEN_PLANNING_REQUEST,
+  description: 'Open the signed-in Reception planning form for a flexible time, group visit or tailored event. This only opens the form; no request or appointment is created until the client reviews and submits it.',
+  strict: true,
+  parameters: { type: 'object', properties: {}, required: [], additionalProperties: false },
+});
+
 function createMyShilohActionTools({
   actionService = createMyShilohClientActionService(),
   formActionService = createMyShilohConsultationFormActionService(),
@@ -93,11 +102,23 @@ function createMyShilohActionTools({
     return name === ACTION_TOOL_NAMES.PREPARE_CANCELLATION
       || name === ACTION_TOOL_NAMES.PREPARE_RESCHEDULE
       || name === ACTION_TOOL_NAMES.PREPARE_CONSULTATION_FORM
-      || name === ACTION_TOOL_NAMES.OPEN_PROFILE;
+      || name === ACTION_TOOL_NAMES.OPEN_PROFILE
+      || name === ACTION_TOOL_NAMES.OPEN_PLANNING_REQUEST;
   }
 
   async function execute(name, args = {}, { sessionId, crmV2ClientId } = {}) {
     if (!handles(name)) return { modelResult: { ok: false, error: 'unknown_action_tool' }, clientAction: null };
+    if (name === ACTION_TOOL_NAMES.OPEN_PLANNING_REQUEST) {
+      return {
+        modelResult: { ok: true, prepared: true, action: 'reception_planning', message: 'The signed-in Reception planning form is ready. Nothing has been submitted or booked.' },
+        clientAction: {
+          type: 'planning_request', title: 'Tell Reception your plans',
+          detail: 'Share a flexible time, group visit or special occasion with the clinic team.',
+          note: 'Reception will review your request and arrange the details with you. This does not book an appointment.',
+          label: 'Open request form', href: '/my-shiloh/request',
+        },
+      };
+    }
     if (name === ACTION_TOOL_NAMES.OPEN_PROFILE) {
       return {
         modelResult: {
@@ -194,7 +215,7 @@ function createMyShilohActionTools({
   }
 
   return {
-    definitions: [...ACTION_TOOL_DEFINITIONS, CONSULTATION_FORM_TOOL_DEFINITION, PROFILE_TOOL_DEFINITION],
+    definitions: [...ACTION_TOOL_DEFINITIONS, CONSULTATION_FORM_TOOL_DEFINITION, PROFILE_TOOL_DEFINITION, PLANNING_REQUEST_TOOL_DEFINITION],
     handles,
     execute,
   };
@@ -205,5 +226,6 @@ module.exports = {
   ACTION_TOOL_DEFINITIONS,
   CONSULTATION_FORM_TOOL_DEFINITION,
   PROFILE_TOOL_DEFINITION,
+  PLANNING_REQUEST_TOOL_DEFINITION,
   createMyShilohActionTools,
 };
