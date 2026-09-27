@@ -251,7 +251,7 @@ test('My Shiloh WhatsApp automatic return is clear and accessible on Phone and D
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--whats-app-automatic-return&viewMode=story',{waitUntil:'networkidle'});
     const appFrame = page.locator('[data-app-frame]');
     const home = appFrame.locator('[data-view="home"]');
-    await expect(home.getByRole('heading',{name:'Your Shiloh, all in one place.'})).toBeVisible();
+    await expect(home.getByRole('heading',{name:'Sign in to My Shiloh.'})).toBeVisible();
     await expect(home.getByText('Checking your WhatsApp verification… My Shiloh will open automatically.')).toBeVisible();
     await expect(home.getByText('Enter your 6-digit fallback code')).toBeVisible();
     await expect(home.getByRole('button',{name:'Open My Shiloh'})).toBeVisible();
