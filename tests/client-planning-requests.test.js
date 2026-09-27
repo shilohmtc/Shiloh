@@ -68,6 +68,12 @@ test('client and Reception surfaces label requests as unconfirmed and escape cli
   assert.doesNotMatch(dashboard,/<script>/);
 });
 
+test('selected service context is escaped and bounded in the Reception request form', () => {
+  const html = renderPlanningRequestPage({ serviceDetail:'Deep Tissue <Massage> & care' });
+  assert.match(html, /name="serviceDetail"[^>]*>Deep Tissue &lt;Massage&gt; &amp; care<\/textarea>/);
+  assert.doesNotMatch(html, /<Massage>/);
+});
+
 test('the human WhatsApp handoff uses its own number and the AI path remains separate', () => {
   const planning = renderPlanningRequestPage({ humanWhatsAppNumber:'066 239 9138' });
   const app = renderMyShilohPage({ whatsappNumber:'27123456789', humanWhatsAppNumber:'066 239 9138' });
@@ -80,8 +86,8 @@ test('the human WhatsApp handoff uses its own number and the AI path remains sep
 test('website planning deep link retains sign-in intent while submission stays session and CSRF guarded', () => {
   const routes = fs.readFileSync(path.join(__dirname, '../src/routes/myShiloh.js'), 'utf8');
   const client = fs.readFileSync(path.join(__dirname, '../public/my-shiloh/assets/app.js'), 'utf8');
-  assert.match(routes, /router\.get\('\/my-shiloh\/request', optionalSession[\s\S]*?res\.redirect\(303, '\/my-shiloh\/#plan-visit'\)[\s\S]*?requireSession/);
+  assert.match(routes, /router\.get\('\/my-shiloh\/request', optionalSession[\s\S]*?res\.redirect\(303, `\/my-shiloh\/[\s\S]*?#plan-visit`\)[\s\S]*?requireSession/);
   assert.match(routes, /router\.post\('\/my-shiloh\/api\/planning-requests', sameOrigin, requireSession, requireCsrf/);
-  assert.match(client, /window\.location\.hash === '#plan-visit' \? '\/my-shiloh\/#plan-visit'/);
-  assert.match(client, /window\.location\.replace\('\/my-shiloh\/request'\)/);
+  assert.match(client, /function signedInLanding\(\)/);
+  assert.match(client, /window\.location\.replace\(`\/my-shiloh\/request\$\{planningServiceQuery\(\)\}`\)/);
 });

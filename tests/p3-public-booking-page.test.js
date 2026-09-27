@@ -41,3 +41,9 @@ test('website offers signed-in Reception planning independently of WhatsApp', ()
     assert.match(html, /No appointment is confirmed until Reception arranges it with you/);
   }
 });
+
+test('selected public service carries its canonical ID into the Reception planning doorway', () => {
+  const catalogue = [{ id: 101, name: 'Deep Tissue Massage', category: 'Massage', duration: '60 min', price: 'R850' }];
+  assert.match(renderBookingPage('27662399138', catalogue, '101'), /href="\/my-shiloh\/request\?service=101">Plan a flexible or group visit/);
+  assert.match(renderBookingPage('27662399138', catalogue, '999'), /href="\/my-shiloh\/request">Plan a flexible or group visit/);
+});

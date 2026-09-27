@@ -353,10 +353,20 @@
 
   renderAppMode();
 
+  function planningServiceQuery() {
+    const id = new URLSearchParams(window.location.search).get('service') || '';
+    return /^[1-9]\d*$/.test(id) ? `?service=${encodeURIComponent(id)}` : '';
+  }
+
+  function signedInLanding() {
+    return window.location.hash === '#plan-visit'
+      ? `/my-shiloh/${planningServiceQuery()}#plan-visit` : '/my-shiloh/';
+  }
+
   function continuePlanningVisit() {
     if (window.location.hash !== '#plan-visit' || !standalone()
       || installationVerificationRequired() || appFrame?.dataset.clientAuthenticated !== 'true') return false;
-    window.location.replace('/my-shiloh/request');
+    window.location.replace(`/my-shiloh/request${planningServiceQuery()}`);
     return true;
   }
   continuePlanningVisit();
@@ -794,7 +804,7 @@
         markInstallationVerified();
         renderAppMode();
         setAuthStatus('Verified. Opening your My Shiloh…', 'success');
-        window.location.replace(window.location.hash === '#plan-visit' ? '/my-shiloh/#plan-visit' : '/my-shiloh/');
+        window.location.replace(signedInLanding());
         return;
       }
       if (response.status === 202 && data.status === 'waiting_for_whatsapp') {
@@ -1567,7 +1577,7 @@
       markInstallationVerified();
       renderAppMode();
       setAuthStatus('Verified. Opening your My Shiloh…', 'success');
-      window.location.replace(window.location.hash === '#plan-visit' ? '/my-shiloh/#plan-visit' : '/my-shiloh/');
+      window.location.replace(signedInLanding());
     } catch (error) {
       setAuthStatus(error.message || 'That one-time code could not be verified.', 'error');
       setAuthControlsDisabled(false);
