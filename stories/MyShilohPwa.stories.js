@@ -162,12 +162,8 @@ export const BookingRequestPlanning = {
         const value = button.querySelector('strong');
         if (value) value.textContent = values[button.dataset.factKey] || '';
       });
-      const action = document.createElement('a');
-      action.className = 'button button--primary experience-primary';
-      action.dataset.clientExperiencePrimary = '';
-      action.href = '#bookings';
-      action.textContent = 'View request';
-      home.appendChild(action);
+      const action = home.querySelector('[data-client-experience-primary]');
+      if (action) { action.href = '#bookings'; action.textContent = 'View request'; }
     }
     const bookings = surface.querySelector('[data-client-experience-bookings] .action-card');
     if (bookings) {
@@ -205,12 +201,8 @@ export const AppointmentChangeRequested = {
       if (status) status.textContent = 'Change requested';
       const fact = home.querySelector('[data-client-experience-fact][data-fact-key="appointment"] strong');
       if (fact) fact.textContent = 'Change requested';
-      const action = document.createElement('a');
-      action.className = 'button button--primary experience-primary';
-      action.dataset.clientExperiencePrimary = '';
-      action.href = '#bookings';
-      action.textContent = 'View request';
-      home.appendChild(action);
+      const action = home.querySelector('[data-client-experience-primary]');
+      if (action) { action.href = '#bookings'; action.textContent = 'View request'; }
     }
     const bookings = surface.querySelector('[data-client-experience-bookings] .action-card');
     if (bookings) {
@@ -425,12 +417,8 @@ export const AuthenticatedDepositRequired = {
         const value = button.querySelector('strong');
         if (value) value.textContent = values[button.dataset.factKey] || '';
       });
-      const action = document.createElement('a');
-      action.className = 'button button--primary experience-primary';
-      action.dataset.clientExperiencePrimary = '';
-      action.href = '/pay/dep_storybook123';
-      action.textContent = 'Pay deposit';
-      home.appendChild(action);
+      const action = home.querySelector('[data-client-experience-primary]');
+      if (action) { action.href = '/pay/dep_storybook123'; action.textContent = 'Pay deposit'; }
     }
     const voucher = surface.querySelector('[data-welcome-voucher]');
     if (voucher) voucher.hidden = true;
@@ -477,12 +465,8 @@ export const AuthenticatedHomeSummaryActions = {
         const value = button.querySelector('strong');
         if (value) value.textContent = values[button.dataset.factKey] || '';
       });
-      const action = document.createElement('a');
-      action.className = 'button button--primary experience-primary';
-      action.dataset.clientExperiencePrimary = '';
-      action.href = '/my-shiloh/book';
-      action.textContent = 'Book an appointment';
-      home.appendChild(action);
+      const action = home.querySelector('[data-client-experience-primary]');
+      if (action) { action.href = '/my-shiloh/book'; action.textContent = 'Book an appointment'; }
     }
     const voucher = surface.querySelector('[data-welcome-voucher]');
     if (voucher) voucher.hidden = true;
