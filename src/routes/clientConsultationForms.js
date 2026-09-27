@@ -4,6 +4,8 @@ const express = require('express');
 const clientConsultationForms = require('../services/clientConsultationForms');
 const observability = require('../lib/observability');
 const { createConsultationFormTrialRouter } = require('./consultationFormTrial');
+const { createClinicIpadCheckinService } = require('../services/clinicIpadCheckin');
+const { parseCookieValue } = require('../middleware/staffBrowserSession');
 const {
   renderClientConsultationFormPage,
   renderCompletedPage,
@@ -68,6 +70,7 @@ function createClientConsultationFormsRouter({
   trialService,
   trialLog,
   monitor = observability,
+  clinicCheckin = createClinicIpadCheckinService(),
 } = {}) {
   const router = express.Router();
 
@@ -92,15 +95,41 @@ function createClientConsultationFormsRouter({
     fallthrough: false,
   }));
 
+  async function clinicAccess(req, res) {
+    if (String(env.SHILOH_CLINIC_IPAD_CHECKIN_ENABLED).toLowerCase() !== 'true') return { kiosk:false };
+    const access = await clinicCheckin.formAccess(
+      req.params.accessToken,parseCookieValue(req.headers.cookie,'shiloh_checkin_form'));
+    if (access.kiosk && !access.allowed) {
+      res.status(410).type('html').send(renderUnavailable({ message:'This iPad session has ended. Please ask reception to start again.' }));
+    }
+    return access;
+  }
+
+  function clinicFormMarkup(markup, access) {
+    if (!access.kiosk) return markup;
+    return markup.replace(/autocomplete="[^"]*"/g,'autocomplete="off"')
+      .replace('data-client-consultation-form novalidate','data-client-consultation-form autocomplete="off" novalidate')
+      .replace('</body>', '<script src="/forms/assets/clinic-ipad-reset.js" defer></script></body>');
+  }
+
+  async function finishClinicForm(req,res) {
+    await clinicCheckin.finishForm(req.params.accessToken,
+      parseCookieValue(req.headers.cookie,'shiloh_checkin_form'));
+    res.append('Set-Cookie',`shiloh_checkin_form=; Path=/forms; HttpOnly; SameSite=Strict; Max-Age=0${String(env.NODE_ENV).toLowerCase()==='production'?'; Secure':''}`);
+    return res.redirect(303,'/check-in/thank-you');
+  }
+
   router.get('/f/:accessToken', async (req, res) => {
     try {
+      const access = await clinicAccess(req,res);
+      if (access.kiosk && !access.allowed) return;
       const model = await service.openForm(req.params.accessToken);
-      if (model.completed) return res.status(200).type('html').send(renderCompleted());
-      return res.status(200).type('html').send(renderForm({
+      if (model.completed) return access.kiosk ? finishClinicForm(req,res) : res.status(200).type('html').send(renderCompleted());
+      return res.status(200).type('html').send(clinicFormMarkup(renderForm({
         ...model,
         accessToken: req.params.accessToken,
         submissionProof: submissionProof(req.params.accessToken, env),
-      }));
+      }),access));
     } catch (error) {
       const safe = safeError(error);
       if (safe.status === 503) monitor.captureException(error, { 'error.kind': 'client_form_unavailable', 'error.code': 'FORM_OPEN_UNAVAILABLE', 'http.method': 'GET', 'http.route': '/forms/f/:accessToken' });
@@ -113,6 +142,10 @@ function createClientConsultationFormsRouter({
     limit: '96kb',
     parameterLimit: 250,
   }), async (req, res) => {
+    let access;
+    try { access = await clinicAccess(req,res); }
+    catch (error) { return res.status(503).type('html').send(renderUnavailable({ message:'Forms are temporarily unavailable.' })); }
+    if (access.kiosk && !access.allowed) return;
     if (!sameOriginSubmission(req) && !validSubmissionProof(req.params.accessToken, req.body?.submission_proof, env)) {
       try {
         const form = await service.openForm(req.params.accessToken);
@@ -123,20 +156,21 @@ function createClientConsultationFormsRouter({
     try {
       const { submission_proof: _submissionProof, ...answers } = req.body || {};
       await service.submitForm(req.params.accessToken, answers);
+      if (access.kiosk) return finishClinicForm(req,res);
       return res.status(200).type('html').send(renderCompleted());
     } catch (error) {
       if (Number(error?.httpStatus) === 422) {
         try {
           const model = await service.openForm(req.params.accessToken);
           if (model.completed) return res.status(200).type('html').send(renderCompleted());
-          return res.status(422).type('html').send(renderForm({
+          return res.status(422).type('html').send(clinicFormMarkup(renderForm({
             ...model,
             accessToken: req.params.accessToken,
             submissionProof: submissionProof(req.params.accessToken, env),
             values: error.values || {},
             fieldErrors: error.fieldErrors || {},
             formError: error.message,
-          }));
+          }),access));
         } catch (_reloadError) {
           return res.status(404).type('html').send(renderUnavailable({ message: 'This consultation form link is not available.' }));
         }

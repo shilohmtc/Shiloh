@@ -42,6 +42,7 @@ const webhookRoutes = require("./src/routes/webhook");
 const adminRoutes = require("./src/routes/admin");
 const auditReadRoutes = require("./src/routes/auditRead");
 const calendarRoutes = require("./src/routes/calendar");
+const { createClinicIpadPublicRouter } = require('./src/routes/clinicIpadCheckin');
 const walkinRoutes = require("./src/routes/walkin");
 const bookRoutes = require("./src/routes/book");
 const { router: myShilohRoutes } = require("./src/routes/myShiloh");
@@ -79,7 +80,7 @@ app.use("/assets/pwa", express.static(path.join(__dirname, "public", "assets", "
 app.use("/assets/website", express.static(path.join(__dirname, "public", "assets", "website"), { maxAge: "30d", immutable: true }));
 app.get("/health", async (req, res) => { const ok = await checkDatabase(); return res.status(ok ? 200 : 503).json({ status: ok ? "ok" : "degraded", database: ok ? "ok" : "unavailable", timestamp: new Date().toISOString() }); });
 const paymentProviderRouter = createPaymentProviderRouter();
-app.use("/payments", createPaymentReturnRouter()); app.use("/payments/providers", paymentProviderRouter); app.use("/", paymentProviderRouter); app.use("/pay", createPaymentLinkRouter()); app.use("/audit-read", auditReadRoutes); app.use("/admin", adminRoutes); app.use("/calendar", calendarRoutes); app.use("/forms", createClientConsultationFormsRouter()); app.use("/", myShilohRoutes); app.use("/", publicWebsiteRoutes); app.use("/", serviceRoutes); app.use("/", walkinRoutes); app.use("/", bookRoutes); app.use("/", webhookRoutes);
+app.use("/payments", createPaymentReturnRouter()); app.use("/payments/providers", paymentProviderRouter); app.use("/", paymentProviderRouter); app.use("/pay", createPaymentLinkRouter()); app.use("/audit-read", auditReadRoutes); app.use("/admin", adminRoutes); app.use("/calendar", calendarRoutes); app.use('/check-in', createClinicIpadPublicRouter()); app.use("/forms", createClientConsultationFormsRouter()); app.use("/", myShilohRoutes); app.use("/", publicWebsiteRoutes); app.use("/", serviceRoutes); app.use("/", walkinRoutes); app.use("/", bookRoutes); app.use("/", webhookRoutes);
 app.use((err, req, res, next) => {
   const log = req.log || logger;
   const route = `${req.baseUrl || ""}${req.route?.path || ""}` || "unmatched";

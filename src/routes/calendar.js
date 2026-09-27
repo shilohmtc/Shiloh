@@ -33,6 +33,7 @@ const { createWorkspaceOperationalRouter } = require('./workspaceOperational');
 const { createWorkspaceMessagesRouter } = require('./workspaceMessages');
 const { createWorkspaceProblemReportsRouter } = require('./workspaceProblemReports');
 const { createWorkspacePwaRouter, createWorkspacePwaHtmlMiddleware } = require('./workspacePwa');
+const { createClinicIpadSetupRouter } = require('./clinicIpadCheckin');
 const { calendarPhoneCompactV2ClientScript } = require('../presentation/calendarPhoneCompactV2');
 const { calendarPhoneAllStaffClientScript } = require('../presentation/calendarPhoneAllStaffUx');
 const { calendarAppointmentDetailsClientScript } = require('../presentation/calendarAppointmentDetailsUx');
@@ -84,6 +85,7 @@ router.use('/pwa', createWorkspacePwaRouter({ sessionService: staffBrowserSessio
 router.use('/staff-auth/passkeys', createStaffPasskeyBootstrapRouter());
 router.use('/staff-auth/passkeys', createStaffPasskeyAuthRouter({ sessionService: staffBrowserSessionService }));
 router.use('/staff-auth', createStaffBrowserSessionRouter({ service: staffBrowserSessionService }));
+router.use('/check-in', createClinicIpadSetupRouter({ sessionService:staffBrowserSessionService }));
 router.use('/staff', staffCalendarAccessUxRoutes);
 router.use('/client-authority', createOperatorContactAuthorityRouter({ sessionService: staffBrowserSessionService }));
 router.use('/book/past', createCalendarRetrospectiveBookingRouter({ sessionService: staffBrowserSessionService }));

@@ -276,6 +276,49 @@ test('a due assignment sends only appointment context plus the opaque URL token,
   assert.equal(String(audit.values[2] || '').includes(token), false);
 });
 
+test('manual staff delivery uses the same approved template once and records the operator', async () => {
+  const sends=[],audits=[],queries=[];
+  let state='not_sent';
+  const client={query:async (sql)=>{
+    if (sql==='BEGIN'||sql==='COMMIT'||sql==='ROLLBACK') return {};
+    if (sql.includes('pg_try_advisory_xact_lock')) return {rows:[{acquired:true}]};
+    throw new Error(`Unexpected transaction query: ${sql}`);
+  },release:()=>{}};
+  const db={connect:async()=>client,query:async(sql,values=[])=>{
+    queries.push({sql,values});
+    if (sql.includes('consultationFormDelivery:context')) return {rows:state==='not_sent'?[{
+      assignment_id:7,appointment_id:101,template_version_id:12,starts_at:'2026-09-24T12:30:00Z',
+      service_name:'Hot Stone Massage',
+    }]:[]};
+    if (sql.includes('UPDATE consultation_form_assignments')) {state='sent';return {rowCount:1};}
+    if (sql.includes('INSERT INTO crm_audit_events')) {audits.push({sql,values});return {rowCount:1};}
+    throw new Error(`Unexpected delivery query: ${sql}`);
+  }};
+  const service=delivery.createConsultationFormDeliveryService({db,
+    env:{SHILOH_CONSULTATION_FORM_DELIVERY_ENABLED:'true',SHILOH_CONSULTATION_FORM_DELIVERY_NOT_BEFORE:'2026-09-17T07:00:00Z'},
+    formService:enabledFormService(),assertSendAllowed:async()=>{},
+    loadAuthority:async()=>({identity_model:'crm_v2',crm_v2_client_id:55,client_phone:'27821234567',client_name_snapshot:'Naledi Mokoena'}),
+    initialFailure:()=>null,sendTemplate:async(...args)=>{sends.push(args);return {messages:[{id:'wamid.1'}]};},
+    now:()=>new Date('2026-09-17T08:00:00Z'),
+  });
+  assert.equal((await service.sendAssignmentNow(7,{actorAdminId:2})).sent,true);
+  assert.deepEqual(await service.sendAssignmentNow(7,{actorAdminId:3}),{sent:false,reason:'assignment_not_due'});
+  assert.equal(sends.length,1);
+  assert.equal(audits.some(a=>a.sql.includes('consultation_form.manual_send')&&a.values[0]===2),true);
+  assert.equal(queries.filter(q=>q.sql.includes('consultationFormDelivery:context')).every(q=>q.values.length===2),true);
+});
+
+test('a concurrently held delivery lock prevents a second WhatsApp send',async()=>{
+  let touched=false;
+  const service=delivery.createConsultationFormDeliveryService({
+    db:{connect:async()=>({query:async sql=>sql.includes('pg_try_advisory_xact_lock')
+      ? {rows:[{acquired:false}]}:{},release:()=>{}}),
+    query:async()=>{touched=true;throw new Error('Delivery must not start');}},
+  });
+  assert.deepEqual(await service.sendAssignmentNow(7,{actorAdminId:2}),{sent:false,reason:'already_sending'});
+  assert.equal(touched,false);
+});
+
 test('delivery source stays mapping-driven, avoids plaintext health payloads and suppresses uncertain automatic retries', () => {
   assert.match(deliverySource, /consultation_form_service_mappings/);
   assert.match(deliverySource, /status='not_sent'/);

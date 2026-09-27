@@ -13,13 +13,15 @@ function decorate(html) {
     .replace('<span class="truth-note">View only</span>', '<span class="truth-note">Client management</span>');
 }
 
-function injectClientListManagement(html, model) {
+function injectClientListManagement(html, model, { checkinEnabled = false } = {}) {
   if (model?.manageAllowed !== true) return html;
   const tenant = isTenantClientBase(model);
   const note = tenant
     ? 'Adds this person to your client list. If Shiloh already knows this mobile number, the same client profile is used without exposing another client list.'
     : 'Adds this person to the clinic client list. If Shiloh already knows this mobile number, the existing client profile is used.';
-  const panel = `<section class="client-manage-panel" data-client-create-panel data-tenant-client-base="${tenant ? 'true' : 'false'}"><span class="eyebrow">New client</span><h2>Add client</h2><p class="client-manage-status" role="status" aria-live="polite" data-client-operation-status></p><form data-client-create-form><div class="client-manage-grid"><div class="field"><label for="new-client-name">Name</label><input id="new-client-name" name="name" required maxlength="120" autocomplete="name"></div><div class="field"><label for="new-client-mobile">Mobile</label><input id="new-client-mobile" name="mobile" required inputmode="tel" autocomplete="tel" placeholder="082 123 4567"></div></div><div class="client-manage-actions"><button class="button primary" type="submit">Add client</button></div></form><p class="manage-note">${escapeHtml(note)}</p></section>`;
+  const checkin = !tenant && checkinEnabled
+    ? '<p class="manage-note"><a href="/calendar/check-in/devices">Manage clinic iPad check-in and appointment forms</a></p>' : '';
+  const panel = `<section class="client-manage-panel" data-client-create-panel data-tenant-client-base="${tenant ? 'true' : 'false'}"><span class="eyebrow">New client</span><h2>Add client</h2><p class="client-manage-status" role="status" aria-live="polite" data-client-operation-status></p><form data-client-create-form><div class="client-manage-grid"><div class="field"><label for="new-client-name">Name</label><input id="new-client-name" name="name" required maxlength="120" autocomplete="name"></div><div class="field"><label for="new-client-mobile">Mobile</label><input id="new-client-mobile" name="mobile" required inputmode="tel" autocomplete="tel" placeholder="082 123 4567"></div></div><div class="client-manage-actions"><button class="button primary" type="submit">Add client</button></div></form><p class="manage-note">${escapeHtml(note)}</p>${checkin}</section>`;
   return decorate(html)
     .replace('<main data-clients-list-view>', `<main data-clients-list-view data-tenant-client-base="${tenant ? 'true' : 'false'}">${panel}`)
     .replace('This page is view only. Client editing and messaging are not available here.', tenant
