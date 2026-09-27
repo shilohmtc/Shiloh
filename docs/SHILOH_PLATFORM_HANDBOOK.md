@@ -19,15 +19,15 @@ Shiloh is one clinic platform with several connected surfaces:
 | --- | --- | --- |
 | Public website and booking | Public information and client booking entry point | Repository application and canonical Services/booking authorities |
 | My Shiloh | Client-facing account, booking and care experience | Repository routes, services, migrations and relevant tests |
-| Reception iPad check-in | Client-only walk-in intake and appointment-bound forms; accepted direction, not live | [Issue #1198](https://github.com/shilohmtc/Shiloh/issues/1198), CRM V2 and consultation-form authorities |
+| Reception iPad check-in | Client-only walk-in intake and appointment-bound forms; supervised device pilot live, client acceptance pending | [Issue #1198](https://github.com/shilohmtc/Shiloh/issues/1198), CRM V2 and consultation-form authorities |
 
 | Shiloh Workspace | Authenticated staff operations | Repository routes, permissions, Workspace UI and production evidence |
 | Shiloh AI Assistant | Customer-facing WhatsApp conversations and workflow entry | Meta/WhatsApp integration, assistant services and business policies |
 | Shiloh CRM | Client, booking and operational records | PostgreSQL schema, migrations and repository services |
 | Render | Hosting, runtime, deployment and managed PostgreSQL | Render service/deployment state and repository release evidence |
 
-The iPad intake is gated by `SHILOH_CLINIC_IPAD_CHECKIN_ENABLED` and defaults off. The flag stays off until the release quality gates and the real-device handoff checks in issue #1198 are complete. This is a release status, not a clinic policy.
-The production deployment must apply `165_clinic_ipad_checkin.sql` through the existing controlled-release migration authority. Coordinate the Render deployment so the new release and `SHILOH_CONTROLLED_RELEASE_MIGRATION=165_clinic_ipad_checkin.sql` arrive together; setting that value against an older release or deploying the migration without it will fail the startup guard.
+The iPad intake is gated by `SHILOH_CLINIC_IPAD_CHECKIN_ENABLED` and defaults off in new environments. It is on in production for supervised testing as of 27 September 2026. An unactivated iPad receives only a setup message. Real-device privacy checks and separate Christel/Reception account acceptance in issue #1198 must pass before clients use the iPad. This is release status, not a clinic policy.
+Production applied `165_clinic_ipad_checkin.sql` in the controlled release of #1199 and cleared `SHILOH_CONTROLLED_RELEASE_MIGRATION` afterward. Keep this setting blank between releases; setting it against an older release or deploying a pending migration without its matching authority can fail startup.
 
 ## System map
 
