@@ -286,6 +286,15 @@ export const DashboardActiveNoShow = { render: () => interactiveProductionSurfac
 export const NavigationDrawerOpen = { render: workspaceNavigationOpenStory };
 export const ClientAppointmentHistory = { render: () => productionSurface(renderClientDetailPageWithCommunications(clientModel(), { calendarNavigationAllowed: true, notificationActionAllowed: true })) };
 export const MessagesAttention = { render: () => productionSurface(renderMessagesPage(messagesModel())) };
+export const MessagesChangeDeliveryAttention = {
+  render: () => productionSurface(renderMessagesPage({
+    ...messagesModel(), selectedView:'attention', attention:[],
+    changeAttention:[{ id:701,appointmentId:668,clientId:912,clientName:'Michelle Sardinha',
+      label:'Appointment update',status:'uncertain',statusLabel:'Send status uncertain',
+      updatedAt:'2026-09-27T07:00:00.000Z',
+      nextAction:'Check the client communication record before any new send. WhatsApp may have accepted the previous attempt.' }],
+  })),
+};
 export const CompactAppointmentEditor = { render: editorStory };
 export const CreateBooking = {
   render: () => {
