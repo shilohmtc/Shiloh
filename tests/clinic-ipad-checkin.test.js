@@ -263,7 +263,7 @@ test('iPad activates using a staff-created code without signing in to Workspace'
     const setup=await fetch(`${base}/check-in/`);
     assert.equal(setup.status,401);
     const html=await setup.text();
-    assert.match(html,/Create setup code/);
+    assert.match(html,/Show setup QR code/);
     assert.doesNotMatch(html,/sign in to Workspace/);
     const nonce=html.match(/name="setupNonce" value="([A-Za-z0-9_-]{43})"/)[1];
     const setupCookie=setup.headers.getSetCookie().find(value=>value.startsWith('shiloh_checkin_setup='));
@@ -295,6 +295,82 @@ test('only an authenticated staff Workspace session can create a setup code',asy
     assert.equal(response.headers.get('cache-control'),'private, no-store, max-age=0');
     assert.doesNotMatch(response.headers.getSetCookie().join('\n'),/shiloh_checkin_device/);
   }finally{await new Promise(resolve=>server.close(resolve));}
+});
+
+test('QR pairing approves only on a staff phone and activates only the waiting iPad',async()=>{
+  const pairId='c'.repeat(22);let approved=false;
+  const service={
+    deviceFor:async token=>approved&&token===rawDevice?{id:9}:null,
+    startPair:async()=>({pairId,token:rawDevice}),
+    pairFor:async(token,id)=>token===rawDevice&&id===pairId?{device_id:approved?9:null}:null,
+    pairDetails:async(adminId,id)=>adminId===7&&id===pairId?{device_id:approved?9:null}:null,
+    approvePair:async(adminId,id)=>{
+      assert.equal(adminId,7);assert.equal(id,pairId);
+      if(approved)throw new Error('Replay');
+      approved=true;return {deviceId:9};
+    },
+  };
+  const app=express();app.use(express.json());
+  app.use('/check-in',createClinicIpadPublicRouter({env:{SHILOH_CLINIC_IPAD_CHECKIN_ENABLED:'true'},service}));
+  app.use('/calendar/check-in',createClinicIpadSetupRouter({
+    env:{SHILOH_CLINIC_IPAD_CHECKIN_ENABLED:'true'},service,
+    sessionService:{validateSessionToken:async token=>token==='staff'?{ok:true,adminId:7,sessionId:11}:{ok:false},validateCsrfToken:async()=>true},
+  }));
+  const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
+  const base=`http://127.0.0.1:${server.address().port}`;
+  try{
+    const screen=await fetch(`${base}/check-in/pair`);
+    assert.equal(screen.status,200);
+    const html=await screen.text();
+    assert.match(html,/<svg/);assert.match(html,/Scan with a staff phone/);
+    assert.doesNotMatch(html,new RegExp(rawDevice));
+    const pairCookie=screen.headers.getSetCookie().find(s=>s.startsWith('shiloh_checkin_pair=')).split(';')[0];
+    assert.equal((await fetch(`${base}/calendar/check-in/approve-pair?pair=${pairId}`)).status,401);
+    const phone=await fetch(`${base}/calendar/check-in/approve-pair?pair=${pairId}`,{headers:{Cookie:'shiloh_staff_session=staff'}});
+    assert.equal(phone.status,200);assert.match(await phone.text(),/Approve iPad/);
+    const denied=await fetch(`${base}/calendar/check-in/approve-pair`,{method:'POST',headers:{Origin:base,'Content-Type':'application/json'},body:JSON.stringify({pairId})});
+    assert.notEqual(denied.status,200);assert.equal(approved,false);
+    const allowed=await fetch(`${base}/calendar/check-in/approve-pair`,{method:'POST',headers:{Origin:base,Cookie:'shiloh_staff_session=staff','X-Shiloh-Csrf-Token':'proof','Content-Type':'application/json'},body:JSON.stringify({pairId})});
+    assert.equal(allowed.status,200);assert.equal(approved,true);
+    const completed=await fetch(`${base}/check-in/pair`,{headers:{Cookie:pairCookie},redirect:'manual'});
+    assert.equal(completed.status,303);assert.equal(completed.headers.get('location'),'/check-in/');
+    assert.match(completed.headers.getSetCookie().join('\n'),/shiloh_checkin_device=.*HttpOnly/);
+  }finally{await new Promise(resolve=>server.close(resolve));}
+});
+
+test('QR approval is one-use, expires, and stores only the iPad token digest',async()=>{
+  const pairId='c'.repeat(22),events=[];let pending=null;
+  let clock=new Date('2026-09-27T09:00:00Z');
+  const query=async(sql,args=[])=>{
+    events.push(sql);
+    if(sql==='BEGIN'||sql==='COMMIT'||sql==='ROLLBACK')return {rowCount:0,rows:[]};
+    if(sql.includes('INSERT INTO clinic_checkin_pairings')){
+      pending={pairId:args[0],hash:args[1],expires:args[2],approved:false};
+      return {rowCount:1,rows:[]};
+    }
+    if(sql.includes('SELECT device_id FROM clinic_checkin_pairings'))
+      return pending&&args[0]===pairId&&args[1]===pending.hash&&pending.expires>args[2]
+        ?{rowCount:1,rows:[{device_id:pending.approved?9:null}]}:{rowCount:0,rows:[]};
+    if(sql.includes('SELECT device_token_hash FROM clinic_checkin_pairings'))
+      return pending&&args[0]===pairId&&pending.expires>args[1]&&!pending.approved
+        ?{rowCount:1,rows:[{device_token_hash:pending.hash}]}:{rowCount:0,rows:[]};
+    if(sql.includes('INSERT INTO clinic_checkin_devices')){assert.equal(args[0],pending.hash);return {rowCount:1,rows:[{id:9}]};}
+    if(sql.includes('UPDATE clinic_checkin_pairings')){pending.approved=true;return {rowCount:1,rows:[]};}
+    throw new Error(`Unexpected query: ${sql}`);
+  };
+  const service=createClinicIpadCheckinService({db:{query,connect:async()=>({query,release(){}})},
+    now:()=>clock,randomPairId:()=>pairId,randomToken:()=>rawDevice,
+    clientMutations:{resolveManageAccess:async id=>id===7?{operatorAdminId:7,clientScope:{kind:'clinic'}}:null}});
+  assert.deepEqual(await service.startPair(),{pairId,token:rawDevice});
+  assert.notEqual(pending.hash,rawDevice);
+  assert.equal((await service.pairFor(rawDevice,pairId)).device_id,null);
+  await assert.rejects(service.approvePair(8,pairId),{httpStatus:403});
+  assert.equal((await service.approvePair(7,pairId)).deviceId,9);
+  assert.equal((await service.pairFor(rawDevice,pairId)).device_id,9);
+  await assert.rejects(service.approvePair(7,pairId),{httpStatus:409});
+  clock=new Date('2026-09-27T09:06:00Z');
+  assert.equal(await service.pairFor(rawDevice,pairId),null);
+  assert.ok(events.includes('COMMIT'));
 });
 
 test('activation clears staff and client cookies before handing the iPad to a visitor',async () => {
