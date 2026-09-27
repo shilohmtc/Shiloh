@@ -134,6 +134,7 @@ async function generateReply(phone, message, {
   conversationKey = phone,
   profileOverride,
   clientContext = null,
+  whatsappContinuation = null,
   surface = "whatsapp",
   tools = [],
   toolExecutor = null,
@@ -173,6 +174,7 @@ async function generateReply(phone, message, {
     knowledge: authoritativeKnowledge,
     clientContext,
     surface,
+    whatsappContinuation,
   });
   const enabledTools = Array.isArray(tools) && typeof toolExecutor === 'function' ? tools : [];
   const request = {

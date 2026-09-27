@@ -32,6 +32,7 @@ const { defaultPushService } = require('../services/myShilohPush');
 const { createMyShilohBookingService, MyShilohBookingError } = require('../services/myShilohBooking');
 const { createClientPlanningRequestService, ClientPlanningRequestError } = require('../services/clientPlanningRequests');
 const { createClientHumanHandoffService, ClientHumanHandoffError } = require('../services/clientHumanHandoffs');
+const { createClientWhatsAppContinuationService } = require('../services/clientWhatsAppContinuation');
 const { POLICY_TEXT } = require('../services/bookingPolicy');
 const {
   sameOriginGuard,
@@ -96,7 +97,7 @@ function createMyShilohRouter({
   catalogueProvider = getPublicServiceCatalogue,
   authUrlBuilder = defaultAuthUrlBuilder,
   experienceService = createMyShilohExperienceOrchestrator(),
-  assistantService = createMyShilohAssistantService(),
+  assistantService = createMyShilohAssistantService({ continuationService:createClientWhatsAppContinuationService({ db:pool }) }),
   actionService = createMyShilohClientActionService(),
   formActionService = createMyShilohConsultationFormActionService(),
   formService = clientConsultationForms,
@@ -109,6 +110,7 @@ function createMyShilohRouter({
   bookingService = createMyShilohBookingService({ db: pool, catalogueProvider }),
   planningService = createClientPlanningRequestService({ db: pool }),
   humanHandoffService = createClientHumanHandoffService({ db: pool }),
+  continuationService = createClientWhatsAppContinuationService({ db: pool }),
 } = {}) {
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
@@ -743,6 +745,29 @@ function createMyShilohRouter({
       }
       return next(error);
     }
+  });
+
+  router.get('/my-shiloh/api/shiloh/whatsapp-continuation', requireSession, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const available = await continuationService.available({ crmV2ClientId:req.myShilohClientSession.crmV2ClientId });
+      return res.status(200).json({ available });
+    } catch (error) { return next(error); }
+  });
+
+  router.post('/my-shiloh/api/shiloh/whatsapp-continuation', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      if (await humanHandoffService.activeForClient(req.myShilohClientSession.crmV2ClientId)) {
+        return res.status(409).json({ error:'Reception is helping you now. Continue with them on WhatsApp.' });
+      }
+      const exchange = await continuationService.claim({
+        crmV2ClientId:req.myShilohClientSession.crmV2ClientId,
+        sessionId:req.myShilohClientSession.sessionId,
+      });
+      if (!exchange) return res.status(404).json({ error:'That recent WhatsApp conversation is no longer available.' });
+      return res.status(200).json({ exchange });
+    } catch (error) { return next(error); }
   });
 
   router.post('/my-shiloh/api/actions/confirm', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {

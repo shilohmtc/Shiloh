@@ -26,8 +26,10 @@ const { hybridizeChoiceInteractive } = require("../presentation/whatsappChoicePr
 const { forceMatchedClientNameConfirmation } = require("../services/identityOnboardingGuard");
 const { processWhatsAppMessage: processProblemReportMessage } = require("../services/problemReports");
 const { createClientHumanHandoffService } = require("../services/clientHumanHandoffs");
+const { createClientWhatsAppContinuationService } = require("../services/clientWhatsAppContinuation");
 const logger = require("../lib/logger");
 const humanHandoffs = createClientHumanHandoffService();
+const whatsappContinuation = createClientWhatsAppContinuationService();
 function maskPhone(phone = "") { return phone.length > 4 ? `***${phone.slice(-4)}` : "***"; }
 function isGreetingOnly(text = "") { return /^(hi|hello|hey|good morning|good afternoon|good evening|howzit|hiya)[!. ]*$/i.test(String(text).trim()); }
 function inboundText(message){
@@ -90,4 +92,6 @@ const bookingIdentity=await guardBookingConfirmationIdentity(from,text);if(booki
 const bookingPolicy=await processBookingPolicyMessage(from,text);if(bookingPolicy.handled){await sendWhatsAppMessage(from,bookingPolicy.reply);return res.sendStatus(200);}
 const booking=decorateClientBookingResult(await processBookingMessage(from,text));if(booking.handled){await sendAdminResult(from,booking.interactive?booking:{...booking,reply:sanitizeBookingReply(booking.reply)});return res.sendStatus(200);}
 await updateProfileFromMessage(from,text);const reply=await generateReply(from,text);await sendWhatsAppMessage(from,reply);
+try{await whatsappContinuation.record({mobile:from,clientMessage:text,shilohReply:reply});}
+catch(continuationError){log.error({err:continuationError,from:maskPhone(from)},"Could not save short-lived My Shiloh continuation");}
 }catch(error){log.error({err:error,from:maskPhone(from)},"Failed to process WhatsApp message");try{await sendWhatsAppMessage(from,"Sorry, I'm having trouble responding right now. Please try again in a moment.");}catch(fallbackError){log.error({err:fallbackError},"Failed to send WhatsApp fallback message");return res.sendStatus(500);}}return res.sendStatus(200);}catch(error){log.error({err:error},"Unhandled WhatsApp webhook error");return res.sendStatus(500);}};
