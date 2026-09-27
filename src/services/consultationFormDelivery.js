@@ -13,6 +13,7 @@ const { queueClientNotification } = require('./myShilohPush');
 
 const DELIVERY_FLAG = 'SHILOH_CONSULTATION_FORM_DELIVERY_ENABLED';
 const DELIVERY_NOT_BEFORE_FLAG = 'SHILOH_CONSULTATION_FORM_DELIVERY_NOT_BEFORE';
+const APP_ONLY_FLAG = 'SHILOH_CONSULTATION_FORM_APP_ONLY_ENABLED';
 const INITIAL_TEMPLATE = 'shiloh_consultation_form_v1';
 const INITIAL_CONTRACT = 'consultation_form';
 const TEMPLATE_LANGUAGE = 'en';
@@ -248,12 +249,13 @@ function createConsultationFormDeliveryService({
     );
   }
 
-  async function markUncertain(assignmentId, context, providerId = null) {
+  async function markUncertain(assignmentId, context, providerId = null, channel = 'whatsapp') {
     try {
       await audit('consultation_form.delivery_uncertain', assignmentId, {
         appointmentId: positiveId(context?.appointment_id),
         templateVersionId: positiveId(context?.template_version_id),
         providerMessageId: providerId,
+        channel,
       });
     } catch (error) {
       logger.error({ err: error, assignmentId }, 'Consultation form uncertain-delivery audit failed');
@@ -272,8 +274,6 @@ function createConsultationFormDeliveryService({
     if (!deliveryNotBefore) return { sent: false, reason: 'delivery_not_before_unconfigured' };
     if (manual && now()<deliveryNotBefore) return { sent:false,reason:'delivery_not_live' };
     formService.parseDataKey(env);
-    if (!contractPreflighted) await preflightTemplateSend(assertSendAllowed);
-
     const context = await loadAssignmentContext(id, { deliveryNotBefore, manual });
     if (!context) return { sent: false, reason: 'assignment_not_due' };
     const authority = await loadAuthority(context.appointment_id, db);
@@ -289,6 +289,70 @@ function createConsultationFormDeliveryService({
     const serviceName = String(context.service_name || '').trim();
     if (!date || !serviceName) return { sent: false, reason: 'appointment_context_incomplete' };
 
+    // Only a canonical app account with an active push subscription can use the
+    // direct form path. A failed wake retains the WhatsApp fallback.
+    if (!manual && env[APP_ONLY_FLAG] === 'true' && recipient.crmV2ClientId && pushNotify) {
+      const eligibility = await db.query(
+        `/* consultationFormDelivery:appEligibility */
+         SELECT a.id
+           FROM consultation_form_assignments a
+           JOIN appointments ap ON ap.id=a.appointment_id
+           JOIN consultation_form_template_versions tv ON tv.id=a.template_version_id
+           JOIN consultation_form_templates t ON t.id=tv.template_id AND t.status='active'
+          WHERE a.crm_v2_client_id=$1 AND a.client_id IS NULL
+            AND ap.crm_v2_client_id=$1 AND ap.client_id IS NULL
+            AND ap.status IN ('scheduled','confirmed')
+            AND a.status IN ('not_sent','sent','opened')
+            AND EXISTS (
+              SELECT 1 FROM my_shiloh_push_subscriptions s
+               WHERE s.crm_v2_client_id=$1 AND s.enabled=TRUE AND s.revoked_at IS NULL
+            )
+          ORDER BY ap.starts_at,a.id LIMIT 2`,
+        [recipient.crmV2ClientId]
+      );
+      // The authenticated form route intentionally refuses ambiguous assignments.
+      if (eligibility.rows.length === 1 && positiveId(eligibility.rows[0].id) === id) {
+        let pushAccepted = false;
+        try {
+          const push = await pushNotify({
+            crmV2ClientId: recipient.crmV2ClientId,
+            eventKey: `consultation-form:${id}:sent`,
+            category: 'forms',
+            title: 'Your consultation form is ready',
+            body: 'A Shiloh consultation form is ready to complete before your appointment.',
+            targetPath: '/my-shiloh/forms/complete',
+          });
+          pushAccepted = push?.queued === true && Number(push.accepted) > 0;
+          if (pushAccepted) {
+            const marked = await db.query(
+              `UPDATE consultation_form_assignments
+                  SET status='sent',sent_at=COALESCE(sent_at,$2),updated_at=$2
+                WHERE id=$1 AND status='not_sent'`,
+              [id, now()]
+            );
+            if (marked.rowCount !== 1) throw new Error('Consultation form app push accepted but sent transition failed');
+            await audit('consultation_form.sent', id, {
+              appointmentId: positiveId(context.appointment_id),
+              templateVersionId: positiveId(context.template_version_id),
+              channel: 'my_shiloh',
+              identityModel: recipient.identityModel,
+            });
+            return { sent: true, assignmentId: id, appointmentId: positiveId(context.appointment_id), channel: 'my_shiloh' };
+          }
+        } catch (error) {
+          if (pushAccepted) {
+            await markUncertain(id, context, null, 'my_shiloh');
+            throw error;
+          }
+          logger.warn({ err: error, assignmentId: id }, 'Consultation form app push failed; trying WhatsApp fallback');
+        }
+      }
+    }
+
+    if (!contractPreflighted) {
+      try { await preflightTemplateSend(assertSendAllowed); }
+      catch (_error) { return { sent: false, reason: 'template_not_ready' }; }
+    }
     const issued = await formService.issueAccessToken({ assignmentId: id });
     let providerAccepted = false;
     let acceptedProviderMessageId = null;
@@ -391,17 +455,20 @@ function createConsultationFormDeliveryService({
       return { enabled: true, deliveryEnabled: true, created: discovered.created, attempted: 0, sent: 0, reason: 'delivery_not_before_unconfigured' };
     }
 
-    try {
-      await preflightTemplateSend(assertSendAllowed);
-    } catch (_error) {
-      return { enabled: true, deliveryEnabled: true, created: discovered.created, attempted: 0, sent: 0, reason: 'template_not_ready' };
+    const appOnly = env[APP_ONLY_FLAG] === 'true';
+    if (!appOnly) {
+      try {
+        await preflightTemplateSend(assertSendAllowed);
+      } catch (_error) {
+        return { enabled: true, deliveryEnabled: true, created: discovered.created, attempted: 0, sent: 0, reason: 'template_not_ready' };
+      }
     }
 
     const due = await dueAssignmentIds({ deliveryNotBefore });
     const results = [];
     for (const assignmentId of due) {
       try {
-        results.push(await sendAssignmentLocked(assignmentId, { contractPreflighted: true }));
+        results.push(await sendAssignmentLocked(assignmentId, { contractPreflighted: !appOnly }));
       } catch (error) {
         logger.error({ err: error, assignmentId }, 'Consultation form delivery attempt failed');
         results.push({ sent: false, assignmentId, reason: error?.response ? 'provider_rejected' : 'delivery_uncertain' });
@@ -464,6 +531,7 @@ function startConsultationFormDeliveryScheduler() {
 module.exports = {
   DELIVERY_FLAG,
   DELIVERY_NOT_BEFORE_FLAG,
+  APP_ONLY_FLAG,
   INITIAL_TEMPLATE,
   INITIAL_CONTRACT,
   TEMPLATE_LANGUAGE,
