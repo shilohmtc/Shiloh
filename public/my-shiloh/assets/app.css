@@ -163,10 +163,10 @@ h3{font-size:20px;line-height:1.12}
 }
 .bottom-nav a{
   min-height:57px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-  border-radius:14px;text-decoration:none;color:#5d6861;font-size:9px;font-weight:850;letter-spacing:.02em;
+  border-radius:14px;text-decoration:none;color:#5d6861;font-size:11px;font-weight:800;letter-spacing:.01em;
 }
-.bottom-nav a[aria-current="page"]{color:var(--leaf-dark);background:rgba(223,232,220,.47)}
-.nav-icon{font-size:19px;line-height:1}
+.bottom-nav a[aria-current="page"]{color:var(--leaf-dark);background:#e4ebe0}
+.nav-icon{display:block;flex:none}
 .nav-shiloh{position:relative;grid-column:3}
 .nav-orb{display:grid;place-items:center;width:35px;height:35px;margin-top:-17px;border-radius:50%;background:#faf7f0 url('/my-shiloh/assets/icon-192.png') center/cover no-repeat;color:transparent;border:4px solid var(--paper);box-shadow:0 6px 18px rgba(46,64,51,.25);font-size:0}
 .wallet-intro{padding-bottom:12px}.wallet-stack{display:grid;gap:12px}.wallet-stack .quiet-card{margin:0}.wallet-stack .quiet-card .eyebrow{color:var(--leaf-dark)}.wallet-stack .quiet-card p:last-child{color:#4f5d56}.wallet-stack+.section-block{margin-top:24px}

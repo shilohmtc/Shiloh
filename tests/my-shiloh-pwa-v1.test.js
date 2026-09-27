@@ -45,6 +45,9 @@ test('My Shiloh renders the approved five-tab PWA shell with public-safe service
   assert.match(html, /data-view-target="shiloh"/);
   assert.match(html, /data-view-target="wallet"/);
   assert.match(html, /data-view-target="profile"/);
+  for (const icon of ['home', 'calendar', 'wallet', 'person']) {
+    assert.match(html, new RegExp(`data-shiloh-icon="${icon}"`));
+  }
   assert.doesNotMatch(html, /data-notification-badge|nav-icon--badged/);
   assert.match(html, /id="wallet" data-view="wallet"/);
   assert.match(html, /Your Shiloh value, together/);

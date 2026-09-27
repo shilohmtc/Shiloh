@@ -14,6 +14,8 @@ test('My Shiloh home starts without a duplicate header on phone and desktop', as
       await expect(frame.locator('[data-view="home"] h1')).toBeVisible();
       await expect(frame.locator('[data-view-target="shiloh"]')).toContainText('Shiloh');
       await expect(frame.locator('[data-view-target="home"]')).toContainText('Home');
+      await expect(frame.locator('.bottom-nav .nav-icon')).toHaveCount(4);
+      await expect(frame.locator('.bottom-nav [aria-current="page"]')).toHaveCSS('font-size', '11px');
       const accessibility = await new AxeBuilder({ page }).include('[data-view="home"] .hero').include('.bottom-nav').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
       expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
       await page.screenshot({ path:testInfo.outputPath(`my-shiloh-headerless-${state}-${viewport.name}.png`), fullPage:true, animations:'disabled' });
