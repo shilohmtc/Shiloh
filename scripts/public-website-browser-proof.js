@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
+const { APP_ORIGIN } = require('../src/config/publicOrigins');
 const { renderHome, renderTreatments } = require('../src/services/publicWebsite');
 const { renderBookingPage } = require('../src/services/publicBookingPageEditorial');
 
@@ -144,7 +145,7 @@ async function run() {
     const phoneInstall = phone.locator('[data-my-shiloh-install-link]');
     if (!(await phoneInstall.isVisible()))
       throw new Error('Phone home must show Install My Shiloh');
-    if ((await phoneInstall.getAttribute('href')) !== '/my-shiloh/')
+    if ((await phoneInstall.getAttribute('href')) !== `${APP_ORIGIN}/my-shiloh/`)
       throw new Error('Phone My Shiloh install entry must use the canonical My Shiloh route');
     if ((await phoneInstall.evaluate((node) => node.getBoundingClientRect().height)) < 44)
       throw new Error('Phone My Shiloh install action must be at least 44px high');
@@ -213,7 +214,7 @@ async function run() {
       throw new Error('Desktop local story neighbour chips must link to Google Maps');
     if (!(await desktop.locator('[data-my-shiloh-install-link]').isVisible()))
       throw new Error('Desktop home must show Install My Shiloh');
-    if ((await desktop.locator('[data-my-shiloh-install-link]').getAttribute('href')) !== '/my-shiloh/')
+    if ((await desktop.locator('[data-my-shiloh-install-link]').getAttribute('href')) !== `${APP_ORIGIN}/my-shiloh/`)
       throw new Error('Desktop My Shiloh install entry must use the canonical My Shiloh route');
     if ((await desktop.locator('[data-public-service-category]').count()) !== 7)
       throw new Error('Desktop home must show the seven public service families');
