@@ -269,6 +269,11 @@ h3{font-size:20px;line-height:1.12}
 .profile-editor__status{min-height:18px;margin:0 0 10px;color:var(--muted);font-size:11px;font-weight:750}
 .profile-editor__status[data-state="success"]{color:var(--leaf-dark)}
 .profile-editor__status[data-state="error"]{color:#8a413b}
+.passkey-device-list{list-style:none;margin:10px 0;padding:0}
+.passkey-device{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+.passkey-device strong,.passkey-device small{display:block}
+.passkey-device small{margin-top:4px;color:var(--muted)}
+.passkey-device .button{width:auto;min-width:88px}
 .profile-signout{margin-top:14px}
 
 .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}

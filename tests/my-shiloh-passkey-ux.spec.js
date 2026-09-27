@@ -18,6 +18,8 @@ test('passkey guest and profile paths remain usable on phone and desktop', async
 
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--passkey-profile&viewMode=story', { waitUntil: 'networkidle' });
     await expect(page.locator('[data-view="profile"] [data-passkey-enroll]')).toBeVisible();
+    await expect(page.locator('[data-view="profile"] [data-passkey-devices] .passkey-device')).toHaveCount(2);
+    await expect(page.getByRole('button', { name: 'Remove iPhone passkey' })).toBeVisible();
     await expect(page.locator('[data-view="profile"]')).toContainText('Signed in with a passkey');
     const profileAxe = await new AxeBuilder({ page }).include('[data-view="profile"]')
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();

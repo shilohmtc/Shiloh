@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-client-passkeys-v1';
+const MY_SHILOH_ASSET_VERSION = '20260927-client-passkey-devices-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -201,6 +201,9 @@ function renderMyShilohPage({
         <p>Save a passkey on this device, then use your screen lock to open My Shiloh next time. WhatsApp stays available if you need it.</p>
         <button class="button button--soft button--wide" type="button" data-passkey-enroll>Save a passkey</button>
         <p class="profile-editor__status" data-passkey-enroll-status role="status" aria-live="polite"></p>
+        <h3>Your saved passkeys</h3>
+        <div data-passkey-devices aria-live="polite">Loading saved passkeys…</div>
+        <p class="profile-editor__status" data-passkey-device-status role="status" aria-live="polite"></p>
       </section>` : ''}
       <section class="profile-editor" aria-labelledby="personal-details-title">
         <div class="profile-editor__heading">

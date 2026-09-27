@@ -50,6 +50,16 @@ function responseChallenge(response, origin, expectedType = 'webauthn.create') {
   return data.challenge;
 }
 
+function deviceLabel(userAgent) {
+  const agent = String(userAgent || '').slice(0, 512);
+  if (/iPad/i.test(agent)) return 'iPad';
+  if (/iPhone|iPod/i.test(agent)) return 'iPhone';
+  if (/Android/i.test(agent)) return 'Android device';
+  if (/Windows/i.test(agent)) return 'Windows device';
+  if (/Macintosh|Mac OS X/i.test(agent)) return 'Mac';
+  return 'Shiloh device';
+}
+
 function createClientPasskeyEnrollmentService({
   db = pool,
   env = process.env,
@@ -134,7 +144,7 @@ function createClientPasskeyEnrollmentService({
     }
   }
 
-  async function finish({ session, response, requestFingerprintHash = null } = {}) {
+  async function finish({ session, response, userAgent = '', requestFingerprintHash = null } = {}) {
     const p = policy();
     if (!p.operational) return unavailable(p);
     const current = now();
@@ -180,10 +190,10 @@ function createClientPasskeyEnrollmentService({
       }
       const inserted = await client.query(
         `INSERT INTO client_auth_passkey_credentials
-          (crm_v2_client_id, credential_id, public_key_spki, algorithm, sign_count, transports, backed_up)
-          VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7) RETURNING id`,
+          (crm_v2_client_id, credential_id, public_key_spki, algorithm, sign_count, transports, backed_up, device_label)
+          VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8) RETURNING id`,
         [session.crmV2ClientId, verified.credentialId, verified.publicKeySpki,
-          verified.algorithm, verified.signCount, JSON.stringify(verified.transports), verified.backedUp],
+          verified.algorithm, verified.signCount, JSON.stringify(verified.transports), verified.backedUp, deviceLabel(userAgent)],
       );
       await client.query(
         `INSERT INTO client_auth_security_events
@@ -203,8 +213,72 @@ function createClientPasskeyEnrollmentService({
     }
   }
 
-  return { policy, begin, finish };
+  async function list({ session } = {}) {
+    const p = policy();
+    if (!p.operational) return unavailable(p);
+    if (session?.ok !== true || !Number.isSafeInteger(Number(session.crmV2ClientId))) {
+      return { ok: false, code: 'CLIENT_SESSION_INVALID' };
+    }
+    const result = await db.query(
+      `SELECT id, device_label, created_at, last_used_at, backed_up
+         FROM client_auth_passkey_credentials
+        WHERE crm_v2_client_id = $1 AND revoked_at IS NULL ORDER BY created_at DESC, id DESC`,
+      [session.crmV2ClientId],
+    );
+    return { ok: true, devices: result.rows.map((row) => ({
+      id: Number(row.id), label: row.device_label, createdAt: row.created_at,
+      lastUsedAt: row.last_used_at, backedUp: row.backed_up,
+    })) };
+  }
+
+  async function revoke({ session, credentialId, requestFingerprintHash = null } = {}) {
+    const p = policy();
+    if (!p.operational) return unavailable(p);
+    const current = now();
+    if (!recentClientSession(session, current)) return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
+    if (!Number.isSafeInteger(credentialId) || credentialId <= 0) {
+      return { ok: false, code: 'CLIENT_PASSKEY_INVALID' };
+    }
+    const client = typeof db.connect === 'function' ? await db.connect() : db;
+    try {
+      await client.query('BEGIN');
+      const found = await client.query(
+        `SELECT id FROM client_auth_passkey_credentials
+          WHERE id = $1 AND crm_v2_client_id = $2 AND revoked_at IS NULL FOR UPDATE`,
+        [credentialId, session.crmV2ClientId],
+      );
+      if (found.rowCount !== 1) {
+        await client.query('ROLLBACK');
+        return { ok: false, code: 'CLIENT_PASSKEY_INVALID' };
+      }
+      await client.query('UPDATE client_auth_passkey_credentials SET revoked_at = $2 WHERE id = $1', [credentialId, current]);
+      // Legacy passkey sessions have no credential link. Revoke those for this
+      // client as well so removing a lost key cannot leave an old session open.
+      await client.query(
+        `UPDATE client_browser_sessions SET revoked_at = $3
+          WHERE crm_v2_client_id = $1 AND revoked_at IS NULL
+            AND (passkey_credential_id = $2 OR (passkey_credential_id IS NULL AND auth_method = 'passkey'))`,
+        [session.crmV2ClientId, credentialId, current],
+      );
+      await client.query(
+        `INSERT INTO client_auth_security_events
+          (event_type, crm_v2_client_id, session_id, request_fingerprint_hash, metadata)
+          VALUES ('passkey_revoked', $1, $2, $3, $4::jsonb)`,
+        [session.crmV2ClientId, session.sessionId, normalizedFingerprint(requestFingerprintHash),
+          JSON.stringify({ credentialReference: `passkey:${credentialId}` })],
+      );
+      await client.query('COMMIT');
+      return { ok: true };
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+      throw error;
+    } finally {
+      if (client !== db && typeof client.release === 'function') client.release();
+    }
+  }
+
+  return { policy, begin, finish, list, revoke };
 }
 
 module.exports = { FEATURE_FLAG, CHALLENGE_TTL_MS, RECENT_SESSION_MS,
-  enrollmentPolicy, recentClientSession, responseChallenge, createClientPasskeyEnrollmentService };
+  enrollmentPolicy, recentClientSession, responseChallenge, deviceLabel, createClientPasskeyEnrollmentService };
