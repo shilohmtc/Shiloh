@@ -1,6 +1,7 @@
 const workspaceClients = require('./workspaceClients');
 const workspaceClientNotifications = require('./workspaceClientNotifications');
 const workspaceCommunicationEvidence = require('./workspaceCommunicationEvidence');
+const { createWorkspaceChangeDeliveryAttentionService } = require('./workspaceChangeDeliveryAttention');
 
 const RECENT_ACTIVITY_LIMIT = 50;
 
@@ -23,6 +24,7 @@ function createWorkspaceMessagesService({
   clientAccessService = workspaceClients,
   notificationService = workspaceClientNotifications,
   communicationService = workspaceCommunicationEvidence,
+  changeDeliveryService = createWorkspaceChangeDeliveryAttentionService(),
 } = {}) {
   if (!clientAccessService || typeof clientAccessService.requireAccess !== 'function') {
     throw new Error('Workspace Messages requires canonical client read authority');
@@ -56,6 +58,8 @@ function createWorkspaceMessagesService({
     let notificationAuthority = null;
     let attention = [];
     let attentionUnavailable = false;
+    let changeAttention = [];
+    let changeAttentionUnavailable = false;
     try {
       notificationAuthority = await notificationService.resolveAccess(adminId);
       if (notificationAuthority) {
@@ -65,6 +69,13 @@ function createWorkspaceMessagesService({
     } catch (_error) {
       attentionUnavailable = true;
     }
+    if (notificationAuthority) {
+      try {
+        changeAttention = await changeDeliveryService.list({ authority, notificationAuthority });
+      } catch (_error) {
+        changeAttentionUnavailable = true;
+      }
+    }
 
     return {
       authority,
@@ -72,6 +83,8 @@ function createWorkspaceMessagesService({
       selectedView,
       attention,
       attentionUnavailable,
+      changeAttention,
+      changeAttentionUnavailable,
       activity,
       activityUnavailable,
       generatedAt: now.toISOString(),

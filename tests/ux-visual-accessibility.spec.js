@@ -2,6 +2,21 @@ const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { buildClientExperience } = require('../src/services/myShilohExperienceOrchestrator');
 
+test('Reception sees uncertain booking-change delivery without a blind resend on Phone and Desktop', async ({page},testInfo) => {
+  for (const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]) {
+    await page.setViewportSize({width:viewport.width,height:viewport.height});
+    await page.goto('/iframe.html?id=workspace-production-surfaces--messages-change-delivery-attention&viewMode=story',{waitUntil:'networkidle'});
+    const card=page.locator('[data-change-delivery-attention="701"]');
+    await expect(card).toContainText('Send status uncertain');
+    await expect(card).toContainText('may have accepted the previous attempt');
+    await expect(card.getByRole('link',{name:'Review client'})).toHaveAttribute('href','/calendar/clients/912');
+    await expect(card.getByRole('button',{name:/send|retry/i})).toHaveCount(0);
+    const axe=await new AxeBuilder({page}).include('[data-messages-attention]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`change-delivery-attention-${viewport.name}.png`),fullPage:true,animations:'disabled'});
+  }
+});
+
 test('human handoff pauses assistant and appears in Reception on Phone and Desktop', async ({ page }, testInfo) => {
   for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1280,height:900 }]) {
     await page.setViewportSize({ width:viewport.width,height:viewport.height });
