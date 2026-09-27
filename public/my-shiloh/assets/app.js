@@ -11,6 +11,10 @@
   const installGateTitle = document.querySelector('[data-install-gate-title]');
   const installGateCopy = document.querySelector('[data-install-gate-copy]');
   const installGateStatus = document.querySelector('[data-install-gate-status]');
+  const websiteTreatmentHandoff = document.querySelector('[data-website-treatment-handoff]');
+  const treatmentCodeCopy = document.querySelector('[data-copy-treatment-code]');
+  const treatmentCopyStatus = document.querySelector('[data-copy-treatment-status]');
+  const websiteTreatmentForm = document.querySelector('[data-website-treatment-form]');
   const installEyebrow = document.querySelector('[data-install-eyebrow]');
   const installTitle = document.querySelector('[data-install-title]');
   const installLead = document.querySelector('[data-install-lead]');
@@ -214,11 +218,27 @@
         ? 'verification'
         : 'standalone';
     if (installGate) installGate.hidden = !browserGated;
+    const showWebsiteTreatment = browserGated && window.location.hash === '#book-online'
+      && /^[1-9]\d{0,11}$/.test(websiteTreatmentHandoff?.dataset.serviceCode || '');
+    if (websiteTreatmentHandoff) websiteTreatmentHandoff.hidden = !showWebsiteTreatment;
+    if (installGateStatus) installGateStatus.hidden = showWebsiteTreatment;
     if (installVerificationGate) installVerificationGate.hidden = !verificationGated;
     if (appFrame) appFrame.hidden = browserGated || verificationGated;
     if (!appFrame?.hidden && window.location.hash === '#profile-notifications') activateView('profile');
 
     if (!browserGated) return;
+
+    installGateAction?.classList.toggle('button--primary', !showWebsiteTreatment);
+    installGateAction?.classList.toggle('button--soft', showWebsiteTreatment);
+
+    if (showWebsiteTreatment) {
+      if (installGateTitle) installGateTitle.textContent = 'Continue your chosen treatment in My Shiloh.';
+      if (installGateCopy) installGateCopy.textContent = 'Already have My Shiloh? Copy the code below, then open your Home Screen app.';
+      if (installGateAction) {
+        installGateAction.textContent = 'New here? Show install steps';
+      }
+      return;
+    }
 
     if (isIos()) {
       if (installGateTitle) installGateTitle.textContent = 'Add My Shiloh to your iPhone.';
@@ -397,6 +417,28 @@
       return;
     }
     openInstallGuide();
+  });
+
+  treatmentCodeCopy?.addEventListener('click', async () => {
+    const code = websiteTreatmentHandoff?.dataset.serviceCode || '';
+    if (!/^[1-9]\d{0,11}$/.test(code)) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      if (treatmentCopyStatus) treatmentCopyStatus.textContent = 'Code copied. Open My Shiloh from your Home Screen, tap Bookings, then paste it into the website treatment field.';
+    } catch (_) {
+      if (treatmentCopyStatus) treatmentCopyStatus.textContent = `Copy code ${code} manually, then open My Shiloh from your Home Screen.`;
+    }
+  });
+
+  websiteTreatmentForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const code = String(websiteTreatmentForm.elements.treatmentCode?.value || '').trim();
+    if (!/^[1-9]\d{0,11}$/.test(code)) {
+      const status = websiteTreatmentForm.querySelector('[data-website-treatment-status]');
+      if (status) status.textContent = 'Enter the treatment code shown on the website.';
+      return;
+    }
+    window.location.assign(`/my-shiloh/book?service=${encodeURIComponent(code)}`);
   });
 
   document.querySelectorAll('[data-install-close]').forEach((button) => {

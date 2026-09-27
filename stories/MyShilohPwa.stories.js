@@ -11,11 +11,12 @@ const catalogue = [
   { id: 104, name: 'SQT BioMicroneedling', category: 'Aesthetic Services', duration: '60 min', price: 'R1 250' },
 ];
 
-function productionSurface(client = null) {
+function productionSurface(client = null, options = {}) {
   const page = renderMyShilohPage({
     whatsappNumber: '27830000000',
     catalogue,
     client,
+    ...options,
     now: new Date('2026-09-18T18:00:00.000Z'),
   });
   const body = String(page).match(/<body[^>]*>([\s\S]*?)<\/body>/)?.[1] || '';
@@ -368,6 +369,15 @@ export const AuthenticatedBrowserInstallDoorway = {
     if (frame) frame.hidden = true;
     const action = surface.querySelector('[data-install-gate-action]');
     if (action) action.textContent = 'Show install steps';
+    return surface;
+  },
+};
+
+export const WebsiteTreatmentHandoff = {
+  render: () => {
+    const surface = productionSurface(null, { selectedServiceId: '103' });
+    const gate = surface.querySelector('[data-install-gate]');
+    if (gate) gate.hidden = false;
     return surface;
   },
 };

@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-installed-booking-entry-v2';
+const MY_SHILOH_ASSET_VERSION = '20260927-treatment-handoff-v3';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -75,6 +75,7 @@ function renderMyShilohPage({
   humanWhatsAppNumber = null,
   humanHandoffActive = false,
   catalogue = [],
+  selectedServiceId = '',
   client = null,
   now = new Date(),
 } = {}) {
@@ -85,6 +86,8 @@ function renderMyShilohPage({
   const speakToReception = humanDigits ? whatsappUrl(humanDigits,
     'Hi Reception, I am using My Shiloh and would like to speak with a person.') : null;
   const authenticated = Boolean(client?.id && client?.firstName);
+  const selectedService = /^[1-9]\d*$/.test(String(selectedServiceId || ''))
+    ? sanitizePublicCatalogue(catalogue).find((service) => String(service.id) === String(selectedServiceId)) : null;
   const bookingsHelpHref = humanHandoffActive && speakToReception ? speakToReception
     : authenticated ? '#shiloh' : askShiloh;
   const bookingsHelpLabel = humanHandoffActive && speakToReception ? 'Ask Reception'
@@ -326,6 +329,13 @@ function renderMyShilohPage({
       <p class="eyebrow">My Shiloh</p>
       <h1 id="install-gate-title" data-install-gate-title>Keep My Shiloh one tap away.</h1>
       <p class="install-gate__copy" data-install-gate-copy>Add <strong>My Shiloh</strong> to your Home Screen for quick access to bookings, Wallet, notifications and Shiloh support.</p>
+      ${selectedService ? `<div class="website-treatment-handoff" data-website-treatment-handoff data-service-code="${escapeHtml(selectedService.id)}" hidden>
+        <p>Your website choice: <strong>${escapeHtml(selectedService.name)}</strong></p>
+        <p>Already have My Shiloh? Copy this treatment code, open the app from your Home Screen, then tap Bookings to continue.</p>
+        <div class="website-treatment-code">Code <strong>${escapeHtml(selectedService.id)}</strong></div>
+        <button class="button button--soft button--wide" type="button" data-copy-treatment-code>Copy treatment code</button>
+        <p role="status" data-copy-treatment-status></p>
+      </div>` : ''}
       <button class="button button--primary button--wide" type="button" data-install-gate-action>Install My Shiloh</button>
       <p class="install-gate__status" data-install-gate-status aria-live="polite">Already installed? Open My Shiloh from your Home Screen, tap Bookings, then Book another appointment. You may need to choose your treatment again.</p>
     </section>
@@ -384,6 +394,11 @@ function renderMyShilohPage({
           <p>${authenticated ? 'Your appointments and visit details will appear here.' : 'Sign in with WhatsApp to see your appointments and request a new booking.'}</p>
         </div>
         ${authenticated ? '<a class="button button--primary bookings-new-action" href="/my-shiloh/book">Book another appointment</a>' : ''}
+        ${authenticated ? `<form class="website-treatment-form" data-website-treatment-form>
+          <label for="website-treatment-code">Have a treatment code from the website?</label>
+          <div class="website-treatment-form__row"><input id="website-treatment-code" name="treatmentCode" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Enter or paste code" required pattern="[1-9][0-9]*"><button class="button button--soft" type="submit">Continue treatment</button></div>
+          <p role="status" data-website-treatment-status></p>
+        </form>` : ''}
         <div class="stack" data-client-experience-bookings>
           <article class="action-card action-card--accent">
             <span class="action-number">01</span>

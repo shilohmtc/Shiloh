@@ -902,6 +902,7 @@ function createMyShilohRouter({
       humanWhatsAppNumber: env.SHILOH_HUMAN_WHATSAPP_NUMBER,
       humanHandoffActive:Boolean(humanHandoff),
       catalogue: catalogue || [],
+      selectedServiceId: req.query?.service,
       client: req.myShilohClientSession?.client || null,
     }));
   });
