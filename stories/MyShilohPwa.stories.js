@@ -87,7 +87,7 @@ export const WhatsAppAutomaticReturn = {
     form?.classList.add('is-waiting');
     if (status) {
       status.dataset.state = 'waiting';
-      status.textContent = 'Checking your WhatsApp verification… My Shiloh will open automatically.';
+      status.textContent = 'Waiting for your WhatsApp message…';
     }
     return surface;
   },

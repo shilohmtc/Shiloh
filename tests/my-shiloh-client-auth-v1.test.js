@@ -125,7 +125,8 @@ test('PWA service worker keeps all authentication and future personal APIs netwo
 
 test('guest and authenticated My Shiloh renders are distinct without server-rendering private profile values', () => {
   const guest = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue: [] });
-  assert.match(guest, /Continue with WhatsApp/);
+  assert.match(guest, /Open WhatsApp to verify/);
+  assert.match(guest, /Tap Send in WhatsApp, then return to My Shiloh/);
   assert.match(guest, /Need another way\?/);
   assert.match(guest, /<details class="auth-code-disclosure" data-client-auth-code-disclosure>/);
   assert.match(guest, /<summary>Need another way\? <span>Enter a code<\/span><\/summary>/);
@@ -149,6 +150,7 @@ test('guest and authenticated My Shiloh renders are distinct without server-rend
 
 test('returning from WhatsApp auto-completes in the original context with a usable code fallback', () => {
   const client = read('public/my-shiloh/assets/app.js');
+  const presentation = read('src/presentation/myShilohPwa.js');
   const styles = read('public/my-shiloh/assets/app.css');
   assert.match(client, /whatsappHandoffStarted = true;[\s\S]*openWhatsAppDirect\(whatsappAppUrl, whatsappFallbackUrl\)/);
   assert.match(client, /postJson\('\/my-shiloh\/auth\/status'\)/);
@@ -162,8 +164,8 @@ test('returning from WhatsApp auto-completes in the original context with a usab
   assert.match(client, /visibilitychange/);
   assert.match(client, /addEventListener\('focus', welcomeBackFromWhatsApp\)/);
   assert.match(client, /authStatusCheckInFlight = false/);
-  assert.match(client, /Checking your WhatsApp verification/);
-  assert.match(client, /open automatically/);
+  assert.match(client, /Waiting for your WhatsApp message/);
+  assert.match(presentation, /open your account automatically/);
   assert.match(client, /updateViaCache: 'none'/);
   assert.match(client, /INSTALL_VERIFIED_KEY = 'my-shiloh-install-whatsapp-verified-v1'/);
   assert.match(client, /localStorage\.setItem\(INSTALL_VERIFIED_KEY, '1'\)/);
@@ -186,7 +188,7 @@ test('every normal browser is an installation doorway while standalone mode keep
   assert.match(presentation, /Already installed\? Open My Shiloh from your Home Screen/);
   assert.match(presentation, /data-install-verification-gate/);
   assert.match(presentation, /Confirm it’s you to finish setting up My Shiloh/);
-  assert.match(presentation, /data-client-auth-start>Verify with WhatsApp<\/button>/);
+  assert.match(presentation, /data-client-auth-start>Open WhatsApp to verify<\/button>/);
   assert.match(presentation, /data-app-frame[^>]*hidden/);
   assert.match(client, /function browserNeedsInstall\(\)/);
   assert.match(client, /return !standalone\(\)/);
