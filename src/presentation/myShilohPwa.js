@@ -6,8 +6,9 @@ const {
   sanitizePublicCatalogue,
 } = require('../services/publicPresentation');
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
+const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-headerless-v1';
+const MY_SHILOH_ASSET_VERSION = '20260927-nav-polish-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -446,11 +447,11 @@ function renderMyShilohPage({
     </main>
 
     <nav class="bottom-nav" aria-label="My Shiloh">
-      <a href="#home" data-view-target="home" aria-current="page"><span class="nav-icon" aria-hidden="true">⌂</span><span>Home</span></a>
-      <a href="#bookings" data-view-target="bookings"><span class="nav-icon" aria-hidden="true">□</span><span>Bookings</span></a>
+      <a href="#home" data-view-target="home" aria-current="page">${renderShilohIcon('home', { size: 21, className: 'nav-icon' })}<span>Home</span></a>
+      <a href="#bookings" data-view-target="bookings">${renderShilohIcon('calendar', { size: 21, className: 'nav-icon' })}<span>Bookings</span></a>
       <a class="nav-shiloh" href="#shiloh" data-view-target="shiloh"><span class="nav-orb" aria-hidden="true">S</span><span>Shiloh</span></a>
-      <a href="#wallet" data-view-target="wallet"><span class="nav-icon" aria-hidden="true">▱</span><span>Wallet</span></a>
-      <a href="#profile" data-view-target="profile"><span class="nav-icon" aria-hidden="true">○</span><span>Profile</span></a>
+      <a href="#wallet" data-view-target="wallet">${renderShilohIcon('wallet', { size: 21, className: 'nav-icon' })}<span>Wallet</span></a>
+      <a href="#profile" data-view-target="profile">${renderShilohIcon('person', { size: 21, className: 'nav-icon' })}<span>Profile</span></a>
     </nav>
   </div>
 
