@@ -131,6 +131,18 @@ self.addEventListener('push', (event) => {
       await incrementHomeScreenBadge(1);
       return;
     }
+    const deliveredAt = Date.parse(notifications[0]?.createdAt);
+    if (notifications.length > 1 || !Number.isFinite(deliveredAt) || Date.now() - deliveredAt > 15 * 60 * 1000) {
+      await self.registration.showNotification('My Shiloh updates', {
+        body: 'You have new Shiloh updates. Open My Shiloh for the latest booking details.',
+        icon: '/my-shiloh/assets/icon-192.png',
+        badge: '/my-shiloh/assets/icon-192.png',
+        tag: 'my-shiloh-updates',
+        data: { url: '/my-shiloh/#bookings' },
+      });
+      await incrementHomeScreenBadge(1);
+      return;
+    }
     for (const notification of notifications) {
       await self.registration.showNotification(String(notification.title || 'My Shiloh'), {
         body: String(notification.body || ''),
