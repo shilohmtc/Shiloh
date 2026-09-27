@@ -28,3 +28,16 @@ export const DepositPolicyBeforeOzow = {
     policyText: BOOKING_POLICY_TEXT,
   })),
 };
+
+export const DepositPolicyAlreadyAccepted = {
+  render: () => productionSurface(renderPaymentPolicyPage({
+    requestKey: 'dep_storybook_760',
+    request: {
+      amount: '125.00',
+      payer_name: 'Jean-Pierre Botha',
+      appointment_id: 760,
+    },
+    policyText: BOOKING_POLICY_TEXT,
+    alreadyAccepted: true,
+  })),
+};

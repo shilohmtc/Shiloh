@@ -2692,6 +2692,19 @@ test('deposit policy is unmistakable before Ozow on Phone and Desktop', async ({
   }
 });
 
+test('previously accepted appointment shows policy and one clear payment action', async ({ page }) => {
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-payment-policy--deposit-policy-already-accepted&viewMode=story', { waitUntil: 'networkidle' });
+    const policy = page.locator('[data-payment-policy-story]');
+    await expect(policy.getByRole('heading', { name: 'Your deposit is ready' })).toBeVisible();
+    await expect(policy.getByText(/You accepted the current Booking Policy/)).toBeVisible();
+    await expect(policy.getByRole('heading', { name: 'Booking Deposit' })).toBeVisible();
+    await expect(policy.getByRole('button', { name: 'Continue to secure payment' })).toBeVisible();
+    await expect(policy.getByRole('checkbox')).toHaveCount(0);
+  }
+});
+
 
 test('cancelled booking payment review is safe and actionable on Phone and Desktop', async ({ page }, testInfo) => {
   for (const viewport of [

@@ -44,6 +44,17 @@ function validateOzowTarget(request) {
   return target;
 }
 
+async function acceptedPolicyForAppointment(db, request) {
+  if (!request.appointment_id) return false;
+  const result = await db.query(
+    `SELECT 1 FROM booking_policy_acceptances
+      WHERE appointment_id=$1 AND policy_version=$2
+      LIMIT 1`,
+    [request.appointment_id, BOOKING_POLICY_VERSION],
+  );
+  return result.rows.length > 0;
+}
+
 function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema, whatsappNumber = resolveWhatsAppNumber, monitor = observability } = {}) {
   const router = express.Router();
   router.use(express.urlencoded({ extended: false }));
@@ -82,7 +93,6 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema,
   router.post('/:requestKey/accept', async (req, res, next) => {
     const requestKey = safePaymentRequestKey(req.params.requestKey);
     if (!requestKey) return paymentUnavailable(res, 404, 'Payment link not found.');
-    if (req.body?.accept !== 'yes') return paymentUnavailable(res, 400, 'Please acknowledge Shiloh’s Booking Policy & Terms before continuing.');
     try {
       const result = await db.query(paymentRequestQuery(), [requestKey]);
       const request = result.rows[0];
@@ -103,7 +113,11 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema,
       }
 
       await policySchema();
-      await db.query(
+      const alreadyAccepted = await acceptedPolicyForAppointment(db, request);
+      if (!alreadyAccepted && req.body?.accept !== 'yes') {
+        return paymentUnavailable(res, 400, 'Please acknowledge Shiloh’s Booking Policy & Terms before continuing.');
+      }
+      if (!alreadyAccepted) await db.query(
         `INSERT INTO booking_policy_acceptances
           (phone,policy_version,accepted_at,channel,service_text,crm_v2_client_id,appointment_id)
          VALUES ($1,$2,NOW(),'payment_link',$3,$4,$5)
@@ -156,6 +170,9 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema,
         return paymentUnavailable(res, 409, 'This payment link is not ready yet.');
       }
 
+      await policySchema();
+      const alreadyAccepted = await acceptedPolicyForAppointment(db, request);
+
       return res.status(200).type('html').set({
         'Cache-Control': 'no-store',
         'Referrer-Policy': 'no-referrer',
@@ -164,6 +181,7 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema,
         requestKey,
         request,
         policyText: BOOKING_POLICY_TEXT,
+        alreadyAccepted,
       }));
     } catch (error) {
       return next(error);
