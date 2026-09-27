@@ -1,5 +1,6 @@
 import planning from '../src/presentation/myShilohPlanningRequest.js';
 import dashboard from '../src/presentation/workspaceDashboardUx.js';
+import myShiloh from '../src/presentation/myShilohPwa.js';
 
 function surface(html) {
   const source = String(html);
@@ -36,5 +37,26 @@ export const ReceptionAttention = {
     planningRequests:[{ id:81,request_kind:'group',status:'requested',client_name:'Jean-Pierre',
       service_detail:'Spa afternoon for friends',guest_count:4,special_occasion:true,occasion_note:'Birthday',
       preferred_date:'2026-10-02',preferred_daypart:'afternoon' }],
+  })),
+};
+
+export const HumanHandoff = {
+  render:()=>{
+    const root=surface(myShiloh.renderMyShilohPage({
+      client:{ id:22,firstName:'Jane' }, whatsappNumber:'27836835433',
+      humanWhatsAppNumber:'27662399138', humanHandoffActive:true,
+    }));
+    root.insertAdjacentHTML('afterbegin','<link rel="stylesheet" href="/my-shiloh/assets/app.css">');
+    root.querySelector('[data-app-frame]').hidden=false;
+    root.querySelector('[data-view="shiloh"]').hidden=false;
+    return root;
+  },
+};
+
+export const ReceptionHumanHandoff = {
+  render:()=>surface(dashboard.renderDashboardPage({ requestedDateKey:'2026-09-27',operationalDateKey:'2026-09-27',
+    displayName:'Christel',mode:'owner_overview',appointments:[],carryOver:[],teamGroups:[],awaitingFinalization:[],
+    bookingRequests:[],rescheduleRequests:[],holidayDecisions:[],calendar:{ timeline:{ staff:[] } },
+    humanHandoffs:[{ id:92,client_name:'Jane',client_mobile:'27662399138' }],
   })),
 };
