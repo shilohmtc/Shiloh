@@ -7,6 +7,8 @@ const { getPublicServiceCatalogue } = require('../services/publicServiceCatalogu
 const { normalizePublicServiceId } = require('../services/publicPresentation');
 const { resolveWhatsAppNumber } = require('../services/publicWhatsApp');
 const { createClientBrowserSessionService, SESSION_TTL_MS, CHALLENGE_TTL_MS } = require('../services/clientBrowserSession');
+const { createClientPasskeyEnrollmentService } = require('../services/clientPasskeyEnrollment');
+const { createClientPasskeyAuthenticationService } = require('../services/clientPasskeyAuthentication');
 const { createMyShilohExperienceOrchestrator } = require('../services/myShilohExperienceOrchestrator');
 const { createMyShilohAssistantService, MyShilohAssistantError } = require('../services/myShilohAssistant');
 const { createMyShilohClientActionService } = require('../services/myShilohClientActions');
@@ -42,7 +44,10 @@ const {
   serializeExpiredClientSessionCookie,
   serializeClientAuthCookie,
   serializeExpiredClientAuthCookie,
+  serializeClientPasskeyAuthCookie,
+  serializeExpiredClientPasskeyAuthCookie,
   clientAuthTokenFromRequest,
+  clientPasskeyAuthTokenFromRequest,
   requireClientSession,
   optionalClientSession,
   clientCsrfGuard,
@@ -94,6 +99,8 @@ function normalizeAuthHandoff(value) {
 function createMyShilohRouter({
   env = process.env,
   sessionService = createClientBrowserSessionService({ db: pool }),
+  passkeyEnrollmentService = createClientPasskeyEnrollmentService({ db: pool, env }),
+  passkeyAuthenticationService = createClientPasskeyAuthenticationService({ db: pool, env, sessionService }),
   whatsappResolver = resolveWhatsAppNumber,
   catalogueProvider = getPublicServiceCatalogue,
   authUrlBuilder = defaultAuthUrlBuilder,
@@ -130,6 +137,7 @@ function createMyShilohRouter({
         maxAgeSeconds: Math.min(sessionSeconds, Math.floor(SESSION_TTL_MS / 1000)),
       }),
       serializeExpiredClientAuthCookie({ env }),
+      serializeExpiredClientPasskeyAuthCookie({ env }),
     ]);
     return res.status(200).json({
       authenticated: true,
@@ -441,6 +449,79 @@ function createMyShilohRouter({
     }
   });
 
+  // First passkey increment: enrollment only, behind a disabled-by-default switch.
+  // Authentication still uses the existing verified client session authority.
+  router.post('/my-shiloh/auth/passkeys/registration/options', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const result = await passkeyEnrollmentService.begin({
+        session: req.myShilohClientSession,
+        requestFingerprintHash: requestFingerprintHash(req),
+      });
+      if (!result.ok) {
+        const status = result.code === 'CLIENT_PASSKEY_DISABLED' ? 404 :
+          result.code === 'CLIENT_PASSKEY_UNAVAILABLE' ? 503 :
+            result.code === 'CLIENT_RECENT_AUTH_REQUIRED' ? 428 : 403;
+        return res.status(status).json({ error: 'Passkey setup is unavailable. Please sign in again and try later.', requestId: req.id });
+      }
+      return res.status(200).json({ options: result.options, expiresAt: result.expiresAt });
+    } catch (error) { return next(error); }
+  });
+
+  router.post('/my-shiloh/auth/passkeys/registration/finish', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const result = await passkeyEnrollmentService.finish({
+        session: req.myShilohClientSession,
+        response: req.body?.response,
+        requestFingerprintHash: requestFingerprintHash(req),
+      });
+      if (!result.ok) {
+        const status = result.code === 'CLIENT_PASSKEY_DISABLED' ? 404 :
+          result.code === 'CLIENT_PASSKEY_UNAVAILABLE' ? 503 :
+            result.code === 'CLIENT_RECENT_AUTH_REQUIRED' ? 428 : 401;
+        return res.status(status).json({ error: 'Passkey setup could not be completed. Please try again.', requestId: req.id });
+      }
+      return res.status(200).json({ registered: true });
+    } catch (error) { return next(error); }
+  });
+
+  router.post('/my-shiloh/auth/passkeys/sign-in/options', sameOrigin, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const result = await passkeyAuthenticationService.begin({
+        requestFingerprintHash: requestFingerprintHash(req),
+      });
+      if (!result.ok) {
+        const status = result.code === 'CLIENT_PASSKEY_DISABLED' ? 404 :
+          result.code === 'CLIENT_PASSKEY_RATE_LIMITED' ? 429 : 503;
+        return res.status(status).json({ error: 'Passkey sign-in is unavailable. Please use WhatsApp for now.', requestId: req.id });
+      }
+      res.setHeader('Set-Cookie', serializeClientPasskeyAuthCookie(result.browserToken, {
+        env, maxAgeSeconds: Math.max(1, Math.floor(CHALLENGE_TTL_MS / 1000)),
+      }));
+      return res.status(200).json({ options: result.options, expiresAt: result.expiresAt });
+    } catch (error) { return next(error); }
+  });
+
+  router.post('/my-shiloh/auth/passkeys/sign-in/finish', sameOrigin, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const result = await passkeyAuthenticationService.finish({
+        browserToken: clientPasskeyAuthTokenFromRequest(req, env),
+        response: req.body?.response,
+        requestFingerprintHash: requestFingerprintHash(req),
+      });
+      if (!result.ok) {
+        return res.status(result.code === 'CLIENT_PASSKEY_DISABLED' ? 404 : 401).json({
+          error: 'We could not verify this passkey. Try again or use WhatsApp.', requestId: req.id,
+        });
+      }
+      try { await voucherService.syncRecipientLinks({ crmV2ClientId: result.client.id }); } catch (_) {}
+      return sendAuthenticatedClient(res, result);
+    } catch (error) { return next(error); }
+  });
+
   router.post('/my-shiloh/auth/start', sameOrigin, async (req, res, next) => {
     try {
       setNoStoreJson(res);
@@ -589,6 +670,7 @@ function createMyShilohRouter({
       res.setHeader('Set-Cookie', [
         serializeExpiredClientSessionCookie({ env }),
         serializeExpiredClientAuthCookie({ env }),
+        serializeExpiredClientPasskeyAuthCookie({ env }),
       ]);
       return res.status(204).send();
     } catch (error) {
@@ -907,6 +989,8 @@ function createMyShilohRouter({
       catalogue: catalogue || [],
       selectedServiceId: req.query?.service,
       client: req.myShilohClientSession?.client || null,
+      passkeysAvailable: passkeyEnrollmentService.policy().operational,
+      signInMethod: req.myShilohClientSession?.authMethod,
     }));
   });
 

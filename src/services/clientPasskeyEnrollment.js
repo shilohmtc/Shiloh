@@ -1,0 +1,210 @@
+'use strict';
+
+const crypto = require('crypto');
+const { pool } = require('../db/pool');
+const { sha256, normalizedFingerprint } = require('./clientBrowserSession');
+const { verifyRegistrationResponse } = require('./staffPasskeyAuth');
+
+const FEATURE_FLAG = 'SHILOH_CLIENT_PASSKEY_AUTH_ENABLED';
+const CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const RECENT_SESSION_MS = 10 * 60 * 1000;
+
+function enrollmentPolicy(env = process.env) {
+  if (String(env[FEATURE_FLAG] || '').toLowerCase() !== 'true') {
+    return { enabled: false, operational: false };
+  }
+  try {
+    const origin = new URL(String(env.SHILOH_CALENDAR_PUBLIC_ORIGIN || ''));
+    if (origin.protocol !== 'https:' || origin.username || origin.password ||
+        origin.pathname !== '/' || origin.search || origin.hash) {
+      return { enabled: true, operational: false };
+    }
+    // Keep the RP on the exact canonical application host. This deliberately
+    // cannot be changed to a parent domain by a client-controlled request.
+    return { enabled: true, operational: true, origin: origin.origin, rpId: origin.hostname.toLowerCase() };
+  } catch (_) {
+    return { enabled: true, operational: false };
+  }
+}
+
+function recentClientSession(session, now) {
+  const authenticatedAt = new Date(session?.authenticatedAt).getTime();
+  return session?.ok === true &&
+    Number.isSafeInteger(Number(session.crmV2ClientId)) &&
+    Number(session.crmV2ClientId) > 0 &&
+    Number.isSafeInteger(Number(session.sessionId)) &&
+    Number(session.sessionId) > 0 &&
+    Number.isFinite(authenticatedAt) &&
+    now.getTime() >= authenticatedAt &&
+    now.getTime() - authenticatedAt <= RECENT_SESSION_MS;
+}
+
+function responseChallenge(response, origin, expectedType = 'webauthn.create') {
+  const encoded = String(response?.response?.clientDataJSON || '');
+  if (!/^[A-Za-z0-9_-]{20,22000}$/.test(encoded)) return null;
+  let data;
+  try { data = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')); }
+  catch (_) { return null; }
+  if (data?.type !== expectedType || data.origin !== origin || data.crossOrigin === true ||
+      !/^[A-Za-z0-9_-]{43}$/.test(String(data.challenge || ''))) return null;
+  return data.challenge;
+}
+
+function createClientPasskeyEnrollmentService({
+  db = pool,
+  env = process.env,
+  now = () => new Date(),
+  randomBytes = crypto.randomBytes,
+} = {}) {
+  if (!db || typeof db.query !== 'function') throw new Error('client passkey db is required');
+  const policy = () => enrollmentPolicy(env);
+  const unavailable = (p) => ({ ok: false, code: p.enabled ? 'CLIENT_PASSKEY_UNAVAILABLE' : 'CLIENT_PASSKEY_DISABLED' });
+
+  async function begin({ session, requestFingerprintHash = null } = {}) {
+    const p = policy();
+    if (!p.operational) return unavailable(p);
+    const current = now();
+    if (!recentClientSession(session, current)) return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
+    const client = typeof db.connect === 'function' ? await db.connect() : db;
+    try {
+      await client.query('BEGIN');
+      // Serialize challenge issuance for one signed-in session before counting.
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended('client-passkey-enrollment:' || $1::text, 0))",
+        [session.sessionId],
+      );
+      const owner = await client.query(
+        `SELECT id FROM crm_v2_clients WHERE id = $1 AND status = 'active' FOR SHARE`,
+        [session.crmV2ClientId],
+      );
+      if (owner.rowCount !== 1) { await client.query('ROLLBACK'); return { ok: false, code: 'CLIENT_PROFILE_UNAVAILABLE' }; }
+      const recent = await client.query(
+        `SELECT COUNT(*)::int AS count FROM client_auth_passkey_challenges
+          WHERE session_id = $1 AND created_at >= $2`,
+        [session.sessionId, new Date(current.getTime() - 10 * 60 * 1000)],
+      );
+      if (Number(recent.rows[0]?.count || 0) >= 5) {
+        await client.query('ROLLBACK');
+        return { ok: false, code: 'CLIENT_PASSKEY_RATE_LIMITED' };
+      }
+      await client.query(
+        `UPDATE client_auth_passkey_challenges SET consumed_at = $2
+          WHERE session_id = $1 AND consumed_at IS NULL`,
+        [session.sessionId, current],
+      );
+      const existing = await client.query(
+        `SELECT credential_id FROM client_auth_passkey_credentials
+          WHERE crm_v2_client_id = $1 AND revoked_at IS NULL`,
+        [session.crmV2ClientId],
+      );
+      if (existing.rows.length >= 5) {
+        await client.query('ROLLBACK');
+        return { ok: false, code: 'CLIENT_PASSKEY_LIMIT_REACHED' };
+      }
+      const challenge = randomBytes(32).toString('base64url');
+      const expiresAt = new Date(current.getTime() + CHALLENGE_TTL_MS);
+      await client.query(
+        `INSERT INTO client_auth_passkey_challenges
+          (challenge_hash, crm_v2_client_id, session_id, request_fingerprint_hash, expires_at)
+          VALUES ($1, $2, $3, $4, $5)`,
+        [sha256(challenge), session.crmV2ClientId, session.sessionId,
+          normalizedFingerprint(requestFingerprintHash), expiresAt],
+      );
+      await client.query('COMMIT');
+      const userId = Buffer.from(`crm-client:${session.crmV2ClientId}`).toString('base64url');
+      return {
+        ok: true,
+        expiresAt,
+        options: {
+          challenge,
+          rp: { id: p.rpId, name: 'Shiloh' },
+          user: { id: userId, name: 'My Shiloh', displayName: 'My Shiloh' },
+          pubKeyCredParams: [-7, -8, -257].map((alg) => ({ type: 'public-key', alg })),
+          timeout: CHALLENGE_TTL_MS,
+          attestation: 'none',
+          authenticatorSelection: { residentKey: 'required', requireResidentKey: true, userVerification: 'required' },
+          excludeCredentials: existing.rows.map(({ credential_id }) => ({ type: 'public-key', id: credential_id })),
+        },
+      };
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+      throw error;
+    } finally {
+      if (client !== db && typeof client.release === 'function') client.release();
+    }
+  }
+
+  async function finish({ session, response, requestFingerprintHash = null } = {}) {
+    const p = policy();
+    if (!p.operational) return unavailable(p);
+    const current = now();
+    if (!recentClientSession(session, current)) return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
+    const challenge = responseChallenge(response, p.origin);
+    if (!challenge) return { ok: false, code: 'CLIENT_PASSKEY_INVALID' };
+    const client = typeof db.connect === 'function' ? await db.connect() : db;
+    try {
+      await client.query('BEGIN');
+      const found = await client.query(
+        `SELECT id, expires_at FROM client_auth_passkey_challenges
+          WHERE challenge_hash = $1 AND crm_v2_client_id = $2 AND session_id = $3
+            AND consumed_at IS NULL FOR UPDATE`,
+        [sha256(challenge), session.crmV2ClientId, session.sessionId],
+      );
+      const row = found.rows[0];
+      if (!row || new Date(row.expires_at).getTime() <= current.getTime()) {
+        await client.query('ROLLBACK');
+        return { ok: false, code: 'CLIENT_PASSKEY_INVALID' };
+      }
+      // Consume even an invalid response so a challenge cannot be repeatedly probed.
+      await client.query('UPDATE client_auth_passkey_challenges SET consumed_at = $2 WHERE id = $1', [row.id, current]);
+      const owner = await client.query(
+        `SELECT id FROM crm_v2_clients WHERE id = $1 AND status = 'active' FOR SHARE`,
+        [session.crmV2ClientId],
+      );
+      if (owner.rowCount !== 1) {
+        await client.query('COMMIT');
+        return { ok: false, code: 'CLIENT_PROFILE_UNAVAILABLE' };
+      }
+      let verified;
+      try { verified = verifyRegistrationResponse(response, { expectedChallenge: challenge, origin: p.origin, rpId: p.rpId }); }
+      catch (_) {
+        await client.query('COMMIT');
+        return { ok: false, code: 'CLIENT_PASSKEY_INVALID' };
+      }
+      const duplicate = await client.query(
+        'SELECT id FROM client_auth_passkey_credentials WHERE credential_id = $1', [verified.credentialId],
+      );
+      if (duplicate.rowCount) {
+        await client.query('COMMIT');
+        return { ok: false, code: 'CLIENT_PASSKEY_INVALID' };
+      }
+      const inserted = await client.query(
+        `INSERT INTO client_auth_passkey_credentials
+          (crm_v2_client_id, credential_id, public_key_spki, algorithm, sign_count, transports, backed_up)
+          VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7) RETURNING id`,
+        [session.crmV2ClientId, verified.credentialId, verified.publicKeySpki,
+          verified.algorithm, verified.signCount, JSON.stringify(verified.transports), verified.backedUp],
+      );
+      await client.query(
+        `INSERT INTO client_auth_security_events
+          (event_type, crm_v2_client_id, session_id, request_fingerprint_hash, metadata)
+          VALUES ('passkey_registered', $1, $2, $3, $4::jsonb)`,
+        [session.crmV2ClientId, session.sessionId, normalizedFingerprint(requestFingerprintHash),
+          JSON.stringify({ credentialReference: `passkey:${inserted.rows[0].id}` })],
+      );
+      await client.query('COMMIT');
+      return { ok: true };
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+      if (error.code === '23505') return { ok: false, code: 'CLIENT_PASSKEY_INVALID' };
+      throw error;
+    } finally {
+      if (client !== db && typeof client.release === 'function') client.release();
+    }
+  }
+
+  return { policy, begin, finish };
+}
+
+module.exports = { FEATURE_FLAG, CHALLENGE_TTL_MS, RECENT_SESSION_MS,
+  enrollmentPolicy, recentClientSession, responseChallenge, createClientPasskeyEnrollmentService };

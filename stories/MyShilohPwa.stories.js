@@ -82,6 +82,10 @@ export const GuestHome = {
   render: () => productionSurface(),
 };
 
+export const PasskeyGuest = {
+  render: () => productionSurface(null, { passkeysAvailable: true }),
+};
+
 export const WhatsAppAutomaticReturn = {
   render: () => {
     const surface = productionSurface();
@@ -246,6 +250,20 @@ export const AuthenticatedProfile = {
       status.dataset.state = 'success';
       status.textContent = 'Your registration details are complete.';
     }
+    return surface;
+  },
+};
+
+export const PasskeyProfile = {
+  render: () => {
+    const surface = productionSurface({
+      id: '913', name: 'Jean-Pierre Botha', firstName: 'Jean-Pierre',
+    }, { passkeysAvailable: true, signInMethod: 'passkey' });
+    surface.querySelectorAll('[data-view]').forEach((view) => {
+      const active = view.dataset.view === 'profile';
+      view.hidden = !active;
+      view.classList.toggle('is-active', active);
+    });
     return surface;
   },
 };

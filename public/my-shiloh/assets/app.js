@@ -32,6 +32,9 @@
   const pushInvite = document.querySelector('[data-push-invite]');
   const appFrame = document.querySelector('[data-app-frame]');
   const authStartButtons = [...document.querySelectorAll('[data-client-auth-start]')];
+  const passkeySignInButtons = [...document.querySelectorAll('[data-passkey-sign-in]')];
+  const passkeyEnrollButton = document.querySelector('[data-passkey-enroll]');
+  const passkeyEnrollStatus = document.querySelector('[data-passkey-enroll-status]');
   const authLogoutButtons = [...document.querySelectorAll('[data-client-auth-logout]')];
   const authCodeForms = [...document.querySelectorAll('[data-client-auth-code-form]')];
   const authStatusHosts = [...document.querySelectorAll('[data-auth-status]')];
@@ -75,6 +78,7 @@
   }
   let deferredInstallPrompt = null;
   let authActionInFlight = false;
+  let passkeyEnrollBusy = false;
   let authStatusCheckInFlight = false;
   let authStatusTimer = null;
   let shilohMessageInFlight = false;
@@ -203,7 +207,7 @@
     try {
       window.localStorage.setItem(INSTALL_VERIFIED_KEY, '1');
     } catch (_) {
-      // This marker is convenience only; WhatsApp remains the authentication authority.
+      // This marker is installation convenience only; the server session is authority.
     }
   }
 
@@ -798,7 +802,7 @@
   }
 
   function setAuthControlsDisabled(disabled) {
-    for (const button of [...authStartButtons, ...authLogoutButtons]) button.disabled = Boolean(disabled);
+    for (const button of [...authStartButtons, ...passkeySignInButtons, ...authLogoutButtons]) button.disabled = Boolean(disabled);
     setAuthCodeControlsDisabled(disabled);
   }
 
@@ -940,6 +944,119 @@
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.csrfToken) throw new Error('Secure confirmation could not be started.');
     return data.csrfToken;
+  }
+
+  function passkeySupported() {
+    return Boolean(window.PublicKeyCredential && navigator.credentials?.create && navigator.credentials?.get);
+  }
+
+  function bytesFromBase64url(value) {
+    const text = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+    const binary = window.atob(text.padEnd(Math.ceil(text.length / 4) * 4, '='));
+    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  }
+
+  function base64urlFromBytes(value) {
+    const bytes = new Uint8Array(value);
+    let binary = '';
+    for (let offset = 0; offset < bytes.length; offset += 8192) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+    }
+    return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  }
+
+  function publicKeyOptions(options, registration = false) {
+    const publicKey = { ...options, challenge: bytesFromBase64url(options.challenge) };
+    if (registration) {
+      publicKey.user = { ...options.user, id: bytesFromBase64url(options.user.id) };
+      publicKey.excludeCredentials = (options.excludeCredentials || []).map((item) => ({
+        ...item, id: bytesFromBase64url(item.id),
+      }));
+    } else {
+      publicKey.allowCredentials = (options.allowCredentials || []).map((item) => ({
+        ...item, id: bytesFromBase64url(item.id),
+      }));
+    }
+    return publicKey;
+  }
+
+  function serializePasskey(credential, registration = false) {
+    const response = {
+      clientDataJSON: base64urlFromBytes(credential.response.clientDataJSON),
+    };
+    if (registration) {
+      response.attestationObject = base64urlFromBytes(credential.response.attestationObject);
+      response.transports = credential.response.getTransports?.() || [];
+    } else {
+      response.authenticatorData = base64urlFromBytes(credential.response.authenticatorData);
+      response.signature = base64urlFromBytes(credential.response.signature);
+      if (credential.response.userHandle) response.userHandle = base64urlFromBytes(credential.response.userHandle);
+    }
+    return { id: credential.id, rawId: base64urlFromBytes(credential.rawId), type: credential.type, response };
+  }
+
+  function passkeyError(error, fallback) {
+    if (error?.name === 'NotAllowedError') return 'Passkey check was cancelled. You can try again.';
+    if (error?.name === 'InvalidStateError') return 'This passkey is already saved. You can use it to sign in.';
+    return error?.message || fallback;
+  }
+
+  async function enrollClientPasskey() {
+    if (!passkeySupported() || passkeyEnrollBusy || appFrame?.dataset.clientAuthenticated !== 'true') return;
+    passkeyEnrollBusy = true;
+    passkeyEnrollButton.disabled = true;
+    if (passkeyEnrollStatus) passkeyEnrollStatus.textContent = 'Preparing your passkey…';
+    try {
+      const csrfToken = await freshCsrfToken();
+      const headers = { 'x-shiloh-csrf-token': csrfToken };
+      const start = await postJson('/my-shiloh/auth/passkeys/registration/options', {}, headers);
+      const startData = await start.json().catch(() => ({}));
+      if (!start.ok || !startData.options) throw new Error(startData.error || 'Passkey setup is unavailable.');
+      const credential = await navigator.credentials.create({
+        publicKey: publicKeyOptions(startData.options, true),
+      });
+      if (!credential) throw new Error('Passkey setup was cancelled.');
+      // CSRF is rotated on demand; use a fresh token for the finishing action.
+      const finishToken = await freshCsrfToken();
+      const finish = await postJson('/my-shiloh/auth/passkeys/registration/finish',
+        { response: serializePasskey(credential, true) }, { 'x-shiloh-csrf-token': finishToken });
+      const result = await finish.json().catch(() => ({}));
+      if (!finish.ok || result.registered !== true) throw new Error(result.error || 'Passkey setup could not be completed.');
+      if (passkeyEnrollStatus) passkeyEnrollStatus.textContent = 'Your passkey is ready. Use it next time you sign in.';
+    } catch (error) {
+      if (passkeyEnrollStatus) passkeyEnrollStatus.textContent = passkeyError(error, 'Passkey setup could not be completed.');
+    } finally {
+      passkeyEnrollBusy = false;
+      passkeyEnrollButton.disabled = false;
+    }
+  }
+
+  async function signInWithPasskey() {
+    if (!standalone() || !passkeySupported() || authActionInFlight) return;
+    authActionInFlight = true;
+    setAuthControlsDisabled(true);
+    setAuthStatus('Opening your passkey…', 'working');
+    try {
+      const start = await postJson('/my-shiloh/auth/passkeys/sign-in/options');
+      const startData = await start.json().catch(() => ({}));
+      if (!start.ok || !startData.options) throw new Error(startData.error || 'Passkey sign-in is unavailable.');
+      const credential = await navigator.credentials.get({ publicKey: publicKeyOptions(startData.options) });
+      if (!credential) throw new Error('Passkey sign-in was cancelled.');
+      const finish = await postJson('/my-shiloh/auth/passkeys/sign-in/finish',
+        { response: serializePasskey(credential) });
+      const result = await finish.json().catch(() => ({}));
+      if (!finish.ok || result.authenticated !== true) throw new Error(result.error || 'We could not verify this passkey.');
+      whatsappHandoffStarted = false;
+      window.clearTimeout(authStatusTimer);
+      markInstallationVerified();
+      renderAppMode();
+      setAuthStatus('Welcome back. Opening My Shiloh…', 'success');
+      window.location.replace(signedInLanding());
+    } catch (error) {
+      setAuthStatus(passkeyError(error, 'Passkey sign-in could not be completed. You can use WhatsApp.'), 'error');
+      authActionInFlight = false;
+      setAuthControlsDisabled(false);
+    }
   }
 
   function setPushStatus(message = '', state = '') {
@@ -1742,6 +1859,10 @@
   }
 
   authStartButtons.forEach((button) => button.addEventListener('click', beginClientAuth));
+  if (!passkeySupported()) passkeySignInButtons.forEach((button) => { button.hidden = true; });
+  if (!passkeySupported() && passkeyEnrollButton) passkeyEnrollButton.hidden = true;
+  passkeySignInButtons.forEach((button) => button.addEventListener('click', signInWithPasskey));
+  passkeyEnrollButton?.addEventListener('click', enrollClientPasskey);
   authLogoutButtons.forEach((button) => button.addEventListener('click', logoutClient));
   authCodeForms.forEach((form) => form.addEventListener('submit', (event) => {
     event.preventDefault();
