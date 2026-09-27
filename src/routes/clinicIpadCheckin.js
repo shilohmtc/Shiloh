@@ -10,6 +10,7 @@ const { serializeExpiredClientSessionCookie, serializeExpiredClientAuthCookie } 
 const ux = require('../presentation/clinicIpadCheckinUx');
 
 const DEVICE_COOKIE = 'shiloh_checkin_device';
+const DEVICE_IDLE_SECONDS = 30*24*60*60;
 const VISIT_COOKIE = 'shiloh_checkin_visit';
 const FORM_COOKIE = 'shiloh_checkin_form';
 function cookie(name, value, { env = process.env, seconds = 0 } = {}) {
@@ -45,6 +46,9 @@ function createClinicIpadPublicRouter({ env = process.env, service = createClini
       req.checkinDeviceToken = parseCookieValue(req.headers.cookie, DEVICE_COOKIE);
       req.checkinDevice = await service.deviceFor(req.checkinDeviceToken);
       if (!req.checkinDevice) return res.status(401).type('html').send(ux.welcome({ setup:true }));
+      // Renew only a verified, non-revoked iPad capability during normal use.
+      // An idle iPad still requires a staff member to activate it after 30 days.
+      if (req.method === 'GET') res.append('Set-Cookie',cookie(DEVICE_COOKIE,req.checkinDeviceToken,{ env,seconds:DEVICE_IDLE_SECONDS }));
       next();
     } catch (error) { next(error); }
   });
@@ -206,7 +210,7 @@ options.append(row);
       const activated = await service.activate(req.staffBrowserSession.adminId);
       await sessionService.revokeSession(req.staffBrowserSession.sessionId,'clinic_ipad_activated');
       res.setHeader('Set-Cookie',[
-        cookie(DEVICE_COOKIE,activated.token,{ env,seconds:30*24*60*60 }),
+        cookie(DEVICE_COOKIE,activated.token,{ env,seconds:DEVICE_IDLE_SECONDS }),
         serializeExpiredSessionCookie({ env }),
         serializeExpiredClientSessionCookie({ env }),
         serializeExpiredClientAuthCookie({ env }),

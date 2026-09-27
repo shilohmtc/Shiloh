@@ -88,10 +88,12 @@ test('client form requires a provisioned device and never exposes another client
   await withServer(service,async base=>{
     const denied=await fetch(`${base}/check-in/`,{ redirect:'manual' });
     assert.equal(denied.status,401);
+    assert.doesNotMatch(denied.headers.get('set-cookie')||'',/shiloh_checkin_device=/);
     assert.doesNotMatch(await denied.text(),/Sarah Jacobs/);
     const cookie=`shiloh_checkin_device=${rawDevice}; shiloh_checkin_visit=${rawVisit}`;
     const active=await fetch(`${base}/check-in/details`,{ headers:{ Cookie:cookie } });
     assert.equal(active.status,200);
+    assert.match(active.headers.get('set-cookie'),/shiloh_checkin_device=aaaa.*Max-Age=2592000/);
     assert.equal(active.headers.get('cache-control'),'private, no-store, max-age=0');
     const crossSite=await fetch(`${base}/check-in/details`,{ method:'POST',headers:{ Cookie:cookie,Origin:'https://other.example','Content-Type':'application/x-www-form-urlencoded' },body:'name=Sarah' });
     assert.equal(crossSite.status,403);
@@ -103,6 +105,7 @@ test('client form requires a provisioned device and never exposes another client
     assert.match(await saved.text(),/Reception will help/);
     const welcome=await fetch(`${base}/check-in/`,{ headers:{ Cookie:cookie } });
     assert.equal(welcome.status,200);
+    assert.match(welcome.headers.get('set-cookie'),/shiloh_checkin_device=aaaa.*Max-Age=2592000/);
     assert.deepEqual(calls,['finished']);
   });
 });
