@@ -1,6 +1,54 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { buildClientExperience } = require('../src/services/myShilohExperienceOrchestrator');
+const { workspaceServicesManageClientScript } = require('../src/presentation/workspaceServicesUx');
+
+test('My Shiloh guest booking stays behind WhatsApp sign-in on phone and desktop', async ({ page }, testInfo) => {
+  await page.addInitScript(() => { Object.defineProperty(navigator, 'standalone', { value:true, configurable:true }); });
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--standalone-guest-sign-in&viewMode=story', { waitUntil:'networkidle' });
+    await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
+    const frame = page.locator('[data-app-frame]');
+    await expect(frame).toBeVisible();
+    await expect(frame.locator('a[href="/book"]')).toHaveCount(0);
+    await expect(frame.getByRole('link', { name:'Sign in to book' }).first()).toBeVisible();
+    await frame.getByRole('link', { name:'How booking works' }).click();
+    await expect(frame.getByRole('heading', { name:'Your time with Shiloh.' })).toBeVisible();
+    await frame.getByRole('link', { name:'Sign in to book' }).last().click();
+    await expect(frame.getByRole('button', { name:'Continue with WhatsApp' }).first()).toBeVisible();
+    const accessibility = await new AxeBuilder({ page }).include('[data-app-frame]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-signin-boundary-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+  }
+});
+
+test('Services confirmation names the category and restores focus on cancel', async ({ page }, testInfo) => {
+  let deletes = 0;
+  await page.route('**/calendar/staff-auth/csrf', route => route.fulfill({ status:200, contentType:'application/json', body:'{"csrfToken":"test-token"}' }));
+  await page.route('**/calendar/services/categories/18/delete', route => { deletes++; return route.fulfill({ status:200, contentType:'application/json', body:'{}' }); });
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=workspace-services--christel-category-management&viewMode=story', { waitUntil:'networkidle' });
+    await page.addScriptTag({ content:workspaceServicesManageClientScript() });
+    const trigger = page.locator('[data-category-delete][data-category-id="18"] button');
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name:'Delete “New category”?' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText('You cannot undo this action.')).toBeVisible();
+    await expect(dialog.getByRole('button', { name:'Keep category' })).toBeFocused();
+    const accessibility = await new AxeBuilder({ page }).include('[data-shiloh-confirm]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`services-category-confirmation-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+    expect(deletes).toBe(0);
+    await trigger.click();
+    await dialog.getByRole('button', { name:'Delete category' }).click();
+    await expect.poll(() => deletes).toBe(viewport.name === 'phone' ? 1 : 2);
+  }
+});
 
 test('Workspace vouchers stay contained and selectable on Phone and Desktop', async ({ page }, testInfo) => {
   await page.route('**/calendar/vouchers/walk-in', async (route) => route.fulfill({

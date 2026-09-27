@@ -76,7 +76,7 @@ test('My Shiloh uses WhatsApp only as an explicit client handoff in the guest sh
   assert.equal(whatsappUrl(null), '/contact');
   const html = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue: [] });
   assert.match(html, /https:\/\/wa\.me\/27830000000\?text=/);
-  assert.match(html, /Book an appointment/);
+  assert.match(html, /Sign in to book/);
 });
 
 test('My Shiloh route is no-store, no-index and mounted without reusing staff authentication', () => {
