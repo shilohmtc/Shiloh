@@ -127,6 +127,18 @@ test('disabled booking-update transport remains pending without an uncertain pro
   assert.equal(state.providerCalls, 1);
 });
 
+test('sign-in-only cut keeps cancellation notification pending without an uncertain provider claim', async () => {
+  const { service, state } = loadService({ changeKind: 'cancellation' });
+  const result = await service.attemptCustomerChangeNotification(701, {
+    env: { SHILOH_META_SIGNIN_ONLY_ENABLED: 'true' },
+  });
+  assert.equal(result.reason, 'meta_signin_only');
+  assert.equal(state.status, 'pending');
+  assert.equal(state.lastError, 'meta_signin_only');
+  assert.equal(state.providerCalls, 0);
+  assert.equal(state.inAppCalls, 1);
+});
+
 test('accepted app wake completes a claimed CRM V2 booking change without Meta', async () => {
   const { service, state } = loadService({ appAccepted: 1, templateApproved: false });
   const env = { env: { WHATSAPP_BOOKING_UPDATE_ENABLED: 'false', SHILOH_BOOKING_CHANGE_APP_ONLY_ENABLED: 'true' } };
