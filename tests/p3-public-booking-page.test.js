@@ -31,3 +31,13 @@ test('public booking page fails closed with warm help when WhatsApp is unavailab
   assert.match(html, /email Shiloh for help/);
   assert.doesNotMatch(html, /https:\/\/wa\.me\//);
 });
+
+test('website offers signed-in Reception planning independently of WhatsApp', () => {
+  for (const number of ['27662399138', null]) {
+    const html = renderBookingPage(number);
+    assert.match(html, /data-website-planning-entry/);
+    assert.match(html, /href="\/my-shiloh\/request">Plan a flexible or group visit in My Shiloh/);
+    assert.match(html, /Sign in to send your plans to Reception/);
+    assert.match(html, /No appointment is confirmed until Reception arranges it with you/);
+  }
+});

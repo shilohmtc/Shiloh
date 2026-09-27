@@ -6,6 +6,8 @@ const { validate, createClientPlanningRequestService } = require('../src/service
 const { renderPlanningRequestPage } = require('../src/presentation/myShilohPlanningRequest');
 const { renderMyShilohPage } = require('../src/presentation/myShilohPwa');
 const { renderDashboardPage } = require('../src/presentation/workspaceDashboardUx');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const key = 'a81e1cad-30af-45b4-a204-7d653d1ead31';
 const base = { crmV2ClientId:22, submissionKey:key, kind:'flexible', serviceDetail:'Sports massage', specialOccasion:false };
@@ -73,4 +75,13 @@ test('the human WhatsApp handoff uses its own number and the AI path remains sep
   assert.match(app, /Speak to Reception on WhatsApp/);
   assert.match(app, /wa\.me\/27662399138/);
   assert.match(app, /wa\.me\/27123456789/);
+});
+
+test('website planning deep link retains sign-in intent while submission stays session and CSRF guarded', () => {
+  const routes = fs.readFileSync(path.join(__dirname, '../src/routes/myShiloh.js'), 'utf8');
+  const client = fs.readFileSync(path.join(__dirname, '../public/my-shiloh/assets/app.js'), 'utf8');
+  assert.match(routes, /router\.get\('\/my-shiloh\/request', optionalSession[\s\S]*?res\.redirect\(303, '\/my-shiloh\/#plan-visit'\)[\s\S]*?requireSession/);
+  assert.match(routes, /router\.post\('\/my-shiloh\/api\/planning-requests', sameOrigin, requireSession, requireCsrf/);
+  assert.match(client, /window\.location\.hash === '#plan-visit' \? '\/my-shiloh\/#plan-visit'/);
+  assert.match(client, /window\.location\.replace\('\/my-shiloh\/request'\)/);
 });

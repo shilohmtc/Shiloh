@@ -52,6 +52,12 @@ test('public Services renders canonical timing, price and approved description f
   assert.match(html, /href="\/book\?service=202#service-202"/);
 });
 
+test('public Contact sends flexible and group enquiries to the existing authenticated request', () => {
+  const html = renderContact();
+  assert.match(html, /href="\/my-shiloh\/request">Send your plans to Reception in My Shiloh/);
+  assert.match(html, /nothing is booked until Reception arranges it with you/);
+});
+
 test('Home discovers live categories while Services preserves canonical service IDs into booking', () => {
   const home = renderHome(catalogue);
   const services = renderTreatments(catalogue);
