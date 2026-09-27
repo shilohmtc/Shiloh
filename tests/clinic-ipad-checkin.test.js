@@ -21,6 +21,11 @@ test('clinic iPad renderer escapes submitted details and uses the repository bra
   assert.match(html, /&lt;script&gt;/);
   assert.match(html, /Try &lt;again&gt;/);
   assert.match(html, /shiloh-mark-192\.png/);
+  assert.match(html, /apple-mobile-web-app-capable" content="yes"/);
+  assert.match(html, /apple-mobile-web-app-title" content="Shiloh Check-in"/);
+  assert.match(html, /apple-touch-icon" href="\/assets\/brand\/shiloh-apple-touch-180\.png"/);
+  assert.match(html, /href="\/check-in\/manifest\.webmanifest"/);
+  assert.doesNotMatch(ux.devices([]),/apple-mobile-web-app-capable/);
 });
 
 test('staff form delivery choice appears only when approved WhatsApp delivery is ready',()=>{
@@ -73,6 +78,23 @@ async function withServer(service, work) {
   const base = `http://127.0.0.1:${server.address().port}`;
   try { await work(base); } finally { await new Promise(resolve=>server.close(resolve)); }
 }
+
+test('check-in Home Screen app has its own name, scope, welcome launch and official icon',async()=>{
+  await withServer({ deviceFor:async()=>null },async base=>{
+    const response=await fetch(`${base}/check-in/manifest.webmanifest`);
+    assert.equal(response.status,200);
+    assert.match(response.headers.get('content-type'),/application\/manifest\+json/);
+    const manifest=await response.json();
+    assert.equal(manifest.name,'Shiloh Client Check-in');
+    assert.equal(manifest.short_name,'Shiloh Check-in');
+    assert.equal(manifest.start_url,'/check-in/');
+    // Prepared consultation forms live at /forms/f/, so they stay in app mode.
+    assert.equal(manifest.scope,'/');
+    assert.equal(manifest.id,'/check-in/');
+    assert.equal(manifest.display,'standalone');
+    assert.match(manifest.icons[0].src,/shiloh-mark-192\.png/);
+  });
+});
 
 test('client form requires a provisioned device and never exposes another client record',async () => {
   const calls=[];

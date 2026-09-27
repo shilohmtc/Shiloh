@@ -35,7 +35,7 @@ function headers(res) {
   res.set('Referrer-Policy','no-referrer');
   res.set('X-Robots-Tag','noindex, nofollow, noarchive');
   res.set('X-Frame-Options','DENY');
-  res.set('Content-Security-Policy',"default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; img-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
+  res.set('Content-Security-Policy',"default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; img-src 'self'; manifest-src 'self'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
 }
 function originMatches(req) {
   const origin = req.get('origin');
@@ -50,6 +50,15 @@ function createClinicIpadPublicRouter({ env = process.env, service = createClini
   const router = express.Router();
   router.use((_req,res,next) => { headers(res); next(); });
   router.use((_req,res,next) => String(env.SHILOH_CLINIC_IPAD_CHECKIN_ENABLED).toLowerCase() === 'true' ? next() : res.sendStatus(404));
+  router.get('/manifest.webmanifest',(_req,res) => res.type('application/manifest+json').send({
+    name:'Shiloh Client Check-in',short_name:'Shiloh Check-in',
+    id:'/check-in/',start_url:'/check-in/',scope:'/',display:'standalone',
+    background_color:'#f6f3eb',theme_color:'#f6f3eb',
+    icons:[
+      { src:'/assets/brand/shiloh-mark-192.png',sizes:'192x192',type:'image/png' },
+      { src:'/assets/brand/shiloh-mark-512.png',sizes:'512x512',type:'image/png' }
+    ]
+  }));
   router.use(express.urlencoded({ extended:false,limit:'4kb',parameterLimit:8 }));
   router.use(async (req,res,next) => {
     try {
