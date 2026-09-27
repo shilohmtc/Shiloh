@@ -216,6 +216,87 @@ test('device activation requires existing clinic client management authority',as
   assert.doesNotMatch(JSON.stringify(queries),new RegExp(rawDevice));
 });
 
+test('one-time setup code requires clinic authority and can be redeemed only once',async()=>{
+  let pending=null,device=null;
+  let currentTime=new Date('2026-09-27T09:00:00Z');
+  let nextCode='1234567890';
+  const query=async(sql,args=[])=>{
+    if (sql==='BEGIN' || sql==='COMMIT' || sql==='ROLLBACK') return {rowCount:0,rows:[]};
+    if (sql.includes('INSERT INTO clinic_checkin_setup_codes')) {
+      pending={hash:args[0],adminId:args[1],expiresAt:args[2],consumed:false};
+      return {rowCount:1,rows:[{code_hash:args[0]}]};
+    }
+    if (sql.includes('UPDATE clinic_checkin_setup_codes SET redeemed_at')) {
+      if (pending?.hash===args[0] && !pending.consumed && pending.expiresAt>args[1]) {
+        pending.consumed=true;return {rowCount:1,rows:[{created_by_admin_id:pending.adminId}]};
+      }
+      return {rowCount:0,rows:[]};
+    }
+    if (sql.includes('INSERT INTO clinic_checkin_devices')) {
+      device={hash:args[0],adminId:args[1]};return {rowCount:1,rows:[{id:9}]};
+    }
+    if (sql.includes('UPDATE clinic_checkin_setup_codes SET device_id')) return {rowCount:1,rows:[]};
+    throw new Error(`Unexpected query: ${sql}`);
+  };
+  const service=createClinicIpadCheckinService({db:{query,connect:async()=>({query,release(){}})},
+    now:()=>currentTime,randomSetupCode:()=> nextCode,randomToken:()=>rawDevice,
+    clientMutations:{resolveManageAccess:async id=>id===7?{operatorAdminId:7,clientScope:{kind:'clinic'}}:null}});
+  await assert.rejects(service.createSetupCode(8),{httpStatus:403});
+  const setup=await service.createSetupCode(7);
+  assert.equal(setup.code,'1234567890');
+  assert.equal(pending.hash,crypto.createHash('sha256').update(setup.code).digest('hex'));
+  assert.equal((await service.redeemSetupCode(setup.code)).token,rawDevice);
+  assert.equal(device.adminId,7);
+  assert.notEqual(device.hash,rawDevice);
+  await assert.rejects(service.redeemSetupCode(setup.code),{httpStatus:409});
+  nextCode='9876543210';
+  await service.createSetupCode(7);
+  currentTime=new Date('2026-09-27T09:06:00Z');
+  await assert.rejects(service.redeemSetupCode(nextCode),{httpStatus:409});
+});
+
+test('iPad activates using a staff-created code without signing in to Workspace',async()=>{
+  const service={deviceFor:async()=>null,redeemSetupCode:async code=>{
+    assert.equal(code,'1234567890');return {deviceId:9,token:rawDevice};
+  }};
+  await withServer(service,async base=>{
+    const setup=await fetch(`${base}/check-in/`);
+    assert.equal(setup.status,401);
+    const html=await setup.text();
+    assert.match(html,/Create setup code/);
+    assert.doesNotMatch(html,/sign in to Workspace/);
+    const nonce=html.match(/name="setupNonce" value="([A-Za-z0-9_-]{43})"/)[1];
+    const setupCookie=setup.headers.getSetCookie().find(value=>value.startsWith('shiloh_checkin_setup='));
+    const cookie=setupCookie.split(';')[0],body=`setupNonce=${nonce}&setupCode=1234567890`;
+    const foreign=await fetch(`${base}/check-in/redeem-code`,{method:'POST',headers:{Cookie:cookie,Origin:'https://foreign.example','Content-Type':'application/x-www-form-urlencoded'},body,redirect:'manual'});
+    assert.equal(foreign.status,403);
+    const response=await fetch(`${base}/check-in/redeem-code`,{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/x-www-form-urlencoded'},body,redirect:'manual'});
+    assert.equal(response.status,303);
+    assert.equal(response.headers.get('location'),'/check-in/');
+    assert.match(response.headers.getSetCookie().join('\n'),/shiloh_checkin_device=.*HttpOnly/);
+  });
+});
+
+test('only an authenticated staff Workspace session can create a setup code',async()=>{
+  const app=express();app.use(express.json());
+  app.use('/calendar/check-in',createClinicIpadSetupRouter({
+    env:{SHILOH_CLINIC_IPAD_CHECKIN_ENABLED:'true'},
+    sessionService:{validateSessionToken:async token=>token==='abc'?{ok:true,adminId:7,sessionId:11}:{ok:false},validateCsrfToken:async()=>true},
+    service:{createSetupCode:async id=>{assert.equal(id,7);return {code:'1234567890',expiresInSeconds:300};}},
+  }));
+  const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
+  const base=`http://127.0.0.1:${server.address().port}`;
+  try {
+    const denied=await fetch(`${base}/calendar/check-in/setup-code`,{method:'POST',headers:{Origin:base,'Content-Type':'application/json'},body:'{}'});
+    assert.notEqual(denied.status,200);
+    const response=await fetch(`${base}/calendar/check-in/setup-code`,{method:'POST',headers:{Origin:base,Cookie:'shiloh_staff_session=abc','X-Shiloh-Csrf-Token':'proof','Content-Type':'application/json'},body:'{}'});
+    assert.equal(response.status,200);
+    assert.deepEqual(await response.json(),{code:'1234567890',expiresInSeconds:300});
+    assert.equal(response.headers.get('cache-control'),'private, no-store, max-age=0');
+    assert.doesNotMatch(response.headers.getSetCookie().join('\n'),/shiloh_checkin_device/);
+  }finally{await new Promise(resolve=>server.close(resolve));}
+});
+
 test('activation clears staff and client cookies before handing the iPad to a visitor',async () => {
   const revoked=[];
   const app=express();
