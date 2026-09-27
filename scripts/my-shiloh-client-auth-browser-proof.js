@@ -449,7 +449,7 @@ async function runViewport(browser, name, viewport) {
 
   await page.locator('[data-view-target="profile"]').click();
   await page.getByRole('button', { name: 'Sign out' }).click();
-  await page.waitForFunction(() => document.body.textContent.includes('Open WhatsApp to verify'));
+  await page.locator('[data-view="home"] [data-client-auth-start]').waitFor({ state: 'visible' });
   if (!clearedAssistantSessions.includes(55)) throw new Error('assistant conversation was not cleared on logout');
   if (!revokedActionSessions.some((call) => call.sessionId === 55 && call.crmV2ClientId === 912)) {
     throw new Error('outstanding client actions were not revoked on logout');
