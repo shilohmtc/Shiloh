@@ -101,6 +101,13 @@
   }
 
   window.addEventListener('hashchange', () => activateView(selectedView()));
+  document.querySelector('[data-booking-steps-link]')?.addEventListener('click', (event) => {
+    const steps = document.querySelector('#how-booking-works');
+    if (!steps) return;
+    event.preventDefault();
+    steps.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    steps.querySelector('h2')?.focus({ preventScroll: true });
+  });
   activateView(selectedView());
   refreshClientGreeting();
   document.addEventListener('visibilitychange', () => {
@@ -402,13 +409,7 @@
         );
       });
 
-      let action = experienceHome.querySelector('[data-client-experience-primary]');
-      if (!action) {
-        action = document.createElement('a');
-        action.className = 'button button--primary experience-primary';
-        action.dataset.clientExperiencePrimary = '';
-        experienceHome.appendChild(action);
-      }
+      const action = experienceHome.querySelector('[data-client-experience-primary]');
       action.textContent = String(experience.home.primaryAction?.label || 'Ask Shiloh');
       action.href = safeExperienceHref(experience.home.primaryAction?.href);
     }
@@ -1097,14 +1098,10 @@
 
   function renderClientNotifications(notifications) {
     if (!clientNotificationList) return;
+    const centre = clientNotificationList.closest('[data-client-notification-centre]');
+    if (centre) centre.hidden = !Array.isArray(notifications) || notifications.length === 0;
     clientNotificationList.replaceChildren();
-    if (!Array.isArray(notifications) || notifications.length === 0) {
-      const empty = document.createElement('p');
-      empty.className = 'notification-centre__empty';
-      empty.textContent = 'You have no new Shiloh updates.';
-      clientNotificationList.append(empty);
-      return;
-    }
+    if (!Array.isArray(notifications) || notifications.length === 0) return;
     for (const notification of notifications) {
       const card = document.createElement('a');
       card.className = 'notification-centre__item';
@@ -1139,6 +1136,8 @@
       if (!response.ok) throw new Error(data.error || 'Your updates could not be loaded.');
       renderClientNotifications(data.notifications);
     } catch (_) {
+      const centre = clientNotificationList.closest('[data-client-notification-centre]');
+      if (centre) centre.hidden = false;
       const message = document.createElement('p');
       message.className = 'notification-centre__empty';
       message.textContent = 'Your latest updates are temporarily unavailable.';

@@ -93,7 +93,11 @@ test('My Shiloh guest booking stays behind WhatsApp sign-in on phone and desktop
     await expect(frame).toBeVisible();
     await expect(frame.locator('a[href="/book"]')).toHaveCount(0);
     await expect(frame.getByRole('link', { name:'Sign in to book' }).first()).toBeVisible();
+    await expect(frame.locator('.booking-steps li')).toHaveCount(3);
+    await expect(frame.locator('.booking-steps')).toContainText('Reception confirms your appointment before it’s booked.');
     await frame.getByRole('link', { name:'How booking works' }).click();
+    await expect(frame.getByRole('heading', { name:'Your visit starts here.' })).toBeFocused();
+    await frame.locator('[data-view-target="bookings"]').click();
     await expect(frame.getByRole('heading', { name:'Your time with Shiloh.' })).toBeVisible();
     await frame.getByRole('link', { name:'Sign in to book' }).last().click();
     await expect(frame.getByRole('button', { name:'Continue with WhatsApp' }).first()).toBeVisible();
@@ -592,6 +596,9 @@ test('My Shiloh Home summary cards are tappable and redeemed welcome voucher cle
     contentType: 'application/json',
     body: JSON.stringify({ reports: [] }),
   }));
+  await page.route('**/my-shiloh/api/notifications', route => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ notifications: [] }),
+  }));
 
   for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
@@ -603,7 +610,16 @@ test('My Shiloh Home summary cards are tappable and redeemed welcome voucher cle
     await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
 
     const focus = page.locator('[data-client-experience-home]');
+    await expect(page.locator('[data-client-notification-centre]')).toBeHidden();
+    await expect(page.locator('.hero .hero-actions')).toHaveCount(0);
+    await expect(focus.locator('[data-client-experience-primary]')).toHaveCount(1);
     await expect(focus.getByText(/Every Shiloh visit includes a welcome drink on arrival/)).toBeVisible();
+    const focusOrder = await focus.evaluate((node) => {
+      const action = node.querySelector('[data-client-experience-primary]');
+      const hospitality = node.querySelector('.focus-card__hospitality');
+      return Boolean(action && hospitality && action.compareDocumentPosition(hospitality) & Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+    expect(focusOrder).toBe(true);
     await expect(focus.getByRole('button', { name: /Appointment: None upcoming/ })).toBeVisible();
     await expect(focus.getByRole('button', { name: /Forms: Nothing waiting/ })).toBeVisible();
     await expect(focus.getByRole('button', { name: /Payment: No active booking/ })).toBeVisible();
@@ -637,6 +653,22 @@ test('My Shiloh Home summary cards are tappable and redeemed welcome voucher cle
     await focus.getByRole('button', { name: /Appointment: None upcoming/ }).click();
     await expect(page.locator('[data-view="bookings"]')).toBeVisible();
   }
+});
+
+test('My Shiloh shows the Updates section when a client has a real update', async ({ page }) => {
+  await page.route('**/my-shiloh/api/notifications', route => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ notifications: [{ id:'visit-1', title:'Appointment reminder', body:'Your appointment is coming up.', targetPath:'/my-shiloh/#bookings' }] }),
+  }));
+  await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-home&viewMode=story', { waitUntil:'networkidle' });
+  await page.evaluate(() => {
+    localStorage.setItem('my-shiloh-install-whatsapp-verified-v1', '1');
+    Object.defineProperty(navigator, 'standalone', { configurable:true, get:() => true });
+  });
+  await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
+  const centre = page.locator('[data-client-notification-centre]');
+  await expect(centre).toBeVisible();
+  await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toHaveAttribute('href', '/my-shiloh/#bookings');
 });
 
 test('Shiloh Rewards is clear, responsive and accessible on Phone and Desktop', async ({page},testInfo)=>{

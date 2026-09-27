@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-ai-planning-name-notifications-v1';
+const MY_SHILOH_ASSET_VERSION = '20260927-client-home-next-step-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -97,11 +97,7 @@ function renderMyShilohPage({
     ? `<div class="hero">
         <p class="eyebrow">Welcome back</p>
         <h1 id="home-title" class="hero-greeting" data-client-greeting data-first-name="${firstName}">${escapeHtml(greeting)}, <span>${firstName}.</span></h1>
-        <p class="hero-copy">You’re safely signed in. Your appointments, forms, payments and rewards are ready whenever you need them.</p>
-        <div class="hero-actions">
-          <a class="button button--primary" href="/my-shiloh/book">Book an appointment</a>
-          <a class="button button--soft" href="${escapeHtml(humanHandoffActive && speakToReception ? speakToReception : askShiloh)}" rel="noopener noreferrer">${humanHandoffActive && speakToReception ? 'Continue with Reception' : 'Ask Shiloh'}</a>
-        </div>
+        <p class="hero-copy">Your next visit and anything that needs your attention, all in one place.</p>
       </div>`
     : `<div class="hero">
         <p class="eyebrow">Welcome to My Shiloh</p>
@@ -109,7 +105,7 @@ function renderMyShilohPage({
         <p class="hero-copy">Use WhatsApp to confirm it’s you and open your personal Shiloh space. No password or email needed.</p>
         <div class="hero-actions">
           <button class="button button--primary" type="button" data-client-auth-start>Continue with WhatsApp</button>
-          <a class="button button--soft" href="#bookings">How booking works</a>
+          <a class="button button--soft" href="#how-booking-works" data-booking-steps-link>How booking works</a>
         </div>
         <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
         ${authFinishForm('my-shiloh-home-code')}
@@ -118,29 +114,28 @@ function renderMyShilohPage({
   const focus = authenticated
     ? `<section class="focus-card" aria-labelledby="next-visit-title" data-client-experience-home>
         <div class="focus-card__top">
-          <div><p class="eyebrow">Your Shiloh</p><h2 id="next-visit-title">Bringing your next step into focus.</h2></div>
-          <span class="status-pill">Secure</span>
+          <div><p class="eyebrow">Your next step</p><h2 id="next-visit-title">Checking your visit.</h2></div>
+          <span class="status-pill">Checking</span>
         </div>
-        <p>Shiloh is bringing together what matters for your next visit.</p>
-        <p>${escapeHtml(STANDARD_HOSPITALITY)}</p>
+        <p>Checking your latest booking and anything to do before you arrive.</p>
         <div class="focus-grid" aria-label="Your Shiloh details">
           <button class="focus-fact" type="button" data-client-experience-fact data-fact-key="appointment"><span>Appointment</span><strong>Checking</strong><b aria-hidden="true">›</b></button>
           <button class="focus-fact" type="button" data-client-experience-fact data-fact-key="forms"><span>Forms</span><strong>Checking</strong><b aria-hidden="true">›</b></button>
           <button class="focus-fact" type="button" data-client-experience-fact data-fact-key="payment"><span>Payment</span><strong>Checking</strong><b aria-hidden="true">›</b></button>
         </div>
         <p class="focus-card__fact-status" data-client-experience-fact-status role="status" aria-live="polite"></p>
+        <a class="button button--primary experience-primary" data-client-experience-primary href="/my-shiloh/book">Book an appointment</a>
+        <p class="focus-card__hospitality">${escapeHtml(STANDARD_HOSPITALITY)}</p>
       </section>`
-    : `<section class="focus-card" aria-labelledby="next-visit-title">
+    : `<section class="focus-card focus-card--guest" id="how-booking-works" aria-labelledby="next-visit-title">
         <div class="focus-card__top">
-          <div><p class="eyebrow">Secure sign-in</p><h2 id="next-visit-title">Sign in once. No password needed.</h2></div>
-          <span class="status-pill">Private</span>
+          <div><p class="eyebrow">How booking works</p><h2 id="next-visit-title" tabindex="-1">Your visit starts here.</h2></div>
         </div>
-        <p>WhatsApp confirms your number and brings you safely back to My Shiloh.</p>
-        <div class="focus-grid" aria-label="My Shiloh sign-in">
-          <div><span>Sign-in</span><strong>WhatsApp</strong></div>
-          <div><span>Password</span><strong>Not needed</strong></div>
-          <div><span>Your choice</span><strong>Sign out anytime</strong></div>
-        </div>
+        <ol class="booking-steps">
+          <li><strong>Explore treatments</strong><span>See what feels right for you.</span></li>
+          <li><strong>Confirm it’s you</strong><span>Sign in securely with WhatsApp.</span></li>
+          <li><strong>Request a time</strong><span>Reception confirms your appointment before it’s booked.</span></li>
+        </ol>
       </section>`;
 
   const giftVoucher = authenticated
@@ -354,7 +349,7 @@ function renderMyShilohPage({
           <div><p class="eyebrow">Appointment updates</p><h2 id="notification-invite-title">Stay ready for your next visit.</h2><p>Turn on My Shiloh notifications for booking and appointment reminders on this phone.</p></div>
           <a class="button button--soft" href="#profile">Set up notifications</a>
         </aside>` : ''}
-        ${authenticated ? `<section class="notification-centre" aria-labelledby="notification-centre-title" data-client-notification-centre>
+        ${authenticated ? `<section class="notification-centre" aria-labelledby="notification-centre-title" data-client-notification-centre hidden>
           <div class="section-heading"><div><p class="eyebrow">Updates</p><h2 id="notification-centre-title">Your latest Shiloh updates.</h2></div><a class="text-link" href="#profile">Notification settings</a></div>
           <div class="notification-centre__list" data-client-notification-list aria-live="polite"><p class="notification-centre__empty">Checking for updates…</p></div>
         </section>` : ''}
