@@ -1,6 +1,6 @@
 'use strict';
 
-const { sendWhatsAppMessage } = require('../services/whatsapp');
+const { sendWhatsAppSignInMessage } = require('../services/whatsapp');
 const staffWhatsAppPasskeyBootstrap = require('../services/staffWhatsAppPasskeyBootstrap');
 
 function isGreetingOnly(text = '') {
@@ -19,7 +19,7 @@ function unavailableReply(displayName = '') {
 
 function createStaffWhatsAppPasskeyBootstrapMiddleware({
   bootstrapService = staffWhatsAppPasskeyBootstrap,
-  sendMessage = sendWhatsAppMessage,
+  sendMessage = sendWhatsAppSignInMessage,
 } = {}) {
   if (!bootstrapService || typeof bootstrapService.issueBootstrap !== 'function') throw new Error('staff WhatsApp passkey bootstrap service is required');
   if (typeof sendMessage !== 'function') throw new Error('WhatsApp send function is required');

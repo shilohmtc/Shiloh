@@ -2,6 +2,7 @@ const logger = require('../lib/logger');
 const { APP_ORIGIN } = require('../config/publicOrigins');
 const { configuredMetaTemplateName } = require('./metaTemplateAdapter');
 const { sendWhatsAppTemplate } = require('./whatsapp');
+const { metaSignInOnly } = require('./metaSignInOnly');
 
 const LEGACY_DEPOSIT_TEMPLATE_NAME = 'shiloh_payment_deposit_request_v1';
 
@@ -30,7 +31,7 @@ function formatRand(value) {
 }
 
 function paymentNotificationsEnabled(environment = process.env) {
-  return String(environment.WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED || '').toLowerCase() === 'true';
+  return !metaSignInOnly(environment) && String(environment.WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED || '').toLowerCase() === 'true';
 }
 
 function isTemplateUnavailableError(error) {

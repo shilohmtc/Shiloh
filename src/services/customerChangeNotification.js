@@ -1,5 +1,6 @@
 const { pool } = require('../db/pool');
 const { sendWhatsAppTemplate } = require('./whatsapp');
+const { metaSignInOnly } = require('./metaSignInOnly');
 const { resolveClientFacingName } = require('./clientFacingNameAuthority');
 const {
   DEFINITIONS,
@@ -303,9 +304,10 @@ async function attemptCustomerChangeNotification(auditEventId, { env = process.e
   // An intentional transport pause is known before any provider request. Keep
   // the row pending so it can be reviewed or resumed, rather than claiming it
   // as a possibly accepted send that Reception must treat as uncertain.
-  if (UPDATE_KINDS.has(item.change_kind) && env.WHATSAPP_BOOKING_UPDATE_ENABLED !== 'true') {
-    await pool.query(`UPDATE customer_change_notifications SET status='pending',last_error='booking_update_delivery_disabled',updated_at=NOW() WHERE audit_event_id=$1 AND status IN ('pending','failed')`, [auditEventId]);
-    return { sent: false, reason: 'booking_update_delivery_disabled' };
+  if (metaSignInOnly(env) || (UPDATE_KINDS.has(item.change_kind) && env.WHATSAPP_BOOKING_UPDATE_ENABLED !== 'true')) {
+    const reason = metaSignInOnly(env) ? 'meta_signin_only' : 'booking_update_delivery_disabled';
+    await pool.query(`UPDATE customer_change_notifications SET status='pending',last_error=$2,updated_at=NOW() WHERE audit_event_id=$1 AND status IN ('pending','failed')`, [auditEventId, reason]);
+    return { sent: false, reason };
   }
 
   let templateStatus;

@@ -8,6 +8,7 @@ const {
 const { processWhatsAppStatusWebhook } = require("../controllers/whatsappStatusWebhookController");
 const { myShilohWhatsAppAuthMiddleware } = require("../middleware/myShilohWhatsAppAuth");
 const { staffWhatsAppPasskeyBootstrapMiddleware } = require("../middleware/staffWhatsAppPasskeyBootstrap");
+const { metaSignInOnly } = require('../services/metaSignInOnly');
 
 router.get("/webhook", verifyWebhook);
 router.post(
@@ -15,6 +16,7 @@ router.post(
   processWhatsAppStatusWebhook,
   myShilohWhatsAppAuthMiddleware,
   staffWhatsAppPasskeyBootstrapMiddleware,
+  (req, res, next) => metaSignInOnly() ? res.sendStatus(200) : next(),
   receiveWebhook,
 );
 

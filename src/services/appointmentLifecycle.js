@@ -1,5 +1,6 @@
 const { pool } = require("../db/pool");
 const { sendWhatsAppTemplate } = require("./whatsapp");
+const { metaSignInOnly } = require('./metaSignInOnly');
 const { resolveClientFacingNameByPhone } = require("./clientFacingNameAuthority");
 const { createPendingExperience } = require("./customerExperience");
 const logger = require("../lib/logger");
@@ -167,6 +168,7 @@ async function customerName(phone){
 }
 
 async function deliverClaimedFollowup(appointment, followupTemplate, followupActionsTemplate, deps = {}) {
+  if (metaSignInOnly(deps.env || process.env)) return { sent: false, reason: 'meta_signin_only' };
   const send = deps.send || sendWhatsAppTemplate;
   const updateEvidence = deps.updateEvidence || ((id, templateName, providerMessageId) => pool.query(`UPDATE appointment_lifecycle SET followup_template_name=$2,followup_provider_message_id=$3,updated_at=NOW() WHERE id=$1`, [id, templateName, providerMessageId]));
   const createExperience = deps.createExperience || createPendingExperience;
@@ -227,9 +229,10 @@ async function deliverClaimedReminder(appointment, reminderTemplate, reminderAct
   }
   // Pause WhatsApp for this client only after a push service accepted the wake.
   // Clients without an active subscription keep the existing template route.
-  if (env.SHILOH_CLIENT_REMINDER_APP_ONLY_ENABLED === 'true' && Number(appDelivery?.accepted) > 0) {
+  if ((env.SHILOH_CLIENT_REMINDER_APP_ONLY_ENABLED === 'true' || metaSignInOnly(env)) && Number(appDelivery?.accepted) > 0) {
     return { sent: true, channel: 'my_shiloh', notificationId: appDelivery.notificationId };
   }
+  if (metaSignInOnly(env)) throw new Error('No confirmed reminder delivery channel is available');
   if (!reminderTemplate) throw new Error('No confirmed reminder delivery channel is available');
   return send(
     appointment.phone,
@@ -241,11 +244,12 @@ async function deliverClaimedReminder(appointment, reminderTemplate, reminderAct
 }
 
 async function processReminders() {
-  const reminderActionsTemplate=process.env.WHATSAPP_REMINDER_ACTIONS_TEMPLATE;
-  const reminderTemplate=reminderActionsTemplate||process.env.WHATSAPP_REMINDER_TEMPLATE;
-  const followupActionsTemplate=process.env.WHATSAPP_FOLLOWUP_ACTIONS_TEMPLATE;
-  const followupTemplate=followupActionsTemplate||process.env.WHATSAPP_FOLLOWUP_TEMPLATE;
-  const appOnlyReminders = process.env.SHILOH_CLIENT_REMINDER_APP_ONLY_ENABLED === 'true';
+  const paused=metaSignInOnly();
+  const reminderActionsTemplate=paused?null:process.env.WHATSAPP_REMINDER_ACTIONS_TEMPLATE;
+  const reminderTemplate=paused?null:reminderActionsTemplate||process.env.WHATSAPP_REMINDER_TEMPLATE;
+  const followupActionsTemplate=paused?null:process.env.WHATSAPP_FOLLOWUP_ACTIONS_TEMPLATE;
+  const followupTemplate=paused?null:followupActionsTemplate||process.env.WHATSAPP_FOLLOWUP_TEMPLATE;
+  const appOnlyReminders = paused || process.env.SHILOH_CLIENT_REMINDER_APP_ONLY_ENABLED === 'true';
   if(!reminderTemplate&&!followupTemplate&&!appOnlyReminders)return;
 
   if(reminderTemplate||appOnlyReminders){
