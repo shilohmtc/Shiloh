@@ -3,6 +3,7 @@
 const express = require('express');
 const path = require('path');
 const { createClinicIpadCheckinService, CheckinError } = require('../services/clinicIpadCheckin');
+const { createConsultationFormDeliveryService } = require('../services/consultationFormDelivery');
 const { requireStaffSession, sameOriginGuard, csrfGuard, parseCookieValue, expectedOrigin,
   serializeExpiredSessionCookie } = require('../middleware/staffBrowserSession');
 const { serializeExpiredClientSessionCookie, serializeExpiredClientAuthCookie } = require('../middleware/clientBrowserSession');
@@ -121,7 +122,8 @@ function createClinicIpadPublicRouter({ env = process.env, service = createClini
   return router;
 }
 
-function createClinicIpadSetupRouter({ env = process.env, sessionService, service = createClinicIpadCheckinService() } = {}) {
+function createClinicIpadSetupRouter({ env = process.env, sessionService, service = createClinicIpadCheckinService(),
+  deliveryService = createConsultationFormDeliveryService({ env }) } = {}) {
   if (!sessionService) throw new Error('Staff browser session service required');
   const router = express.Router();
   const staff = requireStaffSession({ service:sessionService, env });
@@ -139,10 +141,34 @@ function createClinicIpadSetupRouter({ env = process.env, sessionService, servic
 const status=document.querySelector('[data-status]'),options=document.querySelector('[data-form-options]');
 async function send(path,payload){const c=await fetch('/calendar/staff-auth/csrf',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(!c.ok)throw Error('Please sign in again.');const csrf=await c.json();const r=await fetch('/calendar/check-in/'+path,{method:'POST',headers:{'Content-Type':'application/json','X-Shiloh-Csrf-Token':csrf.csrfToken},body:JSON.stringify(payload)});if(!r.ok)throw Error('The action could not be completed. Please check the appointment and iPad.');return r.json();}
 document.querySelectorAll('[data-revoke]').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{await send('revoke',{deviceId:button.dataset.revoke});location.reload();}catch(e){status.textContent=e.message;button.disabled=false;}}));
-document.querySelector('[data-find-forms]').addEventListener('submit',async event=>{event.preventDefault();options.replaceChildren();status.textContent='Finding the appointment forms…';const appointmentId=new FormData(event.target).get('appointmentId');try{const r=await fetch('/calendar/check-in/assignments/'+encodeURIComponent(appointmentId));if(!r.ok)throw Error('Forms are unavailable for this appointment.');const data=await r.json();if(!data.assignments.length){status.textContent='No unfinished forms are assigned to this appointment.';return;}status.textContent='Confirm the client, appointment and form before choosing the iPad.';for(const item of data.assignments){const row=document.createElement('div'),label=document.createElement('label'),select=document.createElement('select'),button=document.createElement('button');label.textContent=item.client_name+' · '+new Date(item.starts_at).toLocaleString('en-ZA',{timeZone:'Africa/Johannesburg'})+' · '+item.title+' · iPad ';for(const device of document.querySelectorAll('[data-revoke]')){const option=document.createElement('option');option.value=device.dataset.revoke;option.textContent='iPad '+device.dataset.revoke;select.append(option);}button.type='button';button.className='button secondary';button.textContent='Prepare on iPad';button.addEventListener('click',async()=>{button.disabled=true;try{await send('queue-form',{appointmentId,assignmentId:item.id,deviceId:select.value});status.textContent='The form is ready on the selected iPad.';}catch(e){status.textContent=e.message;button.disabled=false;}});label.append(select);row.append(label,button);options.append(row);}}catch(e){status.textContent=e.message;}});
+document.querySelector('[data-find-forms]').addEventListener('submit',async event=>{
+event.preventDefault();options.replaceChildren();status.textContent='Finding the appointment forms…';
+const appointmentId=new FormData(event.target).get('appointmentId');
+try{const r=await fetch('/calendar/check-in/assignments/'+encodeURIComponent(appointmentId));
+if(!r.ok)throw Error('Forms are unavailable for this appointment.');const data=await r.json();
+if(!data.assignments.length){status.textContent='No unfinished forms are assigned to this appointment.';return;}
+status.textContent='Confirm the client, appointment and form before choosing how to deliver it.';
+for(const item of data.assignments){
+const row=document.createElement('div'),label=document.createElement('label'),select=document.createElement('select'),button=document.createElement('button');
+label.textContent=item.client_name+' · mobile ending '+item.mobile_last4+' · '+new Date(item.starts_at).toLocaleString('en-ZA',{timeZone:'Africa/Johannesburg'})+' · '+item.title+' · iPad ';
+for(const device of document.querySelectorAll('[data-revoke]')){const option=document.createElement('option');option.value=device.dataset.revoke;option.textContent='iPad '+device.dataset.revoke;select.append(option);}
+button.type='button';button.className='button secondary';button.textContent='Prepare on iPad';
+button.addEventListener('click',async()=>{button.disabled=true;try{await send('queue-form',{appointmentId,assignmentId:item.id,deviceId:select.value});status.textContent='The form is ready on the selected iPad.';}catch(e){status.textContent=e.message;button.disabled=false;}});
+label.append(select);row.append(label);
+if(item.status==='not_sent')row.append(button);
+if(options.dataset.whatsappReady==='true' && item.status==='not_sent'){
+const whatsapp=document.createElement('button');whatsapp.type='button';whatsapp.className='button secondary';whatsapp.textContent='Send to client’s WhatsApp';
+whatsapp.addEventListener('click',async()=>{if(!window.confirm('Send '+item.title+' to '+item.client_name+' at mobile ending '+item.mobile_last4+'?'))return;
+whatsapp.disabled=true;try{await send('send-form',{appointmentId,assignmentId:item.id});status.textContent='The form was sent to the client’s WhatsApp.';}
+catch(e){status.textContent=e.message;whatsapp.disabled=false;}});row.append(whatsapp);}
+options.append(row);
+}}catch(e){status.textContent=e.message;}});
 })();`));
   router.get('/devices',staff,async (req,res,next) => {
-    try { return res.type('html').send(ux.devices(await service.listDevices(req.staffBrowserSession.adminId))); }
+    try { const whatsappReady=String(env.SHILOH_CONSULTATION_FORM_DELIVERY_ENABLED).toLowerCase()==='true'
+        && String(env.SHILOH_CLIENT_CONSULTATION_FORMS_ENABLED).toLowerCase()==='true'
+        && Boolean(env.SHILOH_CONSULTATION_FORM_DELIVERY_NOT_BEFORE);
+      return res.type('html').send(ux.devices(await service.listDevices(req.staffBrowserSession.adminId),{whatsappReady})); }
     catch (error) { next(error); }
   });
   router.get('/assignments/:appointmentId',staff,async (req,res,next) => {
@@ -157,6 +183,17 @@ document.querySelector('[data-find-forms]').addEventListener('submit',async even
         req.body?.deviceId,req.body?.appointmentId,req.body?.assignmentId);
       return res.status(200).json(queued);
     } catch (error) { next(error); }
+  });
+  router.post('/send-form',sameOriginGuard({ env }),staff,csrfGuard({ service:sessionService }),async (req,res,next) => {
+    try {
+      const assignments=await service.listFormAssignments(req.staffBrowserSession.adminId,req.body?.appointmentId);
+      if (!assignments.some(row=>String(row.id)===String(req.body?.assignmentId))) {
+        throw new CheckinError('This form is not available for that appointment.',409);
+      }
+      const result=await deliveryService.sendAssignmentNow(req.body.assignmentId,
+        {actorAdminId:req.staffBrowserSession.adminId});
+      return res.status(result.sent?200:409).json(result);
+    } catch(error) { next(error); }
   });
   router.post('/revoke',sameOriginGuard({ env }),staff,csrfGuard({ service:sessionService }),async (req,res,next) => {
     try {

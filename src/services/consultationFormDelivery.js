@@ -200,7 +200,7 @@ function createConsultationFormDeliveryService({
     return result.rows.map((row) => positiveId(row.id)).filter(Boolean);
   }
 
-  async function loadAssignmentContext(assignmentId, { deliveryNotBefore = parseDeliveryNotBefore(env) } = {}) {
+  async function loadAssignmentContext(assignmentId, { deliveryNotBefore = parseDeliveryNotBefore(env), manual = false } = {}) {
     if (!deliveryNotBefore) return null;
     const result = await db.query(
       `/* consultationFormDelivery:context */
@@ -225,10 +225,17 @@ function createConsultationFormDeliveryService({
           AND a.status='not_sent'
           AND ap.status IN ('scheduled','confirmed')
           AND ap.starts_at>$2
-          AND a.created_at >= $3::timestamptz
+          ${manual ? '' : 'AND a.created_at >= $3::timestamptz'}
           AND mapped.service_name IS NOT NULL
+          ${(manual || String(env.SHILOH_CLINIC_IPAD_CHECKIN_ENABLED).toLowerCase()==='true') ? `AND NOT EXISTS (SELECT 1 FROM clinic_checkin_form_handoffs h
+            WHERE h.assignment_id=a.id AND h.status IN ('queued','claimed') AND h.expires_at>$2)` : ''}
+          AND NOT EXISTS (
+            SELECT 1 FROM crm_audit_events e
+             WHERE e.action='consultation_form.delivery_uncertain'
+               AND e.entity_type='consultation_form_assignment' AND e.entity_id=a.id
+          )
         LIMIT 1`,
-      [assignmentId, now(), deliveryNotBefore]
+      manual ? [assignmentId,now()] : [assignmentId,now(),deliveryNotBefore]
     );
     return result.rows[0] || null;
   }
@@ -253,7 +260,7 @@ function createConsultationFormDeliveryService({
     }
   }
 
-  async function sendAssignment(assignmentId, { contractPreflighted = false } = {}) {
+  async function sendAssignment(assignmentId, { contractPreflighted = false, manual = false, actorAdminId = null } = {}) {
     const id = positiveId(assignmentId);
     if (!id) return { sent: false, reason: 'assignment_invalid' };
     if (!formService.isClientConsultationFormsEnabled(env)) return { sent: false, reason: 'client_forms_disabled' };
@@ -263,10 +270,11 @@ function createConsultationFormDeliveryService({
       return { sent: false, reason: 'delivery_not_before_invalid' };
     }
     if (!deliveryNotBefore) return { sent: false, reason: 'delivery_not_before_unconfigured' };
+    if (manual && now()<deliveryNotBefore) return { sent:false,reason:'delivery_not_live' };
     formService.parseDataKey(env);
     if (!contractPreflighted) await preflightTemplateSend(assertSendAllowed);
 
-    const context = await loadAssignmentContext(id, { deliveryNotBefore });
+    const context = await loadAssignmentContext(id, { deliveryNotBefore, manual });
     if (!context) return { sent: false, reason: 'assignment_not_due' };
     const authority = await loadAuthority(context.appointment_id, db);
     const recipient = await resolveDeliveryRecipient(authority, {
@@ -309,6 +317,11 @@ function createConsultationFormDeliveryService({
         providerMessageId: acceptedProviderMessageId,
         identityModel: recipient.identityModel,
       });
+      if (manual) await db.query(
+        `INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata)
+         VALUES($1,'consultation_form.manual_send','consultation_form_assignment',$2,$3::jsonb)`,
+        [actorAdminId,id,JSON.stringify({appointmentId:positiveId(context.appointment_id)})]
+      );
       if (pushNotify && recipient.crmV2ClientId) {
         await pushNotify({
           crmV2ClientId: Number(recipient.crmV2ClientId),
@@ -331,6 +344,29 @@ function createConsultationFormDeliveryService({
       }
       throw error;
     }
+  }
+
+  async function sendAssignmentLocked(assignmentId, { manual = false, actorAdminId = null, contractPreflighted = false } = {}) {
+    const id=positiveId(assignmentId),actor=positiveId(actorAdminId);
+    if (!id || (manual && !actor)) return { sent:false,reason:'assignment_or_operator_invalid' };
+    if (!db.connect) throw new Error('Manual form delivery requires a database connection');
+    const connection=await db.connect();
+    try {
+      await connection.query('BEGIN');
+      const lock=await connection.query('SELECT pg_try_advisory_xact_lock(-$1::bigint) AS acquired',[id]);
+      if (!lock.rows[0]?.acquired) {
+        await connection.query('ROLLBACK');
+        return { sent:false,reason:'already_sending' };
+      }
+      const result=await sendAssignment(id,{manual,actorAdminId:actor,contractPreflighted});
+      await connection.query('COMMIT');
+      return result;
+    } catch(error) { await connection.query('ROLLBACK'); throw error; }
+    finally { connection.release(); }
+  }
+
+  async function sendAssignmentNow(assignmentId, { actorAdminId } = {}) {
+    return sendAssignmentLocked(assignmentId,{manual:true,actorAdminId});
   }
 
   async function runOnce() {
@@ -365,7 +401,7 @@ function createConsultationFormDeliveryService({
     const results = [];
     for (const assignmentId of due) {
       try {
-        results.push(await sendAssignment(assignmentId, { contractPreflighted: true }));
+        results.push(await sendAssignmentLocked(assignmentId, { contractPreflighted: true }));
       } catch (error) {
         logger.error({ err: error, assignmentId }, 'Consultation form delivery attempt failed');
         results.push({ sent: false, assignmentId, reason: error?.response ? 'provider_rejected' : 'delivery_uncertain' });
@@ -386,6 +422,7 @@ function createConsultationFormDeliveryService({
     dueAssignmentIds,
     loadAssignmentContext,
     sendAssignment,
+    sendAssignmentNow,
     runOnce,
   };
 }

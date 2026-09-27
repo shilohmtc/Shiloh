@@ -23,6 +23,11 @@ test('clinic iPad renderer escapes submitted details and uses the repository bra
   assert.match(html, /shiloh-mark-192\.png/);
 });
 
+test('staff form delivery choice appears only when approved WhatsApp delivery is ready',()=>{
+  assert.match(ux.devices([],{whatsappReady:true}),/data-whatsapp-ready="true"/);
+  assert.match(ux.devices([]),/data-whatsapp-ready="false"/);
+});
+
 test('Workspace shows iPad controls only for authorised clinic client management while enabled',() => {
   const html='<html><head><style></style></head><body><main data-clients-list-view></main></body></html>';
   const clinic={ manageAllowed:true,authority:{clientScope:{kind:'clinic'}} };
@@ -184,6 +189,31 @@ test('activation clears staff and client cookies before handing the iPad to a vi
   } finally {await new Promise(resolve=>server.close(resolve));}
 });
 
+test('Christel and Reception share the staff-only WhatsApp form action',async () => {
+  const sent=[];
+  const app=express();app.use(express.json());
+  app.use('/calendar/check-in',createClinicIpadSetupRouter({
+    env:{SHILOH_CLINIC_IPAD_CHECKIN_ENABLED:'true'},
+    sessionService:{validateSessionToken:async token=>({ok:true,adminId:Number(token),sessionId:1}),
+      validateCsrfToken:()=>true},
+    service:{listFormAssignments:async adminId=>adminId===2||adminId===3?[{id:7}]:[]},
+    deliveryService:{sendAssignmentNow:async(id,options)=>{sent.push([id,options.actorAdminId]);return {sent:true};}},
+  }));
+  const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
+  const base=`http://127.0.0.1:${server.address().port}`;
+  try {
+    for(const id of [2,3,4]){
+      const response=await fetch(`${base}/calendar/check-in/send-form`,{
+        method:'POST',headers:{Origin:base,Cookie:`shiloh_staff_session=${id}`,
+          'X-Shiloh-Csrf-Token':'proof','Content-Type':'application/json'},
+        body:JSON.stringify({appointmentId:42,assignmentId:7}),
+      });
+      assert.equal(response.status,id===4?409:200);
+    }
+    assert.deepEqual(sent,[[7,2],[7,3]]);
+  } finally {await new Promise(resolve=>server.close(resolve));}
+});
+
 test('five mismatched form identity attempts cancel the handoff without issuing a link',async () => {
   const pending={id:3,assignment_id:5,attempts:0};
   let issued=0,started=0;
@@ -284,4 +314,19 @@ test('staff cannot queue clinical forms with client management alone',async () =
     formsAuthority:{resolveAccess:async()=>null},
   });
   await assert.rejects(service.queueForm(7,1,42,2),{httpStatus:403});
+});
+
+test('a form already sent to WhatsApp cannot be reissued by preparing the iPad',async()=>{
+  const db={query:async sql=>{
+    if(sql.includes('calendarAuthorization:principal')) return {rows:[{id:2,admin_active:true,
+      calendar_scope:'all_business',service_scope:'all_services',business_role:'owner',
+      permissions:{'appointment:create':true,'client:lookup':true}}]};
+    if(sql.includes('FROM consultation_form_assignments a')) return {rows:[{id:7,status:'sent'}]};
+    throw new Error(`Unexpected query: ${sql}`);
+  },connect:async()=>{throw new Error('No new handoff should be created');}};
+  const service=createClinicIpadCheckinService({db,
+    clientMutations:{resolveManageAccess:async()=>({operatorAdminId:2,clientScope:{kind:'clinic'}})},
+    formsAuthority:{resolveAccess:async()=>({formScope:'all_business'})},
+  });
+  await assert.rejects(service.queueForm(2,1,42,7),{httpStatus:409});
 });

@@ -29,6 +29,19 @@ test('clinic iPad check-in screens fit phone, tablet and desktop with accessible
   }
 });
 
+test('Christel and Reception form handoff screen fits phone and desktop',async ({page},testInfo)=>{
+  for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
+    await page.setViewportSize({width:viewport.width,height:viewport.height});
+    await page.goto('/iframe.html?id=client-clinic-ipad-check-in--staff-devices-with-whats-app&viewMode=story',{waitUntil:'networkidle'});
+    await expect(page.locator('[data-checkin-story]')).toBeVisible();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
+    const accessibility=await new AxeBuilder({page}).include('[data-checkin-story]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`clinic-ipad-staff-handoff-${viewport.name}.png`),fullPage:true,animations:'disabled'});
+  }
+});
+
 test('a completed iPad visit cannot reopen personal details through navigation', async ({ page }) => {
   const app=express();
   let active=true;

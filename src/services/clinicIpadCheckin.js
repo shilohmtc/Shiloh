@@ -86,16 +86,21 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
     }
     if (!/^\d+$/.test(String(appointmentId || ''))) throw new CheckinError('Invalid appointment reference.');
     const result = await db.query(
-      `SELECT a.id,t.title,c.name AS client_name,ap.starts_at FROM consultation_form_assignments a
+      `SELECT a.id,a.status,t.title,c.name AS client_name,
+              right(c.normalized_mobile,4) AS mobile_last4,ap.starts_at
+         FROM consultation_form_assignments a
        JOIN appointments ap ON ap.id=a.appointment_id
        JOIN crm_v2_clients c ON c.id=ap.crm_v2_client_id AND c.status='active'
        JOIN crm_v2_client_relationships rel ON rel.client_id=ap.crm_v2_client_id
          AND rel.relationship_type='clinic' AND rel.status='active'
        JOIN consultation_form_template_versions v ON v.id=a.template_version_id
        JOIN consultation_form_templates t ON t.id=v.template_id AND t.status='active'
-       WHERE ap.id=$1 AND ap.client_id IS NULL AND ap.status IN ('scheduled','confirmed')
+         WHERE ap.id=$1 AND ap.client_id IS NULL AND ap.status IN ('scheduled','confirmed')
          AND a.crm_v2_client_id=ap.crm_v2_client_id AND a.client_id IS NULL
-         AND a.status IN ('not_sent','sent','opened') ORDER BY a.id`, [appointmentId]);
+         AND a.status IN ('not_sent','sent','opened')
+         AND NOT EXISTS (SELECT 1 FROM clinic_checkin_form_handoffs h
+           WHERE h.assignment_id=a.id AND h.status IN ('queued','claimed') AND h.expires_at>NOW())
+         ORDER BY a.id`, [appointmentId]);
     return result.rows;
   }
 
@@ -103,10 +108,20 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
     const assignments = await listFormAssignments(adminId,appointmentId);
     const selected = assignments.find(row => String(row.id) === String(assignmentId));
     if (!selected) throw new CheckinError('This form is not available for that appointment.', 409);
+    if (selected.status !== 'not_sent') throw new CheckinError('This form was already sent. Ask the client to use their secure link.',409);
     if (!/^\d+$/.test(String(deviceId || ''))) throw new CheckinError('Invalid iPad reference.');
     const connection = await db.connect();
     try {
       await connection.query('BEGIN');
+      await connection.query('SELECT pg_advisory_xact_lock(-$1::bigint)',[selected.id]);
+      const assignment=await connection.query(
+        `SELECT status FROM consultation_form_assignments WHERE id=$1 FOR UPDATE`,[selected.id]);
+      if (assignment.rows[0]?.status!=='not_sent') throw new CheckinError('This form changed. Please refresh the appointment.',409);
+      const prepared=await connection.query(
+        `SELECT id FROM clinic_checkin_form_handoffs
+         WHERE assignment_id=$1 AND status IN ('queued','claimed') AND expires_at>$2 LIMIT 1`,
+        [selected.id,now()]);
+      if (prepared.rowCount) throw new CheckinError('This form is already prepared for another visit.',409);
       const device = await connection.query(
         `SELECT id FROM clinic_checkin_devices WHERE id=$1 AND revoked_at IS NULL FOR UPDATE`,[deviceId]);
       if (!device.rowCount) throw new CheckinError('This iPad is not active.',404);
