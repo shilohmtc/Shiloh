@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-whatsapp-continuation-v1';
+const MY_SHILOH_ASSET_VERSION = '20260927-installed-booking-entry-v2';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -327,7 +327,7 @@ function renderMyShilohPage({
       <h1 id="install-gate-title" data-install-gate-title>Keep My Shiloh one tap away.</h1>
       <p class="install-gate__copy" data-install-gate-copy>Add <strong>My Shiloh</strong> to your Home Screen for quick access to bookings, Wallet, notifications and Shiloh support.</p>
       <button class="button button--primary button--wide" type="button" data-install-gate-action>Install My Shiloh</button>
-      <p class="install-gate__status" data-install-gate-status aria-live="polite">Already installed? Open My Shiloh from your Home Screen.</p>
+      <p class="install-gate__status" data-install-gate-status aria-live="polite">Already installed? Open My Shiloh from your Home Screen, tap Bookings, then Book another appointment. You may need to choose your treatment again.</p>
     </section>
   </main>
 
@@ -383,6 +383,7 @@ function renderMyShilohPage({
           <h1 id="bookings-title">Your time with Shiloh.</h1>
           <p>${authenticated ? 'Your appointments and visit details will appear here.' : 'Sign in with WhatsApp to see your appointments and request a new booking.'}</p>
         </div>
+        ${authenticated ? '<a class="button button--primary bookings-new-action" href="/my-shiloh/book">Book another appointment</a>' : ''}
         <div class="stack" data-client-experience-bookings>
           <article class="action-card action-card--accent">
             <span class="action-number">01</span>

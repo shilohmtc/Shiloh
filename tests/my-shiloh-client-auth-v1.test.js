@@ -186,6 +186,7 @@ test('every normal browser is an installation doorway while standalone mode keep
   assert.match(presentation, /data-install-gate/);
   assert.match(presentation, /Keep My Shiloh one tap away/);
   assert.match(presentation, /Already installed\? Open My Shiloh from your Home Screen/);
+  assert.match(presentation, /tap Bookings, then Book another appointment\. You may need to choose your treatment again/);
   assert.match(presentation, /data-install-verification-gate/);
   assert.match(presentation, /Confirm it’s you to finish setting up My Shiloh/);
   assert.match(presentation, /data-client-auth-start>Open WhatsApp to verify<\/button>/);
