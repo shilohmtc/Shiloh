@@ -453,6 +453,10 @@ function createMyShilohRouter({
   router.post('/my-shiloh/auth/passkeys/registration/options', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
     try {
       setNoStoreJson(res);
+      const passkeyOrigin = passkeyEnrollmentService.policy().origin;
+      if (passkeyOrigin && req.get('host')?.toLowerCase() !== new URL(passkeyOrigin).host) {
+        return res.status(409).json({ error: 'Open My Shiloh at app.shilohmtc.co.za to save a passkey.', requestId: req.id });
+      }
       const result = await passkeyEnrollmentService.begin({
         session: req.myShilohClientSession,
         requestFingerprintHash: requestFingerprintHash(req),
@@ -518,6 +522,10 @@ function createMyShilohRouter({
   router.post('/my-shiloh/auth/passkeys/sign-in/options', sameOrigin, async (req, res, next) => {
     try {
       setNoStoreJson(res);
+      const passkeyOrigin = passkeyEnrollmentService.policy().origin;
+      if (passkeyOrigin && req.get('host')?.toLowerCase() !== new URL(passkeyOrigin).host) {
+        return res.status(409).json({ error: 'Open My Shiloh at app.shilohmtc.co.za to use your passkey.', requestId: req.id });
+      }
       const result = await passkeyAuthenticationService.begin({
         requestFingerprintHash: requestFingerprintHash(req),
       });

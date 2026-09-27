@@ -15,6 +15,7 @@ function makeService(db, { now = new Date('2026-09-27T16:45:00Z'), enabled = tru
   const requireDependency = (name) => {
     if (name === 'crypto') return crypto;
     if (name === '../db/pool') return { pool: db };
+    if (name === '../config/publicOrigins') return { APP_ORIGIN: 'https://app.shilohmtc.co.za' };
     if (name === './clientBrowserSession') return {
       sha256: (value) => crypto.createHash('sha256').update(String(value)).digest('hex'),
       normalizedFingerprint: (value) => /^[0-9a-f]{64}$/.test(String(value)) ? value : null,
@@ -63,6 +64,17 @@ test('enrollment is disabled by default and requires a fresh verified client ses
   assert.deepEqual(await enabled.begin({ session: { ...session, authenticatedAt: new Date('2026-09-27T16:30:00Z') } }),
     { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' });
   assert.equal(db.queries.length, 0);
+});
+
+test('client passkeys use the My Shiloh host even if Calendar origin differs', () => {
+  const { api } = makeService(dbForBegin());
+  assert.deepEqual(api.enrollmentPolicy({
+    SHILOH_CLIENT_PASSKEY_AUTH_ENABLED: 'true',
+    SHILOH_CALENDAR_PUBLIC_ORIGIN: 'https://calendar.example.test',
+  }), {
+    enabled: true, operational: true,
+    origin: 'https://app.shilohmtc.co.za', rpId: 'app.shilohmtc.co.za',
+  });
 });
 
 test('registration challenge belongs to existing CRM client and browser session', async () => {

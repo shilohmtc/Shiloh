@@ -1000,6 +1000,7 @@
   function passkeyError(error, fallback) {
     if (error?.name === 'NotAllowedError') return 'Passkey check was cancelled. You can try again.';
     if (error?.name === 'InvalidStateError') return 'This passkey is already saved. You can use it to sign in.';
+    if (error?.name === 'SecurityError') return 'This My Shiloh app was opened from a different address. Open app.shilohmtc.co.za/my-shiloh/ in Safari and add it to your Home Screen again.';
     return error?.message || fallback;
   }
 
