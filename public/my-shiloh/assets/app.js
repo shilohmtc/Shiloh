@@ -359,8 +359,18 @@
   }
 
   function signedInLanding() {
+    if (window.location.hash === '#book-online') {
+      return `/my-shiloh/${planningServiceQuery()}#book-online`;
+    }
     return window.location.hash === '#plan-visit'
       ? `/my-shiloh/${planningServiceQuery()}#plan-visit` : '/my-shiloh/';
+  }
+
+  function continueOnlineBooking() {
+    if (window.location.hash !== '#book-online' || !standalone()
+      || installationVerificationRequired() || appFrame?.dataset.clientAuthenticated !== 'true') return false;
+    window.location.replace(`/my-shiloh/book${planningServiceQuery()}`);
+    return true;
   }
 
   function continuePlanningVisit() {
@@ -370,6 +380,7 @@
     return true;
   }
   continuePlanningVisit();
+  continueOnlineBooking();
 
   installGateAction?.addEventListener('click', async () => {
     if (deferredInstallPrompt && isAndroid()) {

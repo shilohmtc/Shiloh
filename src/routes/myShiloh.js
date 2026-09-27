@@ -285,7 +285,10 @@ function createMyShilohRouter({
   });
 
   router.get('/my-shiloh/book', optionalSession, (req, res, next) => {
-    if (!req.myShilohClientSession) return res.redirect(303, '/my-shiloh/#home');
+    if (!req.myShilohClientSession) {
+      const serviceId = /^[1-9]\d*$/.test(String(req.query?.service || '')) ? String(req.query.service) : '';
+      return res.redirect(303, `/my-shiloh/${serviceId ? `?service=${encodeURIComponent(serviceId)}` : ''}#book-online`);
+    }
     return next();
   }, requireSession, async (req, res, next) => {
     try {

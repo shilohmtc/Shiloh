@@ -1764,6 +1764,7 @@ for (const viewport of [
       }
 
       if (name === 'book') {
+        await expect(surface.getByRole('link', { name: /Install or open My Shiloh to book/ }).first()).toHaveAttribute('href', '/my-shiloh/book');
         await expect(surface.getByText('Restorative foot care.', { exact: true })).toBeVisible();
         await expect(surface.locator('[data-website-planning-entry]')).toBeVisible();
         await expect(surface.getByRole('link', { name: /Plan a flexible or group visit in My Shiloh/ })).toHaveAttribute('href', '/my-shiloh/request');
@@ -1801,7 +1802,7 @@ for (const viewport of [
   });
 }
 
-test('public website Storybook exposes catalogue and WhatsApp unavailable states', async ({ page }) => {
+test('public website keeps app booking available when WhatsApp help is unavailable', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
 
   await page.goto(
@@ -1814,19 +1815,28 @@ test('public website Storybook exposes catalogue and WhatsApp unavailable states
     '/iframe.html?id=public-website-production-pages--whats-app-unavailable&viewMode=story',
     { waitUntil: 'networkidle' },
   );
-  await expect(page.getByRole('status')).toContainText('WhatsApp is taking a short pause.');
-  await expect(page.getByRole('status')).toContainText('Your choice is safe here.');
-  await expect(page.getByRole('link', { name: 'email Shiloh for help' })).toHaveAttribute(
-    'href',
-    /^mailto:info@shilohmtc\.co\.za\?/,
-  );
+  await expect(page.getByRole('link', { name: /Continue with this service in My Shiloh/ })).toHaveAttribute('href', '/my-shiloh/book?service=101');
   await expect(page.locator('a[href^="https://wa.me/"]')).toHaveCount(0);
+});
+
+test('website special service opens Reception planning in My Shiloh on phone and desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1440, height: 1000 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=public-website-production-pages--book-with-reception-choice&viewMode=story', { waitUntil: 'networkidle' });
+    await expect(page.locator('a.cta')).toHaveAttribute('href', '/my-shiloh/request?service=404');
+    await expect(page.locator('#service-404 .book-service')).toHaveText(/Ask Reception about this/);
+    const accessibility = await new AxeBuilder({ page }).include('[data-public-site-story]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact))).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`public-reception-choice-${viewport.name}.png`), fullPage: true, animations: 'disabled' });
+  }
 });
 
 test('selected website service follows the Reception planning link on Phone and Desktop', async ({ page }, testInfo) => {
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1440, height:1000 }]) {
     await page.setViewportSize({ width:viewport.width, height:viewport.height });
     await page.goto('/iframe.html?id=public-website-production-pages--book-with-selection&viewMode=story', { waitUntil:'networkidle' });
+    await expect(page.locator('a.cta')).toHaveAttribute('href', '/my-shiloh/book?service=101');
+    await expect(page.locator('#service-101 .book-service')).toHaveAttribute('href', '/my-shiloh/book?service=101');
     const link = page.locator('[data-website-planning-entry] a');
     await expect(link).toBeVisible();
     await expect(link).toHaveAttribute('href', '/my-shiloh/request?service=101');
