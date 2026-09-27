@@ -3,7 +3,7 @@ const { pool } = require('../db/pool');
 const { resolveCalendarAuthority, hasCapability, allowsAppointmentTarget } = require('./calendarAuthorization');
 const { createOzowPaymentProvider } = require('./ozowPaymentProvider');
 const { STATES, EVIDENCE, transitionPaymentState } = require('../domain/paymentState');
-const { PAYMENT_TEMPLATE_KEYS, formatRand, secureVoucherUrl, withActionLink, sendPaymentTemplate } = require('./paymentWhatsAppNotifications');
+const { PAYMENT_TEMPLATE_KEYS, formatRand, normalizeWhatsAppMobile, secureVoucherUrl, withActionLink, sendPaymentTemplate } = require('./paymentWhatsAppNotifications');
 const { formatVoucherDate } = require('../lib/voucherDate');
 const { sendWhatsAppTemplate } = require('./whatsapp');
 const { issueVerifiedVoucher } = require('./giftVouchers');
@@ -723,12 +723,67 @@ function createBookingPaymentService({
           amount: Number(paymentReceived.request.amount).toFixed(2),
         }, 'Payment received after booking cancellation; manual payment/refund review required');
       }
-      if (paymentReceived && !paymentReceived.reviewRequired) await sendPaymentTemplate({
-        templateKey: PAYMENT_TEMPLATE_KEYS.RECEIVED,
-        to: paymentReceived.request.payer_mobile,
-        bodyParameters: [paymentReceived.request.payer_name || 'there', formatRand(paymentReceived.request.amount), 'Ozow', requestReference, formatRand(paymentReceived.remaining)],
-        send: sendTemplate,
-      });
+      let receiptSentViaApp = false;
+      if (paymentReceived && !paymentReceived.reviewRequired) {
+        const receipt = paymentReceived.request;
+        const receiptTemplate = () => sendPaymentTemplate({
+          templateKey: PAYMENT_TEMPLATE_KEYS.RECEIVED,
+          to: receipt.payer_mobile,
+          bodyParameters: [receipt.payer_name || 'there', formatRand(receipt.amount), 'Ozow', requestReference, formatRand(paymentReceived.remaining)],
+          environment: env,
+          send: sendTemplate,
+        });
+        const appOnlyEnabled = env.SHILOH_PAYMENT_RECEIPT_APP_ONLY_ENABLED === 'true' && Boolean(pushNotify)
+          && Number(receipt.payer_crm_v2_client_id) > 0 && Boolean(normalizeWhatsAppMobile(receipt.payer_mobile));
+        let eligible = false;
+        if (appOnlyEnabled) {
+          // The payment payer can differ from the booked client. Only route a
+          // receipt to an active profile with this exact verified payer mobile.
+          const identity = await db.query(`SELECT 1 FROM crm_v2_clients
+            WHERE id=$1 AND normalized_mobile=$2 AND status='active'`,
+          [receipt.payer_crm_v2_client_id, normalizeWhatsAppMobile(receipt.payer_mobile)]);
+          eligible = identity.rowCount === 1;
+        }
+        if (eligible) {
+          const claim = await db.query(`UPDATE payment_requests SET receipt_notice_state='sending',updated_at=NOW()
+            WHERE id=$1 AND state='paid' AND receipt_notice_state='pending'
+              AND receipt_notice_sent_at IS NULL RETURNING id`, [receipt.id]);
+          if (claim.rowCount) {
+            let appDelivery;
+            try {
+              appDelivery = await pushNotify({
+                crmV2ClientId: Number(receipt.payer_crm_v2_client_id),
+                eventKey: `payment-provider:${receipt.id}:paid`,
+                category: 'payment',
+                title: 'Payment received',
+                body: 'Your Shiloh payment was received successfully.',
+                targetPath: '/my-shiloh/#bookings',
+              });
+            } catch (error) {
+              logger.warn({ err: error, paymentRequestId: receipt.id }, 'Payment receipt app wake failed');
+            }
+            if (appDelivery?.queued === true && Number(appDelivery.accepted) > 0) {
+              const recorded = await db.query(`UPDATE payment_requests
+                SET receipt_notice_state='sent',receipt_notice_channel='my_shiloh',receipt_notice_sent_at=NOW(),updated_at=NOW()
+                WHERE id=$1 AND receipt_notice_state='sending' RETURNING id`, [receipt.id]);
+              if (!recorded.rowCount) throw new Error('Accepted payment receipt requires a durable delivery record');
+              receiptSentViaApp = true;
+            } else {
+              const fallback = await receiptTemplate();
+              if (fallback.sent) {
+                await db.query(`UPDATE payment_requests
+                  SET receipt_notice_state='sent',receipt_notice_channel='whatsapp',receipt_notice_sent_at=NOW(),updated_at=NOW()
+                  WHERE id=$1 AND receipt_notice_state='sending'`, [receipt.id]);
+              } else if (fallback.reason !== 'provider_send_failed') {
+                await db.query(`UPDATE payment_requests SET receipt_notice_state='pending',updated_at=NOW()
+                  WHERE id=$1 AND receipt_notice_state='sending'`, [receipt.id]);
+              }
+            }
+          }
+        } else {
+          await receiptTemplate();
+        }
+      }
       if (paymentNotVerified) await sendPaymentTemplate({
         templateKey: PAYMENT_TEMPLATE_KEYS.NOT_VERIFIED,
         to: paymentNotVerified.payer_mobile,
@@ -742,7 +797,7 @@ function createBookingPaymentService({
         urlButtonParameter: request.request_key,
         send: sendTemplate,
       });
-      if (paymentReceived?.request?.payer_crm_v2_client_id && pushNotify) {
+      if (!receiptSentViaApp && paymentReceived?.request?.payer_crm_v2_client_id && pushNotify) {
         await pushNotify({
           crmV2ClientId: Number(paymentReceived.request.payer_crm_v2_client_id),
           eventKey: `payment-provider:${paymentReceived.request.id}:paid`,
