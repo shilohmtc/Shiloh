@@ -311,6 +311,18 @@ async function commitAcceptedClientBooking(phone, { crmV2ClientId = null } = {})
       db, appointmentIdentity, canonical.location_id, startsAt, endsAt, canonical.service_name, totalPrice
     );
 
+    // Link only the acceptance for this exact booking intent. Historical phone-only
+    // acceptances cannot prove which appointment they belong to.
+    if (lockedIntent.policy_accepted_at && lockedIntent.policy_version && lockedIntent.policy_channel) {
+      await db.query(`
+        UPDATE booking_policy_acceptances
+           SET appointment_id=$1, crm_v2_client_id=$2
+         WHERE phone=$3 AND policy_version=$4 AND channel=$5
+           AND accepted_at=$6 AND appointment_id IS NULL
+      `, [appointment.id, canonical.crm_v2_client_id, normalizedPhone,
+        lockedIntent.policy_version, lockedIntent.policy_channel, lockedIntent.policy_accepted_at]);
+    }
+
     await db.query(`
       INSERT INTO appointment_services
         (appointment_id, service_id, position, service_name_snapshot, price_snapshot, duration_minutes_snapshot)

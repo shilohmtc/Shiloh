@@ -99,7 +99,7 @@ function webPolicyHtml(policyText = '') {
   return rendered.join('');
 }
 
-function renderPaymentPolicyPage({ requestKey, request, policyText } = {}) {
+function renderPaymentPolicyPage({ requestKey, request, policyText, alreadyAccepted = false } = {}) {
   const key = escapeHtml(requestKey);
   const amount = escapeHtml(Number(request?.amount || 0).toFixed(2));
   const payerName = escapeHtml(request?.payer_name || 'there');
@@ -111,7 +111,7 @@ function renderPaymentPolicyPage({ requestKey, request, policyText } = {}) {
   return '<!doctype html>'
     + '<html lang="en"><head>'
     + '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-    + '<title>Review Shiloh Booking Policy &amp; Terms</title>'
+    + '<title>Shiloh deposit payment</title>'
     + '<style>'
     + ':root{--ink:#173126;--leaf:#285642;--muted:#61736a;--line:#d7dfd9;--soft:#f5f3ed;--panel:#fffdf9;--mint:#edf4ee}'
     + '*{box-sizing:border-box}body{margin:0;background:var(--soft);color:var(--ink);font-family:Inter,system-ui,-apple-system,sans-serif}'
@@ -131,10 +131,12 @@ function renderPaymentPolicyPage({ requestKey, request, policyText } = {}) {
     + '</style></head><body>'
     + '<main class="card">'
     + '<p class="eyebrow">SHILOH DEPOSIT · STEP 1 OF 2</p>'
-    + '<h1>Review &amp; accept before payment</h1>'
-    + '<p class="intro">Hi ' + payerName + '. You’re still on Shiloh. No payment is taken until you accept the Booking Policy &amp; Terms and continue to Ozow.</p>'
+    + '<h1>' + (alreadyAccepted ? 'Your deposit is ready' : 'Review &amp; accept before payment') + '</h1>'
+    + '<p class="intro">Hi ' + payerName + '. ' + (alreadyAccepted
+      ? 'You accepted the current Booking Policy &amp; Terms for this appointment when booking. You can read them again below before continuing to Ozow.'
+      : 'You’re still on Shiloh. No payment is taken until you accept the Booking Policy &amp; Terms and continue to Ozow.') + '</p>'
     + '<div class="steps" aria-label="Deposit payment steps">'
-    + '<div class="step current"><span class="step-number">Step 1</span><strong>Review &amp; accept</strong><span>Read Shiloh’s Booking Policy &amp; Terms and confirm your acceptance.</span></div>'
+    + '<div class="step current"><span class="step-number">Step 1</span><strong>' + (alreadyAccepted ? 'Review your deposit' : 'Review &amp; accept') + '</strong><span>' + (alreadyAccepted ? 'Your booking terms are available below.' : 'Read Shiloh’s Booking Policy &amp; Terms and confirm your acceptance.') + '</span></div>'
     + '<div class="step"><span class="step-number">Step 2</span><strong>Pay securely</strong><span>You’ll then continue to Ozow to complete the deposit.</span></div>'
     + '</div>'
     + '<section class="summary" aria-label="Deposit summary">'
@@ -147,10 +149,10 @@ function renderPaymentPolicyPage({ requestKey, request, policyText } = {}) {
     + '<div class="policy">' + policy + '</div>'
     + '</section>'
     + '<form method="post" action="/pay/' + key + '/accept">'
-    + '<div class="acceptance"><label><input type="checkbox" name="accept" value="yes" required> <span>I have read and accept Shiloh’s Booking Policy &amp; Terms.</span></label>'
-    + '<button type="submit">Accept &amp; continue to secure payment</button></div>'
+    + '<div class="acceptance">' + (alreadyAccepted ? '' : '<label><input type="checkbox" name="accept" value="yes" required> <span>I have read and accept Shiloh’s Booking Policy &amp; Terms.</span></label>')
+    + '<button type="submit">' + (alreadyAccepted ? 'Continue to secure payment' : 'Accept &amp; continue to secure payment') + '</button></div>'
     + '</form>'
-    + '<p class="footer-note">You will leave Shiloh for Ozow only after you accept these terms.</p>'
+    + '<p class="footer-note">' + (alreadyAccepted ? 'You will leave Shiloh for Ozow when you continue.' : 'You will leave Shiloh for Ozow only after you accept these terms.') + '</p>'
     + '</main></body></html>';
 }
 

@@ -182,7 +182,7 @@ test('payment links show the booking policy before redirecting to Ozow', async (
   const app = express();
   app.use('/pay', createPaymentLinkRouter({
     policySchema: async () => {},
-    db: { query: async () => ({ rows: [{
+    db: { query: async (sql) => String(sql).includes('FROM booking_policy_acceptances') ? { rows: [] } : ({ rows: [{
       provider: 'ozow',
       state: 'link_issued',
       provider_payment_url: 'https://pay.ozow.com/request/test',
@@ -349,6 +349,7 @@ test('payment policy acceptance is recorded before redirecting to Ozow', async (
     policySchema: async () => {},
     db: { query: async (sql) => {
       queries.push(sql);
+      if (String(sql).includes('FROM booking_policy_acceptances')) return { rows: [] };
       if (String(sql).startsWith('SELECT')) return { rows: [{
         provider: 'ozow',
         state: 'link_issued',
@@ -382,6 +383,66 @@ test('payment policy acceptance is recorded before redirecting to Ozow', async (
     response.resume();
   } finally {
     await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('appointment-linked current acceptance skips the second checkbox, with the policy still available', async () => {
+  const queries = [];
+  const app = express();
+  app.use('/pay', createPaymentLinkRouter({
+    policySchema: async () => {},
+    db: { query: async (sql, params) => {
+      queries.push({ sql: String(sql), params });
+      if (String(sql).includes('FROM booking_policy_acceptances')) return { rows: [{ '?column?': 1 }] };
+      if (String(sql).includes('FROM payment_requests pr')) return { rows: [{
+        provider: 'ozow', state: 'link_issued', provider_payment_url: 'https://pay.ozow.com/request/test',
+        amount: '125.00', payer_name: 'Jean-Pierre', payer_mobile: '27716742646', appointment_id: 759,
+      }] };
+      throw new Error('Unexpected payment policy query');
+    } },
+  }));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/pay/request_699_token`;
+    const page = await fetch(url);
+    assert.equal(page.status, 200);
+    const html = await page.text();
+    assert.match(html, /You accepted the current Booking Policy/);
+    assert.match(html, /Booking Policy &amp; Terms<\/h2>/);
+    assert.match(html, /Continue to secure payment/);
+    assert.doesNotMatch(html, /name="accept"/);
+    const payment = await fetch(`${url}/accept`, { method: 'POST', redirect: 'manual' });
+    assert.equal(payment.status, 303);
+    assert.equal(payment.headers.get('location'), 'https://pay.ozow.com/request/test');
+    assert.equal(queries.filter(({ sql }) => sql.includes('INSERT INTO booking_policy_acceptances')).length, 0);
+    assert.deepEqual(queries.filter(({ sql }) => sql.includes('FROM booking_policy_acceptances')).map(({ params }) => params),
+      [[759, require('../src/config/bookingPolicyAuthority').BOOKING_POLICY_VERSION], [759, require('../src/config/bookingPolicyAuthority').BOOKING_POLICY_VERSION]]);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
+test('payment without appointment-linked acceptance still requires an explicit checkbox', async () => {
+  const app = express();
+  app.use('/pay', createPaymentLinkRouter({
+    policySchema: async () => {},
+    db: { query: async sql => String(sql).includes('FROM booking_policy_acceptances') ? { rows: [] } : { rows: [{
+      provider: 'ozow', state: 'link_issued', provider_payment_url: 'https://pay.ozow.com/request/test',
+      payer_mobile: '27716742646', appointment_id: 759,
+    }] } },
+  }));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/pay/request_699_token`;
+    const page = await (await fetch(url)).text();
+    assert.match(page, /name="accept" value="yes" required/);
+    const payment = await fetch(`${url}/accept`, { method: 'POST', redirect: 'manual' });
+    assert.equal(payment.status, 400);
+    assert.match(await payment.text(), /Please acknowledge/);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
   }
 });
 
