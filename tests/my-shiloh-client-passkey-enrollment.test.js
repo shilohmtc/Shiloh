@@ -149,6 +149,17 @@ test('route keeps both enrollment endpoints session, origin and CSRF bound', () 
   assert.doesNotMatch(source, /staff_auth_passkey_credentials|staff_browser_sessions/);
 });
 
+test('passkey origin check uses the verified browser origin behind a proxy', () => {
+  const { browserUsesPasskeyOrigin } = require('../src/routes/myShiloh');
+  const appOrigin = 'https://app.shilohmtc.co.za';
+  const proxied = {
+    headers: { host: 'internal-service:10000', 'x-forwarded-host': 'app.shilohmtc.co.za' },
+    get(name) { return name === 'origin' ? appOrigin : this.headers[name]; },
+  };
+  assert.equal(browserUsesPasskeyOrigin(proxied, appOrigin), true);
+  assert.equal(browserUsesPasskeyOrigin({ ...proxied, get: () => 'https://other.example' }, appOrigin), false);
+});
+
 test('device list exposes only owned active credential metadata', async () => {
   const queries = [];
   const db = { async query(sql, params) {
