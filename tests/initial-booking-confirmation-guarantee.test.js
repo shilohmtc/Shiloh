@@ -157,7 +157,7 @@ function memoryDeliveryDb({
       if (q.startsWith("UPDATE customer_message_deliveries SET status='uncertain'")) {
         if (!state.delivery) return { rows: [], rowCount: 0 };
         state.delivery.status = 'uncertain';
-        state.delivery.last_error = 'provider_delivery_unknown';
+        state.delivery.last_error = params[1];
         state.delivery.retry_due = false;
         return { rows: [], rowCount: 1 };
       }
@@ -198,6 +198,95 @@ function deliveryOptions(db, provider) {
     resolveName: async (clientId) => ({ name: 'Ma Marinda', authorityId: clientId === 101 ? 301 : null }),
   };
 }
+
+function appClientDeliveryDb(appointmentId = 990) {
+  const db = memoryDeliveryDb({ appointmentId, clientId: null, contactId: null });
+  db.state.appointment.client_id = null;
+  db.state.authority = {
+    appointment_id: appointmentId,
+    identity_model: 'crm_v2',
+    client_id: null,
+    crm_v2_client_id: 55,
+    client_status: 'active',
+    client_phone: '27821234567',
+    client_name_snapshot: 'Jean-Pierre',
+  };
+  return db;
+}
+
+test('accepted app wake closes a CRM V2 confirmation once without sending WhatsApp', async () => {
+  const db = appClientDeliveryDb();
+  let whatsappCalls = 0;
+  const options = {
+    ...deliveryOptions(db, async () => { whatsappCalls += 1; throw new Error('WhatsApp must not send'); }),
+    env: {
+      WHATSAPP_BOOKING_CONFIRMATION_TEMPLATE: 'shiloh_booking_confirmation_v2',
+      SHILOH_BOOKING_CONFIRMATION_APP_ONLY_ENABLED: 'true',
+    },
+    notifyApp: async () => ({ queued: true, accepted: 1, notificationId: 44 }),
+  };
+  const sent = await confirmation.sendCustomerBookingConfirmationForAppointment(990, options);
+  assert.equal(sent.sent, true);
+  assert.equal(sent.channel, 'my_shiloh');
+  assert.equal(whatsappCalls, 0);
+  assert.equal(db.state.delivery.status, 'sent');
+  assert.equal(db.state.delivery.provider_message_id, null);
+  const audit = db.state.audits.find(event => event.action === 'customer.booking_confirmation_sent');
+  assert.equal(audit.metadata.channel, 'my_shiloh');
+  assert.equal((await confirmation.sendCustomerBookingConfirmationForAppointment(990, options)).reason, 'already_sent');
+});
+
+test('unaccepted app wake keeps the approved WhatsApp confirmation', async () => {
+  const db = appClientDeliveryDb(991);
+  let whatsappCalls = 0;
+  const result = await confirmation.sendCustomerBookingConfirmationForAppointment(991, {
+    ...deliveryOptions(db, async () => { whatsappCalls += 1; return { messages: [{ id: 'wamid.991' }] }; }),
+    env: {
+      WHATSAPP_BOOKING_CONFIRMATION_TEMPLATE: 'shiloh_booking_confirmation_v2',
+      SHILOH_BOOKING_CONFIRMATION_APP_ONLY_ENABLED: 'true',
+    },
+    notifyApp: async () => ({ queued: true, accepted: 0 }),
+  });
+  assert.equal(result.sent, true);
+  assert.equal(db.state.delivery.provider_message_id, 'wamid.991');
+  assert.equal(whatsappCalls, 1);
+});
+
+test('no accepted app wake and no template leave a retryable confirmation obligation', async () => {
+  const db = appClientDeliveryDb(992);
+  const result = await confirmation.sendCustomerBookingConfirmationForAppointment(992, {
+    ...deliveryOptions(db, async () => { throw new Error('No WhatsApp send permitted'); }),
+    env: { SHILOH_BOOKING_CONFIRMATION_APP_ONLY_ENABLED: 'true' },
+    notifyApp: async () => ({ queued: false, accepted: 0 }),
+    sendMessage: async () => { throw new Error('Free-form WhatsApp must not send'); },
+  });
+  assert.equal(result.sent, false);
+  assert.equal(result.reason, 'no_confirmed_delivery_channel');
+  assert.equal(db.state.delivery.status, 'failed');
+  assert.equal(db.state.audits.some(event => event.action === 'customer.booking_confirmation_sent'), false);
+});
+
+test('accepted app wake with failed evidence write never retries or sends WhatsApp', async () => {
+  const db = appClientDeliveryDb(993);
+  const query = db.query.bind(db);
+  db.query = async (sql, params) => {
+    if (String(sql).includes("SET status='sent',sent_at=NOW()")) throw new Error('evidence write failed');
+    return query(sql, params);
+  };
+  let whatsappCalls = 0;
+  const options = {
+    ...deliveryOptions(db, async () => { whatsappCalls += 1; return { messages: [{ id: 'unexpected' }] }; }),
+    env: { SHILOH_BOOKING_CONFIRMATION_APP_ONLY_ENABLED: 'true' },
+    notifyApp: async () => ({ queued: true, accepted: 1 }),
+  };
+  const result = await confirmation.sendCustomerBookingConfirmationForAppointment(993, options);
+  assert.equal(result.deliveryStatus, 'uncertain');
+  assert.equal(result.retryable, false);
+  assert.equal(db.state.delivery.status, 'uncertain');
+  assert.equal(db.state.delivery.last_error, 'app_delivery_evidence_unknown');
+  assert.equal((await confirmation.sendCustomerBookingConfirmationForAppointment(993, options)).sent, false);
+  assert.equal(whatsappCalls, 0);
+});
 
 test('browser booking commit durably queues exactly one initial confirmation before transaction commit', async () => {
   const db = memoryDeliveryDb();
