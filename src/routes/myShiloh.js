@@ -449,8 +449,7 @@ function createMyShilohRouter({
     }
   });
 
-  // First passkey increment: enrollment only, behind a disabled-by-default switch.
-  // Authentication still uses the existing verified client session authority.
+  // Client passkeys use the existing verified client session authority.
   router.post('/my-shiloh/auth/passkeys/registration/options', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
     try {
       setNoStoreJson(res);
@@ -474,6 +473,7 @@ function createMyShilohRouter({
       const result = await passkeyEnrollmentService.finish({
         session: req.myShilohClientSession,
         response: req.body?.response,
+        userAgent: req.headers['user-agent'],
         requestFingerprintHash: requestFingerprintHash(req),
       });
       if (!result.ok) {
@@ -483,6 +483,35 @@ function createMyShilohRouter({
         return res.status(status).json({ error: 'Passkey setup could not be completed. Please try again.', requestId: req.id });
       }
       return res.status(200).json({ registered: true });
+    } catch (error) { return next(error); }
+  });
+
+  router.get('/my-shiloh/auth/passkeys/devices', requireSession, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const result = await passkeyEnrollmentService.list({ session: req.myShilohClientSession });
+      if (!result.ok) return res.status(503).json({ error: 'Saved passkeys are unavailable.', requestId: req.id });
+      return res.status(200).json({ devices: result.devices });
+    } catch (error) { return next(error); }
+  });
+
+  router.post('/my-shiloh/auth/passkeys/devices/revoke', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const result = await passkeyEnrollmentService.revoke({
+        session: req.myShilohClientSession,
+        credentialId: req.body?.credentialId,
+        requestFingerprintHash: requestFingerprintHash(req),
+      });
+      if (!result.ok) {
+        const status = result.code === 'CLIENT_RECENT_AUTH_REQUIRED' ? 428 :
+          result.code === 'CLIENT_PASSKEY_INVALID' ? 404 : 503;
+        return res.status(status).json({
+          error: status === 428 ? 'Sign in again before removing a passkey.' : 'Could not remove this passkey.',
+          requestId: req.id,
+        });
+      }
+      return res.status(200).json({ revoked: true });
     } catch (error) { return next(error); }
   });
 

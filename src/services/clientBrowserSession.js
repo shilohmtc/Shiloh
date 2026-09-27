@@ -259,7 +259,7 @@ function createClientBrowserSessionService({
 
   // Called inside the caller's transaction only after its independent
   // WhatsApp or WebAuthn verification and active CRM ownership check.
-  async function insertVerifiedSession(client, owner, current, authMethod, fingerprint) {
+  async function insertVerifiedSession(client, owner, current, authMethod, fingerprint, passkeyCredentialId = null) {
     if (!['whatsapp_challenge', 'passkey'].includes(authMethod)) throw new Error('invalid client session method');
     const sessionToken = randomOpaqueToken(randomBytes);
     const csrfToken = randomOpaqueToken(randomBytes);
@@ -267,10 +267,10 @@ function createClientBrowserSessionService({
     const inserted = await client.query(
       `INSERT INTO client_browser_sessions
          (crm_v2_client_id, token_hash, csrf_hash, issued_at, expires_at, reauthenticated_at,
-          auth_method, client_fingerprint_hash)
-       VALUES ($1, $2, $3, $4, $5, $4, $6, $7)
+          auth_method, client_fingerprint_hash, passkey_credential_id)
+       VALUES ($1, $2, $3, $4, $5, $4, $6, $7, $8)
        RETURNING id`,
-      [owner.id, sha256(sessionToken), sha256(csrfToken), current, expiresAt, authMethod, fingerprint],
+      [owner.id, sha256(sessionToken), sha256(csrfToken), current, expiresAt, authMethod, fingerprint, passkeyCredentialId],
     );
     return {
       ok: true, status: 'authenticated', sessionToken, csrfToken,
@@ -278,9 +278,10 @@ function createClientBrowserSessionService({
     };
   }
 
-  async function issueVerifiedPasskeySession({ transaction, crmV2ClientId, requestFingerprintHash = null } = {}) {
+  async function issueVerifiedPasskeySession({ transaction, crmV2ClientId, passkeyCredentialId, requestFingerprintHash = null } = {}) {
     if (!transaction || typeof transaction.query !== 'function' ||
-        !Number.isSafeInteger(Number(crmV2ClientId)) || Number(crmV2ClientId) <= 0) {
+        !Number.isSafeInteger(Number(crmV2ClientId)) || Number(crmV2ClientId) <= 0 ||
+        !Number.isSafeInteger(Number(passkeyCredentialId)) || Number(passkeyCredentialId) <= 0) {
       return { ok: false, code: 'CLIENT_AUTH_PROFILE_UNAVAILABLE' };
     }
     const owner = await transaction.query(
@@ -289,7 +290,7 @@ function createClientBrowserSessionService({
     );
     if (owner.rowCount !== 1) return { ok: false, code: 'CLIENT_AUTH_PROFILE_UNAVAILABLE' };
     const fingerprint = normalizedFingerprint(requestFingerprintHash);
-    const result = await insertVerifiedSession(transaction, owner.rows[0], now(), 'passkey', fingerprint);
+    const result = await insertVerifiedSession(transaction, owner.rows[0], now(), 'passkey', fingerprint, passkeyCredentialId);
     await audit(transaction, 'session_issued', {
       clientId: owner.rows[0].id, sessionId: result.sessionId,
       requestFingerprintHash: fingerprint, metadata: { authMethod: 'passkey' },

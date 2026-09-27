@@ -35,6 +35,8 @@
   const passkeySignInButtons = [...document.querySelectorAll('[data-passkey-sign-in]')];
   const passkeyEnrollButton = document.querySelector('[data-passkey-enroll]');
   const passkeyEnrollStatus = document.querySelector('[data-passkey-enroll-status]');
+  const passkeyDevices = document.querySelector('[data-passkey-devices]');
+  const passkeyDeviceStatus = document.querySelector('[data-passkey-device-status]');
   const authLogoutButtons = [...document.querySelectorAll('[data-client-auth-logout]')];
   const authCodeForms = [...document.querySelectorAll('[data-client-auth-code-form]')];
   const authStatusHosts = [...document.querySelectorAll('[data-auth-status]')];
@@ -1001,6 +1003,65 @@
     return error?.message || fallback;
   }
 
+  async function loadPasskeyDevices() {
+    if (!passkeyDevices || appFrame?.dataset.clientAuthenticated !== 'true') return;
+    try {
+      const response = await fetch('/my-shiloh/auth/passkeys/devices', {
+        credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(data.devices)) throw new Error('Could not load saved passkeys.');
+      passkeyDevices.replaceChildren();
+      if (!data.devices.length) {
+        passkeyDevices.textContent = 'No passkeys saved yet.';
+        return;
+      }
+      const list = document.createElement('ul');
+      list.className = 'passkey-device-list';
+      for (const device of data.devices) {
+        const item = document.createElement('li');
+        item.className = 'passkey-device';
+        const detail = document.createElement('div');
+        const title = document.createElement('strong');
+        title.textContent = device.label || 'Shiloh device';
+        const timing = document.createElement('small');
+        const date = (value) => value && !Number.isNaN(new Date(value).getTime())
+          ? new Date(value).toLocaleDateString() : null;
+        timing.textContent = `Saved ${date(device.createdAt) || 'recently'} · ${device.lastUsedAt ? `Last used ${date(device.lastUsedAt) || 'recently'}` : 'Not used yet'}`;
+        detail.append(title, timing);
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'button button--soft';
+        remove.textContent = 'Remove';
+        remove.setAttribute('aria-label', `Remove ${title.textContent} passkey`);
+        remove.addEventListener('click', () => revokePasskeyDevice(device.id, title.textContent, remove));
+        item.append(detail, remove);
+        list.append(item);
+      }
+      passkeyDevices.append(list);
+    } catch (error) {
+      passkeyDevices.textContent = error.message || 'Could not load saved passkeys.';
+    }
+  }
+
+  async function revokePasskeyDevice(id, label, button) {
+    if (!Number.isSafeInteger(id) || !window.confirm(`Remove the ${label} passkey? It will no longer sign in to My Shiloh.`)) return;
+    button.disabled = true;
+    if (passkeyDeviceStatus) passkeyDeviceStatus.textContent = 'Removing passkey…';
+    try {
+      const token = await freshCsrfToken();
+      const response = await postJson('/my-shiloh/auth/passkeys/devices/revoke',
+        { credentialId: id }, { 'x-shiloh-csrf-token': token });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.revoked) throw new Error(result.error || 'Could not remove this passkey.');
+      if (passkeyDeviceStatus) passkeyDeviceStatus.textContent = 'Passkey removed. Sessions signed in with it have been closed.';
+      await loadPasskeyDevices();
+    } catch (error) {
+      if (passkeyDeviceStatus) passkeyDeviceStatus.textContent = error.message || 'Could not remove this passkey.';
+      button.disabled = false;
+    }
+  }
+
   async function enrollClientPasskey() {
     if (!passkeySupported() || passkeyEnrollBusy || appFrame?.dataset.clientAuthenticated !== 'true') return;
     passkeyEnrollBusy = true;
@@ -1023,6 +1084,7 @@
       const result = await finish.json().catch(() => ({}));
       if (!finish.ok || result.registered !== true) throw new Error(result.error || 'Passkey setup could not be completed.');
       if (passkeyEnrollStatus) passkeyEnrollStatus.textContent = 'Your passkey is ready. Use it next time you sign in.';
+      await loadPasskeyDevices();
     } catch (error) {
       if (passkeyEnrollStatus) passkeyEnrollStatus.textContent = passkeyError(error, 'Passkey setup could not be completed.');
     } finally {
@@ -1863,6 +1925,7 @@
   if (!passkeySupported() && passkeyEnrollButton) passkeyEnrollButton.hidden = true;
   passkeySignInButtons.forEach((button) => button.addEventListener('click', signInWithPasskey));
   passkeyEnrollButton?.addEventListener('click', enrollClientPasskey);
+  loadPasskeyDevices();
   authLogoutButtons.forEach((button) => button.addEventListener('click', logoutClient));
   authCodeForms.forEach((form) => form.addEventListener('submit', (event) => {
     event.preventDefault();

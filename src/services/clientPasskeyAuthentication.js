@@ -128,6 +128,7 @@ function createClientPasskeyAuthenticationService({
       );
       const session = await sessionService.issueVerifiedPasskeySession({
         transaction: client, crmV2ClientId: credential.crm_v2_client_id,
+        passkeyCredentialId: credential.id,
         requestFingerprintHash: fingerprint,
       });
       if (!session.ok) {
