@@ -67,6 +67,9 @@ test('native booking page is a My Shiloh treatment-practitioner-time-review wiza
   assert.match(html, /data-submit-booking/);
   assert.match(html, /data-special-occasion> Yes/);
   assert.match(html, /data-special-occasion> No/);
+  assert.match(html, /<small>When<\/small><strong><span data-review-date><\/span> · <span data-review-time><\/span><\/strong>/);
+  assert.match(html, /<summary>Read Shiloh’s Booking Policy & Terms <span class="terms__hint">Tap to open<\/span><\/summary><pre>Shiloh Booking Policy<\/pre>/);
+  assert.doesNotMatch(html, /<small>After you send it<\/small>/);
   assert.match(html, /data-occasion-note maxlength="160"/);
   assert.match(html, /welcome drink on arrival.*coffee bar.*variety of teas/);
   assert.match(html, /\/my-shiloh\/assets\/booking\.js/);
