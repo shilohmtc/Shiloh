@@ -62,7 +62,10 @@ test('native booking page is a My Shiloh treatment-practitioner-time-review wiza
   assert.match(html, /2 · Practitioner/);
   assert.match(html, /3 · Time/);
   assert.match(html, /4 · Review/);
-  assert.match(html, /50% is required after Shiloh approves/);
+  assert.match(html, /data-review-deposit/);
+  assert.match(html, /href="\/my-shiloh\/request">Ask Reception about a flexible time or group visit/);
+  assert.match(html, /href="\/my-shiloh\/#shiloh">ask Shiloh about couples treatments and packages/);
+  assert.doesNotMatch(html, /class="notice"><strong>Booking deposit:/);
   assert.doesNotMatch(html, /Marietjie/i);
   assert.match(html, /data-submit-booking/);
   assert.match(html, /data-special-occasion> Yes/);

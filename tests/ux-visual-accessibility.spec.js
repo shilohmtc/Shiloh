@@ -2469,6 +2469,7 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
 
     await expect(page.getByRole('heading', { name:'Choose your next appointment, Christel.' })).toBeVisible();
     await expect(page.getByText(/Everything happens here in My Shiloh/)).toBeVisible();
+    await expect(page.locator('[data-step="1"]').getByRole('link', { name:/Ask Reception about a flexible time or group visit/ })).toBeVisible();
     await page.locator('[data-book-service][data-service-id="101"]').click();
 
     await expect(page.getByRole('heading', { name:'Who would you like to see?' })).toBeVisible();
@@ -2483,6 +2484,7 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
     await page.getByRole('button', { name:/10:00–11:15/ }).click();
 
     await expect(page.getByRole('heading', { name:'Review your booking request.' })).toBeVisible();
+    await expect(page.locator('.intro .notice')).toHaveCount(0);
     if (viewport.name === 'phone') {
       const reviewPosition = await page.locator('[data-step="4"]').evaluate(node => node.getBoundingClientRect().top);
       expect(reviewPosition).toBeGreaterThanOrEqual(60);
