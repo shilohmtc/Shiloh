@@ -81,6 +81,7 @@
   function selectedView() {
     const fromHash = String(window.location.hash || '').replace(/^#/, '');
     if (fromHash === 'welcome-voucher') return 'wallet';
+    if (fromHash === 'profile-notifications') return 'profile';
     return viewNames.has(fromHash) ? fromHash : 'home';
   }
 
@@ -95,9 +96,16 @@
       if (item.dataset.viewTarget === target) item.setAttribute('aria-current', 'page');
       else item.removeAttribute('aria-current');
     }
-    const heading = document.querySelector(`[data-view="${target}"] h1`);
-    if (heading && window.location.hash) heading.focus?.({ preventScroll: true });
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    const notificationTitle = target === 'profile' && window.location.hash === '#profile-notifications' && !appFrame?.hidden
+      ? document.querySelector('#notifications-title') : null;
+    if (notificationTitle) {
+      notificationTitle.focus({ preventScroll: true });
+      notificationTitle.scrollIntoView({ block: 'start', behavior: 'auto' });
+    } else {
+      const heading = document.querySelector(`[data-view="${target}"] h1`);
+      if (heading && window.location.hash) heading.focus?.({ preventScroll: true });
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
   }
 
   window.addEventListener('hashchange', () => activateView(selectedView()));
@@ -204,6 +212,7 @@
     if (installGate) installGate.hidden = !browserGated;
     if (installVerificationGate) installVerificationGate.hidden = !verificationGated;
     if (appFrame) appFrame.hidden = browserGated || verificationGated;
+    if (!appFrame?.hidden && window.location.hash === '#profile-notifications') activateView('profile');
 
     if (!browserGated) return;
 

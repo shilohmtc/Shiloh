@@ -416,6 +416,11 @@ test('My Shiloh personal details stay contained and accessible on Phone and Desk
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-profile&viewMode=story',{waitUntil:'networkidle'});
     await expect(page.getByRole('heading',{name:'Keep your details up to date.'})).toBeVisible();
     await expect(page.getByLabel('Date of birth')).toHaveValue('1985-06-14');
+    const help = page.locator('[data-profile-help]');
+    await expect(help.locator('#client-problem-description')).toBeHidden();
+    await help.locator('summary').click();
+    await expect(help.locator('#client-problem-description')).toBeVisible();
+    await help.locator('summary').click();
     const geometry=await page.evaluate(()=>{const card=document.querySelector('.profile-editor');const input=document.querySelector('#profile-date-of-birth');const c=card.getBoundingClientRect();const i=input.getBoundingClientRect();return{viewport:innerWidth,document:document.documentElement.scrollWidth,contained:i.left>=c.left&&i.right<=c.right,textAlign:getComputedStyle(input).textAlign,paddingLeft:getComputedStyle(input).paddingLeft};});
     expect(geometry.document).toBeLessThanOrEqual(geometry.viewport);expect(geometry.contained).toBe(true);
     expect(geometry.textAlign).toBe('left');
@@ -2173,6 +2178,26 @@ test('My Shiloh notification opt-in is client-controlled and accessible on Phone
   }
 });
 
+test('My Shiloh notification invitation opens the Profile setting directly', async ({ page }) => {
+  for (const viewport of [{ width:390, height:844 }, { width:1280, height:900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--long-name-notification-invite&viewMode=story', { waitUntil:'networkidle' });
+    await page.evaluate(() => {
+      localStorage.setItem('my-shiloh-install-whatsapp-verified-v1', '1');
+      Object.defineProperty(navigator, 'standalone', { configurable:true, get:() => true });
+    });
+    await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
+    await expect(page.locator('[data-push-toggle]')).not.toHaveText('Checking notifications…');
+    await page.evaluate(() => { document.querySelector('[data-push-invite]').hidden = false; });
+    await page.locator('[data-push-invite] a').click();
+    await expect(page.locator('[data-view="profile"]')).toBeVisible();
+    await expect(page.locator('[data-view-target="profile"]')).toHaveAttribute('aria-current', 'page');
+    const title = page.locator('#notifications-title');
+    await expect(title).toBeFocused();
+    await expect(title).toBeInViewport();
+  }
+});
+
 test('My Shiloh long names and appointment notification invitation fit Phone and Desktop', async ({ page }, testInfo) => {
   for (const viewport of [{ name:'phone', width:320, height:720 }, { name:'desktop', width:1280, height:900 }]) {
     await page.setViewportSize({ width:viewport.width, height:viewport.height });
@@ -2180,7 +2205,7 @@ test('My Shiloh long names and appointment notification invitation fit Phone and
     const greeting = page.locator('[data-client-greeting]');
     const invite = page.locator('[data-push-invite]');
     await expect(greeting).toContainText('Alexandra-Marguerite');
-    await expect(invite.getByRole('link', { name:'Set up notifications' })).toHaveAttribute('href', '#profile');
+    await expect(invite.getByRole('link', { name:'Set up notifications' })).toHaveAttribute('href', '#profile-notifications');
     await expect(invite).toBeVisible();
     const geometry = await page.evaluate(() => ({ width:innerWidth, scrollWidth:document.documentElement.scrollWidth }));
     expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.width);

@@ -216,7 +216,7 @@ function renderMyShilohPage({
       </section>
       <section class="profile-editor notification-settings" aria-labelledby="notifications-title" data-push-settings>
         <div class="profile-editor__heading">
-          <div><p class="eyebrow">Notifications</p><h2 id="notifications-title">Stay up to date with Shiloh.</h2></div>
+          <div><p class="eyebrow">Notifications</p><h2 id="notifications-title" tabindex="-1">Stay up to date with Shiloh.</h2></div>
           <span class="status-pill">Optional</span>
         </div>
         <p class="problem-report-copy">Get important appointment reminders, consultation-form updates, payment updates, voucher arrivals and Shiloh Rewards updates on this phone.</p>
@@ -224,11 +224,9 @@ function renderMyShilohPage({
         <p class="profile-editor__status" data-push-status role="status" aria-live="polite"></p>
         <p class="notification-settings__note">Operational updates only. Promotional messages stay separate and are never enabled by this setting.</p>
       </section>
-      <section class="profile-editor" aria-labelledby="report-problem-title">
-        <div class="profile-editor__heading">
-          <div><p class="eyebrow">Help</p><h2 id="report-problem-title">Report a problem.</h2></div>
-          <span class="status-pill">Private</span>
-        </div>
+      <details class="profile-editor profile-help" data-profile-help>
+        <summary class="profile-help__summary"><span><span class="eyebrow">Help</span><strong id="report-problem-title">Report a problem</strong><small>Tell us when something in My Shiloh needs attention.</small></span><span class="profile-help__indicator" aria-hidden="true">+</span></summary>
+        <div class="profile-help__content">
         <p class="problem-report-copy">Tell us if something in My Shiloh looks wrong or does not work as expected. JP will see your report privately.</p>
         <div class="problem-report-list" data-client-problem-report-list aria-live="polite"><p class="problem-report-copy">Loading your reports…</p></div>
         <form data-client-problem-report-form>
@@ -243,7 +241,8 @@ function renderMyShilohPage({
           <p class="profile-editor__status" data-client-problem-report-status role="status" aria-live="polite"></p>
           <button class="button button--soft button--wide" type="submit">Send report</button>
         </form>
-      </section>
+        </div>
+      </details>
       <div class="profile-list" aria-label="Secure profile areas">
         <div><span>Consultation forms</span><strong>When required</strong></div>
         <div><span>Wallet</span><strong><a href="#wallet">Vouchers, rewards &amp; payments</a></strong></div>
@@ -347,10 +346,10 @@ function renderMyShilohPage({
         ${focus}
         ${authenticated ? `<aside class="notification-invite" data-push-invite hidden aria-labelledby="notification-invite-title">
           <div><p class="eyebrow">Appointment updates</p><h2 id="notification-invite-title">Stay ready for your next visit.</h2><p>Turn on My Shiloh notifications for booking and appointment reminders on this phone.</p></div>
-          <a class="button button--soft" href="#profile">Set up notifications</a>
+          <a class="button button--soft" href="#profile-notifications">Set up notifications</a>
         </aside>` : ''}
         ${authenticated ? `<section class="notification-centre" aria-labelledby="notification-centre-title" data-client-notification-centre hidden>
-          <div class="section-heading"><div><p class="eyebrow">Updates</p><h2 id="notification-centre-title">Your latest Shiloh updates.</h2></div><a class="text-link" href="#profile">Notification settings</a></div>
+          <div class="section-heading"><div><p class="eyebrow">Updates</p><h2 id="notification-centre-title">Your latest Shiloh updates.</h2></div><a class="text-link" href="#profile-notifications">Notification settings</a></div>
           <div class="notification-centre__list" data-client-notification-list aria-live="polite"><p class="notification-centre__empty">Checking for updates…</p></div>
         </section>` : ''}
         <section class="section-block" aria-labelledby="discover-title">
