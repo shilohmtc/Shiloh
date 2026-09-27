@@ -64,6 +64,7 @@ const { runConfiguredClientProvenanceAudit } = require("./src/services/clientPro
 const { runCalendarAccessDiagnostic } = require("./src/services/calendarAccessDiagnostic");
 const { verifyMigrationState } = require("./src/services/migrations");
 const { startConsultationFormDeliveryScheduler } = require("./src/services/consultationFormDelivery");
+const { logMyShilohCutoverCoverage } = require('./src/services/myShilohCutoverCoverage');
 const {
   ensureDeliveryTable: ensureBookingConfirmationDeliverySchema,
   startCustomerBookingConfirmationScheduler,
@@ -136,7 +137,7 @@ async function start() {
   try { await runConfiguredClientProvenanceAudit(logger); } catch (error) { logger.error({ err: error }, "Read-only CRM provenance audit failed"); }
   await provisionWorkspaceBookingRequestAlertIfExplicitlyEnabled();
   await provisionProblemReportResolvedTemplateIfExplicitlyEnabled();
-  server = app.listen(PORT, () => { logger.info({ port: PORT }, "Shiloh started"); startConversationSessionCleanupScheduler(); startClientWhatsAppContinuationCleanupScheduler(); startTemporarySessionCleanupScheduler(); startGoogleBusinessProfileSyncScheduler(); startAppointmentLifecycleScheduler(); startCustomerCareScheduler(); startBookingIntegrityScheduler(); startCustomerBookingConfirmationScheduler(); startConsultationFormDeliveryScheduler(); startMandatoryDemoCleanupScheduler(); startAttendanceFinalizationReminderScheduler(); startHistoricalFinalizationPromptScheduler(); startProblemReportNotificationScheduler(); });
+  server = app.listen(PORT, () => { logger.info({ port: PORT }, "Shiloh started"); startConversationSessionCleanupScheduler(); startClientWhatsAppContinuationCleanupScheduler(); startTemporarySessionCleanupScheduler(); startGoogleBusinessProfileSyncScheduler(); startAppointmentLifecycleScheduler(); startCustomerCareScheduler(); startBookingIntegrityScheduler(); startCustomerBookingConfirmationScheduler(); startConsultationFormDeliveryScheduler(); startMandatoryDemoCleanupScheduler(); startAttendanceFinalizationReminderScheduler(); startHistoricalFinalizationPromptScheduler(); startProblemReportNotificationScheduler(); setTimeout(logMyShilohCutoverCoverage, 15000).unref(); });
 }
 start().catch(async (error) => {
   observability.captureException(error, { "error.kind": "startup", "error.code": error?.code, "runtime.phase": "startup" });
