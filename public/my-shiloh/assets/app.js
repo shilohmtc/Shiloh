@@ -793,6 +793,7 @@
       }
       if (!response.ok && whatsappHandoffStarted) {
         setAuthControlsDisabled(false);
+        for (const form of authCodeForms) form.closest('[data-client-auth-code-disclosure]')?.setAttribute('open', '');
         setAuthStatus('Automatic sign-in did not finish. Enter the 6-digit fallback code from Shiloh.', 'error');
       }
     } catch (_) {
