@@ -7,6 +7,9 @@ const express = require('express');
 const { createClinicIpadPublicRouter,createClinicIpadSetupRouter,originMatches } = require('../src/routes/clinicIpadCheckin');
 const { createClientConsultationFormsRouter } = require('../src/routes/clientConsultationForms');
 const { validToken, createClinicIpadCheckinService } = require('../src/services/clinicIpadCheckin');
+const { evaluateClientManageAuthority } = require('../src/services/workspaceClientMutations');
+const { evaluateFormsReadAuthority } = require('../src/services/workspaceForms');
+const { evaluateCalendarAuthority, CALENDAR_CAPABILITIES, hasCapability } = require('../src/services/calendarAuthorization');
 const ux = require('../src/presentation/clinicIpadCheckinUx');
 const { injectClientListManagement } = require('../src/presentation/workspaceClientsManageUx');
 
@@ -32,6 +35,29 @@ test('clinic iPad capabilities require 32-byte URL-safe tokens', () => {
   assert.equal(validToken(rawDevice),true);
   assert.equal(validToken('123456'),false);
   assert.equal(validToken(`${rawDevice};other=x`),false);
+});
+
+test('Christel and Reception qualify for identical clinic iPad form preparation',async () => {
+  const permissions={ 'client:manage':true,'forms:view':true,
+    'appointment:create':true,'client:lookup':true };
+  for (const [id,display_name,business_role,staff_id] of [
+    [2,'Christel','owner',12],[3,'Shiloh Reception','booking_operator',null],
+  ]) {
+    const principal={id,display_name,business_role,staff_id,staff_status:staff_id?'active':null,
+      admin_active:true,calendar_scope:'all_business',service_scope:'all_services',permissions};
+    const manage=evaluateClientManageAuthority([principal]);
+    const forms=evaluateFormsReadAuthority([principal]);
+    const calendar=evaluateCalendarAuthority(principal);
+    assert.equal(manage?.clientScope.kind,'clinic');
+    assert.equal(forms?.formScope,'all_business');
+    assert.equal(calendar?.calendarScope,'all_business');
+    assert.equal(hasCapability(calendar,CALENDAR_CAPABILITIES.BOOKING_CREATE),true);
+    assert.equal(hasCapability(calendar,CALENDAR_CAPABILITIES.CLIENT_LOOKUP),true);
+    const service=createClinicIpadCheckinService({
+      clientMutations:{resolveManageAccess:async()=>manage},
+    });
+    assert.equal((await service.canActivate(id))?.operatorAdminId,id);
+  }
 });
 
 async function withServer(service, work) {
