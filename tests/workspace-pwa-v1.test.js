@@ -70,7 +70,11 @@ test('#791 service worker caches only inert versioned icon assets and never prot
   assert.match(worker, /fetch\(request\)\.catch/);
   assert.match(worker, /Protected Workspace information is not stored for offline use/);
   assert.match(worker, /Cache-Control':'no-store/);
-  assert.doesNotMatch(worker, /cache\.put\(|caches\.match\(request\).*calendar|localStorage|sessionStorage|indexedDB|BackgroundSync|\bpush\b/i);
+  assert.doesNotMatch(worker, /cache\.put\(|caches\.match\(request\).*calendar|localStorage|sessionStorage|indexedDB|BackgroundSync/i);
+  assert.match(worker, /addEventListener\('push'/);
+  assert.match(worker, /push\/pending/);
+  assert.match(worker, /A client request needs Reception attention/);
+  assert.doesNotMatch(worker, /clientName|clientPhone|phoneNumber|clientEmail/i);
   assert.doesNotMatch(worker, /staff-auth\/session|\/clients|\/team|\/messages|\/book|\/operations/);
 });
 
@@ -90,7 +94,9 @@ test('#791 installed client revalidates only through canonical live staff sessio
   assert.match(client, /addEventListener\('online'/);
   assert.match(client, /shiloh-ios-install-dismissed-v1/);
   assert.match(client, /sessionStorage\.setItem\(INSTALL_DISMISS_KEY,'1'\)/);
-  assert.doesNotMatch(client, /localStorage|indexedDB|document\.cookie|Authorization|Bearer\s|recoveryCode|totp_secret|csrfToken/i);
+  assert.doesNotMatch(client, /localStorage|indexedDB|document\.cookie|Authorization|Bearer\s|recoveryCode|totp_secret/i);
+  assert.match(client, /data-workspace-push-toggle/);
+  assert.match(client, /Notification\.requestPermission\(\)/);
 });
 
 test('#960 iPhone install guidance is compact, scoped, dismissible and backed by production Storybook markup', () => {
@@ -143,7 +149,7 @@ test('#791 revoked/access-changed authority remains explicit at canonical entry'
   assert.match(accessPage, /data-state="session-ended"/);
 });
 
-test('#791 integration is a delivery shell only: no auth/session/permission source or schema mutation is introduced', () => {
+test('#791 Workspace PWA uses the canonical session and keeps staff authority on the server', () => {
   const pwaRoute = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'workspacePwa.js'), 'utf8');
   const pwaPresentation = fs.readFileSync(path.join(__dirname, '..', 'src', 'presentation', 'workspacePwa.js'), 'utf8');
   const calendarRoute = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'calendar.js'), 'utf8');
@@ -151,7 +157,9 @@ test('#791 integration is a delivery shell only: no auth/session/permission sour
   assert.match(calendarRoute, /createWorkspacePwaRouter\(\{ sessionService: staffBrowserSessionService \}\)/);
   assert.match(pwaRoute, /createOptionalCalendarSessionMiddleware/);
   assert.doesNotMatch(pwaRoute + pwaPresentation, /INSERT INTO|UPDATE staff_|DELETE FROM|CREATE TABLE|ALTER TABLE|staff_admin_accounts|permissions\s*=|calendar_scope\s*=|service_scope\s*=/i);
-  assert.doesNotMatch(pwaRoute + pwaPresentation, /passkey|webauthn|pushManager|showNotification|background sync|React Native|Flutter/i);
+  assert.doesNotMatch(pwaRoute + pwaPresentation, /passkey|webauthn|background sync|React Native|Flutter/i);
+  assert.match(pwaRoute, /router\.post\('\/push\/subscribe', sameOrigin, requireSession, csrf/);
+  assert.match(pwaRoute, /router\.post\('\/push\/pending', sameOrigin, requireSession/);
 });
 
 

@@ -33,5 +33,5 @@ test('#837 installed and iPhone paths remain bounded', () => {
   assert.match(client, /appinstalled[\s\S]*removeInstallCard\('\[data-shiloh-browser-install\]'\)[\s\S]*removeInstallCard\('\[data-shiloh-ios-install\]'\)/);
   assert.match(client, /document\.documentElement\.dataset\.shilohPwaMode='standalone'/);
   assert.match(client, /sessionStorage\.setItem\(INSTALL_DISMISS_KEY,'1'\)/);
-  assert.doesNotMatch(client, /localStorage|indexedDB|document\.cookie|Authorization|Bearer\s|pushManager|showNotification/i);
+  assert.doesNotMatch(client, /localStorage|indexedDB|document\.cookie|Authorization|Bearer\s|showNotification/i);
 });

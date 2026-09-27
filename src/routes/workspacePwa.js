@@ -4,6 +4,8 @@ const express = require('express');
 const path = require('path');
 const PWA_ICON_ASSET_DIR = path.join(__dirname, '../../public/assets/pwa');
 const { createOptionalCalendarSessionMiddleware } = require('../middleware/staffBrowserSession');
+const { requireStaffSession, sameOriginGuard, csrfGuard } = require('../middleware/staffBrowserSession');
+const { createWorkspacePushService } = require('../services/workspacePush');
 const {
   PWA_BASE,
   workspacePwaManifest,
@@ -88,10 +90,37 @@ function pwaLaunchDestination(session) {
   return '/calendar/workspace';
 }
 
-function createWorkspacePwaRouter({ sessionService, env = process.env } = {}) {
+function createWorkspacePwaRouter({ sessionService, env = process.env, pushService = createWorkspacePushService({ env }) } = {}) {
   if (!sessionService) throw new Error('Workspace PWA requires the existing staff browser session service');
   const router = express.Router();
   const optionalSession = createOptionalCalendarSessionMiddleware({ service: sessionService, env });
+  const requireSession = requireStaffSession({ service: sessionService, env });
+  const sameOrigin = sameOriginGuard({ env });
+  const csrf = csrfGuard({ service: sessionService });
+
+  router.use('/push', (req, res, next) => {
+    res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    return next();
+  });
+  router.get('/push/config', requireSession, async (req,res,next) => {
+    try { return res.json({ ...pushService.config(), allowed:await pushService.permitted(req.staffBrowserSession.adminId) }); }
+    catch (error) { return next(error); }
+  });
+  router.post('/push/subscribe', sameOrigin, requireSession, csrf, async (req,res,next) => {
+    try {
+      const sub=req.body?.subscription||{};
+      return res.json(await pushService.subscribe({ adminId:req.staffBrowserSession.adminId,endpoint:sub.endpoint,p256dh:sub.keys?.p256dh,auth:sub.keys?.auth }));
+    } catch (error) { return next(error); }
+  });
+  router.post('/push/unsubscribe', sameOrigin, requireSession, csrf, async (req,res,next) => {
+    try { return res.json(await pushService.unsubscribe({ adminId:req.staffBrowserSession.adminId,endpoint:req.body?.endpoint })); }
+    catch (error) { return next(error); }
+  });
+  router.post('/push/pending', sameOrigin, requireSession, async (req,res,next) => {
+    try { return res.json(await pushService.pending({adminId:req.staffBrowserSession.adminId,endpoint:req.body?.endpoint})); }
+    catch (error) { return next(error); }
+  });
 
   router.get('/manifest.webmanifest', (_req, res) => {
     setPublicAssetHeaders(res);

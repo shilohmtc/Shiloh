@@ -29,6 +29,7 @@ const { createMyShilohProfileService, MyShilohProfileError } = require('../servi
 const { createMyShilohWelcomeVoucherService, MyShilohWelcomeVoucherError } = require('../services/myShilohWelcomeVoucher');
 const { createProblemReportService, ProblemReportError } = require('../services/problemReports');
 const { defaultPushService } = require('../services/myShilohPush');
+const { queueWorkspaceAlert } = require('../services/workspacePush');
 const { createMyShilohBookingService, MyShilohBookingError } = require('../services/myShilohBooking');
 const { createClientPlanningRequestService, ClientPlanningRequestError } = require('../services/clientPlanningRequests');
 const { createClientHumanHandoffService, ClientHumanHandoffError } = require('../services/clientHumanHandoffs');
@@ -369,6 +370,7 @@ function createMyShilohRouter({
         'practitionerId','guestCount','specialOccasion','occasionNote','clientNote']);
       if (Object.keys(payload).some(key => !allowed.has(key))) return res.status(422).json({ error:'Please reload My Shiloh and try again.', requestId:req.id });
       const result = await planningService.submit({ ...payload, crmV2ClientId:req.myShilohClientSession.crmV2ClientId });
+      if (result.created) void queueWorkspaceAlert(`planning:${result.id}`);
       return res.status(result.created ? 201 : 200).json(result);
     } catch (error) {
       if (error instanceof ClientPlanningRequestError) return res.status(error.httpStatus).json({ error:error.message, code:error.code, requestId:req.id });
@@ -383,6 +385,7 @@ function createMyShilohRouter({
         return res.status(422).json({ error:'Please reload My Shiloh and try again.', requestId:req.id });
       }
       const result = await humanHandoffService.request(req.myShilohClientSession.crmV2ClientId);
+      if (result.created) void queueWorkspaceAlert(`handoff:${result.id}`);
       return res.status(result.created ? 201 : 200).json(result);
     } catch (error) {
       if (error instanceof ClientHumanHandoffError) return res.status(error.httpStatus).json({ error:error.message, code:error.code, requestId:req.id });
