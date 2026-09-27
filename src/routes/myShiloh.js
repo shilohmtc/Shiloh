@@ -9,6 +9,7 @@ const { resolveWhatsAppNumber } = require('../services/publicWhatsApp');
 const { createClientBrowserSessionService, SESSION_TTL_MS, CHALLENGE_TTL_MS } = require('../services/clientBrowserSession');
 const { createClientPasskeyEnrollmentService } = require('../services/clientPasskeyEnrollment');
 const { createClientPasskeyAuthenticationService } = require('../services/clientPasskeyAuthentication');
+const { createClientPasskeyRecoveryService } = require('../services/clientPasskeyRecovery');
 const { createMyShilohExperienceOrchestrator } = require('../services/myShilohExperienceOrchestrator');
 const { createMyShilohAssistantService, MyShilohAssistantError } = require('../services/myShilohAssistant');
 const { createMyShilohClientActionService } = require('../services/myShilohClientActions');
@@ -106,6 +107,7 @@ function createMyShilohRouter({
   sessionService = createClientBrowserSessionService({ db: pool }),
   passkeyEnrollmentService = createClientPasskeyEnrollmentService({ db: pool, env }),
   passkeyAuthenticationService = createClientPasskeyAuthenticationService({ db: pool, env, sessionService }),
+  passkeyRecoveryService = createClientPasskeyRecoveryService({ db: pool, env, sessionService }),
   whatsappResolver = resolveWhatsAppNumber,
   catalogueProvider = getPublicServiceCatalogue,
   authUrlBuilder = defaultAuthUrlBuilder,
@@ -559,6 +561,37 @@ function createMyShilohRouter({
           error: 'We could not verify this passkey. Try again or use WhatsApp.', requestId: req.id,
         });
       }
+      try { await voucherService.syncRecipientLinks({ crmV2ClientId: result.client.id }); } catch (_) {}
+      return sendAuthenticatedClient(res, result);
+    } catch (error) { return next(error); }
+  });
+
+  router.post('/my-shiloh/auth/passkeys/recovery/create', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const result = await passkeyRecoveryService.create({
+        session: req.myShilohClientSession,
+        requestFingerprintHash: requestFingerprintHash(req),
+      });
+      if (!result.ok) return res.status(result.code === 'CLIENT_RECENT_AUTH_REQUIRED' ? 428 : 403).json({
+        error: result.code === 'CLIENT_PASSKEY_REQUIRED' ? 'Save a passkey first.' :
+          result.code === 'CLIENT_RECENT_AUTH_REQUIRED' ? 'Sign in again before creating a recovery code.' :
+            'Recovery code is unavailable. Please try later.', requestId: req.id,
+      });
+      return res.status(200).json({ code: result.code });
+    } catch (error) { return next(error); }
+  });
+
+  router.post('/my-shiloh/auth/passkeys/recovery/use', sameOrigin, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const result = await passkeyRecoveryService.redeem({
+        code: req.body?.code, requestFingerprintHash: requestFingerprintHash(req),
+      });
+      if (!result.ok) return res.status(result.code === 'CLIENT_RECOVERY_RATE_LIMITED' ? 429 : 401).json({
+        error: result.code === 'CLIENT_RECOVERY_RATE_LIMITED' ? 'Too many tries. Please wait ten minutes.' :
+          'That recovery code could not be used.', requestId: req.id,
+      });
       try { await voucherService.syncRecipientLinks({ crmV2ClientId: result.client.id }); } catch (_) {}
       return sendAuthenticatedClient(res, result);
     } catch (error) { return next(error); }

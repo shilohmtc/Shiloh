@@ -86,6 +86,15 @@ export const PasskeyGuest = {
   render: () => productionSurface(null, { passkeysAvailable: true }),
 };
 
+export const PasskeyRecovery = {
+  render: () => {
+    const surface = productionSurface(null, { passkeysAvailable: true });
+    const home = surface.querySelector('[data-view="home"] .passkey-recovery');
+    if (home) home.open = true;
+    return surface;
+  },
+};
+
 export const WhatsAppAutomaticReturn = {
   render: () => {
     const surface = productionSurface();
@@ -269,6 +278,18 @@ export const PasskeyProfile = {
       <li class="passkey-device"><div><strong>iPhone</strong><small>Saved 27 Sep 2026 · Last used 27 Sep 2026</small></div><button class="button button--soft" type="button" aria-label="Remove iPhone passkey">Remove</button></li>
       <li class="passkey-device"><div><strong>Mac</strong><small>Saved 26 Sep 2026 · Not used yet</small></div><button class="button button--soft" type="button" aria-label="Remove Mac passkey">Remove</button></li>
     </ul>`;
+    return surface;
+  },
+};
+
+export const PasskeyRecoveryCode = {
+  render: () => {
+    const surface = PasskeyProfile.render();
+    const code = surface.querySelector('[data-passkey-recovery-code]');
+    code.hidden = false;
+    code.textContent = 'ABCDE-FGHIJ-KLMNO-PQRST-UVWXY-Z1234-56789-ABCDE';
+    surface.querySelector('[data-passkey-recovery-create-status]').textContent =
+      'Save this code privately now. It works once and will not be shown again.';
     return surface;
   },
 };
