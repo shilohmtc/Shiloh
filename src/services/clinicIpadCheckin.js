@@ -16,12 +16,13 @@ const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 function token() { return crypto.randomBytes(32).toString('base64url'); }
 function digest(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
 function validToken(value) { return TOKEN_PATTERN.test(String(value || '')); }
+function newSetupCode() { return String(crypto.randomInt(0,10_000_000_000)).padStart(10,'0'); }
 
 class CheckinError extends Error {
   constructor(message, status = 400) { super(message); this.httpStatus = status; }
 }
 
-function createClinicIpadCheckinService({ db = pool, now = () => new Date(), randomToken = token,
+function createClinicIpadCheckinService({ db = pool, now = () => new Date(), randomToken = token, randomSetupCode = newSetupCode,
   clientMutations = createWorkspaceClientMutationService({ db }),
   formsAuthority = createWorkspaceFormsService({ db }), formService = clientForms } = {}) {
   async function canActivate(adminId) {
@@ -45,6 +46,44 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
       `INSERT INTO clinic_checkin_devices(token_hash,activated_by_admin_id)
        VALUES($1,$2) RETURNING id`, [digest(value), authority.operatorAdminId]);
     return { deviceId: result.rows[0].id, token: value };
+  }
+
+  async function createSetupCode(adminId) {
+    const authority = await canActivate(adminId);
+    if (!authority) throw new CheckinError('Clinic client management access is required.',403);
+    for (let attempt=0;attempt<3;attempt++) {
+      const code=randomSetupCode();
+      if (!/^\d{10}$/.test(code)) throw new Error('Invalid generated setup code');
+      const result=await db.query(
+        `INSERT INTO clinic_checkin_setup_codes(code_hash,created_by_admin_id,expires_at)
+         VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING code_hash`,
+        [digest(code),authority.operatorAdminId,new Date(now().getTime()+5*60*1000)]);
+      if (result.rowCount) return { code,expiresInSeconds:300 };
+    }
+    throw new Error('Could not generate a unique setup code');
+  }
+
+  async function redeemSetupCode(code) {
+    if (!/^\d{10}$/.test(String(code||''))) throw new CheckinError('That setup code is invalid or has expired.',409);
+    const connection=await db.connect();
+    try {
+      await connection.query('BEGIN');
+      const used=await connection.query(
+        `UPDATE clinic_checkin_setup_codes SET redeemed_at=$2
+         WHERE code_hash=$1 AND redeemed_at IS NULL AND expires_at>$2
+         RETURNING created_by_admin_id`,[digest(code),now()]);
+      if (!used.rowCount) throw new CheckinError('That setup code is invalid or has expired.',409);
+      const value=randomToken();
+      if (!validToken(value)) throw new Error('Invalid generated check-in capability');
+      const device=await connection.query(
+        `INSERT INTO clinic_checkin_devices(token_hash,activated_by_admin_id)
+         VALUES($1,$2) RETURNING id`,[digest(value),used.rows[0].created_by_admin_id]);
+      await connection.query(
+        `UPDATE clinic_checkin_setup_codes SET device_id=$2 WHERE code_hash=$1`,[digest(code),device.rows[0].id]);
+      await connection.query('COMMIT');
+      return { deviceId:device.rows[0].id,token:value };
+    } catch(error) { await connection.query('ROLLBACK'); throw error; }
+    finally { connection.release(); }
   }
 
   async function revoke(adminId, deviceId) {
@@ -334,7 +373,7 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
     } finally { connection.release(); }
   }
 
-  return { canActivate, activate, revoke, listDevices, listFormAssignments, queueForm,
+  return { canActivate, activate, createSetupCode, redeemSetupCode, revoke, listDevices, listFormAssignments, queueForm,
     readyForm, beginForm, formAccess, finishForm, cancelDeviceForm,
     deviceFor, begin, active, finish, register };
 }

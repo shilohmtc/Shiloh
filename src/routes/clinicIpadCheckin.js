@@ -2,8 +2,8 @@
 
 const express = require('express');
 const path = require('path');
-const { createHmac, timingSafeEqual } = require('crypto');
-const { createClinicIpadCheckinService, CheckinError } = require('../services/clinicIpadCheckin');
+const { createHmac, timingSafeEqual, randomBytes } = require('crypto');
+const { createClinicIpadCheckinService, CheckinError, validToken } = require('../services/clinicIpadCheckin');
 const { createConsultationFormDeliveryService } = require('../services/consultationFormDelivery');
 const { requireStaffSession, sameOriginGuard, csrfGuard, parseCookieValue, expectedOrigin,
   serializeExpiredSessionCookie } = require('../middleware/staffBrowserSession');
@@ -14,6 +14,8 @@ const DEVICE_COOKIE = 'shiloh_checkin_device';
 const DEVICE_IDLE_SECONDS = 30*24*60*60;
 const VISIT_COOKIE = 'shiloh_checkin_visit';
 const FORM_COOKIE = 'shiloh_checkin_form';
+const SETUP_COOKIE = 'shiloh_checkin_setup';
+const setupAttempts = new Map();
 function formToken(deviceToken) {
   return createHmac('sha256',deviceToken).update('shiloh-clinic-ipad-form-v1').digest('base64url');
 }
@@ -60,11 +62,42 @@ function createClinicIpadPublicRouter({ env = process.env, service = createClini
     ]
   }));
   router.use(express.urlencoded({ extended:false,limit:'4kb',parameterLimit:8 }));
+  router.post('/redeem-code',async(req,res,next)=>{
+    const nonce=parseCookieValue(req.headers.cookie,SETUP_COOKIE);
+    const entered=req.body?.setupNonce;
+    const origin=req.get('origin');
+    if ((origin && origin!=='null' && !originMatches(req)) || req.get('sec-fetch-site')==='cross-site'
+      || !validToken(nonce) || !validToken(entered)
+      || !timingSafeEqual(Buffer.from(nonce),Buffer.from(entered))) return res.sendStatus(403);
+    const key=req.ip||req.socket.remoteAddress||'unknown',time=Date.now();
+    const attempts=(setupAttempts.get(key)||[]).filter(at=>time-at<10*60*1000);
+    if (attempts.length>=10) return res.status(429).type('html').send(ux.welcome({setup:true,setupNonce:nonce,error:'Too many attempts. Please wait ten minutes before trying again.'}));
+    try {
+      const activated=await service.redeemSetupCode(req.body?.setupCode);
+      setupAttempts.delete(key);
+      res.setHeader('Set-Cookie',[
+        cookie(DEVICE_COOKIE,activated.token,{env,seconds:DEVICE_IDLE_SECONDS}),
+        cookie(SETUP_COOKIE,'',{env,seconds:0}),
+        serializeExpiredSessionCookie({env}),
+        serializeExpiredClientSessionCookie({env}),
+        serializeExpiredClientAuthCookie({env}),
+      ]);
+      return res.redirect(303,'/check-in/');
+    }catch(error){
+      if (!(error instanceof CheckinError)) return next(error);
+      attempts.push(time); setupAttempts.set(key,attempts);
+      return res.status(error.httpStatus).type('html').send(ux.welcome({setup:true,setupNonce:nonce,error:error.message}));
+    }
+  });
   router.use(async (req,res,next) => {
     try {
       req.checkinDeviceToken = parseCookieValue(req.headers.cookie, DEVICE_COOKIE);
       req.checkinDevice = await service.deviceFor(req.checkinDeviceToken);
-      if (!req.checkinDevice) return res.status(401).type('html').send(ux.welcome({ setup:true }));
+      if (!req.checkinDevice) {
+        const nonce=randomBytes(32).toString('base64url');
+        res.append('Set-Cookie',cookie(SETUP_COOKIE,nonce,{env,seconds:10*60}));
+        return res.status(401).type('html').send(ux.welcome({setup:true,setupNonce:nonce}));
+      }
       // Renew only a verified, non-revoked iPad capability during normal use.
       // An idle iPad still requires a staff member to activate it after 30 days.
       if (req.method === 'GET') res.append('Set-Cookie',cookie(DEVICE_COOKIE,req.checkinDeviceToken,{ env,seconds:DEVICE_IDLE_SECONDS }));
@@ -170,6 +203,7 @@ function createClinicIpadSetupRouter({ env = process.env, sessionService, servic
   router.get('/devices.js',staff,(_req,res) => res.type('application/javascript').send(`(function(){
 const status=document.querySelector('[data-status]'),options=document.querySelector('[data-form-options]');
 async function send(path,payload){const c=await fetch('/calendar/staff-auth/csrf',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(!c.ok)throw Error('Please sign in again.');const csrf=await c.json();const r=await fetch('/calendar/check-in/'+path,{method:'POST',headers:{'Content-Type':'application/json','X-Shiloh-Csrf-Token':csrf.csrfToken},body:JSON.stringify(payload)});if(!r.ok)throw Error('The action could not be completed. Please check the appointment and iPad.');return r.json();}
+document.querySelector('[data-setup-code]').addEventListener('click',async event=>{const button=event.currentTarget,code=document.querySelector('[data-setup-code-result]'),message=document.querySelector('[data-code-status]');button.disabled=true;code.hidden=true;message.textContent='Creating a code…';try{const result=await send('setup-code',{});code.textContent=result.code.slice(0,5)+' '+result.code.slice(5);code.hidden=false;message.textContent='Enter this code on the iPad within five minutes. It works once.';}catch(error){message.textContent='Could not create a code. Please try again.';}finally{button.disabled=false;}});
 document.querySelectorAll('[data-revoke]').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{await send('revoke',{deviceId:button.dataset.revoke});location.reload();}catch(e){status.textContent=e.message;button.disabled=false;}}));
 document.querySelector('[data-find-forms]').addEventListener('submit',async event=>{
 event.preventDefault();options.replaceChildren();status.textContent='Finding the appointment forms…';
@@ -230,6 +264,10 @@ options.append(row);
       const revoked = await service.revoke(req.staffBrowserSession.adminId,req.body?.deviceId);
       return res.status(revoked ? 200 : 404).json({ revoked });
     } catch (error) { next(error); }
+  });
+  router.post('/setup-code',sameOriginGuard({ env }),staff,csrfGuard({ service:sessionService }),async (req,res,next) => {
+    try { return res.status(200).json(await service.createSetupCode(req.staffBrowserSession.adminId)); }
+    catch(error) { next(error); }
   });
   router.post('/activate',sameOriginGuard({ env }),staff,csrfGuard({ service:sessionService }),async (req,res,next) => {
     try {
