@@ -2501,7 +2501,11 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
       expect(policyTop).toBeLessThan(viewport.height);
     }
     await policyControl.click();
-    await expect(policy.locator('pre')).toContainText('Please arrive on time.');
+    await expect(policy.getByRole('heading', { name:'Booking Deposit' })).toBeVisible();
+    await expect(policy.getByRole('heading', { name:'Cancellations & Rescheduling' })).toBeVisible();
+    await expect(policy.getByRole('heading', { name:'Professional Treatment Standards' })).toBeVisible();
+    await expect(policy.getByText('Please arrive on time.', { exact:false })).toBeVisible();
+    await expect(policy).not.toContainText('reply exactly: I AGREE');
     await page.locator('[data-policy-accepted]').check();
     await page.getByRole('button', { name:'Send booking request' }).click();
     await expect(page.locator('[data-confirm-status]')).toContainText('Please choose Yes or No');

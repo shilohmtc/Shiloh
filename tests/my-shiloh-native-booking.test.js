@@ -6,7 +6,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { createMyShilohBookingService, cleanOccasionNote, MyShilohBookingError } = require('../src/services/myShilohBooking');
-const { renderMyShilohBookingPage, cleanPolicyText } = require('../src/presentation/myShilohBooking');
+const { renderMyShilohBookingPage } = require('../src/presentation/myShilohBooking');
+const { webPolicyHtml } = require('../src/presentation/paymentPolicyUx');
+const { BOOKING_POLICY_TEXT } = require('../src/config/bookingPolicyAuthority');
 const { renderMyShilohPage } = require('../src/presentation/myShilohPwa');
 const { buildClientExperience } = require('../src/services/myShilohExperienceOrchestrator');
 
@@ -71,12 +73,21 @@ test('native booking page is a My Shiloh treatment-practitioner-time-review wiza
   assert.match(html, /data-special-occasion> Yes/);
   assert.match(html, /data-special-occasion> No/);
   assert.match(html, /<small>When<\/small><strong><span data-review-date><\/span> · <span data-review-time><\/span><\/strong>/);
-  assert.match(html, /<summary>Read Shiloh’s Booking Policy & Terms <span class="terms__hint">Tap to open<\/span><\/summary><pre>Shiloh Booking Policy<\/pre>/);
+  assert.match(html, /<summary>Read Shiloh’s Booking Policy & Terms <span class="terms__hint">Tap to open<\/span><\/summary><div class="policy">/);
   assert.doesNotMatch(html, /<small>After you send it<\/small>/);
   assert.match(html, /data-occasion-note maxlength="160"/);
   assert.match(html, /welcome drink on arrival.*coffee bar.*variety of teas/);
   assert.match(html, /\/my-shiloh\/assets\/booking\.js/);
   assert.doesNotMatch(html, /wa\.me|whatsapp:\/\//i);
+});
+
+test('My Shiloh renders the identical current policy sections and wording as the Ozow deposit page', () => {
+  const html = renderMyShilohBookingPage({ bookingPolicyText: BOOKING_POLICY_TEXT });
+  const paymentPolicy = webPolicyHtml(BOOKING_POLICY_TEXT);
+  assert.ok(html.includes(`<div class="policy">${paymentPolicy}</div>`));
+  assert.ok(paymentPolicy.indexOf('Booking Deposit') < paymentPolicy.indexOf('Cancellations &amp; Rescheduling'));
+  assert.match(paymentPolicy, /Professional Treatment Standards/);
+  assert.doesNotMatch(paymentPolicy, /reply exactly|Policy version:/i);
 });
 
 test('booking routes are session-owned and confirmation is same-origin + CSRF protected', () => {
@@ -279,10 +290,4 @@ test('My Shiloh catalogue and practitioner step exclude tenant-practitioner serv
   const practitioners = await service.practitioners({ serviceId:44 });
   assert.deepEqual(practitioners.practitioners.map(row=>row.name), ['Christel']);
   assert.equal(practitioners.practitioners.some(row=>row.depositExempt), false);
-});
-
-
-test('in-app policy copy removes WhatsApp-only reply instructions without changing policy substance', () => {
-  const cleaned = cleanPolicyText('Policy body\n\nTo continue with this booking request, reply exactly: *I AGREE*\nIf you do not agree, reply *DECLINE* and the booking request will not proceed.');
-  assert.equal(cleaned, 'Policy body');
 });
