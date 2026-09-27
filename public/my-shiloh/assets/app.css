@@ -138,6 +138,7 @@ h3{font-size:20px;line-height:1.12}
 .circle-link{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#fff;text-decoration:none;font-size:20px}
 .page-intro{padding:28px 1px 18px}
 .page-intro h1{max-width:500px}
+.bookings-new-action{margin:0 0 18px}
 .stack{display:grid;gap:13px}
 .action-card{padding:20px;border-radius:23px;background:#fff;border:1px solid var(--line);box-shadow:0 10px 28px rgba(48,61,52,.06)}
 .action-card--accent{background:linear-gradient(145deg,var(--sage-2),#fff)}

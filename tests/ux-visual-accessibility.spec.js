@@ -539,6 +539,7 @@ test('My Shiloh presents a client request as planning on phone and desktop', asy
     await expect(page.locator('[data-client-experience-bookings] .action-card').first()).not.toContainText('Upcoming appointment');
     await page.locator('[data-view-target="bookings"]').click();
     await expect(page.locator('[data-view="bookings"]')).toBeVisible();
+    await expect(page.locator('[data-view="bookings"]').getByRole('link', { name: 'Book another appointment' })).toHaveAttribute('href', '/my-shiloh/book');
     await expect(page.getByText('Could not accommodate')).toBeVisible();
     const bounds = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }));
     expect(bounds.document).toBeLessThanOrEqual(bounds.viewport);
@@ -1860,7 +1861,7 @@ test('My Shiloh install doorway is clear, contained and accessible on Phone and 
     await expect(gate).toBeVisible();
     await expect(page.locator('[data-app-frame]')).toBeHidden();
     await expect(page.getByRole('heading', { name: 'Keep My Shiloh one tap away.' })).toBeVisible();
-    await expect(page.getByText('Already installed? Open My Shiloh from your Home Screen.')).toBeVisible();
+    await expect(page.getByText('Already installed? Open My Shiloh from your Home Screen, tap Bookings, then Book another appointment. You may need to choose your treatment again.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Show install steps' })).toBeVisible();
     await expect(gate.locator('[data-install-gate-instructions]')).toHaveCount(0);
 
