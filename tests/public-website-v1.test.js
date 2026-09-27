@@ -64,7 +64,7 @@ test('public Services renders canonical timing, price and approved description f
 
 test('public Contact sends flexible and group enquiries to the existing authenticated request', () => {
   const html = renderContact();
-  assert.match(html, /href="\/my-shiloh\/request">Send your plans to Reception in My Shiloh/);
+  assert.match(html, /href="https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/request">Send your plans to Reception in My Shiloh/);
   assert.match(html, /nothing is booked until Reception arranges it with you/);
 });
 
@@ -118,7 +118,7 @@ test('all public pages and booking share complete navigation and accessible land
     assert.match(html, /href="\/treatments"[^>]*>Services<\/a>/);
     assert.match(html, /href="\/about"/);
     assert.match(html, /href="\/contact"/);
-    assert.match(html, /href="\/my-shiloh\/"[^>]*>My Shiloh<\/a>|href="\/my-shiloh\/"[^>]*><span>My Shiloh<\/span>/);
+    assert.match(html, /href="https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/"[^>]*>My Shiloh<\/a>|href="https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/"[^>]*><span>My Shiloh<\/span>/);
     assert.match(html, /href="\/book"/);
     assert.match(html, /id="main-content"/);
     assert.match(html, /Skip to content/);
@@ -129,7 +129,7 @@ test('all public pages and booking share complete navigation and accessible land
 
 test('public navigation gives returning clients a distinct My Shiloh entry without weakening Book', () => {
   const html = renderSiteHeader('/');
-  const clientAt = html.indexOf('href="/my-shiloh/"');
+  const clientAt = html.indexOf('href="https://app.shilohmtc.co.za/my-shiloh/"');
   const bookAt = html.indexOf('href="/book"');
   assert.ok(clientAt >= 0);
   assert.ok(bookAt > clientAt);
@@ -142,8 +142,8 @@ test('home includes a clear My Shiloh install and returning-client entry point',
   const html = renderHome(catalogue);
   assert.match(html, /class="client-portal"/);
   assert.match(html, /Keep Shiloh one tap away\./);
-  assert.match(html, /href="\/my-shiloh\/" data-my-shiloh-install-link>Install My Shiloh<\/a>/);
-  assert.match(html, /href="\/my-shiloh\/"[^>]*>Open My Shiloh<\/a>/);
+  assert.match(html, /href="https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/" data-my-shiloh-install-link>Install My Shiloh<\/a>/);
+  assert.match(html, /href="https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/"[^>]*>Open My Shiloh<\/a>/);
   assert.match(html, /No App Store or Play Store download required/);
   assert.match(html, /bookings, latest appointment details and Wallet/i);
 });
@@ -280,7 +280,7 @@ test('public website gives clients a direct My Shiloh install entry without crea
   assert.match(home, /data-my-shiloh-install-entry/);
   assert.match(home, /data-my-shiloh-install-link/);
   assert.match(home, />Install My Shiloh<\/a>/);
-  assert.match(home, /href="\/my-shiloh\/" data-my-shiloh-install-link/);
+  assert.match(home, /href="https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/" data-my-shiloh-install-link/);
   assert.match(home, /No App Store or Play Store download required/);
 });
 

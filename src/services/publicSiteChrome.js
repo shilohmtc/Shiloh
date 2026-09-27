@@ -3,6 +3,7 @@ const {
   PUBLIC_BRAND_SUBTITLE,
   PUBLIC_TAGLINE,
 } = require('./publicPresentation');
+const { APP_ORIGIN } = require('../config/publicOrigins');
 
 const NAV_ITEMS = [
   ['/', 'Home'],
@@ -34,7 +35,8 @@ function renderLinks(currentPath, className = 'site-nav') {
       const content = mobileClient
         ? `<span>${label}</span><small>My bookings &amp; profile</small>`
         : label;
-      return `<a href="${href}"${classAttr}${current}>${content}</a>`;
+      const destination = href === '/my-shiloh/' ? `${APP_ORIGIN}${href}` : href;
+      return `<a href="${destination}"${classAttr}${current}>${content}</a>`;
     },
   ).join('')}</nav>`;
 }
@@ -44,7 +46,7 @@ function renderSiteHeader(currentPath) {
 }
 
 function renderSiteFooter() {
-  return `<a class="site-location-band" href="/contact" aria-label="Plan your visit to Shiloh at 37 Jacobs Street, Heidelberg"><span>Come visit Shiloh</span><strong>37 Jacobs Street · Heidelberg</strong><small>Plan your visit →</small></a><footer class="site-footer"><div class="site-footer-row"><div><div class="site-footer-brand"><img class="site-footer-mark" src="/assets/brand/shiloh-mark-192.png?v=${PUBLIC_BRAND_ASSET_VERSION}" alt="" width="192" height="192"><div><strong class="site-footer-name">${PUBLIC_BRAND_NAME}</strong><span class="site-footer-subtitle">${PUBLIC_BRAND_SUBTITLE}</span><p class="site-footer-tagline">${PUBLIC_TAGLINE}</p></div></div></div><div><strong class="site-footer-heading">Visit Shiloh</strong><p>37 Jacobs Street<br>Heidelberg, Gauteng<br><a href="/contact">Contact &amp; directions</a><br><a href="/visit">Explore Heidelberg</a></p></div><div><strong class="site-footer-heading">Appointments</strong><p><a href="/book">View services and book</a><br><a href="/my-shiloh/">Open My Shiloh</a><br><a href="mailto:info@shilohmtc.co.za">Email Shiloh</a><br><a href="/privacy">Privacy policy</a></p></div><p class="site-footer-note">Personal massage and aesthetic services in Heidelberg. Availability is confirmed when Shiloh completes your booking.</p></div></footer>`;
+  return `<a class="site-location-band" href="/contact" aria-label="Plan your visit to Shiloh at 37 Jacobs Street, Heidelberg"><span>Come visit Shiloh</span><strong>37 Jacobs Street · Heidelberg</strong><small>Plan your visit →</small></a><footer class="site-footer"><div class="site-footer-row"><div><div class="site-footer-brand"><img class="site-footer-mark" src="/assets/brand/shiloh-mark-192.png?v=${PUBLIC_BRAND_ASSET_VERSION}" alt="" width="192" height="192"><div><strong class="site-footer-name">${PUBLIC_BRAND_NAME}</strong><span class="site-footer-subtitle">${PUBLIC_BRAND_SUBTITLE}</span><p class="site-footer-tagline">${PUBLIC_TAGLINE}</p></div></div></div><div><strong class="site-footer-heading">Visit Shiloh</strong><p>37 Jacobs Street<br>Heidelberg, Gauteng<br><a href="/contact">Contact &amp; directions</a><br><a href="/visit">Explore Heidelberg</a></p></div><div><strong class="site-footer-heading">Appointments</strong><p><a href="/book">View services and book</a><br><a href="${APP_ORIGIN}/my-shiloh/">Open My Shiloh</a><br><a href="mailto:info@shilohmtc.co.za">Email Shiloh</a><br><a href="/privacy">Privacy policy</a></p></div><p class="site-footer-note">Personal massage and aesthetic services in Heidelberg. Availability is confirmed when Shiloh completes your booking.</p></div></footer>`;
 }
 
 module.exports = {
