@@ -1,8 +1,8 @@
 'use strict';
 
-const ASSET_VERSION = '20260927-whatsapp-send-guidance-v2';
-const SHELL_CACHE = 'my-shiloh-shell-v29';
-const STATIC_CACHE = 'my-shiloh-static-v29';
+const ASSET_VERSION = '20260927-in-app-help-v1';
+const SHELL_CACHE = 'my-shiloh-shell-v30';
+const STATIC_CACHE = 'my-shiloh-static-v30';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',

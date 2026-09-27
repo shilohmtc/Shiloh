@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-whatsapp-send-guidance-v2';
+const MY_SHILOH_ASSET_VERSION = '20260927-in-app-help-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -89,6 +89,13 @@ function renderMyShilohPage({
     'Hi Shiloh, I am in My Shiloh and would like help with an appointment.',
   );
   const authenticated = Boolean(client?.id && client?.firstName);
+  const choosingHelpCopy = authenticated
+    ? humanHandoffActive
+      ? 'Reception is helping you. Open Shiloh to see how to continue.'
+      : 'Tell Shiloh what you’re looking for and chat here in My Shiloh.'
+    : 'Tell Shiloh what you’re looking for on WhatsApp. Sign in for personal help inside My Shiloh.';
+  const choosingHelpHref = authenticated ? '#shiloh' : askShiloh;
+  const choosingHelpLabel = authenticated ? 'Open Shiloh in My Shiloh' : 'Chat with Shiloh on WhatsApp';
   const greeting = authenticated ? johannesburgGreeting(now) : null;
   const clientName = authenticated ? escapeHtml(client.name || client.firstName) : '';
   const firstName = authenticated ? escapeHtml(client.firstName) : '';
@@ -365,8 +372,8 @@ function renderMyShilohPage({
         </section>
         <section class="quiet-card">
           <div class="quiet-icon" aria-hidden="true">S</div>
-          <div><p class="eyebrow">Shiloh is close</p><h2>Need help choosing?</h2><p>Tell Shiloh what you feel like booking and continue the conversation on WhatsApp.</p></div>
-          <a class="circle-link" href="${escapeHtml(humanHandoffActive && speakToReception ? speakToReception : askShiloh)}" aria-label="${humanHandoffActive && speakToReception ? 'Continue with Reception on WhatsApp' : 'Ask Shiloh on WhatsApp'}" rel="noopener noreferrer">→</a>
+          <div><p class="eyebrow">Shiloh is close</p><h2>Need help choosing?</h2><p>${choosingHelpCopy}</p></div>
+          <a class="circle-link" href="${escapeHtml(choosingHelpHref)}" aria-label="${choosingHelpLabel}"${authenticated ? '' : ' rel="noopener noreferrer"'}>→</a>
         </section>
       </section>
 

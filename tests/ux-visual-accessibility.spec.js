@@ -98,6 +98,30 @@ test('My Shiloh home starts without a duplicate header on phone and desktop', as
   }
 });
 
+test('signed-in choosing help opens the in-app conversation on phone and desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-home&viewMode=story', { waitUntil:'networkidle' });
+    await page.evaluate(() => {
+      localStorage.setItem('my-shiloh-install-whatsapp-verified-v1', '1');
+      Object.defineProperty(navigator, 'standalone', { configurable:true, get:() => true });
+    });
+    await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
+    const card = page.locator('[data-view="home"] .quiet-card').filter({ hasText:'Need help choosing?' });
+    await expect(card).toContainText('chat here in My Shiloh');
+    const link = card.getByRole('link', { name:'Open Shiloh in My Shiloh' });
+    await expect(link).toHaveAttribute('href', '#shiloh');
+    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-choosing-help-home-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+    await link.click();
+    await expect(page.locator('[data-view="shiloh"]')).toBeVisible();
+    await expect(page.locator('[data-view-target="shiloh"]')).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('[data-shiloh-chat-form]')).toBeVisible();
+    const accessibility = await new AxeBuilder({ page }).include('[data-view="shiloh"]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-choosing-help-chat-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+  }
+});
+
 test('My Shiloh guest booking stays behind WhatsApp sign-in on phone and desktop', async ({ page }, testInfo) => {
   await page.addInitScript(() => { Object.defineProperty(navigator, 'standalone', { value:true, configurable:true }); });
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
