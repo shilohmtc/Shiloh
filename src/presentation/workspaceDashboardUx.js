@@ -131,6 +131,12 @@ function planningRequestItem(item) {
   return `<article class="booking-request" data-dashboard-planning-request="${escapeHtml(item.id)}"><div class="appointment-main"><span class="appointment-time">Request</span><div class="appointment-copy"><strong>${escapeHtml(item.client_name)}</strong><span>${escapeHtml(kind)} · ${escapeHtml(item.service_name || item.service_detail)}</span></div><span class="status-pill pending">${item.status === 'planning' ? 'Planning' : 'Requested'}</span></div><p class="request-note">${escapeHtml(date)} · ${escapeHtml(daypart)}${item.guest_count ? ` · About ${escapeHtml(item.guest_count)} guests` : ''}${item.practitioner_name ? ` · Prefers ${escapeHtml(item.practitioner_name)}` : ''}</p>${item.special_occasion ? `<p class="request-note"><strong>Occasion:</strong> ${escapeHtml(item.occasion_note)}</p>` : ''}${item.client_note ? `<p class="request-note"><strong>Client note:</strong> ${escapeHtml(item.client_note)}</p>` : ''}<p class="request-note">This request has not booked a time or requested payment.</p><div class="request-actions">${item.status === 'requested' ? '<button class="action-button" type="button" data-planning-action="start_planning">Start planning</button>' : ''}</div><div class="proposal-fields"><label class="proposal-field"><span>Appointment arranged for this client</span><select data-planning-appointment><option value="">Choose their scheduled appointment</option>${appointments}</select></label><button class="action-button complete" type="button" data-planning-action="arranged"${appointments ? '' : ' disabled'}>Link arranged appointment</button><button class="action-button cannot" type="button" data-planning-show-decline>Cannot accommodate</button><div data-planning-decline hidden><p class="request-note">This closes the request without changing any appointment. Confirm only after speaking with the client.</p><button class="action-button cannot" type="button" data-planning-action="decline">Confirm cannot accommodate</button><button class="action-button" type="button" data-planning-cancel-decline>Keep planning</button></div><p class="operation-status request-operation-status" data-planning-status role="status" aria-live="polite"></p></div></article>`;
 }
 
+function humanHandoffItem(item) {
+  const mobile = String(item.client_mobile || '');
+  const localMobile = /^27[678]\d{8}$/.test(mobile) ? `0${mobile.slice(2)}` : '';
+  return `<article class="booking-request" data-dashboard-human-handoff="${escapeHtml(item.id)}"><div class="appointment-main"><span class="appointment-time">Human</span><div class="appointment-copy"><strong>${escapeHtml(item.client_name)}</strong><span>Asked to speak with Reception${localMobile ? ` · ${escapeHtml(localMobile)}` : ''}</span></div><span class="status-pill pending">Open</span></div><p class="request-note">The client was given the clinic WhatsApp number. Shiloh cannot read that separate conversation or confirm it was sent. Automated replies are paused for this client until you close the handoff.</p><div class="request-actions"><button class="action-button" type="button" data-human-handoff-show-close>Finish handoff</button></div><div data-human-handoff-confirm hidden><p class="request-note">Close only when Reception has finished handling this request. Shiloh can answer again afterwards.</p><button class="action-button complete" type="button" data-human-handoff-close>Confirm Reception finished</button><button class="action-button" type="button" data-human-handoff-cancel>Keep open</button></div><p class="operation-status request-operation-status" data-human-handoff-status role="status" aria-live="polite"></p></article>`;
+}
+
 function rescheduleRequestItem(item) {
   return `<article class="booking-request reschedule-request" data-dashboard-reschedule-request="${escapeHtml(item.requestId)}"><div class="appointment-main"><span class="appointment-time">${escapeHtml(dateTimeLabel(item.proposedStartsAt))}</span><div class="appointment-copy"><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(item.serviceName)} · ${escapeHtml(item.staffName)}</span></div><span class="status-pill pending">Time change requested</span></div><p class="request-note">Current appointment: ${escapeHtml(dateTimeLabel(item.originalStartsAt))}. Requested: ${escapeHtml(dateTimeLabel(item.proposedStartsAt))}. The current booking remains unchanged. Coordinate with the practitioner and client before deciding; ${item.decisionOwner === 'reception' ? 'Reception will decide this request after checking the clinic schedule.' : 'This older request still follows its practitioner approval path.'}</p>${item.decisionOwner === 'reception' ? '<div class="request-actions"><button class="action-button complete" type="button" data-reschedule-decision="approve">Confirm time change</button><button class="action-button cannot" type="button" data-reschedule-decision="decline">Cannot accommodate</button></div><p class="operation-status request-operation-status" data-reschedule-status aria-live="polite"></p>' : ''}</article>`;
 }
@@ -193,6 +199,24 @@ function planningRequestClientScript() {
   });})();`;
 }
 
+function humanHandoffClientScript() {
+  return `(()=>{'use strict';document.addEventListener('click',async event=>{
+    const button=event.target.closest('[data-human-handoff-show-close],[data-human-handoff-cancel],[data-human-handoff-close]');
+    if(!button)return;const card=button.closest('[data-dashboard-human-handoff]');if(!card)return;
+    const confirm=card.querySelector('[data-human-handoff-confirm]');
+    if(button.hasAttribute('data-human-handoff-show-close')){confirm.hidden=false;confirm.querySelector('button').focus();return;}
+    if(button.hasAttribute('data-human-handoff-cancel')){confirm.hidden=true;card.querySelector('[data-human-handoff-show-close]').focus();return;}
+    const status=card.querySelector('[data-human-handoff-status]');button.disabled=true;status.textContent='Checking the handoff…';
+    try{const csrf=await fetch('/calendar/staff-auth/csrf',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:'{}'});
+      const token=await csrf.json();if(!csrf.ok||!token.csrfToken)throw new Error('Your secure session has expired.');
+      const response=await fetch('/calendar/workspace/human-handoffs/'+encodeURIComponent(card.dataset.dashboardHumanHandoff)+'/close',{
+        method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json','x-shiloh-csrf-token':token.csrfToken},body:'{}'});
+      const result=await response.json();if(!response.ok)throw new Error(result.error||'The handoff was not closed.');
+      status.textContent='Handoff closed. Refreshing…';setTimeout(()=>location.reload(),500);
+    }catch(error){status.textContent=error.message;button.disabled=false;button.focus();}
+  });})();`;
+}
+
 function renderDashboardPage(model, { staffAccessScriptPath = '/calendar/staff/client.js', dashboardScriptPath = '/calendar/workspace/client.js', navigation = {} } = {}) {
   const nextOperationalDay = model.requestedDateKey !== model.operationalDateKey;
   const isBusinessOverview = ['owner_overview', 'business_overview'].includes(model.mode);
@@ -200,21 +224,23 @@ function renderDashboardPage(model, { staffAccessScriptPath = '/calendar/staff/c
   const closures = (model.closures || []).map((item) => `<div class="closure">Closed · ${escapeHtml(item.reason || 'Clinic closure')}</div>`).join('');
   const bookingRequests = model.bookingRequests || [];
   const planningRequests = model.planningRequests || [];
+  const humanHandoffs = model.humanHandoffs || [];
   const rescheduleRequests = model.rescheduleRequests || [];
   const awaitingFinalization = model.awaitingFinalization || [];
   const holidayDecisions = model.holidayDecisions || [];
-  const attentionCount = awaitingFinalization.length + bookingRequests.length + planningRequests.length + rescheduleRequests.length + holidayDecisions.length;
+  const attentionCount = awaitingFinalization.length + bookingRequests.length + planningRequests.length + humanHandoffs.length + rescheduleRequests.length + holidayDecisions.length;
   const actionableCount = awaitingFinalization.filter((item) => item.canFinalize).length;
   const requestCards = bookingRequests.map(item => bookingRequestItem(item, model)).join('');
   const planningCards = planningRequests.map(planningRequestItem).join('');
+  const handoffCards = humanHandoffs.map(humanHandoffItem).join('');
   const rescheduleCards = rescheduleRequests.map(rescheduleRequestItem).join('');
   const finalizationCount = awaitingFinalization.length;
   const finalizationSummary = finalizationCount ? `<div class="attention-summary"><strong>${finalizationCount} ${finalizationCount === 1 ? 'visit is' : 'visits are'} awaiting practitioner finalization.</strong><br>${model.canFinalizeAllBusiness ? 'Authorized all-business backup actions are available below.' : isBusinessOverview ? 'Assigned practitioners finalize their own visits; review the exact visit below.' : actionableCount === finalizationCount ? 'Record Completed or No-show directly below.' : `${actionableCount} can be finalized here; shared visits must be completed by their assigned practitioner.`}</div>` : '';
   const finalizationCards = awaitingFinalization.map(item => appointmentItem(item, model, { manageLabel: 'Review visit', idPrefix: 'dashboard-attention-appointment', attention: true })).join('');
   const finalizationQueue = finalizationCards ? `<div class="attention-queue" data-dashboard-attention-queue>${finalizationCards}</div>` : '';
   const holidayCards = holidayDecisions.map(item => `<div class="booking-request" data-dashboard-holiday-decision><strong>${escapeHtml(item.holidayName)}</strong><p class="request-note">${escapeHtml(item.exceptionDate)} · Clinic hours decision needed</p><div class="request-actions"><a class="button" href="${escapeHtml(item.href)}">Set holiday hours</a></div></div>`).join('');
-  const hasAttention = Boolean(holidayCards || requestCards || planningCards || rescheduleCards || finalizationSummary || finalizationQueue);
-  const attention = hasAttention ? `${holidayCards}${requestCards}${planningCards}${rescheduleCards}${finalizationSummary}${finalizationQueue}` : '';
+  const hasAttention = Boolean(holidayCards || requestCards || planningCards || handoffCards || rescheduleCards || finalizationSummary || finalizationQueue);
+  const attention = hasAttention ? `${handoffCards}${holidayCards}${requestCards}${planningCards}${rescheduleCards}${finalizationSummary}${finalizationQueue}` : '';
   const carryOver = model.carryOver || [];
   const activity = (model.recentActivity || []).map((item) => activityItem(item, model)).join('') || '<div class="empty">No completed or no-show visits are recorded today yet.</div>';
   let communications = '<div class="empty">No client-notification issue is currently available in this access.</div>';
@@ -237,6 +263,7 @@ module.exports = {
   statusPresentation,
   dashboardClientScript,
   planningRequestClientScript,
+  humanHandoffClientScript,
   formatRand,
   welcomeVoucherDashboardPanel,
   renderDashboardPage,

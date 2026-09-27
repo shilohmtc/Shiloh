@@ -1,6 +1,28 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { buildClientExperience } = require('../src/services/myShilohExperienceOrchestrator');
+
+test('human handoff pauses assistant and appears in Reception on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1280,height:900 }]) {
+    await page.setViewportSize({ width:viewport.width,height:viewport.height });
+    await page.goto('/iframe.html?id=client-planning-requests--human-handoff&viewMode=story',{waitUntil:'networkidle'});
+    await expect(page.locator('.assistant-chat__note[role="status"]')).toContainText('automatic replies are paused');
+    await expect(page.locator('[data-shiloh-chat-form]')).toHaveCount(0);
+    await expect(page.getByRole('link',{name:'Continue with Reception on WhatsApp',exact:true})).toHaveAttribute('href',/wa\.me\/27662399138/);
+    const appAxe=await new AxeBuilder({page}).include('[data-view="shiloh"]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(appAxe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`human-handoff-client-${viewport.name}.png`),fullPage:true,animations:'disabled'});
+
+    await page.goto('/iframe.html?id=client-planning-requests--reception-human-handoff&viewMode=story',{waitUntil:'networkidle'});
+    const card=page.locator('[data-dashboard-human-handoff="92"]');
+    await expect(card).toContainText('Shiloh cannot read that separate conversation');
+    const staffAxe=await new AxeBuilder({page}).include('[data-dashboard-attention-panel]')
+      .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(staffAxe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`human-handoff-reception-${viewport.name}.png`),fullPage:true,animations:'disabled'});
+  }
+});
 const { workspaceServicesManageClientScript } = require('../src/presentation/workspaceServicesUx');
 
 test('My Shiloh home starts without a duplicate header on phone and desktop', async ({ page }, testInfo) => {

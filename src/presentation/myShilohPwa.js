@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-nav-polish-v1';
+const MY_SHILOH_ASSET_VERSION = '20260927-nav-and-handoff-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -71,6 +71,7 @@ function johannesburgGreeting(now = new Date()) {
 function renderMyShilohPage({
   whatsappNumber = null,
   humanWhatsAppNumber = null,
+  humanHandoffActive = false,
   catalogue = [],
   client = null,
   now = new Date(),
@@ -97,7 +98,7 @@ function renderMyShilohPage({
         <p class="hero-copy">You’re safely signed in. Your appointments, forms, payments and rewards are ready whenever you need them.</p>
         <div class="hero-actions">
           <a class="button button--primary" href="/my-shiloh/book">Book an appointment</a>
-          <a class="button button--soft" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Ask Shiloh</a>
+          <a class="button button--soft" href="${escapeHtml(humanHandoffActive && speakToReception ? speakToReception : askShiloh)}" rel="noopener noreferrer">${humanHandoffActive && speakToReception ? 'Continue with Reception' : 'Ask Shiloh'}</a>
         </div>
       </div>`
     : `<div class="hero">
@@ -371,7 +372,7 @@ function renderMyShilohPage({
         <section class="quiet-card">
           <div class="quiet-icon" aria-hidden="true">S</div>
           <div><p class="eyebrow">Shiloh is close</p><h2>Need help choosing?</h2><p>Tell Shiloh what you feel like booking and continue the conversation on WhatsApp.</p></div>
-          <a class="circle-link" href="${escapeHtml(askShiloh)}" aria-label="Ask Shiloh on WhatsApp" rel="noopener noreferrer">→</a>
+          <a class="circle-link" href="${escapeHtml(humanHandoffActive && speakToReception ? speakToReception : askShiloh)}" aria-label="${humanHandoffActive && speakToReception ? 'Continue with Reception on WhatsApp' : 'Ask Shiloh on WhatsApp'}" rel="noopener noreferrer">→</a>
         </section>
       </section>
 
@@ -390,7 +391,7 @@ function renderMyShilohPage({
           <article class="action-card">
             <span class="action-number">02</span>
             <div><h2>Change an appointment</h2><p>Ask Shiloh to help you reschedule or cancel your appointment.</p></div>
-            <a class="button button--soft" href="${escapeHtml(manageBooking)}" rel="noopener noreferrer">Ask Shiloh</a>
+            <a class="button button--soft" href="${escapeHtml(humanHandoffActive && speakToReception ? speakToReception : manageBooking)}" rel="noopener noreferrer">${humanHandoffActive && speakToReception ? 'Ask Reception' : 'Ask Shiloh'}</a>
           </article>
         </div>
       </section>
@@ -401,7 +402,7 @@ function renderMyShilohPage({
           <p class="eyebrow">Your wellness assistant</p>
           <h1 id="shiloh-title">Shiloh, right where you need it.</h1>
           <p>${authenticated
-            ? 'Ask naturally about your appointments, forms, payments or rewards.'
+            ? humanHandoffActive ? 'Reception is handling your request. Continue with the clinic team on WhatsApp.' : 'Ask naturally about your appointments, forms, payments or rewards.'
             : 'Sign in for personal help, or continue the conversation on WhatsApp.'}</p>
         </div>
         ${authenticated ? `
@@ -409,10 +410,10 @@ function renderMyShilohPage({
           <div class="assistant-chat__messages" data-shiloh-messages aria-live="polite" aria-relevant="additions">
             <div class="chat-bubble chat-bubble--shiloh">
               <span>Shiloh</span>
-              <p>Hi ${firstName} 🌿 Ask me anything about your Shiloh visit, booking, forms or payment status.</p>
+              <p>${humanHandoffActive ? `Hi ${firstName} 🌿 Reception is now helping you.` : `Hi ${firstName} 🌿 Ask me anything about your Shiloh visit, booking, forms or payment status.`}</p>
             </div>
           </div>
-          <div class="prompt-grid" aria-label="Suggested questions" data-client-experience-prompts>
+          ${humanHandoffActive ? `<p class="assistant-chat__note" role="status">Reception is handling your request. Shiloh’s automatic replies are paused until Reception closes the handoff. Continue with Reception on the clinic WhatsApp number.</p>` : `<div class="prompt-grid" aria-label="Suggested questions" data-client-experience-prompts>
             <button type="button" data-shiloh-prompt><span>Prepare</span><strong>What do I need before my appointment?</strong></button>
             <button type="button" data-shiloh-prompt><span>Manage</span><strong>Can I move my appointment?</strong></button>
             <button type="button" data-shiloh-prompt><span>Status</span><strong>What is my appointment status?</strong></button>
@@ -424,8 +425,8 @@ function renderMyShilohPage({
             <button class="button button--primary" type="submit" data-shiloh-chat-send>Send</button>
           </form>
           <p class="assistant-chat__note">For any change, Shiloh will show you what will happen and ask you to confirm.</p>
-          <a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Prefer WhatsApp? Continue there →</a>
-          ${speakToReception ? `<a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(speakToReception)}" rel="noopener noreferrer">Speak to Reception on WhatsApp →</a>` : ''}
+          <a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Prefer WhatsApp? Continue there →</a>`}
+          ${speakToReception ? `<a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(speakToReception)}" rel="noopener noreferrer"${humanHandoffActive ? '' : ' data-human-handoff-start'}>${humanHandoffActive ? 'Continue with Reception on WhatsApp →' : 'Speak to Reception on WhatsApp →'}</a>${humanHandoffActive ? '' : `<p class="assistant-chat__note" data-human-handoff-status role="status" aria-live="polite"></p><a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(speakToReception)}" rel="noopener noreferrer" data-human-handoff-direct hidden>Open Reception directly</a>`}` : ''}
         </section>` : `
         <a class="button button--primary button--wide" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Chat with Shiloh on WhatsApp</a>
         ${speakToReception ? `<a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(speakToReception)}" rel="noopener noreferrer">Speak to Reception on WhatsApp →</a>` : ''}

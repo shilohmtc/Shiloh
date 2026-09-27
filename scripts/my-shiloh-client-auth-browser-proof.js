@@ -451,6 +451,7 @@ let baseUrl;
     authUrlBuilder: () => '/fake-whatsapp',
     experienceService: fakeExperienceService,
     assistantService: fakeAssistantService,
+    humanHandoffService: { async activeForClient() { return null; } },
     actionService: fakeActionService,
     voucherService: fakeVoucherService,
   }));

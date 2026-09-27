@@ -30,6 +30,7 @@ const { createProblemReportService, ProblemReportError } = require('../services/
 const { defaultPushService } = require('../services/myShilohPush');
 const { createMyShilohBookingService, MyShilohBookingError } = require('../services/myShilohBooking');
 const { createClientPlanningRequestService, ClientPlanningRequestError } = require('../services/clientPlanningRequests');
+const { createClientHumanHandoffService, ClientHumanHandoffError } = require('../services/clientHumanHandoffs');
 const { POLICY_TEXT } = require('../services/bookingPolicy');
 const {
   sameOriginGuard,
@@ -106,6 +107,7 @@ function createMyShilohRouter({
   pushService = defaultPushService,
   bookingService = createMyShilohBookingService({ db: pool, catalogueProvider }),
   planningService = createClientPlanningRequestService({ db: pool }),
+  humanHandoffService = createClientHumanHandoffService({ db: pool }),
 } = {}) {
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
@@ -357,6 +359,20 @@ function createMyShilohRouter({
       return res.status(result.created ? 201 : 200).json(result);
     } catch (error) {
       if (error instanceof ClientPlanningRequestError) return res.status(error.httpStatus).json({ error:error.message, code:error.code, requestId:req.id });
+      return next(error);
+    }
+  });
+
+  router.post('/my-shiloh/api/human-handoff', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      if (req.body && (typeof req.body !== 'object' || Array.isArray(req.body) || Object.keys(req.body).length)) {
+        return res.status(422).json({ error:'Please reload My Shiloh and try again.', requestId:req.id });
+      }
+      const result = await humanHandoffService.request(req.myShilohClientSession.crmV2ClientId);
+      return res.status(result.created ? 201 : 200).json(result);
+    } catch (error) {
+      if (error instanceof ClientHumanHandoffError) return res.status(error.httpStatus).json({ error:error.message, code:error.code, requestId:req.id });
       return next(error);
     }
   });
@@ -840,13 +856,15 @@ function createMyShilohRouter({
 
   router.get(['/my-shiloh', '/my-shiloh/'], optionalSession, async (req, res) => {
     setMyShilohPageHeaders(res);
-    const [whatsappNumber, catalogue] = await Promise.all([
+    const [whatsappNumber, catalogue, humanHandoff] = await Promise.all([
       whatsappResolver(),
       catalogueProvider(),
+      req.myShilohClientSession ? humanHandoffService.activeForClient(req.myShilohClientSession.crmV2ClientId) : null,
     ]);
     return res.status(200).type('html').send(renderMyShilohPage({
       whatsappNumber,
       humanWhatsAppNumber: env.SHILOH_HUMAN_WHATSAPP_NUMBER,
+      humanHandoffActive:Boolean(humanHandoff),
       catalogue: catalogue || [],
       client: req.myShilohClientSession?.client || null,
     }));
