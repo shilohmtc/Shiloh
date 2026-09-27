@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { pool } = require('../db/pool');
 const { sha256, normalizedFingerprint } = require('./clientBrowserSession');
 const { verifyRegistrationResponse } = require('./staffPasskeyAuth');
+const { APP_ORIGIN } = require('../config/publicOrigins');
 
 const FEATURE_FLAG = 'SHILOH_CLIENT_PASSKEY_AUTH_ENABLED';
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
@@ -13,18 +14,9 @@ function enrollmentPolicy(env = process.env) {
   if (String(env[FEATURE_FLAG] || '').toLowerCase() !== 'true') {
     return { enabled: false, operational: false };
   }
-  try {
-    const origin = new URL(String(env.SHILOH_CALENDAR_PUBLIC_ORIGIN || ''));
-    if (origin.protocol !== 'https:' || origin.username || origin.password ||
-        origin.pathname !== '/' || origin.search || origin.hash) {
-      return { enabled: true, operational: false };
-    }
-    // Keep the RP on the exact canonical application host. This deliberately
-    // cannot be changed to a parent domain by a client-controlled request.
-    return { enabled: true, operational: true, origin: origin.origin, rpId: origin.hostname.toLowerCase() };
-  } catch (_) {
-    return { enabled: true, operational: false };
-  }
+  // Client passkeys belong to My Shiloh's canonical host, independent of the
+  // Calendar/Workspace origin configuration. Never choose an RP from a request.
+  return { enabled: true, operational: true, origin: APP_ORIGIN, rpId: new URL(APP_ORIGIN).hostname };
 }
 
 function recentClientSession(session, now) {
