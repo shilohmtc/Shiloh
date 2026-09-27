@@ -1201,7 +1201,7 @@
     const archived = latestNotifications.filter(notification => archivedUpdateIds.has(String(notification.id)));
     const visible = latestNotifications.filter(notification => archivedUpdateIds.has(String(notification.id)) === showArchivedUpdates);
     if (clientArchiveToggle) {
-      clientArchiveToggle.hidden = archived.length === 0;
+      clientArchiveToggle.hidden = archived.length === 0 && !showArchivedUpdates;
       clientArchiveToggle.textContent = showArchivedUpdates ? 'Show current updates' : `Show archived (${archived.length})`;
     }
     if (visible.length === 0) {
