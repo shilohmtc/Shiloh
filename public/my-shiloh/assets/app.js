@@ -1414,6 +1414,14 @@
     for (const button of shilohPromptButtons) button.disabled = Boolean(busy);
   }
 
+  function resizeShilohComposer() {
+    if (!shilohChatInput) return;
+    shilohChatInput.style.height = 'auto';
+    shilohChatInput.style.height = `${Math.min(shilohChatInput.scrollHeight, 120)}px`;
+  }
+
+  shilohChatInput?.addEventListener('input', resizeShilohComposer);
+
   async function sendShilohMessage(value) {
     if (!standalone() || installationVerificationRequired()
       || shilohMessageInFlight || appFrame?.dataset.clientAuthenticated !== 'true') return;
@@ -1421,7 +1429,10 @@
     if (!message || message.length > 1000) return;
 
     appendShilohMessage('user', message);
-    if (shilohChatInput) shilohChatInput.value = '';
+    if (shilohChatInput) {
+      shilohChatInput.value = '';
+      resizeShilohComposer();
+    }
     setShilohBusy(true);
     const pending = appendShilohMessage('shiloh', 'Thinking about that…', { pending: true });
 
