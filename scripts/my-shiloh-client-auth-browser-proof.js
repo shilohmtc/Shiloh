@@ -254,7 +254,7 @@ async function runViewport(browser, name, viewport) {
   const browserPage = await browserContext.newPage();
   await browserPage.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
   await browserPage.getByRole('heading', { name: 'Add My Shiloh to your Home Screen.' }).waitFor();
-  if (await browserPage.getByRole('button', { name: 'Continue with WhatsApp' }).count()) {
+  if (await browserPage.getByRole('button', { name: 'Open WhatsApp to verify' }).count()) {
     throw new Error('normal browser must not expose My Shiloh sign-in before installation');
   }
   if (!(await browserPage.locator('[data-app-frame]').isHidden())) {
@@ -295,10 +295,10 @@ async function runViewport(browser, name, viewport) {
   if (initialMarker !== null) throw new Error('new installed copy unexpectedly began as already verified');
   await page.screenshot({ path: path.join(out, `${name}-first-launch-verification.png`), fullPage: true });
 
-  await page.getByRole('button', { name: 'Verify with WhatsApp' }).click();
+  await page.getByRole('button', { name: 'Open WhatsApp to verify' }).click();
   await page.waitForURL('**/fake-whatsapp');
   await page.goBack({ waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => document.body.textContent.includes('Checking your WhatsApp verification'));
+  await page.waitForFunction(() => document.body.textContent.includes('Waiting for your message'));
   await page.screenshot({ path: path.join(out, `${name}-auth-return.png`), fullPage: true });
   verified = true;
   await page.waitForFunction(() => localStorage.getItem('my-shiloh-install-whatsapp-verified-v1') === '1');
@@ -449,7 +449,7 @@ async function runViewport(browser, name, viewport) {
 
   await page.locator('[data-view-target="profile"]').click();
   await page.getByRole('button', { name: 'Sign out' }).click();
-  await page.waitForFunction(() => document.body.textContent.includes('Continue with WhatsApp'));
+  await page.waitForFunction(() => document.body.textContent.includes('Open WhatsApp to verify'));
   if (!clearedAssistantSessions.includes(55)) throw new Error('assistant conversation was not cleared on logout');
   if (!revokedActionSessions.some((call) => call.sessionId === 55 && call.crmV2ClientId === 912)) {
     throw new Error('outstanding client actions were not revoked on logout');
