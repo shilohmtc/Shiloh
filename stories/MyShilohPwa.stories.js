@@ -453,7 +453,7 @@ export const WebsiteTreatmentHandoff = {
 };
 
 
-export const FirstLaunchWhatsAppVerification = {
+export const FirstLaunchAuthenticatedSession = {
   render: () => {
     const surface = productionSurface({
       id: '913',
@@ -461,11 +461,9 @@ export const FirstLaunchWhatsAppVerification = {
       firstName: 'Jean-Pierre',
     });
     const installGate = surface.querySelector('[data-install-gate]');
-    const verificationGate = surface.querySelector('[data-install-verification-gate]');
     const frame = surface.querySelector('[data-app-frame]');
     if (installGate) installGate.hidden = true;
-    if (verificationGate) verificationGate.hidden = false;
-    if (frame) frame.hidden = true;
+    if (frame) frame.hidden = false;
     return surface;
   },
 };

@@ -2182,24 +2182,20 @@ test('My Shiloh refreshes an authenticated greeting from current Johannesburg ti
 });
 
 
-test('My Shiloh first installed launch asks for one WhatsApp verification on Phone and Desktop', async ({ page }, testInfo) => {
+test('My Shiloh first installed launch respects an authenticated server session on Phone and Desktop', async ({ page }, testInfo) => {
   for (const viewport of [
     { name: 'phone', width: 390, height: 844 },
     { name: 'desktop', width: 1280, height: 900 },
   ]) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await page.goto('/iframe.html?id=client-my-shiloh-pwa--first-launch-whats-app-verification&viewMode=story', { waitUntil: 'networkidle' });
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--first-launch-authenticated-session&viewMode=story', { waitUntil: 'networkidle' });
 
-    const gate = page.locator('[data-install-verification-gate]');
-    await expect(gate).toBeVisible();
+    const frame = page.locator('[data-app-frame]');
+    await expect(frame).toBeVisible();
     await expect(page.locator('[data-install-gate]')).toBeHidden();
-    await expect(page.locator('[data-app-frame]')).toBeHidden();
-    await expect(page.getByRole('heading', { name: 'Confirm it’s you to finish setting up My Shiloh.' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Open WhatsApp to verify' })).toBeVisible();
-    await expect(page.getByText('Verify with WhatsApp once on this installation. After that, just open My Shiloh normally.')).toBeVisible();
-    await expect(page.getByText('Good evening, Jean-Pierre.')).toBeHidden();
+    await expect(page.getByText('Good evening, Jean-Pierre.')).toBeVisible();
 
-    const metrics = await gate.evaluate((node) => ({
+    const metrics = await frame.evaluate((node) => ({
       viewportWidth: window.innerWidth,
       documentWidth: document.documentElement.scrollWidth,
       shortTargets: [...node.querySelectorAll('button,input,a')]
@@ -2210,14 +2206,14 @@ test('My Shiloh first installed launch asks for one WhatsApp verification on Pho
     expect(metrics.shortTargets).toEqual([]);
 
     const accessibility = await new AxeBuilder({ page })
-      .include('[data-install-verification-gate]')
+      .include('[data-app-frame]')
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
-    expect(serious, `Serious accessibility violations in My Shiloh first-launch verification on ${viewport.name}: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
+    expect(serious, `Serious accessibility violations in My Shiloh signed-in launch on ${viewport.name}: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
 
     await page.screenshot({
-      path: testInfo.outputPath(`my-shiloh-first-launch-whatsapp-${viewport.name}.png`),
+      path: testInfo.outputPath(`my-shiloh-first-launch-signed-in-${viewport.name}.png`),
       fullPage: true,
       animations: 'disabled',
       caret: 'hide',
@@ -2245,7 +2241,7 @@ test('My Shiloh opens installed WhatsApp directly before web fallback', async ({
     }),
   }));
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/iframe.html?id=client-my-shiloh-pwa--first-launch-whats-app-verification&viewMode=story', { waitUntil: 'networkidle' });
+  await page.goto('/iframe.html?id=client-my-shiloh-pwa--standalone-guest-sign-in&viewMode=story', { waitUntil: 'networkidle' });
 
   await page.evaluate(() => {
     window.__myShilohDirectWhatsApp = null;
@@ -2264,16 +2260,16 @@ test('My Shiloh opens installed WhatsApp directly before web fallback', async ({
   });
 
   await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
-  const gate = page.locator('[data-install-verification-gate]');
-  await expect(gate).toBeVisible();
-  await gate.getByRole('button', { name: 'Open WhatsApp to verify' }).click();
+  const frame = page.locator('[data-app-frame]');
+  await expect(frame).toBeVisible();
+  await frame.getByRole('button', { name: 'Open WhatsApp to verify' }).first().click();
 
   await expect.poll(() => page.evaluate(() => window.__myShilohDirectWhatsApp)).toContain('whatsapp://send?phone=27830000000');
-  await expect(gate.locator('.auth-hint')).toContainText('Tap Send in WhatsApp');
-  await expect(gate.locator('[data-auth-status]')).toContainText('Waiting for your WhatsApp message');
+  await expect(frame.locator('.auth-hint').first()).toContainText('Tap Send in WhatsApp');
+  await expect(frame.locator('[data-auth-status]').first()).toContainText('Waiting for your WhatsApp message');
   await page.waitForTimeout(2100);
   expect(await page.evaluate(() => window.__myShilohFallbackSeen)).toBe(false);
-  await expect(gate).toBeVisible();
+  await expect(frame).toBeVisible();
 });
 
 

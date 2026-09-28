@@ -167,8 +167,7 @@ test('returning from WhatsApp auto-completes in the original context with a usab
   assert.match(client, /Waiting for your WhatsApp message/);
   assert.match(presentation, /open your account automatically/);
   assert.match(client, /updateViaCache: 'none'/);
-  assert.match(client, /INSTALL_VERIFIED_KEY = 'my-shiloh-install-whatsapp-verified-v1'/);
-  assert.match(client, /localStorage\.setItem\(INSTALL_VERIFIED_KEY, '1'\)/);
+  assert.doesNotMatch(client, /INSTALL_VERIFIED_KEY|installationVerificationRequired/);
   assert.doesNotMatch(client, /sessionStorage|indexedDB/);
   assert.match(styles, /\.auth-code-form\.is-waiting/);
   assert.match(client, /data-client-auth-code-disclosure/);
@@ -187,15 +186,12 @@ test('every normal browser is an installation doorway while standalone mode keep
   assert.match(presentation, /Keep My Shiloh one tap away/);
   assert.match(presentation, /Already installed\? Open My Shiloh from your Home Screen/);
   assert.match(presentation, /tap Bookings, then Book another appointment\. You may need to choose your treatment again/);
-  assert.match(presentation, /data-install-verification-gate/);
-  assert.match(presentation, /Confirm it’s you to finish setting up My Shiloh/);
+  assert.doesNotMatch(presentation, /data-install-verification-gate/);
   assert.match(presentation, /data-client-auth-start>Open WhatsApp to verify<\/button>/);
   assert.match(presentation, /data-app-frame[^>]*hidden/);
   assert.match(client, /function browserNeedsInstall\(\)/);
   assert.match(client, /return !standalone\(\)/);
-  assert.match(client, /function installationVerificationRequired\(\)/);
-  assert.match(client, /INSTALL_VERIFIED_KEY = 'my-shiloh-install-whatsapp-verified-v1'/);
-  assert.match(client, /appFrame\.hidden = browserGated \|\| verificationGated/);
+  assert.match(client, /appFrame\.hidden = browserGated/);
   assert.doesNotMatch(presentation, /data-install-gate-instructions/);
   assert.doesNotMatch(client, /On iPhone: tap Share, choose Add to Home Screen, then tap Add/);
   assert.match(presentation, /data-install-gate-action>Install My Shiloh<\/button>/);
@@ -208,9 +204,9 @@ test('every normal browser is an installation doorway while standalone mode keep
   assert.match(client, /Tap Share/);
   assert.match(client, /Choose Add to Home Screen/);
   assert.match(client, /Open as Web App, then tap Add/);
-  assert.match(client, /appinstalled[\s\S]*resetInstallationVerification\(\)/);
-  assert.match(client, /if \(!standalone\(\) \|\| installationVerificationRequired\(\) \|\| appFrame\?\.dataset\.clientAuthenticated !== 'true'/);
-  assert.match(client, /function welcomeBackFromWhatsApp\(\) \{[\s\S]*installationVerificationRequired\(\)/);
+  assert.match(client, /appinstalled[\s\S]*deferredInstallPrompt = null/);
+  assert.match(client, /if \(!standalone\(\) \|\| appFrame\?\.dataset\.clientAuthenticated !== 'true'/);
+  assert.match(client, /function welcomeBackFromWhatsApp\(\) \{[\s\S]*appFrame\?\.dataset\.clientAuthenticated === 'true'/);
   assert.doesNotMatch(client, /document\.cookie|sessionStorage|indexedDB/);
   assert.match(styles, /\.install-gate\{/);
 });
@@ -238,25 +234,22 @@ test('website treatment handoff only exposes a canonical catalogue code and keep
   assert.doesNotMatch(renderMyShilohPage({ catalogue, selectedServiceId: '103"><script>' }), /data-website-treatment-handoff/);
 });
 
-test('installed app stores only verification convenience and bounded opaque update archive IDs; WhatsApp remains authority', () => {
+test('installed app stores only bounded update archive IDs; the server session remains authority', () => {
   const client = read('public/my-shiloh/assets/app.js');
   const presentation = read('src/presentation/myShilohPwa.js');
 
-  assert.match(client, /INSTALL_VERIFIED_KEY = 'my-shiloh-install-whatsapp-verified-v1'/);
   const writes = [...client.matchAll(/localStorage\.setItem\(([^,]+),\s*([^\)]+)\)/g)]
     .map((match) => [match[1].trim(), match[2].trim()]);
   assert.deepEqual(writes, [
-    ["INSTALL_VERIFIED_KEY", "'1'"],
     ['notificationArchiveKey', 'JSON.stringify([...archivedUpdateIds].slice(-100'],
   ]);
   assert.match(client, /my-shiloh-archived-updates-v1:\$\{appFrame\.dataset\.notificationClientId\}/);
   assert.match(client, /archivedUpdateIds\.add\(id\)/);
   assert.doesNotMatch(client, /localStorage\.setItem\([^\n]*(?:title|body|targetPath|auth)/i);
-  assert.match(client, /markInstallationVerified\(\)[\s\S]*window\.location\.replace\('\/my-shiloh\/'\)/);
-  assert.match(client, /resetInstallationVerification\(\)/);
+  assert.doesNotMatch(client, /markInstallationVerified|resetInstallationVerification/);
   assert.doesNotMatch(client, /localStorage\.setItem\([^\n]*(?:token|mobile|name|voucher|csrf|session)/i);
   assert.doesNotMatch(client, /sessionStorage|indexedDB|document\.cookie/i);
-  assert.match(presentation, /Verify with WhatsApp once on this installation/);
+  assert.doesNotMatch(presentation, /Verify with WhatsApp once on this installation/);
 });
 
 

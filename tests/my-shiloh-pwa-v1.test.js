@@ -181,11 +181,23 @@ test('My Shiloh install client distinguishes iPhone Safari, iPhone Chrome and An
   assert.match(styles, /max-height:calc\(100dvh - 12px\)/);
 });
 
-test('a new installation explains that passkey sign-in requires a saved My Shiloh passkey', () => {
+test('an authenticated installation uses its server session without another verification gate', () => {
   const html = renderMyShilohPage({ whatsappNumber: '27830000000', passkeysAvailable: true });
   const client = read('public/my-shiloh/assets/app.js');
-  assert.match(html, /data-install-verification-gate[\s\S]*If you have not saved a My Shiloh passkey yet, use WhatsApp first and save one under Profile/);
+  assert.doesNotMatch(html, /data-install-verification-gate/);
+  assert.match(client, /appFrame\.hidden = browserGated/);
+  assert.doesNotMatch(client, /INSTALL_VERIFIED_KEY|installationVerificationRequired/);
   assert.match(client, /finish\.status === 401[\s\S]*verify with WhatsApp first, then save one under Profile/);
+});
+
+test('the secure browser install doorway offers existing clients passkey sign-in', () => {
+  const html = renderMyShilohPage({ passkeysAvailable: true });
+  const installDoorway = html.match(/<main class="install-gate" data-install-gate[\s\S]*?<\/main>/)?.[0] || '';
+  assert.match(installDoorway, /data-passkey-sign-in/);
+  assert.match(installDoorway, /data-passkey-recovery-form/);
+  const signedIn = renderMyShilohPage({ passkeysAvailable: true, client: { id: 1, name:'Christel', firstName:'Christel' } });
+  const signedInDoorway = signedIn.match(/<main class="install-gate" data-install-gate[\s\S]*?<\/main>/)?.[0] || '';
+  assert.doesNotMatch(signedInDoorway, /data-passkey-sign-in/);
 });
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
