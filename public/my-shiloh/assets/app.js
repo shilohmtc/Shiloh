@@ -1130,7 +1130,12 @@
       const finish = await postJson('/my-shiloh/auth/passkeys/sign-in/finish',
         { response: serializePasskey(credential) });
       const result = await finish.json().catch(() => ({}));
-      if (!finish.ok || result.authenticated !== true) throw new Error(result.error || 'We could not verify this passkey.');
+      if (!finish.ok || result.authenticated !== true) {
+        const guidance = finish.status === 401
+          ? ' If you have not saved a My Shiloh passkey yet, verify with WhatsApp first, then save one under Profile.'
+          : '';
+        throw new Error(`${result.error || 'We could not verify this passkey.'}${guidance}`);
+      }
       whatsappHandoffStarted = false;
       window.clearTimeout(authStatusTimer);
       markInstallationVerified();

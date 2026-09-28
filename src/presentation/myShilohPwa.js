@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260928-ios-google-install-v1';
+const MY_SHILOH_ASSET_VERSION = '20260928-passkey-first-save-help-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -297,7 +297,7 @@ function renderMyShilohPage({
       </div>
       <button class="button button--primary button--wide" type="button" data-client-auth-start>Open WhatsApp to verify</button>
       ${passkeySignInButton}
-      <p class="auth-hint">Tap Send in WhatsApp, then return to My Shiloh. We’ll open your account automatically.</p>
+      <p class="auth-hint">Tap Send in WhatsApp, then return to My Shiloh. We’ll open your account automatically.${passkeySignInButton ? ' If you have not saved a My Shiloh passkey yet, use WhatsApp first and save one under Profile.' : ''}</p>
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
       ${authFinishForm('my-shiloh-profile-code')}
       <aside class="privacy-note">
@@ -328,7 +328,7 @@ function renderMyShilohPage({
       </div>
       <button class="button button--primary button--wide" type="button" data-client-auth-start>Open WhatsApp to verify</button>
       ${passkeySignInButton}
-      <p class="auth-hint">Tap Send in WhatsApp, then return to My Shiloh. We’ll open your account automatically.</p>
+      <p class="auth-hint">Tap Send in WhatsApp, then return to My Shiloh. We’ll open your account automatically.${passkeySignInButton ? ' If you have not saved a My Shiloh passkey yet, use WhatsApp first and save one under Profile.' : ''}</p>
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
       ${authFinishForm('my-shiloh-wallet-code')}`;
 

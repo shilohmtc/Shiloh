@@ -181,6 +181,13 @@ test('My Shiloh install client distinguishes iPhone Safari, iPhone Chrome and An
   assert.match(styles, /max-height:calc\(100dvh - 12px\)/);
 });
 
+test('a new installation explains that passkey sign-in requires a saved My Shiloh passkey', () => {
+  const html = renderMyShilohPage({ whatsappNumber: '27830000000', passkeysAvailable: true });
+  const client = read('public/my-shiloh/assets/app.js');
+  assert.match(html, /data-install-verification-gate[\s\S]*If you have not saved a My Shiloh passkey yet, use WhatsApp first and save one under Profile/);
+  assert.match(client, /finish\.status === 401[\s\S]*verify with WhatsApp first, then save one under Profile/);
+});
+
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
   assert.match(worker, /my-shiloh-shell-v34/);
