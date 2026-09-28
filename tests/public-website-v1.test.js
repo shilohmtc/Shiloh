@@ -144,7 +144,8 @@ test('home includes a clear My Shiloh install and returning-client entry point',
   assert.match(html, /Keep Shiloh one tap away\./);
   assert.match(html, /href="https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/" data-my-shiloh-install-link>Install My Shiloh<\/a>/);
   assert.match(html, /href="https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/"[^>]*>Open My Shiloh<\/a>/);
-  assert.match(html, /No App Store or Play Store download required/);
+  assert.match(html, /On iPhone, open My Shiloh in Safari before using Share/);
+  assert.match(html, /share\.google, choose Open in Safari first/);
   assert.match(html, /bookings, latest appointment details and Wallet/i);
 });
 
@@ -281,7 +282,7 @@ test('public website gives clients a direct My Shiloh install entry without crea
   assert.match(home, /data-my-shiloh-install-link/);
   assert.match(home, />Install My Shiloh<\/a>/);
   assert.match(home, /href="https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/" data-my-shiloh-install-link/);
-  assert.match(home, /No App Store or Play Store download required/);
+  assert.match(home, /No App Store download required/);
 });
 
 test('public pages include search and sharing metadata', () => {
