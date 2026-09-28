@@ -258,10 +258,14 @@ function createWorkspaceStaffAccessProfilesService({ db = pool, accessService = 
       SELECT a.id,a.staff_id,a.display_name,a.active,a.permissions,a.business_role,a.calendar_scope,a.service_scope,
              s.display_name AS staff_display_name,s.status AS staff_status,s.resource_type AS staff_resource_type,s.business_role AS staff_business_role
         FROM staff_admin_accounts a
-        JOIN staff s ON s.id=a.staff_id
-       WHERE s.status='active'
-       ORDER BY LOWER(s.display_name),a.id`);
-    return { authority, people: result.rows.map(project) };
+        LEFT JOIN staff s ON s.id=a.staff_id
+       WHERE (a.staff_id IS NULL OR s.status='active')
+       ORDER BY CASE WHEN a.staff_id IS NULL THEN 1 ELSE 0 END,LOWER(COALESCE(s.display_name,a.display_name)),a.id`);
+    return {
+      authority,
+      people: result.rows.filter(row => row.staff_id != null).map(project),
+      otherPeople: result.rows.filter(row => row.staff_id == null).map(project),
+    };
   }
 
   async function get({ adminId, principalId } = {}) {

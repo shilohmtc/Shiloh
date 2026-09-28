@@ -57,7 +57,7 @@ export default {
 };
 
 export const AccessOverview = {
-  render: () => productionSurface(renderStaffAccessPage({ authority, people: [clinicTeam, { ...clinicTeam, id: 22, displayName: 'ILince' }, { ...clinicTeam, id: 23, displayName: 'Abigail' }, ownWorkspace] })),
+  render: () => productionSurface(renderStaffAccessPage({ authority, people: [clinicTeam, { ...clinicTeam, id: 22, displayName: 'ILince' }, { ...clinicTeam, id: 23, displayName: 'Abigail' }, ownWorkspace], otherPeople: [{ id: 42, displayName: 'Jean-Pierre', active: true }, { id: 43, displayName: 'Shiloh Reception', active: true }] })),
 };
 
 export const ClinicTeam = {

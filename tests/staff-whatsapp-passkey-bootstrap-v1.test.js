@@ -176,7 +176,19 @@ function deterministicRandom() {
 test('#804 policy is separately gated and depends on released passkey authority', () => {
   assert.equal(bootstrapPolicy(ENV).operational, true);
   assert.equal(bootstrapPolicy({ ...ENV, SHILOH_STAFF_WHATSAPP_PASSKEY_BOOTSTRAP_ENABLED: 'false' }).operational, false);
+  const smsOnly = { ...ENV, SHILOH_STAFF_WHATSAPP_PASSKEY_BOOTSTRAP_ENABLED: 'false', MY_SHILOH_SMS_AUTH_ENABLED: 'true' };
+  assert.equal(bootstrapPolicy(smsOnly).operational, true);
+  assert.equal(bootstrapPolicy(smsOnly).whatsappEnabled, false);
   assert.equal(bootstrapPolicy({ ...ENV, SHILOH_STAFF_PASSKEY_AUTH_ENABLED: 'false' }).operational, false);
+});
+
+test('SMS device setup can stay enabled while WhatsApp bootstrap is retired', async () => {
+  const env = { ...ENV, SHILOH_STAFF_WHATSAPP_PASSKEY_BOOTSTRAP_ENABLED: 'false', MY_SHILOH_SMS_AUTH_ENABLED: 'true' };
+  const db = new BootstrapDb();
+  const service = createStaffWhatsAppPasskeyBootstrapService({ db, env });
+  assert.equal(service.policy().operational, true);
+  assert.equal((await service.issueBootstrap({ whatsapp: '27721234567' })).code, 'STAFF_PASSKEY_BOOTSTRAP_DISABLED');
+  assert.equal(db.bootstraps.length, 0);
 });
 
 test('#804 bootstrap principal must be exact, active and already Workspace-enabled', () => {
