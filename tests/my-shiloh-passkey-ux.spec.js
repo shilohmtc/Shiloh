@@ -9,7 +9,7 @@ test('passkey guest and profile paths remain usable on phone and desktop', async
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--passkey-guest&viewMode=story', { waitUntil: 'networkidle' });
     await expect(page.locator('[data-view="home"] [data-passkey-sign-in]')).toBeVisible();
-    await expect(page.locator('[data-view="home"] [data-client-auth-start]')).toBeVisible();
+    await expect(page.locator('[data-view="home"] [data-client-auth-start]')).toHaveCount(0);
     const guestAxe = await new AxeBuilder({ page }).include('[data-view="home"]')
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
     expect(guestAxe.violations.filter((v) => ['serious', 'critical'].includes(v.impact))).toEqual([]);

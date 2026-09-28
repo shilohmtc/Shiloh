@@ -42,9 +42,9 @@ test('human handoff pauses assistant and appears in Reception on Phone and Deskt
 const { workspaceServicesManageClientScript } = require('../src/presentation/workspaceServicesUx');
 
 test('redeemed welcome offer does not appear on the signed-out Home', async ({ page }) => {
-  await page.goto('/iframe.html?id=client-my-shiloh-pwa--standalone-guest-sign-in&viewMode=story', { waitUntil:'networkidle' });
+  await page.goto('/iframe.html?id=client-my-shiloh-pwa--sms-and-passkey-guest&viewMode=story', { waitUntil:'networkidle' });
   const home = page.locator('[data-view="home"]');
-  await expect(home.getByRole('button', { name:'Open WhatsApp to verify' })).toBeVisible();
+  await expect(home.getByRole('button', { name:'Send my SMS code' })).toBeVisible();
   await expect(home.locator('.welcome-voucher')).toHaveCount(0);
 });
 
@@ -170,17 +170,17 @@ test('signed-in Bookings help opens Shiloh inside My Shiloh on phone and desktop
   }
 });
 
-test('My Shiloh guest booking stays behind WhatsApp sign-in on phone and desktop', async ({ page }, testInfo) => {
+test('My Shiloh guest booking stays behind secure sign-in on phone and desktop', async ({ page }, testInfo) => {
   await page.addInitScript(() => { Object.defineProperty(navigator, 'standalone', { value:true, configurable:true }); });
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
     await page.setViewportSize(viewport);
-    await page.goto('/iframe.html?id=client-my-shiloh-pwa--standalone-guest-sign-in&viewMode=story', { waitUntil:'networkidle' });
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--sms-and-passkey-guest&viewMode=story', { waitUntil:'networkidle' });
     await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
     const frame = page.locator('[data-app-frame]');
     await expect(frame).toBeVisible();
     await expect(frame.locator('a[href="/book"]')).toHaveCount(0);
     await expect(frame.getByRole('link', { name:'Sign in to book' }).first()).toBeVisible();
-    await expect(frame.locator('[data-view="home"] .auth-hint')).toContainText('Tap Send in WhatsApp');
+    await expect(frame.locator('[data-view="home"] [data-client-sms-start]')).toBeVisible();
     await expect(frame.locator('.booking-steps li')).toHaveCount(3);
     await expect(frame.locator('.booking-steps')).toContainText('Reception confirms your appointment before it’s booked.');
     await frame.getByRole('link', { name:'How booking works' }).click();
@@ -188,7 +188,7 @@ test('My Shiloh guest booking stays behind WhatsApp sign-in on phone and desktop
     await frame.locator('[data-view-target="bookings"]').click();
     await expect(frame.getByRole('heading', { name:'Your time with Shiloh.' })).toBeVisible();
     await frame.getByRole('link', { name:'Sign in to book' }).last().click();
-    await expect(frame.getByRole('button', { name:'Open WhatsApp to verify' }).first()).toBeVisible();
+    await expect(frame.locator('[data-view="home"] [data-passkey-sign-in]')).toBeVisible();
     const accessibility = await new AxeBuilder({ page }).include('[data-app-frame]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
     await page.screenshot({ path:testInfo.outputPath(`my-shiloh-signin-boundary-${viewport.name}.png`), fullPage:true, animations:'disabled' });
@@ -2232,54 +2232,13 @@ test('My Shiloh first installed launch respects an authenticated server session 
 });
 
 
-test('My Shiloh opens installed WhatsApp directly before web fallback', async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(window.navigator, 'standalone', {
-      configurable: true,
-      get: () => true,
-    });
-  });
-  await page.route('**/my-shiloh/auth/start', async (route) => route.fulfill({
-    status: 201,
-    contentType: 'application/json',
-    body: JSON.stringify({
-      status: 'waiting_for_whatsapp',
-      whatsappUrl: 'whatsapp://send?phone=27830000000&text=MY%20SHILOH%20SIGN%20IN%20TEST',
-      whatsappAppUrl: 'whatsapp://send?phone=27830000000&text=MY%20SHILOH%20SIGN%20IN%20TEST',
-      whatsappFallbackUrl: 'https://wa.me/27830000000?text=MY%20SHILOH%20SIGN%20IN%20TEST',
-      expiresAt: '2026-09-22T22:00:00.000Z',
-    }),
-  }));
+test('My Shiloh client sign-in has no legacy WhatsApp control on phone', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/iframe.html?id=client-my-shiloh-pwa--standalone-guest-sign-in&viewMode=story', { waitUntil: 'networkidle' });
-
-  await page.evaluate(() => {
-    window.__myShilohDirectWhatsApp = null;
-    window.__myShilohFallbackSeen = false;
-    document.addEventListener('click', (event) => {
-      const link = event.target.closest?.('[data-whatsapp-direct]');
-      if (!link) return;
-      event.preventDefault();
-      window.__myShilohDirectWhatsApp = link.getAttribute('href');
-      window.dispatchEvent(new PageTransitionEvent('pagehide'));
-    }, true);
-  });
-  await page.route('https://wa.me/**', async (route) => {
-    await page.evaluate(() => { window.__myShilohFallbackSeen = true; });
-    await route.abort();
-  });
-
-  await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
-  const frame = page.locator('[data-app-frame]');
-  await expect(frame).toBeVisible();
-  await frame.getByRole('button', { name: 'Open WhatsApp to verify' }).first().click();
-
-  await expect.poll(() => page.evaluate(() => window.__myShilohDirectWhatsApp)).toContain('whatsapp://send?phone=27830000000');
-  await expect(frame.locator('.auth-hint').first()).toContainText('Tap Send in WhatsApp');
-  await expect(frame.locator('[data-auth-status]').first()).toContainText('Waiting for your WhatsApp message');
-  await page.waitForTimeout(2100);
-  expect(await page.evaluate(() => window.__myShilohFallbackSeen)).toBe(false);
-  await expect(frame).toBeVisible();
+  await page.goto('/iframe.html?id=client-my-shiloh-pwa--sms-and-passkey-guest&viewMode=story', { waitUntil: 'networkidle' });
+  const home = page.locator('[data-view="home"]');
+  await expect(home.locator('[data-client-sms-start]')).toBeVisible();
+  await expect(home.locator('[data-passkey-sign-in]')).toBeVisible();
+  await expect(home.locator('[data-client-auth-start], [data-client-auth-code-disclosure]')).toHaveCount(0);
 });
 
 
