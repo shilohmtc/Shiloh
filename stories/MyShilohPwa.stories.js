@@ -59,7 +59,7 @@ function applyInstallStep(surface, index, title, copy) {
       icon.innerHTML = installShareIconMarkup();
       const share = icon.firstElementChild;
       share.classList.add('install-step-copy-icon');
-      copyNode.append(share, document.createTextNode(` Share${after}`));
+      copyNode.append(share, document.createTextNode(`Share${after}`));
     } else copyNode.textContent = copy;
   }
 }

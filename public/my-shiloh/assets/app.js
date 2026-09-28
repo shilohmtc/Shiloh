@@ -358,7 +358,7 @@
         copyNode.textContent = '';
         const icon = installGuideIcon('share');
         icon.classList.add('install-step-copy-icon');
-        copyNode.append(document.createTextNode(before), icon, document.createTextNode(` Share${after}`));
+        copyNode.append(document.createTextNode(before), icon, document.createTextNode(`Share${after}`));
       }
     }
   }

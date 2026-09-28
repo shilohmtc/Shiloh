@@ -2165,7 +2165,7 @@ test('iPhone Safari install guide fits without scrolling and is accessible on Ph
     await expect(safariShareStep).toContainText('Open Safari’s page menu');
     await expect(safariShareStep.locator('svg.install-page-menu-icon[aria-hidden="true"]')).toHaveCount(1);
     await expect(sheet.locator('[data-install-step-copy="1"] svg.install-step-copy-icon[aria-hidden="true"]')).toHaveCount(1);
-    await expect(sheet.getByText('At the bottom, tap the page menu, then Share. If you see a Share button directly, tap it.')).toBeVisible();
+    await expect(sheet.locator('[data-install-step-copy="1"]')).toContainText('At the bottom, tap the page menu, then Share. If you see a Share button directly, tap it.');
     await expect(sheet.getByText('Choose Add to Home Screen', { exact: true })).toBeVisible();
     await expect(sheet.locator('[data-install-step-title="2"] svg.install-add-home-icon[aria-hidden="true"]')).toHaveCount(1);
     await expect(sheet.getByText('Turn on Open as Web App, then tap Add', { exact: true })).toBeVisible();
