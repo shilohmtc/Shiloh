@@ -8,10 +8,11 @@ const {
   canonicalProfileConfig,
   safeTogglePermissions,
   project,
+  createWorkspaceStaffAccessProfilesService,
 } = require('../src/services/workspaceStaffAccessProfiles');
 const { createWorkspaceReportsProfileViewService } = require('../src/services/workspaceReportsProfileView');
 const { createWorkspaceClinicHoursReadViewService } = require('../src/services/workspaceClinicHoursReadView');
-const { renderStaffAccessDetail, clientScript } = require('../src/presentation/workspaceStaffAccessProfilesUx');
+const { renderStaffAccessPage, renderStaffAccessDetail, clientScript } = require('../src/presentation/workspaceStaffAccessProfilesUx');
 const { clinicHoursReadOnlyClientScript } = require('../src/routes/workspaceClinicHours');
 
 function principal(overrides = {}) {
@@ -90,6 +91,23 @@ test('Profile projection presents human labels instead of raw permission languag
   }));
   assert.equal(own.profileLabel, 'Own workspace');
   assert.ok(own.protectedRestrictions.some((value) => /Clinic Hours/.test(value)));
+});
+
+test('administrator accounts without staff profiles are reachable for approved device setup', async () => {
+  const db = { async query(sql) {
+    assert.match(sql, /LEFT JOIN staff/);
+    return { rows: [principal(), principal({ id: 42, staff_id: null, staff_display_name: null,
+      display_name: 'Jean-Pierre', business_role: 'business_admin' })] };
+  } };
+  const accessService = { async requireManageAccess() { return { displayName: 'Christel' }; } };
+  const model = await createWorkspaceStaffAccessProfilesService({ db, accessService }).list({ adminId: 1 });
+  assert.equal(model.people.length, 1);
+  assert.deepEqual(model.otherPeople.map(person => person.displayName), ['Jean-Pierre']);
+  const html = renderStaffAccessPage(model);
+  assert.match(html, /Administrator &amp; shared sign-in/);
+  assert.match(html, /workspace-access\/42/);
+  assert.match(html, /Jean-Pierre/);
+  assert.doesNotMatch(html, /27821234567/);
 });
 
 test('Staff access UI uses accessible switch semantics and avoids technical scope/capability copy', () => {

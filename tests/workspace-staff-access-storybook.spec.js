@@ -28,6 +28,10 @@ for (const viewport of [
         await expect(page.getByRole('switch')).toHaveCount(1);
         await expect(page.getByText('Clinic team', { exact: true })).toBeVisible();
       }
+      if (story.id.endsWith('access-overview')) {
+        await expect(page.getByRole('link', { name: /Jean-Pierre/ })).toBeVisible();
+        await expect(page.getByRole('link', { name: /Jean-Pierre/ })).toHaveAttribute('href', /\/calendar\/team\/workspace-access\/42$/);
+      }
 
       const geometry = await page.evaluate(() => ({
         viewportWidth: window.innerWidth,

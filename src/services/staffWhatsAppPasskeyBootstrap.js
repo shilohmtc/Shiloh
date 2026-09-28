@@ -34,10 +34,13 @@ function registrationPurpose(mode) {
 }
 
 function bootstrapPolicy(env = process.env) {
-  const enabled = String(env[FEATURE_FLAG] || '').trim().toLowerCase() === 'true';
+  const whatsappEnabled = String(env[FEATURE_FLAG] || '').trim().toLowerCase() === 'true';
+  const smsEnabled = String(env.MY_SHILOH_SMS_AUTH_ENABLED || '').trim().toLowerCase() === 'true';
+  const enabled = whatsappEnabled || smsEnabled;
   const passkey = passkeyPolicy(env);
   return {
     enabled,
+    whatsappEnabled,
     operational: enabled && passkey.operational,
     origin: passkey.origin,
     rpId: passkey.rpId,
@@ -182,8 +185,8 @@ function createStaffWhatsAppPasskeyBootstrapService({
 
   async function issueBootstrap({ whatsapp } = {}) {
     const currentPolicy = policy();
-    if (!currentPolicy.operational) {
-      return { ok: false, handled: false, code: currentPolicy.enabled ? 'STAFF_PASSKEY_BOOTSTRAP_UNAVAILABLE' : 'STAFF_PASSKEY_BOOTSTRAP_DISABLED' };
+    if (!currentPolicy.whatsappEnabled || !currentPolicy.operational) {
+      return { ok: false, handled: false, code: currentPolicy.whatsappEnabled ? 'STAFF_PASSKEY_BOOTSTRAP_UNAVAILABLE' : 'STAFF_PASSKEY_BOOTSTRAP_DISABLED' };
     }
     const normalized = normalizeWhatsapp(whatsapp);
     if (!normalized) return { ok: true, handled: false };
