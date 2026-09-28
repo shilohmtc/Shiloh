@@ -29,7 +29,8 @@ test('signed-in My Shiloh booking stays inside the app instead of /book', () => 
     catalogue: [],
     client: null,
   });
-  assert.match(guest, /href="#how-booking-works" data-booking-steps-link>How booking works/);
+  assert.match(guest, /id="how-booking-works" aria-labelledby="next-visit-title"/);
+  assert.doesNotMatch(guest, /data-booking-steps-link/);
   assert.match(guest, /href="#home">Sign in to book/);
   assert.doesNotMatch(guest, /href="\/book"/);
 
