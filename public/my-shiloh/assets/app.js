@@ -1652,7 +1652,7 @@
     const policy = document.createElement('p');
     policy.className = 'client-action-card__policy';
     policy.textContent = String(action.type === 'profile_details'
-      ? action.note || 'Your verified WhatsApp number cannot be changed here.'
+      ? action.note || 'Your verified mobile number cannot be changed here.'
       : action.type === 'planning_request'
       ? action.note || 'Reception will review your request. No appointment is booked yet.'
       : action.type === 'consultation_form'

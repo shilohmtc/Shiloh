@@ -52,7 +52,7 @@ test('profile projection masks the identity mobile and exposes an opaque revisio
   assert.equal(profile.mobileEditable, false);
   assert.match(profile.revision, /^[a-f0-9]{64}$/);
   assert.doesNotMatch(JSON.stringify(profile), /27821234567/);
-  assert.equal(maskMobile('invalid'), 'Verified with WhatsApp');
+  assert.equal(maskMobile('invalid'), 'Mobile number unavailable');
   assert.notEqual(profileRevision(row()), profileRevision(row({ gender: 'other' })));
   assert.equal(profile.registrationComplete, true);
   assert.equal(dateOnly(new Date('1990-05-14T00:00:00.000Z')), '1990-05-14');

@@ -545,7 +545,7 @@ function createMyShilohRouter({
       if (!result.ok) {
         const status = result.code === 'CLIENT_PASSKEY_DISABLED' ? 404 :
           result.code === 'CLIENT_PASSKEY_RATE_LIMITED' ? 429 : 503;
-        return res.status(status).json({ error: 'Passkey sign-in is unavailable. Please use WhatsApp for now.', requestId: req.id });
+        return res.status(status).json({ error: 'Passkey sign-in is unavailable. Please request an SMS code.', requestId: req.id });
       }
       res.setHeader('Set-Cookie', serializeClientPasskeyAuthCookie(result.browserToken, {
         env, maxAgeSeconds: Math.max(1, Math.floor(CHALLENGE_TTL_MS / 1000)),
@@ -564,7 +564,7 @@ function createMyShilohRouter({
       });
       if (!result.ok) {
         return res.status(result.code === 'CLIENT_PASSKEY_DISABLED' ? 404 : 401).json({
-          error: 'We could not verify this passkey. Try again or use WhatsApp.', requestId: req.id,
+          error: 'We could not verify this passkey. Try again or request an SMS code.', requestId: req.id,
         });
       }
       try { await voucherService.syncRecipientLinks({ crmV2ClientId: result.client.id }); } catch (_) {}

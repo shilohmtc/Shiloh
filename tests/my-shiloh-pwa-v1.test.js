@@ -209,6 +209,7 @@ test('SMS enrollment appears on both the website doorway and the installed guest
   assert.match(doorway, /data-client-sms-start/);
   assert.match(doorway, /data-client-sms-complete hidden/);
   assert.match(page, /6-digit code/);
+  assert.doesNotMatch(page, /Use WhatsApp temporarily|Open WhatsApp to verify|use WhatsApp|Verified with WhatsApp|data-client-auth-code-disclosure/);
   const signedIn = renderMyShilohPage({ smsAvailable: true, client: { id: 1, name: 'Christel', firstName: 'Christel' } });
   assert.doesNotMatch(signedIn, /data-client-sms-start/);
 });
