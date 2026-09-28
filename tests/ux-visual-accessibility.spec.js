@@ -818,16 +818,14 @@ test('linked booking payment is usable on Phone and Desktop', async ({page},test
 });
 
 
-test('booking deposit policy is clear and accessible on Phone and Desktop', async ({page},testInfo)=>{
+test('booking deposit status is clear and accessible on Phone and Desktop', async ({page},testInfo)=>{
   for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await page.goto('/iframe.html?id=workspace-production-surfaces--booking-deposit-awaiting&viewMode=story',{waitUntil:'networkidle'});
     await expect(page.getByRole('heading',{name:'Appointment #812'})).toBeVisible();
     await expect(page.getByRole('heading',{name:'50% booking deposit'})).toBeVisible();
     await expect(page.getByText('Awaiting deposit',{exact:true})).toBeVisible();
-    await expect(page.getByText(/48\+ hours notice/)).toBeVisible();
-    await expect(page.getByText(/24–48 hours/)).toBeVisible();
-    await expect(page.getByText(/no-show/)).toBeVisible();
+    await expect(page.locator('[data-deposit-policy]')).not.toContainText(/48\+ hours notice|24–48 hours|no-show/);
     await expect(page.getByRole('heading',{name:'Record deposit received'})).toBeVisible();
     await expect(page.getByRole('heading',{name:'Shiloh Rewards'})).toHaveCount(0);
     const metrics=await page.evaluate(()=>({
@@ -841,6 +839,26 @@ test('booking deposit policy is clear and accessible on Phone and Desktop', asyn
     const accessibility=await new AxeBuilder({page}).include('[data-payment-page]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
     await page.screenshot({path:testInfo.outputPath(`booking-deposit-${viewport.name}.png`),fullPage:true,animations:'disabled'});
+  }
+});
+
+test('cancelled deposit link has one clear replacement action on Phone and Desktop',async({page},testInfo)=>{
+  for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
+    await page.setViewportSize({width:viewport.width,height:viewport.height});
+    await page.goto('/iframe.html?id=workspace-booking-payment-recovery--cancelled-link&viewMode=story',{waitUntil:'networkidle'});
+    const root=page.locator('[data-payment-page]');
+    await expect(root.getByText(/previous deposit link was cancelled and cannot be used/)).toBeVisible();
+    await expect(root.getByRole('link',{name:'Create a secure payment link below'})).toHaveCount(0);
+    await expect(root.getByRole('heading',{name:'New deposit payment link'})).toBeVisible();
+    await expect(root.getByRole('button',{name:'Create deposit payment link'})).toHaveCount(1);
+    await expect(root.locator('[data-ozow-form] [name="amount"]')).toHaveValue('295.00');
+    await expect(root.locator('[data-deposit-policy]')).not.toContainText(/48\+ hours notice|24–48 hours|no-show/);
+    const metrics=await root.evaluate(node=>({viewport:innerWidth,document:document.documentElement.scrollWidth,short:[...node.querySelectorAll('button,input,select,a')].filter(el=>el.getClientRects().length&&el.getBoundingClientRect().height<44).length}));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
+    expect(metrics.short).toBe(0);
+    const accessibility=await new AxeBuilder({page}).include('[data-payment-page]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`cancelled-deposit-link-${viewport.name}.png`),fullPage:true,animations:'disabled'});
   }
 });
 
