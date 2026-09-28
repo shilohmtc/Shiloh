@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260928-install-browser-choice-v1';
+const MY_SHILOH_ASSET_VERSION = '20260928-client-alert-benefits-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -273,7 +273,7 @@ function renderMyShilohPage({
           <div><p class="eyebrow">Notifications</p><h2 id="notifications-title" tabindex="-1">Stay up to date with Shiloh.</h2></div>
           <span class="status-pill">Optional</span>
         </div>
-        <p class="problem-report-copy">Get important appointment reminders, consultation-form updates, payment updates, voucher arrivals and Shiloh Rewards updates on this phone.</p>
+        <p class="problem-report-copy">Stay ready for your next visit with appointment reminders and updates about bookings, forms, payments, vouchers and Shiloh Rewards on this phone.</p>
         <button class="button button--soft button--wide" type="button" data-push-toggle disabled>Checking notifications…</button>
         <p class="profile-editor__status" data-push-status role="status" aria-live="polite"></p>
         <p class="notification-settings__note">Operational updates only. Promotional messages stay separate and are never enabled by this setting.</p>
@@ -406,7 +406,7 @@ function renderMyShilohPage({
         ${hero}
         ${focus}
         ${authenticated ? `<aside class="notification-invite" data-push-invite hidden aria-labelledby="notification-invite-title">
-          <div><p class="eyebrow">Appointment updates</p><h2 id="notification-invite-title">Stay ready for your next visit.</h2><p>Turn on My Shiloh notifications for booking and appointment reminders on this phone.</p></div>
+          <div><p class="eyebrow">Appointment updates</p><h2 id="notification-invite-title">Stay ready for your next visit.</h2><p>Get reminders and booking updates on this phone so your next visit stays on your radar.</p></div>
           <a class="button button--soft" href="#profile-notifications">Set up notifications</a>
         </aside>` : ''}
         ${authenticated ? `<section class="notification-centre" aria-labelledby="notification-centre-title" data-client-notification-centre hidden>

@@ -124,11 +124,11 @@
     if (clientSetup.hidden) return;
     clientSetup.dataset.step = clientSetupCheckFailed && passkeyStep ? 'check'
       : passkeyStep ? 'passkey' : 'notifications';
-    clientSetupStep.textContent = passkeyStep ? 'First, secure your sign-in' : 'Next, appointment updates';
-    clientSetupTitle.textContent = passkeyStep ? 'Save your Shiloh passkey.' : 'Turn on Shiloh notifications.';
+    clientSetupStep.textContent = passkeyStep ? 'First, secure your sign-in' : 'Next, stay in the know';
+    clientSetupTitle.textContent = passkeyStep ? 'Save your Shiloh passkey.' : 'Stay ready for every visit.';
     clientSetupCopy.textContent = passkeyStep
       ? 'Use your phone’s screen lock to open My Shiloh next time, without waiting for an SMS code.'
-      : 'Get booking updates and reminders on this phone. You can turn these off later in Profile.';
+      : 'Get appointment reminders and updates about your bookings, forms, payments, vouchers and Rewards on this phone. You can turn these off any time in Profile.';
     clientSetupAction.textContent = clientSetupCheckFailed && passkeyStep ? 'Try again'
       : passkeyStep ? 'Save my passkey' : 'Turn on notifications';
     clientSetupAction.disabled = passkeyStep ? passkeyEnrollBusy || (!clientSetupCheckFailed && !passkeySupported()) : pushBusy;

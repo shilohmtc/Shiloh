@@ -44,6 +44,10 @@ test('first sign-in setup leads with a passkey, then offers notifications on pho
       await expect(setup).toBeVisible();
       await expect(setup).toHaveAttribute('data-step', step);
       await expect(setup.locator('[data-client-setup-action]')).toBeVisible();
+      if (step === 'notifications') {
+        await expect(setup).toContainText('Stay ready for every visit.');
+        await expect(setup).toContainText('appointment reminders');
+      }
       if (step === 'notifications') await expect(setup.locator('[data-client-setup-later]')).toBeVisible();
       else await expect(setup.locator('[data-client-setup-later]')).toBeHidden();
       const axe = await new AxeBuilder({ page }).include('[data-client-setup]')
