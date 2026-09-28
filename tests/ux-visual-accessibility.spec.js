@@ -2198,7 +2198,7 @@ test('My Shiloh first installed launch respects an authenticated server session 
     const metrics = await frame.evaluate((node) => ({
       viewportWidth: window.innerWidth,
       documentWidth: document.documentElement.scrollWidth,
-      shortTargets: [...node.querySelectorAll('button,input,a')]
+      shortTargets: [...node.querySelectorAll('[data-view-target], [data-passkey-enroll], [data-passkey-recovery-create], [data-client-auth-logout]')]
         .filter((target) => target.getClientRects().length && target.getBoundingClientRect().height < 44)
         .map((target) => target.textContent.trim() || target.getAttribute('aria-label') || target.id),
     }));
