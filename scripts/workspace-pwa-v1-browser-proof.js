@@ -116,7 +116,10 @@ function createFixture() {
   const app = express();
   app.use(requestContext);
   app.use('/calendar', createWorkspacePwaHtmlMiddleware());
-  app.use('/calendar/pwa', createWorkspacePwaRouter({ sessionService, env: ENV }));
+  // The fixture has no database. Push eligibility belongs to the separate
+  // notification authority, so keep it unavailable for this PWA install proof.
+  const pushService = { config: () => ({ enabled: false }), permitted: async () => false };
+  app.use('/calendar/pwa', createWorkspacePwaRouter({ sessionService, env: ENV, pushService }));
   app.get('/proof-client.js', (_req, res) => res.type('application/javascript').send("addEventListener('load',async()=>{document.documentElement.dataset.rootOverflow=String(document.documentElement.scrollWidth>document.documentElement.clientWidth);document.documentElement.dataset.displayStandalone=String(!!(matchMedia&&matchMedia('(display-mode: standalone)').matches));try{await navigator.serviceWorker.ready;document.documentElement.dataset.swReady='true';}catch(_error){document.documentElement.dataset.swReady='false';}});"));
   app.get('/proof-auth', (_req, res) => {
     state.valid = true;
