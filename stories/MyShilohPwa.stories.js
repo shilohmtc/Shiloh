@@ -342,8 +342,8 @@ export const IPhoneInstallGuide = {
     if (title) title.textContent = 'Three quick steps.';
     if (lead) lead.textContent = 'Stay in Safari — no App Store download is needed.';
     const steps = [
-      ['Tap Share', 'Use Safari’s Share button.'],
-      ['Choose Add to Home Screen', 'Scroll if you do not see it straight away.'],
+      ['Open Safari’s page menu', 'At the bottom, tap the page menu, then Share. If you see a Share button directly, tap it.'],
+      ['Choose Add to Home Screen', 'Scroll down the Share list. If missing, use Edit Actions to add it.'],
       ['Turn on Open as Web App, then tap Add', 'My Shiloh will appear on your Home Screen.'],
     ];
     steps.forEach(([stepTitle, stepCopy], index) => {
