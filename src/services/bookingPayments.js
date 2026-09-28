@@ -262,6 +262,14 @@ function createBookingPaymentService({
     };
   }
 
+  async function retryDepositRequest({ adminId, appointmentId } = {}) {
+    const operator = await resolveOperator(db, adminId, CAPABILITIES.COLLECT);
+    const subject = await loadSubject(db, appointmentId);
+    assertTarget(operator, subject);
+    if (subject.final) throw new BookingPaymentError('PAYMENT_BOOKING_FINAL', 'A cancelled booking cannot collect a deposit.', 409);
+    return ensureDepositRequest({ appointmentId: subject.appointmentId });
+  }
+
   async function releaseConfirmedBookingAfterDeposit(position) {
     if (!position?.requirement?.transitioned) return;
     const paidRequests = await db.query(
@@ -823,7 +831,7 @@ function createBookingPaymentService({
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
   }
 
-  return { get, recordManual, recordRefund, createOzowRequest, ensureDepositRequest, handleOzowNotification };
+  return { get, recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification };
 }
 
 module.exports = { CAPABILITIES, BookingPaymentError, money, createBookingPaymentService };

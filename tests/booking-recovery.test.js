@@ -24,3 +24,15 @@ test('Reception recovery keeps the booking, shows failed request and form next s
   assert.match(html,/Create a secure payment link below/);
   assert.doesNotMatch(html,/Record deposit received/);
 });
+
+test('Reception can retry an awaiting deposit link without starting a separate balance request', () => {
+  const model = {
+    subject: { final:false },
+    authority: { canCollect:true, ozowConfigured:true },
+    deposit: { requirement: { state:'awaiting', required_amount:'295.00' } },
+    payment: { outstanding:'590.00', requests:[{ state:'created', purpose:'deposit', amount:'295.00' }] },
+  };
+  assert.match(renderBookingRecovery(model), /data-retry-deposit>Prepare deposit link/);
+  assert.doesNotMatch(renderBookingRecovery({ ...model, authority:{ canCollect:false, ozowConfigured:true } }), /data-retry-deposit/);
+  assert.doesNotMatch(renderBookingRecovery({ ...model, payment:{ ...model.payment, requests:[{ state:'link_issued', provider_payment_url:'https:\/\/pay.ozow.com\/link' }] } }), /data-retry-deposit/);
+});

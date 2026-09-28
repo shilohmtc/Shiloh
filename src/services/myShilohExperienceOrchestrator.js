@@ -273,7 +273,9 @@ function buildClientExperience(context) {
               href: null,
               message: payment.state === 'paid'
                 ? 'Your payment is recorded as paid.'
-                : 'There is no payment action waiting right now.',
+                : payment.state === 'deposit_required'
+                  ? 'Your deposit is due, but the payment link is not ready. Please ask Shiloh for help.'
+                  : 'There is no payment action waiting right now.',
             },
         ]
         : [

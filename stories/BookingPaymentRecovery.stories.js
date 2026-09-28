@@ -33,3 +33,13 @@ export const CancelledLink = {
     authority: { canCollect:true,canRefund:false,ozowConfigured:true },
   } })),
 };
+
+export const MissingDepositLink = {
+  render: () => surface(renderCalendarPaymentPage({ model: {
+    subject: { appointmentId:779, clientName:'Test Client', clientMobile:'0712345678' },
+    consultationRecovery: [{ status:'completed', linkAvailable:false }],
+    payment: { state:'unpaid', amountDue:'590.00', netPaid:'0.00', rewardsApplied:'0.00', outstanding:'590.00', requests:[{ amount:'295.00', state:'created', purpose:'deposit', request_key:'pending_deposit_779' }], entries:[] },
+    deposit: { applicable:true, policy:{ rateBasisPoints:5000, freeNoticeHours:48, partialNoticeHours:24, partialForfeitBasisPoints:5000, lateForfeitBasisPoints:10000 }, requirement:{ state:'awaiting', required_amount:'295.00', net_paid:'0.00', rate_basis_points:5000 }, events:[] },
+    authority: { canCollect:true, canRefund:false, ozowConfigured:true },
+  } })),
+};
