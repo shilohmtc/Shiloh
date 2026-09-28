@@ -11,10 +11,12 @@ const {
 } = require('../middleware/staffBrowserSession');
 const { serializePasskeyHintCookie } = require('./staffPasskeyAuth');
 const { defaultDeviceLabel } = require('../services/staffPasskeyAuth');
+const { createStaffSmsDeviceSetupService } = require('../services/staffSmsDeviceSetup');
 
 function createStaffPasskeyBootstrapRouter({
   env = process.env,
   bootstrapService = staffWhatsAppPasskeyBootstrap,
+  smsSetupService = createStaffSmsDeviceSetupService({ env }),
 } = {}) {
   if (!bootstrapService || typeof bootstrapService.startRegistration !== 'function') throw new Error('staff passkey bootstrap service is required');
   const router = express.Router();
@@ -52,6 +54,27 @@ function createStaffPasskeyBootstrapRouter({
     if (!policy.operational) return res.sendStatus(503);
     secure(res);
     return res.status(200).type('application/javascript').send(bootstrapScript());
+  });
+
+  router.get('/sms-setup', (req, res) => {
+    if (!smsSetupService.enabled()) return res.sendStatus(404);
+    secure(res);
+    return res.status(200).type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Set up Shiloh Workspace</title><style>body{margin:0;background:#f7f5ef;color:#20322b;font:18px system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;padding:16px;box-sizing:border-box}main{max-width:460px;width:100%;background:#fffdf9;border:1px solid #dfe5df;border-radius:20px;padding:24px;box-sizing:border-box}h1{font-size:1.5rem}label{display:block;margin:20px 0 8px;font-weight:700}input,button{box-sizing:border-box;width:100%;min-height:48px;padding:10px;font:inherit;border-radius:12px}input{border:1px solid #76887c}button{margin-top:16px;background:#294c3c;color:#fff;border:0;font-weight:700}p{line-height:1.5}#status{color:#8a3f3f}</style><script src="/calendar/staff-auth/passkeys/sms-setup.js" defer></script></head><body><main><h1>Set up Shiloh Workspace</h1><p>Enter the 6-digit SMS code sent to your staff mobile. Your administrator must approve this setup first.</p><form id="setup"><label for="code">SMS code</label><input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required><button type="submit">Verify and set up this device</button></form><p id="status" role="status" aria-live="polite"></p></main></body></html>`);
+  });
+  router.get('/sms-setup.js', (req, res) => {
+    if (!smsSetupService.enabled()) return res.sendStatus(404);
+    secure(res);
+    return res.status(200).type('application/javascript').send(`(function(){'use strict';var form=document.getElementById('setup'),status=document.getElementById('status'),button=form.querySelector('button');var request=new URLSearchParams(location.hash.slice(1)).get('request')||'';history.replaceState(null,'',location.pathname);form.addEventListener('submit',async function(e){e.preventDefault();if(!/^[A-Za-z0-9_-]{43}$/.test(request)){status.textContent='This setup link has expired. Ask your administrator for a new one.';return;}button.disabled=true;status.textContent='Verifying your code…';try{var r=await fetch('/calendar/staff-auth/passkeys/sms-setup/verify',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({request:request,code:form.elements.namedItem('code').value})});var b=await r.json().catch(function(){return{};});if(!r.ok||!b.url)throw Error('invalid');request='';location.replace(b.url);}catch(_){status.textContent='This code could not be verified. Check it or ask your administrator for a fresh setup.';button.disabled=false;}});})();`);
+  });
+  router.post('/sms-setup/verify', sameOrigin, async (req, res, next) => {
+    try {
+      const result = await smsSetupService.verify({ request: req.body?.request, code: req.body?.code,
+        requestFingerprintHash: requestFingerprintHash(req) });
+      noStore(res);
+      if (!result.ok) return res.status(result.code === 'STAFF_SMS_SETUP_UNAVAILABLE' ? 503 : 401)
+        .json({ error: 'Code invalid or expired', requestId: req.id });
+      return res.status(200).json({ url: result.url });
+    } catch (error) { return next(error); }
   });
 
   router.post('/bootstrap/start', sameOrigin, async (req, res, next) => {

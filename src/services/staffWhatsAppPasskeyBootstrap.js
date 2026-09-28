@@ -26,6 +26,8 @@ const BOOTSTRAP_PURPOSE = 'bootstrap_registration';
 const REPLACEMENT_PURPOSE = 'bootstrap_replacement_registration';
 const WHATSAPP_SOURCE = 'whatsapp_self';
 const WORKSPACE_SOURCE = 'workspace_self';
+const ADMIN_SMS_ADD_SOURCE = 'admin_sms_add';
+const ADMIN_SMS_REPLACE_SOURCE = 'admin_sms_replace';
 
 function registrationPurpose(mode) {
   return mode === 'replace' ? REPLACEMENT_PURPOSE : mode === 'add' ? BOOTSTRAP_PURPOSE : null;
@@ -72,7 +74,7 @@ function evaluateBootstrapPrincipal(rows = []) {
 function setupUrl(token, env = process.env, { flow = null } = {}) {
   const policy = bootstrapPolicy(env);
   if (!policy.operational || !/^[A-Za-z0-9_-]{43}$/.test(String(token || ''))) return null;
-  const suffix = flow === 'add' ? '&flow=add' : '';
+  const suffix = flow === 'add' ? '&flow=add' : flow === 'replace' ? '&flow=replace' : '';
   return `${policy.origin}/calendar/staff-auth/passkeys/bootstrap#setup=${encodeURIComponent(token)}${suffix}`;
 }
 
@@ -173,7 +175,8 @@ function createStaffWhatsAppPasskeyBootstrapService({
         displayName: admin.display_name,
         expiresAt,
         token,
-        url: setupUrl(token, env, { flow: source === WORKSPACE_SOURCE ? 'add' : null }),
+        url: setupUrl(token, env, { flow: source === WORKSPACE_SOURCE || source === ADMIN_SMS_ADD_SOURCE ? 'add'
+          : source === ADMIN_SMS_REPLACE_SOURCE ? 'replace' : null }),
       };
   }
 
@@ -225,6 +228,19 @@ function createStaffWhatsAppPasskeyBootstrapService({
     }
   }
 
+  // Called only after an administrator-approved, SMS-verified setup request.
+  // The caller must verify and consume the SMS request in the same transaction.
+  async function issueApprovedBootstrap(client, adminId, mode, { current = now(), requestFingerprintHash = null } = {}) {
+    if (!policy().operational || !['add', 'replace'].includes(mode)) return { ok: false, code: 'STAFF_PASSKEY_BOOTSTRAP_UNAVAILABLE' };
+    const admin = await resolveAdmin(client, adminId, { forUpdate: true });
+    if (!admin) return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' };
+    return issueForAdmin(client, admin, {
+      current,
+      source: mode === 'replace' ? ADMIN_SMS_REPLACE_SOURCE : ADMIN_SMS_ADD_SOURCE,
+      requestFingerprintHash,
+    });
+  }
+
   async function startRegistration({ token, mode = 'add', requestFingerprintHash = null } = {}) {
     const currentPolicy = policy();
     if (!currentPolicy.operational) return { ok: false, code: currentPolicy.enabled ? 'STAFF_PASSKEY_BOOTSTRAP_UNAVAILABLE' : 'STAFF_PASSKEY_BOOTSTRAP_DISABLED' };
@@ -249,6 +265,11 @@ function createStaffWhatsAppPasskeyBootstrapService({
         return { ok: false, code: 'STAFF_PASSKEY_BOOTSTRAP_INVALID' };
       }
       if (bootstrap.source === WORKSPACE_SOURCE && mode !== 'add') {
+        await client.query('ROLLBACK');
+        return { ok: false, code: 'STAFF_PASSKEY_BOOTSTRAP_INVALID' };
+      }
+      if ((bootstrap.source === ADMIN_SMS_ADD_SOURCE && mode !== 'add') ||
+          (bootstrap.source === ADMIN_SMS_REPLACE_SOURCE && mode !== 'replace')) {
         await client.query('ROLLBACK');
         return { ok: false, code: 'STAFF_PASSKEY_BOOTSTRAP_INVALID' };
       }
@@ -447,6 +468,7 @@ function createStaffWhatsAppPasskeyBootstrapService({
     resolveIdentity,
     issueBootstrap,
     issueSelfBootstrap,
+    issueApprovedBootstrap,
     startRegistration,
     finishRegistration,
   };

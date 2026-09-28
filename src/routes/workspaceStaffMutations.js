@@ -6,6 +6,7 @@ const workspaceStaffAccessPolicy = require('../services/workspaceStaffAccessPoli
 const workspaceAccessV2 = require('../services/workspaceAccessV2');
 const workspaceStaffAccessProfiles = require('../services/workspaceStaffAccessProfiles');
 const { createWorkspaceReceptionDeviceSigninService } = require('../services/workspaceReceptionDeviceSignin');
+const { createStaffSmsDeviceSetupService } = require('../services/staffSmsDeviceSetup');
 const {
   requireStaffSession,
   sameOriginGuard,
@@ -51,6 +52,7 @@ function createWorkspaceStaffMutationRouter({
   accessV2Service = workspaceAccessV2,
   profileService = workspaceStaffAccessProfiles,
   receptionDeviceSigninService = createWorkspaceReceptionDeviceSigninService({ env }),
+  staffSmsDeviceSetupService = createStaffSmsDeviceSetupService({ env }),
 } = {}) {
   if (!sessionService) throw new Error('Workspace Staff mutations require the existing staff browser session service');
   const router = express.Router();
@@ -217,6 +219,21 @@ function createWorkspaceStaffMutationRouter({
         });
       }
       return res.status(201).json({ ok: true, setupUrl: result.setupUrl, expiresAt: result.expiresAt, displayName: result.displayName });
+    } catch (error) { return next(error); }
+  });
+
+  router.post('/workspace-access/:id/sms-device-setup', ...mutationChain, async (req, res, next) => {
+    try {
+      const result = await staffSmsDeviceSetupService.issue({
+        session: req.staffBrowserSession, targetAdminId: req.params.id,
+        mode: req.body?.mode, identityConfirmed: req.body?.identityConfirmed === true,
+        requestFingerprintHash: requestFingerprintHash(req),
+      });
+      if (!result.ok) return res.status(result.code === 'STAFF_RECENT_STRONG_AUTH_REQUIRED' ? 428
+        : result.code === 'STAFF_SMS_SETUP_FORBIDDEN' ? 403
+          : result.code === 'STAFF_SMS_SETUP_RATE_LIMITED' ? 429 : 503)
+        .json({ error: 'Staff device setup is unavailable or not authorized. Check your access and try again.', requestId: req.id });
+      return res.status(201).json({ url: result.url, expiresAt: result.expiresAt });
     } catch (error) { return next(error); }
   });
 
