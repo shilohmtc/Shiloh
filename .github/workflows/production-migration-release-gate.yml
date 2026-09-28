@@ -2,7 +2,7 @@ name: Production migration release gate
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
     paths:
       - migrations/**/*.sql
       - scripts/check-migration-release-plan.js
