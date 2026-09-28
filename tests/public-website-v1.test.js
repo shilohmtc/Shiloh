@@ -11,14 +11,13 @@ const {
   renderPrivacy,
 } = require('../src/services/publicWebsite');
 const { renderBookingPage } = require('../src/services/publicBookingPageEditorial');
-const { MY_SHILOH_WEBSITE_PROMPT } = require('../src/presentation/whatsappClientMenu');
 
-test('contact introduction starts a visitor-authored WhatsApp message without changing booking links', () => {
+test('contact routes app visitors to My Shiloh and human WhatsApp messages to Reception', () => {
   const contact = renderContact();
-  const expected = `https://wa.me/27662399138?text=${encodeURIComponent(MY_SHILOH_WEBSITE_PROMPT)}`.replaceAll('&', '&amp;');
-  assert.ok(contact.includes(`href="${expected}" rel="noopener" data-my-shiloh-whatsapp-intro`));
+  const expected = `https://wa.me/27662399138?text=${encodeURIComponent('Hi Shiloh, I would like to speak with Reception.')}`.replaceAll('&', '&amp;');
+  assert.ok(contact.includes(`href="${expected}" rel="noopener" data-my-shiloh-reception-whatsapp`));
   assert.match(contact, /Reception is still here to help on 066 239 9138/);
-  assert.match(contact, /message BIRTHDAY ON to Shiloh on WhatsApp/);
+  assert.doesNotMatch(contact, /BIRTHDAY ON|receive the introduction|Ask on WhatsApp/);
   assert.match(contact, /href="\/book"[^>]*>View services &amp; book/);
 });
 const {
