@@ -847,6 +847,10 @@ test('cancelled deposit link has one clear replacement action on Phone and Deskt
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await page.goto('/iframe.html?id=workspace-booking-payment-recovery--cancelled-link&viewMode=story',{waitUntil:'networkidle'});
     const root=page.locator('[data-payment-page]');
+    await expect(root.locator('.payment-head .state')).toHaveText('Credit applied · payment due');
+    await expect(root.locator('.balance')).toContainText('Welcome voucher used');
+    await expect(root.locator('.balance')).toContainText('R 100,00');
+    await expect(root.locator('.balance')).toContainText('R 490,00');
     await expect(root.getByText(/previous deposit link was cancelled and cannot be used/)).toBeVisible();
     await expect(root.getByRole('link',{name:'Create a secure payment link below'})).toHaveCount(0);
     await expect(root.getByRole('heading',{name:'New deposit payment link'})).toBeVisible();

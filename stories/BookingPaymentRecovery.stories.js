@@ -29,7 +29,7 @@ export const CancelledLink = {
   render: () => surface(renderCalendarPaymentPage({ model: {
     subject: { appointmentId:779,clientName:'Test Client',clientMobile:'0712345678' },
     consultationRecovery: [{ status:'sent',linkAvailable:false }],
-    payment: { state:'unpaid',amountDue:'590.00',netPaid:'0.00',rewardsApplied:'0.00',welcomeVoucherApplied:'100.00',outstanding:'490.00',requests:[{amount:'295.00',state:'cancelled',purpose:'deposit',request_key:'old_request_779'}],entries:[] },
+    payment: { state:'partially_paid',amountDue:'590.00',netPaid:'0.00',rewardsApplied:'0.00',welcomeVoucherApplied:'100.00',outstanding:'490.00',requests:[{amount:'295.00',state:'cancelled',purpose:'deposit',request_key:'old_request_779'}],entries:[] },
     deposit: { applicable:true, policy:{ rateBasisPoints:5000 }, requirement:{ state:'awaiting',required_amount:'295.00',net_paid:'0.00',rate_basis_points:5000 }, events:[] },
     authority: { canCollect:true,canRefund:false,ozowConfigured:true },
   } })),
