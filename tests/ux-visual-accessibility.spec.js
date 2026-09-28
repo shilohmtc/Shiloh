@@ -1273,6 +1273,22 @@ test('staff browser handoff offers existing passkey recovery on Phone and Deskto
   }
 });
 
+test('approved staff SMS device setup is legible and accessible on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=workspace-staff-sms-device-setup--approved-device-setup&viewMode=story', { waitUntil: 'networkidle' });
+    const form = page.locator('[data-staff-sms-setup]');
+    await expect(form).toBeVisible();
+    await expect(form.getByRole('button', { name: 'Send SMS setup code' })).toBeVisible();
+    await expect(form.getByLabel(/confirmed this person's identity/)).toBeVisible();
+    const accessibility = await new AxeBuilder({ page }).include('[data-staff-sms-setup]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`staff-sms-setup-${viewport.name}.png`),
+      fullPage: true, animations: 'disabled', caret: 'hide' });
+  }
+});
+
 test('stalled Android passkey setup shows a clear accessible recovery on Phone and Desktop', async ({ page }, testInfo) => {
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
     await page.setViewportSize({ width:viewport.width, height:viewport.height });

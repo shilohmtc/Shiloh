@@ -89,6 +89,25 @@ function createSmsMessengerGateway({ env = process.env, fetchImpl = globalThis.f
       }
       return String(body.messageId);
     },
+    async sendStaffSetup({ mobile, code }) {
+      if (!enabled()) throw new Error('SMS gateway is not configured');
+      const response = await fetchImpl(SEND_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...headers() },
+        body: JSON.stringify({
+          recipientNumber: mobile,
+          message: `Shiloh Workspace device setup code: ${code}. Expires in 10 minutes. Do not share it.`,
+          campaign: 'Shiloh Workspace device setup',
+        }),
+        signal: AbortSignal.timeout(8000),
+      });
+      const responseText = typeof response.text === 'function'
+        ? await response.text() : JSON.stringify(await response.json());
+      let body;
+      try { body = JSON.parse(responseText); } catch (_) { body = {}; }
+      if (!response.ok || body.error || !body.messageId) throw new SmsGatewayError(response.status, response.ok ? body.error : responseText);
+      return String(body.messageId);
+    },
   };
 }
 
