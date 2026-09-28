@@ -6,7 +6,6 @@
   const navItems = [...document.querySelectorAll('[data-view-target]')];
   const installSheet = document.querySelector('[data-install-sheet]');
   const installGate = document.querySelector('[data-install-gate]');
-  const installVerificationGate = document.querySelector('[data-install-verification-gate]');
   const installGateAction = document.querySelector('[data-install-gate-action]');
   const installGateTitle = document.querySelector('[data-install-gate-title]');
   const installGateCopy = document.querySelector('[data-install-gate-copy]');
@@ -23,7 +22,6 @@
   const installStepExtra = document.querySelector('[data-install-step-extra]');
   const installTip = document.querySelector('[data-install-tip]');
   const clientGreeting = document.querySelector('[data-client-greeting]');
-  const INSTALL_VERIFIED_KEY = 'my-shiloh-install-whatsapp-verified-v1';
   const offlineBanner = document.querySelector('[data-offline-banner]');
   const appUpdateBanner = document.querySelector('[data-app-update]');
   const appUpdateAction = document.querySelector('[data-app-update-action]');
@@ -205,51 +203,15 @@
     return !standalone();
   }
 
-  function installationVerificationComplete() {
-    try {
-      return window.localStorage.getItem(INSTALL_VERIFIED_KEY) === '1';
-    } catch (_) {
-      return false;
-    }
-  }
-
-  function markInstallationVerified() {
-    try {
-      window.localStorage.setItem(INSTALL_VERIFIED_KEY, '1');
-    } catch (_) {
-      // This marker is installation convenience only; the server session is authority.
-    }
-  }
-
-  function resetInstallationVerification() {
-    try {
-      window.localStorage.removeItem(INSTALL_VERIFIED_KEY);
-    } catch (_) {
-      // Installation still works if browser storage is unavailable.
-    }
-  }
-
-  function installationVerificationRequired() {
-    return standalone()
-      && appFrame?.dataset.clientAuthenticated === 'true'
-      && !installationVerificationComplete();
-  }
-
   function renderAppMode() {
     const browserGated = browserNeedsInstall();
-    const verificationGated = !browserGated && installationVerificationRequired();
-    document.documentElement.dataset.myShilohMode = browserGated
-      ? 'browser'
-      : verificationGated
-        ? 'verification'
-        : 'standalone';
+    document.documentElement.dataset.myShilohMode = browserGated ? 'browser' : 'standalone';
     if (installGate) installGate.hidden = !browserGated;
     const showWebsiteTreatment = browserGated && window.location.hash === '#book-online'
       && /^[1-9]\d{0,11}$/.test(websiteTreatmentHandoff?.dataset.serviceCode || '');
     if (websiteTreatmentHandoff) websiteTreatmentHandoff.hidden = !showWebsiteTreatment;
     if (installGateStatus) installGateStatus.hidden = showWebsiteTreatment;
-    if (installVerificationGate) installVerificationGate.hidden = !verificationGated;
-    if (appFrame) appFrame.hidden = browserGated || verificationGated;
+    if (appFrame) appFrame.hidden = browserGated;
     if (!appFrame?.hidden && window.location.hash === '#profile-notifications') activateView('profile');
 
     if (!browserGated) return;
@@ -432,14 +394,14 @@
 
   function continueOnlineBooking() {
     if (window.location.hash !== '#book-online' || !standalone()
-      || installationVerificationRequired() || appFrame?.dataset.clientAuthenticated !== 'true') return false;
+      || appFrame?.dataset.clientAuthenticated !== 'true') return false;
     window.location.replace(`/my-shiloh/book${planningServiceQuery()}`);
     return true;
   }
 
   function continuePlanningVisit() {
     if (window.location.hash !== '#plan-visit' || !standalone()
-      || installationVerificationRequired() || appFrame?.dataset.clientAuthenticated !== 'true') return false;
+      || appFrame?.dataset.clientAuthenticated !== 'true') return false;
     window.location.replace(`/my-shiloh/request${planningServiceQuery()}`);
     return true;
   }
@@ -450,8 +412,7 @@
     if (deferredInstallPrompt && isAndroid()) {
       const prompt = deferredInstallPrompt;
       await prompt.prompt();
-      const choice = await prompt.userChoice;
-      if (choice?.outcome === 'accepted') resetInstallationVerification();
+      await prompt.userChoice;
       deferredInstallPrompt = null;
       renderAppMode();
       return;
@@ -490,7 +451,6 @@
   });
 
   window.addEventListener('appinstalled', () => {
-    resetInstallationVerification();
     deferredInstallPrompt = null;
     if (installGateAction) installGateAction.hidden = true;
     if (installGateStatus) installGateStatus.textContent = 'Open the My Shiloh icon on your Home Screen to continue.';
@@ -801,7 +761,7 @@
   }
 
   async function refreshAuthenticatedClientState() {
-    if (!standalone() || installationVerificationRequired() || appFrame?.dataset.clientAuthenticated !== 'true' || clientRefreshInFlight) return;
+    if (!standalone() || appFrame?.dataset.clientAuthenticated !== 'true' || clientRefreshInFlight) return;
     clientRefreshInFlight = true;
     try {
       await Promise.all([loadClientExperience(), loadClientProfile(), loadWelcomeVoucher()]);
@@ -881,7 +841,7 @@
 
   function scheduleAuthStatusCheck(delay = 1500) {
     window.clearTimeout(authStatusTimer);
-    if (appFrame?.dataset.clientAuthenticated === 'true' && !installationVerificationRequired()) return;
+    if (appFrame?.dataset.clientAuthenticated === 'true') return;
     authStatusTimer = window.setTimeout(() => {
       if (document.visibilityState !== 'hidden') checkClientAuthStatus({ announce: true });
     }, delay);
@@ -889,7 +849,7 @@
 
   async function checkClientAuthStatus({ announce = false } = {}) {
     if (authStatusCheckInFlight || authActionInFlight
-      || (appFrame?.dataset.clientAuthenticated === 'true' && !installationVerificationRequired())) return;
+      || appFrame?.dataset.clientAuthenticated === 'true') return;
     authStatusCheckInFlight = true;
     try {
       const response = await postJson('/my-shiloh/auth/status');
@@ -898,7 +858,6 @@
       if (response.ok && data.authenticated === true) {
         window.clearTimeout(authStatusTimer);
         whatsappHandoffStarted = false;
-        markInstallationVerified();
         renderAppMode();
         setAuthStatus('Verified. Opening your My Shiloh…', 'success');
         window.location.replace(signedInLanding());
@@ -935,7 +894,7 @@
   function welcomeBackFromWhatsApp() {
     clearWhatsAppFallback();
     if (!standalone()
-      || (appFrame?.dataset.clientAuthenticated === 'true' && !installationVerificationRequired())) return;
+      || appFrame?.dataset.clientAuthenticated === 'true') return;
     if (whatsappHandoffStarted) {
       window.clearTimeout(authStatusTimer);
       authStatusCheckInFlight = false;
@@ -1117,7 +1076,7 @@
   }
 
   async function signInWithPasskey() {
-    if (!standalone() || !passkeySupported() || authActionInFlight) return;
+    if (!passkeySupported() || authActionInFlight) return;
     authActionInFlight = true;
     setAuthControlsDisabled(true);
     setAuthStatus('Opening your passkey…', 'working');
@@ -1138,7 +1097,6 @@
       }
       whatsappHandoffStarted = false;
       window.clearTimeout(authStatusTimer);
-      markInstallationVerified();
       renderAppMode();
       setAuthStatus('Welcome back. Opening My Shiloh…', 'success');
       window.location.replace(signedInLanding());
@@ -1169,7 +1127,7 @@
 
   async function signInWithRecoveryCode(event) {
     event.preventDefault();
-    if (!standalone() || authActionInFlight) return;
+    if (authActionInFlight) return;
     const form = event.currentTarget;
     const code = form.elements.code?.value || '';
     authActionInFlight = true;
@@ -1183,7 +1141,6 @@
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data.authenticated !== true) throw new Error(data.error || 'That recovery code could not be used.');
       form.reset();
-      markInstallationVerified();
       renderAppMode();
       window.location.replace('/my-shiloh/#profile');
     } catch (error) {
@@ -1510,7 +1467,7 @@
   }
 
   async function loadClientNotifications() {
-    if (!clientNotificationList || !standalone() || installationVerificationRequired()
+    if (!clientNotificationList || !standalone()
       || appFrame?.dataset.clientAuthenticated !== 'true') return;
     try {
       const response = await fetch('/my-shiloh/api/notifications', { credentials: 'same-origin', headers: { accept: 'application/json' } });
@@ -1530,7 +1487,7 @@
   loadClientNotifications();
 
   async function loadProblemReports() {
-    if (!clientProblemReportList || !standalone() || installationVerificationRequired()
+    if (!clientProblemReportList || !standalone()
       || appFrame?.dataset.clientAuthenticated !== 'true') return;
     try {
       const response = await fetch('/my-shiloh/api/problem-reports', { credentials: 'same-origin', headers: { accept: 'application/json' } });
@@ -1856,7 +1813,7 @@
   shilohChatInput?.addEventListener('input', resizeShilohComposer);
 
   async function sendShilohMessage(value) {
-    if (!standalone() || installationVerificationRequired()
+    if (!standalone()
       || shilohMessageInFlight || appFrame?.dataset.clientAuthenticated !== 'true') return;
     const message = String(value || '').trim();
     if (!message || message.length > 1000) return;
@@ -1947,7 +1904,7 @@
 
   async function completeClientAuth(code) {
     if (!standalone() || authActionInFlight
-      || (appFrame?.dataset.clientAuthenticated === 'true' && !installationVerificationRequired())) return;
+      || appFrame?.dataset.clientAuthenticated === 'true') return;
     const cleanCode = String(code || '').replace(/\D/g, '');
     if (!/^\d{6}$/.test(cleanCode)) {
       setAuthStatus('Enter the 6-digit code Shiloh sent you in WhatsApp.', 'error');
@@ -1961,7 +1918,6 @@
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data.authenticated !== true) throw new Error(data.error || 'That one-time code could not be verified.');
       whatsappHandoffStarted = false;
-      markInstallationVerified();
       renderAppMode();
       setAuthStatus('Verified. Opening your My Shiloh…', 'success');
       window.location.replace(signedInLanding());
@@ -2023,7 +1979,7 @@
   welcomeBackFromWhatsApp();
 
   if (standalone() && completionCode
-    && (appFrame?.dataset.clientAuthenticated !== 'true' || installationVerificationRequired())) {
+    && appFrame?.dataset.clientAuthenticated !== 'true') {
     for (const input of document.querySelectorAll('[data-client-auth-code]')) {
       input.value = completionCode.replace(/^(\d{3})(\d{3})$/, '$1 $2');
     }

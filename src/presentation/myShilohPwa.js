@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260928-passkey-first-save-help-v1';
+const MY_SHILOH_ASSET_VERSION = '20260928-trust-server-session-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -369,21 +369,9 @@ function renderMyShilohPage({
         <p role="status" data-copy-treatment-status></p>
       </div>` : ''}
       <button class="button button--primary button--wide" type="button" data-install-gate-action>Install My Shiloh</button>
+      ${!authenticated ? passkeySignInButton : ''}
+      ${!authenticated && passkeysAvailable ? '<div class="auth-status" data-auth-status role="status" aria-live="polite"></div>' : ''}
       <p class="install-gate__status" data-install-gate-status aria-live="polite">Already installed? Open My Shiloh from your Home Screen, tap Bookings, then Book another appointment. You may need to choose your treatment again.</p>
-    </section>
-  </main>
-
-  <main class="install-gate" data-install-verification-gate hidden aria-labelledby="install-verification-title">
-    <section class="install-gate__card">
-      <span class="brand-mark brand-mark--large install-gate__logo" aria-hidden="true"><img src="/my-shiloh/assets/icon-192.png" alt=""></span>
-      <p class="eyebrow">One quick check</p>
-      <h1 id="install-verification-title">Confirm it’s you to finish setting up My Shiloh.</h1>
-      <p class="install-gate__copy">Verify with WhatsApp once on this installation. After that, just open My Shiloh normally.</p>
-      <button class="button button--primary button--wide" type="button" data-client-auth-start>Open WhatsApp to verify</button>
-      ${passkeySignInButton}
-      <p class="auth-hint">Tap Send in WhatsApp, then return to My Shiloh. We’ll open your account automatically.</p>
-      <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
-      ${authFinishForm('my-shiloh-install-code')}
     </section>
   </main>
 
