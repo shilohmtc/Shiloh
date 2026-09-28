@@ -6,6 +6,12 @@ function baseStyles() { return `${shilohUiPrimitiveStyles()}:root{--ink:#20322b;
 
 function rand(value) { return new Intl.NumberFormat('en-ZA', { style:'currency', currency:'ZAR' }).format(Number(value || 0)); }
 
+const requestStatusLabels = Object.freeze({
+  created: 'Preparing link', link_issued: 'Link ready', pending: 'Pending',
+  paid: 'Paid', failed: 'Failed', cancelled: 'Cancelled', expired: 'Expired',
+  partially_refunded: 'Partially refunded', refunded: 'Refunded',
+});
+
 function renderBookingRecovery(model) {
   const { subject, payment, deposit, consultationRecovery = [], authority = {} } = model;
   const active = payment.requests.filter(item => ['link_issued', 'pending'].includes(String(item.state)) && item.provider_payment_url);
@@ -67,7 +73,9 @@ function renderCalendarPaymentPage({ model, csrfToken = '', clientScriptPath = '
   </section>` : '';
   const requests = payment.requests.map(item => {
     const canCopy = !bookingCancelled && item.provider_payment_url && /^[A-Za-z0-9_-]{8,100}$/.test(String(item.request_key || '')) && ['link_issued','pending'].includes(String(item.state));
-    return `<li><span><strong>${item.purpose === 'deposit' ? 'Deposit · ' : ''}${escapeHtml(rand(item.amount))} · Ozow</strong><small>${escapeHtml(item.state.replaceAll('_',' '))}</small></span>${canCopy ? `<button type="button" data-copy-link="${escapeHtml(securePaymentUrl(item.request_key))}">Copy link</button>` : ''}</li>`;
+    const typeLabel = item.purpose === 'deposit' ? 'Deposit' : 'Payment';
+    const stateLabel = requestStatusLabels[item.state] || String(item.state || '').replaceAll('_', ' ');
+    return `<li><span><strong>${typeLabel} · ${escapeHtml(rand(item.amount))}</strong><small>Ozow · ${escapeHtml(stateLabel)}</small></span>${canCopy ? `<button type="button" data-copy-link="${escapeHtml(securePaymentUrl(item.request_key))}">Copy link</button>` : ''}</li>`;
   }).join('');
   const reviewCard = paymentReview
     ? `<section class="payment-card payment-review" data-payment-review role="alert"><span class="eyebrow">Payment review required</span><h2>Payment received after this booking was cancelled</h2><p>A verified payment reached Shiloh after the appointment was already cancelled. The booking stays cancelled. No refund has been issued automatically.</p><p class="hint">Review the payment evidence below, then use Shiloh’s authorised refund action only if a refund is actually required.</p></section>`

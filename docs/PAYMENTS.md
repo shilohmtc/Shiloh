@@ -13,6 +13,8 @@ Authorized owner/Reception staff open an appointment and choose **Payments**. Th
 
 The staff payment page shows the balance, deposit and Ozow collection action first, followed by payment requests and history. Reception help and manual settlement are separate disclosures after that history. Reception help keeps its issue summary visible and opens when an existing link is cancelled, failed or needs preparation; routine client-step details remain under the disclosure. Manual settlement stays collapsed and is labelled **Record payment received outside Ozow**. Staff use it only for verified cash, card-machine or direct EFT receipts, not an unresolved Ozow attempt, and must confirm funds reached Shiloh before submitting the form. Ozow settlement remains automatic after verified provider notification. Client payment notices are presented in My Shiloh; the staff recovery copy does not direct clients to WhatsApp.
 
+Each request row uses **Deposit · amount** only when its recorded purpose is deposit; other requests use **Payment · amount**, including partial or split requests. The secondary line is **Ozow · status**, with plain state labels such as Link ready, Pending, Paid, Cancelled and Failed. Historical request purpose is not inferred from the current deposit requirement or rewritten after settlement.
+
 Refund records require the narrower `payment:refund` capability. The initial migration grants collection to active canonical owner/booking-operator principals with full business/service scope and refund authority only to the active canonical owner.
 
 ## Booking Policy & Terms — deposit enforcement

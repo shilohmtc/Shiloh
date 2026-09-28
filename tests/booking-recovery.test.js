@@ -42,7 +42,7 @@ test('cancelled deposit screen has one link form and no cancellation policy para
   assert.equal((html.match(/Create deposit payment link/g)||[]).length,1);
   assert.doesNotMatch(html,/48\+ hours notice|24–48 hours|no-show: 100%/);
   assert.doesNotMatch(html,/Create a secure payment link below/);
-  assert.match(html,/Deposit · .*Ozow/);
+  assert.match(html,/Deposit · R\s?295[,.]00<\/strong><small>Ozow · Cancelled/);
   assert.doesNotMatch(html,/One person can pay the full balance/);
   assert.match(html,/<details class="payment-card manual-payment"><summary>Record payment received outside Ozow<\/summary>/);
   assert.match(html,/Never record an unresolved Ozow payment here/);
