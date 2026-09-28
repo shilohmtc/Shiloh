@@ -93,6 +93,8 @@ export const SmsAndPasskeyGuest = {
 export const SmsCodeEntry = {
   render: () => {
     const surface = productionSurface(null, { passkeysAvailable: true, smsAvailable: true });
+    const choice = surface.querySelector('[data-view="home"] [data-client-sms-choice]');
+    if (choice) choice.open = true;
     const code = surface.querySelector('[data-view="home"] [data-client-sms-complete]');
     if (code) code.hidden = false;
     const status = surface.querySelector('[data-view="home"] [data-auth-status]');
