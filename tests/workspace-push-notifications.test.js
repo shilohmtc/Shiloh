@@ -8,7 +8,7 @@ const { workspacePwaClientScript, workspacePwaServiceWorkerScript } = require('.
 
 function fixture() {
   const ecdh = crypto.createECDH('prime256v1');
-  ecdh.generateKeys();
+  ecdh.setPrivateKey(Buffer.alloc(32, 7));
   const env = {
     MY_SHILOH_VAPID_PUBLIC_KEY: ecdh.getPublicKey(null, 'uncompressed').toString('base64url'),
     MY_SHILOH_VAPID_PRIVATE_KEY: ecdh.getPrivateKey().toString('base64url'),
