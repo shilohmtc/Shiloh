@@ -37,6 +37,10 @@
   const passkeyEnrollStatus = document.querySelector('[data-passkey-enroll-status]');
   const passkeyDevices = document.querySelector('[data-passkey-devices]');
   const passkeyDeviceStatus = document.querySelector('[data-passkey-device-status]');
+  const recoveryCreateButton = document.querySelector('[data-passkey-recovery-create]');
+  const recoveryCreateStatus = document.querySelector('[data-passkey-recovery-create-status]');
+  const recoveryCodeDisplay = document.querySelector('[data-passkey-recovery-code]');
+  const recoveryForms = [...document.querySelectorAll('[data-passkey-recovery-form]')];
   const authLogoutButtons = [...document.querySelectorAll('[data-client-auth-logout]')];
   const authCodeForms = [...document.querySelectorAll('[data-client-auth-code-form]')];
   const authStatusHosts = [...document.querySelectorAll('[data-auth-status]')];
@@ -1122,6 +1126,51 @@
     }
   }
 
+  async function createRecoveryCode() {
+    if (!recoveryCreateButton || appFrame?.dataset.clientAuthenticated !== 'true') return;
+    recoveryCreateButton.disabled = true;
+    if (recoveryCodeDisplay) { recoveryCodeDisplay.hidden = true; recoveryCodeDisplay.textContent = ''; }
+    if (recoveryCreateStatus) recoveryCreateStatus.textContent = 'Creating your code…';
+    try {
+      const token = await freshCsrfToken();
+      const response = await postJson('/my-shiloh/auth/passkeys/recovery/create', {}, { 'x-shiloh-csrf-token': token });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.code) throw new Error(data.error || 'Could not create a recovery code.');
+      recoveryCodeDisplay.textContent = data.code;
+      recoveryCodeDisplay.hidden = false;
+      recoveryCreateStatus.textContent = 'Save this code privately now. It works once and will not be shown again.';
+    } catch (error) {
+      if (recoveryCreateStatus) recoveryCreateStatus.textContent = error.message || 'Could not create a recovery code.';
+    } finally { recoveryCreateButton.disabled = false; }
+  }
+
+  async function signInWithRecoveryCode(event) {
+    event.preventDefault();
+    if (!standalone() || authActionInFlight) return;
+    const form = event.currentTarget;
+    const code = form.elements.code?.value || '';
+    authActionInFlight = true;
+    setAuthControlsDisabled(true);
+    const button = form.querySelector('button');
+    if (button) button.disabled = true;
+    const status = form.parentElement.querySelector('[data-passkey-recovery-status]');
+    if (status) status.textContent = 'Checking your recovery code…';
+    try {
+      const response = await postJson('/my-shiloh/auth/passkeys/recovery/use', { code });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.authenticated !== true) throw new Error(data.error || 'That recovery code could not be used.');
+      form.reset();
+      markInstallationVerified();
+      renderAppMode();
+      window.location.replace('/my-shiloh/#profile');
+    } catch (error) {
+      if (status) status.textContent = error.message || 'That recovery code could not be used.';
+      authActionInFlight = false;
+      setAuthControlsDisabled(false);
+      if (button) button.disabled = false;
+    }
+  }
+
   function setPushStatus(message = '', state = '') {
     if (!pushStatus) return;
     pushStatus.textContent = String(message || '');
@@ -1926,6 +1975,8 @@
   if (!passkeySupported() && passkeyEnrollButton) passkeyEnrollButton.hidden = true;
   passkeySignInButtons.forEach((button) => button.addEventListener('click', signInWithPasskey));
   passkeyEnrollButton?.addEventListener('click', enrollClientPasskey);
+  recoveryCreateButton?.addEventListener('click', createRecoveryCode);
+  recoveryForms.forEach((form) => form.addEventListener('submit', signInWithRecoveryCode));
   loadPasskeyDevices();
   authLogoutButtons.forEach((button) => button.addEventListener('click', logoutClient));
   authCodeForms.forEach((form) => form.addEventListener('submit', (event) => {

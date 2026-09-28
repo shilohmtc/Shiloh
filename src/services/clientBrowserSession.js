@@ -260,7 +260,7 @@ function createClientBrowserSessionService({
   // Called inside the caller's transaction only after its independent
   // WhatsApp or WebAuthn verification and active CRM ownership check.
   async function insertVerifiedSession(client, owner, current, authMethod, fingerprint, passkeyCredentialId = null) {
-    if (!['whatsapp_challenge', 'passkey'].includes(authMethod)) throw new Error('invalid client session method');
+    if (!['whatsapp_challenge', 'passkey', 'passkey_recovery'].includes(authMethod)) throw new Error('invalid client session method');
     const sessionToken = randomOpaqueToken(randomBytes);
     const csrfToken = randomOpaqueToken(randomBytes);
     const expiresAt = new Date(current.getTime() + sessionTtlMs);
@@ -294,6 +294,26 @@ function createClientBrowserSessionService({
     await audit(transaction, 'session_issued', {
       clientId: owner.rows[0].id, sessionId: result.sessionId,
       requestFingerprintHash: fingerprint, metadata: { authMethod: 'passkey' },
+    });
+    return result;
+  }
+
+  // Called only after a recovery code is consumed in the caller's transaction.
+  async function issueVerifiedRecoverySession({ transaction, crmV2ClientId, requestFingerprintHash = null } = {}) {
+    if (!transaction || typeof transaction.query !== 'function' ||
+        !Number.isSafeInteger(Number(crmV2ClientId)) || Number(crmV2ClientId) <= 0) {
+      return { ok: false, code: 'CLIENT_AUTH_PROFILE_UNAVAILABLE' };
+    }
+    const owner = await transaction.query(
+      `SELECT id, name FROM crm_v2_clients WHERE id = $1 AND status = 'active' FOR SHARE`,
+      [crmV2ClientId],
+    );
+    if (owner.rowCount !== 1) return { ok: false, code: 'CLIENT_AUTH_PROFILE_UNAVAILABLE' };
+    const fingerprint = normalizedFingerprint(requestFingerprintHash);
+    const result = await insertVerifiedSession(transaction, owner.rows[0], now(), 'passkey_recovery', fingerprint);
+    await audit(transaction, 'session_issued', {
+      clientId: owner.rows[0].id, sessionId: result.sessionId,
+      requestFingerprintHash: fingerprint, metadata: { authMethod: 'passkey_recovery' },
     });
     return result;
   }
@@ -513,6 +533,7 @@ function createClientBrowserSessionService({
     completeChallenge,
     completeVerifiedChallenge,
     issueVerifiedPasskeySession,
+    issueVerifiedRecoverySession,
     validateSessionToken,
     rotateCsrfToken,
     revokeSession,

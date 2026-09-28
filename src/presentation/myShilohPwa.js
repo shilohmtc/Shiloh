@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-client-passkey-devices-v1';
+const MY_SHILOH_ASSET_VERSION = '20260927-client-passkey-recovery-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -105,7 +105,16 @@ function renderMyShilohPage({
   const clientName = authenticated ? escapeHtml(client.name || client.firstName) : '';
   const firstName = authenticated ? escapeHtml(client.firstName) : '';
   const passkeySignInButton = passkeysAvailable
-    ? '<button class="button button--soft button--wide passkey-choice" type="button" data-passkey-sign-in>Sign in with a passkey</button>'
+    ? `<button class="button button--soft button--wide passkey-choice" type="button" data-passkey-sign-in>Sign in with a passkey</button>
+       <details class="passkey-recovery"><summary>Can’t use your passkey?</summary>
+         <p>Use the one-time recovery code you saved when setting up My Shiloh.</p>
+         <form data-passkey-recovery-form>
+           <label>Recovery code <input required autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text" placeholder="XXXXX-XXXXX-…" name="code"></label>
+           <button class="button button--soft" type="submit">Use recovery code</button>
+         </form>
+         <p data-passkey-recovery-status role="status" aria-live="polite"></p>
+         <p>Lost your code too? Contact Shiloh Reception to recover your account.</p>
+       </details>`
     : '';
 
   const hero = authenticated
@@ -194,16 +203,22 @@ function renderMyShilohPage({
       </div>
       <div class="profile-auth-card">
         <div class="profile-avatar" aria-hidden="true">${firstName.charAt(0).toUpperCase()}</div>
-        <div class="profile-auth-card__identity"><span>Signed in as</span><strong>${clientName}</strong><small>${signInMethod === 'passkey' ? 'Signed in with a passkey' : 'Verified with WhatsApp'}</small></div>
+        <div class="profile-auth-card__identity"><span>Signed in as</span><strong>${clientName}</strong><small>${signInMethod === 'passkey' ? 'Signed in with a passkey' : signInMethod === 'passkey_recovery' ? 'Signed in with a recovery code' : 'Verified with WhatsApp'}</small></div>
       </div>
       ${passkeysAvailable ? `<section class="profile-editor" aria-labelledby="passkey-title">
         <div class="profile-editor__heading"><div><p class="eyebrow">Sign-in</p><h2 id="passkey-title">Make next time easier.</h2></div></div>
-        <p>Save a passkey on this device, then use your screen lock to open My Shiloh next time. WhatsApp stays available if you need it.</p>
+        <p>Save a passkey, then keep a one-time recovery code somewhere private in case you lose access to your device.</p>
+        ${signInMethod === 'passkey_recovery' ? '<p role="status">Your recovery code has been used. Save a new passkey and create a new recovery code now.</p>' : ''}
         <button class="button button--soft button--wide" type="button" data-passkey-enroll>Save a passkey</button>
         <p class="profile-editor__status" data-passkey-enroll-status role="status" aria-live="polite"></p>
         <h3>Your saved passkeys</h3>
         <div data-passkey-devices aria-live="polite">Loading saved passkeys…</div>
         <p class="profile-editor__status" data-passkey-device-status role="status" aria-live="polite"></p>
+        <h3>Your recovery code</h3>
+        <p>Create a one-time code to use if you lose access to every passkey. Creating a new code replaces your old one. We cannot show it again.</p>
+        <button class="button button--soft" type="button" data-passkey-recovery-create>Create a recovery code</button>
+        <p class="profile-editor__status" data-passkey-recovery-create-status role="status" aria-live="polite"></p>
+        <code class="passkey-recovery-code" data-passkey-recovery-code hidden></code>
       </section>` : ''}
       <section class="profile-editor" aria-labelledby="personal-details-title">
         <div class="profile-editor__heading">
