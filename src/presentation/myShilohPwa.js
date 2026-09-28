@@ -141,7 +141,7 @@ function renderMyShilohPage({
         <p class="eyebrow">Welcome to My Shiloh</p>
         <h1 id="home-title">Your Shiloh, all in one place.</h1>
         <p class="hero-copy">${smsAvailable ? 'Use a passkey or a code sent to your mobile phone to open My Shiloh.' : passkeysAvailable ? 'Use a passkey or WhatsApp to open your personal Shiloh space. No password or email needed.' : 'Use WhatsApp to confirm it’s you and open your personal Shiloh space. No password or email needed.'}</p>
-        <div class="hero-actions">
+        <div class="hero-actions${smsAvailable ? ' hero-actions--sms' : ''}">
           ${passkeySignInButton}
           ${smsAvailable ? smsSignInForm() : ''}
           ${smsAvailable ? '<details class="auth-code-disclosure"><summary>Need help signing in?</summary><button class="button button--soft" type="button" data-client-auth-start>Use WhatsApp temporarily</button></details>' : '<button class="button button--primary" type="button" data-client-auth-start>Open WhatsApp to verify</button>'}
