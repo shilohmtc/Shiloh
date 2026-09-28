@@ -2,7 +2,7 @@ const OpenAI = require('openai');
 const logger = require('../lib/logger');
 
 let client = null;
-const FAST_MODEL = process.env.OPENAI_FAST_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-luna';
+const FAST_MODEL = process.env.OPENAI_FAST_MODEL || process.env.OPENAI_MODEL || 'gpt-6-luna';
 const ENGLISH_ONLY_REPLY = "Shiloh's WhatsApp service is available in English only. Please send your message in English and I'll be happy to help.";
 
 const CLINIC_NAVIGATION_HINTS = Object.freeze([
