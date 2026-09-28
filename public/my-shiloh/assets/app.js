@@ -368,8 +368,8 @@
       if (installEyebrow) installEyebrow.textContent = 'Install My Shiloh on iPhone';
       if (installTitle) installTitle.textContent = 'Three quick steps.';
       if (installLead) installLead.textContent = 'Stay in Safari — no App Store download is needed.';
-      setInstallStep(1, 'Tap Share', 'Use Safari’s Share button.');
-      setInstallStep(2, 'Choose Add to Home Screen', 'Scroll if you do not see it straight away.');
+      setInstallStep(1, 'Open Safari’s page menu', 'At the bottom, tap the page menu, then Share. If you see a Share button directly, tap it.');
+      setInstallStep(2, 'Choose Add to Home Screen', 'Scroll down the Share list. If missing, use Edit Actions to add it.');
       setInstallStep(3, 'Turn on Open as Web App, then tap Add', 'My Shiloh will appear on your Home Screen.');
       return;
     }

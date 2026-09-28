@@ -2133,8 +2133,8 @@ test('iPhone Safari install guide fits without scrolling and is accessible on Ph
     await expect(sheet.getByRole('heading', { name: 'Three quick steps.' })).toBeVisible();
     await expect(sheet.getByText('Stay in Safari — no App Store download is needed.')).toBeVisible();
     const safariShareStep = sheet.locator('[data-install-step-title="1"]');
-    await expect(safariShareStep).toContainText('Tap Share');
-    await expect(safariShareStep.locator('svg.install-share-icon[aria-hidden="true"]')).toHaveCount(1);
+    await expect(safariShareStep).toContainText('Open Safari’s page menu');
+    await expect(sheet.getByText('At the bottom, tap the page menu, then Share. If you see a Share button directly, tap it.')).toBeVisible();
     await expect(sheet.getByText('Choose Add to Home Screen', { exact: true })).toBeVisible();
     await expect(sheet.getByText('Turn on Open as Web App, then tap Add', { exact: true })).toBeVisible();
 
