@@ -42,6 +42,19 @@ test('cancelled deposit screen has one link form and no cancellation policy para
   assert.match(html,/Deposit · .*Ozow/);
 });
 
+test('welcome voucher reduces the balance without claiming cash has been paid', () => {
+  const html = renderCalendarPaymentPage({ model: {
+    subject:{appointmentId:779},
+    payment:{state:'partially_paid',amountDue:'590.00',netPaid:'0.00',rewardsApplied:'0.00',welcomeVoucherApplied:'100.00',outstanding:'490.00',requests:[],entries:[]},
+    authority:{canCollect:false,canRefund:false,ozowConfigured:false},
+  } });
+  assert.match(html,/Credit applied · payment due/);
+  assert.match(html,/Welcome voucher used<\/small><strong>R\s?100[,.]00/);
+  assert.match(html,/Net received<\/small><strong>R\s?0[,.]00/);
+  assert.match(html,/Outstanding<\/small><strong>R\s?490[,.]00/);
+  assert.doesNotMatch(html,/Partially paid/);
+});
+
 test('Reception can retry an awaiting deposit link without starting a separate balance request', () => {
   const model = {
     subject: { final:false },
