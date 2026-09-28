@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260928-assisted-recovery-v1';
+const MY_SHILOH_ASSET_VERSION = '20260928-passkey-first-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -60,18 +60,20 @@ function authFinishForm(inputId = 'my-shiloh-code') {
 }
 
 function smsSignInForm() {
-  return `<form class="sms-auth-form" data-client-sms-start>
-    <strong class="sms-auth-heading">Use an SMS code instead</strong>
-    <p>New here or can’t use your passkey? We’ll send a one-time code to your phone.</p>
+  return `<details class="sms-setup-choice" data-client-sms-choice>
+    <summary>New to My Shiloh or using a new phone?</summary>
+    <p>Verify your number with an SMS code, then save a passkey for future sign-ins. You can also use this if you’ve lost access to your passkey.</p>
+    <form class="sms-auth-form" data-client-sms-start>
     <label>Full name<input name="name" autocomplete="name" maxlength="120" required placeholder="Your name"></label>
     <label>Mobile number<input name="mobile" type="tel" autocomplete="tel-national" inputmode="tel" required placeholder="082 123 4567"></label>
     <button class="button button--primary button--wide" type="submit">Send my SMS code</button>
-  </form>
-  <form class="sms-auth-form sms-auth-code" data-client-sms-complete hidden>
+    </form>
+    <form class="sms-auth-form sms-auth-code" data-client-sms-complete hidden>
     <label>6-digit code<input name="code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7" required placeholder="123 456"></label>
     <button class="button button--primary button--wide" type="submit">Open My Shiloh</button>
     <p>Sent to your phone. The code works for 10 minutes.</p>
-  </form>`;
+    </form>
+  </details>`;
 }
 
 function johannesburgGreeting(now = new Date()) {
@@ -122,8 +124,8 @@ function renderMyShilohPage({
     ? `<button class="button button--soft button--wide passkey-choice" type="button" data-passkey-sign-in>Sign in with a passkey</button>`
     : '';
   const passkeyRecovery = passkeysAvailable
-    ? `<details class="passkey-recovery"><summary>${smsAvailable ? 'Have a saved recovery code?' : 'Can’t use your passkey?'}</summary>
-         <p>Use the one-time recovery code you saved when setting up My Shiloh.${smsAvailable ? ' If you don’t have it, use the SMS option above.' : ''}</p>
+    ? `<details class="passkey-recovery"><summary>Can’t use your passkey?</summary>
+         <p>Use the recovery code you saved when setting up My Shiloh.${smsAvailable ? ' If you’re on a new phone, you can also verify your number above.' : ''}</p>
          <form data-passkey-recovery-form>
            <label>Recovery code <input required autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text" placeholder="XXXXX-XXXXX-…" name="code"></label>
            <button class="button button--soft" type="submit">Use recovery code</button>
@@ -147,7 +149,7 @@ function renderMyShilohPage({
     : `<div class="hero">
         <p class="eyebrow">Welcome to My Shiloh</p>
         <h1 id="home-title">Your Shiloh, all in one place.</h1>
-        <p class="hero-copy">${smsAvailable ? 'Use a passkey or a code sent to your mobile phone to open My Shiloh.' : passkeysAvailable ? 'Use your passkey to open your personal Shiloh space.' : 'Sign-in is temporarily unavailable. Please contact Reception for help.'}</p>
+        <p class="hero-copy">${passkeysAvailable ? 'Use your passkey to open your personal Shiloh space.' : smsAvailable ? 'Verify your number to set up My Shiloh on this device.' : 'Sign-in is temporarily unavailable. Please contact Reception for help.'}</p>
         <div class="hero-actions${smsAvailable ? ' hero-actions--sms' : ''}">
           ${passkeySignInButton}
           ${smsAvailable ? smsSignInForm() : ''}
@@ -179,7 +181,7 @@ function renderMyShilohPage({
         </div>
         <ol class="booking-steps">
           <li><strong>Explore treatments</strong><span>See what feels right for you.</span></li>
-          <li><strong>Confirm it’s you</strong><span>${smsAvailable ? 'Use a passkey or a code sent to your mobile phone.' : 'Sign in securely.'}</span></li>
+          <li><strong>Confirm it’s you</strong><span>${passkeysAvailable ? 'Sign in with your passkey. New clients can verify by SMS to set one up.' : smsAvailable ? 'Verify your number by SMS to get started.' : 'Sign in securely.'}</span></li>
           <li><strong>Request a time</strong><span>Reception confirms your appointment before it’s booked.</span></li>
         </ol>
       </section>`;
@@ -313,10 +315,11 @@ function renderMyShilohPage({
     : `<div class="page-intro">
         <p class="eyebrow">Profile</p>
         <h1 id="profile-title">Your Shiloh, remembered.</h1>
-        <p>${smsAvailable ? 'Sign in with your passkey or a code sent to your mobile phone.' : passkeysAvailable ? 'Sign in with your passkey.' : 'Sign-in is temporarily unavailable. Please contact Reception for help.'}</p>
+        <p>${passkeysAvailable ? 'Sign in with your passkey.' : smsAvailable ? 'Verify your number to set up My Shiloh.' : 'Sign-in is temporarily unavailable. Please contact Reception for help.'}</p>
       </div>
-      ${smsAvailable ? smsSignInForm() : ''}
       ${passkeySignInButton}
+      ${smsAvailable ? smsSignInForm() : ''}
+      ${passkeyRecovery}
       ${recoveryHelp('profile-recovery-help')}
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
       <aside class="privacy-note">
@@ -345,8 +348,9 @@ function renderMyShilohPage({
         <h1 id="wallet-title">Your Shiloh value, together.</h1>
         <p>Sign in to see your vouchers, rewards and payment shortcuts.</p>
       </div>
-      ${smsAvailable ? smsSignInForm() : ''}
       ${passkeySignInButton}
+      ${smsAvailable ? smsSignInForm() : ''}
+      ${passkeyRecovery}
       ${recoveryHelp('wallet-recovery-help')}
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
       `;

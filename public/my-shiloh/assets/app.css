@@ -329,6 +329,10 @@ h3{font-size:20px;line-height:1.12}
 .auth-code-form{padding:16px;border-radius:18px;background:rgba(255,255,255,.78);border:1px solid rgba(161,122,75,.24);box-shadow:0 8px 24px rgba(48,61,52,.06);transition:border-color .2s ease,box-shadow .2s ease,transform .2s ease}
 .auth-code-form.is-waiting{border-color:var(--gold);box-shadow:0 12px 30px rgba(161,122,75,.16);transform:translateY(-2px)}
 .sms-auth-form{display:grid;gap:12px;width:100%;max-width:440px;min-width:0;margin:16px 0;padding:16px;border-radius:18px;background:rgba(255,255,255,.82);border:1px solid rgba(70,87,70,.2)}
+.sms-setup-choice{width:100%;margin:10px 0 0}
+.sms-setup-choice>summary{color:var(--leaf-dark);cursor:pointer;font-weight:700;text-decoration:underline;text-underline-offset:4px;line-height:1.5}
+.sms-setup-choice>p{max-width:440px;margin:10px 0 0;color:var(--muted);font-size:14px;line-height:1.5}
+.sms-setup-choice>.sms-auth-form{margin:12px 0}
 .hero-actions--sms{grid-template-columns:minmax(0,1fr);max-width:460px}
 .sms-auth-heading{font-family:Georgia,serif;font-size:21px;font-weight:500;line-height:1.2}
 .sms-auth-form[hidden]{display:none}

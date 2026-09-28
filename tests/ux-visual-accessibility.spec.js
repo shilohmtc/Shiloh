@@ -44,6 +44,7 @@ const { workspaceServicesManageClientScript } = require('../src/presentation/wor
 test('redeemed welcome offer does not appear on the signed-out Home', async ({ page }) => {
   await page.goto('/iframe.html?id=client-my-shiloh-pwa--sms-and-passkey-guest&viewMode=story', { waitUntil:'networkidle' });
   const home = page.locator('[data-view="home"]');
+  await home.locator('[data-client-sms-choice] summary').click();
   await expect(home.getByRole('button', { name:'Send my SMS code' })).toBeVisible();
   await expect(home.locator('.welcome-voucher')).toHaveCount(0);
 });
@@ -104,8 +105,11 @@ test('SMS and passkey sign-in fits one phone column', async ({ page }, testInfo)
   await page.goto('/iframe.html?id=client-my-shiloh-pwa--sms-and-passkey-guest&viewMode=story', { waitUntil:'networkidle' });
   const home = page.locator('[data-view="home"]');
   const form = home.locator('[data-client-sms-start]');
+  const smsChoice = home.locator('[data-client-sms-choice]');
   const help = home.locator('#home-recovery-help');
   await expect(home.getByRole('button', { name:'Sign in with a passkey' })).toBeVisible();
+  await expect(smsChoice).not.toHaveAttribute('open', '');
+  await smsChoice.locator('summary').click();
   await expect(form.getByRole('button', { name:'Send my SMS code' })).toBeVisible();
   const formBox = await form.boundingBox();
   const helpBox = await help.boundingBox();
@@ -2023,7 +2027,8 @@ test('My Shiloh guest sign-in shows SMS and passkey choices without legacy code 
     await expect(appFrame).toBeVisible();
     const home = appFrame.locator('[data-view="home"]');
     await expect(home.getByRole('button', { name:'Sign in with a passkey' })).toBeVisible();
-    await expect(home.getByRole('button', { name:'Send my SMS code' })).toBeVisible();
+    await expect(home.locator('[data-client-sms-choice]')).not.toHaveAttribute('open', '');
+    await expect(home.getByText('New to My Shiloh or using a new phone?')).toBeVisible();
     await expect(home.locator('[data-client-auth-code-disclosure]')).toHaveCount(0);
     await page.screenshot({ path:testInfo.outputPath(`my-shiloh-guest-sign-in-${viewport.name}.png`), fullPage:true });
     const accessibility = await new AxeBuilder({ page }).include('[data-view="home"] .hero').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
