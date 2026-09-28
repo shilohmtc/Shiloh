@@ -288,7 +288,7 @@ async function runViewport(browser, name, viewport) {
   if (await page.locator('[data-install-verification-gate]').count()) {
     throw new Error('first launch must not introduce a second WhatsApp verification gate');
   }
-  await page.getByText('Good evening, Christel.').waitFor();
+  await page.waitForFunction(() => /Christel/.test(document.querySelector('#home-title')?.textContent || ''));
   await page.screenshot({ path: path.join(out, `${name}-first-launch-signed-in.png`), fullPage: true });
   await page.waitForLoadState('networkidle');
   if (!voucherSyncCalls.includes(912)) throw new Error('authenticated My Shiloh launch did not trigger recipient voucher linking');
