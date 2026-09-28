@@ -92,7 +92,8 @@ test('Home choosing help opens in-app Shiloh for clients and keeps guest and Rec
   assert.match(card(reception), /Reception is helping you/);
   assert.match(card(reception), /href="#shiloh" aria-label="Open Shiloh in My Shiloh"/);
   assert.match(reception, /Reception is handling your request/);
-  assert.match(card(guest), /Sign in for personal help inside My Shiloh/);
+  assert.match(card(guest), /sign in for help inside My Shiloh/);
+  assert.match(card(guest), /This opens WhatsApp/);
   assert.match(card(guest), /href="https:\/\/wa\.me\/27830000000\?text=/);
 });
 

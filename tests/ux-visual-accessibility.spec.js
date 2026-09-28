@@ -181,6 +181,15 @@ test('My Shiloh guest booking stays behind secure sign-in on phone and desktop',
     await expect(frame.locator('a[href="/book"]')).toHaveCount(0);
     await expect(frame.getByRole('link', { name:'Sign in to book' }).first()).toBeVisible();
     await expect(frame.locator('[data-view="home"] [data-client-sms-start]')).toBeVisible();
+    await expect(frame.locator('[data-view="home"] .hero-actions')).toContainText('Use an SMS code instead');
+    const signInOrder = await frame.locator('[data-view="home"] .hero-actions > :is([data-passkey-sign-in], [data-client-sms-start], .passkey-recovery)').evaluateAll(nodes => nodes.map(node => node.matches('[data-passkey-sign-in]') ? 'passkey' : node.matches('[data-client-sms-start]') ? 'sms' : 'recovery'));
+    expect(signInOrder).toEqual(['passkey', 'sms', 'recovery']);
+    await expect(frame.locator('[data-view="home"] .service-scroll-hint')).toContainText('Swipe to see more');
+    await frame.locator('[data-view="home"] .passkey-recovery summary').click();
+    await expect(frame.locator('[data-view="home"] .passkey-recovery')).toContainText('use the SMS option above');
+    await expect(frame.locator('[data-view="home"] [data-client-sms-start]')).toBeVisible();
+    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-recovery-expanded-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+    await frame.locator('[data-view="home"] .passkey-recovery summary').click();
     await expect(frame.locator('.booking-steps li')).toHaveCount(3);
     await expect(frame.locator('.booking-steps')).toContainText('Reception confirms your appointment before it’s booked.');
     await frame.getByRole('link', { name:'How booking works' }).click();

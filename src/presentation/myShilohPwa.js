@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260928-client-alert-benefits-v1';
+const MY_SHILOH_ASSET_VERSION = '20260928-guest-signin-clarity-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -61,6 +61,8 @@ function authFinishForm(inputId = 'my-shiloh-code') {
 
 function smsSignInForm() {
   return `<form class="sms-auth-form" data-client-sms-start>
+    <strong class="sms-auth-heading">Use an SMS code instead</strong>
+    <p>New here or can’t use your passkey? We’ll send a one-time code to your phone.</p>
     <label>Full name<input name="name" autocomplete="name" maxlength="120" required placeholder="Your name"></label>
     <label>Mobile number<input name="mobile" type="tel" autocomplete="tel-national" inputmode="tel" required placeholder="082 123 4567"></label>
     <button class="button button--primary button--wide" type="submit">Send my SMS code</button>
@@ -112,22 +114,24 @@ function renderMyShilohPage({
     ? humanHandoffActive
       ? 'Reception is helping you. Open Shiloh to see how to continue.'
       : 'Tell Shiloh what you’re looking for and chat here in My Shiloh.'
-    : 'Tell Shiloh what you’re looking for on WhatsApp. Sign in for personal help inside My Shiloh.';
+    : 'Ask Shiloh for help choosing a treatment. This opens WhatsApp; sign in for help inside My Shiloh.';
   const choosingHelpHref = authenticated ? '#shiloh' : askShiloh;
   const choosingHelpLabel = authenticated ? 'Open Shiloh in My Shiloh' : 'Chat with Shiloh on WhatsApp';
   const greeting = authenticated ? johannesburgGreeting(now) : null;
   const clientName = authenticated ? escapeHtml(client.name || client.firstName) : '';
   const firstName = authenticated ? escapeHtml(client.firstName) : '';
   const passkeySignInButton = passkeysAvailable
-    ? `<button class="button button--soft button--wide passkey-choice" type="button" data-passkey-sign-in>Sign in with a passkey</button>
-       <details class="passkey-recovery"><summary>Can’t use your passkey?</summary>
-         <p>Use the one-time recovery code you saved when setting up My Shiloh.</p>
+    ? `<button class="button button--soft button--wide passkey-choice" type="button" data-passkey-sign-in>Sign in with a passkey</button>`
+    : '';
+  const passkeyRecovery = passkeysAvailable
+    ? `<details class="passkey-recovery"><summary>${smsAvailable ? 'Have a saved recovery code?' : 'Can’t use your passkey?'}</summary>
+         <p>Use the one-time recovery code you saved when setting up My Shiloh.${smsAvailable ? ' If you don’t have it, use the SMS option above.' : ''}</p>
          <form data-passkey-recovery-form>
            <label>Recovery code <input required autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text" placeholder="XXXXX-XXXXX-…" name="code"></label>
            <button class="button button--soft" type="submit">Use recovery code</button>
          </form>
          <p data-passkey-recovery-status role="status" aria-live="polite"></p>
-         <p>Lost your code too? Contact Shiloh Reception to recover your account.</p>
+         <p>${smsAvailable ? 'Can’t access your mobile number either? Contact Shiloh Reception for help.' : 'Lost your code too? Contact Shiloh Reception for help.'}</p>
        </details>`
     : '';
 
@@ -144,6 +148,7 @@ function renderMyShilohPage({
         <div class="hero-actions${smsAvailable ? ' hero-actions--sms' : ''}">
           ${passkeySignInButton}
           ${smsAvailable ? smsSignInForm() : ''}
+          ${passkeyRecovery}
           ${smsAvailable ? '<p class="auth-hint">Need help signing in? Contact Reception.</p>' : ''}
           <a class="button button--soft" href="#how-booking-works" data-booking-steps-link>How booking works</a>
         </div>
@@ -419,7 +424,8 @@ function renderMyShilohPage({
             <div><p class="eyebrow">Discover</p><h2 id="discover-title">Start with what you need.</h2></div>
             <a class="text-link" href="/treatments">See all services</a>
           </div>
-          <div class="service-scroll">${serviceCards(catalogue, authenticated)}</div>
+          <div class="service-scroll" aria-label="Featured treatments; swipe sideways to see more">${serviceCards(catalogue, authenticated)}</div>
+          ${sanitizePublicCatalogue(catalogue).length > 1 ? '<p class="service-scroll-hint" aria-hidden="true">Swipe to see more treatments →</p>' : ''}
         </section>
         <section class="quiet-card">
           <div class="quiet-icon" aria-hidden="true">S</div>
