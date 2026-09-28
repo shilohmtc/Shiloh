@@ -886,6 +886,22 @@ test('My Shiloh keeps an awaiting deposit clear when its link is unavailable on 
   }
 });
 
+test('Reception can prepare a missing deposit link on Phone and Desktop', async ({page},testInfo)=>{
+  for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
+    await page.setViewportSize({width:viewport.width,height:viewport.height});
+    await page.goto('/iframe.html?id=workspace-booking-payment-recovery--missing-deposit-link&viewMode=story',{waitUntil:'networkidle'});
+    const recovery=page.getByRole('region',{name:'Recover client steps'});
+    await expect(recovery.getByRole('button',{name:'Prepare deposit link'})).toBeVisible();
+    await expect(recovery).toContainText('Latest payment request: created');
+    const metrics=await recovery.evaluate(node=>({viewport:innerWidth,document:document.documentElement.scrollWidth,buttonHeight:node.querySelector('[data-retry-deposit]').getBoundingClientRect().height}));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
+    expect(metrics.buttonHeight).toBeGreaterThanOrEqual(44);
+    const accessibility=await new AxeBuilder({page}).include('[data-booking-payment-recovery-story]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`missing-deposit-recovery-${viewport.name}.png`),fullPage:true,animations:'disabled'});
+  }
+});
+
 test('Couples booking supports separate canonical treatments and discretionary discount on Phone', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/iframe.html?id=workspace-production-surfaces--couples-booking-treatments-and-discount&viewMode=story', { waitUntil: 'networkidle' });

@@ -344,6 +344,7 @@ test('My Shiloh keeps an awaiting deposit visible when its payment link is unava
   assert.equal(experience.home.status, 'Deposit');
   assert.match(experience.home.headline, /awaiting its deposit/);
   assert.match(experience.home.summary, /payment link is not available yet/);
+  assert.match(experience.home.facts.find(fact => fact.key === 'payment').message, /deposit is due, but the payment link is not ready/);
   assert.deepEqual(experience.home.primaryAction, {
     kind: 'shiloh', label: 'Ask Shiloh about my deposit', href: '#shiloh',
   });
