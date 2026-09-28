@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260928-passkey-first-v1';
+const MY_SHILOH_ASSET_VERSION = '20260928-reception-choice-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -61,7 +61,7 @@ function authFinishForm(inputId = 'my-shiloh-code') {
 
 function smsSignInForm() {
   return `<details class="sms-setup-choice" data-client-sms-choice>
-    <summary>New to My Shiloh or using a new phone?</summary>
+    <summary class="auth-choice-summary"><svg class="auth-choice-summary__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="6" y="2.5" width="12" height="19" rx="2"/><path d="M10 18.5h4"/></svg><span>New to My Shiloh or using a new phone?</span><svg class="auth-choice-summary__chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></summary>
     <p>Verify your number with an SMS code, then save a passkey for future sign-ins. You can also use this if you’ve lost access to your passkey.</p>
     <form class="sms-auth-form" data-client-sms-start>
     <label>Full name<input name="name" autocomplete="name" maxlength="120" required placeholder="Your name"></label>
@@ -105,6 +105,8 @@ function renderMyShilohPage({
     : /^27[678]\d{8}$/.test(suppliedHumanDigits) ? suppliedHumanDigits : '';
   const receptionPhone = humanDigits || '27662399138';
   const receptionDisplay = receptionPhone === '27662399138' ? '066 239 9138' : `+${receptionPhone}`;
+  const receptionRecoveryWhatsApp = whatsappUrl(receptionPhone,
+    'Hi Reception, I need help getting back into My Shiloh. Please tell me how to verify my identity.');
   const speakToReception = humanDigits ? whatsappUrl(humanDigits,
     'Hi Reception, I am using My Shiloh and would like to speak with a person.') : null;
   const authenticated = Boolean(client?.id && client?.firstName);
@@ -124,7 +126,7 @@ function renderMyShilohPage({
     ? `<button class="button button--soft button--wide passkey-choice" type="button" data-passkey-sign-in>Sign in with a passkey</button>`
     : '';
   const passkeyRecovery = passkeysAvailable
-    ? `<details class="passkey-recovery"><summary>Can’t use your passkey?</summary>
+    ? `<details class="passkey-recovery"><summary class="auth-choice-summary"><svg class="auth-choice-summary__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9 2 2-2 2 1 1-2 2-1-1-4 4"/></svg><span>Can’t use your passkey?</span><svg class="auth-choice-summary__chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></summary>
          <p>Use the recovery code you saved when setting up My Shiloh.${smsAvailable ? ' If you’re on a new phone, you can also verify your number above.' : ''}</p>
          <form data-passkey-recovery-form>
            <label>Recovery code <input required autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text" placeholder="XXXXX-XXXXX-…" name="code"></label>
@@ -135,9 +137,15 @@ function renderMyShilohPage({
        </details>`
     : '';
   const recoveryHelp = (id) => `<details class="recovery-help" id="${id}">
-    <summary>Lost access to your phone and recovery code?</summary>
-    <p>Call Reception on ${receptionDisplay}. The team will check that it’s your account before helping you regain access. Please don’t share sign-in codes.</p>
-    <a class="button button--soft" href="tel:+${receptionPhone}">Call Reception</a>
+    <summary class="auth-choice-summary"><svg class="auth-choice-summary__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 13v-1a8.5 8.5 0 0 1 17 0v1M3.5 13.5v4a2 2 0 0 0 2 2h2v-7h-2a2 2 0 0 0-2 2Zm17 0v4a2 2 0 0 1-2 2h-2v-7h2a2 2 0 0 1 2 2Z"/></svg><span>Lost access to your phone and recovery code?</span><svg class="auth-choice-summary__chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></summary>
+    <div class="recovery-help__body">
+      <p>Contact Reception if you no longer have your phone or recovery code. Please don’t share sign-in codes.</p>
+      <div class="recovery-help__actions">
+        <a class="button button--soft" href="tel:+${receptionPhone}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 3.5h4l1.3 4.1-2.1 1.7a15 15 0 0 0 6.5 6.5l1.7-2.1 4.1 1.3v4a2 2 0 0 1-2.1 2A18.5 18.5 0 0 1 3 5.6 2 2 0 0 1 5 3.5Z"/></svg>Call Reception</a>
+        <a class="button button--soft" href="${escapeHtml(receptionRecoveryWhatsApp)}" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 11.5a8 8 0 0 1-8 8 8.5 8.5 0 0 1-3.6-.8L4 20l1.3-4.4A8 8 0 1 1 20 11.5Z"/><path d="M8 10.3c.7 2.4 2.4 4.1 4.8 4.8l1.4-1.3 2.2.7"/></svg>WhatsApp Reception</a>
+      </div>
+      <small>Call or message ${receptionDisplay}. Reception will check that it’s your account before helping.</small>
+    </div>
   </details>`;
 
   const hero = authenticated

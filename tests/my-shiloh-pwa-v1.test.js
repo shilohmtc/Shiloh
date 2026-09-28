@@ -96,13 +96,19 @@ test('Home choosing help opens in-app Shiloh for clients and keeps guest and Rec
 });
 
 test('guest recovery help calls Reception for assisted identity review without offering an account reset', () => {
-  const guest = renderMyShilohPage({ passkeysAvailable: true, smsAvailable: true, humanWhatsAppNumber: '0662399138' });
+  const guest = renderMyShilohPage({ passkeysAvailable: true, smsAvailable: true,
+    whatsappNumber: '27830000000', humanWhatsAppNumber: '0662399138' });
   assert.doesNotMatch(guest, /data-booking-steps-link|Need help signing in\?/);
   assert.match(guest, /id="home-recovery-help"/);
   assert.match(guest, /Lost access to your phone and recovery code\?/);
-  assert.match(guest, /href="tel:\+27662399138">Call Reception/);
-  assert.match(guest, /check that it’s your account before helping you regain access/);
+  assert.match(guest, /href="tel:\+27662399138"/);
+  assert.match(guest, /href="https:\/\/wa\.me\/27662399138\?text=[^"]+" rel="noopener noreferrer"/);
+  assert.match(guest, /WhatsApp Reception/);
+  assert.doesNotMatch(guest.match(/id="home-recovery-help"[\s\S]*?<\/details>/)?.[0] || '', /wa\.me\/27830000000/);
+  assert.match(guest, /check that it’s your account before helping/);
   assert.doesNotMatch(guest, /automatic account reset/);
+  const defaultPhone = renderMyShilohPage({ passkeysAvailable: true, smsAvailable: true });
+  assert.match(defaultPhone, /href="https:\/\/wa\.me\/27662399138\?text=/);
 });
 
 test('Bookings help stays in My Shiloh for clients and names the guest and Reception boundaries', () => {
@@ -229,7 +235,7 @@ test('SMS enrollment appears in the installed guest app only when enabled', () =
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v35/);
+  assert.match(worker, /my-shiloh-shell-v36/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /booking\.js/);

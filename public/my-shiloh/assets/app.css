@@ -30,14 +30,25 @@ body{
 }
 button,a{font:inherit}
 .passkey-recovery{margin:1rem 0;width:100%}
-.passkey-recovery summary{cursor:pointer;text-decoration:underline;text-underline-offset:.2em}
+.passkey-recovery summary{color:var(--leaf-dark)}
 .passkey-recovery form{display:grid;gap:.75rem;margin-top:.75rem}
 .passkey-recovery input{display:block;width:100%;margin-top:.35rem;padding:.75rem;border:1px solid var(--line);border-radius:.6rem;font:inherit}
 .passkey-recovery-code{display:block;overflow-wrap:anywhere;padding:1rem;margin:.75rem 0;background:var(--sage-2);border-radius:.6rem;font-size:1.05rem;letter-spacing:.04em;user-select:all}
-.recovery-help{margin:18px 0 0;color:var(--ink);font-size:13px}
-.recovery-help summary{cursor:pointer;text-decoration:underline;text-underline-offset:3px;font-weight:750}
-.recovery-help p{color:var(--muted);line-height:1.55;margin:12px 0}
-.recovery-help .button{margin:0 0 4px}
+.recovery-help{margin:16px 0 0;color:var(--ink);font-size:14px}
+.auth-choice-summary{display:flex;align-items:center;gap:11px;min-height:50px;padding:8px 0;cursor:pointer;list-style:none;font-weight:750;line-height:1.35}
+.auth-choice-summary::-webkit-details-marker{display:none}
+.auth-choice-summary:focus-visible{outline:2px solid var(--leaf-dark);outline-offset:3px;border-radius:5px}
+.auth-choice-summary__icon,.auth-choice-summary__chevron,.recovery-help__actions svg{width:21px;height:21px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.auth-choice-summary__icon{color:var(--leaf-dark)}
+.auth-choice-summary__chevron{margin-left:auto;width:18px;height:18px;transition:transform .15s ease}
+[open]>.auth-choice-summary .auth-choice-summary__chevron{transform:rotate(90deg)}
+.recovery-help__body{padding:0 0 8px}
+.recovery-help__body p{color:var(--muted);line-height:1.55;margin:0 0 12px}
+.recovery-help__actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.recovery-help__actions .button{display:flex;align-items:center;justify-content:center;gap:8px;min-width:0;margin:0;padding:10px;line-height:1.3;text-align:center}
+.recovery-help__actions svg{width:18px;height:18px}
+.recovery-help__body small{display:block;margin-top:11px;color:var(--muted);line-height:1.45}
+@media(max-width:480px){.recovery-help__actions{grid-template-columns:1fr}}
 a{color:inherit}
 button{color:inherit}
 [hidden]{display:none!important}
@@ -330,7 +341,7 @@ h3{font-size:20px;line-height:1.12}
 .auth-code-form.is-waiting{border-color:var(--gold);box-shadow:0 12px 30px rgba(161,122,75,.16);transform:translateY(-2px)}
 .sms-auth-form{display:grid;gap:12px;width:100%;max-width:440px;min-width:0;margin:16px 0;padding:16px;border-radius:18px;background:rgba(255,255,255,.82);border:1px solid rgba(70,87,70,.2)}
 .sms-setup-choice{width:100%;margin:10px 0 0}
-.sms-setup-choice>summary{color:var(--leaf-dark);cursor:pointer;font-weight:700;text-decoration:underline;text-underline-offset:4px;line-height:1.5}
+.sms-setup-choice>summary{color:var(--leaf-dark)}
 .sms-setup-choice>p{max-width:440px;margin:10px 0 0;color:var(--muted);font-size:14px;line-height:1.5}
 .sms-setup-choice>.sms-auth-form{margin:12px 0}
 .hero-actions--sms{grid-template-columns:minmax(0,1fr);max-width:460px}
