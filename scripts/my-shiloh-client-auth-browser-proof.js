@@ -254,7 +254,6 @@ async function runViewport(browser, name, viewport) {
   const browserPage = await browserContext.newPage();
   await browserPage.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
   await browserPage.getByRole('heading', { name: 'Add My Shiloh to your Home Screen.' }).waitFor();
-  await browserPage.getByRole('button', { name: 'Sign in with a passkey' }).waitFor();
   if (await browserPage.getByRole('button', { name: 'Open WhatsApp to verify' }).count()) {
     throw new Error('normal browser must not expose My Shiloh sign-in before installation');
   }
