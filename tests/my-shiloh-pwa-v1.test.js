@@ -187,7 +187,7 @@ test('an authenticated installation uses its server session without another veri
   assert.doesNotMatch(html, /data-install-verification-gate/);
   assert.match(client, /appFrame\.hidden = browserGated/);
   assert.doesNotMatch(client, /INSTALL_VERIFIED_KEY|installationVerificationRequired/);
-  assert.match(client, /finish\.status === 401[\s\S]*verify with WhatsApp first, then save one under Profile/);
+  assert.match(client, /finish\.status === 401[\s\S]*request a mobile code first, then save one under Profile/);
 });
 
 test('the secure browser install doorway offers existing clients passkey sign-in', () => {
@@ -198,6 +198,19 @@ test('the secure browser install doorway offers existing clients passkey sign-in
   const signedIn = renderMyShilohPage({ passkeysAvailable: true, client: { id: 1, name:'Christel', firstName:'Christel' } });
   const signedInDoorway = signedIn.match(/<main class="install-gate" data-install-gate[\s\S]*?<\/main>/)?.[0] || '';
   assert.doesNotMatch(signedInDoorway, /data-passkey-sign-in/);
+});
+
+test('SMS enrollment appears on both the website doorway and the installed guest app only when enabled', () => {
+  const inactive = renderMyShilohPage({ passkeysAvailable: true, smsAvailable: false });
+  assert.doesNotMatch(inactive, /data-client-sms-start/);
+  const page = renderMyShilohPage({ passkeysAvailable: true, smsAvailable: true });
+  const doorway = page.match(/<main class="install-gate" data-install-gate[\s\S]*?<\/main>/)?.[0] || '';
+  assert.match(doorway, /data-passkey-sign-in/);
+  assert.match(doorway, /data-client-sms-start/);
+  assert.match(doorway, /data-client-sms-complete hidden/);
+  assert.match(page, /6-digit code/);
+  const signedIn = renderMyShilohPage({ smsAvailable: true, client: { id: 1, name: 'Christel', firstName: 'Christel' } });
+  assert.doesNotMatch(signedIn, /data-client-sms-start/);
 });
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {

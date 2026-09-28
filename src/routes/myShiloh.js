@@ -10,6 +10,7 @@ const { createClientBrowserSessionService, SESSION_TTL_MS, CHALLENGE_TTL_MS } = 
 const { createClientPasskeyEnrollmentService } = require('../services/clientPasskeyEnrollment');
 const { createClientPasskeyAuthenticationService } = require('../services/clientPasskeyAuthentication');
 const { createClientPasskeyRecoveryService } = require('../services/clientPasskeyRecovery');
+const { createClientSmsAuthService, TTL_MS: SMS_CODE_TTL_MS } = require('../services/clientSmsAuth');
 const { createMyShilohExperienceOrchestrator } = require('../services/myShilohExperienceOrchestrator');
 const { createMyShilohAssistantService, MyShilohAssistantError } = require('../services/myShilohAssistant');
 const { createMyShilohClientActionService } = require('../services/myShilohClientActions');
@@ -45,9 +46,12 @@ const {
   serializeExpiredClientSessionCookie,
   serializeClientAuthCookie,
   serializeExpiredClientAuthCookie,
+  serializeClientSmsAuthCookie,
+  serializeExpiredClientSmsAuthCookie,
   serializeClientPasskeyAuthCookie,
   serializeExpiredClientPasskeyAuthCookie,
   clientAuthTokenFromRequest,
+  clientSmsAuthTokenFromRequest,
   clientPasskeyAuthTokenFromRequest,
   requireClientSession,
   optionalClientSession,
@@ -108,6 +112,7 @@ function createMyShilohRouter({
   passkeyEnrollmentService = createClientPasskeyEnrollmentService({ db: pool, env }),
   passkeyAuthenticationService = createClientPasskeyAuthenticationService({ db: pool, env, sessionService }),
   passkeyRecoveryService = createClientPasskeyRecoveryService({ db: pool, env, sessionService }),
+  smsAuthService = createClientSmsAuthService({ db: pool, env, sessionService }),
   whatsappResolver = resolveWhatsAppNumber,
   catalogueProvider = getPublicServiceCatalogue,
   authUrlBuilder = defaultAuthUrlBuilder,
@@ -144,6 +149,7 @@ function createMyShilohRouter({
         maxAgeSeconds: Math.min(sessionSeconds, Math.floor(SESSION_TTL_MS / 1000)),
       }),
       serializeExpiredClientAuthCookie({ env }),
+      serializeExpiredClientSmsAuthCookie({ env }),
       serializeExpiredClientPasskeyAuthCookie({ env }),
     ]);
     return res.status(200).json({
@@ -627,6 +633,44 @@ function createMyShilohRouter({
     }
   });
 
+  router.post('/my-shiloh/auth/sms/start', sameOrigin, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const result = await smsAuthService.start({
+        mobile: req.body?.mobile, name: req.body?.name,
+        requestFingerprintHash: requestFingerprintHash(req),
+      });
+      if (!result.ok) {
+        const status = result.code === 'SMS_INVALID_INPUT' ? 400 :
+          result.code === 'SMS_RATE_LIMITED' ? 429 : 503;
+        return res.status(status).json({ error: status === 400 ? 'Enter your name and a South African mobile number.' :
+          status === 429 ? 'Please wait before requesting another code.' :
+            'SMS sign-in is temporarily unavailable.', requestId: req.id });
+      }
+      res.setHeader('Set-Cookie', serializeClientSmsAuthCookie(result.browserToken, {
+        env, maxAgeSeconds: Math.floor(SMS_CODE_TTL_MS / 1000),
+      }));
+      return res.status(201).json({ status: 'code_sent', expiresAt: result.expiresAt.toISOString() });
+    } catch (error) { return next(error); }
+  });
+
+  router.post('/my-shiloh/auth/sms/complete', sameOrigin, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const result = await smsAuthService.finish({
+        browserToken: clientSmsAuthTokenFromRequest(req, env), code: String(req.body?.code || '').replace(/\s/g, ''),
+        requestFingerprintHash: requestFingerprintHash(req),
+      });
+      if (!result.ok) return res.status(result.code === 'SMS_PROFILE_UNAVAILABLE' ? 409 : 401).json({
+        error: result.code === 'SMS_PROFILE_UNAVAILABLE' ?
+          'We could not match this number to one Shiloh profile. Please contact Reception.' :
+          'This code could not be verified. Request a new code if it has expired.', requestId: req.id,
+      });
+      try { await voucherService.syncRecipientLinks({ crmV2ClientId: result.client.id }); } catch (_) {}
+      return sendAuthenticatedClient(res, result);
+    } catch (error) { return next(error); }
+  });
+
   router.post('/my-shiloh/auth/complete', sameOrigin, async (req, res, next) => {
     try {
       setNoStoreJson(res);
@@ -1065,6 +1109,7 @@ function createMyShilohRouter({
       selectedServiceId: req.query?.service,
       client: req.myShilohClientSession?.client || null,
       passkeysAvailable: passkeyEnrollmentService.policy().operational,
+      smsAvailable: smsAuthService.enabled(),
       signInMethod: req.myShilohClientSession?.authMethod,
     }));
   });

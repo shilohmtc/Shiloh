@@ -138,8 +138,12 @@ test('profile UI edits only approved fields and never persists private profile d
   assert.match(presentation, /Date of birth/);
   assert.match(presentation, /name="dateOfBirth"[^>]*required/);
   assert.match(presentation, /name="gender"[^>]*required/);
-  assert.match(presentation, /Verified WhatsApp number/);
-  assert.doesNotMatch(presentation, /name="(?:mobile|phone|whatsapp)"/i);
+  assert.match(presentation, /Verified mobile number/);
+  // Enrollment now asks for a mobile number; the authenticated profile editor
+  // still must not allow a client to change their verified number in place.
+  const profileEditor = presentation.match(/<form data-client-profile-form>[\s\S]*?<\/form>/)?.[0];
+  assert.ok(profileEditor);
+  assert.doesNotMatch(profileEditor, /name="(?:mobile|phone|whatsapp)"/i);
   assert.match(app, /fetch\('\/my-shiloh\/api\/profile'/);
   assert.match(app, /postJson\('\/my-shiloh\/api\/profile\/update'/);
   assert.match(app, /freshCsrfToken\(\)/);

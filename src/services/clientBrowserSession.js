@@ -260,7 +260,7 @@ function createClientBrowserSessionService({
   // Called inside the caller's transaction only after its independent
   // WhatsApp or WebAuthn verification and active CRM ownership check.
   async function insertVerifiedSession(client, owner, current, authMethod, fingerprint, passkeyCredentialId = null) {
-    if (!['whatsapp_challenge', 'passkey', 'passkey_recovery'].includes(authMethod)) throw new Error('invalid client session method');
+    if (!['whatsapp_challenge', 'passkey', 'passkey_recovery', 'sms_code'].includes(authMethod)) throw new Error('invalid client session method');
     const sessionToken = randomOpaqueToken(randomBytes);
     const csrfToken = randomOpaqueToken(randomBytes);
     const expiresAt = new Date(current.getTime() + sessionTtlMs);
@@ -314,6 +314,27 @@ function createClientBrowserSessionService({
     await audit(transaction, 'session_issued', {
       clientId: owner.rows[0].id, sessionId: result.sessionId,
       requestFingerprintHash: fingerprint, metadata: { authMethod: 'passkey_recovery' },
+    });
+    return result;
+  }
+
+  // The caller must have consumed a valid SMS challenge for the exact mobile
+  // matching this CRM owner inside its transaction before calling this method.
+  async function issueVerifiedSmsSession({ transaction, crmV2ClientId, normalizedMobile, requestFingerprintHash = null } = {}) {
+    if (!transaction || typeof transaction.query !== 'function' || !Number.isSafeInteger(Number(crmV2ClientId)) ||
+        Number(crmV2ClientId) <= 0 || !/^27[678]\d{8}$/.test(String(normalizedMobile || ''))) {
+      return { ok: false, code: 'CLIENT_AUTH_PROFILE_UNAVAILABLE' };
+    }
+    const owner = await transaction.query(
+      `SELECT id, name FROM crm_v2_clients WHERE id = $1 AND normalized_mobile = $2 AND status = 'active' FOR SHARE`,
+      [crmV2ClientId, normalizedMobile],
+    );
+    if (owner.rowCount !== 1) return { ok: false, code: 'CLIENT_AUTH_PROFILE_UNAVAILABLE' };
+    const fingerprint = normalizedFingerprint(requestFingerprintHash);
+    const result = await insertVerifiedSession(transaction, owner.rows[0], now(), 'sms_code', fingerprint);
+    await audit(transaction, 'session_issued', {
+      clientId: owner.rows[0].id, sessionId: result.sessionId,
+      requestFingerprintHash: fingerprint, metadata: { authMethod: 'sms_code' },
     });
     return result;
   }
@@ -534,6 +555,7 @@ function createClientBrowserSessionService({
     completeVerifiedChallenge,
     issueVerifiedPasskeySession,
     issueVerifiedRecoverySession,
+    issueVerifiedSmsSession,
     validateSessionToken,
     rotateCsrfToken,
     revokeSession,

@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260928-trust-server-session-v1';
+const MY_SHILOH_ASSET_VERSION = '20260928-sms-code-signin-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -59,6 +59,19 @@ function authFinishForm(inputId = 'my-shiloh-code') {
   </details>`;
 }
 
+function smsSignInForm() {
+  return `<form class="sms-auth-form" data-client-sms-start>
+    <label>Full name<input name="name" autocomplete="name" maxlength="120" required placeholder="Your name"></label>
+    <label>Mobile number<input name="mobile" type="tel" autocomplete="tel-national" inputmode="tel" required placeholder="082 123 4567"></label>
+    <button class="button button--primary button--wide" type="submit">Send my SMS code</button>
+  </form>
+  <form class="sms-auth-form sms-auth-code" data-client-sms-complete hidden>
+    <label>6-digit code<input name="code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7" required placeholder="123 456"></label>
+    <button class="button button--primary button--wide" type="submit">Open My Shiloh</button>
+    <p>Sent to your phone. The code works for 10 minutes.</p>
+  </form>`;
+}
+
 function johannesburgGreeting(now = new Date()) {
   const hour = Number(new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Africa/Johannesburg',
@@ -78,6 +91,7 @@ function renderMyShilohPage({
   selectedServiceId = '',
   client = null,
   passkeysAvailable = false,
+  smsAvailable = false,
   signInMethod = 'whatsapp_challenge',
   now = new Date(),
 } = {}) {
@@ -126,13 +140,14 @@ function renderMyShilohPage({
     : `<div class="hero">
         <p class="eyebrow">Welcome to My Shiloh</p>
         <h1 id="home-title">Your Shiloh, all in one place.</h1>
-        <p class="hero-copy">${passkeysAvailable ? 'Use a passkey or WhatsApp to open your personal Shiloh space. No password or email needed.' : 'Use WhatsApp to confirm it’s you and open your personal Shiloh space. No password or email needed.'}</p>
+        <p class="hero-copy">${smsAvailable ? 'Use a passkey or a code sent to your mobile phone to open My Shiloh.' : passkeysAvailable ? 'Use a passkey or WhatsApp to open your personal Shiloh space. No password or email needed.' : 'Use WhatsApp to confirm it’s you and open your personal Shiloh space. No password or email needed.'}</p>
         <div class="hero-actions">
           ${passkeySignInButton}
-          <button class="button button--primary" type="button" data-client-auth-start>Open WhatsApp to verify</button>
+          ${smsAvailable ? smsSignInForm() : ''}
+          ${smsAvailable ? '<details class="auth-code-disclosure"><summary>Need help signing in?</summary><button class="button button--soft" type="button" data-client-auth-start>Use WhatsApp temporarily</button></details>' : '<button class="button button--primary" type="button" data-client-auth-start>Open WhatsApp to verify</button>'}
           <a class="button button--soft" href="#how-booking-works" data-booking-steps-link>How booking works</a>
         </div>
-        <p class="auth-hint">Tap Send in WhatsApp, then return to My Shiloh. We’ll open your account automatically.</p>
+        ${!smsAvailable ? '<p class="auth-hint">Tap Send in WhatsApp, then return to My Shiloh. We’ll open your account automatically.</p>' : ''}
         <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
         ${authFinishForm('my-shiloh-home-code')}
       </div>`;
@@ -159,7 +174,7 @@ function renderMyShilohPage({
         </div>
         <ol class="booking-steps">
           <li><strong>Explore treatments</strong><span>See what feels right for you.</span></li>
-          <li><strong>Confirm it’s you</strong><span>Sign in securely with WhatsApp.</span></li>
+          <li><strong>Confirm it’s you</strong><span>${smsAvailable ? 'Use a passkey or a code sent to your mobile phone.' : 'Sign in securely with WhatsApp.'}</span></li>
           <li><strong>Request a time</strong><span>Reception confirms your appointment before it’s booked.</span></li>
         </ol>
       </section>`;
@@ -203,7 +218,7 @@ function renderMyShilohPage({
       </div>
       <div class="profile-auth-card">
         <div class="profile-avatar" aria-hidden="true">${firstName.charAt(0).toUpperCase()}</div>
-        <div class="profile-auth-card__identity"><span>Signed in as</span><strong>${clientName}</strong><small>${signInMethod === 'passkey' ? 'Signed in with a passkey' : signInMethod === 'passkey_recovery' ? 'Signed in with a recovery code' : 'Verified with WhatsApp'}</small></div>
+        <div class="profile-auth-card__identity"><span>Signed in as</span><strong>${clientName}</strong><small>${signInMethod === 'passkey' ? 'Signed in with a passkey' : signInMethod === 'passkey_recovery' ? 'Signed in with a recovery code' : signInMethod === 'sms_code' ? 'Verified by SMS' : 'Verified with WhatsApp'}</small></div>
       </div>
       ${passkeysAvailable ? `<section class="profile-editor" aria-labelledby="passkey-title">
         <div class="profile-editor__heading"><div><p class="eyebrow">Sign-in</p><h2 id="passkey-title">Make next time easier.</h2></div></div>
@@ -248,7 +263,7 @@ function renderMyShilohPage({
             </label>
           </div>
           <div class="profile-mobile">
-            <div><span>Verified WhatsApp number</span><strong data-client-profile-mobile>Checking…</strong></div>
+            <div><span>Verified mobile number</span><strong data-client-profile-mobile>Checking…</strong></div>
             <p>Your sign-in number cannot be changed here. Please ask the clinic team if it needs to be updated.</p>
           </div>
           <p class="profile-editor__status" data-client-profile-status role="status" aria-live="polite">Loading your details…</p>
@@ -293,11 +308,12 @@ function renderMyShilohPage({
     : `<div class="page-intro">
         <p class="eyebrow">Profile</p>
         <h1 id="profile-title">Your Shiloh, remembered.</h1>
-        <p>Use WhatsApp to confirm it’s you. You’ll never need a password.</p>
+        <p>${smsAvailable ? 'Sign in with your passkey or a code sent to your mobile phone.' : 'Use WhatsApp to confirm it’s you. You’ll never need a password.'}</p>
       </div>
-      <button class="button button--primary button--wide" type="button" data-client-auth-start>Open WhatsApp to verify</button>
+      ${smsAvailable ? smsSignInForm() : ''}
+      ${smsAvailable ? '<details class="auth-code-disclosure"><summary>Need help signing in?</summary><button class="button button--soft" type="button" data-client-auth-start>Use WhatsApp temporarily</button></details>' : '<button class="button button--primary button--wide" type="button" data-client-auth-start>Open WhatsApp to verify</button>'}
       ${passkeySignInButton}
-      <p class="auth-hint">Tap Send in WhatsApp, then return to My Shiloh. We’ll open your account automatically.${passkeySignInButton ? ' If you have not saved a My Shiloh passkey yet, use WhatsApp first and save one under Profile.' : ''}</p>
+      ${!smsAvailable ? `<p class="auth-hint">Tap Send in WhatsApp, then return to My Shiloh. We’ll open your account automatically.${passkeySignInButton ? ' If you have not saved a My Shiloh passkey yet, use WhatsApp first and save one under Profile.' : ''}</p>` : ''}
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
       ${authFinishForm('my-shiloh-profile-code')}
       <aside class="privacy-note">
@@ -326,9 +342,10 @@ function renderMyShilohPage({
         <h1 id="wallet-title">Your Shiloh value, together.</h1>
         <p>Sign in to see your vouchers, rewards and payment shortcuts.</p>
       </div>
-      <button class="button button--primary button--wide" type="button" data-client-auth-start>Open WhatsApp to verify</button>
+      ${smsAvailable ? smsSignInForm() : ''}
+      ${smsAvailable ? '<details class="auth-code-disclosure"><summary>Need help signing in?</summary><button class="button button--soft" type="button" data-client-auth-start>Use WhatsApp temporarily</button></details>' : '<button class="button button--primary button--wide" type="button" data-client-auth-start>Open WhatsApp to verify</button>'}
       ${passkeySignInButton}
-      <p class="auth-hint">Tap Send in WhatsApp, then return to My Shiloh. We’ll open your account automatically.${passkeySignInButton ? ' If you have not saved a My Shiloh passkey yet, use WhatsApp first and save one under Profile.' : ''}</p>
+      ${!smsAvailable ? `<p class="auth-hint">Tap Send in WhatsApp, then return to My Shiloh. We’ll open your account automatically.${passkeySignInButton ? ' If you have not saved a My Shiloh passkey yet, use WhatsApp first and save one under Profile.' : ''}</p>` : ''}
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
       ${authFinishForm('my-shiloh-wallet-code')}`;
 
@@ -370,7 +387,8 @@ function renderMyShilohPage({
       </div>` : ''}
       <button class="button button--primary button--wide" type="button" data-install-gate-action>Install My Shiloh</button>
       ${!authenticated ? passkeySignInButton : ''}
-      ${!authenticated && passkeysAvailable ? '<div class="auth-status" data-auth-status role="status" aria-live="polite"></div>' : ''}
+      ${!authenticated && smsAvailable ? smsSignInForm() : ''}
+      ${!authenticated && (passkeysAvailable || smsAvailable) ? '<div class="auth-status" data-auth-status role="status" aria-live="polite"></div>' : ''}
       <p class="install-gate__status" data-install-gate-status aria-live="polite">Already installed? Open My Shiloh from your Home Screen, tap Bookings, then Book another appointment. You may need to choose your treatment again.</p>
     </section>
   </main>
@@ -413,7 +431,7 @@ function renderMyShilohPage({
         <div class="page-intro">
           <p class="eyebrow">Bookings</p>
           <h1 id="bookings-title">Your time with Shiloh.</h1>
-          <p>${authenticated ? 'Your appointments and visit details will appear here.' : 'Sign in with WhatsApp to see your appointments and request a new booking.'}</p>
+          <p>${authenticated ? 'Your appointments and visit details will appear here.' : smsAvailable ? 'Sign in to see your appointments and request a new booking.' : 'Sign in with WhatsApp to see your appointments and request a new booking.'}</p>
         </div>
         ${authenticated ? '<a class="button button--primary bookings-new-action" href="/my-shiloh/book">Book another appointment</a>' : ''}
         ${authenticated ? `<form class="website-treatment-form" data-website-treatment-form>
@@ -424,7 +442,7 @@ function renderMyShilohPage({
         <div class="stack" data-client-experience-bookings>
           <article class="action-card action-card--accent">
             <span class="action-number">01</span>
-            <div><h2>${authenticated ? 'Loading your next booking…' : 'Book something new'}</h2><p>${authenticated ? 'We’re bringing your next appointment into view.' : 'Confirm it’s you with WhatsApp first. Then choose your treatment and request a time in My Shiloh.'}</p></div>
+            <div><h2>${authenticated ? 'Loading your next booking…' : 'Book something new'}</h2><p>${authenticated ? 'We’re bringing your next appointment into view.' : smsAvailable ? 'Sign in securely first. Then choose your treatment and request a time in My Shiloh.' : 'Confirm it’s you with WhatsApp first. Then choose your treatment and request a time in My Shiloh.'}</p></div>
             <a class="button button--primary" href="${authenticated ? '/my-shiloh/book' : '#home'}">${authenticated ? 'Book an appointment' : 'Sign in to book'}</a>
           </article>
           <article class="action-card">
