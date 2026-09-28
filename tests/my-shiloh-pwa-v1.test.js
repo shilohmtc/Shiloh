@@ -92,9 +92,17 @@ test('Home choosing help opens in-app Shiloh for clients and keeps guest and Rec
   assert.match(card(reception), /Reception is helping you/);
   assert.match(card(reception), /href="#shiloh" aria-label="Open Shiloh in My Shiloh"/);
   assert.match(reception, /Reception is handling your request/);
-  assert.match(card(guest), /sign in for help inside My Shiloh/);
-  assert.match(card(guest), /This opens WhatsApp/);
-  assert.match(card(guest), /href="https:\/\/wa\.me\/27830000000\?text=/);
+  assert.equal(card(guest), '');
+});
+
+test('guest recovery help calls Reception for assisted identity review without offering an account reset', () => {
+  const guest = renderMyShilohPage({ passkeysAvailable: true, smsAvailable: true, humanWhatsAppNumber: '0662399138' });
+  assert.doesNotMatch(guest, /data-booking-steps-link|Need help signing in\?/);
+  assert.match(guest, /id="home-recovery-help"/);
+  assert.match(guest, /Lost access to your phone and recovery code\?/);
+  assert.match(guest, /href="tel:\+27662399138">Call Reception/);
+  assert.match(guest, /check that it’s your account before helping you regain access/);
+  assert.doesNotMatch(guest, /automatic account reset/);
 });
 
 test('Bookings help stays in My Shiloh for clients and names the guest and Reception boundaries', () => {

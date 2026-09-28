@@ -180,13 +180,6 @@
   }
 
   window.addEventListener('hashchange', () => activateView(selectedView()));
-  document.querySelector('[data-booking-steps-link]')?.addEventListener('click', (event) => {
-    const steps = document.querySelector('#how-booking-works');
-    if (!steps) return;
-    event.preventDefault();
-    steps.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
-    steps.querySelector('h2')?.focus({ preventScroll: true });
-  });
   activateView(selectedView());
   refreshClientGreeting();
   document.addEventListener('visibilitychange', () => {

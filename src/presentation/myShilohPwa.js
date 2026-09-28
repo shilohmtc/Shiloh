@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260928-guest-signin-clarity-v1';
+const MY_SHILOH_ASSET_VERSION = '20260928-assisted-recovery-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -101,6 +101,8 @@ function renderMyShilohPage({
   const suppliedHumanDigits = String(humanWhatsAppNumber || '').replace(/\D/g, '');
   const humanDigits = /^0[678]\d{8}$/.test(suppliedHumanDigits) ? `27${suppliedHumanDigits.slice(1)}`
     : /^27[678]\d{8}$/.test(suppliedHumanDigits) ? suppliedHumanDigits : '';
+  const receptionPhone = humanDigits || '27662399138';
+  const receptionDisplay = receptionPhone === '27662399138' ? '066 239 9138' : `+${receptionPhone}`;
   const speakToReception = humanDigits ? whatsappUrl(humanDigits,
     'Hi Reception, I am using My Shiloh and would like to speak with a person.') : null;
   const authenticated = Boolean(client?.id && client?.firstName);
@@ -110,13 +112,9 @@ function renderMyShilohPage({
     : authenticated ? '#shiloh' : askShiloh;
   const bookingsHelpLabel = humanHandoffActive && speakToReception ? 'Ask Reception'
     : authenticated ? 'Ask Shiloh' : 'Ask Shiloh on WhatsApp';
-  const choosingHelpCopy = authenticated
-    ? humanHandoffActive
-      ? 'Reception is helping you. Open Shiloh to see how to continue.'
-      : 'Tell Shiloh what you’re looking for and chat here in My Shiloh.'
-    : 'Ask Shiloh for help choosing a treatment. This opens WhatsApp; sign in for help inside My Shiloh.';
-  const choosingHelpHref = authenticated ? '#shiloh' : askShiloh;
-  const choosingHelpLabel = authenticated ? 'Open Shiloh in My Shiloh' : 'Chat with Shiloh on WhatsApp';
+  const choosingHelpCopy = humanHandoffActive
+    ? 'Reception is helping you. Open Shiloh to see how to continue.'
+    : 'Tell Shiloh what you’re looking for and chat here in My Shiloh.';
   const greeting = authenticated ? johannesburgGreeting(now) : null;
   const clientName = authenticated ? escapeHtml(client.name || client.firstName) : '';
   const firstName = authenticated ? escapeHtml(client.firstName) : '';
@@ -134,6 +132,11 @@ function renderMyShilohPage({
          <p>${smsAvailable ? 'Can’t access your mobile number either? Contact Shiloh Reception for help.' : 'Lost your code too? Contact Shiloh Reception for help.'}</p>
        </details>`
     : '';
+  const recoveryHelp = (id) => `<details class="recovery-help" id="${id}">
+    <summary>Lost access to your phone and recovery code?</summary>
+    <p>Call Reception on ${receptionDisplay}. The team will check that it’s your account before helping you regain access. Please don’t share sign-in codes.</p>
+    <a class="button button--soft" href="tel:+${receptionPhone}">Call Reception</a>
+  </details>`;
 
   const hero = authenticated
     ? `<div class="hero">
@@ -149,9 +152,8 @@ function renderMyShilohPage({
           ${passkeySignInButton}
           ${smsAvailable ? smsSignInForm() : ''}
           ${passkeyRecovery}
-          ${smsAvailable ? '<p class="auth-hint">Need help signing in? Contact Reception.</p>' : ''}
-          <a class="button button--soft" href="#how-booking-works" data-booking-steps-link>How booking works</a>
         </div>
+        ${recoveryHelp('home-recovery-help')}
         <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
       </div>`;
 
@@ -314,8 +316,8 @@ function renderMyShilohPage({
         <p>${smsAvailable ? 'Sign in with your passkey or a code sent to your mobile phone.' : passkeysAvailable ? 'Sign in with your passkey.' : 'Sign-in is temporarily unavailable. Please contact Reception for help.'}</p>
       </div>
       ${smsAvailable ? smsSignInForm() : ''}
-      ${smsAvailable ? '<p class="auth-hint">Need help signing in? Contact Reception.</p>' : ''}
       ${passkeySignInButton}
+      ${recoveryHelp('profile-recovery-help')}
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
       <aside class="privacy-note">
         <span aria-hidden="true">✓</span>
@@ -344,8 +346,8 @@ function renderMyShilohPage({
         <p>Sign in to see your vouchers, rewards and payment shortcuts.</p>
       </div>
       ${smsAvailable ? smsSignInForm() : ''}
-      ${smsAvailable ? '<p class="auth-hint">Need help signing in? Contact Reception.</p>' : ''}
       ${passkeySignInButton}
+      ${recoveryHelp('wallet-recovery-help')}
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
       `;
 
@@ -427,11 +429,11 @@ function renderMyShilohPage({
           <div class="service-scroll" aria-label="Featured treatments; swipe sideways to see more">${serviceCards(catalogue, authenticated)}</div>
           ${sanitizePublicCatalogue(catalogue).length > 1 ? '<p class="service-scroll-hint" aria-hidden="true">Swipe to see more treatments →</p>' : ''}
         </section>
-        <section class="quiet-card">
+        ${authenticated ? `<section class="quiet-card">
           <div class="quiet-icon" aria-hidden="true">S</div>
           <div><p class="eyebrow">Shiloh is close</p><h2>Need help choosing?</h2><p>${choosingHelpCopy}</p></div>
-          <a class="circle-link" href="${escapeHtml(choosingHelpHref)}" aria-label="${choosingHelpLabel}"${authenticated ? '' : ' rel="noopener noreferrer"'}>→</a>
-        </section>
+          <a class="circle-link" href="#shiloh" aria-label="Open Shiloh in My Shiloh">→</a>
+        </section>` : ''}
       </section>
 
       <section class="view" id="bookings" data-view="bookings" aria-labelledby="bookings-title" hidden>

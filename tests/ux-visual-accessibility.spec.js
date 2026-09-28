@@ -104,7 +104,7 @@ test('SMS and passkey sign-in fits one phone column', async ({ page }, testInfo)
   await page.goto('/iframe.html?id=client-my-shiloh-pwa--sms-and-passkey-guest&viewMode=story', { waitUntil:'networkidle' });
   const home = page.locator('[data-view="home"]');
   const form = home.locator('[data-client-sms-start]');
-  const help = home.getByText('Need help signing in?');
+  const help = home.locator('#home-recovery-help');
   await expect(home.getByRole('button', { name:'Sign in with a passkey' })).toBeVisible();
   await expect(form.getByRole('button', { name:'Send my SMS code' })).toBeVisible();
   const formBox = await form.boundingBox();
@@ -113,6 +113,8 @@ test('SMS and passkey sign-in fits one phone column', async ({ page }, testInfo)
   expect(formBox.width).toBeGreaterThan(heroBox.width * .8);
   expect(formBox.x + formBox.width).toBeLessThanOrEqual(390);
   expect(helpBox.y).toBeGreaterThan(formBox.y + formBox.height);
+  await help.locator('summary').click();
+  await expect(help.getByRole('link', { name:'Call Reception' })).toHaveAttribute('href', 'tel:+27662399138');
   const result = await new AxeBuilder({ page }).include('[data-view="home"]')
     .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
   expect(result.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
@@ -192,8 +194,9 @@ test('My Shiloh guest booking stays behind secure sign-in on phone and desktop',
     await frame.locator('[data-view="home"] .passkey-recovery summary').click();
     await expect(frame.locator('.booking-steps li')).toHaveCount(3);
     await expect(frame.locator('.booking-steps')).toContainText('Reception confirms your appointment before it’s booked.');
-    await frame.getByRole('link', { name:'How booking works' }).click();
-    await expect(frame.getByRole('heading', { name:'Your visit starts here.' })).toBeFocused();
+  await expect(frame.getByRole('link', { name:'How booking works' })).toHaveCount(0);
+  await expect(frame.getByRole('heading', { name:'Your visit starts here.' })).toBeVisible();
+  await expect(frame.locator('[data-view="home"] .quiet-card').filter({ hasText:'Need help choosing?' })).toHaveCount(0);
     await frame.locator('[data-view-target="bookings"]').click();
     await expect(frame.getByRole('heading', { name:'Your time with Shiloh.' })).toBeVisible();
     await frame.getByRole('link', { name:'Sign in to book' }).last().click();
