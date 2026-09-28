@@ -1909,8 +1909,9 @@ test('My Shiloh install doorway is clear, contained and accessible on Phone and 
     await expect(gate).toBeVisible();
     await expect(page.locator('[data-app-frame]')).toBeHidden();
     await expect(page.getByRole('heading', { name: 'Keep My Shiloh one tap away.' })).toBeVisible();
-    await expect(page.getByText('Already installed? Open My Shiloh from your Home Screen, tap Bookings, then Book another appointment. You may need to choose your treatment again.')).toBeVisible();
+    await expect(page.getByText('Already installed? Open My Shiloh from your Home Screen.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Show install steps' })).toBeVisible();
+    await expect(gate.locator('[data-client-sms-start], [data-passkey-sign-in]')).toHaveCount(0);
     await expect(gate.locator('[data-install-gate-instructions]')).toHaveCount(0);
 
     const metrics = await gate.evaluate((node) => ({
@@ -2017,6 +2018,7 @@ test('authenticated My Shiloh browser sessions still show only the install doorw
     await expect(appFrame).toBeHidden();
     await expect(page.getByRole('heading', { name: 'Keep My Shiloh one tap away.' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Show install steps' })).toBeVisible();
+    await expect(gate.locator('[data-client-sms-start], [data-passkey-sign-in]')).toHaveCount(0);
     await expect(gate.locator('[data-install-gate-instructions]')).toHaveCount(0);
     await expect(page.getByText('Good evening, Christel.')).toBeHidden();
     await expect(page.getByText('Your R100 welcome voucher.')).toBeHidden();
@@ -2071,7 +2073,7 @@ test('iPhone Safari install guide fits without scrolling and is accessible on Ph
     await expect(gate).toBeVisible();
     await expect(sheet).toBeVisible();
     await expect(gate.getByRole('heading', { name: 'Add My Shiloh to your iPhone.' })).toBeVisible();
-    await expect(gate.getByRole('button', { name: 'Show iPhone steps' })).toBeVisible();
+    await expect(gate.getByRole('button', { name: 'Install My Shiloh' })).toBeVisible();
     await expect(sheet.getByRole('heading', { name: 'Three quick steps.' })).toBeVisible();
     await expect(sheet.getByText('Stay in Safari — no App Store download is needed.')).toBeVisible();
     const safariShareStep = sheet.locator('[data-install-step-title="1"]');
@@ -2121,7 +2123,7 @@ test('iPhone Chrome install guide adds My Shiloh directly without scrolling', as
     const sheet = page.locator('[data-install-sheet]');
     const panel = sheet.locator('.install-sheet__panel');
     await expect(gate.getByRole('heading', { name: 'Add My Shiloh to your iPhone.' })).toBeVisible();
-    await expect(gate.getByRole('button', { name: 'Show iPhone steps' })).toBeVisible();
+    await expect(gate.getByRole('button', { name: 'Install My Shiloh' })).toBeVisible();
     await expect(gate.getByText('You’re in Chrome. Use Share to add My Shiloh to your Home Screen.')).toBeVisible();
     await expect(sheet.getByRole('heading', { name: 'Three quick steps.' })).toBeVisible();
     await expect(sheet.getByText('You can add My Shiloh straight from Chrome — no App Store download is needed.')).toBeVisible();

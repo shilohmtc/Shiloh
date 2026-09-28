@@ -143,9 +143,9 @@ test('home includes a clear My Shiloh install and returning-client entry point',
   assert.match(html, /class="client-portal"/);
   assert.match(html, /Keep Shiloh one tap away\./);
   assert.match(html, /href="https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/" data-my-shiloh-install-link>Install My Shiloh<\/a>/);
-  assert.match(html, /href="https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/"[^>]*>Open My Shiloh<\/a>/);
-  assert.match(html, /On iPhone, open My Shiloh in Safari before using Share/);
-  assert.match(html, /share\.google, choose Open in Safari first/);
+  assert.equal((html.match(/data-my-shiloh-install-link/g) || []).length, 1);
+  assert.match(html, /On iPhone, use Share → Add to Home Screen in Safari/);
+  assert.match(html, /first choose Open in Safari/);
   assert.match(html, /bookings, latest appointment details and Wallet/i);
 });
 

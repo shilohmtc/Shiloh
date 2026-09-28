@@ -444,7 +444,7 @@ async function proveGoogleAppInstallHandoff(browser) {
     const page = await context.newPage();
     await page.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
     await page.getByText('If the Share screen says share.google, do not add that link.').waitFor();
-    await page.getByRole('button', { name: 'Show Safari steps' }).click();
+    await page.getByRole('button', { name: 'Install My Shiloh' }).click();
     await page.getByRole('heading', { name: 'Open in Safari first.' }).waitFor();
     const steps = page.locator('[data-install-steps] li:visible');
     if (await steps.count() !== 4) throw new Error('Google iPhone install guide must show all four Safari handoff steps');
