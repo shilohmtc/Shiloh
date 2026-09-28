@@ -8,6 +8,7 @@ const { buildProblemReportResolvedTemplateDefinition } = require('./problemRepor
 const { buildReminderActionTemplateDefinition } = require('./reminderActionTemplateProvisioning');
 const { buildDefinition } = require('./clientLifecycleTemplateProvisioning');
 const { buildStaffAuthTemplateSubmissionDefinition } = require('./staffAuthTemplateDefinition');
+const { buildClientAuthTemplateSubmissionDefinition } = require('./clientAuthTemplateDefinition');
 const { buildPaymentTemplateDefinition } = require('./paymentTemplateDefinitions');
 const {
   TEMPLATE_SPECS: CONSULTATION_TEMPLATE_SPECS,
@@ -24,6 +25,7 @@ const SOURCE_DEFINITIONS = Object.freeze({
   workspace_booking_request_alert: () => buildWorkspaceBookingRequestAlertTemplateDefinition(),
   problem_report_resolved: () => buildProblemReportResolvedTemplateDefinition(),
   staff_auth_otp: () => buildStaffAuthTemplateSubmissionDefinition(),
+  client_auth_otp: () => buildClientAuthTemplateSubmissionDefinition(),
   staff_finalization_actions: () => buildStaffFinalizationActionTemplateDefinition(),
   appointment_followup_v2: () => definition('appointment_followup_actions'),
   booking_approval_outcome: () => definition('booking_approval_outcome'),
@@ -103,11 +105,11 @@ function getShilohMessageContract(id) {
 function semanticButton(button = {}, contractId = null) {
   const otpType = button.otp_type == null ? null : String(button.otp_type).toUpperCase();
   let type = String(button.type || '').toUpperCase();
-  if (contractId === 'staff_auth_otp' && otpType === 'COPY_CODE') type = 'OTP';
+  if (['staff_auth_otp', 'client_auth_otp'].includes(contractId) && otpType === 'COPY_CODE') type = 'OTP';
   const normalized = { type };
   if (button.text != null) normalized.text = button.text;
   if (otpType) normalized.otp_type = otpType;
-  if (contractId !== 'staff_auth_otp' && button.url != null) normalized.url = button.url;
+  if (!['staff_auth_otp', 'client_auth_otp'].includes(contractId) && button.url != null) normalized.url = button.url;
   if (button.phone_number != null) normalized.phone_number = button.phone_number;
   return normalized;
 }
