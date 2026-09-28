@@ -7,6 +7,9 @@ const { sha256, randomOpaqueToken, normalizedFingerprint } = require('./clientBr
 
 const TTL_MS = 10 * 60 * 1000;
 const ISSUE_WINDOW_MS = 60 * 60 * 1000;
+const DAILY_WINDOW_MS = 24 * 60 * 60 * 1000;
+const MOBILE_DAILY_LIMIT = 6;
+const CLINIC_DAILY_LIMIT = 50;
 const SEND_URL = 'https://sms1.smsmessenger.co.za/app/api/rest/v1/sms/send.json';
 const BALANCE_URL = 'https://sms1.smsmessenger.co.za/app/api/rest/v1/account/balance.json';
 
@@ -133,6 +136,11 @@ function createClientSmsAuthService({
     let id;
     try {
       await client.query('BEGIN');
+      // Serialize the clinic-wide budget before the per-mobile locks so parallel
+      // requests cannot all see the last available send at once.
+      await client.query(
+        `SELECT pg_advisory_xact_lock(hashtextextended('my-shiloh-sms-daily-budget', 0))`,
+      );
       await client.query(
         `SELECT pg_advisory_xact_lock(hashtextextended('my-shiloh-sms:' || $1::text, 0))`,
         [normalizedMobile],
@@ -150,10 +158,23 @@ function createClientSmsAuthService({
         [normalizedMobile, fingerprint, new Date(current.getTime() - ISSUE_WINDOW_MS)],
       );
       const counts = recent.rows[0];
+      const daily = await client.query(
+        `SELECT COUNT(*) FILTER (WHERE normalized_mobile = $1)::int AS mobile_day_count,
+                COUNT(*)::int AS clinic_day_count
+           FROM client_sms_auth_challenges WHERE issued_at >= $2`,
+        [normalizedMobile, new Date(current.getTime() - DAILY_WINDOW_MS)],
+      );
+      const dayCounts = daily.rows[0];
       if (Number(counts.mobile_count) >= 5 || (fingerprint && Number(counts.fingerprint_count) >= 12) ||
-          (counts.last_issued && current.getTime() - new Date(counts.last_issued).getTime() < 60_000)) {
+          (counts.last_issued && current.getTime() - new Date(counts.last_issued).getTime() < 60_000) ||
+          Number(dayCounts.mobile_day_count) >= MOBILE_DAILY_LIMIT ||
+          Number(dayCounts.clinic_day_count) >= CLINIC_DAILY_LIMIT) {
         await client.query('ROLLBACK');
         return { ok: false, code: 'SMS_RATE_LIMITED' };
+      }
+      if (Number(dayCounts.clinic_day_count) === Math.floor(CLINIC_DAILY_LIMIT * 0.8) - 1) {
+        logger.warn(JSON.stringify({ event: 'my_shiloh_sms_daily_budget_near_limit',
+          sends: Math.floor(CLINIC_DAILY_LIMIT * 0.8), limit: CLINIC_DAILY_LIMIT }));
       }
       await client.query(
         `UPDATE client_sms_auth_challenges SET revoked_at = $2

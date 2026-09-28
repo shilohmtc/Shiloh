@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260928-sms-passkey-copy-v2';
+const MY_SHILOH_ASSET_VERSION = '20260928-client-setup-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -397,6 +397,14 @@ function renderMyShilohPage({
 
     <main id="main-content" class="app-main">
       <section class="view is-active" id="home" data-view="home" aria-labelledby="home-title">
+        ${authenticated && passkeysAvailable ? `<section class="client-setup" data-client-setup hidden aria-labelledby="client-setup-title">
+          <p class="eyebrow" data-client-setup-step>One quick setup step</p>
+          <h2 id="client-setup-title" data-client-setup-title>Save your Shiloh passkey.</h2>
+          <p data-client-setup-copy>Use your phone’s screen lock to open My Shiloh next time, without waiting for an SMS code.</p>
+          <button class="button button--primary button--wide" type="button" data-client-setup-action>Save my passkey</button>
+          <button class="client-setup__later" type="button" data-client-setup-later hidden>Maybe later</button>
+          <p class="client-setup__status" role="status" aria-live="polite" data-client-setup-status></p>
+        </section>` : ''}
         ${hero}
         ${focus}
         ${authenticated ? `<aside class="notification-invite" data-push-invite hidden aria-labelledby="notification-invite-title">

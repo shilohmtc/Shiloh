@@ -28,6 +28,13 @@
   const pushToggle = document.querySelector('[data-push-toggle]');
   const pushStatus = document.querySelector('[data-push-status]');
   const pushInvite = document.querySelector('[data-push-invite]');
+  const clientSetup = document.querySelector('[data-client-setup]');
+  const clientSetupStep = document.querySelector('[data-client-setup-step]');
+  const clientSetupTitle = document.querySelector('[data-client-setup-title]');
+  const clientSetupCopy = document.querySelector('[data-client-setup-copy]');
+  const clientSetupAction = document.querySelector('[data-client-setup-action]');
+  const clientSetupLater = document.querySelector('[data-client-setup-later]');
+  const clientSetupStatus = document.querySelector('[data-client-setup-status]');
   const appFrame = document.querySelector('[data-app-frame]');
   const authStartButtons = [...document.querySelectorAll('[data-client-auth-start]')];
   const passkeySignInButtons = [...document.querySelectorAll('[data-passkey-sign-in]')];
@@ -73,6 +80,8 @@
   const clientArchiveToggle = document.querySelector('[data-client-archive-toggle]');
   const notificationArchiveKey = appFrame?.dataset.notificationClientId
     ? `my-shiloh-archived-updates-v1:${appFrame.dataset.notificationClientId}` : null;
+  const notificationSetupKey = appFrame?.dataset.notificationClientId
+    ? `my-shiloh-notification-setup-later-v1:${appFrame.dataset.notificationClientId}` : null;
   let archivedUpdateIds = new Set();
   let showArchivedUpdates = false;
   let latestNotifications = [];
@@ -97,6 +106,38 @@
   let serviceWorkerRegistration = null;
   let updateReloadPending = false;
   let pushBusy = false;
+  let clientSetupChecking = Boolean(clientSetup);
+  let clientSetupCheckFailed = false;
+  let clientHasPasskey = false;
+  let clientSetupPushReady = false;
+  let clientSetupPushEnabled = false;
+  let clientSetupProblem = '';
+  let notificationSetupDeferred = false;
+  try { notificationSetupDeferred = Boolean(notificationSetupKey && localStorage.getItem(notificationSetupKey)); } catch (_) {}
+
+  function renderClientSetup() {
+    if (!clientSetup) return;
+    const passkeyStep = !clientHasPasskey;
+    const notificationStep = !passkeyStep && clientSetupPushReady && !clientSetupPushEnabled
+      && !notificationSetupDeferred;
+    clientSetup.hidden = clientSetupChecking || (!passkeyStep && !notificationStep);
+    if (clientSetup.hidden) return;
+    clientSetup.dataset.step = clientSetupCheckFailed && passkeyStep ? 'check'
+      : passkeyStep ? 'passkey' : 'notifications';
+    clientSetupStep.textContent = passkeyStep ? 'First, secure your sign-in' : 'Next, appointment updates';
+    clientSetupTitle.textContent = passkeyStep ? 'Save your Shiloh passkey.' : 'Turn on Shiloh notifications.';
+    clientSetupCopy.textContent = passkeyStep
+      ? 'Use your phone’s screen lock to open My Shiloh next time, without waiting for an SMS code.'
+      : 'Get booking updates and reminders on this phone. You can turn these off later in Profile.';
+    clientSetupAction.textContent = clientSetupCheckFailed && passkeyStep ? 'Try again'
+      : passkeyStep ? 'Save my passkey' : 'Turn on notifications';
+    clientSetupAction.disabled = passkeyStep ? passkeyEnrollBusy || (!clientSetupCheckFailed && !passkeySupported()) : pushBusy;
+    clientSetupLater.hidden = passkeyStep;
+    clientSetupStatus.textContent = passkeyStep
+      ? (clientSetupCheckFailed || passkeySupported() ? clientSetupProblem : 'Passkeys are unavailable on this device. You can keep using My Shiloh and try another supported device.')
+      : clientSetupProblem;
+    if (pushInvite) pushInvite.hidden = true;
+  }
 
   function completionCodeFromHash() {
     const match = String(window.location.hash || '').match(/^#verify=(\d{6})$/);
@@ -998,6 +1039,11 @@
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !Array.isArray(data.devices)) throw new Error('Could not load saved passkeys.');
+      clientHasPasskey = data.devices.length > 0;
+      clientSetupChecking = false;
+      clientSetupCheckFailed = false;
+      clientSetupProblem = '';
+      renderClientSetup();
       passkeyDevices.replaceChildren();
       if (!data.devices.length) {
         passkeyDevices.textContent = 'No passkeys saved yet.';
@@ -1028,6 +1074,10 @@
       passkeyDevices.append(list);
     } catch (error) {
       passkeyDevices.textContent = error.message || 'Could not load saved passkeys.';
+      clientSetupChecking = false;
+      clientSetupCheckFailed = !clientHasPasskey;
+      clientSetupProblem = 'We could not check your saved passkeys. Tap below to try again.';
+      renderClientSetup();
     }
   }
 
@@ -1053,6 +1103,8 @@
     if (!passkeySupported() || passkeyEnrollBusy || appFrame?.dataset.clientAuthenticated !== 'true') return;
     passkeyEnrollBusy = true;
     passkeyEnrollButton.disabled = true;
+    if (clientSetupAction) clientSetupAction.disabled = true;
+    if (clientSetupStatus) clientSetupStatus.textContent = 'Preparing your passkey…';
     if (passkeyEnrollStatus) passkeyEnrollStatus.textContent = 'Preparing your passkey…';
     try {
       const csrfToken = await freshCsrfToken();
@@ -1071,12 +1123,17 @@
       const result = await finish.json().catch(() => ({}));
       if (!finish.ok || result.registered !== true) throw new Error(result.error || 'Passkey setup could not be completed.');
       if (passkeyEnrollStatus) passkeyEnrollStatus.textContent = 'Your passkey is ready. Use it next time you sign in.';
+      clientHasPasskey = true;
+      clientSetupCheckFailed = false;
+      clientSetupProblem = '';
       await loadPasskeyDevices();
     } catch (error) {
       if (passkeyEnrollStatus) passkeyEnrollStatus.textContent = passkeyError(error, 'Passkey setup could not be completed.');
+      clientSetupProblem = passkeyEnrollStatus?.textContent || 'Passkey setup could not be completed.';
     } finally {
       passkeyEnrollBusy = false;
       passkeyEnrollButton.disabled = false;
+      renderClientSetup();
     }
   }
 
@@ -1198,6 +1255,8 @@
   async function refreshPushUi() {
     if (!pushToggle) return;
     if (pushInvite) pushInvite.hidden = true;
+    clientSetupPushReady = false;
+    clientSetupPushEnabled = false;
     if (!pushSupported()) {
       pushToggle.disabled = true;
       pushToggle.textContent = standalone()
@@ -1206,12 +1265,14 @@
       setPushStatus(standalone()
         ? 'This phone or browser does not currently support My Shiloh notifications.'
         : 'Notifications can be turned on from the installed My Shiloh app.');
+      renderClientSetup();
       return;
     }
     if (Notification.permission === 'denied') {
       pushToggle.disabled = true;
       pushToggle.textContent = 'Notifications blocked';
       setPushStatus('Notifications are blocked in your phone settings.', 'error');
+      renderClientSetup();
       return;
     }
     try {
@@ -1220,6 +1281,7 @@
         pushToggle.disabled = true;
         pushToggle.textContent = 'Update My Shiloh first';
         setPushStatus('Install the ready My Shiloh update, then turn on notifications.');
+        renderClientSetup();
         return;
       }
       const [subscription, config] = await Promise.all([
@@ -1230,19 +1292,24 @@
         pushToggle.disabled = true;
         pushToggle.textContent = 'Notifications unavailable';
         setPushStatus('My Shiloh notifications are not configured yet.');
+        renderClientSetup();
         return;
       }
       pushToggle.disabled = false;
       pushToggle.dataset.enabled = subscription ? 'true' : 'false';
       pushToggle.textContent = subscription ? 'Turn off notifications' : 'Turn on notifications';
-      if (pushInvite) pushInvite.hidden = Boolean(subscription);
+      clientSetupPushReady = true;
+      clientSetupPushEnabled = Boolean(subscription);
+      if (pushInvite) pushInvite.hidden = Boolean(subscription) || Boolean(clientSetup);
       setPushStatus(subscription
         ? 'Notifications are on for this phone.'
         : 'Notifications are off. Turn them on when you’re ready.', subscription ? 'success' : '');
+      renderClientSetup();
     } catch (_) {
       pushToggle.disabled = true;
       pushToggle.textContent = 'Notifications unavailable';
       setPushStatus('Notifications could not be checked right now.');
+      renderClientSetup();
     }
   }
 
@@ -1287,26 +1354,45 @@
     }
   }
 
-  pushToggle?.addEventListener('click', async () => {
+  async function changePushNotifications() {
     if (pushBusy || !pushSupported()) return;
     pushBusy = true;
     pushToggle.disabled = true;
+    if (clientSetupAction) clientSetupAction.disabled = true;
     setPushStatus(pushToggle.dataset.enabled === 'true'
       ? 'Turning off notifications…'
       : 'Turning on notifications…', 'working');
     try {
       if (pushToggle.dataset.enabled === 'true') await disablePushNotifications();
       else await enablePushNotifications();
+      clientSetupProblem = '';
       await refreshPushUi();
     } catch (error) {
       if (Notification.permission === 'denied') await refreshPushUi();
       else {
         setPushStatus(error.message || 'Notifications could not be changed.', 'error');
+        clientSetupProblem = error.message || 'Notifications could not be changed.';
         pushToggle.disabled = false;
       }
     } finally {
       pushBusy = false;
+      renderClientSetup();
     }
+  }
+
+  pushToggle?.addEventListener('click', changePushNotifications);
+  clientSetupAction?.addEventListener('click', () => {
+    if (clientSetup.dataset.step === 'check') {
+      clientSetupChecking = true;
+      renderClientSetup();
+      loadPasskeyDevices();
+    } else if (clientSetup.dataset.step === 'passkey') enrollClientPasskey();
+    else if (clientSetup.dataset.step === 'notifications') changePushNotifications();
+  });
+  clientSetupLater?.addEventListener('click', () => {
+    notificationSetupDeferred = true;
+    try { if (notificationSetupKey) localStorage.setItem(notificationSetupKey, '1'); } catch (_) {}
+    renderClientSetup();
   });
 
   function revealAppUpdate(registration) {

@@ -9,7 +9,8 @@ const { normalizeMobile, normalizeName } = require('../src/services/crmV2ClientS
 const at = new Date('2026-09-28T07:00:00.000Z');
 const fingerprint = 'a'.repeat(64);
 
-function makeHarness({ owner = { status: 'found', client: { id: '17' } }, sendFails = false } = {}) {
+function makeHarness({ owner = { status: 'found', client: { id: '17' } }, sendFails = false,
+  mobileDayCount = 0, clinicDayCount = 0 } = {}) {
   let challenge;
   const queries = [];
   const warnings = [];
@@ -18,6 +19,7 @@ function makeHarness({ owner = { status: 'found', client: { id: '17' } }, sendFa
     async query(sql, params = []) {
       queries.push({ sql, params });
       if (sql.includes('mobile_count')) return { rows: [{ mobile_count: 0, fingerprint_count: 0, last_issued: null }] };
+      if (sql.includes('clinic_day_count')) return { rows: [{ mobile_day_count: mobileDayCount, clinic_day_count: clinicDayCount }] };
       if (sql.includes('INSERT INTO client_sms_auth_challenges')) {
         challenge = { id: 31, browser_token_hash: params[0], normalized_mobile: params[1], client_name: params[2],
           code_hash: params[3], request_fingerprint_hash: params[4], issued_at: params[5], expires_at: params[6],
@@ -158,4 +160,20 @@ test('SMS provider failure revokes the challenge and ambiguous CRM ownership nev
   assert.deepEqual(await ambiguous.service.finish({ browserToken: start.browserToken, code: ambiguous.sent.code }),
     { ok: false, code: 'SMS_PROFILE_UNAVAILABLE' });
   assert.equal(ambiguous.issued(), 0);
+});
+
+test('daily SMS budgets reject repeated requests before gateway delivery and serialize concurrent sends', async () => {
+  for (const limits of [{ mobileDayCount: 6 }, { clinicDayCount: 50 }]) {
+    const h = makeHarness(limits);
+    assert.deepEqual(await h.service.start({ mobile: '0821234567', name: 'Jane Client' }),
+      { ok: false, code: 'SMS_RATE_LIMITED' });
+    assert.equal(h.sent, undefined);
+    assert.equal(h.queries.some(({ sql }) => sql.includes('my-shiloh-sms-daily-budget')), true);
+    assert.equal(h.queries.some(({ sql }) => sql.includes('INSERT INTO client_sms_auth_challenges')), false);
+  }
+  const h = makeHarness({ clinicDayCount: 39 });
+  assert.equal((await h.service.start({ mobile: '0821234567', name: 'Jane Client' })).ok, true);
+  assert.deepEqual(JSON.parse(h.warnings[0]), {
+    event: 'my_shiloh_sms_daily_budget_near_limit', sends: 40, limit: 50,
+  });
 });

@@ -118,6 +118,31 @@ export const AuthenticatedHome = {
   }),
 };
 
+export const FirstSignInPasskeySetup = {
+  render: () => {
+    const surface = productionSurface({ id: '912', name: 'Jean-Pierre Botha', firstName: 'Jean-Pierre' },
+      { passkeysAvailable: true, signInMethod: 'sms_code' });
+    const setup = surface.querySelector('[data-client-setup]');
+    setup.hidden = false;
+    setup.dataset.step = 'passkey';
+    return surface;
+  },
+};
+
+export const FirstSignInNotificationSetup = {
+  render: () => {
+    const surface = FirstSignInPasskeySetup.render();
+    const setup = surface.querySelector('[data-client-setup]');
+    setup.dataset.step = 'notifications';
+    setup.querySelector('[data-client-setup-step]').textContent = 'Next, appointment updates';
+    setup.querySelector('[data-client-setup-title]').textContent = 'Turn on Shiloh notifications.';
+    setup.querySelector('[data-client-setup-copy]').textContent = 'Get booking updates and reminders on this phone. You can turn these off later in Profile.';
+    setup.querySelector('[data-client-setup-action]').textContent = 'Turn on notifications';
+    setup.querySelector('[data-client-setup-later]').hidden = false;
+    return surface;
+  },
+};
+
 export const LongNameNotificationInvite = {
   render: () => {
     const surface = productionSurface({
