@@ -79,7 +79,9 @@ function createSmsMessengerGateway({ env = process.env, fetchImpl = globalThis.f
             if (balanceResponse.status === 401 || balanceResponse.status === 403) error.balanceCheck = 'authentication';
             else if (balanceResponse.ok) {
               const balance = await balanceResponse.json();
-              error.balanceCheck = Number(balance?.creditBalance) <= 0 ? 'no_credits' : 'account_ok';
+              const credits = Number(balance?.creditBalance);
+              error.balanceCheck = Number.isFinite(credits)
+                ? (credits <= 0 ? 'no_credits' : 'account_ok') : 'account_reachable';
             } else error.balanceCheck = 'unavailable';
           } catch (_) { error.balanceCheck = 'unavailable'; }
         }
