@@ -103,7 +103,7 @@ export const SmsCodeEntry = {
 
 export const PasskeyRecovery = {
   render: () => {
-    const surface = productionSurface(null, { passkeysAvailable: true });
+    const surface = productionSurface(null, { passkeysAvailable: true, smsAvailable: true });
     const home = surface.querySelector('[data-view="home"] .passkey-recovery');
     if (home) home.open = true;
     return surface;

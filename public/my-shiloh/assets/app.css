@@ -125,6 +125,7 @@ h3{font-size:20px;line-height:1.12}
   overflow-x:auto;gap:11px;padding:2px 1px 8px;scroll-snap-type:x proximity;scrollbar-width:none;
 }
 .service-scroll::-webkit-scrollbar{display:none}
+.service-scroll-hint{margin:4px 2px 0;color:var(--muted);font-size:11px;font-weight:700;text-align:right}
 .service-card{
   scroll-snap-align:start;display:flex;flex-direction:column;min-height:178px;padding:18px;border-radius:20px;
   background:var(--paper);border:1px solid rgba(37,51,44,.08);box-shadow:0 8px 22px rgba(48,61,52,.06);
@@ -231,6 +232,7 @@ h3{font-size:20px;line-height:1.12}
   .app-main{padding-left:30px;padding-right:30px}
   .hero{padding-top:38px}
   .service-scroll{grid-auto-flow:initial;grid-template-columns:repeat(2,1fr);overflow:visible}
+  .service-scroll-hint{display:none}
   .service-card{min-height:190px}
   .stack{grid-template-columns:1fr 1fr}
 }
@@ -323,6 +325,8 @@ h3{font-size:20px;line-height:1.12}
 .auth-code-form{padding:16px;border-radius:18px;background:rgba(255,255,255,.78);border:1px solid rgba(161,122,75,.24);box-shadow:0 8px 24px rgba(48,61,52,.06);transition:border-color .2s ease,box-shadow .2s ease,transform .2s ease}
 .auth-code-form.is-waiting{border-color:var(--gold);box-shadow:0 12px 30px rgba(161,122,75,.16);transform:translateY(-2px)}
 .sms-auth-form{display:grid;gap:12px;width:100%;max-width:440px;min-width:0;margin:16px 0;padding:16px;border-radius:18px;background:rgba(255,255,255,.82);border:1px solid rgba(70,87,70,.2)}
+.hero-actions--sms{grid-template-columns:minmax(0,1fr);max-width:460px}
+.sms-auth-heading{font-family:Georgia,serif;font-size:21px;font-weight:500;line-height:1.2}
 .sms-auth-form[hidden]{display:none}
 .sms-auth-form label{display:grid;gap:6px;color:var(--leaf-dark);font-weight:700;font-size:14px}
 .sms-auth-form input{width:100%;min-width:0;min-height:46px;border:1px solid rgba(70,87,70,.25);border-radius:12px;padding:10px 12px;background:#fff;color:var(--ink);font:inherit;font-size:16px}
