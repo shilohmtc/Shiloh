@@ -119,6 +119,7 @@ test('SMS and passkey sign-in fits one phone column', async ({ page }, testInfo)
   expect(helpBox.y).toBeGreaterThan(formBox.y + formBox.height);
   await help.locator('summary').click();
   await expect(help.getByRole('link', { name:'Call Reception' })).toHaveAttribute('href', 'tel:+27662399138');
+  await expect(help.getByRole('link', { name:'WhatsApp Reception' })).toHaveAttribute('href', /https:\/\/wa\.me\/27662399138\?text=/);
   const result = await new AxeBuilder({ page }).include('[data-view="home"]')
     .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
   expect(result.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
