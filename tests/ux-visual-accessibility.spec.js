@@ -186,13 +186,13 @@ test('My Shiloh guest booking stays behind secure sign-in on phone and desktop',
     await expect(frame).toBeVisible();
     await expect(frame.locator('a[href="/book"]')).toHaveCount(0);
     await expect(frame.getByRole('link', { name:'Sign in to book' }).first()).toBeVisible();
-    await expect(frame.locator('[data-view="home"] [data-client-sms-start]')).toBeVisible();
-    await expect(frame.locator('[data-view="home"] .hero-actions')).toContainText('Use an SMS code instead');
-    const signInOrder = await frame.locator('[data-view="home"] .hero-actions > :is([data-passkey-sign-in], [data-client-sms-start], .passkey-recovery)').evaluateAll(nodes => nodes.map(node => node.matches('[data-passkey-sign-in]') ? 'passkey' : node.matches('[data-client-sms-start]') ? 'sms' : 'recovery'));
+    await expect(frame.locator('[data-view="home"] [data-client-sms-choice]')).not.toHaveAttribute('open', '');
+    const signInOrder = await frame.locator('[data-view="home"] .hero-actions > :is([data-passkey-sign-in], [data-client-sms-choice], .passkey-recovery)').evaluateAll(nodes => nodes.map(node => node.matches('[data-passkey-sign-in]') ? 'passkey' : node.matches('[data-client-sms-choice]') ? 'sms' : 'recovery'));
     expect(signInOrder).toEqual(['passkey', 'sms', 'recovery']);
     await expect(frame.locator('[data-view="home"] .service-scroll-hint')).toContainText('Swipe to see more');
     await frame.locator('[data-view="home"] .passkey-recovery summary').click();
-    await expect(frame.locator('[data-view="home"] .passkey-recovery')).toContainText('use the SMS option above');
+    await expect(frame.locator('[data-view="home"] .passkey-recovery')).toContainText('verify your number above');
+    await frame.locator('[data-view="home"] [data-client-sms-choice] summary').click();
     await expect(frame.locator('[data-view="home"] [data-client-sms-start]')).toBeVisible();
     await page.screenshot({ path:testInfo.outputPath(`my-shiloh-recovery-expanded-${viewport.name}.png`), fullPage:true, animations:'disabled' });
     await frame.locator('[data-view="home"] .passkey-recovery summary').click();
@@ -2287,6 +2287,8 @@ test('My Shiloh client sign-in has no legacy WhatsApp control on phone', async (
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/iframe.html?id=client-my-shiloh-pwa--sms-and-passkey-guest&viewMode=story', { waitUntil: 'networkidle' });
   const home = page.locator('[data-view="home"]');
+  await expect(home.locator('[data-client-sms-choice]')).not.toHaveAttribute('open', '');
+  await home.locator('[data-client-sms-choice] summary').click();
   await expect(home.locator('[data-client-sms-start]')).toBeVisible();
   await expect(home.locator('[data-passkey-sign-in]')).toBeVisible();
   await expect(home.locator('[data-client-auth-start], [data-client-auth-code-disclosure]')).toHaveCount(0);
