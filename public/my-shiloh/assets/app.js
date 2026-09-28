@@ -275,7 +275,7 @@
       if (installGateTitle) installGateTitle.textContent = 'Add My Shiloh to your iPhone.';
       if (installGateCopy) {
         installGateCopy.textContent = isIosGoogleApp()
-          ? 'You’re in the Google app. Open My Shiloh in Safari before adding it to your Home Screen. If the Share screen says share.google, do not add that link.'
+          ? 'You’re in the Google app. Open My Shiloh in Safari or Chrome first. Check that the address says app.shilohmtc.co.za before adding it to your Home Screen.'
           : isIosSafari()
           ? 'You’re in Safari. Add My Shiloh to your Home Screen in three quick steps.'
           : isIosChrome()
@@ -347,13 +347,13 @@
 
     if (isIosGoogleApp()) {
       if (installEyebrow) installEyebrow.textContent = 'Install My Shiloh on iPhone';
-      if (installTitle) installTitle.textContent = 'Open in Safari first.';
-      if (installLead) installLead.textContent = 'The Google app cannot add My Shiloh directly. Only add it after Safari shows app.shilohmtc.co.za in the address bar.';
-      setInstallStep(1, 'Choose Open in Safari', 'Use Open in Safari in the Google app’s Share menu.');
-      setInstallStep(2, 'Check the address', 'In Safari, open app.shilohmtc.co.za/my-shiloh/ if the address says share.google.');
-      setInstallStep(3, 'Tap Share', 'Use Safari’s Share button, then choose Add to Home Screen.');
+      if (installTitle) installTitle.textContent = 'Open in your browser first.';
+      if (installLead) installLead.textContent = 'Use Safari or Chrome. The address must say app.shilohmtc.co.za, not share.google.';
+      setInstallStep(1, 'Open in Safari or Chrome', 'Use Open in browser in the Google app’s Share menu.');
+      setInstallStep(2, 'Check the address', 'If you see share.google, enter app.shilohmtc.co.za/my-shiloh/ in your browser.');
+      setInstallStep(3, 'Tap Share', 'Choose Add to Home Screen in your browser’s Share menu.');
       if (installStepExtra) installStepExtra.hidden = false;
-      setInstallStep(4, 'Turn on Open as Web App, then tap Add', 'Open the new My Shiloh icon from your Home Screen.');
+      setInstallStep(4, 'Tap Add', 'If offered, turn on Open as Web App. Then open the new My Shiloh icon.');
       return;
     }
 
@@ -1027,7 +1027,7 @@
   function passkeyError(error, fallback) {
     if (error?.name === 'NotAllowedError') return 'Passkey check was cancelled. You can try again.';
     if (error?.name === 'InvalidStateError') return 'This passkey is already saved. You can use it to sign in.';
-    if (error?.name === 'SecurityError') return 'This My Shiloh app was opened from a different address. Open app.shilohmtc.co.za/my-shiloh/ in Safari and add it to your Home Screen again.';
+    if (error?.name === 'SecurityError') return 'This My Shiloh app was opened from a different address. Open app.shilohmtc.co.za/my-shiloh/ in Safari or Chrome and add it to your Home Screen again.';
     return error?.message || fallback;
   }
 

@@ -172,8 +172,8 @@ test('My Shiloh install client distinguishes iPhone Safari, iPhone Chrome and An
   assert.match(client, /function isIosChrome\(\)/);
   assert.match(client, /function isIosSafari\(\)/);
   assert.match(client, /function isIosGoogleApp\(\)/);
-  assert.match(client, /Open My Shiloh in Safari before adding it to your Home Screen/);
-  assert.match(client, /share\.google, do not add that link/);
+  assert.match(client, /Open My Shiloh in Safari or Chrome first/);
+  assert.match(client, /address must say app\.shilohmtc\.co\.za, not share\.google/);
   assert.match(client, /crios\|fxios\|edgios\|opios/i);
   assert.match(client, /You’re in Chrome\. Use Share to add My Shiloh to your Home Screen\./);
   assert.match(client, /You can add My Shiloh straight from Chrome/);

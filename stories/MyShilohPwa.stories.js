@@ -389,15 +389,15 @@ export const IPhoneGoogleInstallGuide = {
     const gateAction = surface.querySelector('[data-install-gate-action]');
     const title = surface.querySelector('[data-install-title]');
     const lead = surface.querySelector('[data-install-lead]');
-    if (gateCopy) gateCopy.textContent = 'You’re in the Google app. Open My Shiloh in Safari before adding it to your Home Screen. If the Share screen says share.google, do not add that link.';
+    if (gateCopy) gateCopy.textContent = 'You’re in the Google app. Open My Shiloh in Safari or Chrome first. Check that the address says app.shilohmtc.co.za before adding it to your Home Screen.';
     if (gateAction) gateAction.textContent = 'Install My Shiloh';
-    if (title) title.textContent = 'Open in Safari first.';
-    if (lead) lead.textContent = 'The Google app cannot add My Shiloh directly. Only add it after Safari shows app.shilohmtc.co.za in the address bar.';
+    if (title) title.textContent = 'Open in your browser first.';
+    if (lead) lead.textContent = 'Use Safari or Chrome. The address must say app.shilohmtc.co.za, not share.google.';
     const steps = [
-      ['Choose Open in Safari', 'Use Open in Safari in the Google app’s Share menu.'],
-      ['Check the address', 'In Safari, open app.shilohmtc.co.za/my-shiloh/ if the address says share.google.'],
-      ['Tap Share', 'Use Safari’s Share button, then choose Add to Home Screen.'],
-      ['Turn on Open as Web App, then tap Add', 'Open the new My Shiloh icon from your Home Screen.'],
+      ['Open in Safari or Chrome', 'Use Open in browser in the Google app’s Share menu.'],
+      ['Check the address', 'If you see share.google, enter app.shilohmtc.co.za/my-shiloh/ in your browser.'],
+      ['Tap Share', 'Choose Add to Home Screen in your browser’s Share menu.'],
+      ['Tap Add', 'If offered, turn on Open as Web App. Then open the new My Shiloh icon.'],
     ];
     steps.forEach(([stepTitle, stepCopy], index) => applyInstallStep(surface, index + 1, stepTitle, stepCopy));
     const extra = surface.querySelector('[data-install-step-extra]');

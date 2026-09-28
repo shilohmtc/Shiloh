@@ -443,13 +443,13 @@ async function proveGoogleAppInstallHandoff(browser) {
   try {
     const page = await context.newPage();
     await page.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
-    await page.getByText('If the Share screen says share.google, do not add that link.').waitFor();
+    await page.getByText('Open My Shiloh in Safari or Chrome first.', { exact: false }).waitFor();
     await page.getByRole('button', { name: 'Install My Shiloh' }).click();
-    await page.getByRole('heading', { name: 'Open in Safari first.' }).waitFor();
+    await page.getByRole('heading', { name: 'Open in your browser first.' }).waitFor();
     const steps = page.locator('[data-install-steps] li:visible');
-    if (await steps.count() !== 4) throw new Error('Google iPhone install guide must show all four Safari handoff steps');
-    await page.getByText('In Safari, open app.shilohmtc.co.za/my-shiloh/ if the address says share.google.').waitFor();
-    await page.getByText('Turn on Open as Web App, then tap Add').waitFor();
+    if (await steps.count() !== 4) throw new Error('Google iPhone install guide must show all four browser handoff steps');
+    await page.getByText('If you see share.google, enter app.shilohmtc.co.za/my-shiloh/ in your browser.').waitFor();
+    await page.getByText('If offered, turn on Open as Web App. Then open the new My Shiloh icon.').waitFor();
     await page.screenshot({ path: path.join(out, 'phone-google-install-guide.png'), fullPage: true });
   } finally {
     await context.close();
