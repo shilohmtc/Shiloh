@@ -54,6 +54,13 @@ button{color:inherit}
 .view{animation:viewIn .32s ease both}
 @keyframes viewIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 .hero{padding:28px 2px 20px}
+.client-setup{margin:12px 0 8px;padding:22px;border:1px solid rgba(70,87,70,.23);border-radius:23px;background:linear-gradient(135deg,#fffdf9,#edf2e9);box-shadow:var(--shadow)}
+.client-setup h2{margin:3px 0 10px;font-size:clamp(25px,7vw,32px)}
+.client-setup>p:not(.eyebrow){color:var(--muted);font-size:14px;line-height:1.55}
+.client-setup .button{margin-top:10px}
+.client-setup__later{display:block;margin:12px auto 0;border:0;background:transparent;color:var(--leaf-dark);font-size:13px;font-weight:800;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.client-setup .client-setup__status{margin:10px 0 0;font-size:12px;font-weight:700}
+.client-setup .client-setup__status:empty{display:none}
 .eyebrow{margin:0 0 7px;text-transform:uppercase;letter-spacing:.16em;font-size:10px;font-weight:900;color:var(--gold)}
 h1,h2,h3,p{margin-top:0}
 h1,h2,h3{font-family:Georgia,"Times New Roman",serif;font-weight:500;letter-spacing:-.025em}

@@ -28,3 +28,29 @@ test('passkey guest and profile paths remain usable on phone and desktop', async
       fullPage: true, animations: 'disabled' });
   }
 });
+
+test('first sign-in setup leads with a passkey, then offers notifications on phone and desktop', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name: 'phone', width: 390, height: 844 },
+    { name: 'desktop', width: 1280, height: 900 },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    for (const [step, story] of [
+      ['passkey', 'first-sign-in-passkey-setup'],
+      ['notifications', 'first-sign-in-notification-setup'],
+    ]) {
+      await page.goto(`/iframe.html?id=client-my-shiloh-pwa--${story}&viewMode=story`, { waitUntil: 'networkidle' });
+      const setup = page.locator('[data-client-setup]');
+      await expect(setup).toBeVisible();
+      await expect(setup).toHaveAttribute('data-step', step);
+      await expect(setup.locator('[data-client-setup-action]')).toBeVisible();
+      if (step === 'notifications') await expect(setup.locator('[data-client-setup-later]')).toBeVisible();
+      else await expect(setup.locator('[data-client-setup-later]')).toBeHidden();
+      const axe = await new AxeBuilder({ page }).include('[data-client-setup]')
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+      expect(axe.violations.filter((v) => ['serious', 'critical'].includes(v.impact))).toEqual([]);
+      await page.screenshot({ path: testInfo.outputPath(`client-first-signin-${step}-${viewport.name}.png`),
+        fullPage: true, animations: 'disabled' });
+    }
+  }
+});
