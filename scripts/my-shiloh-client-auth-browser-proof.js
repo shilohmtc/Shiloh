@@ -458,6 +458,27 @@ async function runViewport(browser, name, viewport) {
   await context.close();
 }
 
+async function proveGoogleAppInstallHandoff(browser) {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 GSA/400.0 Safari/604.1',
+  });
+  try {
+    const page = await context.newPage();
+    await page.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
+    await page.getByText('If the Share screen says share.google, do not add that link.').waitFor();
+    await page.getByRole('button', { name: 'Show Safari steps' }).click();
+    await page.getByRole('heading', { name: 'Open in Safari first.' }).waitFor();
+    const steps = page.locator('[data-install-steps] li:visible');
+    if (await steps.count() !== 4) throw new Error('Google iPhone install guide must show all four Safari handoff steps');
+    await page.getByText('In Safari, open app.shilohmtc.co.za/my-shiloh/ if the address says share.google.').waitFor();
+    await page.getByText('Turn on Open as Web App, then tap Add').waitFor();
+    await page.screenshot({ path: path.join(out, 'phone-google-install-guide.png'), fullPage: true });
+  } finally {
+    await context.close();
+  }
+}
+
 let server;
 let baseUrl;
 
@@ -486,6 +507,7 @@ let baseUrl;
   try {
     await runViewport(browser, 'phone', { width: 390, height: 844 });
     await runViewport(browser, 'desktop', { width: 1280, height: 900 });
+    await proveGoogleAppInstallHandoff(browser);
   } finally {
     await browser.close();
   }

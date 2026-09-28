@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260927-client-passkey-recovery-v1';
+const MY_SHILOH_ASSET_VERSION = '20260928-ios-google-install-v1';
 
 function escapeHtml(value = '') {
   return String(value)

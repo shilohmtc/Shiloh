@@ -51,6 +51,8 @@ The application and database are the operational core. Calendar, messaging and p
 
 My Shiloh Home shows a short deposit prompt with the amount and payment action; the booking and payment pages carry the full policy. Clients can archive and restore Updates on their current phone. This stores only bounded notification IDs for that signed-in client in the installed app; it does not delete server notifications, change booking or payment state, or sync the archive to another phone.
 
+For iPhone installation, the public website sends clients to `https://app.shilohmtc.co.za/my-shiloh/`. Clients arriving through the Google app must open this address in Safari before using Share → Add to Home Screen and Open as Web App. A Google `share.google` share sheet is not the My Shiloh app origin and must not be installed. The app's install doorway guides that handoff; iOS does not allow a website to add a Home Screen app without the client's browser action.
+
 ## Tool and integration inventory
 
 | Tool or integration | Role | Current handling | Authority / safe note |
