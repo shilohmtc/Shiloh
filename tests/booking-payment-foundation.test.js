@@ -37,6 +37,21 @@ test('Workspace puts reception guidance and manual settlement after payment hist
   assert.doesNotMatch(renderCalendarPaymentPage({ model: { ...model, subject: { appointmentId: 699, final: true } } }), /data-manual-form/);
 });
 
+test('payment request rows distinguish recorded deposit purpose and readable link state', () => {
+  const html = renderCalendarPaymentPage({ model: {
+    subject: { appointmentId: 779 },
+    payment: { state: 'unpaid', amountDue: '590.00', netPaid: '0.00', outstanding: '590.00', requests: [
+      { purpose: 'general', amount: '295.00', state: 'link_issued', request_key: 'general_request_779', provider_payment_url: 'https://pay.ozow.com/one' },
+      { purpose: 'deposit', amount: '295.00', state: 'cancelled' },
+    ], entries: [] },
+    authority: { canCollect: true, canRefund: false, ozowConfigured: true },
+  } });
+  assert.match(html, /Payment · R\s?295[,.]00<\/strong><small>Ozow · Link ready/);
+  assert.match(html, /Deposit · R\s?295[,.]00<\/strong><small>Ozow · Cancelled/);
+  assert.match(html, /data-copy-link="https:\/\/app\.shilohmtc\.co\.za\/pay\/general_request_779"/);
+  assert.equal((html.match(/data-copy-link=/g) || []).length, 1);
+});
+
 test('Workspace copies the guarded Shiloh payment link, never the raw Ozow target', () => {
   const providerUrl = 'https://pay.ozow.com/request/opaque';
   const html = renderCalendarPaymentPage({ model: {
