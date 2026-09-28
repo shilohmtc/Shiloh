@@ -6,7 +6,7 @@ This file records the disposition of production environment keys audited in #654
 
 - `AUDIT_READ_TOKEN` — current audit-read authentication.
 - `DATABASE_URL` — production database connection secret.
-- `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_FAST_MODEL` — current OpenAI runtime.
+- `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_FAST_MODEL` — current OpenAI runtime. The model names override source defaults; review the effective values and cost periodically under `docs/AI_MODEL_REVIEW.md`.
 - `PHONE_NUMBER_ID`, `VERIFY_TOKEN`, `WHATSAPP_TOKEN` — current WhatsApp transport/webhook configuration; provider readiness may remain fail-closed but runtime still depends on the adapter.
 - `WHATSAPP_BUSINESS_ACCOUNT_ID` — current Meta/WABA discovery/binding input.
 - `WHATSAPP_TEMPLATE_LANGUAGE` — current template delivery language setting.

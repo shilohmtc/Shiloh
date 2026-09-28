@@ -14,8 +14,8 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const PRIMARY_MODEL = process.env.OPENAI_MODEL || "gpt-5.6-terra";
-const FAST_MODEL = process.env.OPENAI_FAST_MODEL || "gpt-5.6-luna";
+const PRIMARY_MODEL = process.env.OPENAI_MODEL || "gpt-6-sol";
+const FAST_MODEL = process.env.OPENAI_FAST_MODEL || "gpt-6-luna";
 const REASONING_EFFORT = process.env.OPENAI_REASONING_EFFORT || "low";
 
 function deterministicConversationReply(message = "") {

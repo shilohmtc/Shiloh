@@ -1,0 +1,43 @@
+name: Shiloh AI model review reminder
+
+on:
+  schedule:
+    - cron: '0 7 1 * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  open_review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Open or reuse this month's review issue
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const month = new Date().toISOString().slice(0, 7);
+            const title = `Shiloh AI model review — ${month}`;
+            const { owner, repo } = context.repo;
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: 'open', per_page: 100,
+            });
+            if (issues.some(issue => !issue.pull_request && issue.title === title)) {
+              core.info(`Review already open: ${title}`);
+              return;
+            }
+            await github.rest.issues.create({
+              owner, repo, title,
+              body: [
+                'Monthly Shiloh AI model review. Follow [the review guide](https://github.com/shilohmtc/Shiloh/blob/main/docs/AI_MODEL_REVIEW.md).',
+                '',
+                '- [ ] Confirm actual production `OPENAI_MODEL` and `OPENAI_FAST_MODEL` privately; record only model IDs.',
+                '- [ ] Compare OpenAI usage, cost, latency and failures with the previous month.',
+                '- [ ] Check official model, pricing and deprecation pages for newer or cheaper candidates.',
+                '- [ ] Run the assistant and language-guard evaluation before a proposed model switch.',
+                '- [ ] Record `keep` or `change`, evidence, owner and next action; close this review.',
+                '',
+                'Do not post client messages or secrets. This issue does not change production configuration.',
+              ].join('\n'),
+            });
