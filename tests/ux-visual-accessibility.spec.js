@@ -99,6 +99,26 @@ test('My Shiloh home starts without a duplicate header on phone and desktop', as
   }
 });
 
+test('SMS and passkey sign-in fits one phone column', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width:390, height:844 });
+  await page.goto('/iframe.html?id=client-my-shiloh-pwa--sms-and-passkey-guest&viewMode=story', { waitUntil:'networkidle' });
+  const home = page.locator('[data-view="home"]');
+  const form = home.locator('[data-client-sms-start]');
+  const help = home.getByText('Need help signing in?');
+  await expect(home.getByRole('button', { name:'Sign in with a passkey' })).toBeVisible();
+  await expect(form.getByRole('button', { name:'Send my SMS code' })).toBeVisible();
+  const formBox = await form.boundingBox();
+  const helpBox = await help.boundingBox();
+  const heroBox = await home.locator('.hero').boundingBox();
+  expect(formBox.width).toBeGreaterThan(heroBox.width * .8);
+  expect(formBox.x + formBox.width).toBeLessThanOrEqual(390);
+  expect(helpBox.y).toBeGreaterThan(formBox.y + formBox.height);
+  const result = await new AxeBuilder({ page }).include('[data-view="home"]')
+    .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+  expect(result.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+  await page.screenshot({ path:testInfo.outputPath('my-shiloh-sms-phone.png'), fullPage:true, animations:'disabled' });
+});
+
 test('signed-in choosing help opens the in-app conversation on phone and desktop', async ({ page }, testInfo) => {
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
     await page.setViewportSize(viewport);
