@@ -53,7 +53,9 @@ function applyInstallStep(surface, index, title, copy) {
   }
   if (copyNode) {
     if (title === 'Open Safari’s page menu') {
-      const [before, after] = copy.split('Share');
+      const splitAt = copy.indexOf('Share');
+      const before = copy.slice(0, splitAt);
+      const after = copy.slice(splitAt + 'Share'.length);
       copyNode.replaceChildren(document.createTextNode(before));
       const icon = document.createElement('span');
       icon.innerHTML = installShareIconMarkup();

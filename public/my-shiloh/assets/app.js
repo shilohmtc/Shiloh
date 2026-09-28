@@ -354,7 +354,9 @@
     if (copyNode) {
       copyNode.textContent = copy;
       if (title === 'Open Safari’s page menu') {
-        const [before, after] = copy.split('Share');
+        const splitAt = copy.indexOf('Share');
+        const before = copy.slice(0, splitAt);
+        const after = copy.slice(splitAt + 'Share'.length);
         copyNode.textContent = '';
         const icon = installGuideIcon('share');
         icon.classList.add('install-step-copy-icon');
