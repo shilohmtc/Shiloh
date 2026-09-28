@@ -34,15 +34,34 @@ function installShareIconMarkup() {
   return '<svg class="install-share-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M12 15V3m0 0-4 4m4-4 4 4M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 }
 
+function installGuideIconMarkup(kind) {
+  const path = kind === 'page-menu'
+    ? 'M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 5h10M7 12h10M7 15h6'
+    : 'M6 3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3Zm6 5v8m-4-4h8';
+  return `<svg class="install-share-icon install-${kind}-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${path}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
 function applyInstallStep(surface, index, title, copy) {
   const number = String(index);
   const titleNode = surface.querySelector(`[data-install-step-title="${number}"]`);
   const copyNode = surface.querySelector(`[data-install-step-copy="${number}"]`);
   if (titleNode) {
     if (/^Tap Share/.test(title)) titleNode.innerHTML = `${installShareIconMarkup()} Tap Share`;
+    else if (title === 'Open Safari’s page menu') titleNode.innerHTML = `${installGuideIconMarkup('page-menu')} ${title}`;
+    else if (title === 'Choose Add to Home Screen') titleNode.innerHTML = `${installGuideIconMarkup('add-home')} ${title}`;
     else titleNode.textContent = title;
   }
-  if (copyNode) copyNode.textContent = copy;
+  if (copyNode) {
+    if (title === 'Open Safari’s page menu') {
+      const [before, after] = copy.split('Share');
+      copyNode.replaceChildren(document.createTextNode(before));
+      const icon = document.createElement('span');
+      icon.innerHTML = installShareIconMarkup();
+      const share = icon.firstElementChild;
+      share.classList.add('install-step-copy-icon');
+      copyNode.append(share, document.createTextNode(` Share${after}`));
+    } else copyNode.textContent = copy;
+  }
 }
 
 function bookingSurface() {

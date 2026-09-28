@@ -317,6 +317,27 @@
     return icon;
   }
 
+  function installGuideIcon(kind) {
+    if (kind === 'share') return shareIcon();
+    const namespace = 'http://www.w3.org/2000/svg';
+    const icon = document.createElementNS(namespace, 'svg');
+    const path = document.createElementNS(namespace, 'path');
+    icon.setAttribute('viewBox', '0 0 24 24');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.setAttribute('focusable', 'false');
+    icon.classList.add('install-share-icon', `install-${kind}-icon`);
+    path.setAttribute('d', kind === 'page-menu'
+      ? 'M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 5h10M7 12h10M7 15h6'
+      : 'M6 3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3Zm6 5v8m-4-4h8');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', 'currentColor');
+    path.setAttribute('stroke-width', '1.8');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    icon.appendChild(path);
+    return icon;
+  }
+
   function setInstallStep(index, title, copy) {
     const titleNode = installStepTitles.find((node) => node.dataset.installStepTitle === String(index));
     const copyNode = installStepCopies.find((node) => node.dataset.installStepCopy === String(index));
@@ -325,9 +346,21 @@
       if (/^Tap Share/.test(title)) {
         titleNode.textContent = '';
         titleNode.append(shareIcon(), document.createTextNode(' Tap Share'));
+      } else if (title === 'Open Safari’s page menu' || title === 'Choose Add to Home Screen') {
+        titleNode.textContent = '';
+        titleNode.append(installGuideIcon(title === 'Open Safari’s page menu' ? 'page-menu' : 'add-home'), document.createTextNode(` ${title}`));
       }
     }
-    if (copyNode) copyNode.textContent = copy;
+    if (copyNode) {
+      copyNode.textContent = copy;
+      if (title === 'Open Safari’s page menu') {
+        const [before, after] = copy.split('Share');
+        copyNode.textContent = '';
+        const icon = installGuideIcon('share');
+        icon.classList.add('install-step-copy-icon');
+        copyNode.append(document.createTextNode(before), icon, document.createTextNode(` Share${after}`));
+      }
+    }
   }
 
   function resetInstallGuideExtras() {
