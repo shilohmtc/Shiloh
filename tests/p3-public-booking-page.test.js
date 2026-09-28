@@ -13,6 +13,9 @@ test('public booking page is a real landing page and does not auto-redirect to W
   assert.match(html, /<title>Book with Shiloh/);
   assert.match(html, /Your appointment starts with Shiloh/);
   assert.match(html, /href="\/my-shiloh\/book"[^>]*>Install or open My Shiloh to book/);
+  assert.match(html, /sign in with a passkey or SMS/);
+  assert.match(html, /assistant inside My Shiloh/);
+  assert.match(html, /Need a person\? <strong>Message Reception<\/strong>/);
   assert.match(html, /https:\/\/wa\.me\/27662399138/);
   assert.doesNotMatch(html, /http-equiv=["']refresh/i);
   assert.doesNotMatch(html, /window\.location|location\.href/i);

@@ -1860,7 +1860,7 @@ for (const viewport of [
       if (name === 'contact') {
         const entry = surface.locator('[data-my-shiloh-contact-entry]');
         await expect(entry.getByRole('link', { name: 'Open My Shiloh' })).toBeVisible();
-        await expect(entry.getByRole('link', { name: 'Ask on WhatsApp' })).toHaveAttribute('href', /wa\.me\/27662399138\?text=Hi%20Shiloh%2C%20tell%20me%20about%20My%20Shiloh/);
+        await expect(entry.getByRole('link', { name: 'Message Reception' })).toHaveAttribute('href', /wa\.me\/27662399138\?text=Hi%20Shiloh%2C%20I%20would%20like%20to%20speak%20with%20Reception/);
       }
 
       if (name === 'home') {
