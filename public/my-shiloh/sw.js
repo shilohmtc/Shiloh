@@ -1,8 +1,8 @@
 'use strict';
 
-const ASSET_VERSION = '20260928-ios-safari-menu-v1';
-const SHELL_CACHE = 'my-shiloh-shell-v37';
-const STATIC_CACHE = 'my-shiloh-static-v37';
+const ASSET_VERSION = '20260928-ios-install-icons-v1';
+const SHELL_CACHE = 'my-shiloh-shell-v38';
+const STATIC_CACHE = 'my-shiloh-static-v38';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',
