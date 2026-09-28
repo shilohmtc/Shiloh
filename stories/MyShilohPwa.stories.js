@@ -86,6 +86,21 @@ export const PasskeyGuest = {
   render: () => productionSurface(null, { passkeysAvailable: true }),
 };
 
+export const SmsAndPasskeyGuest = {
+  render: () => productionSurface(null, { passkeysAvailable: true, smsAvailable: true }),
+};
+
+export const SmsCodeEntry = {
+  render: () => {
+    const surface = productionSurface(null, { passkeysAvailable: true, smsAvailable: true });
+    const code = surface.querySelector('[data-view="home"] [data-client-sms-complete]');
+    if (code) code.hidden = false;
+    const status = surface.querySelector('[data-view="home"] [data-auth-status]');
+    if (status) status.textContent = 'Check your SMS and enter the code below.';
+    return surface;
+  },
+};
+
 export const PasskeyRecovery = {
   render: () => {
     const surface = productionSurface(null, { passkeysAvailable: true });

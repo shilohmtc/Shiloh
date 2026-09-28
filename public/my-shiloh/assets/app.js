@@ -41,6 +41,8 @@
   const recoveryForms = [...document.querySelectorAll('[data-passkey-recovery-form]')];
   const authLogoutButtons = [...document.querySelectorAll('[data-client-auth-logout]')];
   const authCodeForms = [...document.querySelectorAll('[data-client-auth-code-form]')];
+  const smsStartForms = [...document.querySelectorAll('[data-client-sms-start]')];
+  const smsCompleteForms = [...document.querySelectorAll('[data-client-sms-complete]')];
   const authStatusHosts = [...document.querySelectorAll('[data-auth-status]')];
   const experienceHome = document.querySelector('[data-client-experience-home]');
   const experienceFactButtons = [...document.querySelectorAll('[data-client-experience-fact]')];
@@ -630,7 +632,7 @@
     clientProfileForm.elements.name.value = String(profile.name || '');
     clientProfileForm.elements.dateOfBirth.value = String(profile.dateOfBirth || '');
     clientProfileForm.elements.gender.value = String(profile.gender || '');
-    if (clientProfileMobile) clientProfileMobile.textContent = String(profile.mobile || 'Verified with WhatsApp');
+    if (clientProfileMobile) clientProfileMobile.textContent = String(profile.mobile || 'Verified mobile number');
     clientProfileRevision = profile.revision;
     setClientProfileBusy(false);
     if (profile.registrationComplete === true) {
@@ -788,6 +790,9 @@
   function setAuthControlsDisabled(disabled) {
     for (const button of [...authStartButtons, ...passkeySignInButtons, ...authLogoutButtons]) button.disabled = Boolean(disabled);
     setAuthCodeControlsDisabled(disabled);
+    for (const form of [...smsStartForms, ...smsCompleteForms]) {
+      form.querySelectorAll('button,input').forEach((control) => { control.disabled = Boolean(disabled); });
+    }
   }
 
   function setAuthCodeControlsDisabled(disabled) {
@@ -1091,7 +1096,7 @@
       const result = await finish.json().catch(() => ({}));
       if (!finish.ok || result.authenticated !== true) {
         const guidance = finish.status === 401
-          ? ' If you have not saved a My Shiloh passkey yet, verify with WhatsApp first, then save one under Profile.'
+          ? ' If you have not saved a My Shiloh passkey yet, request a mobile code first, then save one under Profile.'
           : '';
         throw new Error(`${result.error || 'We could not verify this passkey.'}${guidance}`);
       }
@@ -1101,7 +1106,7 @@
       setAuthStatus('Welcome back. Opening My Shiloh…', 'success');
       window.location.replace(signedInLanding());
     } catch (error) {
-      setAuthStatus(passkeyError(error, 'Passkey sign-in could not be completed. You can use WhatsApp.'), 'error');
+      setAuthStatus(passkeyError(error, 'Passkey sign-in could not be completed. You can request a mobile code.'), 'error');
       authActionInFlight = false;
       setAuthControlsDisabled(false);
     }
@@ -1902,6 +1907,53 @@
     }
   }
 
+  async function beginSmsAuth(event) {
+    event.preventDefault();
+    if (authActionInFlight) return;
+    const form = event.currentTarget;
+    authActionInFlight = true;
+    setAuthControlsDisabled(true);
+    setAuthStatus('Sending your code…', 'working');
+    try {
+      const response = await postJson('/my-shiloh/auth/sms/start', {
+        name: form.elements.namedItem('name').value.trim(),
+        mobile: form.elements.namedItem('mobile').value.trim(),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || result.status !== 'code_sent') throw new Error(result.error || 'Could not send your code.');
+      for (const item of smsCompleteForms) item.hidden = false;
+      setAuthStatus('Check your SMS and enter the code below.', 'waiting');
+      smsCompleteForms.find((item) => item.closest('[data-view]')?.hidden === false ||
+        item.closest('[data-install-gate]')?.hidden === false)?.elements.namedItem('code')?.focus();
+    } catch (error) {
+      setAuthStatus(error.message || 'Could not send your code.', 'error');
+    } finally {
+      authActionInFlight = false;
+      setAuthControlsDisabled(false);
+    }
+  }
+
+  async function completeSmsAuth(event) {
+    event.preventDefault();
+    if (authActionInFlight) return;
+    const code = String(event.currentTarget.elements.namedItem('code').value || '').replace(/\s/g, '');
+    if (!/^\d{6}$/.test(code)) return setAuthStatus('Enter your 6-digit SMS code.', 'error');
+    authActionInFlight = true;
+    setAuthControlsDisabled(true);
+    setAuthStatus('Checking your code…', 'working');
+    try {
+      const response = await postJson('/my-shiloh/auth/sms/complete', { code });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.authenticated) throw new Error(result.error || 'Could not verify your code.');
+      setAuthStatus('Verified. Opening My Shiloh…', 'success');
+      window.location.replace(signedInLanding());
+    } catch (error) {
+      setAuthStatus(error.message || 'Could not verify your code.', 'error');
+      authActionInFlight = false;
+      setAuthControlsDisabled(false);
+    }
+  }
+
   async function completeClientAuth(code) {
     if (!standalone() || authActionInFlight
       || appFrame?.dataset.clientAuthenticated === 'true') return;
@@ -1950,6 +2002,8 @@
   }
 
   authStartButtons.forEach((button) => button.addEventListener('click', beginClientAuth));
+  smsStartForms.forEach((form) => form.addEventListener('submit', beginSmsAuth));
+  smsCompleteForms.forEach((form) => form.addEventListener('submit', completeSmsAuth));
   if (!passkeySupported()) passkeySignInButtons.forEach((button) => { button.hidden = true; });
   if (!passkeySupported() && passkeyEnrollButton) passkeyEnrollButton.hidden = true;
   passkeySignInButtons.forEach((button) => button.addEventListener('click', signInWithPasskey));

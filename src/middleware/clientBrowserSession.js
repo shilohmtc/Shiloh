@@ -24,6 +24,12 @@ function clientPasskeyAuthCookieName(env = process.env) {
     : 'shiloh_client_passkey_auth';
 }
 
+function clientSmsAuthCookieName(env = process.env) {
+  return String(env.NODE_ENV || '').toLowerCase() === 'production'
+    ? '__Host-shiloh_client_sms_auth'
+    : 'shiloh_client_sms_auth';
+}
+
 function cookieParts(name, value, {
   env = process.env,
   maxAgeSeconds = 0,
@@ -63,6 +69,15 @@ function serializeExpiredClientAuthCookie({ env = process.env } = {}) {
   return [...cookieParts(clientAuthCookieName(env), '', { env, maxAgeSeconds: 0 }), 'Expires=Thu, 01 Jan 1970 00:00:00 GMT'].join('; ');
 }
 
+function serializeClientSmsAuthCookie(token, { env = process.env, maxAgeSeconds = 10 * 60 } = {}) {
+  return cookieParts(clientSmsAuthCookieName(env), token, { env, maxAgeSeconds }).join('; ');
+}
+
+function serializeExpiredClientSmsAuthCookie({ env = process.env } = {}) {
+  return [...cookieParts(clientSmsAuthCookieName(env), '', { env, maxAgeSeconds: 0 }),
+    'Expires=Thu, 01 Jan 1970 00:00:00 GMT'].join('; ');
+}
+
 function serializeClientPasskeyAuthCookie(token, { env = process.env, maxAgeSeconds = 5 * 60 } = {}) {
   return cookieParts(clientPasskeyAuthCookieName(env), token, { env, maxAgeSeconds }).join('; ');
 }
@@ -82,6 +97,10 @@ function clientAuthTokenFromRequest(req, env = process.env) {
 
 function clientPasskeyAuthTokenFromRequest(req, env = process.env) {
   return parseCookieValue(req.headers?.cookie, clientPasskeyAuthCookieName(env));
+}
+
+function clientSmsAuthTokenFromRequest(req, env = process.env) {
+  return parseCookieValue(req.headers?.cookie, clientSmsAuthCookieName(env));
 }
 
 function requireClientSession({ service, env = process.env } = {}) {
@@ -120,15 +139,19 @@ module.exports = {
   clientSessionCookieName,
   clientAuthCookieName,
   clientPasskeyAuthCookieName,
+  clientSmsAuthCookieName,
   serializeClientSessionCookie,
   serializeExpiredClientSessionCookie,
   serializeClientAuthCookie,
   serializeExpiredClientAuthCookie,
+  serializeClientSmsAuthCookie,
+  serializeExpiredClientSmsAuthCookie,
   serializeClientPasskeyAuthCookie,
   serializeExpiredClientPasskeyAuthCookie,
   clientSessionTokenFromRequest,
   clientAuthTokenFromRequest,
   clientPasskeyAuthTokenFromRequest,
+  clientSmsAuthTokenFromRequest,
   requireClientSession,
   optionalClientSession,
   clientCsrfGuard,
