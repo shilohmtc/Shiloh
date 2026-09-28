@@ -109,11 +109,12 @@ test('webhook gives My Shiloh verification an isolated pre-controller boundary',
   const statusIndex = routeBlock.indexOf('processWhatsAppStatusWebhook');
   const myShilohIndex = routeBlock.indexOf('myShilohWhatsAppAuthMiddleware');
   const staffBootstrapIndex = routeBlock.indexOf('staffWhatsAppPasskeyBootstrapMiddleware');
-  const receiveIndex = routeBlock.indexOf('receiveWebhook');
+  const acknowledgementIndex = routeBlock.indexOf('res.sendStatus(200)');
   assert.ok(statusIndex >= 0);
   assert.ok(myShilohIndex > statusIndex);
   assert.ok(staffBootstrapIndex > myShilohIndex);
-  assert.ok(receiveIndex > staffBootstrapIndex);
+  assert.ok(acknowledgementIndex > staffBootstrapIndex);
+  assert.doesNotMatch(routeBlock, /receiveWebhook/);
 });
 
 test('PWA service worker keeps all authentication and future personal APIs network-only', () => {

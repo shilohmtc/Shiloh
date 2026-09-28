@@ -1,23 +1,30 @@
 const express = require("express");
 const router = express.Router();
 
-const {
-  verifyWebhook,
-  receiveWebhook,
-} = require("../controllers/webhookController");
+const logger = require('../lib/logger');
 const { processWhatsAppStatusWebhook } = require("../controllers/whatsappStatusWebhookController");
 const { myShilohWhatsAppAuthMiddleware } = require("../middleware/myShilohWhatsAppAuth");
 const { staffWhatsAppPasskeyBootstrapMiddleware } = require("../middleware/staffWhatsAppPasskeyBootstrap");
-const { metaSignInOnly } = require('../services/metaSignInOnly');
 
-router.get("/webhook", verifyWebhook);
+router.get('/webhook', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  if (mode === 'subscribe' && token === process.env.VERIFY_TOKEN) {
+    (req.log || logger).info('WhatsApp webhook verified');
+    return res.status(200).send(challenge);
+  }
+  (req.log || logger).warn('WhatsApp webhook verification rejected');
+  return res.sendStatus(403);
+});
 router.post(
   "/webhook",
   processWhatsAppStatusWebhook,
   myShilohWhatsAppAuthMiddleware,
   staffWhatsAppPasskeyBootstrapMiddleware,
-  (req, res, next) => metaSignInOnly() ? res.sendStatus(200) : next(),
-  receiveWebhook,
+  // Ordinary WhatsApp conversations now belong to human Reception. Keep the
+  // webhook for delivery receipts and the temporary authentication fallbacks.
+  (_req, res) => res.sendStatus(200),
 );
 
 module.exports = router;
