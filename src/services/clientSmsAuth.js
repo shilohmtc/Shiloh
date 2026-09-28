@@ -9,6 +9,28 @@ const TTL_MS = 10 * 60 * 1000;
 const ISSUE_WINDOW_MS = 60 * 60 * 1000;
 const SEND_URL = 'https://sms1.smsmessenger.co.za/app/api/rest/v1/sms/send.json';
 
+function safeGatewayFailure(error) {
+  const status = Number.isInteger(error?.status) && error.status >= 100 && error.status <= 599
+    ? error.status : null;
+  const providerError = String(error?.providerError || '').toLowerCase();
+  let category = status === 401 || status === 403 || /auth|token|api.key|permission/.test(providerError)
+    ? 'authentication' : status === 402 || /credit|balance|fund/.test(providerError)
+      ? 'credits' : status === 429 || /rate|limit|throttl/.test(providerError)
+        ? 'rate_limit' : /number|recipient|destination/.test(providerError)
+          ? 'recipient' : status ? 'provider_http' : 'provider_response';
+  if (error?.name === 'TimeoutError' || error?.name === 'AbortError') category = 'timeout';
+  if (error?.name === 'TypeError') category = 'network';
+  return { category, providerStatus: status };
+}
+
+class SmsGatewayError extends Error {
+  constructor(status, providerError) {
+    super('SMS gateway rejected the request');
+    this.status = status;
+    this.providerError = providerError;
+  }
+}
+
 function createSmsMessengerGateway({ env = process.env, fetchImpl = globalThis.fetch } = {}) {
   const enabled = () => Boolean(String(env.SMSMESSENGER_ACCOUNT_EMAIL || '').trim() &&
     String(env.SMSMESSENGER_API_TOKEN || '').trim());
@@ -31,9 +53,10 @@ function createSmsMessengerGateway({ env = process.env, fetchImpl = globalThis.f
         }),
         signal: AbortSignal.timeout(8000),
       });
-      if (!response.ok) throw new Error('SMS gateway rejected the send');
-      const body = await response.json();
-      if (body.error || !body.messageId) throw new Error('SMS gateway did not accept the send');
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok || body.error || !body.messageId) {
+        throw new SmsGatewayError(response.status, body.error);
+      }
       return String(body.messageId);
     },
   };
@@ -41,7 +64,7 @@ function createSmsMessengerGateway({ env = process.env, fetchImpl = globalThis.f
 
 function createClientSmsAuthService({
   db = pool, crmService = crm, sessionService, env = process.env, gateway = createSmsMessengerGateway({ env }),
-  now = () => new Date(), randomBytes = crypto.randomBytes,
+  now = () => new Date(), randomBytes = crypto.randomBytes, logger = console,
 } = {}) {
   const enabled = () => env.MY_SHILOH_SMS_AUTH_ENABLED === 'true' && gateway.enabled() &&
     typeof sessionService?.issueVerifiedSmsSession === 'function';
@@ -102,11 +125,18 @@ function createClientSmsAuthService({
       throw error;
     } finally { client.release(); }
 
+    let acceptedByGateway = false;
     try {
       const messageId = await gateway.send({ mobile: normalizedMobile, code });
+      acceptedByGateway = true;
       await db.query('UPDATE client_sms_auth_challenges SET provider_message_id = $2 WHERE id = $1', [id, messageId]);
       return { ok: true, browserToken, expiresAt };
-    } catch (_) {
+    } catch (error) {
+      // Record only a bounded failure category and HTTP status, never the code,
+      // mobile, request headers, provider body, or credentials.
+      logger.warn(JSON.stringify({ event: 'my_shiloh_sms_send_failed',
+        ...(acceptedByGateway ? { category: 'message_id_persistence', providerStatus: null }
+          : safeGatewayFailure(error)) }));
       await db.query('UPDATE client_sms_auth_challenges SET revoked_at = $2 WHERE id = $1', [id, now()]);
       return { ok: false, code: 'SMS_UNAVAILABLE' };
     }
@@ -176,4 +206,4 @@ function createClientSmsAuthService({
   return { enabled, start, finish };
 }
 
-module.exports = { createClientSmsAuthService, createSmsMessengerGateway, TTL_MS };
+module.exports = { createClientSmsAuthService, createSmsMessengerGateway, safeGatewayFailure, TTL_MS };
