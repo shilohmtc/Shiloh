@@ -90,6 +90,26 @@ test('SMS gateway uses POST with private headers, requires accepted message id a
   });
 });
 
+test('provider rejection checks account without logging response text or private values', async () => {
+  const requests = [];
+  const gateway = createSmsMessengerGateway({ env: {
+    SMSMESSENGER_ACCOUNT_EMAIL: 'clinic@example.test', SMSMESSENGER_API_TOKEN: 'private-token',
+  }, fetchImpl: async (url, options) => {
+    requests.push({ url, options });
+    return requests.length === 1
+      ? { ok: false, status: 400, async text() { return 'Invalid recipient 27821234567 with code 123456'; } }
+      : { ok: true, status: 200, async json() { return { creditBalance: 5 }; } };
+  } });
+  await assert.rejects(gateway.send({ mobile: '27821234567', code: '123456' }), error => {
+    const logged = JSON.stringify(safeGatewayFailure(error));
+    assert.deepEqual(JSON.parse(logged), { category: 'recipient', providerStatus: 400, balanceCheck: 'account_ok' });
+    assert.doesNotMatch(logged, /27821234567|123456|private-token/);
+    return true;
+  });
+  assert.equal(requests[1].url.endsWith('/account/balance.json'), true);
+  assert.equal(requests[1].options.headers.token, 'private-token');
+});
+
 test('SMS remains gated when only the Render secrets exist', async () => {
   const h = makeHarness();
   const service = createClientSmsAuthService({ db: { async connect() { throw new Error('must not connect'); } },

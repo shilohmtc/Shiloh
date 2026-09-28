@@ -8,19 +8,29 @@ const { sha256, randomOpaqueToken, normalizedFingerprint } = require('./clientBr
 const TTL_MS = 10 * 60 * 1000;
 const ISSUE_WINDOW_MS = 60 * 60 * 1000;
 const SEND_URL = 'https://sms1.smsmessenger.co.za/app/api/rest/v1/sms/send.json';
+const BALANCE_URL = 'https://sms1.smsmessenger.co.za/app/api/rest/v1/account/balance.json';
+
+function providerFailureCategory(body) {
+  // Inspect provider text only in memory. Never put its body, credentials, mobile or code in logs.
+  const message = (typeof body === 'string' ? body : JSON.stringify(body || {})).slice(0, 8192).toLowerCase();
+  if (/auth|token|api.key|permission|credential|email/.test(message)) return 'authentication';
+  if (/credit|balance|fund/.test(message)) return 'credits';
+  if (/rate|limit|throttl/.test(message)) return 'rate_limit';
+  if (/number|recipient|destination|phone/.test(message)) return 'recipient';
+  if (/json|format|parameter|request.body|content.type|campaign|invalid.message|missing.message/.test(message)) return 'request_format';
+  return null;
+}
 
 function safeGatewayFailure(error) {
   const status = Number.isInteger(error?.status) && error.status >= 100 && error.status <= 599
     ? error.status : null;
-  const providerError = String(error?.providerError || '').toLowerCase();
-  let category = status === 401 || status === 403 || /auth|token|api.key|permission/.test(providerError)
-    ? 'authentication' : status === 402 || /credit|balance|fund/.test(providerError)
-      ? 'credits' : status === 429 || /rate|limit|throttl/.test(providerError)
-        ? 'rate_limit' : /number|recipient|destination/.test(providerError)
-          ? 'recipient' : status ? 'provider_http' : 'provider_response';
+  let category = status === 401 || status === 403 ? 'authentication'
+    : status === 402 ? 'credits' : status === 429 ? 'rate_limit'
+      : providerFailureCategory(error?.providerError) || (status ? 'provider_http' : 'provider_response');
   if (error?.name === 'TimeoutError' || error?.name === 'AbortError') category = 'timeout';
   if (error?.name === 'TypeError') category = 'network';
-  return { category, providerStatus: status };
+  return { category, providerStatus: status,
+    ...(error?.balanceCheck ? { balanceCheck: error.balanceCheck } : {}) };
 }
 
 class SmsGatewayError extends Error {
@@ -34,6 +44,8 @@ class SmsGatewayError extends Error {
 function createSmsMessengerGateway({ env = process.env, fetchImpl = globalThis.fetch } = {}) {
   const enabled = () => Boolean(String(env.SMSMESSENGER_ACCOUNT_EMAIL || '').trim() &&
     String(env.SMSMESSENGER_API_TOKEN || '').trim());
+  const headers = () => ({ email: String(env.SMSMESSENGER_ACCOUNT_EMAIL).trim(),
+    token: String(env.SMSMESSENGER_API_TOKEN).trim() });
   return {
     enabled,
     async send({ mobile, code }) {
@@ -43,8 +55,7 @@ function createSmsMessengerGateway({ env = process.env, fetchImpl = globalThis.f
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
-          email: env.SMSMESSENGER_ACCOUNT_EMAIL,
-          token: env.SMSMESSENGER_API_TOKEN,
+          ...headers(),
         },
         body: JSON.stringify({
           recipientNumber: mobile,
@@ -53,9 +64,26 @@ function createSmsMessengerGateway({ env = process.env, fetchImpl = globalThis.f
         }),
         signal: AbortSignal.timeout(8000),
       });
-      const body = await response.json().catch(() => ({}));
+      const responseText = typeof response.text === 'function'
+        ? await response.text() : JSON.stringify(await response.json());
+      let body;
+      try { body = JSON.parse(responseText); } catch (_) { body = {}; }
       if (!response.ok || body.error || !body.messageId) {
-        throw new SmsGatewayError(response.status, body.error);
+        const error = new SmsGatewayError(response.status, response.ok ? body.error : responseText);
+        if (response.status === 400) {
+          try {
+            const balanceResponse = await fetchImpl(BALANCE_URL, {
+              method: 'GET', headers: { Accept: 'application/json', ...headers() },
+              signal: AbortSignal.timeout(4000),
+            });
+            if (balanceResponse.status === 401 || balanceResponse.status === 403) error.balanceCheck = 'authentication';
+            else if (balanceResponse.ok) {
+              const balance = await balanceResponse.json();
+              error.balanceCheck = Number(balance?.creditBalance) <= 0 ? 'no_credits' : 'account_ok';
+            } else error.balanceCheck = 'unavailable';
+          } catch (_) { error.balanceCheck = 'unavailable'; }
+        }
+        throw error;
       }
       return String(body.messageId);
     },
