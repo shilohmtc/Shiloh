@@ -42,7 +42,7 @@ test('public promotion leads to an eligibility-checked My Shiloh voucher', () =>
   assert.match(website, /href="https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/"[^>]*>Explore My Shiloh/);
   assert.match(website, /Eligible first-time registrations can unlock a R100 welcome voucher/);
   assert.doesNotMatch(guest, /Complete your registration\. Unlock R100\.|data-client-auth-start>Claim my R100|class="welcome-voucher"/);
-  assert.match(guest, /data-client-auth-start>Open WhatsApp to verify/);
+  assert.doesNotMatch(guest, /data-client-auth-start>Open WhatsApp to verify/);
   assert.match(signedIn, /id="wallet" data-view="wallet"/);
   assert.match(signedIn, /data-welcome-voucher[^>]*hidden/);
   assert.match(transition.buildRegisteredClientPrompt(), /R100 welcome voucher/);

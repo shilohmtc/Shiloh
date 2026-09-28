@@ -110,36 +110,6 @@ export const PasskeyRecovery = {
   },
 };
 
-export const WhatsAppAutomaticReturn = {
-  render: () => {
-    const surface = productionSurface();
-    const form = surface.querySelector('[data-view="home"] [data-client-auth-code-form]');
-    const status = surface.querySelector('[data-view="home"] [data-auth-status]');
-    form?.classList.add('is-waiting');
-    if (status) {
-      status.dataset.state = 'waiting';
-      status.textContent = 'Waiting for your WhatsApp message…';
-    }
-    return surface;
-  },
-};
-
-export const WhatsAppCodeFallback = {
-  render: () => {
-    const surface = productionSurface();
-    const form = surface.querySelector('[data-view="home"] [data-client-auth-code-form]');
-    const disclosure = surface.querySelector('[data-view="home"] [data-client-auth-code-disclosure]');
-    const status = surface.querySelector('[data-view="home"] [data-auth-status]');
-    form?.classList.add('is-waiting');
-    if (disclosure) disclosure.open = true;
-    if (status) {
-      status.dataset.state = 'waiting';
-      status.textContent = 'Still waiting? Enter the 6-digit fallback code from Shiloh.';
-    }
-    return surface;
-  },
-};
-
 export const AuthenticatedHome = {
   render: () => productionSurface({
     id: '912',
