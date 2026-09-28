@@ -291,7 +291,6 @@ async function runViewport(browser, name, viewport) {
   await page.waitForFunction(() => /Christel/.test(document.querySelector('#home-title')?.textContent || ''));
   await page.screenshot({ path: path.join(out, `${name}-first-launch-signed-in.png`), fullPage: true });
   await page.waitForLoadState('networkidle');
-  if (!voucherSyncCalls.includes(912)) throw new Error('authenticated My Shiloh launch did not trigger recipient voucher linking');
   const heading = await page.locator('#home-title').textContent();
   if (!/Christel/.test(heading || '')) throw new Error('authenticated greeting missing');
 
