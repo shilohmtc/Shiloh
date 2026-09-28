@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
-const { createClientSmsAuthService, createSmsMessengerGateway } = require('../src/services/clientSmsAuth');
+const { createClientSmsAuthService, createSmsMessengerGateway, safeGatewayFailure } = require('../src/services/clientSmsAuth');
 const { normalizeMobile, normalizeName } = require('../src/services/crmV2ClientService');
 
 const at = new Date('2026-09-28T07:00:00.000Z');
@@ -12,6 +12,7 @@ const fingerprint = 'a'.repeat(64);
 function makeHarness({ owner = { status: 'found', client: { id: '17' } }, sendFails = false } = {}) {
   let challenge;
   const queries = [];
+  const warnings = [];
   const db = {
     async connect() { return { query: db.query, release() {} }; },
     async query(sql, params = []) {
@@ -57,8 +58,9 @@ function makeHarness({ owner = { status: 'found', client: { id: '17' } }, sendFa
   const service = createClientSmsAuthService({
     db, crmService, gateway, sessionService, env: { MY_SHILOH_SMS_AUTH_ENABLED: 'true' },
     now: () => at, randomBytes: (size) => Buffer.alloc(size, 7),
+    logger: { warn(message) { warnings.push(message); } },
   });
-  return { service, queries, get challenge() { return challenge; }, get sent() { return sent; }, issued: () => issued, verified: () => verified };
+  return { service, queries, warnings, get challenge() { return challenge; }, get sent() { return sent; }, issued: () => issued, verified: () => verified };
 }
 
 test('SMS gateway uses POST with private headers, requires accepted message id and sends one short code', async () => {
@@ -78,6 +80,14 @@ test('SMS gateway uses POST with private headers, requires accepted message id a
     SMSMESSENGER_ACCOUNT_EMAIL: 'clinic@example.test', SMSMESSENGER_API_TOKEN: 'private-token',
   }, fetchImpl: async () => ({ ok: true, async json() { return { error: 'no credits' }; } }) });
   await assert.rejects(broken.send({ mobile: '27821234567', code: '123456' }));
+  await assert.rejects(createSmsMessengerGateway({ env: {
+    SMSMESSENGER_ACCOUNT_EMAIL: 'clinic@example.test', SMSMESSENGER_API_TOKEN: 'private-token',
+  }, fetchImpl: async () => ({ ok: false, status: 403,
+    async json() { return { error: 'API key rejected: 27821234567 private-token' }; } })
+  }).send({ mobile: '27821234567', code: '123456' }), error => {
+    assert.deepEqual(safeGatewayFailure(error), { category: 'authentication', providerStatus: 403 });
+    return true;
+  });
 });
 
 test('SMS remains gated when only the Render secrets exist', async () => {
@@ -119,6 +129,10 @@ test('SMS provider failure revokes the challenge and ambiguous CRM ownership nev
   assert.deepEqual(await unavailable.service.start({ mobile: '0821234567', name: 'Jane Client' }),
     { ok: false, code: 'SMS_UNAVAILABLE' });
   assert.equal(unavailable.challenge.revoked_at instanceof Date, true);
+  assert.deepEqual(JSON.parse(unavailable.warnings[0]), {
+    event: 'my_shiloh_sms_send_failed', category: 'provider_response', providerStatus: null,
+  });
+  assert.doesNotMatch(unavailable.warnings[0], /0821234567|123456|provider down/);
   const ambiguous = makeHarness({ owner: { status: 'conflict' } });
   const start = await ambiguous.service.start({ mobile: '0821234567', name: 'Jane Client' });
   assert.deepEqual(await ambiguous.service.finish({ browserToken: start.browserToken, code: ambiguous.sent.code }),
