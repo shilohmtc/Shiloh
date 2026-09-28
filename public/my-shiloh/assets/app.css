@@ -55,6 +55,8 @@ button{color:inherit}
 @keyframes viewIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 .hero{padding:28px 2px 20px}
 .client-setup{margin:12px 0 8px;padding:22px;border:1px solid rgba(70,87,70,.23);border-radius:23px;background:linear-gradient(135deg,#fffdf9,#edf2e9);box-shadow:var(--shadow)}
+.client-setup[data-step="passkey"]{border-color:rgba(48,82,59,.38);background:linear-gradient(135deg,#fffdf9 20%,#e5efe1);box-shadow:0 16px 38px rgba(37,67,43,.13)}
+.client-setup[data-step="notifications"]{border-color:rgba(142,111,57,.35);background:linear-gradient(135deg,#fffdf9 25%,#f4efdc)}
 .client-setup h2{margin:3px 0 10px;font-size:clamp(25px,7vw,32px)}
 .client-setup>p:not(.eyebrow){color:var(--muted);font-size:14px;line-height:1.55}
 .client-setup .button{margin-top:10px}
