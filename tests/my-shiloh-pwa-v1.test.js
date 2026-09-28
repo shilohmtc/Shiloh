@@ -190,24 +190,25 @@ test('an authenticated installation uses its server session without another veri
   assert.match(client, /finish\.status === 401[\s\S]*request a mobile code first, then save one under Profile/);
 });
 
-test('the secure browser install doorway offers existing clients passkey sign-in', () => {
+test('the browser install doorway leaves sign-in inside the installed app', () => {
   const html = renderMyShilohPage({ passkeysAvailable: true });
   const installDoorway = html.match(/<main class="install-gate" data-install-gate[\s\S]*?<\/main>/)?.[0] || '';
-  assert.match(installDoorway, /data-passkey-sign-in/);
-  assert.match(installDoorway, /data-passkey-recovery-form/);
+  assert.doesNotMatch(installDoorway, /data-passkey-sign-in|data-passkey-recovery-form|data-client-sms-start/);
+  assert.match(installDoorway, /Open the My Shiloh icon · Sign in there/);
+  assert.match(html, /data-passkey-sign-in/);
   const signedIn = renderMyShilohPage({ passkeysAvailable: true, client: { id: 1, name:'Christel', firstName:'Christel' } });
   const signedInDoorway = signedIn.match(/<main class="install-gate" data-install-gate[\s\S]*?<\/main>/)?.[0] || '';
   assert.doesNotMatch(signedInDoorway, /data-passkey-sign-in/);
 });
 
-test('SMS enrollment appears on both the website doorway and the installed guest app only when enabled', () => {
+test('SMS enrollment appears in the installed guest app only when enabled', () => {
   const inactive = renderMyShilohPage({ passkeysAvailable: true, smsAvailable: false });
   assert.doesNotMatch(inactive, /data-client-sms-start/);
   const page = renderMyShilohPage({ passkeysAvailable: true, smsAvailable: true });
   const doorway = page.match(/<main class="install-gate" data-install-gate[\s\S]*?<\/main>/)?.[0] || '';
-  assert.match(doorway, /data-passkey-sign-in/);
-  assert.match(doorway, /data-client-sms-start/);
-  assert.match(doorway, /data-client-sms-complete hidden/);
+  assert.doesNotMatch(doorway, /data-passkey-sign-in|data-client-sms-start|data-client-sms-complete/);
+  assert.match(page, /data-client-sms-start/);
+  assert.match(page, /data-client-sms-complete hidden/);
   assert.match(page, /6-digit code/);
   assert.doesNotMatch(page, /Use WhatsApp temporarily|Open WhatsApp to verify|use WhatsApp|Verified with WhatsApp|data-client-auth-code-disclosure/);
   const signedIn = renderMyShilohPage({ smsAvailable: true, client: { id: 1, name: 'Christel', firstName: 'Christel' } });

@@ -53,6 +53,8 @@ My Shiloh Home shows a short deposit prompt with the amount and payment action; 
 
 For iPhone installation, the public website sends clients to `https://app.shilohmtc.co.za/my-shiloh/`. Clients arriving through the Google app must open this address in Safari before using Share → Add to Home Screen and Open as Web App. A Google `share.google` share sheet is not the My Shiloh app origin and must not be installed. The app's install doorway guides that handoff; iOS does not allow a website to add a Home Screen app without the client's browser action.
 
+**Accepted 2026-09-28; client installation doorway:** Website install links lead to the same My Shiloh origin. In a regular browser this route shows one focused installation action and device-specific browser guidance, without SMS, passkey or recovery forms. The client opens the Home Screen app to sign in with a saved passkey or an SMS code, then saves a passkey if new. Android may offer a native install prompt; iPhone requires the browser Share → Add to Home Screen action. An already installed client opens the icon; website treatment handoff continues to show its code when present.
+
 ## Tool and integration inventory
 
 | Tool or integration | Role | Current handling | Authority / safe note |

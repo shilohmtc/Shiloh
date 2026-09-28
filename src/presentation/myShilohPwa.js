@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260928-client-setup-v1';
+const MY_SHILOH_ASSET_VERSION = '20260928-install-doorway-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -372,7 +372,7 @@ function renderMyShilohPage({
       <span class="brand-mark brand-mark--large install-gate__logo" aria-hidden="true"><img src="/my-shiloh/assets/icon-192.png" alt=""></span>
       <p class="eyebrow">My Shiloh</p>
       <h1 id="install-gate-title" data-install-gate-title>Keep My Shiloh one tap away.</h1>
-      <p class="install-gate__copy" data-install-gate-copy>Add <strong>My Shiloh</strong> to your Home Screen for quick access to bookings, Wallet, notifications and Shiloh support.</p>
+      <p class="install-gate__copy" data-install-gate-copy>Add My Shiloh to your Home Screen for quick access to your bookings and Wallet.</p>
       ${selectedService ? `<div class="website-treatment-handoff" data-website-treatment-handoff data-service-code="${escapeHtml(selectedService.id)}" hidden>
         <p>Your website choice: <strong>${escapeHtml(selectedService.name)}</strong></p>
         <p>Already have My Shiloh? Copy this treatment code, open the app from your Home Screen, then tap Bookings to continue.</p>
@@ -381,10 +381,8 @@ function renderMyShilohPage({
         <p role="status" data-copy-treatment-status></p>
       </div>` : ''}
       <button class="button button--primary button--wide" type="button" data-install-gate-action>Install My Shiloh</button>
-      ${!authenticated ? passkeySignInButton : ''}
-      ${!authenticated && smsAvailable ? smsSignInForm() : ''}
-      ${!authenticated && (passkeysAvailable || smsAvailable) ? '<div class="auth-status" data-auth-status role="status" aria-live="polite"></div>' : ''}
-      <p class="install-gate__status" data-install-gate-status aria-live="polite">Already installed? Open My Shiloh from your Home Screen, tap Bookings, then Book another appointment. You may need to choose your treatment again.</p>
+      <p class="install-gate__sequence">Add it to your Home Screen · Open the My Shiloh icon · Sign in there</p>
+      <p class="install-gate__status" data-install-gate-status aria-live="polite">Already installed? Open My Shiloh from your Home Screen.</p>
     </section>
   </main>
 

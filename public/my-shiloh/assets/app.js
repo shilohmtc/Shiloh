@@ -282,7 +282,7 @@
             ? 'You’re in Chrome. Use Share to add My Shiloh to your Home Screen.'
             : 'Use your browser’s Share menu to add My Shiloh to your Home Screen.';
       }
-      if (installGateAction) installGateAction.textContent = isIosGoogleApp() ? 'Show Safari steps' : 'Show iPhone steps';
+      if (installGateAction) installGateAction.textContent = 'Install My Shiloh';
       return;
     }
 
