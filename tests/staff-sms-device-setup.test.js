@@ -118,3 +118,16 @@ test('administrator and phone scripts parse and the approval screen labels revoc
   assert.match(html, /after setup/);
   assert.match(html, /identity/);
 });
+
+test('the SMS code entry page serves a parseable client script without storing the code in a URL', () => {
+  const router = createStaffPasskeyBootstrapRouter({ env: {},
+    bootstrapService: { startRegistration() {} }, smsSetupService: { enabled: () => true } });
+  const js = router.stack.find(layer => layer.route?.path === '/sms-setup.js');
+  let body;
+  const response = { setHeader() {}, send(value) { body = value; return this; },
+    status() { return this; }, type() { return this; } };
+  js.route.stack[0].handle({}, response);
+  assert.doesNotThrow(() => new vm.Script(body));
+  assert.match(body, /history\.replaceState/);
+  assert.match(body, /form\.elements\.namedItem\('code'\)/);
+});
