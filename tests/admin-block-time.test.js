@@ -5,11 +5,9 @@ const path = require('node:path');
 
 const servicePath = path.join(__dirname, '..', 'src', 'services', 'adminBlockTime.js');
 const availabilityPath = path.join(__dirname, '..', 'src', 'services', 'availabilityService.js');
-const patchPath = path.join(__dirname, '..', 'src', 'bootstrap', 'adminBlockTimePatch.js');
 const packagePath = path.join(__dirname, '..', 'package.json');
 const source = fs.readFileSync(servicePath, 'utf8');
 const availability = fs.readFileSync(availabilityPath, 'utf8');
-const patch = fs.readFileSync(patchPath, 'utf8');
 const pkg = fs.readFileSync(packagePath, 'utf8');
 const {
   canPresentBlockTime,
@@ -109,9 +107,7 @@ test('shared client slot generation already excludes calendar blocks', () => {
   assert.match(availability, /cb\.ends_at > \(c\.local_start AT TIME ZONE/);
 });
 
-test('Block time implementation is retained internally but startup cannot expose it to ordinary WhatsApp', () => {
-  assert.doesNotMatch(patch, /processAdminBlockTimeMessage/);
-  assert.match(patch, /enrichAppointments/);
-  assert.match(patch, /return result/);
-  assert.match(pkg, /adminBlockTimePatch\.js/);
+test('Block time belongs to Calendar without a startup preload or ordinary WhatsApp action', () => {
+  assert.doesNotMatch(pkg, /adminBlockTimePatch\.js/);
+  assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '..', 'src', 'controllers', 'webhookController.js'), 'utf8'), /processAdminBlockTimeMessage/);
 });

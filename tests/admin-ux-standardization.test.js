@@ -149,13 +149,11 @@ test('Admin welcome polish does not rewrite non-Admin messages with similar word
   assert.equal(result.body, body);
 });
 
-test('Admin UX standardization preload runs after the existing Block time patch', () => {
+test('Admin UX standardization preload remains while Block Time no-op is absent', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
   for (const scriptName of ['start', 'dev']) {
     const script = pkg.scripts[scriptName];
-    const blockTime = script.indexOf('./src/bootstrap/adminBlockTimePatch.js');
-    const ux = script.indexOf('./src/bootstrap/adminUxStandardizationPatch.js');
-    assert.ok(blockTime >= 0, `${scriptName} must preload adminBlockTimePatch`);
-    assert.ok(ux > blockTime, `${scriptName} must preload adminUxStandardizationPatch after adminBlockTimePatch`);
+    assert.doesNotMatch(script, /adminBlockTimePatch\.js/);
+    assert.match(script, /adminUxStandardizationPatch\.js/);
   }
 });
