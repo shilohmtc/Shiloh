@@ -348,11 +348,11 @@ test('payment without appointment-linked acceptance still requires an explicit c
   }
 });
 
-test('payment service has payment notification hooks at request and settlement boundaries', () => {
+test('payment and voucher services use app notices without retired Meta payment calls', () => {
   const source = fs.readFileSync(path.join(root, 'src/services/bookingPayments.js'), 'utf8');
-  assert.match(source, /sendPaymentTemplate/);
-  assert.match(source, /PAYMENT_TEMPLATE_KEYS\.BALANCE_DUE/);
-  assert.match(source, /PAYMENT_TEMPLATE_KEYS\.RECEIVED/);
-  assert.match(source, /PAYMENT_TEMPLATE_KEYS\.NOT_VERIFIED/);
-  assert.match(source, /PAYMENT_TEMPLATE_KEYS\.REFUND_UPDATE/);
+  const vouchers = fs.readFileSync(path.join(root, 'src/services/giftVouchers.js'), 'utf8');
+  assert.doesNotMatch(source, /sendPaymentTemplate|sendWhatsAppTemplate|deposit_notice_channel='whatsapp'|receipt_notice_channel='whatsapp'/);
+  assert.doesNotMatch(vouchers, /sendPaymentTemplate|sendWhatsAppTemplate/);
+  assert.match(source, /eventKey: `deposit-request:/);
+  assert.match(source, /eventKey: `payment-provider:/);
 });
