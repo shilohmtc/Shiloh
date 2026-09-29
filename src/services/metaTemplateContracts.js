@@ -120,8 +120,7 @@ function assertDeliveryFeatureGate(contractId, environment = process.env) {
   if (contractId === 'booking_update' && environment.WHATSAPP_BOOKING_UPDATE_ENABLED !== 'true') {
     throw new Error('Booking-update delivery gate is disabled');
   }
-  if ((contractId === 'reschedule_approval_request' || contractId === 'reschedule_declined')
-    && environment.WHATSAPP_RESCHEDULE_APPROVAL_ENABLED !== 'true') {
+  if (contractId === 'reschedule_approval_request' || contractId === 'reschedule_declined') {
     throw new Error('Reschedule-approval delivery gate is disabled');
   }
   if (contractId === 'staff_auth_otp') {

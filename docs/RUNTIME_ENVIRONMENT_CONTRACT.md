@@ -13,8 +13,7 @@ This file records the disposition of production environment keys audited in #654
 - `SHILOH_CALENDAR_READONLY_UX_ENABLED` — current Workspace Calendar feature control.
 - `SHILOH_STAFF_BROWSER_SESSION_CALENDAR_BRIDGE_ENABLED` — current authenticated Workspace Calendar bridge.
 - `WHATSAPP_BOOKING_UPDATE_ENABLED` — still influences booking-update retry selection. Keep until that decision is decoupled from the retired channel.
-- `WHATSAPP_RESCHEDULE_APPROVAL_ENABLED` — compatibility fallback for client reschedule requests and Calendar holds, and still referenced by historical WhatsApp/template paths. Keep until the replacement policy is configured to the same observed value and the remaining paths are retired.
-- `SHILOH_CLIENT_RESCHEDULE_REQUESTS_ENABLED` — new clinic policy for My Shiloh reschedule requests and Calendar holds. When absent, the existing `WHATSAPP_RESCHEDULE_APPROVAL_ENABLED` value remains authoritative, so this code release does not change production behavior. When explicitly `true` or `false`, it overrides the old value for those clinic paths; any other present value fails closed. Do not set it without confirming the current clinic decision and matching the existing value for cutover.
+- `SHILOH_CLIENT_RESCHEDULE_REQUESTS_ENABLED` — clinic policy for My Shiloh reschedule requests and Calendar holds. Only the literal `true` enables these paths; missing or any other value fails closed. On 2026-09-29 the existing live decision was observed as enabled in the reschedule schema startup log, then this new Render key was set to `true` on the unchanged #1315 commit. Deploy `dep-dats58bncjis739r29g0` reached live and its startup log again reported `featureEnabled=true`.
 - `SHILOH_CLIENT_REMINDER_APP_ONLY_ENABLED` — retained app notification policy. Automated WhatsApp sends are blocked in production; an unaccepted app wake does not prove phone delivery and leaves the reminder retryable.
 - `SHILOH_CONSULTATION_FORM_APP_ONLY_ENABLED`, `SHILOH_CONSULTATION_FORM_DELIVERY_ENABLED`, `SHILOH_CONSULTATION_FORM_DELIVERY_NOT_BEFORE` — still participate in consultation form scheduling and app delivery. An unaccepted app wake leaves the assignment unsent; automated WhatsApp fallback is blocked in production. Keep until the form scheduler is decoupled from the retired channel.
 - `SHILOH_PAYMENT_RECEIPT_APP_ONLY_ENABLED` — retained app receipt policy. The payer needs an active matching My Shiloh profile and accepted push wake; no automated Meta receipt fallback is permitted in production.
@@ -54,6 +53,7 @@ These are not credentials and should not remain as durable production configurat
 - `WHATSAPP_BOOKING_APPROVAL_REQUEST_TEMPLATE`
 - `WHATSAPP_BOOKING_APPROVAL_OUTCOME_TEMPLATE`
 - `META_TEMPLATE_INVENTORY_AUDIT_ON_START`
+- `WHATSAPP_RESCHEDULE_APPROVAL_ENABLED` — retired by the subsequent code release after the new Shiloh policy key was confirmed live. The old WhatsApp conversation and Meta reschedule template gates remain closed regardless of this value. Remove this non-secret flag from Render after that release is live; do not remove the new Shiloh policy key.
 
 ## Retired runtime authority — external secret removal pending
 

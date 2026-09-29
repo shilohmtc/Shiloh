@@ -35,7 +35,8 @@ async function ensureTable() {
 }
 
 function normalizePhone(value = "") { return String(value || "").replace(/[^0-9]/g, ""); }
-function practitionerApprovalEnabled(){return process.env.WHATSAPP_RESCHEDULE_APPROVAL_ENABLED==='true';}
+// The old WhatsApp conversation is unmounted. Never allow its legacy CRM V2 reschedule path to reopen.
+function practitionerApprovalEnabled(){return false;}
 function detectAction(text = "") { const v=String(text).toLowerCase(); if(/\b(cancel|cancellation)\b.*\b(appointment|booking)\b|\b(cancel my appointment|cancel my booking)\b/.test(v))return"cancel"; if(/\b(reschedule|move)\b.*\b(appointment|booking)\b|\b(change|move) my (appointment|booking)\b/.test(v))return"reschedule"; return null; }
 function isAbort(text = "") { return /^(stop|never mind|nevermind|forget it|exit|0)$/i.test(String(text).trim()); }
 function isConfirmation(text = "") { return /^(yes|y|confirm|confirmed|correct|proceed|continue|ok|okay)$/i.test(String(text).trim()); }
