@@ -64,20 +64,21 @@ test('accepted app wake records a deposit notice once without Meta', async () =>
   assert.equal(calls.meta, 0);
 });
 
-test('unaccepted app wake uses the WhatsApp template under its claim', async () => {
+test('unaccepted app wake leaves the deposit notice pending without Meta', async () => {
   const { service, row, calls } = fixture({ accepted: 0 });
   await service.ensureDepositRequest({ appointmentId: 22 });
-  assert.equal(row.deposit_notice_channel, 'whatsapp');
+  assert.equal(row.deposit_notice_channel, null);
+  assert.equal(row.deposit_notice_state, 'pending');
   assert.equal(calls.push, 1);
-  assert.equal(calls.meta, 1);
+  assert.equal(calls.meta, 0);
 });
 
-test('inactive identity and disabled flag preserve existing WhatsApp path', async () => {
+test('inactive identity and disabled flag do not revive Meta delivery', async () => {
   for (const options of [{ active: false }, { flag: false }]) {
     const { service, row, calls } = fixture(options);
     await service.ensureDepositRequest({ appointmentId: 22 });
     assert.equal(calls.claims, 0);
-    assert.equal(calls.meta, 1);
+    assert.equal(calls.meta, 0);
     assert.equal(row.deposit_notice_channel, null);
   }
 });
@@ -91,10 +92,10 @@ test('accepted push with failed evidence write leaves the notice claimed', async
   assert.equal(calls.meta, 0);
 });
 
-test('uncertain Meta fallback is not resent automatically', async () => {
+test('an injected Meta sender cannot turn an unaccepted app wake into delivery', async () => {
   const { service, row, calls } = fixture({ accepted: 0, metaFails: true });
   await service.ensureDepositRequest({ appointmentId: 22 });
   await service.ensureDepositRequest({ appointmentId: 22 });
-  assert.equal(row.deposit_notice_state, 'sending');
-  assert.equal(calls.meta, 1);
+  assert.equal(row.deposit_notice_state, 'pending');
+  assert.equal(calls.meta, 0);
 });
