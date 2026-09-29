@@ -32,16 +32,6 @@ const COMMANDS = {
     description: 'Run the P2 staff-scope rollout smoke test.',
     run: async () => require('../src/services/p2StaffRolloutSmokeTest').runP2StaffRolloutSmokeTest(),
   },
-  'birthday-template-status': {
-    mutates: false,
-    description: 'Inspect the current and legacy Meta birthday-template states.',
-    run: async () => require('../src/services/birthdayTemplateProvisioning').getBirthdayTemplateStatus(),
-  },
-  'birthday-template-submit': {
-    mutates: true,
-    description: 'Submit the current brand-correct birthday template to Meta if it does not already exist.',
-    run: async () => require('../src/services/birthdayTemplateProvisioning').submitBirthdayTemplate(),
-  },
   'marietjie-calendar-rollout': {
     mutates: true,
     description: 'Run the guarded Marietjie calendar rollout using configured environment values.',
