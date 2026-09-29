@@ -162,7 +162,7 @@ test('#823 Desktop receives no PWA metadata/client while Android and iOS retain 
 
   const client = workspacePwaClientScript();
   assert.match(client, /beforeinstallprompt',event=>\{if\(!androidDevice\(\)\|\|standalone\(\)\)return/);
-  assert.match(client, /Install Shiloh on this Android phone/);
+  assert.match(client, /Install Shiloh Workspace on this Android phone/);
   assert.match(client, /Keep Shiloh close/);
   assert.ok((client.match(/box-sizing:border-box/g) || []).length >= 2);
 });

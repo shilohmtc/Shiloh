@@ -173,7 +173,9 @@ async function main() {
       }).on('error', reject);
     });
     const manifest = JSON.parse(manifestText);
-    assert.equal(manifest.name, 'Shiloh');
+    assert.equal(manifest.name, 'Shiloh Workspace');
+    assert.equal(manifest.short_name, 'Shiloh Workspace');
+    assert.equal(manifest.id, '/calendar/pwa/launch');
     assert.equal(manifest.display, 'standalone');
     assert.equal(manifest.start_url, '/calendar/pwa/launch');
     assert.deepEqual(manifest.icons.map(icon => [icon.sizes, icon.type, icon.purpose]), [['192x192','image/png','any'],['512x512','image/png','any'],['512x512','image/png','maskable']]);

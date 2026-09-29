@@ -24,8 +24,8 @@ const { renderStaffCalendarAccessPage } = require('../src/presentation/staffCale
 
 test('#791 manifest installs one canonical Shiloh Workspace delivery shell', () => {
   const manifest = workspacePwaManifest();
-  assert.equal(manifest.name, 'Shiloh');
-  assert.equal(manifest.short_name, 'Shiloh');
+  assert.equal(manifest.name, 'Shiloh Workspace');
+  assert.equal(manifest.short_name, 'Shiloh Workspace');
   assert.equal(manifest.id, '/calendar/pwa/launch');
   assert.equal(manifest.start_url, '/calendar/pwa/launch');
   assert.equal(manifest.scope, '/calendar/');
@@ -50,6 +50,8 @@ test('#791 PWA metadata decorates existing HTML idempotently and only expands CS
   assert.equal(once, twice);
   assert.match(once, new RegExp(`${PWA_BASE.replaceAll('/', '\\/')}\\/manifest\\.webmanifest`));
   assert.match(once, /apple-mobile-web-app-capable/);
+  assert.match(once, /application-name" content="Shiloh Workspace"/);
+  assert.match(once, /apple-mobile-web-app-title" content="Shiloh Workspace"/);
   assert.match(once, /theme-color/);
   assert.match(once, /client\.js\?v=official-brand-v2/);
 
