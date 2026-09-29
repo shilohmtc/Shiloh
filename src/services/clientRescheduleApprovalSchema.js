@@ -1,5 +1,6 @@
 const { pool } = require('../db/pool');
 const { verifyMigrationFiles } = require('./migrations');
+const { clientRescheduleRequestsEnabled } = require('../config/clientReschedulePolicy');
 
 const BASE_MIGRATION = '064_client_reschedule_practitioner_approval.sql';
 const MIGRATION = '087_whatsapp_crm_v2_reschedule_compat.sql';
@@ -83,7 +84,7 @@ async function initializeClientRescheduleApprovalSchema() {
     crmV2IdentityColumn: row.crm_v2_identity_column === true,
     crmV2RestrictForeignKey: row.crm_v2_restrict_fk === true,
     clientIdentityXor: row.client_identity_xor === true,
-    featureEnabled: process.env.WHATSAPP_RESCHEDULE_APPROVAL_ENABLED === 'true',
+    featureEnabled: clientRescheduleRequestsEnabled(),
     approvalTemplateConfigured: String(process.env.WHATSAPP_RESCHEDULE_APPROVAL_REQUEST_TEMPLATE || '').trim() === APPROVAL_TEMPLATE,
     declinedTemplateConfigured: String(process.env.WHATSAPP_RESCHEDULE_DECLINED_TEMPLATE || '').trim() === DECLINED_TEMPLATE,
   };

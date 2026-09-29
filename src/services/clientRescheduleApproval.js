@@ -13,6 +13,7 @@ const {
 } = require('./whatsappBookingIdentity');
 const { normalizeMobile } = require('./crmV2ClientService');
 const logger = require('../lib/logger');
+const { clientRescheduleRequestsEnabled } = require('../config/clientReschedulePolicy');
 
 const TIME_ZONE = 'Africa/Johannesburg';
 const APPROVE_PREFIX = 'reschedule_approval_approve_';
@@ -21,7 +22,7 @@ const APPROVAL_TEMPLATE = 'shiloh_reschedule_approval_request_v1';
 const DECLINED_TEMPLATE = 'shiloh_reschedule_declined_v1';
 
 function featureEnabled() {
-  return process.env.WHATSAPP_RESCHEDULE_APPROVAL_ENABLED === 'true';
+  return clientRescheduleRequestsEnabled();
 }
 
 function normalizePhone(value = '') {

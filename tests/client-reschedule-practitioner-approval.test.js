@@ -11,7 +11,7 @@ const migration = fs.readFileSync(path.join(root, 'migrations', '064_client_resc
 const pkg = fs.readFileSync(path.join(root, 'package.json'), 'utf8');
 
 test('practitioner-approved client reschedule is dark by default', () => {
-  assert.match(service, /WHATSAPP_RESCHEDULE_APPROVAL_ENABLED === 'true'/);
+  assert.match(service, /clientRescheduleRequestsEnabled\(\)/);
   assert.match(patch, /if \(!featureEnabled\(\)\) return originalProcessAppointmentChangeMessage/);
   assert.match(pkg, /clientRescheduleApprovalPatch\.js/);
 });
