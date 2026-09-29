@@ -106,7 +106,7 @@ test('SMS setup routes are gated and migration allows only constrained approved 
   const router = createStaffPasskeyBootstrapRouter({ env: {},
     bootstrapService: { startRegistration() {} }, smsSetupService: { enabled: () => false } });
   assert.ok(router);
-  const service = fs.readFileSync(path.join(__dirname, '../src/services/staffWhatsAppPasskeyBootstrap.js'), 'utf8');
+  const service = fs.readFileSync(path.join(__dirname, '../src/services/staffPasskeyDeviceBootstrap.js'), 'utf8');
   assert.match(service, /ADMIN_SMS_REPLACE_SOURCE && mode !== 'replace'/);
   const migration = fs.readFileSync(path.join(__dirname, '../migrations/178_staff_sms_passkey_setup.sql'), 'utf8');
   assert.match(migration, /source IN \('whatsapp_self', 'workspace_self', 'admin_sms_add', 'admin_sms_replace'\)/);

@@ -5,7 +5,7 @@ const { pool } = require('../db/pool');
 const { sha256, normalizeWhatsapp, deriveCalendarViewer } = require('./staffBrowserSession');
 const { strongRecentSession } = require('./staffPasskeyAuth');
 const { createSmsMessengerGateway, safeGatewayFailure } = require('./clientSmsAuth');
-const { createStaffWhatsAppPasskeyBootstrapService } = require('./staffWhatsAppPasskeyBootstrap');
+const { createStaffPasskeyDeviceBootstrapService } = require('./staffPasskeyDeviceBootstrap');
 
 const TTL_MS = 10 * 60 * 1000;
 const LIMIT = 3;
@@ -15,7 +15,7 @@ const validId = value => Number.isSafeInteger(Number(value)) && Number(value) > 
 function createStaffSmsDeviceSetupService({
   db = pool, env = process.env, now = () => new Date(), randomBytes = crypto.randomBytes,
   gateway = createSmsMessengerGateway({ env }),
-  bootstrapService = createStaffWhatsAppPasskeyBootstrapService({ db, env, now }),
+  bootstrapService = createStaffPasskeyDeviceBootstrapService({ db, env, now }),
   logger = console,
 } = {}) {
   const enabled = () => env.MY_SHILOH_SMS_AUTH_ENABLED === 'true' && gateway.enabled() && bootstrapService.policy().operational;

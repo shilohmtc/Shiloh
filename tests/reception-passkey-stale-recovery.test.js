@@ -15,7 +15,7 @@ test('#842 Reception bootstrap retries once without stale excludeCredentials aft
 });
 
 test('#842 stale-credential retry does not remove server-side duplicate credential rejection', () => {
-  const service = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'staffWhatsAppPasskeyBootstrap.js'), 'utf8');
+  const service = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'staffPasskeyDeviceBootstrap.js'), 'utf8');
   assert.match(service, /SELECT id FROM staff_auth_passkey_credentials WHERE credential_id = \$1 LIMIT 1 FOR UPDATE/);
   assert.match(service, /reason: 'credential_exists'/);
   assert.match(service, /return \{ ok: false, code: 'STAFF_PASSKEY_BOOTSTRAP_INVALID' \}/);

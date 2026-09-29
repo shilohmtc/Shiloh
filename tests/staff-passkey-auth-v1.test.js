@@ -114,7 +114,7 @@ test('#940 passkey registration presents the canonical staff name while retainin
 
 test('staff passkeys are discoverable so an existing phone can recover across browser or PWA handoff', () => {
   const service = fs.readFileSync(path.join(__dirname, '../src/services/staffPasskeyAuth.js'), 'utf8');
-  const bootstrap = fs.readFileSync(path.join(__dirname, '../src/services/staffWhatsAppPasskeyBootstrap.js'), 'utf8');
+  const bootstrap = fs.readFileSync(path.join(__dirname, '../src/services/staffPasskeyDeviceBootstrap.js'), 'utf8');
   const ux = fs.readFileSync(path.join(__dirname, '../src/presentation/staffPasskeyUx.js'), 'utf8');
   assert.match(service, /authenticatorAttachment:\s*'platform'/);
   assert.match(service, /residentKey:\s*'required'/);
@@ -238,7 +238,7 @@ test('#957 device labels are privacy-safe, bounded, and inferred without storing
   assert.equal(personalizedDeviceLabel('James Smith', 'iPad'), 'James’ iPad');
   assert.equal(personalizedDeviceLabel('', 'Android device'), 'Android device');
   const authService = fs.readFileSync(path.join(__dirname, '../src/services/staffPasskeyAuth.js'), 'utf8');
-  const bootstrapService = fs.readFileSync(path.join(__dirname, '../src/services/staffWhatsAppPasskeyBootstrap.js'), 'utf8');
+  const bootstrapService = fs.readFileSync(path.join(__dirname, '../src/services/staffPasskeyDeviceBootstrap.js'), 'utf8');
   assert.match(authService, /personalizedDeviceLabel\(admin\.display_name, deviceLabel\)/);
   assert.match(bootstrapService, /personalizedDeviceLabel\(admin\.display_name, deviceLabel\)/);
   const migration = fs.readFileSync(path.join(__dirname, '../migrations/119_workspace_passkey_device_labels.sql'), 'utf8');

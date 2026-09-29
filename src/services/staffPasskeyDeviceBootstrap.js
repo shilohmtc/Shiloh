@@ -3,7 +3,6 @@
 const crypto = require('crypto');
 const { pool } = require('../db/pool');
 const {
-  normalizeWhatsapp,
   sha256,
   deriveCalendarViewer,
   issueStaffBrowserSession,
@@ -18,13 +17,11 @@ const {
   verifyRegistrationResponse,
 } = require('./staffPasskeyAuth');
 
-const FEATURE_FLAG = 'SHILOH_STAFF_WHATSAPP_PASSKEY_BOOTSTRAP_ENABLED';
 const BOOTSTRAP_TTL_MS = 10 * 60 * 1000;
 const ISSUE_WINDOW_MS = 10 * 60 * 1000;
 const ISSUE_LIMIT = 3;
 const BOOTSTRAP_PURPOSE = 'bootstrap_registration';
 const REPLACEMENT_PURPOSE = 'bootstrap_replacement_registration';
-const WHATSAPP_SOURCE = 'whatsapp_self';
 const WORKSPACE_SOURCE = 'workspace_self';
 const ADMIN_SMS_ADD_SOURCE = 'admin_sms_add';
 const ADMIN_SMS_REPLACE_SOURCE = 'admin_sms_replace';
@@ -34,15 +31,11 @@ function registrationPurpose(mode) {
 }
 
 function bootstrapPolicy(env = process.env) {
-  // Retired: an old environment flag must never re-enable WhatsApp staff setup.
-  const whatsappEnabled = false;
   const smsEnabled = String(env.MY_SHILOH_SMS_AUTH_ENABLED || '').trim().toLowerCase() === 'true';
-  const enabled = whatsappEnabled || smsEnabled;
   const passkey = passkeyPolicy(env);
   return {
-    enabled,
-    whatsappEnabled,
-    operational: enabled && passkey.operational,
+    enabled: smsEnabled,
+    operational: smsEnabled && passkey.operational,
     origin: passkey.origin,
     rpId: passkey.rpId,
   };
@@ -94,14 +87,14 @@ function parseRegistrationChallenge(response, expectedOrigin) {
   }
 }
 
-function createStaffWhatsAppPasskeyBootstrapService({
+function createStaffPasskeyDeviceBootstrapService({
   db = pool,
   env = process.env,
   now = () => new Date(),
   randomBytes = crypto.randomBytes,
   sessionTtlMs,
 } = {}) {
-  if (!db || typeof db.query !== 'function') throw new Error('staff WhatsApp passkey bootstrap db is required');
+  if (!db || typeof db.query !== 'function') throw new Error('staff passkey device bootstrap db is required');
 
   function policy() { return bootstrapPolicy(env); }
 
@@ -112,26 +105,6 @@ function createStaffWhatsAppPasskeyBootstrapService({
        VALUES ($1, NULL, $2, 'passkey', $3, $4::jsonb)`,
       [eventType, adminId, requestFingerprintHash, JSON.stringify(metadata && typeof metadata === 'object' ? metadata : {})]
     );
-  }
-
-  async function identityRows(queryable, normalized, { forUpdate = false } = {}) {
-    const result = await queryable.query(
-      `SELECT a.id, a.staff_id, a.display_name, a.role, a.business_role, a.calendar_scope,
-              a.service_scope, a.permissions, a.active AS admin_active, s.status AS staff_status
-         FROM staff_admin_accounts a
-         LEFT JOIN staff s ON s.id = a.staff_id
-        WHERE a.normalized_whatsapp = $1
-        ORDER BY a.id
-        LIMIT 3${forUpdate ? '\n        FOR UPDATE OF a' : ''}`,
-      [normalized]
-    );
-    return result.rows;
-  }
-
-  async function resolveIdentity(whatsapp) {
-    const normalized = normalizeWhatsapp(whatsapp);
-    if (!normalized) return { matched: false, eligible: false, code: 'STAFF_PASSKEY_BOOTSTRAP_UNKNOWN' };
-    return evaluateBootstrapPrincipal(await identityRows(db, normalized));
   }
 
   async function resolveAdmin(queryable, adminId, { forUpdate = false } = {}) {
@@ -182,10 +155,6 @@ function createStaffWhatsAppPasskeyBootstrapService({
         url: setupUrl(token, env, { flow: source === WORKSPACE_SOURCE || source === ADMIN_SMS_ADD_SOURCE ? 'add'
           : source === ADMIN_SMS_REPLACE_SOURCE ? 'replace' : null }),
       };
-  }
-
-  async function issueBootstrap({ whatsapp } = {}) {
-    return { ok: false, handled: false, code: 'STAFF_PASSKEY_BOOTSTRAP_DISABLED' };
   }
 
   async function issueSelfBootstrap({ session, requestFingerprintHash = null } = {}) {
@@ -452,8 +421,6 @@ function createStaffWhatsAppPasskeyBootstrapService({
 
   return {
     policy,
-    resolveIdentity,
-    issueBootstrap,
     issueSelfBootstrap,
     issueApprovedBootstrap,
     startRegistration,
@@ -461,16 +428,14 @@ function createStaffWhatsAppPasskeyBootstrapService({
   };
 }
 
-const service = createStaffWhatsAppPasskeyBootstrapService();
+const service = createStaffPasskeyDeviceBootstrapService();
 
 module.exports = {
-  FEATURE_FLAG,
   BOOTSTRAP_TTL_MS,
   ISSUE_WINDOW_MS,
   ISSUE_LIMIT,
   BOOTSTRAP_PURPOSE,
   REPLACEMENT_PURPOSE,
-  WHATSAPP_SOURCE,
   WORKSPACE_SOURCE,
   registrationPurpose,
   bootstrapPolicy,
@@ -478,6 +443,6 @@ module.exports = {
   evaluateBootstrapPrincipal,
   setupUrl,
   parseRegistrationChallenge,
-  createStaffWhatsAppPasskeyBootstrapService,
+  createStaffPasskeyDeviceBootstrapService,
   ...service,
 };
