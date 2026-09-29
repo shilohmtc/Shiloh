@@ -81,3 +81,5 @@ The #654 cleanup alone did not authorize deletion or rotation of credential mate
 ## Production startup boundary after #654
 
 Production startup must retain `node scripts/verify-migrations.js` as its first authority gate. The retired #643 Meta reconnect and WABA-template-permission bootstrap modules must not be preloaded by the production start command. Provider mutation remains unavailable unless a future bounded unit deliberately reintroduces an authorized path.
+
+The two automated staff finalization WhatsApp schedulers (recurring attendance reminders and historical prompts) are retired after the Meta sending credentials were removed. Their old ledger migrations remain in the migration inventory for checksum authority; no startup timer reads them. Staff finalization remains available through the protected Workspace appointment route.

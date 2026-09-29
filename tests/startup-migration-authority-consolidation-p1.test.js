@@ -48,8 +48,6 @@ test('production startup is verification-only and keeps runtime schedulers', () 
     'startBookingIntegrityScheduler',
     'startCustomerBookingConfirmationScheduler',
     'startMandatoryDemoCleanupScheduler',
-    'startAttendanceFinalizationReminderScheduler',
-    'startHistoricalFinalizationPromptScheduler',
   ]) assert.match(app, new RegExp(`${scheduler}\\(\\)`));
 });
 
