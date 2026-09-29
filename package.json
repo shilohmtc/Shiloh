@@ -1,7 +1,7 @@
 {
-  "name": "whatsapp-shiloh-bot",
+  "name": "shiloh-platform",
   "version": "2.0.0",
-  "description": "Production-ready WhatsApp AI Bot",
+  "description": "Shiloh clinic platform for My Shiloh, Workspace, booking and care",
   "main": "app.js",
   "type": "commonjs",
   "engines": {
@@ -29,8 +29,10 @@
     "build-storybook": "storybook build"
   },
   "keywords": [
-    "whatsapp",
-    "meta",
+    "shiloh",
+    "clinic",
+    "workspace",
+    "booking",
     "openai"
   ],
   "author": "",

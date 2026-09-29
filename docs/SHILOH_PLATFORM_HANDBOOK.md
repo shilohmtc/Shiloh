@@ -22,7 +22,7 @@ Shiloh is one clinic platform with several connected surfaces:
 | Reception iPad check-in | Client-only walk-in intake and appointment-bound forms; supervised device pilot live, client acceptance pending | [Issue #1198](https://github.com/shilohmtc/Shiloh/issues/1198), CRM V2 and consultation-form authorities |
 
 | Shiloh Workspace | Authenticated staff operations | Repository routes, permissions, Workspace UI and production evidence |
-| Shiloh AI Assistant | Customer-facing WhatsApp conversations and workflow entry | Meta/WhatsApp integration, assistant services and business policies |
+| Shiloh AI Assistant | In-app help within My Shiloh | Assistant services and clinic business policies; no automated WhatsApp conversation |
 | Shiloh CRM | Client, booking and operational records | PostgreSQL schema, migrations and repository services |
 | Render | Hosting, runtime, deployment and managed PostgreSQL | Render service/deployment state and repository release evidence |
 
@@ -41,17 +41,19 @@ Production applied `165_clinic_ipad_checkin.sql` in the controlled release of #1
 ```mermaid
 flowchart TD
     Clients[Clients] --> Public[Public site and My Shiloh]
-    Clients --> WhatsApp[WhatsApp assistant]
+    Clients --> Reception[Human Reception WhatsApp]
     Staff[Clinic staff] --> Workspace[Shiloh Workspace]
     Public --> App[Shiloh application]
-    WhatsApp --> App
+    Reception --> Workspace
     Workspace --> App
     App --> DB[(Render PostgreSQL)]
-    App --> Calendar[Google Calendar]
+    App --> Calendar[Shiloh Calendar]
     App --> Payments[Payment provider]
 ```
 
 The application and database are the operational core. Calendar, messaging and payments are integrations around that core; they must not silently become competing authorities for canonical booking, client or policy data.
+
+The repository's internal npm package name is `shiloh-platform`. This does not rename the GitHub repository, Render service, public domains or installed apps.
 
 My Shiloh Home shows a short deposit prompt with the amount and payment action; the booking and payment pages carry the full policy. Clients can archive and restore Updates on their current phone. This stores only bounded notification IDs for that signed-in client in the installed app; it does not delete server notifications, change booking or payment state, or sync the archive to another phone.
 
@@ -69,10 +71,10 @@ For iPhone installation, the public website sends clients to `https://app.shiloh
 | Figma | Brand, design exploration and approved visual reference | Use the connected Figma workflow when a Figma task is requested | Confirm the approved file/page before treating a design as final |
 | Storybook | Component and page states | Required review surface for meaningful interface changes | Storybook is UI evidence, not the business-data authority |
 | Playwright | Browser journeys, responsive checks and visual evidence | Run affected desktop/phone journeys and accessibility checks | Passing tests do not prove a live payment or external provider delivery |
-| Meta WhatsApp Cloud API | Customer messaging and provider delivery state | App integration plus provider callbacks | Delivery evidence must be checked in provider/application records |
-| Google Calendar | Synchronized operational calendar view | Calendar is downstream of canonical booking data | It is not the primary booking database |
+| Human Reception WhatsApp | Direct person-to-person help | Public contact link to Reception; automated app sends retired | Keep the human number separate from My Shiloh and Workspace authentication |
+| Shiloh Calendar | Scheduling and availability | Canonical Shiloh booking and Calendar authorities | Dormant Google provider code does not make Google the booking authority |
 | Ozow / payment providers | Payment initiation, callbacks and payment evidence | Follow the payment runbook and provider configuration | Never infer payment success from a client-side redirect alone |
-| OpenAI Responses API | Assistant capability where configured | Keep prompts, tools and permissions inside repository authorities | Never expose provider credentials or assume model output is policy |
+| OpenAI Responses API | In-app assistant capability where configured | Keep prompts, tools and permissions inside repository authorities | Never expose provider credentials or assume model output is policy |
 | Public domains/DNS | Website and client entry points | Preserve existing records unless explicitly changing them | Verify live HTTPS, redirects and canonical links after changes |
 
 Items such as the exact approved Figma file, current provider account identifiers, DNS ownership and environment-variable inventory should be verified in their authenticated systems when needed; credentials and sensitive identifiers do not belong here.
