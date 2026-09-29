@@ -35,119 +35,21 @@ test('voucher notifications include direct secure links as a button fallback', (
   assert.throws(() => securePaymentUrl('unsafe/key'));
 });
 
-test('payment WhatsApp notifications remain off until explicitly enabled', async () => {
+test('retired payment WhatsApp transport ignores old flags and injected senders', async () => {
   let calls = 0;
   assert.equal(paymentNotificationsEnabled({}), false);
-  const result = await sendPaymentTemplate({
-    templateKey: PAYMENT_TEMPLATE_KEYS.RECEIVED,
-    to: '0716742646',
-    bodyParameters: ['Jean-Pierre'],
-    environment: {},
-    send: async () => { calls += 1; },
-  });
-  assert.deepEqual(result, { sent: false, reason: 'disabled' });
+  assert.equal(paymentNotificationsEnabled({ WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED: 'true' }), false);
+  for (const templateKey of [PAYMENT_TEMPLATE_KEYS.RECEIVED, PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST, PAYMENT_TEMPLATE_KEYS.BALANCE_DUE]) {
+    const result = await sendPaymentTemplate({
+      templateKey,
+      to: '0716742646',
+      bodyParameters: ['Jean-Pierre'],
+      environment: { WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED: 'true', WHATSAPP_PAYMENT_DEPOSIT_REQUEST_TEMPLATE: 'shiloh_payment_deposit_request_v1' },
+      send: async () => { calls += 1; },
+    });
+    assert.deepEqual(result, { sent: false, reason: 'disabled' });
+  }
   assert.equal(calls, 0);
-});
-
-test('enabled payment notification passes a dynamic Shiloh payment button value', async () => {
-  let call = null;
-  const result = await sendPaymentTemplate({
-    templateKey: PAYMENT_TEMPLATE_KEYS.BALANCE_DUE,
-    to: '0716742646',
-    bodyParameters: ['Jean-Pierre', 'Massage', '699', 'R20.00'],
-    urlButtonParameter: 'request_699_token',
-    environment: {
-      WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED: 'true',
-      WHATSAPP_PAYMENT_BALANCE_DUE_TEMPLATE: 'shiloh_payment_balance_due_v1',
-    },
-    send: async (...args) => { call = args; return { messages: [{ id: 'wamid.test' }] }; },
-  });
-  assert.equal(result.sent, true);
-  assert.deepEqual(call, [
-    '27716742646',
-    'shiloh_payment_balance_due_v1',
-    ['Jean-Pierre', 'Massage', '699', 'R20.00'],
-    'en',
-    [],
-    ['request_699_token'],
-  ]);
-});
-
-test('deposit request prefers policy-aware v2 and falls back safely while Meta approval is pending', async () => {
-  const calls = [];
-  const result = await sendPaymentTemplate({
-    templateKey: PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST,
-    to: '0716742646',
-    bodyParameters: ['Jean-Pierre', 'R125.00', 'Toe Gel Only', 'Saturday, 03 October 2026', '08:00', '760'],
-    urlButtonParameter: 'dep_760_token',
-    environment: {
-      WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED: 'true',
-      WHATSAPP_PAYMENT_DEPOSIT_REQUEST_TEMPLATE: 'shiloh_payment_deposit_request_v1',
-    },
-    send: async (...args) => {
-      calls.push(args);
-      if (args[1] === 'shiloh_payment_deposit_request_v2') {
-        const error = new Error('template does not exist');
-        error.response = { data: { error: { code: 132001, message: 'Template does not exist' } } };
-        throw error;
-      }
-      return { messages: [{ id: 'wamid.legacy' }] };
-    },
-  });
-  assert.equal(result.sent, true);
-  assert.equal(result.fallback, true);
-  assert.equal(result.templateName, 'shiloh_payment_deposit_request_v1');
-  assert.equal(calls[0][1], 'shiloh_payment_deposit_request_v2');
-  assert.equal(calls[1][1], 'shiloh_payment_deposit_request_v1');
-});
-
-
-test('deposit request falls back when Shiloh knows v2 is pending approval before provider send', async () => {
-  const calls = [];
-  const result = await sendPaymentTemplate({
-    templateKey: PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST,
-    to: '0825278287',
-    bodyParameters: ['Client', 'R125.00', 'Medi-Heel Pedicure', 'Friday, 25 September 2026', '08:00', '761'],
-    urlButtonParameter: 'dep_761_token',
-    environment: {
-      WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED: 'true',
-      WHATSAPP_PAYMENT_DEPOSIT_REQUEST_TEMPLATE: 'shiloh_payment_deposit_request_v1',
-    },
-    send: async (...args) => {
-      calls.push(args);
-      if (args[1] === 'shiloh_payment_deposit_request_v2') {
-        throw Object.assign(
-          new Error('WhatsApp template is not exact, approved and configured: shiloh_payment_deposit_request_v2'),
-          { code: 'META_TEMPLATE_NOT_READY' },
-        );
-      }
-      return { messages: [{ id: 'wamid.761.legacy' }] };
-    },
-  });
-  assert.equal(result.sent, true);
-  assert.equal(result.fallback, true);
-  assert.equal(result.templateName, 'shiloh_payment_deposit_request_v1');
-  assert.deepEqual(calls.map(call => call[1]), [
-    'shiloh_payment_deposit_request_v2',
-    'shiloh_payment_deposit_request_v1',
-  ]);
-});
-
-test('ambiguous provider failure does not retry a second WhatsApp template', async () => {
-  let calls = 0;
-  const result = await sendPaymentTemplate({
-    templateKey: PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST,
-    to: '0716742646',
-    bodyParameters: ['Jean-Pierre', 'R125.00', 'Toe Gel Only', 'Saturday, 03 October 2026', '08:00', '760'],
-    urlButtonParameter: 'dep_760_token',
-    environment: {
-      WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED: 'true',
-      WHATSAPP_PAYMENT_DEPOSIT_REQUEST_TEMPLATE: 'shiloh_payment_deposit_request_v1',
-    },
-    send: async () => { calls += 1; throw new Error('network timeout'); },
-  });
-  assert.equal(result.sent, false);
-  assert.equal(calls, 1);
 });
 
 test('web payment policy formats and reorders the canonical authority without changing its wording', () => {

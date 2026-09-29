@@ -77,20 +77,21 @@ test('accepted app wake records receipt once and skips general Meta receipt', as
   assert.equal(calls.meta, 0);
 });
 
-test('unaccepted app wake falls back to approved Meta receipt and records channel', async () => {
+test('unaccepted app wake leaves the receipt pending without Meta', async () => {
   const { service, payload, calls, request } = fixture({ accepted: 0 });
   await service.handleOzowNotification(payload);
-  assert.equal(request.receipt_notice_channel, 'whatsapp');
+  assert.equal(request.receipt_notice_channel, null);
+  assert.equal(request.receipt_notice_state, 'pending');
   assert.equal(calls.push, 2);
-  assert.equal(calls.meta, 1);
+  assert.equal(calls.meta, 0);
 });
 
-test('inactive payer and disabled switch preserve the original Meta then app behavior', async () => {
+test('inactive payer and disabled app switch cannot revive Meta delivery', async () => {
   for (const options of [{ active: false }, { flag: false }]) {
     const { service, payload, calls } = fixture(options);
     await service.handleOzowNotification(payload);
     assert.equal(calls.claims, 0);
-    assert.equal(calls.meta, 1);
+    assert.equal(calls.meta, 0);
     assert.equal(calls.push, 1);
   }
 });
@@ -103,9 +104,9 @@ test('failed receipt evidence write leaves the claim and does not send Meta', as
   assert.equal(calls.meta, 0);
 });
 
-test('ambiguous Meta outcome keeps the receipt claimed for review', async () => {
+test('injected Meta sender cannot claim an unaccepted app receipt', async () => {
   const { service, payload, calls, request } = fixture({ accepted: 0, metaFails: true });
   await service.handleOzowNotification(payload);
-  assert.equal(request.receipt_notice_state, 'sending');
-  assert.equal(calls.meta, 1);
+  assert.equal(request.receipt_notice_state, 'pending');
+  assert.equal(calls.meta, 0);
 });
