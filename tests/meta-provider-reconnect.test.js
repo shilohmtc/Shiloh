@@ -27,7 +27,7 @@ function fakeContract(id, lifecycle = 'current', sendable = true) {
 
 test('canonical reconnect scope contains only current sendable contracts', () => {
   const bindings = currentSendableBindings();
-  assert.equal(bindings.length, 30);
+  assert.equal(bindings.length, 29);
   assert.equal(bindings.some((item) => item.contractId === 'problem_report_resolved'), true);
   assert.equal(bindings.some((item) => item.contractId === 'workspace_booking_request_alert'), true);
   assert.equal(bindings.some((item) => item.contractId === 'birthday_v1'), false);
@@ -35,6 +35,7 @@ test('canonical reconnect scope contains only current sendable contracts', () =>
   assert.equal(bindings.some((item) => item.contractId === 'appointment_reminder_legacy'), false);
   assert.equal(bindings.some((item) => item.contractId === 'booking_approval_request'), false);
   assert.equal(bindings.some((item) => item.contractId === 'booking_approval_outcome'), false);
+  assert.equal(bindings.some((item) => item.contractId === 'client_auth_otp'), false);
   for (const binding of bindings) {
     const contract = getShilohMessageContract(binding.contractId);
     assert.equal(contract.lifecycle, 'current');
