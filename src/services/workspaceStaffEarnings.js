@@ -13,6 +13,10 @@ function clinicDate(date) {
   }).format(new Date(date));
 }
 
+function nextClinicDate(now = new Date()) {
+  return clinicDate(new Date(now.getTime() + 86400000));
+}
+
 function isChristelOwner(rows) {
   return rows.length === 1 && rows[0].active === true
     && rows[0].business_role === 'owner'
@@ -113,7 +117,7 @@ function createWorkspaceStaffEarningsService({ db = pool } = {}) {
       staff: summarize(displayStaff, visits.rows, configured.rows),
       rules: configured.rows.filter(row => selectedStaffId == null || Number(row.staff_id) === Number(selectedStaffId)),
       services: (await db.query(`SELECT id,name FROM services WHERE status='active' ORDER BY name,id`)).rows,
-      earliestNewRuleDate: clinicDate(new Date()),
+      earliestNewRuleDate: nextClinicDate(),
     };
   }
 
@@ -125,7 +129,7 @@ function createWorkspaceStaffEarningsService({ db = pool } = {}) {
     const day = String(effectiveFrom || '');
     if (!Number.isSafeInteger(staff) || staff <= 0
       || (service != null && (!Number.isSafeInteger(service) || service <= 0))
-      || !/^\d{4}-\d{2}-\d{2}$/.test(day) || day < clinicDate(new Date())
+      || !/^\d{4}-\d{2}-\d{2}$/.test(day) || day < nextClinicDate()
       || clinicDate(`${day}T12:00:00+02:00`) !== day
       || !/^\d{1,3}(?:\.\d{1,2})?$/.test(String(ratePercent))
       || !Number.isFinite(rate) || rate < 0 || rate > 100) {
@@ -155,5 +159,5 @@ function createWorkspaceStaffEarningsService({ db = pool } = {}) {
   return { requireOwner, build, addRule };
 }
 
-module.exports = { EarningsError, clinicDate, isChristelOwner, selectRule, summarize, createWorkspaceStaffEarningsService,
+module.exports = { EarningsError, clinicDate, nextClinicDate, isChristelOwner, selectRule, summarize, createWorkspaceStaffEarningsService,
   ...createWorkspaceStaffEarningsService() };

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { isChristelOwner, summarize, selectRule, createWorkspaceStaffEarningsService } = require('../src/services/workspaceStaffEarnings');
+const { clinicDate, isChristelOwner, summarize, selectRule, createWorkspaceStaffEarningsService } = require('../src/services/workspaceStaffEarnings');
 const { renderReportsPage } = require('../src/presentation/workspaceReportsUx');
 
 const owner = { active: true, business_role: 'owner', display_name: 'Christel', staff_name: 'Christel', staff_status: 'active', permissions: { 'appointment:view': true } };
@@ -41,7 +41,9 @@ test('rule creation is owner gated, future dated and audited in one statement', 
   } };
   const service = createWorkspaceStaffEarningsService({ db });
   await assert.rejects(service.addRule({ adminId: 1, staffId: 11, effectiveFrom: '2020-01-01', ratePercent: '50' }), { httpStatus: 400 });
-  assert.equal(seen.length, 1);
+  await assert.rejects(service.addRule({ adminId: 1, staffId: 11, effectiveFrom: clinicDate(new Date()), ratePercent: '50' }), { httpStatus: 400 });
+  assert.equal(seen.length, 2);
+  assert.ok(seen.every(entry => entry.sql.includes('StaffEarnings:owner')));
   await service.addRule({ adminId: 1, staffId: 11, serviceId: 22, effectiveFrom: '2099-01-01', ratePercent: '17.50' });
   assert.match(seen.at(-1).sql, /crm_audit_events/);
   assert.deepEqual(seen.at(-1).params, [1, 11, 22, '2099-01-01', 17.5]);
