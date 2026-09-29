@@ -8,7 +8,7 @@ const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'
 
 test('production preloads booking provider guard after existing admin booking patches', () => {
   assert.match(pkg.scripts.start, /adminBookingProviderGuardPatch\.js/);
-  assert.ok(pkg.scripts.start.indexOf('adminManualStartTimePickerPatch.js') < pkg.scripts.start.indexOf('adminBookingProviderGuardPatch.js'));
+  assert.ok(pkg.scripts.start.indexOf('adminBookingChangeConfirmationCommitPatch.js') < pkg.scripts.start.indexOf('adminBookingProviderGuardPatch.js'));
 });
 
 test('Google OAuth expiry and revocation are recognized as provider failures', () => {
