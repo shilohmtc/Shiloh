@@ -11,13 +11,14 @@ test('service content migration is presentation-only', () => {
   assert.doesNotMatch(sql, /UPDATE\s+(appointments|clients)/i);
 });
 
-test('public catalogue is active CRM only, mounted, and WhatsApp-linked', () => {
+test('public catalogue is active CRM only, mounted, and linked to My Shiloh booking', () => {
   const service = fs.readFileSync('src/services/serviceCatalogue.js', 'utf8');
   const route = fs.readFileSync('src/routes/services.js', 'utf8');
   const app = fs.readFileSync('app.js', 'utf8');
   assert.match(service, /s\.status = 'active'/);
-  assert.match(route, /Book this treatment via WhatsApp/);
-  assert.match(route, /interested in booking/);
+  assert.match(route, /Continue in My Shiloh/);
+  assert.match(route, /\/book\?service=/);
+  assert.doesNotMatch(route, /wa\.me|Book via WhatsApp/);
   assert.match(app, /serviceRoutes/);
 });
 
