@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('node:module');
-const enabled = { env: { WHATSAPP_BOOKING_UPDATE_ENABLED: 'true' } };
-const disabled = { env: { WHATSAPP_BOOKING_UPDATE_ENABLED: 'false' } };
+const enabled = { env: { WHATSAPP_BOOKING_UPDATE_ENABLED: 'true', SHILOH_BOOKING_CHANGE_RETRY_ENABLED: 'true' } };
+const disabled = { env: { WHATSAPP_BOOKING_UPDATE_ENABLED: 'false', SHILOH_BOOKING_CHANGE_RETRY_ENABLED: 'false' } };
 
 function loadService({ templateApproved = true, templateStatusFails = false, providerFails = false, auditFails = false, appAccepted = 0, crmV2ClientId = 912, changeKind = 'time', appRecordFails = false } = {}) {
   const state = { status: 'pending', attemptCount: 0, lastError: null, providerCalls: 0, inAppCalls: 0, auditCalls: 0 };
@@ -184,10 +184,10 @@ test('failed app acceptance record leaves the claim blocked from replay', async 
   assert.equal(state.providerCalls, 0);
 });
 
-test('Shiloh retry policy preserves the old decision until configured, then takes precedence', () => {
+test('Shiloh retry policy alone selects pending booking updates', () => {
   const { service } = loadService();
-  assert.equal(service.bookingChangeRetryEnabled({ WHATSAPP_BOOKING_UPDATE_ENABLED: 'true' }), true);
-  assert.equal(service.bookingChangeRetryEnabled({ SHILOH_BOOKING_CHANGE_APP_ONLY_ENABLED: 'true' }), true);
+  assert.equal(service.bookingChangeRetryEnabled({ WHATSAPP_BOOKING_UPDATE_ENABLED: 'true' }), false);
+  assert.equal(service.bookingChangeRetryEnabled({ SHILOH_BOOKING_CHANGE_APP_ONLY_ENABLED: 'true' }), false);
   assert.equal(service.bookingChangeRetryEnabled({}), false);
   assert.equal(service.bookingChangeRetryEnabled({ SHILOH_BOOKING_CHANGE_RETRY_ENABLED: 'false', WHATSAPP_BOOKING_UPDATE_ENABLED: 'true' }), false);
   assert.equal(service.bookingChangeRetryEnabled({ SHILOH_BOOKING_CHANGE_RETRY_ENABLED: 'true' }), true);

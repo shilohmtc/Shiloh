@@ -26,11 +26,7 @@ let templateStatusCache = null;
 let templateStatusCachedAt = 0;
 
 function bookingChangeRetryEnabled(env = process.env) {
-  if (env.SHILOH_BOOKING_CHANGE_RETRY_ENABLED === 'true') return true;
-  if (env.SHILOH_BOOKING_CHANGE_RETRY_ENABLED === 'false') return false;
-  // Preserve the live decision until the new policy is set and verified.
-  return env.WHATSAPP_BOOKING_UPDATE_ENABLED === 'true'
-    || env.SHILOH_BOOKING_CHANGE_APP_ONLY_ENABLED === 'true';
+  return env.SHILOH_BOOKING_CHANGE_RETRY_ENABLED === 'true';
 }
 
 function fmtDate(value) {
@@ -404,7 +400,6 @@ function startCustomerChangeNotificationScheduler() {
     retryMinutes: RETRY_MS / 60000,
     bookingChangeRetryEnabled: bookingChangeRetryEnabled(),
     policyConfigured: ['true', 'false'].includes(process.env.SHILOH_BOOKING_CHANGE_RETRY_ENABLED),
-    legacyBookingUpdateEnabled: process.env.WHATSAPP_BOOKING_UPDATE_ENABLED === 'true',
     appOnlyEnabled: process.env.SHILOH_BOOKING_CHANGE_APP_ONLY_ENABLED === 'true',
   }, 'Customer-change notification scheduler started');
 }
