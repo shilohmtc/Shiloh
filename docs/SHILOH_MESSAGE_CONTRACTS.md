@@ -23,37 +23,18 @@ The provider must never become the only durable definition of a Shiloh operation
 
 ## Current inventory
 
-Current code records **19 Shiloh message identities**:
+Current code records **35 Shiloh message identities**: **29 current/sendable** and **6 retired/non-sendable**. The source of truth for the full current list is `src/services/shilohMessageContracts.js`.
 
-- **16 current/sendable contracts**
-- **3 retired/non-sendable contracts**
+Retired identities remain in the registry for historical provider reconciliation and cannot be registered, bound or sent:
 
-Current/sendable:
-
-1. `booking_update`
-2. `staff_auth_otp`
-3. `staff_finalization_actions`
-4. `appointment_followup_v2`
-5. `booking_approval_outcome`
-6. `booking_declined`
-7. `booking_approval_request`
-8. `reschedule_approval_request`
-9. `reschedule_declined`
-10. `cancellation_confirmation`
-11. `reschedule_confirmation`
-12. `appointment_reminder_actions`
-13. `booking_confirmation`
-14. `booking_confirmation_v2`
-15. `staff_finalization`
-16. `birthday_v2`
-
-Retired/do not recreate:
-
+- `booking_approval_request`
+- `booking_approval_outcome`
 - `birthday_v1`
 - `appointment_followup_legacy`
 - `appointment_reminder_legacy`
+- `client_auth_otp` (retired after My Shiloh switched to passkeys and SMS)
 
-The older readiness document contains historical counts from earlier provider audits. Those counts are evidence of prior provider state, not the current canonical contract inventory.
+The retired client OTP provisioner and its standalone script were removed. Existing Meta template records, if any, do not confer sign-in authority. Staff passkey registration shared with SMS device setup remains active even where older filenames mention WhatsApp.
 
 ## Provider-neutral contract identity
 
@@ -145,7 +126,7 @@ After an owner-authorized provider rebuild:
 7. Required runtime environment bindings are configured.
 8. Runtime template sends are proved end-to-end through the canonical contract resolver.
 
-The three retired identities are not recreated merely because an old WABA was deleted.
+Retired identities are not recreated merely because an old WABA was deleted.
 
 ## Authorization boundary
 

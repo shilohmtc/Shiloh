@@ -13,11 +13,11 @@ const {
   resolveMetaTemplateBinding,
 } = require('../src/services/metaTemplateAdapter');
 
-test('Shiloh owns one canonical registry with 35 identities and 30 sendable contracts', () => {
+test('Shiloh owns one canonical registry with 35 identities and 29 sendable contracts', () => {
   const contracts = getShilohMessageContracts();
   assert.equal(contracts.length, 35);
   assert.equal(new Set(contracts.map((contract) => contract.id)).size, 35);
-  assert.equal(contracts.filter((contract) => contract.sendable).length, 30);
+  assert.equal(contracts.filter((contract) => contract.sendable).length, 29);
   assert.ok(contracts.some((contract) => contract.id === 'problem_report_resolved' && contract.lifecycle === 'current' && contract.sendable));
   assert.ok(contracts.some((contract) => contract.id === 'workspace_booking_request_alert' && contract.lifecycle === 'current' && contract.sendable));
   assert.ok(contracts.some((contract) => contract.id === 'consultation_form' && contract.lifecycle === 'current' && contract.sendable));
@@ -26,7 +26,7 @@ test('Shiloh owns one canonical registry with 35 identities and 30 sendable cont
   assert.ok(contracts.some((contract) => contract.id === 'cancellation_confirmation_v2' && contract.lifecycle === 'current' && contract.sendable));
   assert.deepEqual(
     contracts.filter((contract) => contract.lifecycle === 'retired').map((contract) => contract.id).sort(),
-    ['appointment_followup_legacy', 'appointment_reminder_legacy', 'birthday_v1', 'booking_approval_outcome', 'booking_approval_request'],
+    ['appointment_followup_legacy', 'appointment_reminder_legacy', 'birthday_v1', 'booking_approval_outcome', 'booking_approval_request', 'client_auth_otp'],
   );
   assert.equal(META_TEMPLATE_BINDINGS.length, contracts.length);
   assert.equal(new Set(META_TEMPLATE_BINDINGS.map((binding) => binding.contractId)).size, contracts.length);
@@ -158,4 +158,14 @@ test('retired Shiloh contracts can never produce an approved runtime binding', (
   assert.equal(binding.bound, false);
   assert.equal(binding.state, 'retired');
   assert.equal(binding.reason, 'contract_retired');
+});
+
+test('retired client WhatsApp OTP cannot be registered, bound, or sent', async () => {
+  const contractId = 'client_auth_otp';
+  const provider = { id: 'historical-client-auth', status: 'APPROVED', ...buildMetaTemplateContractView(contractId) };
+  assert.throws(() => buildMetaTemplateRegistrationPayload(contractId), /Retired Shiloh message contract/);
+  assert.equal(resolveMetaTemplateBinding({ contractId, providerTemplates: [provider] }).state, 'retired');
+  const { assertMessageContractSendAllowed, assertTemplateSendAllowed } = require('../src/services/metaTemplateContracts');
+  await assert.rejects(() => assertMessageContractSendAllowed(contractId), /not an approved send contract/);
+  await assert.rejects(() => assertTemplateSendAllowed(provider.name, provider.language), /not an approved Shiloh send contract/);
 });
