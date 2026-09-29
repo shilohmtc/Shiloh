@@ -60,6 +60,7 @@ const SOURCE_DEFINITIONS = Object.freeze({
 
 const CONTRACT_LIFECYCLE = Object.freeze({
   client_auth_otp: 'retired',
+  booking_update: 'retired',
   booking_approval_request: 'retired',
   booking_approval_outcome: 'retired',
   birthday_v1: 'retired',

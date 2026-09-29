@@ -48,12 +48,6 @@ function fmtTime(value) {
   }).format(new Date(value));
 }
 
-function priceLabel(value) {
-  if (value == null) return 'Confirmed by Shiloh';
-  const amount = Number(value);
-  return Number.isFinite(amount) ? `R${amount.toFixed(2)}` : 'Confirmed by Shiloh';
-}
-
 async function ensureCustomerChangeNotificationTable() {
   if (tableReady) return;
   await pool.query(`
@@ -277,18 +271,17 @@ async function attemptCustomerChangeNotification(auditEventId, { env = process.e
       }
       return { sent: true, channel: 'my_shiloh', notificationId: appDelivery.notificationId || null };
     }
-    // No accepted wake: preserve the normal approved-template fallback.
+    // No accepted wake: leave the durable record pending for retry and review.
     const released = await pool.query(`UPDATE customer_change_notifications SET status='pending',last_error='app_wake_unaccepted',updated_at=NOW() WHERE audit_event_id=$1 AND status='sending' RETURNING audit_event_id`, [auditEventId]);
     if (!released.rowCount) return { sent: false, reason: 'app_outcome_uncertain' };
   } else {
     await queueBookingChangeMyShilohNotification(appDetails);
   }
 
-  // An intentional transport pause is known before any provider request. Keep
-  // the row pending so it can be reviewed or resumed, rather than claiming it
-  // as a possibly accepted send that Reception must treat as uncertain.
-  if (metaSignInOnly(env) || (UPDATE_KINDS.has(item.change_kind) && env.WHATSAPP_BOOKING_UPDATE_ENABLED !== 'true')) {
-    const reason = metaSignInOnly(env) ? 'meta_signin_only' : 'booking_update_delivery_disabled';
+  // Booking updates use My Shiloh only. Keep unaccepted wakes pending for
+  // retry or Reception review; cancellation retains its separate Meta guard.
+  if (UPDATE_KINDS.has(item.change_kind) || metaSignInOnly(env)) {
+    const reason = UPDATE_KINDS.has(item.change_kind) ? 'booking_update_meta_retired' : 'meta_signin_only';
     await pool.query(`UPDATE customer_change_notifications SET status='pending',last_error=$2,updated_at=NOW() WHERE audit_event_id=$1 AND status IN ('pending','failed')`, [auditEventId, reason]);
     return { sent: false, reason };
   }
@@ -301,8 +294,8 @@ async function attemptCustomerChangeNotification(auditEventId, { env = process.e
     return { sent: false, reason: 'provider_status_error' };
   }
 
-  const preferredTemplateKey = item.change_kind === 'cancellation' ? 'cancellation_confirmation_v2' : 'booking_update';
-  const fallbackTemplateKey = item.change_kind === 'cancellation' ? 'cancellation_confirmation' : null;
+  const preferredTemplateKey = 'cancellation_confirmation_v2';
+  const fallbackTemplateKey = 'cancellation_confirmation';
   const preferredTemplateName = approvedTemplate(templateStatus, preferredTemplateKey);
   const fallbackTemplateName = fallbackTemplateKey ? approvedTemplate(templateStatus, fallbackTemplateKey) : null;
   const templateKey = preferredTemplateName ? preferredTemplateKey : fallbackTemplateName ? fallbackTemplateKey : preferredTemplateKey;
@@ -329,13 +322,7 @@ async function attemptCustomerChangeNotification(auditEventId, { env = process.e
 
   const date = fmtDate(appointment.starts_at);
   const start = fmtTime(appointment.starts_at);
-  const timeRange = `${start}–${fmtTime(appointment.ends_at)}`;
-  let params;
-  if (item.change_kind === 'cancellation') {
-    params = [appointment.client_name || 'there', appointment.service_name, date, start, String(appointment.id)];
-  } else {
-    params = [appointment.client_name || 'there', appointment.service_name, appointment.staff_name, date, timeRange, priceLabel(appointment.total_price), String(appointment.id)];
-  }
+  const params = [appointment.client_name || 'there', appointment.service_name, date, start, String(appointment.id)];
 
   let provider;
   try {

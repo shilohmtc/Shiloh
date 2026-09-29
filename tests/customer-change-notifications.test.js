@@ -9,8 +9,8 @@ const operationalRoute = fs.readFileSync(path.join(__dirname, '..', 'src', 'rout
 const lifecycle = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'clientLifecycleTemplateProvisioning.js'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
 
-test('booking-update template carries the full latest appointment confirmation', () => {
-  assert.match(lifecycle, /booking_update:\s*\{ name: 'shiloh_booking_update_v1'/);
+test('retired booking-update template remains inspectable with its full historical confirmation', () => {
+  assert.match(lifecycle, /booking_update:\s*\{ lifecycle: 'retired', name: 'shiloh_booking_update_v1', env: null/);
   assert.match(lifecycle, /Service: \{\{2\}\}/);
   assert.match(lifecycle, /With: \{\{3\}\}/);
   assert.match(lifecycle, /Date: \{\{4\}\}/);
@@ -100,20 +100,21 @@ test('suppression preserves failed-attempt history and terminal rows are exclude
   assert.doesNotMatch(flushBlock, /suppressed/);
 });
 
-test('future booking updates remain on the normal delivery path while cancellations are not stale-suppressed', () => {
+test('future booking updates retain the in-app path while cancellations are not stale-suppressed', () => {
   assert.match(service, /if \(!item \|\| !UPDATE_KINDS\.has\(item\.change_kind\)\) return false/);
   assert.match(service, /AND appointment\.ends_at <= NOW\(\)/);
   assert.match(service, /WHERE audit_event_id=\$1 AND status IN \('pending','failed'\)/);
   assert.match(service, /sendWhatsAppTemplate/);
-  assert.match(service, /preferredTemplateKey = item\.change_kind === 'cancellation' \? 'cancellation_confirmation_v2' : 'booking_update'/);
-  assert.match(service, /fallbackTemplateKey = item\.change_kind === 'cancellation' \? 'cancellation_confirmation' : null/);
+  assert.match(service, /UPDATE_KINDS\.has\(item\.change_kind\) \|\| metaSignInOnly\(env\)/);
+  assert.match(service, /preferredTemplateKey = 'cancellation_confirmation_v2'/);
+  assert.match(service, /fallbackTemplateKey = 'cancellation_confirmation'/);
 });
 
 test('customer messages are sent only through approved utility templates', () => {
   assert.match(service, /item\.provider\.status !== 'APPROVED'/);
   assert.match(service, /sendWhatsAppTemplate/);
   assert.match(service, /cancellation_confirmation/);
-  assert.match(service, /booking_update/);
+  assert.match(service, /booking_update_meta_retired/);
   assert.doesNotMatch(service, /sendWhatsAppMessage\(/);
 });
 
@@ -140,7 +141,7 @@ test('cancellation payment-safety template warns that old payment links are inva
   assert.match(lifecycleSource, /cancellation_confirmation_v2/);
   assert.match(lifecycleSource, /earlier unpaid deposit or payment link/);
   assert.match(lifecycleSource, /No refund is issued automatically/);
-  assert.match(service, /item\.change_kind === 'cancellation' \? 'cancellation_confirmation_v2' : 'booking_update'/);
+  assert.match(service, /preferredTemplateKey = 'cancellation_confirmation_v2'/);
 });
 
 test('customer-change scheduler does not provision retired Meta templates at startup', () => {
