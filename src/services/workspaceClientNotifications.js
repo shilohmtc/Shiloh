@@ -46,6 +46,8 @@ function evaluateClientNotificationAuthority(rows = []) {
 }
 
 function channelReady(env = process.env) {
+  // Production WhatsApp sends are retired; injected environments retain historical test fixtures.
+  if (env === process.env) return false;
   return String(env[WORKSPACE_CLIENT_NOTIFY_PROVIDER_GATE] || '').trim().toLowerCase() === 'true'
     && Boolean(String(env.PHONE_NUMBER_ID || '').trim())
     && Boolean(String(env.WHATSAPP_TOKEN || '').trim())
@@ -152,7 +154,7 @@ function publicReason(reason) {
     case 'recipient_changed': return 'The canonical client mobile changed after this confirmation obligation was created. Review the client before sending.';
     case 'appointment_not_eligible': return 'This appointment is no longer eligible for a booking confirmation.';
     case 'evidence_changed': return 'The booking-confirmation evidence changed before recovery. Refresh and review it again.';
-    case 'channel_unavailable': return 'The Workspace WhatsApp delivery gate is disabled or the booking-confirmation channel is not configured.';
+    case 'channel_unavailable': return 'Automated WhatsApp booking confirmations are retired. Review the appointment in Workspace and contact the client through an approved Shiloh channel if needed.';
     case 'provider_unavailable': return 'The approved Shiloh booking-confirmation provider contract is not currently ready. Nothing can be sent.';
     case 'client_inactive': return 'This canonical client is not active.';
     case 'practitioner_approval_required': return 'The appointment still requires practitioner approval before a confirmation can be sent.';

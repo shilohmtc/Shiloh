@@ -4,8 +4,6 @@ const { getPostCanonicalizationAudit } = require("../services/canonicalizationAu
 const { getCatalogueParityAudit } = require("../services/catalogueParityAudit");
 const { getGoldieExitAudit } = require("../services/goldieExitAudit");
 const { getReportingIntegrityAudit } = require("../services/reportingIntegrityAudit");
-const { getBirthdayTemplateStatus, TEMPLATE_BODY } = require("../services/birthdayTemplateProvisioning");
-const { inspectMetaTemplateInventory } = require("../services/metaTemplateContracts");
 const { getClientWelcomeDiagnostic } = require("../services/clientWelcomeDiagnostic");
 const { getAppointmentReadDiagnostic } = require("../services/appointmentReadDiagnostic");
 
@@ -81,46 +79,6 @@ router.get("/appointment/:appointmentId/status", auditReadAuth, async (req, res)
     }
     (req.log || console).error?.({ err: error }, "Appointment read diagnostic failed");
     return res.status(500).json({ error: "Could not inspect appointment status", requestId: req.id });
-  }
-});
-
-// Sanitized, read-only Meta template status. Provider/account IDs and credentials are intentionally not returned.
-router.get("/birthday-template/status", async (req, res) => {
-  try {
-    const provider = await getBirthdayTemplateStatus();
-    const currentBrand = "Shiloh Massage Therapy and Aesthetic Clinic";
-    const submittedCopyUsesCurrentBrand = TEMPLATE_BODY.includes(currentBrand);
-    return res.status(200).json({
-      status: {
-        ok: provider.ok === true,
-        templateName: provider.templateName || null,
-        configuredTemplateName: provider.configuredTemplateName || null,
-        providerStatus: provider.template?.status || null,
-        category: provider.template?.category || null,
-        language: provider.template?.language || null,
-        exists: Boolean(provider.template),
-        submittedCopyUsesCurrentBrand,
-        safeToEnable: provider.template?.status === "APPROVED" && submittedCopyUsesCurrentBrand,
-        legacyTemplateName: provider.legacyTemplateName || null,
-        legacyProviderStatus: provider.legacyTemplate?.status || null,
-      },
-      requestId: req.id,
-    });
-  } catch (error) {
-    (req.log || console).error?.({ err: error }, "Failed to inspect sanitized birthday template status");
-    return res.status(502).json({ error: "Could not inspect birthday template status", requestId: req.id });
-  }
-});
-
-
-// Sanitized, paginated, read-only inventory. WABA IDs, tokens, phone numbers and provider IDs are omitted.
-router.get("/meta-templates/status", auditReadAuth, async (req, res) => {
-  try {
-    const report = await inspectMetaTemplateInventory();
-    return res.status(report.ok ? 200 : 503).json({ report, requestId: req.id });
-  } catch (error) {
-    (req.log || console).error?.({ err: error }, "Meta template inventory failed");
-    return res.status(502).json({ error: "Could not inspect Meta template inventory", requestId: req.id });
   }
 });
 

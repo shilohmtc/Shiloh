@@ -1,13 +1,10 @@
 const REQUIRED_ENV_VARS = [
   "OPENAI_API_KEY",
-  "VERIFY_TOKEN",
-  "PHONE_NUMBER_ID",
-  "WHATSAPP_TOKEN",
   "DATABASE_URL",
 ];
 
-function validateEnv() {
-  const missing = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
+function validateEnv(env = process.env) {
+  const missing = REQUIRED_ENV_VARS.filter((key) => !env[key]);
 
   if (missing.length > 0) {
     throw new Error(
