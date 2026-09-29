@@ -3,9 +3,7 @@ const { pool } = require('../db/pool');
 const { resolveCalendarAuthority, hasCapability, allowsAppointmentTarget } = require('./calendarAuthorization');
 const { createOzowPaymentProvider } = require('./ozowPaymentProvider');
 const { STATES, EVIDENCE, transitionPaymentState } = require('../domain/paymentState');
-const { PAYMENT_TEMPLATE_KEYS, formatRand, normalizeWhatsAppMobile, secureVoucherUrl, withActionLink, sendPaymentTemplate } = require('./paymentWhatsAppNotifications');
-const { formatVoucherDate } = require('../lib/voucherDate');
-const { sendWhatsAppTemplate } = require('./whatsapp');
+const { formatRand, normalizeWhatsAppMobile } = require('./paymentWhatsAppNotifications');
 const { issueVerifiedVoucher } = require('./giftVouchers');
 const { createShilohRewardsService } = require('./shilohRewards');
 const { queueClientNotification } = require('./myShilohPush');
@@ -46,29 +44,9 @@ function normalizeMethod(value) {
   return method;
 }
 
-function depositDate(value) {
-  return new Intl.DateTimeFormat('en-ZA', {
-    timeZone:'Africa/Johannesburg',
-    weekday:'long',
-    day:'2-digit',
-    month:'long',
-    year:'numeric',
-  }).format(new Date(value));
-}
-
-function depositTime(value) {
-  return new Intl.DateTimeFormat('en-ZA', {
-    timeZone:'Africa/Johannesburg',
-    hour:'2-digit',
-    minute:'2-digit',
-    hour12:false,
-  }).format(new Date(value));
-}
-
 function createBookingPaymentService({
   db = pool,
   ozow = createOzowPaymentProvider(),
-  sendTemplate = sendWhatsAppTemplate,
   rewards = createShilohRewardsService({ db }),
   notifyClient = null,
   deposits = createBookingDepositPolicyService({ db }),
@@ -199,48 +177,11 @@ function createBookingPaymentService({
               created.push(recorded.rows[0]);
               continue;
             }
-            // The app wake did not reach a push service. Try the existing Meta
-            // template under the same claim; uncertain provider errors stay claimed.
-            const fallback = await sendPaymentTemplate({
-              templateKey: PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST,
-              to: row.payer_mobile || plan.member.clientMobile,
-              bodyParameters: [row.payer_name || plan.member.clientName || 'there', formatRand(row.amount),
-                plan.member.serviceName, depositDate(plan.member.startsAt), depositTime(plan.member.startsAt), String(plan.member.appointmentId)],
-              urlButtonParameter: row.request_key,
-              environment: env,
-              send: sendTemplate,
-            });
-            if (fallback.sent) {
-              row = (await db.query(`UPDATE payment_requests SET deposit_notice_state='sent',deposit_notice_channel='whatsapp',
-                deposit_notification_sent_at=NOW(),updated_at=NOW() WHERE id=$1 AND deposit_notice_state='sending' RETURNING *`, [row.id])).rows[0] || row;
-            } else if (fallback.reason !== 'provider_send_failed') {
-              await db.query(`UPDATE payment_requests SET deposit_notice_state='pending',updated_at=NOW()
-                WHERE id=$1 AND deposit_notice_state='sending'`, [row.id]);
-            }
+            await db.query(`UPDATE payment_requests SET deposit_notice_state='pending',updated_at=NOW()
+              WHERE id=$1 AND deposit_notice_state='sending'`, [row.id]);
             created.push(row);
             continue;
           }
-        }
-        const notice = await sendPaymentTemplate({
-          templateKey: PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST,
-          to: row.payer_mobile || plan.member.clientMobile,
-          bodyParameters: [
-            row.payer_name || plan.member.clientName || 'there',
-            formatRand(row.amount),
-            plan.member.serviceName,
-            depositDate(plan.member.startsAt),
-            depositTime(plan.member.startsAt),
-            String(plan.member.appointmentId),
-          ],
-          urlButtonParameter: row.request_key,
-          environment: env,
-          send: sendTemplate,
-        });
-        if (notice.sent) {
-          row = (await db.query(
-            'UPDATE payment_requests SET deposit_notification_sent_at=NOW(),updated_at=NOW() WHERE id=$1 RETURNING *',
-            [row.id],
-          )).rows[0] || row;
         }
         if (row.payer_crm_v2_client_id && pushNotify) {
           await pushNotify({
@@ -272,37 +213,6 @@ function createBookingPaymentService({
 
   async function releaseConfirmedBookingAfterDeposit(position) {
     if (!position?.requirement?.transitioned) return;
-    const paidRequests = await db.query(
-      `SELECT pr.*,m.appointment_id
-         FROM payment_requests pr
-         LEFT JOIN booking_deposit_requirement_members m
-           ON m.requirement_id=pr.deposit_requirement_id
-          AND m.appointment_id=pr.deposit_member_appointment_id
-        WHERE pr.deposit_requirement_id=$1
-          AND pr.purpose='deposit'
-          AND pr.state='paid'
-        ORDER BY pr.id`,
-      [position.requirement.id],
-    );
-    const memberById = new Map(position.scope.members.map(member => [member.appointmentId, member]));
-    const remaining = Math.max(0, Number(position.scope.amountDue) - Number(position.requirement.net_paid || 0));
-    for (const request of paidRequests.rows) {
-      const member = memberById.get(Number(request.deposit_member_appointment_id || request.appointment_id)) || position.scope.members[0];
-      await sendPaymentTemplate({
-        templateKey: PAYMENT_TEMPLATE_KEYS.DEPOSIT_RECEIVED,
-        to: request.payer_mobile || member?.clientMobile,
-        bodyParameters: [
-          request.payer_name || member?.clientName || 'there',
-          formatRand(request.amount),
-          member?.serviceName || 'Shiloh appointment',
-          depositDate(member?.startsAt || position.scope.members[0].startsAt),
-          depositTime(member?.startsAt || position.scope.members[0].startsAt),
-          String(member?.appointmentId || position.scope.appointmentId),
-          formatRand(remaining),
-        ],
-        send: sendTemplate,
-      });
-    }
     const { sendCustomerBookingConfirmationForAppointment } = require('./customerBookingConfirmation');
     for (const member of position.scope.members) {
       try { await sendCustomerBookingConfirmationForAppointment(member.appointmentId); }
@@ -504,12 +414,6 @@ function createBookingPaymentService({
       const result = await position(client, account, subject); await client.query('COMMIT');
       await syncRewardsAfterPayment();
       await syncDepositAfterSettlement(subject.appointmentId);
-      if (!replay.rows[0]) await sendPaymentTemplate({
-        templateKey: PAYMENT_TEMPLATE_KEYS.RECEIVED,
-        to: subject.clientMobile,
-        bodyParameters: [subject.clientName || 'there', formatRand(normalizedAmount), String(normalizedMethod).replaceAll('_', ' '), String(reference || `SHILOH ${subject.appointmentId}`), formatRand(result.outstanding)],
-        send: sendTemplate,
-      });
       if (!replay.rows[0] && pushNotify && subject.crmV2ClientId) {
         await pushNotify({
           crmV2ClientId: Number(subject.crmV2ClientId),
@@ -557,15 +461,6 @@ function createBookingPaymentService({
      transitionPaymentState(STATES.CREATED, STATES.LINK_ISSUED);
      const updated = await db.query(`UPDATE payment_requests SET provider_request_id=$2,provider_payment_url=$3,state='link_issued',updated_at=NOW() WHERE id=$1 AND state='created' RETURNING *`, [row.id,linked.providerRequestId,linked.paymentUrl]);
      const request = updated.rows[0];
-     if (request) await sendPaymentTemplate({
-       templateKey: subject.groupId ? PAYMENT_TEMPLATE_KEYS.SPLIT_REQUEST : PAYMENT_TEMPLATE_KEYS.BALANCE_DUE,
-       to: request.payer_mobile || subject.clientMobile,
-       bodyParameters: subject.groupId
-         ? [request.payer_name || subject.clientName || 'there', subject.serviceName, formatRand(request.amount), String(subject.appointmentId)]
-         : [request.payer_name || subject.clientName || 'there', subject.serviceName, String(subject.appointmentId), formatRand(request.amount)],
-       urlButtonParameter: request.request_key,
-       send: sendTemplate,
-     });
      if (request?.payer_crm_v2_client_id && pushNotify) {
        await pushNotify({
          crmV2ClientId: Number(request.payer_crm_v2_client_id),
@@ -596,12 +491,6 @@ function createBookingPaymentService({
         await client.query(`INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata) VALUES($1,'payment.refund_recorded','booking_payment_account',$2,$3::jsonb)`,[operator.id,account.id,JSON.stringify({amount:normalizedAmount,method:normalizedMethod,operationId:key})]);
       }
       const result=await position(client,account,subject);await client.query('COMMIT');await syncRewardsAfterPayment();await syncDepositAfterSettlement(subject.appointmentId);
-      if (!replay.rows[0]) await sendPaymentTemplate({
-        templateKey: PAYMENT_TEMPLATE_KEYS.REFUND_UPDATE,
-        to: subject.clientMobile,
-        bodyParameters: [subject.clientName || 'there', 'Recorded', formatRand(normalizedAmount), String(reference || `SHILOH ${subject.appointmentId}`)],
-        send: sendTemplate,
-      });
       if (!replay.rows[0] && pushNotify && subject.crmV2ClientId) {
         await pushNotify({
           crmV2ClientId: Number(subject.crmV2ClientId),
@@ -627,7 +516,6 @@ function createBookingPaymentService({
     const notVerifiedOutcome = ['failed','error','cancelled','canceled','abandoned','expired','declined'].includes(status);
     const client = await db.connect();
     let paymentReceived = null;
-    let paymentNotVerified = null;
     try {
       await client.query('BEGIN');
       const duplicate = await client.query(`SELECT id FROM payment_provider_events WHERE provider='ozow' AND provider_event_key=$1`, [eventKey]);
@@ -716,7 +604,6 @@ function createBookingPaymentService({
         transitionPaymentState(request.state, nextState);
         await client.query(`UPDATE payment_requests SET state=$2,updated_at=NOW() WHERE id=$1`, [request.id, nextState]);
         if (request.gift_voucher_order_id) await client.query(`UPDATE gift_voucher_orders SET state=$2,updated_at=NOW() WHERE id=$1`, [request.gift_voucher_order_id, nextState]);
-        paymentNotVerified = request;
       }
       await client.query(`INSERT INTO payment_provider_events(provider,provider_event_key,payment_request_id,signature_verified,payload_sha256,outcome) VALUES('ozow',$1,$2,TRUE,$3,'accepted')`, [eventKey,request.id,hash]);
       await client.query('COMMIT');
@@ -734,13 +621,6 @@ function createBookingPaymentService({
       let receiptSentViaApp = false;
       if (paymentReceived && !paymentReceived.reviewRequired) {
         const receipt = paymentReceived.request;
-        const receiptTemplate = () => sendPaymentTemplate({
-          templateKey: PAYMENT_TEMPLATE_KEYS.RECEIVED,
-          to: receipt.payer_mobile,
-          bodyParameters: [receipt.payer_name || 'there', formatRand(receipt.amount), 'Ozow', requestReference, formatRand(paymentReceived.remaining)],
-          environment: env,
-          send: sendTemplate,
-        });
         const appOnlyEnabled = env.SHILOH_PAYMENT_RECEIPT_APP_ONLY_ENABLED === 'true' && Boolean(pushNotify)
           && Number(receipt.payer_crm_v2_client_id) > 0 && Boolean(normalizeWhatsAppMobile(receipt.payer_mobile));
         let eligible = false;
@@ -777,34 +657,12 @@ function createBookingPaymentService({
               if (!recorded.rowCount) throw new Error('Accepted payment receipt requires a durable delivery record');
               receiptSentViaApp = true;
             } else {
-              const fallback = await receiptTemplate();
-              if (fallback.sent) {
-                await db.query(`UPDATE payment_requests
-                  SET receipt_notice_state='sent',receipt_notice_channel='whatsapp',receipt_notice_sent_at=NOW(),updated_at=NOW()
-                  WHERE id=$1 AND receipt_notice_state='sending'`, [receipt.id]);
-              } else if (fallback.reason !== 'provider_send_failed') {
-                await db.query(`UPDATE payment_requests SET receipt_notice_state='pending',updated_at=NOW()
-                  WHERE id=$1 AND receipt_notice_state='sending'`, [receipt.id]);
-              }
+              await db.query(`UPDATE payment_requests SET receipt_notice_state='pending',updated_at=NOW()
+                WHERE id=$1 AND receipt_notice_state='sending'`, [receipt.id]);
             }
           }
-        } else {
-          await receiptTemplate();
         }
       }
-      if (paymentNotVerified) await sendPaymentTemplate({
-        templateKey: PAYMENT_TEMPLATE_KEYS.NOT_VERIFIED,
-        to: paymentNotVerified.payer_mobile,
-        bodyParameters: [paymentNotVerified.payer_name || 'there', `Booking #${paymentNotVerified.appointment_id || 'payment'}`, requestReference, formatRand(paymentNotVerified.amount)],
-        send: sendTemplate,
-      });
-      if (voucherIssued) await sendPaymentTemplate({
-        templateKey: PAYMENT_TEMPLATE_KEYS.VOUCHER_ISSUED,
-        to: voucherIssued.order.delivery_mobile,
-        bodyParameters: [voucherIssued.order.recipient_name, voucherIssued.voucher.voucher_code, formatRand(voucherIssued.voucher.original_value), withActionLink(formatVoucherDate(voucherIssued.voucher.valid_until), 'Secure voucher link', secureVoucherUrl(request.request_key))],
-        urlButtonParameter: request.request_key,
-        send: sendTemplate,
-      });
       if (!receiptSentViaApp && paymentReceived?.request?.payer_crm_v2_client_id && pushNotify) {
         await pushNotify({
           crmV2ClientId: Number(paymentReceived.request.payer_crm_v2_client_id),

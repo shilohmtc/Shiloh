@@ -199,8 +199,8 @@ test('booking confirmation and payment wiring cannot bypass the deposit gate', (
   assert.match(confirmation, /ensureDepositRequest/);
   assert.match(confirmation, /reason:'deposit_required'/);
   assert.match(confirmation, /deliveryStatus:'awaiting_deposit'/);
-  assert.match(payments, /PAYMENT_TEMPLATE_KEYS\.DEPOSIT_REQUEST/);
-  assert.match(payments, /PAYMENT_TEMPLATE_KEYS\.DEPOSIT_RECEIVED/);
+  assert.match(payments, /deposit_notice_channel='my_shiloh'/);
+  assert.doesNotMatch(payments, /deposit_notice_channel='whatsapp'/);
   assert.match(payments, /purpose='deposit'/);
   assert.match(payments, /deposit_notification_sent_at/);
   assert.match(payments, /releaseConfirmedBookingAfterDeposit/);

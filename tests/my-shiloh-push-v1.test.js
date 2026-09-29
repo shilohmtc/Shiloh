@@ -262,7 +262,7 @@ test('canonical Shiloh events fan out to push without replacing their existing a
   assert.match(appointment, /category: 'appointment'/);
   assert.match(forms, /consultation_form\.sent/);
   assert.match(forms, /category: 'forms'/);
-  assert.match(payments, /PAYMENT_TEMPLATE_KEYS\.RECEIVED/);
+  assert.match(payments, /receipt_notice_channel='my_shiloh'/);
   assert.match(payments, /category: 'payment'/);
   assert.match(payments, /category: 'voucher'/);
   assert.match(rewards, /loyalty_wallet_entries/);

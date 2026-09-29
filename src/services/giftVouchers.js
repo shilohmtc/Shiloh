@@ -4,9 +4,8 @@ const crypto = require('crypto');
 const { pool } = require('../db/pool');
 const { createOzowPaymentProvider } = require('./ozowPaymentProvider');
 const { resolveCalendarAuthority, hasCapability } = require('./calendarAuthorization');
-const { PAYMENT_TEMPLATE_KEYS, formatRand, normalizeWhatsAppMobile, securePaymentUrl, secureVoucherUrl, withActionLink, sendPaymentTemplate } = require('./paymentWhatsAppNotifications');
-const { formatVoucherDate, voucherExpiryTimestamp } = require('../lib/voucherDate');
-const { sendWhatsAppTemplate } = require('./whatsapp');
+const { normalizeWhatsAppMobile } = require('./paymentWhatsAppNotifications');
+const { voucherExpiryTimestamp } = require('../lib/voucherDate');
 const { localMobile, normalizeMobile } = require('./crmV2ClientService');
 
 const CAPABILITIES = Object.freeze({ VIEW: 'voucher:view', ISSUE: 'voucher:issue', REDEEM: 'voucher:redeem', MANAGE: 'voucher:manage' });
@@ -41,7 +40,7 @@ function requestKey(randomBytes = crypto.randomBytes) { return randomBytes(24).t
 function voucherCode(key) { return `SV-${crypto.createHash('sha256').update(String(key)).digest('hex').slice(0, 12).toUpperCase()}`; }
 function publicVoucherPath(key) { return `/gift-vouchers/${key}`; }
 
-function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(), sendTemplate = sendWhatsAppTemplate, randomBytes = crypto.randomBytes } = {}) {
+function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(), randomBytes = crypto.randomBytes } = {}) {
   async function policy(queryable = db) {
     const row = (await queryable.query(`SELECT validity_mode,validity_months FROM gift_voucher_settings WHERE singleton=TRUE`)).rows[0] || {};
     return {
@@ -177,7 +176,6 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     try {
       const linked = await ozow.createPaymentLink({ requestKey: payment.request_key, amount: normalizedAmount, bankReference: `VOUCHER ${order.id}`, customerName: payment.payer_name, customerMobile: payment.payer_mobile });
       payment = (await db.query(`UPDATE payment_requests SET provider_request_id=$2,provider_payment_url=$3,state='link_issued',updated_at=NOW() WHERE id=$1 AND state='created' RETURNING *`, [payment.id, linked.providerRequestId, linked.paymentUrl])).rows[0] || payment;
-      await sendPaymentTemplate({ templateKey: PAYMENT_TEMPLATE_KEYS.VOUCHER_REQUEST, to: payment.payer_mobile, bodyParameters: [payment.payer_name || 'there', recipient, formatRand(normalizedAmount), withActionLink(formatRand(normalizedAmount), 'Secure payment link', securePaymentUrl(payment.request_key))], urlButtonParameter: payment.request_key, send: sendTemplate });
       return { status: 'awaiting_payment', orderId: Number(order.id), paymentUrl: `/pay/${payment.request_key}` };
     } catch (error) {
       await db.query(`UPDATE gift_voucher_orders SET state='failed',updated_at=NOW() WHERE id=$1 AND state='awaiting_payment'`, [order.id]);
@@ -439,16 +437,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
       throw error;
     } finally { client.release(); }
 
-    let whatsappDelivery = { sent: false, reason: 'not_requested' };
-    if (mobile) {
-      whatsappDelivery = await sendPaymentTemplate({
-        templateKey: PAYMENT_TEMPLATE_KEYS.VOUCHER_ISSUED,
-        to: mobile,
-        bodyParameters: [recipient, result.voucher.voucher_code, formatRand(result.voucher.original_value), withActionLink(formatVoucherDate(result.voucher.valid_until), 'Secure voucher link', secureVoucherUrl(result.voucher.access_key))],
-        urlButtonParameter: result.voucher.access_key,
-        send: sendTemplate,
-      });
-    }
+    const whatsappDelivery = mobile ? { sent: false, reason: 'disabled' } : { sent: false, reason: 'not_requested' };
     return { ...result, whatsappDelivery };
   }
 
