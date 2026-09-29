@@ -1,24 +1,23 @@
 # Shiloh production runtime environment contract
 
-This file records the disposition of production environment keys audited in #654. It is a runtime/configuration contract, not a place for secret values.
+This file records the disposition of production environment keys audited in #654 and the 2026-09-29 automated WhatsApp retirement. It is a runtime/configuration contract, not a place for secret values. The owner reported removing nine retired keys from Render; the replacement deploy `dep-datqh1bncjis739l4370` reached live, but the individual key deletions have not been independently read back.
 
 ## Keep — current runtime authority or active integration contract
 
 - `AUDIT_READ_TOKEN` — current audit-read authentication.
 - `DATABASE_URL` — production database connection secret.
 - `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_FAST_MODEL` — current OpenAI runtime. The model names override source defaults; review the effective values and cost periodically under `docs/AI_MODEL_REVIEW.md`.
-- `PHONE_NUMBER_ID`, `VERIFY_TOKEN`, `WHATSAPP_TOKEN` — current WhatsApp transport/webhook configuration; provider readiness may remain fail-closed but runtime still depends on the adapter.
-- `WHATSAPP_BUSINESS_ACCOUNT_ID` — current Meta/WABA discovery/binding input.
-- `WHATSAPP_TEMPLATE_LANGUAGE` — current template delivery language setting.
+- `SHILOH_HUMAN_WHATSAPP_NUMBER` — direct human Reception link; never an automated sender or account verification channel.
+- `MY_SHILOH_SMS_AUTH_ENABLED`, `SMSMESSENGER_ACCOUNT_EMAIL`, `SMSMESSENGER_API_TOKEN` — client enrollment and supervised staff device setup.
+- `MY_SHILOH_VAPID_PRIVATE_KEY`, `MY_SHILOH_VAPID_PUBLIC_KEY`, `MY_SHILOH_VAPID_SUBJECT` — app push notifications.
 - `SHILOH_CALENDAR_READONLY_UX_ENABLED` — current Workspace Calendar feature control.
 - `SHILOH_STAFF_BROWSER_SESSION_CALENDAR_BRIDGE_ENABLED` — current authenticated Workspace Calendar bridge.
-- `WHATSAPP_BOOKING_UPDATE_ENABLED`, `WHATSAPP_RESCHEDULE_APPROVAL_ENABLED` — current fail-closed delivery gates.
-- `SHILOH_CLIENT_REMINDER_APP_ONLY_ENABLED` — optional per-client reminder cutover, off unless explicitly set to `true`. An app wake accepted by a push service can replace that client's WhatsApp reminder; otherwise the existing approved WhatsApp reminder stays in use. When no WhatsApp reminder template is configured, only clients with an active app push subscription can be claimed, and unaccepted app delivery leaves the reminder retryable. This flag does not establish coverage for clients without push permission or replace the other Meta templates.
-- `SHILOH_CONSULTATION_FORM_APP_ONLY_ENABLED` — optional direct consultation form delivery, off unless explicitly set to `true`. A canonical client with one open form and an active app push subscription can receive the form in My Shiloh when a push service accepts the wake. Clients without a clear app route or accepted wake retain the approved WhatsApp form template fallback. If the fallback template is unavailable, the assignment remains unsent for review; it is not silently marked delivered. This does not replace sign-in or other Meta templates.
-- `SHILOH_PAYMENT_RECEIPT_APP_ONLY_ENABLED` — optional verified Ozow general receipt cutover, off unless explicitly set to `true`. The payer must have an active My Shiloh profile with the same mobile number; an accepted push wake is recorded against the payment request before suppressing the general Meta receipt. An unaccepted wake uses the configured approved Meta receipt. This does not cover the separate deposit receipt, manual payments, refunds, vouchers, birthdays or follow-ups, so it is not a bulk Meta switch.
-- `SHILOH_META_SIGNIN_ONLY_ENABLED` — off unless explicitly set to `true`. When on, Shiloh blocks outbound non-sign-in WhatsApp messages and templates and ignores ordinary inbound conversations; verified My Shiloh sign-in responses, staff passkey bootstrap replies and the staff authentication template remain available. Payment templates report disabled, and booking confirmations or consultation forms without an accepted app wake remain pending instead of recording an unmade provider send. App push coverage and Meta template status must be reviewed separately. Do not remove the Meta phone number, token or webhook while sign-in uses them.
-- `SHILOH_BOOKING_CONFIRMATION_APP_ONLY_ENABLED` — optional per-client booking confirmation cutover, off unless explicitly set to `true`. An accepted My Shiloh push wake for a canonical CRM V2 booking closes the durable confirmation obligation without a WhatsApp send; otherwise the configured approved WhatsApp template remains in use. With this flag on and no template configured, an unaccepted app wake leaves the obligation retryable instead of attempting a free-form WhatsApp send. This is not permission to pause Meta for clients without an app subscription.
-- Current Shiloh message-contract bindings: `WHATSAPP_BIRTHDAY_TEMPLATE`, `WHATSAPP_BOOKING_CONFIRMATION_TEMPLATE`, `WHATSAPP_BOOKING_DECLINED_TEMPLATE`, `WHATSAPP_BOOKING_UPDATE_TEMPLATE`, `WHATSAPP_CANCELLATION_CONFIRMATION_TEMPLATE`, `WHATSAPP_FOLLOWUP_ACTIONS_TEMPLATE`, `WHATSAPP_REMINDER_ACTIONS_TEMPLATE`, `WHATSAPP_RESCHEDULE_APPROVAL_REQUEST_TEMPLATE`, `WHATSAPP_RESCHEDULE_CONFIRMATION_TEMPLATE`, `WHATSAPP_RESCHEDULE_DECLINED_TEMPLATE`.
+- `WHATSAPP_BOOKING_UPDATE_ENABLED`, `WHATSAPP_RESCHEDULE_APPROVAL_ENABLED` — still influence booking/reschedule workflow decisions. Keep until those decisions are decoupled from the retired channel.
+- `SHILOH_CLIENT_REMINDER_APP_ONLY_ENABLED` — retained app notification policy. Automated WhatsApp sends are blocked in production; an unaccepted app wake does not prove phone delivery and leaves the reminder retryable.
+- `SHILOH_CONSULTATION_FORM_APP_ONLY_ENABLED`, `SHILOH_CONSULTATION_FORM_DELIVERY_ENABLED`, `SHILOH_CONSULTATION_FORM_DELIVERY_NOT_BEFORE` — still participate in consultation form scheduling and app delivery. An unaccepted app wake leaves the assignment unsent; automated WhatsApp fallback is blocked in production. Keep until the form scheduler is decoupled from the retired channel.
+- `SHILOH_PAYMENT_RECEIPT_APP_ONLY_ENABLED` — retained app receipt policy. The payer needs an active matching My Shiloh profile and accepted push wake; no automated Meta receipt fallback is permitted in production.
+- `SHILOH_BOOKING_CONFIRMATION_APP_ONLY_ENABLED` — retained app confirmation policy. A CRM V2 booking with an accepted app wake can close the obligation; otherwise it remains retryable without an automated WhatsApp send.
+- Historical `WHATSAPP_*_TEMPLATE` bindings and `WHATSAPP_TEMPLATE_LANGUAGE` still have code references. Keep until each booking, consultation, payment and lifecycle obligation is decoupled or represented in a visible Reception exception queue. Their presence does not authorize automated sending.
 
 ## Remove from persistent production configuration — retired or one-shot state
 
@@ -32,6 +31,7 @@ These are not credentials and should not remain as durable production configurat
 - `META_LIFECYCLE_PROVISION_ON_START`
 - `META_PROVIDER_RECONNECT_ON_START`
 - `META_RESCHEDULE_APPROVAL_TEMPLATES_PROVISION_ON_START`
+- `META_PROVIDER_APP_NAME` — used only by the now-removed provider reconnect helper.
 - `META_STAFF_AUTH_TEMPLATE_AUDIT_ON_START`
 - `META_STAFF_AUTH_TEMPLATE_PROVISION_ON_START`
 - `META_WABA_TEMPLATE_PERMISSION_AUDIT_ON_START`
@@ -56,6 +56,10 @@ These are not credentials and should not remain as durable production configurat
 
 - `ADMIN_API_KEY` — the generic `/admin/*` HTTP authority was retired by #990. Runtime source no longer reads or accepts this key. Removing the residual Render secret is an external credential mutation and requires explicit owner authorization.
 
+## Owner-authorized automated WhatsApp credential removal
+
+The owner explicitly authorized removal of `WHATSAPP_TOKEN`, `PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID` and `VERIFY_TOKEN` after PR #1311. She reported completing the Render cleanup on 2026-09-29; the resulting rebuild reached live. Render's connected tool cannot read individual keys, so their absence remains unverified. Production blocks all automated sends and no longer requires these keys at startup. The retired `META_CLIENT_AUTH_TEMPLATE_PROVISION_ON_START`, `META_PROBLEM_REPORT_RESOLVED_PROVISION_ON_START`, `SHILOH_META_SIGNIN_ONLY_ENABLED`, `SHILOH_STAFF_WHATSAPP_PASSKEY_BOOTSTRAP_ENABLED` and `SHILOH_WORKSPACE_CLIENT_NOTIFY_PROVIDER_READY` were also included in the owner's removal list. Keep the human Reception number and SMS, push, OpenAI, payment and database settings.
+
 ## Retire code/capability before removing configuration
 
 These keys still have a current code reference or preserve a dormant integration. They are not permission to re-enable that integration.
@@ -67,7 +71,7 @@ These keys still have a current code reference or preserve a dormant integration
 
 ## Secret-removal boundary
 
-The #654 cleanup does not authorize deletion or rotation of credential material. In particular, do not delete/rotate `DATABASE_URL`, API keys, OAuth secrets/tokens, `WHATSAPP_TOKEN`, or `PEXELS_API_KEY` merely to reduce the visible variable count. A credential can be removed only after its capability is proven unused/retired and the owner explicitly authorizes the exact credential action. The owner separately authorized removal of the retired TOTP keyring in #952 after code cutover.
+The #654 cleanup alone did not authorize deletion or rotation of credential material. The owner later explicitly authorized the four retired WhatsApp credentials above and separately authorized removal of the retired TOTP keyring in #952. Do not delete/rotate `DATABASE_URL`, unrelated API keys, OAuth secrets/tokens or `PEXELS_API_KEY` merely to reduce the visible variable count. A credential can be removed only after its capability is proven unused/retired and the owner explicitly authorizes the exact action.
 
 `PEXELS_API_KEY` has no demonstrated current runtime requirement in this audit, but because it is credential material it remains at this explicit authorization boundary rather than being silently deleted.
 
