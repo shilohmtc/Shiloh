@@ -11,6 +11,8 @@ test('production startup does not preload retired #643 Meta reconnect or WABA au
   const start = String(pkg.scripts?.start || '');
   assert.doesNotMatch(start, /metaProviderReconnectBootstrap/);
   assert.doesNotMatch(start, /metaWabaTemplatePermissionAuditBootstrap/);
+  assert.equal(fs.existsSync(path.join(root, 'src/bootstrap/metaProviderReconnectBootstrap.js')), false);
+  assert.equal(fs.existsSync(path.join(root, 'src/services/metaProviderReconnect.js')), false);
   assert.match(start, /^node scripts\/verify-migrations\.js && /);
 });
 

@@ -6,7 +6,6 @@ const axios = require('axios');
 
 const root = path.join(__dirname, '..');
 const approvalService = fs.readFileSync(path.join(root, 'src', 'services', 'clientRescheduleApproval.js'), 'utf8');
-const bootstrap = fs.readFileSync(path.join(root, 'src', 'bootstrap', 'clientRescheduleApprovalTemplateProvisioningBootstrap.js'), 'utf8');
 const pkg = fs.readFileSync(path.join(root, 'package.json'), 'utf8');
 const { CONTRACTS, resetTemplateInventoryCache } = require('../src/services/metaTemplateContracts');
 const { buildDefinition } = require('../src/services/clientLifecycleTemplateProvisioning');
@@ -47,11 +46,9 @@ test('legacy provider definitions remain frozen while new requests use Reception
   assert.deepEqual(declinedDefinition.components[1].buttons.map((button) => button.text), ['Choose another time']);
 });
 
-test('targeted provider provisioning remains explicit and is detached from ordinary startup', () => {
-  assert.match(bootstrap, /META_RESCHEDULE_APPROVAL_TEMPLATES_PROVISION_ON_START/);
-  assert.match(bootstrap, /toLowerCase\(\) === 'true'/);
+test('retired reschedule provider bootstrap is absent from ordinary startup', () => {
+  assert.equal(fs.existsSync(path.join(root, 'src', 'bootstrap', 'clientRescheduleApprovalTemplateProvisioningBootstrap.js')), false);
   assert.doesNotMatch(pkg, /clientRescheduleApprovalTemplateProvisioningBootstrap\.js/);
-  assert.doesNotMatch(bootstrap, /WHATSAPP_RESCHEDULE_APPROVAL_ENABLED\s*=/);
 });
 
 test('exact existing provider templates are read back and never resubmitted', async () => {
