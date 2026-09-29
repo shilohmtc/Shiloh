@@ -9,7 +9,6 @@ const {
   fullLabelDescription,
   presentNamedListRow,
 } = require('../src/presentation/whatsappListRowPresentation');
-const { serviceInteractive } = require('../src/services/adminMobileBookingFlow');
 const { serviceList } = require('../src/services/adminServicePricing');
 const { serviceChangeListInteractive } = require('../src/services/adminAppointmentFinalization');
 const { servicePageInteractive } = require('../src/services/clientDiscoveryMenu');
@@ -40,18 +39,6 @@ test('labels longer than the WhatsApp description limit remain bounded and expli
   const description = fullLabelDescription(value);
   assert.equal(description.length, WHATSAPP_LIST_LIMITS.rowDescription);
   assert.ok(description.endsWith('…'));
-});
-
-test('Admin booking service rows show the full canonical treatment wording', () => {
-  const interactive = serviceInteractive(
-    { label: 'Christel + Abigail services' },
-    { name: 'Massage & Body' },
-    { name: 'Sports & Therapeutic', services: [{ id: 7, name: fullServiceName }] },
-    0
-  );
-  const row = interactive.rows[0];
-  assert.equal(row.description, fullServiceName);
-  assertListLimits(row);
 });
 
 test('technical Admin pricing and finalization lists prioritize full dynamic labels', () => {
@@ -107,7 +94,6 @@ test('client discovery and package lists show full canonical names where they fi
 
 test('every dynamic Admin and client list producer in scope uses the shared full-label rule', () => {
   const files = [
-    'src/services/adminMobileBookingFlow.js',
     'src/services/adminBookingUpdate.js',
     'src/services/adminAppointmentFinalization.js',
     'src/services/adminServicePricing.js',

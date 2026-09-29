@@ -8,7 +8,6 @@ const {
   canUseReplyButtons,
   hybridizeChoiceInteractive,
 } = require('../src/presentation/whatsappChoicePresentation');
-const { staffInteractive } = require('../src/services/adminMobileBookingFlow');
 const { eligiblePractitionersInteractive } = require('../src/services/clientDiscoveryMenu');
 
 test('one to three list choices become visible reply buttons without changing action ids', () => {
@@ -81,23 +80,6 @@ test('forceList preserves an explicitly list-only interaction', () => {
     rows: [{ id: 'choice', title: 'Choice' }],
   };
   assert.strictEqual(hybridizeChoiceInteractive(source), source);
-});
-
-test('representative Admin practitioner choices become one-tap buttons', () => {
-  const list = staffInteractive(
-    { name: 'Sports Massage Full Body' },
-    [
-      { id: 11, display_name: 'Christel' },
-      { id: 12, display_name: 'Abigail' },
-    ]
-  );
-  const presented = hybridizeChoiceInteractive(list);
-  assert.equal(presented.type, 'button');
-  assert.deepEqual(
-    presented.buttons.map(({ id }) => id),
-    ['admin_booking_staff:11', 'admin_booking_staff:12', 'admin_booking_cancel_flow']
-  );
-  assert.match(presented.body, /Eligible for this service/);
 });
 
 test('representative client practitioner choices become one-tap buttons', () => {

@@ -12,7 +12,6 @@ test('canonical booking formatter uses 24-hour Johannesburg time', () => {
 
 test('core Shiloh booking surfaces explicitly prohibit 12-hour Intl presentation', () => {
   const files = [
-    'src/services/adminMobileBookingFlow.js',
     'src/services/appointmentChange.js',
     'src/services/appointmentReminderConfirmation.js',
     'src/services/clientBookingApproval.js',

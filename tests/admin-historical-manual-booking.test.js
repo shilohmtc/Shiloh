@@ -6,16 +6,6 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const source = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
 
-test('admin guided booking routes past dates into historical manual entry instead of slot search', () => {
-  const flow = source('src/services/adminMobileBookingFlow.js');
-  assert.match(flow, /date\s*<\s*johannesburgToday\(\)/);
-  assert.match(flow, /step:\s*'historical-time'/);
-  assert.match(flow, /Enter the actual start time/);
-  assert.match(flow, /prepareHistoricalAdminBooking/);
-  assert.match(flow, /confirmHistoricalAdminBooking/);
-  assert.match(flow, /futureBias:\s*false/);
-});
-
 test('historical booking writes Shiloh truth without sending a client notification or touching external snapshots', () => {
   const historical = source('src/services/adminHistoricalBooking.js');
   assert.match(historical, /shiloh_admin_historical_manual/);
