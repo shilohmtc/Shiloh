@@ -2,14 +2,9 @@
 
 const crypto = require('crypto');
 const { pool } = require('../db/pool');
-const crmV2ClientService = require('./crmV2ClientService');
 
 const CHALLENGE_TTL_MS = 10 * 60 * 1000;
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const CHALLENGE_ISSUE_WINDOW_MS = 10 * 60 * 1000;
-const CHALLENGE_ISSUE_LIMIT = 5;
-const MAX_VERIFY_ATTEMPTS = 5;
-const MAX_COMPLETION_ATTEMPTS = 5;
 const TOKEN_BYTES = 32;
 
 function sha256(value) {
@@ -27,18 +22,8 @@ function randomOpaqueToken(randomBytes = crypto.randomBytes) {
   return randomBytes(TOKEN_BYTES).toString('base64url');
 }
 
-function randomCompletionCode(randomBytes = crypto.randomBytes) {
-  const bytes = randomBytes(4);
-  const value = bytes.readUInt32BE(0) % 1000000;
-  return String(value).padStart(6, '0');
-}
-
 function isValidOpaqueToken(value) {
   return /^[A-Za-z0-9_-]{43}$/.test(String(value || ''));
-}
-
-function isValidCompletionCode(value) {
-  return /^\d{6}$/.test(String(value || '').replace(/\s+/g, ''));
 }
 
 function firstName(value = '') {
@@ -60,10 +45,8 @@ function publicClient(row = {}) {
 
 function createClientBrowserSessionService({
   db = pool,
-  crmService = crmV2ClientService,
   now = () => new Date(),
   randomBytes = crypto.randomBytes,
-  challengeTtlMs = CHALLENGE_TTL_MS,
   sessionTtlMs = SESSION_TTL_MS,
 } = {}) {
   if (!db || typeof db.query !== 'function') throw new Error('client browser session db is required');
@@ -90,177 +73,10 @@ function createClientBrowserSessionService({
     );
   }
 
-  async function beginChallenge({ requestFingerprintHash = null } = {}) {
-    const fingerprint = normalizedFingerprint(requestFingerprintHash);
-    const current = now();
-    const browserToken = randomOpaqueToken(randomBytes);
-    const whatsappToken = randomOpaqueToken(randomBytes);
-    const expiresAt = new Date(current.getTime() + challengeTtlMs);
-    const client = typeof db.connect === 'function' ? await db.connect() : db;
-    try {
-      await client.query('BEGIN');
-      if (fingerprint) {
-        await client.query(
-          `SELECT pg_advisory_xact_lock(hashtextextended('my-shiloh-client-auth:' || $1::text, 0))`,
-          [fingerprint],
-        );
-        const since = new Date(current.getTime() - CHALLENGE_ISSUE_WINDOW_MS);
-        const count = await client.query(
-          `SELECT COUNT(*)::int AS count
-             FROM client_browser_auth_challenges
-            WHERE request_fingerprint_hash = $1
-              AND issued_at >= $2`,
-          [fingerprint, since],
-        );
-        if (Number(count.rows[0]?.count || 0) >= CHALLENGE_ISSUE_LIMIT) {
-          await audit(client, 'challenge_rate_limited', { requestFingerprintHash: fingerprint });
-          await client.query('COMMIT');
-          return { ok: false, code: 'CLIENT_AUTH_RATE_LIMITED' };
-        }
-        await client.query(
-          `UPDATE client_browser_auth_challenges
-              SET revoked_at = $2
-            WHERE request_fingerprint_hash = $1
-              AND consumed_at IS NULL
-              AND revoked_at IS NULL`,
-          [fingerprint, current],
-        );
-      }
-      const inserted = await client.query(
-        `INSERT INTO client_browser_auth_challenges
-           (browser_token_hash, whatsapp_token_hash, request_fingerprint_hash, issued_at, expires_at)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id`,
-        [sha256(browserToken), sha256(whatsappToken), fingerprint, current, expiresAt],
-      );
-      const challengeId = inserted.rows[0].id;
-      await audit(client, 'challenge_issued', {
-        challengeId,
-        requestFingerprintHash: fingerprint,
-      });
-      await client.query('COMMIT');
-      return { ok: true, challengeId, browserToken, whatsappToken, expiresAt };
-    } catch (error) {
-      try { await client.query('ROLLBACK'); } catch (_) {}
-      throw error;
-    } finally {
-      if (client !== db && typeof client.release === 'function') client.release();
-    }
-  }
-
-  async function verifyWhatsAppChallenge({
-    whatsappToken,
-    senderMobile,
-    requestFingerprintHash = null,
-  } = {}) {
-    if (!isValidOpaqueToken(whatsappToken)) return { ok: false, code: 'CLIENT_AUTH_INVALID_CHALLENGE' };
-    // Challenge age is authoritative only from Shiloh's server clock. Provider
-    // message timestamps are transport evidence, never authentication time authority.
-    const current = now();
-
-    const client = typeof db.connect === 'function' ? await db.connect() : db;
-    try {
-      await client.query('BEGIN');
-      const challengeResult = await client.query(
-        `SELECT id, expires_at, verified_at, consumed_at, revoked_at, verify_attempts
-           FROM client_browser_auth_challenges
-          WHERE whatsapp_token_hash = $1
-          LIMIT 1
-          FOR UPDATE`,
-        [sha256(whatsappToken)],
-      );
-      const challenge = challengeResult.rows[0];
-      if (!challenge || challenge.consumed_at || challenge.revoked_at || challenge.verified_at) {
-        await client.query('ROLLBACK');
-        return { ok: false, code: 'CLIENT_AUTH_INVALID_CHALLENGE' };
-      }
-      if (new Date(challenge.expires_at).getTime() <= current.getTime()) {
-        await client.query(
-          `UPDATE client_browser_auth_challenges SET revoked_at = $2 WHERE id = $1`,
-          [challenge.id, current],
-        );
-        await audit(client, 'challenge_expired', {
-          challengeId: challenge.id,
-          requestFingerprintHash,
-        });
-        await client.query('COMMIT');
-        return { ok: false, code: 'CLIENT_AUTH_EXPIRED' };
-      }
-      const attempts = Number(challenge.verify_attempts || 0) + 1;
-      if (attempts > MAX_VERIFY_ATTEMPTS) {
-        await client.query(
-          `UPDATE client_browser_auth_challenges SET revoked_at = $2, verify_attempts = $3 WHERE id = $1`,
-          [challenge.id, current, MAX_VERIFY_ATTEMPTS],
-        );
-        await audit(client, 'challenge_attempt_limit', {
-          challengeId: challenge.id,
-          requestFingerprintHash,
-        });
-        await client.query('COMMIT');
-        return { ok: false, code: 'CLIENT_AUTH_INVALID_CHALLENGE' };
-      }
-      await client.query(
-        `UPDATE client_browser_auth_challenges SET verify_attempts = $2 WHERE id = $1`,
-        [challenge.id, attempts],
-      );
-
-      const ownership = await crmService.recordVerifiedWhatsAppInteraction({
-        mobile: senderMobile,
-        occurredAt: current,
-      });
-      if (ownership.status !== 'verified' || !ownership.client?.id) {
-        await client.query(
-          `UPDATE client_browser_auth_challenges SET revoked_at = $2 WHERE id = $1`,
-          [challenge.id, current],
-        );
-        await audit(client, 'challenge_client_unavailable', {
-          challengeId: challenge.id,
-          requestFingerprintHash,
-          metadata: { resolution: ownership.status || 'unknown' },
-        });
-        await client.query('COMMIT');
-        return { ok: false, code: 'CLIENT_AUTH_PROFILE_UNAVAILABLE' };
-      }
-
-      const crmV2ClientId = Number(ownership.client.id);
-      const completionCode = randomCompletionCode(randomBytes);
-      await client.query(
-        `UPDATE client_browser_auth_challenges
-            SET crm_v2_client_id = $2,
-                verified_at = $3,
-                completion_code_hash = $4,
-                completion_attempts = 0
-          WHERE id = $1`,
-        [challenge.id, crmV2ClientId, current, sha256(completionCode)],
-      );
-      await audit(client, 'challenge_verified_whatsapp', {
-        clientId: crmV2ClientId,
-        challengeId: challenge.id,
-        requestFingerprintHash,
-      });
-      await client.query('COMMIT');
-      return {
-        ok: true,
-        status: 'verified',
-        completionCode,
-        client: {
-          id: String(ownership.client.id),
-          name: ownership.client.name,
-          firstName: firstName(ownership.client.name),
-        },
-      };
-    } catch (error) {
-      try { await client.query('ROLLBACK'); } catch (_) {}
-      throw error;
-    } finally {
-      if (client !== db && typeof client.release === 'function') client.release();
-    }
-  }
-
   // Called inside the caller's transaction only after its independent
-  // WhatsApp or WebAuthn verification and active CRM ownership check.
+  // WebAuthn, recovery code, or SMS verification and active CRM ownership check.
   async function insertVerifiedSession(client, owner, current, authMethod, fingerprint, passkeyCredentialId = null) {
-    if (!['whatsapp_challenge', 'passkey', 'passkey_recovery', 'sms_code'].includes(authMethod)) throw new Error('invalid client session method');
+    if (!['passkey', 'passkey_recovery', 'sms_code'].includes(authMethod)) throw new Error('invalid client session method');
     const sessionToken = randomOpaqueToken(randomBytes);
     const csrfToken = randomOpaqueToken(randomBytes);
     const expiresAt = new Date(current.getTime() + sessionTtlMs);
@@ -337,132 +153,6 @@ function createClientBrowserSessionService({
       requestFingerprintHash: fingerprint, metadata: { authMethod: 'sms_code' },
     });
     return result;
-  }
-
-  async function finishChallenge({
-    browserToken,
-    completionCode = null,
-    requestFingerprintHash = null,
-    requireCompletionCode = false,
-  } = {}) {
-    if (!isValidOpaqueToken(browserToken)
-      || (requireCompletionCode && !isValidCompletionCode(completionCode))) {
-      return { ok: false, code: 'CLIENT_AUTH_INVALID_COMPLETION' };
-    }
-    const cleanCode = requireCompletionCode ? String(completionCode).replace(/\s+/g, '') : null;
-    const current = now();
-    const fingerprint = normalizedFingerprint(requestFingerprintHash);
-    const client = typeof db.connect === 'function' ? await db.connect() : db;
-    try {
-      await client.query('BEGIN');
-      const challengeResult = await client.query(
-        `SELECT id, crm_v2_client_id, request_fingerprint_hash, expires_at, verified_at,
-                completion_code_hash, completion_attempts, consumed_at, revoked_at
-           FROM client_browser_auth_challenges
-          WHERE browser_token_hash = $1
-          LIMIT 1
-          FOR UPDATE`,
-        [sha256(browserToken)],
-      );
-      const challenge = challengeResult.rows[0];
-      if (!challenge || challenge.consumed_at || challenge.revoked_at) {
-        await client.query('ROLLBACK');
-        return { ok: false, code: 'CLIENT_AUTH_INVALID_CHALLENGE' };
-      }
-      if (new Date(challenge.expires_at).getTime() <= current.getTime()) {
-        await client.query(
-          `UPDATE client_browser_auth_challenges SET revoked_at = $2 WHERE id = $1`,
-          [challenge.id, current],
-        );
-        await audit(client, 'challenge_expired', {
-          challengeId: challenge.id,
-          requestFingerprintHash: fingerprint,
-        });
-        await client.query('COMMIT');
-        return { ok: false, code: 'CLIENT_AUTH_EXPIRED' };
-      }
-      if (!challenge.verified_at || !challenge.crm_v2_client_id || !challenge.completion_code_hash) {
-        await client.query('COMMIT');
-        return { ok: false, code: 'CLIENT_AUTH_NOT_VERIFIED' };
-      }
-
-      const nextAttempts = Number(challenge.completion_attempts || 0) + (requireCompletionCode ? 1 : 0);
-      if (requireCompletionCode && !safeHashEqual(sha256(cleanCode), challenge.completion_code_hash)) {
-        const revoke = nextAttempts >= MAX_COMPLETION_ATTEMPTS;
-        await client.query(
-          `UPDATE client_browser_auth_challenges
-              SET completion_attempts = $2,
-                  revoked_at = CASE WHEN $3::boolean THEN $4 ELSE revoked_at END
-            WHERE id = $1`,
-          [challenge.id, Math.min(nextAttempts, MAX_COMPLETION_ATTEMPTS), revoke, current],
-        );
-        await audit(client, revoke ? 'completion_attempt_limit' : 'completion_code_rejected', {
-          challengeId: challenge.id,
-          clientId: challenge.crm_v2_client_id,
-          requestFingerprintHash: fingerprint,
-          metadata: { attempt: Math.min(nextAttempts, MAX_COMPLETION_ATTEMPTS) },
-        });
-        await client.query('COMMIT');
-        return { ok: false, code: 'CLIENT_AUTH_INVALID_COMPLETION' };
-      }
-
-      const owner = await client.query(
-        `SELECT id, name
-           FROM crm_v2_clients
-          WHERE id = $1
-            AND status = 'active'
-          LIMIT 1
-          FOR SHARE`,
-        [challenge.crm_v2_client_id],
-      );
-      if (owner.rowCount !== 1) {
-        await client.query(
-          `UPDATE client_browser_auth_challenges SET revoked_at = $2 WHERE id = $1`,
-          [challenge.id, current],
-        );
-        await audit(client, 'challenge_client_unavailable', {
-          challengeId: challenge.id,
-          clientId: challenge.crm_v2_client_id,
-          requestFingerprintHash: fingerprint,
-        });
-        await client.query('COMMIT');
-        return { ok: false, code: 'CLIENT_AUTH_PROFILE_UNAVAILABLE' };
-      }
-
-      const result = await insertVerifiedSession(client, owner.rows[0], current, 'whatsapp_challenge', fingerprint);
-      await client.query(
-        `UPDATE client_browser_auth_challenges
-            SET consumed_at = $2,
-                completion_attempts = $3
-          WHERE id = $1`,
-        [challenge.id, current, Math.min(nextAttempts, MAX_COMPLETION_ATTEMPTS)],
-      );
-      await audit(client, 'session_issued', {
-        clientId: owner.rows[0].id,
-        challengeId: challenge.id,
-        sessionId: result.sessionId,
-        requestFingerprintHash: fingerprint,
-        metadata: {
-          authMethod: 'whatsapp_challenge',
-          completion: requireCompletionCode ? 'fallback_code' : 'automatic_return',
-        },
-      });
-      await client.query('COMMIT');
-      return result;
-    } catch (error) {
-      try { await client.query('ROLLBACK'); } catch (_) {}
-      throw error;
-    } finally {
-      if (client !== db && typeof client.release === 'function') client.release();
-    }
-  }
-
-  async function completeChallenge(options = {}) {
-    return finishChallenge({ ...options, requireCompletionCode: true });
-  }
-
-  async function completeVerifiedChallenge(options = {}) {
-    return finishChallenge({ ...options, completionCode: null, requireCompletionCode: false });
   }
 
   async function validateSessionToken(token) {
@@ -549,10 +239,6 @@ function createClientBrowserSessionService({
   }
 
   return {
-    beginChallenge,
-    verifyWhatsAppChallenge,
-    completeChallenge,
-    completeVerifiedChallenge,
     issueVerifiedPasskeySession,
     issueVerifiedRecoverySession,
     issueVerifiedSmsSession,
@@ -566,16 +252,10 @@ function createClientBrowserSessionService({
 module.exports = {
   CHALLENGE_TTL_MS,
   SESSION_TTL_MS,
-  CHALLENGE_ISSUE_WINDOW_MS,
-  CHALLENGE_ISSUE_LIMIT,
-  MAX_VERIFY_ATTEMPTS,
-  MAX_COMPLETION_ATTEMPTS,
   sha256,
   safeHashEqual,
   randomOpaqueToken,
-  randomCompletionCode,
   isValidOpaqueToken,
-  isValidCompletionCode,
   firstName,
   normalizedFingerprint,
   createClientBrowserSessionService,

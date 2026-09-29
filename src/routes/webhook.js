@@ -3,7 +3,6 @@ const router = express.Router();
 
 const logger = require('../lib/logger');
 const { processWhatsAppStatusWebhook } = require("../controllers/whatsappStatusWebhookController");
-const { myShilohWhatsAppAuthMiddleware } = require("../middleware/myShilohWhatsAppAuth");
 
 router.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
@@ -19,9 +18,8 @@ router.get('/webhook', (req, res) => {
 router.post(
   "/webhook",
   processWhatsAppStatusWebhook,
-  myShilohWhatsAppAuthMiddleware,
-  // Preserve client authentication fallback and delivery receipts. Staff
-  // device enrollment now requires administrator-approved SMS verification.
+  // Delivery receipts remain; conversations belong to human Reception.
+  // My Shiloh and Workspace authenticate with passkeys and SMS setup.
   (_req, res) => res.sendStatus(200),
 );
 

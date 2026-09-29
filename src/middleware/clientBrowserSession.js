@@ -58,13 +58,6 @@ function serializeExpiredClientSessionCookie({ env = process.env } = {}) {
   return [...cookieParts(clientSessionCookieName(env), '', { env, maxAgeSeconds: 0 }), 'Expires=Thu, 01 Jan 1970 00:00:00 GMT'].join('; ');
 }
 
-function serializeClientAuthCookie(token, {
-  env = process.env,
-  maxAgeSeconds = 10 * 60,
-} = {}) {
-  return cookieParts(clientAuthCookieName(env), token, { env, maxAgeSeconds }).join('; ');
-}
-
 function serializeExpiredClientAuthCookie({ env = process.env } = {}) {
   return [...cookieParts(clientAuthCookieName(env), '', { env, maxAgeSeconds: 0 }), 'Expires=Thu, 01 Jan 1970 00:00:00 GMT'].join('; ');
 }
@@ -89,10 +82,6 @@ function serializeExpiredClientPasskeyAuthCookie({ env = process.env } = {}) {
 
 function clientSessionTokenFromRequest(req, env = process.env) {
   return parseCookieValue(req.headers?.cookie, clientSessionCookieName(env));
-}
-
-function clientAuthTokenFromRequest(req, env = process.env) {
-  return parseCookieValue(req.headers?.cookie, clientAuthCookieName(env));
 }
 
 function clientPasskeyAuthTokenFromRequest(req, env = process.env) {
@@ -142,14 +131,12 @@ module.exports = {
   clientSmsAuthCookieName,
   serializeClientSessionCookie,
   serializeExpiredClientSessionCookie,
-  serializeClientAuthCookie,
   serializeExpiredClientAuthCookie,
   serializeClientSmsAuthCookie,
   serializeExpiredClientSmsAuthCookie,
   serializeClientPasskeyAuthCookie,
   serializeExpiredClientPasskeyAuthCookie,
   clientSessionTokenFromRequest,
-  clientAuthTokenFromRequest,
   clientPasskeyAuthTokenFromRequest,
   clientSmsAuthTokenFromRequest,
   requireClientSession,

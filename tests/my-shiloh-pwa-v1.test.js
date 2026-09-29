@@ -123,16 +123,17 @@ test('Bookings help stays in My Shiloh for clients and names the guest and Recep
   assert.match(bookings(signed), /Ask Shiloh here to help/);
   assert.match(bookings(signed), /href="#shiloh">Ask Shiloh<\/a>/);
   assert.doesNotMatch(bookings(signed), /wa\.me/);
-  assert.match(bookings(guest), /href="https:\/\/wa\.me\/[^"]+" rel="noopener noreferrer">Ask Shiloh on WhatsApp/);
+  assert.match(bookings(guest), /href="https:\/\/wa\.me\/27662399138[^"]*" rel="noopener noreferrer">Ask Reception/);
   assert.match(bookings(reception), /href="https:\/\/wa\.me\/27662399138[^"]*" rel="noopener noreferrer">Ask Reception/);
 });
 
-test('My Shiloh uses WhatsApp only as an explicit client handoff in the guest shell', () => {
+test('My Shiloh offers human Reception WhatsApp in the guest shell', () => {
   const url = whatsappUrl('+27 83 000 0000', 'Hello Shiloh');
   assert.equal(url, 'https://wa.me/27830000000?text=Hello%20Shiloh');
   assert.equal(whatsappUrl(null), '/contact');
   const html = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue: [] });
-  assert.match(html, /https:\/\/wa\.me\/27830000000\?text=/);
+  assert.match(html, /https:\/\/wa\.me\/27662399138\?text=/);
+  assert.doesNotMatch(html, /https:\/\/wa\.me\/27830000000\?text=/);
   assert.match(html, /Sign in to book/);
 });
 
