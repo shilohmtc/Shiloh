@@ -85,7 +85,7 @@ test('ended booking updates are terminally suppressed before provider checks and
 
 test('suppression preserves failed-attempt history and terminal rows are excluded from retry scans', () => {
   const suppressStart = service.indexOf('async function suppressEndedBookingUpdate');
-  const suppressEnd = service.indexOf('async function provisionRequiredCustomerChangeTemplates');
+  const suppressEnd = service.indexOf('async function queueCustomerChangeNotification');
   const suppressBlock = service.slice(suppressStart, suppressEnd);
   assert.match(suppressBlock, /suppressed_at=COALESCE\(notification\.suppressed_at,NOW\(\)\)/);
   assert.doesNotMatch(suppressBlock, /attempt_count\s*=/);
@@ -140,5 +140,12 @@ test('cancellation payment-safety template warns that old payment links are inva
   assert.match(lifecycleSource, /cancellation_confirmation_v2/);
   assert.match(lifecycleSource, /earlier unpaid deposit or payment link/);
   assert.match(lifecycleSource, /No refund is issued automatically/);
-  assert.match(service, /\['booking_update', 'cancellation_confirmation_v2'\]/);
+  assert.match(service, /item\.change_kind === 'cancellation' \? 'cancellation_confirmation_v2' : 'booking_update'/);
+});
+
+test('customer-change scheduler does not provision retired Meta templates at startup', () => {
+  const scheduler = service.slice(service.indexOf('function startCustomerChangeNotificationScheduler'));
+  assert.doesNotMatch(scheduler, /provisionRequiredCustomerChangeTemplates|submitClientLifecycleTemplate/);
+  assert.match(scheduler, /await ensureCustomerChangeNotificationTable\(\)/);
+  assert.match(scheduler, /await flushCustomerChangeNotifications\(\)/);
 });

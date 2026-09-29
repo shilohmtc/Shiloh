@@ -2,11 +2,7 @@ const { pool } = require('../db/pool');
 const { sendWhatsAppTemplate } = require('./whatsapp');
 const { metaSignInOnly } = require('./metaSignInOnly');
 const { resolveClientFacingName } = require('./clientFacingNameAuthority');
-const {
-  DEFINITIONS,
-  getClientLifecycleTemplateStatus,
-  submitClientLifecycleTemplate,
-} = require('./clientLifecycleTemplateProvisioning');
+const { getClientLifecycleTemplateStatus } = require('./clientLifecycleTemplateProvisioning');
 const logger = require('../lib/logger');
 const { queueBookingChangeMyShilohNotification } = require('./sh05ChannelIndependence');
 
@@ -185,23 +181,6 @@ async function suppressEndedBookingUpdate(item) {
     reason: 'appointment_already_ended',
   }, 'Customer booking-change confirmation suppressed');
   return true;
-}
-
-async function provisionRequiredCustomerChangeTemplates() {
-  const results = [];
-  for (const key of ['booking_update', 'cancellation_confirmation_v2']) {
-    try {
-      const result = await submitClientLifecycleTemplate(key);
-      results.push({ key, submitted: result?.submitted === true, reason: result?.reason || null, providerStatus: result?.provider?.status || null });
-    } catch (error) {
-      logger.error({ err: error, key }, 'Customer-change template provisioning failed');
-      results.push({ key, submitted: false, reason: 'error', providerStatus: null });
-    }
-  }
-  templateStatusCache = null;
-  templateStatusCachedAt = 0;
-  logger.info({ results }, 'Customer-change WhatsApp template provisioning checked');
-  return results;
 }
 
 async function queueCustomerChangeNotification(appointmentId, changeKind) {
@@ -406,7 +385,6 @@ async function flushCustomerChangeNotifications({ env = process.env } = {}) {
 function startCustomerChangeNotificationScheduler() {
   if (scheduler) return;
   setImmediate(async () => {
-    await provisionRequiredCustomerChangeTemplates();
     await ensureCustomerChangeNotificationTable();
     await flushCustomerChangeNotifications();
   });
@@ -425,7 +403,6 @@ module.exports = {
   latestAuditEvent,
   loadAppointmentSnapshot,
   suppressEndedBookingUpdate,
-  provisionRequiredCustomerChangeTemplates,
   queueCustomerChangeNotification,
   attemptCustomerChangeNotification,
   flushCustomerChangeNotifications,
