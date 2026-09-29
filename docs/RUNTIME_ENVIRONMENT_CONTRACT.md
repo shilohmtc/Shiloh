@@ -42,7 +42,7 @@ These are not credentials and should not remain as durable production configurat
 - `RUN_ADMIN_REPORTS_SELF_TEST_ON_STARTUP`
 - `SHILOH_CALENDAR_OCCUPANCY_RESET_RELEASE_SHA`
 - `SHILOH_CALENDAR_OCCUPANCY_RESET_RUN_ID`
-- `SHILOH_CONTROLLED_RELEASE_MIGRATION` when no specifically authorized controlled migration is active. This is an execution-scoped release input, not standing configuration.
+- `SHILOH_CONTROLLED_RELEASE_MIGRATION` — removed from Render after migration verification reported 178/178 applied and none pending. This remains an execution-scoped release input for a separately authorized future migration, not standing configuration.
 - `SHILOH_EMERGENCY_CHRISTEL_CALENDAR_BOOKING_ENABLED`
 - `SHILOH_STAFF_BROWSER_PILOT_ADMIN_IDS`
 - `SHILOH_STAFF_BROWSER_PILOT_MODE_ENABLED`
@@ -58,9 +58,15 @@ These are not credentials and should not remain as durable production configurat
 - `WHATSAPP_RESCHEDULE_APPROVAL_ENABLED` — retired by #1316 after the new Shiloh policy key was confirmed live. Removed from Render; same-commit deploy `dep-datscjou01pc73acdukg` reached live with reschedule `featureEnabled=true` and `/health` 200. Keep the new Shiloh policy key.
 - `WHATSAPP_BOOKING_UPDATE_ENABLED` — removed from Render after the verified Shiloh policy cutover. Same-commit deploy `dep-datujc893c1s73c2r04g` reached live with booking retry enabled, the new Shiloh policy configured, and `/health` 200. Remaining code references gate dormant injected Meta delivery fixtures and a template contract; production automated Meta delivery stays blocked independently.
 
-## Retired runtime authority — external secret removal pending
+## Retired runtime authority — external secret removed
 
-- `ADMIN_API_KEY` — the generic `/admin/*` HTTP authority was retired by #990. Runtime source no longer reads or accepts this key. Removing the residual Render secret is an external credential mutation and requires explicit owner authorization.
+- `ADMIN_API_KEY` — the generic `/admin/*` HTTP authority was retired by #990. Runtime source no longer reads or accepts this key. The owner explicitly confirmed removal of the residual Render secret; the refreshed production Environment list shows it absent.
+
+## Other verified Render retirements
+
+- `WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED` — removed from Render after automated Meta sending was retired in production. The dormant payment WhatsApp adapter still checks this legacy flag for injected test environments, but the live sender remains blocked independently. This does not affect My Shiloh payment notices or Ozow callbacks.
+- The above three removals were saved together. Same-commit deploy `dep-datv39e7bikc7384dh9g` on `fd9a525431e97db12b84b6a011e4adcfbee776e5` reached live; startup reported booking retry enabled and Shiloh policy configured, 178/178 migrations with none pending, and `/health` HTTP 200. The refreshed Environment list contained 65 keys, down from 68.
+- The private consultation form trial's configured expiry was `2026-09-18T19:00:00.000Z`; the temporary `CONSULTATION_FORM_TRIAL_ACCESS_HASH`, `CONSULTATION_FORM_TRIAL_EXPIRES_AT`, `CONSULTATION_FORM_TRIAL_ORIGIN`, `CONSULTATION_FORM_TRIAL_TEMPLATE`, and `SHILOH_CONSULTATION_FORM_TRIAL_ENABLED` remain to be removed as a separate batch. Preserve `CONSULTATION_FORM_DATA_KEY`, which decrypts stored submissions.
 
 ## Owner-authorized automated WhatsApp credential removal
 

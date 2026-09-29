@@ -82,8 +82,10 @@ test('application exposes only the explicit retired admin router', () => {
 test('current runtime and privacy contracts record retirement instead of stale key instructions', () => {
   const runtime = fs.readFileSync(path.join(__dirname, '..', 'docs/RUNTIME_ENVIRONMENT_CONTRACT.md'), 'utf8');
   const privacy = fs.readFileSync(path.join(__dirname, '..', 'docs/PRIVACY-DATA-SUBJECT-RIGHTS.md'), 'utf8');
-  assert.match(runtime, /Retired runtime authority — external secret removal pending/);
+  assert.match(runtime, /Retired runtime authority — external secret removed/);
   assert.match(runtime, /generic `\/admin\/\*` HTTP authority was retired/);
+  assert.match(runtime, /owner explicitly confirmed removal of the residual Render secret/);
+  assert.match(runtime, /refreshed production Environment list shows it absent/);
   assert.match(privacy, /former shared-key `\/admin\/privacy\/\*` HTTP surface was retired/);
   assert.match(privacy, /future explicitly authorized, capability-scoped Shiloh Workspace unit/);
 });
