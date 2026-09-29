@@ -25,6 +25,14 @@ let scheduler = null;
 let templateStatusCache = null;
 let templateStatusCachedAt = 0;
 
+function bookingChangeRetryEnabled(env = process.env) {
+  if (env.SHILOH_BOOKING_CHANGE_RETRY_ENABLED === 'true') return true;
+  if (env.SHILOH_BOOKING_CHANGE_RETRY_ENABLED === 'false') return false;
+  // Preserve the live decision until the new policy is set and verified.
+  return env.WHATSAPP_BOOKING_UPDATE_ENABLED === 'true'
+    || env.SHILOH_BOOKING_CHANGE_APP_ONLY_ENABLED === 'true';
+}
+
 function fmtDate(value) {
   return new Intl.DateTimeFormat('en-ZA', {
     timeZone: 'Africa/Johannesburg',
@@ -377,7 +385,7 @@ async function flushCustomerChangeNotifications({ env = process.env } = {}) {
        AND ($2::boolean OR change_kind='cancellation')
        AND updated_at <= NOW() - INTERVAL '5 minutes'
      ORDER BY created_at
-     LIMIT 25`, [MAX_PRE_SEND_ATTEMPTS, env.WHATSAPP_BOOKING_UPDATE_ENABLED === 'true' || env.SHILOH_BOOKING_CHANGE_APP_ONLY_ENABLED === 'true']);
+     LIMIT 25`, [MAX_PRE_SEND_ATTEMPTS, bookingChangeRetryEnabled(env)]);
   for (const row of result.rows) await attemptCustomerChangeNotification(row.audit_event_id, { env });
   return { attempted: result.rowCount };
 }
@@ -392,13 +400,20 @@ function startCustomerChangeNotificationScheduler() {
     flushCustomerChangeNotifications().catch((error) => logger.error({ err: error }, 'Customer-change notification retry scan failed'));
   }, RETRY_MS);
   scheduler.unref?.();
-  logger.info({ retryMinutes: RETRY_MS / 60000 }, 'Customer-change notification scheduler started');
+  logger.info({
+    retryMinutes: RETRY_MS / 60000,
+    bookingChangeRetryEnabled: bookingChangeRetryEnabled(),
+    policyConfigured: ['true', 'false'].includes(process.env.SHILOH_BOOKING_CHANGE_RETRY_ENABLED),
+    legacyBookingUpdateEnabled: process.env.WHATSAPP_BOOKING_UPDATE_ENABLED === 'true',
+    appOnlyEnabled: process.env.SHILOH_BOOKING_CHANGE_APP_ONLY_ENABLED === 'true',
+  }, 'Customer-change notification scheduler started');
 }
 
 module.exports = {
   ACTION_BY_KIND,
   ACTION_ALIASES_BY_KIND,
   UPDATE_KINDS,
+  bookingChangeRetryEnabled,
   ensureCustomerChangeNotificationTable,
   latestAuditEvent,
   loadAppointmentSnapshot,

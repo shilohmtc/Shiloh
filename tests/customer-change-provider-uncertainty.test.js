@@ -183,3 +183,12 @@ test('failed app acceptance record leaves the claim blocked from replay', async 
   assert.equal((await service.attemptCustomerChangeNotification(701, env)).reason, 'provider_outcome_uncertain');
   assert.equal(state.providerCalls, 0);
 });
+
+test('Shiloh retry policy preserves the old decision until configured, then takes precedence', () => {
+  const { service } = loadService();
+  assert.equal(service.bookingChangeRetryEnabled({ WHATSAPP_BOOKING_UPDATE_ENABLED: 'true' }), true);
+  assert.equal(service.bookingChangeRetryEnabled({ SHILOH_BOOKING_CHANGE_APP_ONLY_ENABLED: 'true' }), true);
+  assert.equal(service.bookingChangeRetryEnabled({}), false);
+  assert.equal(service.bookingChangeRetryEnabled({ SHILOH_BOOKING_CHANGE_RETRY_ENABLED: 'false', WHATSAPP_BOOKING_UPDATE_ENABLED: 'true' }), false);
+  assert.equal(service.bookingChangeRetryEnabled({ SHILOH_BOOKING_CHANGE_RETRY_ENABLED: 'true' }), true);
+});
