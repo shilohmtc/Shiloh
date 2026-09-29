@@ -227,7 +227,14 @@ function staffInteractive(service, staff) {
   return listInteractive(`*${displayServiceName(service.name)}*\n\nChoose the eligible practitioner.`, 'Practitioner', [...staff.slice(0, 9).map(s => ({ id: `admin_booking_staff:${s.id}`, title: short(s.display_name), description: 'Eligible for this service' })), cancelRow()], 'Eligible practitioner');
 }
 function slotsInteractive(session, page = 0) {
-  return listInteractive(`*${fmtDate(session.date)} — Choose a time*\n\n${session.staff.display_name} · ${displayServiceName(session.service.name)}`, 'Choose time', pageRows(session.slots, page, (s, i) => ({ id: `admin_booking_slot:${page * PAGE_SIZE + i}`, title: `${fmtTime(s.starts_at)}–${fmtTime(s.ends_at)}`, description: 'Available slot' })), 'Available times');
+  const rows = pageRows(session.slots, page, (s, i) => ({
+    id: `admin_booking_slot:${page * PAGE_SIZE + i}`,
+    title: fmtTime(s.starts_at),
+    description: `Ends ${fmtTime(s.ends_at)} · available start`,
+  }));
+  const body = `*${fmtDate(session.date)} — Choose a time*\n\n${session.staff.display_name} · ${displayServiceName(session.service.name)}`;
+  const guidance = 'Choose any available 15-minute start time. The full treatment must fit the practitioner diary and clinic schedule.';
+  return listInteractive(rows.some((row) => /^admin_booking_slot:\d+$/i.test(row.id)) ? `${body}\n\n${guidance}` : body, 'Choose time', rows, 'Available times');
 }
 function clientsInteractive(clients) {
   return listInteractive('*Choose client*\n\nSelect the matching CRM client.', 'Choose client', [...clients.slice(0, 9).map((c) => {
