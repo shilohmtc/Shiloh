@@ -57,7 +57,7 @@ test('approval path is captured through preload ordering without changing the da
   const notificationPatch = startScript.indexOf('clientRescheduleApprovedNotificationPatch.js');
   const approvalPatch = startScript.indexOf('clientRescheduleApprovalPatch.js');
   assert.ok(notificationPatch >= 0 && approvalPatch > notificationPatch);
-  assert.match(approvalSource, /WHATSAPP_RESCHEDULE_APPROVAL_ENABLED === 'true'/);
+  assert.match(approvalSource, /clientRescheduleRequestsEnabled\(\)/);
 });
 
 test('migration adds durable retry, claim and suppression state to the canonical reschedule request', () => {

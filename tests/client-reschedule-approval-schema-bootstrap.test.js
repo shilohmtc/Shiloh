@@ -32,7 +32,7 @@ test('reschedule schema bootstrap preserves migration 064 and verifies the bound
 });
 
 test('startup evidence exposes only sanitized activation prerequisites', () => {
-  assert.match(schema, /featureEnabled: process\.env\.WHATSAPP_RESCHEDULE_APPROVAL_ENABLED === 'true'/);
+  assert.match(schema, /featureEnabled: clientRescheduleRequestsEnabled\(\)/);
   assert.match(schema, /approvalTemplateConfigured: String\(process\.env\.WHATSAPP_RESCHEDULE_APPROVAL_REQUEST_TEMPLATE/);
   assert.match(schema, /=== APPROVAL_TEMPLATE/);
   assert.match(schema, /declinedTemplateConfigured: String\(process\.env\.WHATSAPP_RESCHEDULE_DECLINED_TEMPLATE/);
