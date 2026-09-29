@@ -85,7 +85,7 @@ test('realistic Meta fixture ignores managed metadata but detects semantic drift
 });
 
 test('every current operational contract validates exactly and drift fails',()=>{
- const current=CONTRACTS.filter(x=>x.sendable);assert.equal(current.length,29);
+ const current=CONTRACTS.filter(x=>x.sendable);assert.equal(current.length,19);
  for(const entry of current){const provider={...entry.contract,components:structuredClone(entry.contract.components)};assert.equal(compareContract(entry,provider).exact,true,entry.key);provider.category=entry.contract.category==='UTILITY'?'MARKETING':'UTILITY';assert.equal(compareContract(entry,provider).exact,false,entry.key);}
 });
 

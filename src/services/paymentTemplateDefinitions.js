@@ -6,7 +6,7 @@ const PAYMENT_URL = 'https://app.shilohmtc.co.za/pay/{{1}}';
 const DEFINITIONS = Object.freeze({
   payment_deposit_request: {
     name: 'shiloh_payment_deposit_request_v1',
-    env: 'WHATSAPP_PAYMENT_DEPOSIT_REQUEST_TEMPLATE',
+    env: null,
     header: 'Deposit required',
     body: `Hi {{1}}, a deposit of {{2}} is required for your Shiloh booking.
 
@@ -36,7 +36,7 @@ Before payment, you’ll review and accept Shiloh’s Booking Policy & Terms. Yo
   },
   payment_deposit_received: {
     name: 'shiloh_payment_deposit_received_v1',
-    env: 'WHATSAPP_PAYMENT_DEPOSIT_RECEIVED_TEMPLATE',
+    env: null,
     header: 'Deposit received',
     body: `Hi {{1}}, Shiloh has verified your deposit of {{2}}.
 
@@ -52,7 +52,7 @@ Your booking is confirmed.`,
   },
   payment_balance_due: {
     name: 'shiloh_payment_balance_due_v1',
-    env: 'WHATSAPP_PAYMENT_BALANCE_DUE_TEMPLATE',
+    env: null,
     header: 'Balance due',
     body: `Hi {{1}}, thank you for visiting Shiloh.
 
@@ -66,7 +66,7 @@ You can pay securely using the option below or at reception using FNB Speedpoint
   },
   payment_split_request: {
     name: 'shiloh_payment_split_request_v1',
-    env: 'WHATSAPP_PAYMENT_SPLIT_REQUEST_TEMPLATE',
+    env: null,
     header: 'Shared payment request',
     body: `Hi {{1}}, a Shiloh payment request has been created for you.
 
@@ -80,7 +80,7 @@ This payment is reconciled against the shared Couples or Group booking balance.`
   },
   payment_received: {
     name: 'shiloh_payment_received_v1',
-    env: 'WHATSAPP_PAYMENT_RECEIVED_TEMPLATE',
+    env: null,
     header: 'Payment received',
     body: `Hi {{1}}, Shiloh has verified your payment.
 
@@ -95,7 +95,7 @@ Thank you.`,
   },
   payment_not_verified: {
     name: 'shiloh_payment_not_verified_v1',
-    env: 'WHATSAPP_PAYMENT_NOT_VERIFIED_TEMPLATE',
+    env: null,
     header: 'Payment status',
     body: `Hi {{1}}, Shiloh could not verify a completed payment for {{2}}.
 
@@ -108,7 +108,7 @@ No payment has been recorded by Shiloh. If the amount left your account, please 
   },
   payment_refund_update: {
     name: 'shiloh_payment_refund_update_v1',
-    env: 'WHATSAPP_PAYMENT_REFUND_UPDATE_TEMPLATE',
+    env: null,
     header: 'Refund update',
     body: `Hi {{1}}, here is the latest refund update from Shiloh.
 
@@ -122,7 +122,7 @@ This message reflects Shiloh's latest verified refund record.`,
   },
   payment_voucher_request: {
     name: 'shiloh_payment_voucher_request_v1',
-    env: 'WHATSAPP_PAYMENT_VOUCHER_REQUEST_TEMPLATE',
+    env: null,
     header: 'Voucher payment',
     body: `Hi {{1}}, your requested Shiloh voucher is awaiting payment.
 
@@ -136,7 +136,7 @@ The voucher will be issued only after Shiloh verifies the payment.`,
   },
   payment_voucher_issued: {
     name: 'shiloh_payment_voucher_issued_v1',
-    env: 'WHATSAPP_PAYMENT_VOUCHER_ISSUED_TEMPLATE',
+    env: null,
     header: 'Voucher ready',
     body: `Hi {{1}}, Shiloh has verified payment and your voucher is ready.
 

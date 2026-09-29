@@ -59,22 +59,9 @@ The verified notification endpoint is `/payments/providers/ozow/notify`. Configu
 
 Browser return URLs are informational only. Only a verified provider notification or an explicit authorized manual record can assert settlement truth.
 
-## WhatsApp payment notifications
+## Payment notices
 
-The approved Meta utility templates are wired behind one explicit master switch:
-
-- `WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED=true`
-- `WHATSAPP_PAYMENT_DEPOSIT_REQUEST_TEMPLATE=shiloh_payment_deposit_request_v1`
-- `WHATSAPP_PAYMENT_DEPOSIT_RECEIVED_TEMPLATE=shiloh_payment_deposit_received_v1`
-- `WHATSAPP_PAYMENT_BALANCE_DUE_TEMPLATE=shiloh_payment_balance_due_v1`
-- `WHATSAPP_PAYMENT_SPLIT_REQUEST_TEMPLATE=shiloh_payment_split_request_v1`
-- `WHATSAPP_PAYMENT_RECEIVED_TEMPLATE=shiloh_payment_received_v1`
-- `WHATSAPP_PAYMENT_NOT_VERIFIED_TEMPLATE=shiloh_payment_not_verified_v1`
-- `WHATSAPP_PAYMENT_REFUND_UPDATE_TEMPLATE=shiloh_payment_refund_update_v1`
-- `WHATSAPP_PAYMENT_VOUCHER_REQUEST_TEMPLATE=shiloh_payment_voucher_request_v1`
-- `WHATSAPP_PAYMENT_VOUCHER_ISSUED_TEMPLATE=shiloh_payment_voucher_issued_v1`
-
-When enabled and the centralized Meta inventory gate confirms an exact approved template, Shiloh sends a request notification after a payment link is committed, a received notification only after verified Ozow or authorized manual settlement, a not-verified notification for a verified failed/cancelled provider result, and a refund update after an authorized refund record. The WhatsApp button opens a stable Shiloh `/pay/<request-key>` link, which redirects only to the stored Ozow payment URL. No WhatsApp send changes payment truth.
+Payment and voucher notices use My Shiloh. The historical Meta payment template contracts are retained for audit, marked retired, and cannot be registered or sent. Their nine Render template-name overrides are no longer read by the payment transport or provider inventory. The stable Shiloh `/pay/<request-key>` link redirects only to the stored Ozow payment URL. An app wake does not change payment truth; verified Ozow callbacks and authorized manual entries do.
 
 ## Release boundary
 
