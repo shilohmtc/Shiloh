@@ -5,7 +5,6 @@ const workspaceStaffAccessCompletion = require('../services/workspaceStaffAccess
 const workspaceStaffAccessPolicy = require('../services/workspaceStaffAccessPolicy');
 const workspaceAccessV2 = require('../services/workspaceAccessV2');
 const workspaceStaffAccessProfiles = require('../services/workspaceStaffAccessProfiles');
-const { createWorkspaceReceptionDeviceSigninService } = require('../services/workspaceReceptionDeviceSignin');
 const { createStaffSmsDeviceSetupService } = require('../services/staffSmsDeviceSetup');
 const {
   requireStaffSession,
@@ -34,14 +33,6 @@ function sendMutationError(error, req, res, next) {
   });
 }
 
-function deviceSigninStatus(code) {
-  if (code === 'STAFF_RECENT_AUTH_REQUIRED') return 428;
-  if (code === 'STAFF_RESET_FORBIDDEN') return 403;
-  if (code === 'RECEPTION_DEVICE_SIGNIN_NOT_FOUND') return 404;
-  if (code === 'RECEPTION_DEVICE_SIGNIN_RATE_LIMITED') return 409;
-  return 503;
-}
-
 function createWorkspaceStaffMutationRouter({
   env = process.env,
   sessionService,
@@ -51,7 +42,6 @@ function createWorkspaceStaffMutationRouter({
   accessPolicyService = workspaceStaffAccessPolicy,
   accessV2Service = workspaceAccessV2,
   profileService = workspaceStaffAccessProfiles,
-  receptionDeviceSigninService = createWorkspaceReceptionDeviceSigninService({ env }),
   staffSmsDeviceSetupService = createStaffSmsDeviceSetupService({ env }),
 } = {}) {
   if (!sessionService) throw new Error('Workspace Staff mutations require the existing staff browser session service');
@@ -204,24 +194,6 @@ function createWorkspaceStaffMutationRouter({
       return res.status(200).json(await accessV2Service.setActive({ adminId: req.staffBrowserSession?.adminId, principalId: req.params?.id, requestId: req.body?.requestId, expectedRevision: req.body?.expectedRevision, active: req.body?.active }));
     } catch (error) { return sendMutationError(error, req, res, next); }
   });
-  router.post('/workspace-access/:id/device-signin-setup', ...mutationChain, async (req, res, next) => {
-    try {
-      const result = await receptionDeviceSigninService.issue({
-        session: req.staffBrowserSession,
-        targetAdminId: req.params?.id,
-        requestFingerprintHash: requestFingerprintHash(req),
-      });
-      if (!result?.ok) {
-        return res.status(deviceSigninStatus(result?.code)).json({
-          error: result?.error || 'Reception device sign-in setup failed closed.',
-          code: result?.code || 'RECEPTION_DEVICE_SIGNIN_BOOTSTRAP_UNAVAILABLE',
-          requestId: req.id,
-        });
-      }
-      return res.status(201).json({ ok: true, setupUrl: result.setupUrl, expiresAt: result.expiresAt, displayName: result.displayName });
-    } catch (error) { return next(error); }
-  });
-
   router.post('/workspace-access/:id/sms-device-setup', ...mutationChain, async (req, res, next) => {
     try {
       const result = await staffSmsDeviceSetupService.issue({
@@ -249,6 +221,5 @@ module.exports = {
   isWorkspaceStaffEnabled,
   mutationStatus,
   sendMutationError,
-  deviceSigninStatus,
   createWorkspaceStaffMutationRouter,
 };

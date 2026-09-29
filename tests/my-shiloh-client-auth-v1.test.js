@@ -108,12 +108,11 @@ test('webhook gives My Shiloh verification an isolated pre-controller boundary',
   const routeBlock = source.slice(source.indexOf('router.post('));
   const statusIndex = routeBlock.indexOf('processWhatsAppStatusWebhook');
   const myShilohIndex = routeBlock.indexOf('myShilohWhatsAppAuthMiddleware');
-  const staffBootstrapIndex = routeBlock.indexOf('staffWhatsAppPasskeyBootstrapMiddleware');
   const acknowledgementIndex = routeBlock.indexOf('res.sendStatus(200)');
   assert.ok(statusIndex >= 0);
   assert.ok(myShilohIndex > statusIndex);
-  assert.ok(staffBootstrapIndex > myShilohIndex);
-  assert.ok(acknowledgementIndex > staffBootstrapIndex);
+  assert.ok(acknowledgementIndex > myShilohIndex);
+  assert.doesNotMatch(routeBlock, /staffWhatsAppPasskeyBootstrapMiddleware/);
   assert.doesNotMatch(routeBlock, /receiveWebhook/);
 });
 

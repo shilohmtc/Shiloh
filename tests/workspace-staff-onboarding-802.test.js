@@ -72,11 +72,11 @@ test('#802 client composes existing Staff create and Access enable mutations wit
   assert.doesNotMatch(script, /\/access\/policy|workspace-access\/.*preset|device-signin-setup/);
 });
 
-test('#802 Ready guidance keeps credential setup on the new staff member’s own phone', () => {
+test('#802 Ready guidance directs staff to administrator-approved SMS setup', () => {
   const script = workspaceStaffOnboardingClientScript();
-  assert.match(script, /staff member’s own phone/);
-  assert.match(script, /send Hi to Shiloh/);
-  assert.match(script, /private Set up Shiloh link/);
-  assert.match(script, /complete device sign-in there/);
+  assert.match(script, /Open Staff access for this person/);
+  assert.match(script, /sends an SMS setup code/);
+  assert.match(script, /private setup link/);
+  assert.match(script, /recorded mobile/);
   assert.doesNotMatch(script, /TOTP secret|recovery code|passkey private|setupUrl/);
 });

@@ -15,10 +15,6 @@ const {
 } = require('../src/services/staffWhatsAppPasskeyBootstrap');
 const { b64url } = require('../src/services/staffPasskeyAuth');
 const {
-  isGreetingOnly,
-  createStaffWhatsAppPasskeyBootstrapMiddleware,
-} = require('../src/middleware/staffWhatsAppPasskeyBootstrap');
-const {
   withWhatsAppBootstrapGuidance,
   bootstrapAwareSigninScript,
 } = require('../src/routes/staffCalendarAccessUx');
@@ -26,6 +22,7 @@ const {
 const ENV = {
   NODE_ENV: 'test',
   SHILOH_STAFF_WHATSAPP_PASSKEY_BOOTSTRAP_ENABLED: 'true',
+  MY_SHILOH_SMS_AUTH_ENABLED: 'true',
   SHILOH_STAFF_PASSKEY_AUTH_ENABLED: 'true',
   SHILOH_CALENDAR_PUBLIC_ORIGIN: 'https://shiloh.example',
   SHILOH_STAFF_WEBAUTHN_RP_ID: 'shiloh.example',
@@ -175,7 +172,8 @@ function deterministicRandom() {
 
 test('#804 policy is separately gated and depends on released passkey authority', () => {
   assert.equal(bootstrapPolicy(ENV).operational, true);
-  assert.equal(bootstrapPolicy({ ...ENV, SHILOH_STAFF_WHATSAPP_PASSKEY_BOOTSTRAP_ENABLED: 'false' }).operational, false);
+  assert.equal(bootstrapPolicy({ ...ENV, SHILOH_STAFF_WHATSAPP_PASSKEY_BOOTSTRAP_ENABLED: 'false' }).operational, true);
+  assert.equal(bootstrapPolicy(ENV).whatsappEnabled, false);
   const smsOnly = { ...ENV, SHILOH_STAFF_WHATSAPP_PASSKEY_BOOTSTRAP_ENABLED: 'false', MY_SHILOH_SMS_AUTH_ENABLED: 'true' };
   assert.equal(bootstrapPolicy(smsOnly).operational, true);
   assert.equal(bootstrapPolicy(smsOnly).whatsappEnabled, false);
@@ -210,46 +208,33 @@ test('#804 secure setup token stays in URL fragment and never in server request 
   assert.equal(new URLSearchParams(url.hash.slice(1)).get('setup'), token);
 });
 
-test('#804 recognized eligible WhatsApp identity gets one-time token; redemption consumes it before WebAuthn', async () => {
+test('old WhatsApp issuance and unexpired links fail closed even if the old flag remains true', async () => {
   const db = new BootstrapDb();
-  const service = createStaffWhatsAppPasskeyBootstrapService({ db, env: ENV, randomBytes: deterministicRandom(), now: () => new Date('2026-09-09T18:00:00Z') });
-  const issued = await service.issueBootstrap({ whatsapp: '27721234567' });
-  assert.equal(issued.ok, true);
-  assert.equal(issued.handled, true);
-  assert.equal(issued.eligible, true);
-  assert.match(issued.token, /^[A-Za-z0-9_-]{43}$/);
-  assert.equal(db.bootstraps.length, 1);
-  assert.equal(db.bootstraps[0].token_hash.includes(issued.token), false);
-  assert.equal(db.auditEvents[0].eventType, 'passkey_bootstrap_issued');
-  assert.doesNotMatch(JSON.stringify(db.auditEvents), new RegExp(issued.token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-
-  const started = await service.startRegistration({ token: issued.token, requestFingerprintHash: 'a'.repeat(64) });
-  assert.equal(started.ok, true);
-  assert.equal(db.bootstraps[0].consumed_at instanceof Date, true);
-  assert.equal(started.options.authenticatorSelection.authenticatorAttachment, 'platform');
-  assert.equal(started.options.authenticatorSelection.residentKey, 'required');
-  assert.equal(started.options.authenticatorSelection.requireResidentKey, true);
-  assert.equal(started.options.authenticatorSelection.userVerification, 'required');
-  assert.equal(started.options.user.name, 'Christel');
-  assert.equal(started.options.user.displayName, 'Christel');
-  assert.equal(started.options.user.id, Buffer.from('staff-admin:44').toString('base64url'));
-  assert.doesNotMatch(started.options.user.name, /^staff-\d+$/);
-  assert.equal(db.challenges[0].purpose, 'bootstrap_registration');
-  assert.equal(Number(db.challenges[0].admin_id), 44);
-
-  const replay = await service.startRegistration({ token: issued.token, requestFingerprintHash: 'a'.repeat(64) });
-  assert.equal(replay.ok, false);
-  assert.equal(replay.code, 'STAFF_PASSKEY_BOOTSTRAP_INVALID');
+  const service = createStaffWhatsAppPasskeyBootstrapService({ db, env: ENV });
+  const issuance = await service.issueBootstrap({ whatsapp: '27721234567' });
+  assert.equal(issuance.code, 'STAFF_PASSKEY_BOOTSTRAP_DISABLED');
+  assert.equal(db.bootstraps.length, 0);
+  const token = Buffer.alloc(32, 9).toString('base64url');
+  db.bootstraps.push({ id: 1, admin_id: 44, token_hash: crypto.createHash('sha256').update(token).digest('hex'),
+    expires_at: new Date(Date.now() + 600000), source: 'whatsapp_self', consumed_at: null, revoked_at: null });
+  const result = await service.startRegistration({ token });
+  assert.equal(result.code, 'STAFF_PASSKEY_BOOTSTRAP_INVALID');
+  assert.equal(db.bootstraps[0].consumed_at, null);
 });
 
-test('#804 access removal between WhatsApp issuance and redemption fails closed', async () => {
+test('administrator-approved SMS link consumes once before WebAuthn', async () => {
   const db = new BootstrapDb();
-  const service = createStaffWhatsAppPasskeyBootstrapService({ db, env: ENV, randomBytes: deterministicRandom(), now: () => new Date('2026-09-09T18:00:00Z') });
-  const issued = await service.issueBootstrap({ whatsapp: '27721234567' });
-  db.identityRows = [principal({ admin_active: false })];
-  const started = await service.startRegistration({ token: issued.token, requestFingerprintHash: 'b'.repeat(64) });
-  assert.equal(started.ok, false);
-  assert.equal(started.code, 'STAFF_PASSKEY_BOOTSTRAP_INVALID');
+  const service = createStaffWhatsAppPasskeyBootstrapService({ db, env: ENV, randomBytes: deterministicRandom() });
+  const issued = await service.issueApprovedBootstrap(db, 44, 'add');
+  assert.equal(issued.ok, true);
+  assert.equal(db.bootstraps[0].source, 'admin_sms_add');
+  assert.equal(db.bootstraps[0].token_hash.includes(issued.token), false);
+  const started = await service.startRegistration({ token: issued.token, mode: 'add' });
+  assert.equal(started.ok, true);
+  assert.equal(db.bootstraps[0].consumed_at instanceof Date, true);
+  assert.equal(started.options.authenticatorSelection.userVerification, 'required');
+  const replay = await service.startRegistration({ token: issued.token, mode: 'add' });
+  assert.equal(replay.code, 'STAFF_PASSKEY_BOOTSTRAP_INVALID');
 });
 
 test('#932 recent strong Workspace session creates a same-principal one-use setup link without phone lookup', async () => {
@@ -288,7 +273,7 @@ test('#932 self setup fails closed for weak, recovery-required, stale, or disabl
 test('#926 lost-device replacement revokes prior passkeys and sessions only after verified new enrollment', async () => {
   const db = new BootstrapDb();
   const service = createStaffWhatsAppPasskeyBootstrapService({ db, env: ENV, randomBytes: deterministicRandom(), now: () => new Date('2026-09-13T12:30:00Z') });
-  const issued = await service.issueBootstrap({ whatsapp: '27721234567' });
+  const issued = await service.issueApprovedBootstrap(db, 44, 'replace');
   const started = await service.startRegistration({ token: issued.token, mode: 'replace', requestFingerprintHash: 'c'.repeat(64) });
   assert.equal(started.ok, true);
   assert.equal(started.mode, 'replace');
@@ -312,46 +297,11 @@ test('#926 lost-device replacement revokes prior passkeys and sessions only afte
 test('#926 invalid replacement mode fails before consuming the one-use setup link', async () => {
   const db = new BootstrapDb();
   const service = createStaffWhatsAppPasskeyBootstrapService({ db, env: ENV, randomBytes: deterministicRandom(), now: () => new Date('2026-09-13T12:30:00Z') });
-  const issued = await service.issueBootstrap({ whatsapp: '27721234567' });
+  const issued = await service.issueApprovedBootstrap(db, 44, 'replace');
   const result = await service.startRegistration({ token: issued.token, mode: 'reset-everything' });
   assert.equal(result.ok, false);
   assert.equal(db.bootstraps[0].consumed_at, null);
   assert.equal(db.credentials[0].revoked_at, null);
-});
-
-test('#804 unknown WhatsApp greeting remains on the existing client flow; eligible greeting is handled by existing sender seam', async () => {
-  assert.equal(isGreetingOnly('Hi!'), true);
-  assert.equal(isGreetingOnly('I need an appointment'), false);
-
-  let nextCount = 0;
-  const unknown = createStaffWhatsAppPasskeyBootstrapMiddleware({
-    bootstrapService: { issueBootstrap: async () => ({ ok: true, handled: false }) },
-    sendMessage: async () => { throw new Error('must not send'); },
-  });
-  const unknownReq = {
-    body: {
-      entry: [{ changes: [{ value: { messages: [{ type: 'text', from: '2772', text: { body: 'Hi' } }] } }] }],
-    },
-  };
-  await unknown(unknownReq, {}, () => { nextCount += 1; });
-  assert.equal(nextCount, 1);
-
-  const sends = [];
-  const eligible = createStaffWhatsAppPasskeyBootstrapMiddleware({
-    bootstrapService: { issueBootstrap: async () => ({ ok: true, handled: true, eligible: true, displayName: 'Christel', url: 'https://shiloh.example/calendar/staff-auth/passkeys/bootstrap#setup=secret' }) },
-    sendMessage: async (to, body) => sends.push({ to, body }),
-  });
-  const res = { status: null, sendStatus(value) { this.status = value; return this; } };
-  const eligibleReq = {
-    body: {
-      entry: [{ changes: [{ value: { messages: [{ type: 'text', from: '2772', text: { body: 'Hi' } }] } }] }],
-    },
-    log: { error() {} },
-  };
-  await eligible(eligibleReq, res, () => { throw new Error('must not fall through'); });
-  assert.equal(res.status, 200);
-  assert.equal(sends.length, 1);
-  assert.match(sends[0].body, /Set up Shiloh securely/);
 });
 
 test('#804 migration isolates ordinary passkey bootstrap from break-glass/reset authority', () => {

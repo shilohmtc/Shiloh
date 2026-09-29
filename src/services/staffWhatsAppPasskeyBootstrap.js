@@ -34,7 +34,8 @@ function registrationPurpose(mode) {
 }
 
 function bootstrapPolicy(env = process.env) {
-  const whatsappEnabled = String(env[FEATURE_FLAG] || '').trim().toLowerCase() === 'true';
+  // Retired: an old environment flag must never re-enable WhatsApp staff setup.
+  const whatsappEnabled = false;
   const smsEnabled = String(env.MY_SHILOH_SMS_AUTH_ENABLED || '').trim().toLowerCase() === 'true';
   const enabled = whatsappEnabled || smsEnabled;
   const passkey = passkeyPolicy(env);
@@ -184,28 +185,7 @@ function createStaffWhatsAppPasskeyBootstrapService({
   }
 
   async function issueBootstrap({ whatsapp } = {}) {
-    const currentPolicy = policy();
-    if (!currentPolicy.whatsappEnabled || !currentPolicy.operational) {
-      return { ok: false, handled: false, code: currentPolicy.whatsappEnabled ? 'STAFF_PASSKEY_BOOTSTRAP_UNAVAILABLE' : 'STAFF_PASSKEY_BOOTSTRAP_DISABLED' };
-    }
-    const normalized = normalizeWhatsapp(whatsapp);
-    if (!normalized) return { ok: true, handled: false };
-    const current = now();
-    const client = typeof db.connect === 'function' ? await db.connect() : db;
-    try {
-      await client.query('BEGIN');
-      const evaluated = evaluateBootstrapPrincipal(await identityRows(client, normalized, { forUpdate: true }));
-      if (!evaluated.matched) { await client.query('ROLLBACK'); return { ok: true, handled: false }; }
-      if (!evaluated.eligible) { await client.query('ROLLBACK'); return { ok: true, handled: true, eligible: false, code: evaluated.code }; }
-      const result = await issueForAdmin(client, evaluated.admin, { current, source: WHATSAPP_SOURCE });
-      await client.query('COMMIT');
-      return result;
-    } catch (error) {
-      try { await client.query('ROLLBACK'); } catch (_) {}
-      throw error;
-    } finally {
-      if (client !== db && typeof client.release === 'function') client.release();
-    }
+    return { ok: false, handled: false, code: 'STAFF_PASSKEY_BOOTSTRAP_DISABLED' };
   }
 
   async function issueSelfBootstrap({ session, requestFingerprintHash = null } = {}) {
@@ -264,6 +244,10 @@ function createStaffWhatsAppPasskeyBootstrapService({
       );
       const bootstrap = bootstrapResult.rows[0];
       if (!bootstrap || bootstrap.consumed_at || bootstrap.revoked_at) {
+        await client.query('ROLLBACK');
+        return { ok: false, code: 'STAFF_PASSKEY_BOOTSTRAP_INVALID' };
+      }
+      if (![WORKSPACE_SOURCE, ADMIN_SMS_ADD_SOURCE, ADMIN_SMS_REPLACE_SOURCE].includes(bootstrap.source)) {
         await client.query('ROLLBACK');
         return { ok: false, code: 'STAFF_PASSKEY_BOOTSTRAP_INVALID' };
       }
