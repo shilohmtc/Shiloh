@@ -53,7 +53,7 @@ These are not credentials and should not remain as durable production configurat
 - `WHATSAPP_BOOKING_APPROVAL_REQUEST_TEMPLATE`
 - `WHATSAPP_BOOKING_APPROVAL_OUTCOME_TEMPLATE`
 - `META_TEMPLATE_INVENTORY_AUDIT_ON_START`
-- `WHATSAPP_RESCHEDULE_APPROVAL_ENABLED` — retired by the subsequent code release after the new Shiloh policy key was confirmed live. The old WhatsApp conversation and Meta reschedule template gates remain closed regardless of this value. Remove this non-secret flag from Render after that release is live; do not remove the new Shiloh policy key.
+- `WHATSAPP_RESCHEDULE_APPROVAL_ENABLED` — retired by #1316 after the new Shiloh policy key was confirmed live. Removed from Render; same-commit deploy `dep-datscjou01pc73acdukg` reached live with reschedule `featureEnabled=true` and `/health` 200. Keep the new Shiloh policy key.
 
 ## Retired runtime authority — external secret removal pending
 
@@ -61,7 +61,7 @@ These are not credentials and should not remain as durable production configurat
 
 ## Owner-authorized automated WhatsApp credential removal
 
-The owner explicitly authorized removal of `WHATSAPP_TOKEN`, `PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID` and `VERIFY_TOKEN` after PR #1311. She reported completing the Render cleanup on 2026-09-29; the resulting rebuild reached live. Render's connected tool cannot read individual keys, so their absence remains unverified. Production blocks all automated sends and no longer requires these keys at startup. The Meta webhook verification GET route and an unmounted duplicate controller handler are now removed; POST remains available for historical status receipts. The retired `META_CLIENT_AUTH_TEMPLATE_PROVISION_ON_START`, `META_PROBLEM_REPORT_RESOLVED_PROVISION_ON_START`, `SHILOH_META_SIGNIN_ONLY_ENABLED`, `SHILOH_STAFF_WHATSAPP_PASSKEY_BOOTSTRAP_ENABLED` and `SHILOH_WORKSPACE_CLIENT_NOTIFY_PROVIDER_READY` were also included in the owner's removal list. Keep the human Reception number and SMS, push, OpenAI, payment and database settings.
+The owner explicitly authorized removal of `WHATSAPP_TOKEN`, `PHONE_NUMBER_ID`, `WHATSAPP_BUSINESS_ACCOUNT_ID` and `VERIFY_TOKEN` after PR #1311. A refreshed Render Environment inventory on 2026-09-29 showed the first, third and fourth keys absent, but `PHONE_NUMBER_ID` still present. With renewed owner confirmation, the remaining identifier was removed. Same-commit deploy `dep-datsfug93c1s73bs2dg0` reached live; the refreshed Environment list showed it absent, startup reported reschedule `featureEnabled=true`, and `/health` returned 200. Production blocks all automated sends and no longer requires these keys at startup. The Meta webhook verification GET route and an unmounted duplicate controller handler are removed; POST remains available for historical status receipts. The retired `META_CLIENT_AUTH_TEMPLATE_PROVISION_ON_START`, `META_PROBLEM_REPORT_RESOLVED_PROVISION_ON_START`, `SHILOH_META_SIGNIN_ONLY_ENABLED`, `SHILOH_STAFF_WHATSAPP_PASSKEY_BOOTSTRAP_ENABLED` and `SHILOH_WORKSPACE_CLIENT_NOTIFY_PROVIDER_READY` were absent in that refreshed inventory. Keep the human Reception number and SMS, push, OpenAI, payment and database settings.
 
 ## Retire code/capability before removing configuration
 
