@@ -64,7 +64,6 @@ async function sendAdminResult(to,result){
   }
   return sent;
 }
-exports.verifyWebhook = (req,res)=>{const mode=req.query["hub.mode"],token=req.query["hub.verify_token"],challenge=req.query["hub.challenge"];if(mode==="subscribe"&&token===process.env.VERIFY_TOKEN){(req.log||logger).info("WhatsApp webhook verified");return res.status(200).send(challenge);}(req.log||logger).warn("WhatsApp webhook verification rejected");return res.sendStatus(403);};
 exports.receiveWebhook=async(req,res)=>{const log=req.log||logger;try{const value=req.body.entry?.[0]?.changes?.[0]?.value;if(!value?.messages)return res.sendStatus(200);const message=value.messages[0];const from=message.from,text=inboundText(message);if(!text){log.info({messageType:message.type},"Ignoring unsupported or unknown WhatsApp message");return res.sendStatus(200);}if(!from){log.warn("Received WhatsApp message without sender");return res.sendStatus(200);}log.info({from:maskPhone(from),messageType:message.type},"Processing incoming WhatsApp message");try{
 let activeHumanHandoff;
 try{activeHumanHandoff=await humanHandoffs.activeForPhone(from);}catch(error){log.error({err:error,from:maskPhone(from)},"Human handoff authority unavailable; refusing automated reply");return res.sendStatus(500);}
