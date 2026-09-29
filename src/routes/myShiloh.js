@@ -44,13 +44,11 @@ const {
   requestFingerprintHash,
   serializeClientSessionCookie,
   serializeExpiredClientSessionCookie,
-  serializeClientAuthCookie,
   serializeExpiredClientAuthCookie,
   serializeClientSmsAuthCookie,
   serializeExpiredClientSmsAuthCookie,
   serializeClientPasskeyAuthCookie,
   serializeExpiredClientPasskeyAuthCookie,
-  clientAuthTokenFromRequest,
   clientSmsAuthTokenFromRequest,
   clientPasskeyAuthTokenFromRequest,
   requireClientSession,
@@ -79,28 +77,6 @@ function setNoStoreJson(res) {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
 }
 
-function defaultAuthUrlBuilder(number, token) {
-  const digits = String(number || '').replace(/[^0-9]/g, '');
-  if (!digits || !/^[A-Za-z0-9_-]{43}$/.test(String(token || ''))) return null;
-  const message = `MY SHILOH SIGN IN ${token}`;
-  const encoded = encodeURIComponent(message);
-  return {
-    appUrl: `whatsapp://send?phone=${digits}&text=${encoded}`,
-    fallbackUrl: `https://wa.me/${digits}?text=${encoded}`,
-  };
-}
-
-function normalizeAuthHandoff(value) {
-  if (typeof value === 'string' && value) {
-    return { appUrl: value, fallbackUrl: value };
-  }
-  if (!value || typeof value !== 'object') return null;
-  const appUrl = String(value.appUrl || '').trim();
-  const fallbackUrl = String(value.fallbackUrl || '').trim();
-  if (!appUrl || !fallbackUrl) return null;
-  return { appUrl, fallbackUrl };
-}
-
 function browserUsesPasskeyOrigin(req, expectedOrigin) {
   try { return new URL(req.get?.('origin') || req.headers?.origin).origin === expectedOrigin; }
   catch (_) { return false; }
@@ -115,7 +91,6 @@ function createMyShilohRouter({
   smsAuthService = createClientSmsAuthService({ db: pool, env, sessionService }),
   whatsappResolver = resolveWhatsAppNumber,
   catalogueProvider = getPublicServiceCatalogue,
-  authUrlBuilder = defaultAuthUrlBuilder,
   experienceService = createMyShilohExperienceOrchestrator(),
   assistantService = createMyShilohAssistantService({ continuationService:createClientWhatsAppContinuationService({ db:pool }) }),
   actionService = createMyShilohClientActionService(),
@@ -603,36 +578,6 @@ function createMyShilohRouter({
     } catch (error) { return next(error); }
   });
 
-  router.post('/my-shiloh/auth/start', sameOrigin, async (req, res, next) => {
-    try {
-      setNoStoreJson(res);
-      const number = await whatsappResolver();
-      if (!number) return res.status(503).json({ error: 'WhatsApp sign-in is temporarily unavailable', requestId: req.id });
-      const challenge = await sessionService.beginChallenge({
-        requestFingerprintHash: requestFingerprintHash(req),
-      });
-      if (!challenge.ok && challenge.code === 'CLIENT_AUTH_RATE_LIMITED') {
-        return res.status(429).json({ error: 'Please wait a moment before trying again', requestId: req.id });
-      }
-      if (!challenge.ok) return res.status(503).json({ error: 'Secure sign-in is temporarily unavailable', requestId: req.id });
-      const whatsappHandoff = normalizeAuthHandoff(authUrlBuilder(number, challenge.whatsappToken));
-      if (!whatsappHandoff) return res.status(503).json({ error: 'WhatsApp sign-in is temporarily unavailable', requestId: req.id });
-      res.setHeader('Set-Cookie', serializeClientAuthCookie(challenge.browserToken, {
-        env,
-        maxAgeSeconds: Math.max(1, Math.floor(CHALLENGE_TTL_MS / 1000)),
-      }));
-      return res.status(201).json({
-        status: 'waiting_for_whatsapp',
-        whatsappUrl: whatsappHandoff.appUrl,
-        whatsappAppUrl: whatsappHandoff.appUrl,
-        whatsappFallbackUrl: whatsappHandoff.fallbackUrl,
-        expiresAt: new Date(challenge.expiresAt).toISOString(),
-      });
-    } catch (error) {
-      return next(error);
-    }
-  });
-
   router.post('/my-shiloh/auth/sms/start', sameOrigin, async (req, res, next) => {
     try {
       setNoStoreJson(res);
@@ -669,77 +614,6 @@ function createMyShilohRouter({
       try { await voucherService.syncRecipientLinks({ crmV2ClientId: result.client.id }); } catch (_) {}
       return sendAuthenticatedClient(res, result);
     } catch (error) { return next(error); }
-  });
-
-  router.post('/my-shiloh/auth/complete', sameOrigin, async (req, res, next) => {
-    try {
-      setNoStoreJson(res);
-      const browserToken = clientAuthTokenFromRequest(req, env);
-      if (!browserToken) return res.status(401).json({ error: 'Start sign-in from this My Shiloh first', requestId: req.id });
-      const result = await sessionService.completeChallenge({
-        browserToken,
-        completionCode: req.body?.code,
-        requestFingerprintHash: requestFingerprintHash(req),
-      });
-      if (!result.ok) {
-        if (['CLIENT_AUTH_EXPIRED', 'CLIENT_AUTH_INVALID_CHALLENGE'].includes(result.code)) {
-          res.setHeader('Set-Cookie', serializeExpiredClientAuthCookie({ env }));
-        }
-        const status = result.code === 'CLIENT_AUTH_NOT_VERIFIED' ? 409 : 401;
-        return res.status(status).json({
-          error: result.code === 'CLIENT_AUTH_NOT_VERIFIED'
-            ? 'Verify this sign-in in WhatsApp first'
-            : 'That one-time sign-in code is not valid',
-          requestId: req.id,
-        });
-      }
-      try {
-        await voucherService.syncRecipientLinks({ crmV2ClientId: result.client.id });
-      } catch (_) {
-        // Authentication remains authoritative; the voucher page retries recipient linking.
-      }
-      return sendAuthenticatedClient(res, result);
-    } catch (error) {
-      return next(error);
-    }
-  });
-
-  router.post('/my-shiloh/auth/status', sameOrigin, async (req, res, next) => {
-    try {
-      setNoStoreJson(res);
-      const browserToken = clientAuthTokenFromRequest(req, env);
-      if (!browserToken) return res.status(204).send();
-      const result = await sessionService.completeVerifiedChallenge({
-        browserToken,
-        requestFingerprintHash: requestFingerprintHash(req),
-      });
-      if (result.ok) {
-        try {
-          await voucherService.syncRecipientLinks({ crmV2ClientId: result.client.id });
-        } catch (_) {
-          // Authentication remains authoritative; the voucher page retries recipient linking.
-        }
-        return sendAuthenticatedClient(res, result);
-      }
-      if (result.code === 'CLIENT_AUTH_NOT_VERIFIED') {
-        return res.status(202).json({ status: 'waiting_for_whatsapp' });
-      }
-      if (['CLIENT_AUTH_EXPIRED', 'CLIENT_AUTH_INVALID_CHALLENGE'].includes(result.code)) {
-        res.setHeader('Set-Cookie', serializeExpiredClientAuthCookie({ env }));
-        return res.status(410).json({
-          status: 'expired',
-          error: 'This sign-in has expired. Please start again.',
-          requestId: req.id,
-        });
-      }
-      return res.status(409).json({
-        status: 'unavailable',
-        error: 'Your My Shiloh profile is not available yet.',
-        requestId: req.id,
-      });
-    } catch (error) {
-      return next(error);
-    }
   });
 
   router.get('/my-shiloh/auth/session', requireSession, async (req, res) => {
@@ -1124,7 +998,5 @@ module.exports = {
   createMyShilohRouter,
   setMyShilohPageHeaders,
   setNoStoreJson,
-  defaultAuthUrlBuilder,
-  normalizeAuthHandoff,
   browserUsesPasskeyOrigin,
 };

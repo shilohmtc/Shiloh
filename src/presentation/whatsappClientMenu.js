@@ -30,7 +30,7 @@ function myShilohAwarenessReply() {
   return [
     '*Meet My Shiloh 🌿*',
     '',
-    'Keep your Shiloh bookings, latest appointment details and Wallet together in one easy place. Add My Shiloh to your phone, sign in with WhatsApp, and turn on notifications if you would like appointment alerts.',
+    'Keep your Shiloh bookings, latest appointment details and Wallet together in one easy place. Add My Shiloh to your phone, sign in with a passkey or set one up using an SMS code, and turn on notifications if you would like appointment alerts.',
     '',
     'Complete your registration to see whether you qualify for our once-off R100 welcome voucher for a treatment of R450 or more. For birthday wishes, reply BIRTHDAY ON here on WhatsApp. You can switch them off with BIRTHDAY OFF. 🎂',
     '',

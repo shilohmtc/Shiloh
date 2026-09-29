@@ -205,7 +205,8 @@ test('in-app chat uses text-only DOM rendering and no browser persistence', () =
 
   assert.match(presentation, /data-shiloh-chat-form/);
   assert.match(presentation, /data-shiloh-chat-input/);
-  assert.match(presentation, /Prefer WhatsApp\?/);
+  assert.match(presentation, /Speak to Reception on WhatsApp/);
+  assert.doesNotMatch(presentation, /Chat with Shiloh on WhatsApp|Prefer WhatsApp\?/);
   assert.match(app, /postJson\('\/my-shiloh\/api\/shiloh\/message'/);
   assert.match(app, /copy\.textContent = String\(message \|\| ''\)/);
   assert.doesNotMatch(app, /INSTALL_VERIFIED_KEY|installationVerificationRequired/);

@@ -36,7 +36,6 @@
   const clientSetupLater = document.querySelector('[data-client-setup-later]');
   const clientSetupStatus = document.querySelector('[data-client-setup-status]');
   const appFrame = document.querySelector('[data-app-frame]');
-  const authStartButtons = [...document.querySelectorAll('[data-client-auth-start]')];
   const passkeySignInButtons = [...document.querySelectorAll('[data-passkey-sign-in]')];
   const passkeyEnrollButton = document.querySelector('[data-passkey-enroll]');
   const passkeyEnrollStatus = document.querySelector('[data-passkey-enroll-status]');
@@ -47,7 +46,6 @@
   const recoveryCodeDisplay = document.querySelector('[data-passkey-recovery-code]');
   const recoveryForms = [...document.querySelectorAll('[data-passkey-recovery-form]')];
   const authLogoutButtons = [...document.querySelectorAll('[data-client-auth-logout]')];
-  const authCodeForms = [...document.querySelectorAll('[data-client-auth-code-form]')];
   const smsStartForms = [...document.querySelectorAll('[data-client-sms-start]')];
   const smsCompleteForms = [...document.querySelectorAll('[data-client-sms-complete]')];
   const authStatusHosts = [...document.querySelectorAll('[data-auth-status]')];
@@ -94,12 +92,7 @@
   let deferredInstallPrompt = null;
   let authActionInFlight = false;
   let passkeyEnrollBusy = false;
-  let authStatusCheckInFlight = false;
-  let authStatusTimer = null;
   let shilohMessageInFlight = false;
-  let whatsappHandoffStarted = false;
-  let whatsappFallbackTimer = null;
-  let whatsappExternalOpened = false;
   let welcomeVoucherRedeemedThisView = false;
   let clientProfileRevision = null;
   let clientRefreshInFlight = false;
@@ -138,15 +131,6 @@
       : clientSetupProblem;
     if (pushInvite) pushInvite.hidden = true;
   }
-
-  function completionCodeFromHash() {
-    const match = String(window.location.hash || '').match(/^#verify=(\d{6})$/);
-    if (!match) return null;
-    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
-    return match[1];
-  }
-
-  const completionCode = completionCodeFromHash();
 
   function selectedView() {
     const fromHash = String(window.location.hash || '').replace(/^#/, '');
@@ -857,129 +841,10 @@
   }
 
   function setAuthControlsDisabled(disabled) {
-    for (const button of [...authStartButtons, ...passkeySignInButtons, ...authLogoutButtons]) button.disabled = Boolean(disabled);
-    setAuthCodeControlsDisabled(disabled);
+    for (const button of [...passkeySignInButtons, ...authLogoutButtons]) button.disabled = Boolean(disabled);
     for (const form of [...smsStartForms, ...smsCompleteForms]) {
       form.querySelectorAll('button,input').forEach((control) => { control.disabled = Boolean(disabled); });
     }
-  }
-
-  function setAuthCodeControlsDisabled(disabled) {
-    for (const form of authCodeForms) {
-      form.querySelectorAll('button,input').forEach((control) => { control.disabled = Boolean(disabled); });
-    }
-  }
-  function clearWhatsAppFallback() {
-    if (whatsappFallbackTimer) {
-      window.clearTimeout(whatsappFallbackTimer);
-      whatsappFallbackTimer = null;
-    }
-  }
-
-  function openWhatsAppDirect(appUrl, fallbackUrl) {
-    const direct = String(appUrl || '').trim();
-    const fallback = String(fallbackUrl || '').trim();
-    if (!direct) throw new Error('WhatsApp could not be opened.');
-
-    whatsappExternalOpened = false;
-    clearWhatsAppFallback();
-
-    const markExternalOpened = () => {
-      whatsappExternalOpened = true;
-      clearWhatsAppFallback();
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') markExternalOpened();
-    };
-    document.addEventListener('visibilitychange', onVisibility, { once: true });
-    window.addEventListener('pagehide', markExternalOpened, { once: true });
-
-    if (fallback && fallback !== direct) {
-      whatsappFallbackTimer = window.setTimeout(() => {
-        if (!whatsappExternalOpened && document.visibilityState !== 'hidden') {
-          window.location.href = fallback;
-        }
-      }, 1800);
-    }
-
-    const link = document.createElement('a');
-    link.href = direct;
-    link.rel = 'noopener noreferrer';
-    link.hidden = true;
-    link.dataset.whatsappDirect = 'true';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  }
-
-
-  function scheduleAuthStatusCheck(delay = 1500) {
-    window.clearTimeout(authStatusTimer);
-    if (appFrame?.dataset.clientAuthenticated === 'true') return;
-    authStatusTimer = window.setTimeout(() => {
-      if (document.visibilityState !== 'hidden') checkClientAuthStatus({ announce: true });
-    }, delay);
-  }
-
-  async function checkClientAuthStatus({ announce = false } = {}) {
-    if (authStatusCheckInFlight || authActionInFlight
-      || appFrame?.dataset.clientAuthenticated === 'true') return;
-    authStatusCheckInFlight = true;
-    try {
-      const response = await postJson('/my-shiloh/auth/status');
-      const data = await response.json().catch(() => ({}));
-      if (response.status === 204) return;
-      if (response.ok && data.authenticated === true) {
-        window.clearTimeout(authStatusTimer);
-        whatsappHandoffStarted = false;
-        renderAppMode();
-        setAuthStatus('Verified. Opening your My Shiloh…', 'success');
-        window.location.replace(signedInLanding());
-        return;
-      }
-      if (response.status === 202 && data.status === 'waiting_for_whatsapp') {
-        whatsappHandoffStarted = true;
-        setAuthControlsDisabled(false);
-        for (const form of authCodeForms) form.classList.add('is-waiting');
-        if (announce) {
-          setAuthStatus('Waiting for your WhatsApp message…', 'waiting');
-        }
-        scheduleAuthStatusCheck();
-        return;
-      }
-      if (response.status === 410) {
-        whatsappHandoffStarted = false;
-        setAuthControlsDisabled(false);
-        setAuthStatus(data.error || 'This sign-in has expired. Please start again.', 'error');
-        return;
-      }
-      if (!response.ok && whatsappHandoffStarted) {
-        setAuthControlsDisabled(false);
-        for (const form of authCodeForms) form.closest('[data-client-auth-code-disclosure]')?.setAttribute('open', '');
-        setAuthStatus('Automatic sign-in did not finish. Enter the 6-digit fallback code from Shiloh.', 'error');
-      }
-    } catch (_) {
-      if (whatsappHandoffStarted) scheduleAuthStatusCheck(2500);
-    } finally {
-      authStatusCheckInFlight = false;
-    }
-  }
-
-  function welcomeBackFromWhatsApp() {
-    clearWhatsAppFallback();
-    if (!standalone()
-      || appFrame?.dataset.clientAuthenticated === 'true') return;
-    if (whatsappHandoffStarted) {
-      window.clearTimeout(authStatusTimer);
-      authStatusCheckInFlight = false;
-    }
-    authActionInFlight = false;
-    setAuthControlsDisabled(false);
-    if (whatsappHandoffStarted) {
-      for (const form of authCodeForms) form.classList.add('is-waiting');
-      setAuthStatus('Welcome back. Checking for your message…', 'waiting');
-    }
-    checkClientAuthStatus({ announce: whatsappHandoffStarted });
   }
 
   async function postJson(url, body = {}, extraHeaders = {}) {
@@ -1185,8 +1050,6 @@
           : '';
         throw new Error(`${result.error || 'We could not verify this passkey.'}${guidance}`);
       }
-      whatsappHandoffStarted = false;
-      window.clearTimeout(authStatusTimer);
       renderAppMode();
       setAuthStatus('Welcome back. Opening My Shiloh…', 'success');
       window.location.replace(signedInLanding());
@@ -1996,31 +1859,6 @@
     });
   });
 
-  async function beginClientAuth() {
-    if (!standalone() || authActionInFlight) return;
-    authActionInFlight = true;
-    setAuthControlsDisabled(true);
-    setAuthStatus('Opening WhatsApp…', 'working');
-    try {
-      const response = await postJson('/my-shiloh/auth/start');
-      const data = await response.json().catch(() => ({}));
-      const whatsappAppUrl = data.whatsappAppUrl || data.whatsappUrl;
-      const whatsappFallbackUrl = data.whatsappFallbackUrl || data.whatsappUrl;
-      if (!response.ok || !whatsappAppUrl) throw new Error(data.error || 'Secure sign-in is unavailable.');
-      whatsappHandoffStarted = true;
-      authActionInFlight = false;
-      setAuthCodeControlsDisabled(false);
-      for (const form of authCodeForms) form.classList.add('is-waiting');
-      setAuthStatus('Waiting for your WhatsApp message…', 'waiting');
-      window.setTimeout(welcomeBackFromWhatsApp, 1500);
-      openWhatsAppDirect(whatsappAppUrl, whatsappFallbackUrl);
-    } catch (error) {
-      setAuthStatus(error.message || 'Secure sign-in is unavailable. Please try again.', 'error');
-      setAuthControlsDisabled(false);
-      authActionInFlight = false;
-    }
-  }
-
   async function beginSmsAuth(event) {
     event.preventDefault();
     if (authActionInFlight) return;
@@ -2068,32 +1906,6 @@
     }
   }
 
-  async function completeClientAuth(code) {
-    if (!standalone() || authActionInFlight
-      || appFrame?.dataset.clientAuthenticated === 'true') return;
-    const cleanCode = String(code || '').replace(/\D/g, '');
-    if (!/^\d{6}$/.test(cleanCode)) {
-      setAuthStatus('Enter the 6-digit code Shiloh sent you in WhatsApp.', 'error');
-      return;
-    }
-    authActionInFlight = true;
-    setAuthControlsDisabled(true);
-    setAuthStatus('Finishing your secure sign-in…', 'working');
-    try {
-      const response = await postJson('/my-shiloh/auth/complete', { code: cleanCode });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data.authenticated !== true) throw new Error(data.error || 'That one-time code could not be verified.');
-      whatsappHandoffStarted = false;
-      renderAppMode();
-      setAuthStatus('Verified. Opening your My Shiloh…', 'success');
-      window.location.replace(signedInLanding());
-    } catch (error) {
-      setAuthStatus(error.message || 'That one-time code could not be verified.', 'error');
-      setAuthControlsDisabled(false);
-      authActionInFlight = false;
-    }
-  }
-
   async function logoutClient() {
     if (!standalone() || authActionInFlight) return;
     authActionInFlight = true;
@@ -2115,7 +1927,6 @@
     }
   }
 
-  authStartButtons.forEach((button) => button.addEventListener('click', beginClientAuth));
   smsStartForms.forEach((form) => form.addEventListener('submit', beginSmsAuth));
   smsCompleteForms.forEach((form) => form.addEventListener('submit', completeSmsAuth));
   if (!passkeySupported()) passkeySignInButtons.forEach((button) => { button.hidden = true; });
@@ -2126,33 +1937,15 @@
   recoveryForms.forEach((form) => form.addEventListener('submit', signInWithRecoveryCode));
   loadPasskeyDevices();
   authLogoutButtons.forEach((button) => button.addEventListener('click', logoutClient));
-  authCodeForms.forEach((form) => form.addEventListener('submit', (event) => {
-    event.preventDefault();
-    const input = form.querySelector('[data-client-auth-code]');
-    completeClientAuth(input?.value || '');
-  }));
-
-  window.addEventListener('pageshow', welcomeBackFromWhatsApp);
   window.addEventListener('pageshow', refreshAuthenticatedClientState);
-  window.addEventListener('focus', welcomeBackFromWhatsApp);
   window.addEventListener('focus', refreshAuthenticatedClientState);
   window.addEventListener('focus', clearHomeScreenAppBadge);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      welcomeBackFromWhatsApp();
       refreshAuthenticatedClientState();
       clearHomeScreenAppBadge();
     }
   });
-  welcomeBackFromWhatsApp();
-
-  if (standalone() && completionCode
-    && appFrame?.dataset.clientAuthenticated !== 'true') {
-    for (const input of document.querySelectorAll('[data-client-auth-code]')) {
-      input.value = completionCode.replace(/^(\d{3})(\d{3})$/, '$1 $2');
-    }
-    completeClientAuth(completionCode);
-  }
 
   refreshAuthenticatedClientState();
 

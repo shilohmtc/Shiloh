@@ -42,23 +42,6 @@ function serviceCards(catalogue = [], authenticated = false) {
     .join('');
 }
 
-function authFinishForm(inputId = 'my-shiloh-code') {
-  return `<details class="auth-code-disclosure" data-client-auth-code-disclosure>
-    <summary>Need another way? <span>Enter a code</span></summary>
-    <form class="auth-code-form" data-client-auth-code-form>
-    <div class="auth-code-heading">
-      <strong>Enter your 6-digit fallback code</strong>
-      <p>Use this only if My Shiloh does not open automatically after you return.</p>
-    </div>
-    <label class="sr-only" for="${escapeHtml(inputId)}">6-digit code from Shiloh</label>
-    <div class="auth-code-row">
-      <input id="${escapeHtml(inputId)}" data-client-auth-code inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" placeholder="123 456" aria-label="6-digit code from Shiloh">
-      <button class="button button--primary" type="submit">Open My Shiloh</button>
-    </div>
-    </form>
-  </details>`;
-}
-
 function smsSignInForm() {
   return `<details class="sms-setup-choice" data-client-sms-choice>
     <summary class="auth-choice-summary"><svg class="auth-choice-summary__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="6" y="2.5" width="12" height="19" rx="2"/><path d="M10 18.5h4"/></svg><span>New to My Shiloh or using a new phone?</span><svg class="auth-choice-summary__chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></summary>
@@ -96,10 +79,9 @@ function renderMyShilohPage({
   client = null,
   passkeysAvailable = false,
   smsAvailable = false,
-  signInMethod = 'whatsapp_challenge',
+  signInMethod = null,
   now = new Date(),
 } = {}) {
-  const askShiloh = whatsappUrl(whatsappNumber);
   const suppliedHumanDigits = String(humanWhatsAppNumber || '').replace(/\D/g, '');
   const humanDigits = /^0[678]\d{8}$/.test(suppliedHumanDigits) ? `27${suppliedHumanDigits.slice(1)}`
     : /^27[678]\d{8}$/.test(suppliedHumanDigits) ? suppliedHumanDigits : '';
@@ -107,15 +89,14 @@ function renderMyShilohPage({
   const receptionDisplay = receptionPhone === '27662399138' ? '066 239 9138' : `+${receptionPhone}`;
   const receptionRecoveryWhatsApp = whatsappUrl(receptionPhone,
     'Hi Reception, I need help getting back into My Shiloh. Please tell me how to verify my identity.');
-  const speakToReception = humanDigits ? whatsappUrl(humanDigits,
-    'Hi Reception, I am using My Shiloh and would like to speak with a person.') : null;
+  const speakToReception = whatsappUrl(receptionPhone,
+    'Hi Reception, I am using My Shiloh and would like to speak with a person.');
   const authenticated = Boolean(client?.id && client?.firstName);
   const selectedService = /^[1-9]\d*$/.test(String(selectedServiceId || ''))
     ? sanitizePublicCatalogue(catalogue).find((service) => String(service.id) === String(selectedServiceId)) : null;
-  const bookingsHelpHref = humanHandoffActive && speakToReception ? speakToReception
-    : authenticated ? '#shiloh' : askShiloh;
-  const bookingsHelpLabel = humanHandoffActive && speakToReception ? 'Ask Reception'
-    : authenticated ? 'Ask Shiloh' : 'Ask Shiloh on WhatsApp';
+  const bookingsHelpHref = authenticated && !humanHandoffActive ? '#shiloh' : speakToReception;
+  const bookingsHelpLabel = humanHandoffActive || !authenticated ? 'Ask Reception'
+    : 'Ask Shiloh';
   const choosingHelpCopy = humanHandoffActive
     ? 'Reception is helping you. Open Shiloh to see how to continue.'
     : 'Tell Shiloh what you’re looking for and chat here in My Shiloh.';
@@ -507,12 +488,10 @@ function renderMyShilohPage({
             <textarea id="my-shiloh-message" data-shiloh-chat-input rows="1" maxlength="1000" placeholder="Ask Shiloh…" autocomplete="off"></textarea>
             <button class="button button--primary" type="submit" data-shiloh-chat-send>Send</button>
           </form>
-          <p class="assistant-chat__note">For any change, Shiloh will show you what will happen and ask you to confirm.</p>
-          <a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Prefer WhatsApp? Continue there →</a>`}
+          <p class="assistant-chat__note">For any change, Shiloh will show you what will happen and ask you to confirm.</p>`}
           ${speakToReception ? `<a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(speakToReception)}" rel="noopener noreferrer"${humanHandoffActive ? '' : ' data-human-handoff-start'}>${humanHandoffActive ? 'Continue with Reception on WhatsApp →' : 'Speak to Reception on WhatsApp →'}</a>${humanHandoffActive ? '' : `<p class="assistant-chat__note" data-human-handoff-status role="status" aria-live="polite"></p><a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(speakToReception)}" rel="noopener noreferrer" data-human-handoff-direct hidden>Open Reception directly</a>`}` : ''}
         </section>` : `
-        <a class="button button--primary button--wide" href="${escapeHtml(askShiloh)}" rel="noopener noreferrer">Chat with Shiloh on WhatsApp</a>
-        ${speakToReception ? `<a class="text-link assistant-whatsapp-fallback" href="${escapeHtml(speakToReception)}" rel="noopener noreferrer">Speak to Reception on WhatsApp →</a>` : ''}
+        <a class="button button--primary button--wide" href="${escapeHtml(speakToReception)}" rel="noopener noreferrer">Speak to Reception on WhatsApp</a>
         <div class="prompt-grid" aria-label="Things Shiloh can help with">
           <article><span>Choose</span><strong>What would suit me?</strong></article>
           <article><span>Manage</span><strong>Move my appointment</strong></article>
@@ -567,7 +546,6 @@ module.exports = {
   escapeHtml,
   whatsappUrl,
   serviceCards,
-  authFinishForm,
   johannesburgGreeting,
   renderMyShilohPage,
   PUBLIC_BRAND_NAME,

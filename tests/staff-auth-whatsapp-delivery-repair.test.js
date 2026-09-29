@@ -122,14 +122,13 @@ test('status-only webhook is processed and acknowledged while mixed inbound payl
   assert.equal(mixedResponse.statusCode, 0);
 });
 
-test('webhook keeps client auth and receipts without staff bootstrap', () => {
+test('webhook preserves status callbacks and ordinary conversation without client or staff auth', () => {
   const routeSource = fs.readFileSync(path.join(__dirname, '../src/routes/webhook.js'), 'utf8');
   const routeBlock = routeSource.slice(routeSource.indexOf('router.post('));
   const statusAt = routeBlock.indexOf('processWhatsAppStatusWebhook');
-  const clientAt = routeBlock.indexOf('myShilohWhatsAppAuthMiddleware');
   const acknowledgeAt = routeBlock.indexOf('res.sendStatus(200)');
-  assert.ok(statusAt >= 0 && clientAt > statusAt && acknowledgeAt > clientAt);
-  assert.doesNotMatch(routeSource, /staffWhatsAppPasskeyBootstrapMiddleware|receiveWebhook/);
+  assert.ok(statusAt >= 0 && acknowledgeAt > statusAt);
+  assert.doesNotMatch(routeSource, /myShilohWhatsAppAuthMiddleware|staffWhatsAppPasskeyBootstrapMiddleware|receiveWebhook/);
 });
 
 test('staff authentication template definition is dedicated Authentication OTP with five-minute controls', () => {
