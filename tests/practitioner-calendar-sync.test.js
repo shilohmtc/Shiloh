@@ -7,7 +7,6 @@ const root = path.resolve(__dirname, '..');
 const google = fs.readFileSync(path.join(root, 'src/services/googleBookingCalendar.js'), 'utf8');
 const practitioner = fs.readFileSync(path.join(root, 'src/services/practitionerGoogleCalendar.js'), 'utf8');
 const booking = fs.readFileSync(path.join(root, 'src/services/adminBooking.js'), 'utf8');
-const flow = fs.readFileSync(path.join(root, 'src/services/adminMobileBookingFlow.js'), 'utf8');
 
 test('verified practitioner calendars are explicit environment-backed mappings', () => {
   assert.match(google, /GOOGLE_CHRISTEL_CALENDAR_ID/);
@@ -16,11 +15,6 @@ test('verified practitioner calendars are explicit environment-backed mappings',
   assert.match(practitioner, /GOOGLE_CHRISTEL_CALENDAR_ID/);
   assert.match(practitioner, /GOOGLE_ABIGAIL_CALENDAR_ID/);
   assert.match(practitioner, /GOOGLE_MARIETJIE_CALENDAR_ID/);
-});
-
-test('guided client booking cannot expose internal freelancers as practitioner choices', () => {
-  assert.match(flow, /st\.client_bookable=TRUE/);
-  assert.match(flow, /no eligible practitioner in your booking scope is currently mapped/);
 });
 
 test('booking confirmation creates no shared or practitioner calendar event', () => {

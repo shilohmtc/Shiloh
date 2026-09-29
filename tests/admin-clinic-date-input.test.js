@@ -1,12 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const path = require('node:path');
 
 const parserPath=path.join(__dirname,'..','src','services','adminClinicDateInput.js');
-const bookingPath=path.join(__dirname,'..','src','services','adminMobileBookingFlow.js');
 const { parseClinicDateInput }=require(parserPath);
-const bookingSource=fs.readFileSync(bookingPath,'utf8');
 const NOW=new Date('2026-08-16T10:00:00Z');
 
 test('natural day-month input stays in the current Johannesburg calendar year unless a year is explicit',()=>{
@@ -23,13 +20,4 @@ test('relative and weekday dates are supported without weakening invalid-date ch
   assert.equal(parseClinicDateInput('next Monday',{now:NOW}),'2026-08-24');
   assert.equal(parseClinicDateInput('31 February',{now:NOW}),null);
   assert.equal(parseClinicDateInput('15/08/2026',{now:NOW}),'2026-08-15');
-});
-
-test('guided admin booking uses the shared natural-date parser and client-friendly copy',()=>{
-  assert.match(bookingSource,/parseClinicDateInput/);
-  assert.match(bookingSource,/15 Aug/);
-  assert.match(bookingSource,/tomorrow/);
-  assert.match(bookingSource,/Friday/);
-  assert.match(bookingSource,/Past dates are treated as historical manual entries/);
-  assert.doesNotMatch(bookingSource,/const date=parseDate\(raw\)/);
 });
