@@ -14,6 +14,7 @@ const {
   augmentWorkspacePwaCsp,
   workspacePwaServiceWorkerScript,
   workspacePwaClientScript,
+  workspaceInstallPage,
 } = require('../presentation/workspacePwa');
 
 const IOS_APPLE_TOUCH_ICON_HREF = `${PWA_BASE}/apple-touch-icon-180.png?v=official-brand-v2`;
@@ -125,6 +126,13 @@ function createWorkspacePwaRouter({ sessionService, env = process.env, pushServi
   router.get('/manifest.webmanifest', (_req, res) => {
     setPublicAssetHeaders(res);
     return res.status(200).type('application/manifest+json').send(JSON.stringify(workspacePwaManifest()));
+  });
+
+  router.get('/install', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    return res.status(200).type('html').send(workspaceInstallPage());
   });
 
   router.get('/sw.js', (_req, res) => {

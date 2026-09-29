@@ -2276,6 +2276,30 @@ test('Android install doorway keeps the native install action primary on Phone a
   }
 });
 
+test('Workspace install doorway is readable before staff sign-in on Phone and Desktop', async ({ page }, testInfo) => {
+  for (const viewport of [
+    { name: 'phone', width: 390, height: 844 },
+    { name: 'desktop', width: 1280, height: 900 },
+  ]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=staff-workspace-installation--samsung-doorway&viewMode=story', { waitUntil: 'networkidle' });
+    await expect(page.getByRole('heading', { name: 'Install Shiloh Workspace' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Show install steps' })).toBeVisible();
+    await expect(page.getByText('Open in Chrome', { exact: false }).first()).toBeVisible();
+    const accessibility = await new AxeBuilder({ page })
+      .include('main')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact))).toEqual([]);
+    await page.screenshot({
+      path: testInfo.outputPath(`workspace-install-doorway-${viewport.name}.png`),
+      fullPage: true,
+      animations: 'disabled',
+      caret: 'hide',
+    });
+  }
+});
+
 test('My Shiloh refreshes an authenticated greeting from current Johannesburg time', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-home&viewMode=story', { waitUntil: 'networkidle' });

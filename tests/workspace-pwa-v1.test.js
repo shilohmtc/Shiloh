@@ -11,6 +11,7 @@ const {
   workspaceIosInstallGuideStyles,
   workspaceIosInstallGuideMarkup,
   decorateWorkspacePwaHtml,
+  workspaceInstallPage,
   augmentWorkspacePwaCsp,
   workspacePwaServiceWorkerScript,
   workspacePwaClientScript,
@@ -35,6 +36,21 @@ test('#791 manifest installs one canonical Shiloh Workspace delivery shell', () 
   assert.deepEqual(manifest.icons.map(icon => icon.src), [...ICON_URLS]);
   assert.ok(manifest.icons.some(icon => /maskable/.test(icon.purpose)));
   assert.doesNotMatch(JSON.stringify(manifest), /token|secret|credential|permission|capability|scope.*all_business/i);
+});
+
+test('staff can reach an install doorway before signing in, with a Samsung browser handoff', () => {
+  const html = workspaceInstallPage();
+  const route = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'workspacePwa.js'), 'utf8');
+  const client = workspacePwaClientScript();
+  assert.match(route, /router\.get\('\/install', \(_req, res\)/);
+  assert.match(html, /<h1>Install Shiloh Workspace<\/h1>/);
+  assert.match(html, /\/calendar\/pwa\/manifest\.webmanifest/);
+  assert.match(html, /data-workspace-install-doorway/);
+  assert.match(html, /Open in Chrome/);
+  assert.match(html, /Already installed\? Sign in/);
+  assert.doesNotMatch(html, /SMS code|Use existing passkey/);
+  assert.match(client, /function installDoorway\(\)/);
+  assert.match(client, /deferredInstallPrompt\?'Install Shiloh Workspace':'Show install steps'/);
 });
 
 test('approved Workspace logo assets are served from the same public path used by Storybook', () => {

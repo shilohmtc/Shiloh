@@ -28,6 +28,8 @@ Shiloh is one clinic platform with several connected surfaces:
 
 The staff app's installed name is **Shiloh Workspace** so it is distinct from the client app **My Shiloh**. Its manifest identity, launch URL and scope stay the same across this display-name change, preserving existing installations and sign-in authority.
 
+**Accepted 2026-09-29; staff installation doorway:** Staff installation links use `https://app.shilohmtc.co.za/calendar/pwa/install`. This public page presents the app installation action and Samsung browser handoff before sign-in. Chrome offers a native install prompt when eligible; otherwise the page gives the browser's installation steps. Staff open the installed app and then sign in through the existing passkey or approved SMS device setup. The manifest identity and staff access checks remain unchanged.
+
 The iPad intake is gated by `SHILOH_CLINIC_IPAD_CHECKIN_ENABLED` and defaults off in new environments. It is on in production for supervised testing as of 27 September 2026. An unactivated iPad receives only a setup message. Real-device privacy checks and separate Christel/Reception account acceptance in issue #1198 must pass before clients use the iPad. This is release status, not a clinic policy.
 
 An activated iPad uses its own revocable, client-only device capability. Its 30-day browser cookie renews on each verified check-in page visit, so regularly used iPads do not require monthly staff sign-in. After 30 days without opening check-in, or if browser data is cleared, a staff member must activate the device again. Workspace can disable a lost iPad immediately; activation revokes the setup staff session.
