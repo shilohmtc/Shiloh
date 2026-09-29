@@ -16,6 +16,39 @@ function welcomeVoucherCampaignStyles() {
   return `.campaign-panel{border-color:#cbd8cf;background:linear-gradient(145deg,#fffdf9 0%,#f5f8f4 100%)}.campaign-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.campaign-metric{padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff}.campaign-metric span,.campaign-metric strong,.campaign-metric small{display:block}.campaign-metric span{color:var(--muted);font-size:.67rem;font-weight:800}.campaign-metric strong{margin-top:5px;font-size:1.25rem;color:var(--leaf-deep)}.campaign-metric small{margin-top:5px;color:var(--muted);font-size:.65rem;line-height:1.35}.campaign-activity{display:grid;gap:0;margin-top:14px;border-top:1px solid var(--line)}.campaign-activity-row{display:grid;grid-template-columns:minmax(100px,.65fr) minmax(130px,1fr) auto;gap:10px;align-items:center;padding:10px 2px;border-bottom:1px solid var(--line);font-size:.74rem}.campaign-activity-row strong,.campaign-activity-row span{overflow-wrap:anywhere}.campaign-activity-row span{color:var(--muted);font-size:.69rem}.campaign-state{justify-self:end;border-radius:999px;padding:5px 8px;background:var(--leaf-soft);color:var(--leaf-deep)!important;font-weight:800}.campaign-state.expired,.campaign-state.cancelled{background:var(--danger-soft);color:var(--danger)!important}@media(max-width:850px){.campaign-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:540px){.campaign-activity-row{grid-template-columns:minmax(0,1fr) auto}.campaign-activity-row>span:nth-child(2){grid-column:1/-1;grid-row:2}.campaign-state{grid-column:2;grid-row:1}}`;
 }
 
+function earningsStyles() {
+  return `.earnings-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-bottom:14px}.earnings-summary article{padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff}.earnings-summary span,.earnings-summary strong{display:block}.earnings-summary span{color:var(--muted);font-size:.72rem}.earnings-summary strong{font-size:1.15rem;margin-top:5px}.earnings-person{border-top:1px solid var(--line);padding:15px 0}.earnings-person h3{margin:0 0 5px;font-size:1rem}.earnings-person p{margin:0 0 10px;color:var(--muted);font-size:.75rem}.earnings-visits{display:grid;gap:6px}.earnings-visit{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:9px;border:1px solid var(--line);border-radius:9px;background:#fff;font-size:.78rem}.earnings-visit a{font-weight:800;color:var(--leaf-deep);min-height:44px;display:inline-flex;align-items:center}.earnings-visit small{display:block;color:var(--muted);line-height:1.5}.earnings-review{color:var(--danger);font-weight:750}.rule-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.rule-grid .field:last-of-type{grid-column:1/-1}.rule-list{margin:14px 0 0;padding-left:20px;font-size:.76rem;line-height:1.8}.rule-status{min-height:22px;font-size:.76rem}.rule-status.error{color:var(--danger)}@media(max-width:700px){.earnings-summary{grid-template-columns:1fr 1fr}.earnings-summary article:last-child{grid-column:1/-1}.earnings-visit{grid-template-columns:1fr auto}.earnings-visit>span:last-child{grid-column:1/-1}.rule-grid{grid-template-columns:1fr}.rule-grid .field:last-of-type{grid-column:auto}}`;
+}
+
+function staffEarningsSection(earnings, period, csrfToken = '') {
+  if (!earnings) return '';
+  const people = earnings.staff || [];
+  const completedValue = people.reduce((sum, row) => sum + row.completedValue, 0);
+  const commission = people.reduce((sum, row) => sum + row.commission, 0);
+  const review = people.reduce((sum, row) => sum + row.reviewCount, 0);
+  const peopleHtml = people.map(row => {
+    const visits = row.appointments.map(item => {
+      const date = new Intl.DateTimeFormat('en-ZA', { timeZone: 'Africa/Johannesburg', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(item.startsAt));
+      const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Johannesburg', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(item.startsAt));
+      const href = `/calendar/read-only?view=day&amp;date=${escapeHtml(day)}&amp;appointment=${escapeHtml(item.id)}`;
+      return `<div class="earnings-visit"><div><a href="${href}">Appointment #${escapeHtml(item.id)}</a><small>${escapeHtml(date)} · ${escapeHtml(item.serviceNames.join(' + ') || 'Treatment')}</small></div><span>${item.price == null ? 'Price missing' : escapeHtml(formatRand(item.price))}</span><span class="${item.reason ? 'earnings-review' : ''}">${escapeHtml(item.reason || `${item.ratePercent}% · ${formatRand(item.commission)} commission`)}</span></div>`;
+    }).join('');
+    return `<div class="earnings-person"><h3>${escapeHtml(row.name)}</h3><p>${escapeHtml(row.completedCount)} completed solo treatment${row.completedCount === 1 ? '' : 's'} · ${escapeHtml(formatRand(row.completedValue))} treatment value · ${escapeHtml(formatRand(row.commission))} calculated commission${row.reviewCount ? ` · ${escapeHtml(row.reviewCount)} to review` : ''}</p><div class="earnings-visits">${visits || '<div class="empty">No completed appointments in this period.</div>'}</div></div>`;
+  }).join('');
+  const staffOptions = people.map(row => `<option value="${escapeHtml(row.staffId)}">${escapeHtml(row.name)}</option>`).join('');
+  const serviceOptions = (earnings.services || []).map(row => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.name)}</option>`).join('');
+  const rules = (earnings.rules || []).map(rule => {
+    const person = people.find(row => row.staffId === Number(rule.staff_id));
+    if (!person) return '';
+    return `<li>${escapeHtml(person.name)} · ${escapeHtml(rule.service_name || 'All treatments')} · ${escapeHtml(rule.rate_percent)}% from ${escapeHtml(rule.effective_from)}</li>`;
+  }).join('');
+  return `<section class="panel" id="staff-earnings" data-staff-earnings><div class="panel-heading"><div><span class="eyebrow">Private · Christel only</span><h2>Team treatment value & commission</h2><p>Completed appointments in the selected period. Open any appointment to review it in Calendar.</p></div></div><div class="earnings-summary"><article><span>Completed treatment value</span><strong>${escapeHtml(formatRand(completedValue))}</strong></article><article><span>Calculated commission</span><strong>${escapeHtml(formatRand(commission))}</strong></article><article><span>Needs review</span><strong>${escapeHtml(review)}</strong></article></div><p class="footer-note">These are treatment values and calculated commission, not payments received or a payroll statement. Shared appointments and missing prices or rules are excluded from totals for review. Abigail’s fixed monthly salary is separate.</p>${peopleHtml}<div class="panel-heading"><div><span class="eyebrow">Future rules</span><h2>Commission structure</h2><p>Set a rate for a team member, or a specific treatment. Treatment rates take priority; changes apply from their start date and preserve previous rates.</p></div></div><form data-commission-form data-csrf="${escapeHtml(csrfToken)}" class="rule-grid"><div class="field"><label for="rule-staff">Team member</label><select id="rule-staff" name="staffId" required>${staffOptions}</select></div><div class="field"><label for="rule-service">Treatment</label><select id="rule-service" name="serviceId"><option value="">All treatments</option>${serviceOptions}</select></div><div class="field"><label for="rule-rate">Commission percentage</label><input id="rule-rate" name="ratePercent" type="number" min="0" max="100" step="0.01" required></div><div class="field"><label for="rule-date">Effective from</label><input id="rule-date" name="effectiveFrom" type="date" min="${escapeHtml(earnings.earliestNewRuleDate)}" value="${escapeHtml(earnings.earliestNewRuleDate)}" required></div><button class="button primary" type="submit">Add commission rule</button><p class="rule-status" role="status" data-rule-status></p></form><details><summary>Current and past rules</summary><ul class="rule-list">${rules || '<li>No rules recorded.</li>'}</ul></details></section>`;
+}
+
+function commissionClientScript() {
+  return `(()=>{'use strict';const form=document.querySelector('[data-commission-form]');if(!form)return;form.addEventListener('submit',async(event)=>{event.preventDefault();const status=form.querySelector('[data-rule-status]'),button=form.querySelector('button[type="submit"]');status.textContent='Saving rule…';status.classList.remove('error');button.disabled=true;try{const data=Object.fromEntries(new FormData(form));const response=await fetch('/calendar/reports/commission-rules',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json','x-shiloh-csrf-token':form.dataset.csrf},body:JSON.stringify(data)});const body=await response.json();if(!response.ok)throw new Error(body.error||'Rule could not be saved.');window.location.reload()}catch(error){status.textContent=error.message;status.classList.add('error');button.disabled=false}})})();`;
+}
+
 function formatMinutes(value) {
   const total = Math.max(0, Math.round(Number(value) || 0));
   const hours = Math.floor(total / 60);
@@ -83,6 +116,7 @@ function trendSummary(trend) {
 
 function renderReportsPage(model, {
   staffAccessScriptPath = '/calendar/staff/client.js',
+  csrfToken = '',
 } = {}) {
   const selectedStaffId = model.selectedStaffId;
   const permittedStaff = model.permittedStaff || [];
@@ -133,8 +167,9 @@ function renderReportsPage(model, {
       : 'Showing the whole team.';
   const welcomeVoucherCampaign = welcomeVoucherCampaignSection(model.welcomeVoucherCampaign);
   const campaignJump = model.welcomeVoucherCampaign ? '<a class="jump-link" href="#welcome-voucher">R100 campaign</a>' : '';
+  const earningsJump = model.staffEarnings ? '<a class="jump-link" href="#staff-earnings">Earnings</a>' : '';
 
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reports — Shiloh Workspace</title><style>${workspaceShellStyles()}${reportStyles()}${phoneCapacityStyles()}${welcomeVoucherCampaignStyles()}</style><script src="${escapeHtml(staffAccessScriptPath)}" defer></script></head><body data-workspace-reports="true"><div class="workspace-frame">${renderWorkspaceNavigation({
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reports — Shiloh Workspace</title><style>${workspaceShellStyles()}${reportStyles()}${phoneCapacityStyles()}${welcomeVoucherCampaignStyles()}${earningsStyles()}</style><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${model.staffEarnings ? '<script src="/calendar/reports/commission.js" defer></script>' : ''}</head><body data-workspace-reports="true"><div class="workspace-frame">${renderWorkspaceNavigation({
     active: 'reports',
     displayName: model.authority?.displayName,
     calendarHref: '/calendar/read-only',
@@ -157,8 +192,9 @@ function renderReportsPage(model, {
     </section>
 
     ${welcomeVoucherCampaign}
+    ${staffEarningsSection(model.staffEarnings, model.period, csrfToken)}
 
-    <nav class="jump-row" aria-label="Report sections">${campaignJump}<a class="jump-link" href="#team-time">Team</a><a class="jump-link" href="#treatments">Treatments</a><a class="jump-link" href="#clients">Clients</a></nav>
+    <nav class="jump-row" aria-label="Report sections">${campaignJump}${earningsJump}<a class="jump-link" href="#team-time">Team</a><a class="jump-link" href="#treatments">Treatments</a><a class="jump-link" href="#clients">Clients</a></nav>
 
     <section class="metrics" aria-label="At a glance">
       <article class="metric-card"><span>Appointments</span><strong>${escapeHtml(model.appointments?.operational || 0)}</strong><small>Excluding cancellations.</small></article>
@@ -186,7 +222,7 @@ function renderReportsPage(model, {
       </div>
     </div>
 
-    <p class="footer-note">Reports are read only and can cover up to 31 days. Payments and income are shown separately.</p>
+    <p class="footer-note">Reports can cover up to 31 days. Appointment and client sections are read only.</p>
   </div></div></div></body></html>`;
 }
 
@@ -205,6 +241,8 @@ module.exports = {
   formatTimestamp,
   formatRand,
   welcomeVoucherCampaignSection,
+  staffEarningsSection,
+  commissionClientScript,
   renderReportsPage,
   renderReportsUnavailablePage,
 };

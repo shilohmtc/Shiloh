@@ -186,7 +186,7 @@ test('Reports presentation uses staff-friendly wording and escapes names and tre
   assert.match(html, /Team booking time/);
   assert.match(html, /Treatments booked/);
   assert.match(html, /New and returning clients/);
-  assert.match(html, /Payments and income are shown separately/);
+  assert.match(html, /Appointment and client sections are read only/);
   assert.doesNotMatch(html, /canonical|business-wide operational scope|practitioner authority|service snapshot|aggregate identity|utilisation/i);
   assert.doesNotMatch(html, /<Christel>|<Massage>/);
   assert.match(html, /&lt;Christel&gt;/);

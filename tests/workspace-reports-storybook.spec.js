@@ -13,6 +13,10 @@ for (const viewport of [
     await expect(surface).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Reports', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Team booking time' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Team treatment value & commission' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Commission structure' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Appointment #732' })).toHaveAttribute('href', /appointment=732/);
+    await expect(page.getByText('Shared appointment — review allocation')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Treatments booked' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'New and returning clients' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'View report' })).toBeVisible();
