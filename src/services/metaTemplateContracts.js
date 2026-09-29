@@ -124,8 +124,7 @@ function assertDeliveryFeatureGate(contractId, environment = process.env) {
     && environment.WHATSAPP_RESCHEDULE_APPROVAL_ENABLED !== 'true') {
     throw new Error('Reschedule-approval delivery gate is disabled');
   }
-  if (contractId === 'staff_auth_otp'
-    && environment.SHILOH_STAFF_BROWSER_AUTH_WHATSAPP_DELIVERY_ENABLED !== 'true') {
+  if (contractId === 'staff_auth_otp') {
     throw new Error('Staff authentication WhatsApp delivery gate is disabled');
   }
   if ((contractId === 'consultation_form' || contractId === 'consultation_form_reminder')

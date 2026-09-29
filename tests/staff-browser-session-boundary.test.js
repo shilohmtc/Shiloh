@@ -5,7 +5,6 @@ const path = require('node:path');
 
 const sessionModule = require('../src/services/staffBrowserSession');
 const sessionMiddleware = require('../src/middleware/staffBrowserSession');
-const challengeDelivery = require('../src/services/staffBrowserChallengeDelivery');
 
 function deterministicRandom() {
   let n = 1;
@@ -120,21 +119,8 @@ test('calendar viewer authority is derived only from current canonical server au
   }), null);
 });
 
-test('retired WhatsApp challenge adapter stays dark even when the old flag is enabled', async () => {
-  let calls = 0;
-  const disabled = challengeDelivery.createStaffBrowserChallengeDispatcher({
-    env: {},
-    sendMessage: async () => { calls += 1; },
-  });
-  assert.equal(disabled, null);
-  assert.equal(calls, 0);
-
-  const enabled = challengeDelivery.createStaffBrowserChallengeDispatcher({
-    env: { SHILOH_STAFF_BROWSER_AUTH_WHATSAPP_DELIVERY_ENABLED: 'true' },
-    sendMessage: async () => { calls += 1; },
-  });
-  assert.equal(enabled, null);
-  assert.equal(calls, 0);
+test('retired WhatsApp challenge adapter is absent', () => {
+  assert.equal(fs.existsSync(path.join(__dirname, '..', 'src/services/staffBrowserChallengeDelivery.js')), false);
 });
 
 test('challenge delivery is dark by default and performs no database query', async () => {
@@ -403,7 +389,6 @@ test('new browser-session surface never references shared ADMIN_API_KEY and neve
     'src/services/staffBrowserSession.js',
     'src/middleware/staffBrowserSession.js',
     'src/routes/staffBrowserSession.js',
-    'src/services/staffBrowserChallengeDelivery.js',
   ];
   const source = files.map((file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8')).join('\n');
   assert.doesNotMatch(source, /ADMIN_API_KEY|x-admin-key/i);

@@ -18,8 +18,6 @@ const {
   buildStaffAuthTemplateSubmissionDefinition,
   buildStaffAuthTemplateContract,
 } = require('../src/services/staffAuthTemplateDefinition');
-const { sendStaffAuthTemplate } = require('../src/services/staffAuthWhatsApp');
-const { createStaffBrowserChallengeDispatcher } = require('../src/services/staffBrowserChallengeDelivery');
 const {
   summarizeExactTemplate,
   inspectStaffAuthTemplateInventory,
@@ -200,29 +198,18 @@ test('staff authentication readiness fails closed for pending duplicate drift an
   assert.equal(state.ready, false);
 });
 
-test('staff authentication send gate remains disabled while production delivery flag is off', async () => {
+test('staff authentication send gate remains disabled regardless of the retired delivery flag', async () => {
   const entry = CONTRACTS.find((item) => item.key === 'staff_auth_otp');
   process.env.WHATSAPP_BUSINESS_ACCOUNT_ID = 'hidden-waba';
-  process.env.SHILOH_STAFF_BROWSER_AUTH_WHATSAPP_DELIVERY_ENABLED = 'false';
+  process.env.SHILOH_STAFF_BROWSER_AUTH_WHATSAPP_DELIVERY_ENABLED = 'true';
   axios.get = async () => ({ data: { data: [{ id: 'auth', status: 'APPROVED', ...entry.contract, components: structuredClone(entry.contract.components) }] } });
   await assert.rejects(() => assertTemplateSendAllowed(STAFF_AUTH_TEMPLATE_NAME, STAFF_AUTH_TEMPLATE_LANGUAGE), /delivery gate is disabled/);
 });
 
-test('retired staff authentication transport never calls Meta, even with old credentials', async () => {
-  let requests = 0;
-  await assert.rejects(() => sendStaffAuthTemplate('+27821234567', 'ABCDEFGHJK', {
-    env: { PHONE_NUMBER_ID: 'phone-id', WHATSAPP_TOKEN: 'provider-secret' },
-    post: async () => { requests += 1; },
-  }), { code: 'META_SIGNIN_ONLY' });
-  assert.equal(requests, 0);
-});
-
-test('retired staff challenge dispatcher remains unavailable even with its old flag', () => {
-  const dispatcher = createStaffBrowserChallengeDispatcher({
-    env: { SHILOH_STAFF_BROWSER_AUTH_WHATSAPP_DELIVERY_ENABLED: 'true' },
-    sendTemplate: async () => { throw new Error('must not send'); },
-  });
-  assert.equal(dispatcher, null);
+test('retired staff authentication transports are absent', () => {
+  const services = path.join(__dirname, '../src/services');
+  assert.equal(fs.existsSync(path.join(services, 'staffAuthWhatsApp.js')), false);
+  assert.equal(fs.existsSync(path.join(services, 'staffBrowserChallengeDelivery.js')), false);
 });
 
 test('provider inventory inspection is sanitized and template submission is exactly one mocked request when absent', async () => {

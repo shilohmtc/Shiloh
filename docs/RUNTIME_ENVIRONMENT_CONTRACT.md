@@ -32,6 +32,7 @@ These are not credentials and should not remain as durable production configurat
 - `META_PROVIDER_RECONNECT_ON_START`
 - `META_RESCHEDULE_APPROVAL_TEMPLATES_PROVISION_ON_START`
 - `META_PROVIDER_APP_NAME` — used only by the now-removed provider reconnect helper.
+- `SHILOH_STAFF_BROWSER_AUTH_WHATSAPP_DELIVERY_ENABLED` — the unreachable challenge adapter has been removed and its historical template gate is permanently closed.
 - `META_STAFF_AUTH_TEMPLATE_AUDIT_ON_START`
 - `META_STAFF_AUTH_TEMPLATE_PROVISION_ON_START`
 - `META_WABA_TEMPLATE_PERMISSION_AUDIT_ON_START`
@@ -65,7 +66,6 @@ The owner explicitly authorized removal of `WHATSAPP_TOKEN`, `PHONE_NUMBER_ID`, 
 These keys still have a current code reference or preserve a dormant integration. They are not permission to re-enable that integration.
 
 - `CRM_PROVENANCE_AUDIT_IDS` — current `app.js` still supports an optional startup read-only provenance diagnostic. Remove the startup diagnostic before deleting the key.
-- `SHILOH_STAFF_BROWSER_AUTH_WHATSAPP_DELIVERY_ENABLED` — current Meta contract guard still references it even though browser WhatsApp OTP was retired by #607. Retire the obsolete contract/gate path before deleting it.
 - `GOOGLE_CALENDAR_ENABLED`, `GOOGLE_CALENDAR_AUTH_MODE`, `GOOGLE_BOOKING_CALENDAR_ID`, `GOOGLE_ABIGAIL_CALENDAR_ID`, `GOOGLE_CHRISTEL_CALENDAR_ID`, `GOOGLE_MARIETJIE_CALENDAR_ID`, `CHRISTEL_CALENDAR_EMAIL`, `JEAN_PIERRE_CALENDAR_EMAIL` — active scheduling authority is Shiloh-only, but dormant Google provider/config code remains. Keep Google disabled until that provider code is deliberately retired.
 - `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN` — dormant Google credential material. Code retirement comes first; deletion/rotation of credential material requires explicit owner authorization.
 
