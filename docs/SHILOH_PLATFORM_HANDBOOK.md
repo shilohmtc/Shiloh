@@ -146,6 +146,7 @@ These are accepted implementation standards; release and production verification
 
 - Render is the production hosting boundary; do not claim a deployment without the exact deployed commit.
 - Database changes are migration-led. Startup migration logs and checksum/pending-migration checks are release evidence.
+- Startup patch housekeeping begins with the no-op `adminBlockTimePatch.js`: Block Time already belongs to Calendar, so the unused preload is removed from production and development startup. Keep the Calendar block authority and ordinary WhatsApp boundary unchanged; remove other preloads only after tracing their live behavior and tests individually.
 - External Render PostgreSQL connections require TLS. The current ChatGPT database connector limitation is a TLS-boundary issue, not permission to weaken database security.
 - The protected audit-read route is an application-mediated, read-only inspection path. It requires its configured audit token and returns sanitized diagnostic data; do not expose that token or raw credentials.
 - When direct connector access is blocked, use an authorized Render Shell read-only query or the protected application audit authority, with the result recorded as evidence rather than as a new source of truth.
