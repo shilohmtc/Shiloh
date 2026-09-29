@@ -74,13 +74,13 @@ test('selected service context is escaped and bounded in the Reception request f
   assert.doesNotMatch(html, /<Massage>/);
 });
 
-test('the human WhatsApp handoff uses its own number and the AI path remains separate', () => {
+test('My Shiloh WhatsApp help uses the human Reception number, never the AI number', () => {
   const planning = renderPlanningRequestPage({ humanWhatsAppNumber:'066 239 9138' });
   const app = renderMyShilohPage({ whatsappNumber:'27123456789', humanWhatsAppNumber:'066 239 9138' });
   assert.match(planning, /wa\.me\/27662399138/);
   assert.match(app, /Speak to Reception on WhatsApp/);
   assert.match(app, /wa\.me\/27662399138/);
-  assert.match(app, /wa\.me\/27123456789/);
+  assert.doesNotMatch(app, /wa\.me\/27123456789/);
 });
 
 test('website planning deep link retains sign-in intent while submission stays session and CSRF guarded', () => {
