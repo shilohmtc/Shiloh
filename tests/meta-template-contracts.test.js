@@ -36,11 +36,10 @@ test('provider inventory follows pagination and never returns account/provider i
  axios.get=async url=>{calls++;return {data:calls===1?{data:[],paging:{next:'https://next.invalid/page'}}:{data:[{id:'provider-id',status:'APPROVED',quality_score:{score:'GREEN'},...entry.contract}]}}};
  const report=await inspectMetaTemplateInventory();assert.equal(calls,2);const state=report.templates.find(x=>x.key==='booking_confirmation');assert.equal(state.ready,true);assert.equal(JSON.stringify(report).includes('secret-waba'),false);assert.equal(JSON.stringify(report).includes('provider-id'),false);
 });
-test('send gate rejects arbitrary names, disabled booking update and legacy identities',async()=>{
+test('send gate rejects arbitrary names, retired booking update and legacy identities',async()=>{
  await assert.rejects(()=>assertTemplateSendAllowed('arbitrary_env_name'),/not an approved Shiloh/);
  await assert.rejects(()=>assertTemplateSendAllowed('appointment_followup'),/not an approved Shiloh/);
- process.env.WHATSAPP_BOOKING_UPDATE_TEMPLATE='shiloh_booking_update_v1';
- await assert.rejects(()=>assertTemplateSendAllowed('shiloh_booking_update_v1'),/gate is disabled/);
+ await assert.rejects(()=>assertTemplateSendAllowed('shiloh_booking_update_v1'),/not an approved Shiloh send contract/);
 });
 test('retired reschedule approval transport stays disabled even when provider-ready',async()=>{
  process.env.WHATSAPP_BUSINESS_ACCOUNT_ID='hidden';
@@ -85,7 +84,7 @@ test('realistic Meta fixture ignores managed metadata but detects semantic drift
 });
 
 test('every current operational contract validates exactly and drift fails',()=>{
- const current=CONTRACTS.filter(x=>x.sendable);assert.equal(current.length,18);
+ const current=CONTRACTS.filter(x=>x.sendable);assert.equal(current.length,17);
  for(const entry of current){const provider={...entry.contract,components:structuredClone(entry.contract.components)};assert.equal(compareContract(entry,provider).exact,true,entry.key);provider.category=entry.contract.category==='UTILITY'?'MARKETING':'UTILITY';assert.equal(compareContract(entry,provider).exact,false,entry.key);}
 });
 
