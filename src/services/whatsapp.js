@@ -67,8 +67,8 @@ async function sendWhatsAppMessage(to, message) {
   return postWhatsAppMessage(to, message);
 }
 
-// Only the verified client/staff sign-in middleware may call this entry point.
 async function sendWhatsAppSignInMessage(to, message) {
+  assertNonAuthMetaAllowed();
   return postWhatsAppMessage(to, message);
 }
 

@@ -31,18 +31,18 @@ const claimed={id:7,appointment_id:70,phone:'27000000000',service_text:'Service'
 
 test('provider acceptance remains claimed when delivery evidence update fails', async () => {
   let releases=0, experiences=0;
-  const result=await deliverClaimedFollowup(claimed,'shiloh_appointment_followup_v2',true,{name:'Client',send:async()=>({messages:[{id:'wamid.accepted'}]}),updateEvidence:async()=>{throw new Error('database evidence failure');},createExperience:async()=>{experiences++;},releaseClaim:async()=>{releases++;}});
+  const result=await deliverClaimedFollowup(claimed,'shiloh_appointment_followup_v2',true,{name:'Client',env:{SHILOH_META_SIGNIN_ONLY_ENABLED:'false'},send:async()=>({messages:[{id:'wamid.accepted'}]}),updateEvidence:async()=>{throw new Error('database evidence failure');},createExperience:async()=>{experiences++;},releaseClaim:async()=>{releases++;}});
   assert.equal(result.providerMessageId,'wamid.accepted');assert.equal(releases,0);assert.equal(experiences,1);
 });
 
 test('provider acceptance remains claimed when experience bookkeeping fails', async () => {
   let releases=0, evidence=0;
-  const result=await deliverClaimedFollowup(claimed,'shiloh_appointment_followup_v2',true,{name:'Client',send:async()=>({messages:[{id:'wamid.accepted'}]}),updateEvidence:async()=>{evidence++;},createExperience:async()=>{throw new Error('experience failure');},releaseClaim:async()=>{releases++;}});
+  const result=await deliverClaimedFollowup(claimed,'shiloh_appointment_followup_v2',true,{name:'Client',env:{SHILOH_META_SIGNIN_ONLY_ENABLED:'false'},send:async()=>({messages:[{id:'wamid.accepted'}]}),updateEvidence:async()=>{evidence++;},createExperience:async()=>{throw new Error('experience failure');},releaseClaim:async()=>{releases++;}});
   assert.equal(result.sent,true);assert.equal(evidence,1);assert.equal(releases,0);
 });
 
 test('provider rejection is the only follow-up path that releases the claim', async () => {
   let releases=0;
-  await assert.rejects(()=>deliverClaimedFollowup(claimed,'shiloh_appointment_followup_v2',true,{name:'Client',send:async()=>{throw new Error('provider rejected');},releaseClaim:async()=>{releases++;}}),/provider rejected/);
+  await assert.rejects(()=>deliverClaimedFollowup(claimed,'shiloh_appointment_followup_v2',true,{name:'Client',env:{SHILOH_META_SIGNIN_ONLY_ENABLED:'false'},send:async()=>{throw new Error('provider rejected');},releaseClaim:async()=>{releases++;}}),/provider rejected/);
   assert.equal(releases,1);
 });

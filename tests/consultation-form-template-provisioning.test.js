@@ -51,12 +51,8 @@ test('provider comparison ignores examples but requires the approved semantic co
   assert.equal(providerContractMatches(provider, definition), false);
 });
 
-test('production start performs idempotent Meta consultation template provisioning before app startup', () => {
+test('production start no longer provisions retired Meta consultation templates', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
-  assert.match(pkg.scripts.start, /node scripts\/verify-migrations\.js && node scripts\/provision-consultation-form-templates\.js && node /);
-
-  const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'provision-consultation-form-templates.js'), 'utf8');
-  assert.match(script, /submitConsultationFormTemplates/);
-  assert.match(script, /consultation_form_meta_template_provisioning_complete/);
-  assert.match(script, /consultation_form_meta_template_provisioning_failed/);
+  assert.match(pkg.scripts.start, /node scripts\/verify-migrations\.js && node /);
+  assert.doesNotMatch(pkg.scripts.start, /provision-consultation-form-templates\.js/);
 });
