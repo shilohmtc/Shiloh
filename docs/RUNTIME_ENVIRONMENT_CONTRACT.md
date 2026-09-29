@@ -20,6 +20,7 @@ This file records the disposition of production environment keys audited in #654
 - `SHILOH_PAYMENT_RECEIPT_APP_ONLY_ENABLED` — retained app receipt policy. The payer needs an active matching My Shiloh profile and accepted push wake; no automated Meta receipt fallback is permitted in production.
 - `SHILOH_BOOKING_CONFIRMATION_APP_ONLY_ENABLED` — retained app confirmation policy. A CRM V2 booking with an accepted app wake can close the obligation; otherwise it remains retryable without an automated WhatsApp send.
 - Historical `WHATSAPP_*_TEMPLATE` bindings and `WHATSAPP_TEMPLATE_LANGUAGE` still have code references. Keep until each booking, consultation, payment and lifecycle obligation is decoupled or represented in a visible Reception exception queue. Their presence does not authorize automated sending.
+- The customer-care scheduler now reconciles loyalty only; it no longer scans birthday opt-ins or attempts an automated WhatsApp birthday send. Existing opt-in records remain historical preferences. This retirement does not establish an app birthday-delivery path.
 
 ## Remove from persistent production configuration — retired or one-shot state
 
@@ -55,7 +56,7 @@ These are not credentials and should not remain as durable production configurat
 - `WHATSAPP_BOOKING_APPROVAL_OUTCOME_TEMPLATE`
 - `META_TEMPLATE_INVENTORY_AUDIT_ON_START`
 - `WHATSAPP_RESCHEDULE_APPROVAL_ENABLED` — retired by #1316 after the new Shiloh policy key was confirmed live. Removed from Render; same-commit deploy `dep-datscjou01pc73acdukg` reached live with reschedule `featureEnabled=true` and `/health` 200. Keep the new Shiloh policy key.
-- `WHATSAPP_BOOKING_UPDATE_ENABLED` — no longer controls production retry selection after the verified Shiloh policy cutover. Remaining code references gate dormant injected Meta delivery fixtures and a template contract; production automated Meta delivery stays blocked independently. The Render key can be removed after the code release reaches live.
+- `WHATSAPP_BOOKING_UPDATE_ENABLED` — removed from Render after the verified Shiloh policy cutover. Same-commit deploy `dep-datujc893c1s73c2r04g` reached live with booking retry enabled, the new Shiloh policy configured, and `/health` 200. Remaining code references gate dormant injected Meta delivery fixtures and a template contract; production automated Meta delivery stays blocked independently.
 
 ## Retired runtime authority — external secret removal pending
 
