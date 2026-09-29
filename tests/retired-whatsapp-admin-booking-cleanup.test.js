@@ -6,16 +6,13 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
-test('ordinary WhatsApp staff booking remains retired while client and approval routes stay connected', () => {
-  const webhook = read('src/controllers/webhookController.js');
-  const retirement = read('src/services/adminAuthorityRetirement.js');
-  assert.match(webhook, /processAdminRetiredAuthorityMessage\(from,text\)/);
-  assert.match(retirement, /'make a booking'/);
-  assert.doesNotMatch(webhook, /processAdminMobileBookingFlowMessage|adminMobileBookingFlow/);
-  assert.match(webhook, /processClientBookingProposalMessage\(from,text\)/);
-  assert.match(webhook, /processRescheduleApprovalDecision\(from,text\)/);
-  assert.match(webhook, /processBookingMessage\(from,text\)/);
-  assert.match(webhook, /activeHumanHandoff/);
+test('the mounted WhatsApp route acknowledges messages without loading the retired staff controller', () => {
+  const app = read('app.js');
+  const webhook = read('src/routes/webhook.js');
+  assert.match(app, /require\("\.\/src\/routes\/webhook"\)/);
+  assert.match(webhook, /processWhatsAppStatusWebhook/);
+  assert.match(webhook, /\(_req, res\) => res\.sendStatus\(200\)/);
+  assert.doesNotMatch(app + webhook, /webhookController|adminMobileBookingFlow|processAdminMobileBookingFlowMessage/);
 });
 
 test('retired staff booking modules are not loaded at startup', () => {
