@@ -4,7 +4,6 @@ const router = express.Router();
 const logger = require('../lib/logger');
 const { processWhatsAppStatusWebhook } = require("../controllers/whatsappStatusWebhookController");
 const { myShilohWhatsAppAuthMiddleware } = require("../middleware/myShilohWhatsAppAuth");
-const { staffWhatsAppPasskeyBootstrapMiddleware } = require("../middleware/staffWhatsAppPasskeyBootstrap");
 
 router.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
@@ -21,9 +20,8 @@ router.post(
   "/webhook",
   processWhatsAppStatusWebhook,
   myShilohWhatsAppAuthMiddleware,
-  staffWhatsAppPasskeyBootstrapMiddleware,
-  // Ordinary WhatsApp conversations now belong to human Reception. Keep the
-  // webhook for delivery receipts and the temporary authentication fallbacks.
+  // Preserve client authentication fallback and delivery receipts. Staff
+  // device enrollment now requires administrator-approved SMS verification.
   (_req, res) => res.sendStatus(200),
 );
 

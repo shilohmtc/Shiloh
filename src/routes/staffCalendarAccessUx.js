@@ -38,7 +38,7 @@ function withPasskeyReentry(html) {
 }
 
 // Compatibility seam for #804 callers. #829 deliberately removes the normal-page
-// first-device explanatory card without changing the underlying WhatsApp bootstrap flow.
+// first-device explanatory card; administrator-approved SMS handles recovery.
 function withWhatsAppBootstrapGuidance(html) {
   return String(html || '');
 }
