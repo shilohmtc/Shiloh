@@ -40,11 +40,16 @@ test('retired birthday template provider inspection is not mounted', () => {
   assert.doesNotMatch(source, /getBirthdayTemplateStatus|inspectMetaTemplateInventory/);
 });
 
-test('birthday template submission is an explicit guarded maintenance write', () => {
+test('retired birthday Meta template cannot be submitted or selected for delivery', async () => {
   const source = fs.readFileSync(path.join(__dirname, '../scripts/maintenance.js'), 'utf8');
-  assert.match(source, /'birthday-template-status'/);
-  assert.match(source, /'birthday-template-submit'/);
-  assert.match(source, /'birthday-template-submit':\s*\{\s*mutates:\s*true/);
-  assert.match(source, /Refusing mutating maintenance command/);
-  assert.doesNotMatch(source, /birthday-template-submit[\s\S]{0,500}mayMessage:\s*true/);
+  const provisioner = require('../src/services/birthdayTemplateProvisioning');
+  const { getShilohMessageContract } = require('../src/services/shilohMessageContracts');
+  const { getMetaTemplateBindingSpec, buildMetaTemplateRegistrationPayload } = require('../src/services/metaTemplateAdapter');
+  const { assertTemplateSendAllowed } = require('../src/services/metaTemplateContracts');
+  assert.doesNotMatch(source, /'birthday-template-status'|'birthday-template-submit'/);
+  assert.equal(provisioner.submitBirthdayTemplate, undefined);
+  assert.equal(getShilohMessageContract('birthday_v2').sendable, false);
+  assert.equal(getMetaTemplateBindingSpec('birthday_v2').env, null);
+  assert.throws(() => buildMetaTemplateRegistrationPayload('birthday_v2'), /Retired Shiloh message contract/);
+  await assert.rejects(() => assertTemplateSendAllowed(TEMPLATE_NAME), /not an approved Shiloh send contract/);
 });

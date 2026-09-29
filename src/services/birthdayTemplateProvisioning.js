@@ -129,7 +129,7 @@ async function getBirthdayTemplateStatus() {
       reason: 'waba_not_discovered',
       templateName: TEMPLATE_NAME,
       legacyTemplateName: LEGACY_TEMPLATE_NAME,
-      configuredTemplateName: process.env.WHATSAPP_BIRTHDAY_TEMPLATE || null,
+      configuredTemplateName: null,
     };
   }
   const templates = await listTemplates(wabaId);
@@ -140,32 +140,10 @@ async function getBirthdayTemplateStatus() {
     wabaId,
     templateName: TEMPLATE_NAME,
     legacyTemplateName: LEGACY_TEMPLATE_NAME,
-    configuredTemplateName: process.env.WHATSAPP_BIRTHDAY_TEMPLATE || null,
+    configuredTemplateName: null,
     template: sanitizeTemplate(target),
     legacyTemplate: sanitizeTemplate(legacy),
     definition: buildBirthdayTemplateDefinition(),
-  };
-}
-
-async function submitBirthdayTemplate() {
-  const status = await getBirthdayTemplateStatus();
-  if (!status.ok) return status;
-  if (status.template) return { ...status, submitted: false, reason: 'already_exists' };
-  const response = await axios.post(
-    graphUrl(`${status.wabaId}/message_templates`),
-    buildBirthdayTemplateDefinition(),
-    graphConfig()
-  );
-  return {
-    ok: true,
-    wabaId: status.wabaId,
-    templateName: TEMPLATE_NAME,
-    submitted: true,
-    provider: {
-      id: response.data?.id || null,
-      status: response.data?.status || null,
-      category: response.data?.category || TEMPLATE_CATEGORY,
-    },
   };
 }
 
@@ -179,5 +157,4 @@ module.exports = {
   buildBirthdayTemplateDefinition,
   discoverWabaId,
   getBirthdayTemplateStatus,
-  submitBirthdayTemplate,
 };
