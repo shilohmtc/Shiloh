@@ -65,6 +65,16 @@ const CONTRACT_LIFECYCLE = Object.freeze({
   birthday_v1: 'retired',
   appointment_followup_legacy: 'retired',
   appointment_reminder_legacy: 'retired',
+  payment_deposit_request: 'retired',
+  payment_deposit_request_v2: 'retired',
+  payment_deposit_received: 'retired',
+  payment_balance_due: 'retired',
+  payment_split_request: 'retired',
+  payment_received: 'retired',
+  payment_not_verified: 'retired',
+  payment_refund_update: 'retired',
+  payment_voucher_request: 'retired',
+  payment_voucher_issued: 'retired',
 });
 
 function clone(value) {

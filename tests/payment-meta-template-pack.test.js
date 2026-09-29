@@ -9,9 +9,9 @@ const {
 const {
   META_TEMPLATE_BINDINGS,
   buildMetaTemplateRegistrationPayload,
-  configuredMetaTemplateName,
 } = require('../src/services/metaTemplateAdapter');
 const { getShilohMessageContract } = require('../src/services/shilohMessageContracts');
+const { assertTemplateSendAllowed } = require('../src/services/metaTemplateContracts');
 
 const EXPECTED = Object.freeze([
   ['payment_deposit_request', 'shiloh_payment_deposit_request_v1'],
@@ -67,21 +67,17 @@ test('payment copy preserves verified financial and booking truth', () => {
   assert.match(voucher, /issued only after Shiloh verifies the payment/);
 });
 
-test('payment contracts are registrable and deposit v2 has a safe default binding', () => {
+test('historical payment contracts cannot be registered or sent', async () => {
   for (const [contractId, templateName] of EXPECTED) {
     const contract = getShilohMessageContract(contractId);
     const binding = META_TEMPLATE_BINDINGS.find((item) => item.contractId === contractId);
-    assert.equal(contract.lifecycle, 'current');
-    assert.equal(contract.sendable, true);
+    assert.equal(contract.lifecycle, 'retired');
+    assert.equal(contract.sendable, false);
     assert.equal(binding.templateName, templateName);
-    if (contractId === 'payment_deposit_request_v2') {
-      assert.equal(binding.env, null);
-      assert.equal(configuredMetaTemplateName(contractId, {}), templateName);
-    } else {
-      assert.match(binding.env, /^WHATSAPP_PAYMENT_/);
-      assert.equal(configuredMetaTemplateName(contractId, {}), null);
-    }
-    assert.equal(buildMetaTemplateRegistrationPayload(contractId).name, templateName);
+    assert.equal(binding.env, null);
+    assert.equal(DEFINITIONS[contractId].env, null);
+    assert.throws(() => buildMetaTemplateRegistrationPayload(contractId), /Retired Shiloh message contract cannot be registered/);
+    await assert.rejects(() => assertTemplateSendAllowed(templateName), /not an approved Shiloh send contract/);
   }
 });
 
@@ -90,13 +86,11 @@ test('payment pack contains no promotional or review-request language', () => {
   assert.doesNotMatch(serialized, /special|discount|promotion|review us|rate us|limited time/i);
 });
 
-test('release startup does not provision retired Meta deposit templates', () => {
+test('release startup and tooling do not provision retired Meta deposit templates', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
-  const provisioning = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'paymentDepositTemplateProvisioning.js'), 'utf8');
   assert.doesNotMatch(pkg.scripts.start, /provision-payment-deposit-template-v2\.js/);
-  assert.match(provisioning, /shiloh_payment_deposit_request_v2/);
-  assert.match(provisioning, /already_exists/);
-  assert.match(provisioning, /message_templates/);
+  assert.equal(fs.existsSync(path.join(__dirname, '..', 'src', 'services', 'paymentDepositTemplateProvisioning.js')), false);
+  assert.equal(fs.existsSync(path.join(__dirname, '..', 'scripts', 'provision-payment-deposit-template-v2.js')), false);
 });
