@@ -120,7 +120,7 @@ test('calendar viewer authority is derived only from current canonical server au
   }), null);
 });
 
-test('WhatsApp challenge provider adapter is dark by default and only uses injected provider when explicitly enabled', async () => {
+test('retired WhatsApp challenge adapter stays dark even when the old flag is enabled', async () => {
   let calls = 0;
   const disabled = challengeDelivery.createStaffBrowserChallengeDispatcher({
     env: {},
@@ -129,19 +129,11 @@ test('WhatsApp challenge provider adapter is dark by default and only uses injec
   assert.equal(disabled, null);
   assert.equal(calls, 0);
 
-  let delivered;
   const enabled = challengeDelivery.createStaffBrowserChallengeDispatcher({
     env: { SHILOH_STAFF_BROWSER_AUTH_WHATSAPP_DELIVERY_ENABLED: 'true' },
-    sendMessage: async (to, message) => { delivered = { to, message }; return { messages: [{ id: 'mocked' }] }; },
+    sendMessage: async () => { calls += 1; },
   });
-  await enabled({
-    destination: '+27821234567',
-    code: 'ABCDEFGHJK',
-    expiresAt: new Date(Date.now() + 5 * 60 * 1000),
-  });
-  assert.equal(delivered.to, '+27821234567');
-  assert.match(delivered.message, /Shiloh staff sign-in code is ABCDEFGHJK/);
-  assert.doesNotMatch(delivered.message, /booking created|booking confirmed/i);
+  assert.equal(enabled, null);
   assert.equal(calls, 0);
 });
 

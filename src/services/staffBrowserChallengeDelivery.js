@@ -1,7 +1,9 @@
 const DELIVERY_FLAG = 'SHILOH_STAFF_BROWSER_AUTH_WHATSAPP_DELIVERY_ENABLED';
 
 function isStaffBrowserWhatsAppDeliveryEnabled(env = process.env) {
-  return String(env[DELIVERY_FLAG] || '').trim().toLowerCase() === 'true';
+  // Keep the old configuration key recognizable, but never enable this retired route.
+  void env;
+  return false;
 }
 
 function createStaffBrowserChallengeDispatcher({ env = process.env, sendMessage = null, sendTemplate = null } = {}) {

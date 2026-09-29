@@ -34,6 +34,7 @@ test('reminder claim uses the canonical booking time and repairs a stale lifecyc
 
   let providerArgs;
   await deliverClaimedReminder(appointment, 'reminder_template', 'actions_template', {
+    env: { SHILOH_META_SIGNIN_ONLY_ENABLED: 'false' },
     send: async (...args) => { providerArgs = args; return { messages: [{ id: 'wamid.test' }] }; },
   });
   assert.equal(providerArgs[2][0], 'Marinda');

@@ -208,70 +208,21 @@ test('staff authentication send gate remains disabled while production delivery 
   await assert.rejects(() => assertTemplateSendAllowed(STAFF_AUTH_TEMPLATE_NAME, STAFF_AUTH_TEMPLATE_LANGUAGE), /delivery gate is disabled/);
 });
 
-test('mocked approved staff authentication dispatch uses template transport and logs no phone or OTP', async () => {
-  const log = mockLog();
-  const phone = '+27821234567';
-  const otp = 'ABCDEFGHJK';
-  let request;
-  const result = await sendStaffAuthTemplate(phone, otp, {
+test('retired staff authentication transport never calls Meta, even with old credentials', async () => {
+  let requests = 0;
+  await assert.rejects(() => sendStaffAuthTemplate('+27821234567', 'ABCDEFGHJK', {
     env: { PHONE_NUMBER_ID: 'phone-id', WHATSAPP_TOKEN: 'provider-secret' },
-    log,
-    assertAllowed: async (name, language) => {
-      assert.equal(name, STAFF_AUTH_TEMPLATE_NAME);
-      assert.equal(language, STAFF_AUTH_TEMPLATE_LANGUAGE);
-      return { ready: true };
-    },
-    post: async (url, body, config) => {
-      request = { url, body, config };
-      return { data: { messages: [{ id: 'wamid.mocked-approved' }] } };
-    },
-  });
-  assert.equal(result.messages[0].id, 'wamid.mocked-approved');
-  assert.equal(request.body.type, 'template');
-  assert.equal(request.body.template.name, STAFF_AUTH_TEMPLATE_NAME);
-  assert.equal(request.body.template.language.code, STAFF_AUTH_TEMPLATE_LANGUAGE);
-  assert.equal(request.body.template.components[0].parameters[0].text, otp);
-  assert.equal(request.body.template.components[1].parameters[0].text, otp);
-  assert.equal(request.body.template.components[1].sub_type, 'url');
-  const logs = JSON.stringify(log.entries);
-  assert.doesNotMatch(logs, /27821234567/);
-  assert.doesNotMatch(logs, /ABCDEFGHJK/);
-  assert.doesNotMatch(logs, /provider-secret/);
+    post: async () => { requests += 1; },
+  }), { code: 'META_SIGNIN_ONLY' });
+  assert.equal(requests, 0);
 });
 
-test('mocked provider rejection fails closed and logs only sanitized evidence', async () => {
-  const log = mockLog();
-  const phone = '+27821234567';
-  const otp = 'ABCDEFGHJK';
-  const token = 'EAAabcdefghijklmnopqrstuvwxyz1234567890';
-  await assert.rejects(() => sendStaffAuthTemplate(phone, otp, {
-    env: { PHONE_NUMBER_ID: 'phone-id', WHATSAPP_TOKEN: 'provider-secret' },
-    log,
-    assertAllowed: async () => ({ ready: true }),
-    post: async () => {
-      const error = new Error('raw provider error');
-      error.response = { status: 400, data: { error: { code: 131026, message: `Cannot deliver to ${phone}; OTP ${otp}; Bearer ${token}` } } };
-      throw error;
-    },
-  }), (error) => error.code === 'STAFF_AUTH_PROVIDER_REJECTED');
-  const logs = JSON.stringify(log.entries);
-  assert.doesNotMatch(logs, /27821234567/);
-  assert.doesNotMatch(logs, /ABCDEFGHJK/);
-  assert.doesNotMatch(logs, /EAAabcdefghijklmnopqrstuvwxyz1234567890/);
-  assert.doesNotMatch(logs, /provider-secret/);
-  assert.match(logs, /REDACTED/);
-});
-
-test('production challenge dispatcher has no generic free-form WhatsApp dependency', async () => {
-  const source = fs.readFileSync(path.join(__dirname, '../src/services/staffBrowserChallengeDelivery.js'), 'utf8');
-  assert.doesNotMatch(source, /require\(['"]\.\/whatsapp['"]\)/);
-  let delivered;
+test('retired staff challenge dispatcher remains unavailable even with its old flag', () => {
   const dispatcher = createStaffBrowserChallengeDispatcher({
     env: { SHILOH_STAFF_BROWSER_AUTH_WHATSAPP_DELIVERY_ENABLED: 'true' },
-    sendTemplate: async (destination, code) => { delivered = { destination, code }; return { messages: [{ id: 'mocked' }] }; },
+    sendTemplate: async () => { throw new Error('must not send'); },
   });
-  await dispatcher({ destination: '+27821234567', code: 'ABCDEFGHJK', expiresAt: new Date(Date.now() + 5 * 60 * 1000) });
-  assert.deepEqual(delivered, { destination: '+27821234567', code: 'ABCDEFGHJK' });
+  assert.equal(dispatcher, null);
 });
 
 test('provider inventory inspection is sanitized and template submission is exactly one mocked request when absent', async () => {

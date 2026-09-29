@@ -2,6 +2,7 @@ const axios = require('axios');
 const logger = require('../lib/logger');
 const { assertTemplateSendAllowed } = require('./metaTemplateContracts');
 const { sanitizeProviderText } = require('./whatsappStatusCallback');
+const { assertNonAuthMetaAllowed } = require('./metaSignInOnly');
 const {
   STAFF_AUTH_TEMPLATE_NAME,
   STAFF_AUTH_TEMPLATE_LANGUAGE,
@@ -21,6 +22,7 @@ function sanitizedMetaFailure(error) {
 }
 
 async function sendStaffAuthTemplate(destination, code, options = {}) {
+  assertNonAuthMetaAllowed();
   const env = options.env || process.env;
   const log = options.log || logger;
   const post = options.post || axios.post.bind(axios);
