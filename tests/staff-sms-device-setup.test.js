@@ -8,6 +8,7 @@ const vm = require('node:vm');
 const { sha256 } = require('../src/services/staffBrowserSession');
 const { createStaffSmsDeviceSetupService } = require('../src/services/staffSmsDeviceSetup');
 const { createStaffPasskeyBootstrapRouter } = require('../src/routes/staffPasskeyBootstrap');
+const { createWorkspaceStaffMutationRouter } = require('../src/routes/workspaceStaffMutations');
 const { workspaceAccessV2ClientScript, staffSmsSetupPanel } = require('../src/presentation/workspaceAccessV2Ux');
 const { bootstrapScript } = require('../src/presentation/staffPasskeyBootstrapUx');
 
@@ -52,6 +53,7 @@ function setup({ smsRow, operator = OPERATOR, staff = STAFF, sendFails = false }
 test('administrator must use a recent passkey and cannot approve their own setup', async () => {
   const s = setup();
   assert.equal((await s.service.issue({ session: { ...session, authMethod: 'whatsapp_otp' }, targetAdminId: 2, mode: 'replace', identityConfirmed: true })).code, 'STAFF_RECENT_STRONG_AUTH_REQUIRED');
+  assert.equal((await s.service.issue({ session: { ...session, authenticatedAt: new Date(NOW.getTime() - 11 * 60 * 1000).toISOString() }, targetAdminId: 2, mode: 'add', identityConfirmed: true })).code, 'STAFF_RECENT_STRONG_AUTH_REQUIRED');
   assert.equal((await s.service.issue({ session, targetAdminId: 1, mode: 'add', identityConfirmed: true })).code, 'STAFF_SMS_SETUP_FORBIDDEN');
   assert.equal((await s.service.issue({ session, targetAdminId: 2, mode: 'add', identityConfirmed: false })).code, 'STAFF_SMS_SETUP_FORBIDDEN');
   assert.equal(s.smsCount, 0);
@@ -117,6 +119,23 @@ test('administrator and phone scripts parse and the approval screen labels revoc
   assert.match(html, /Send SMS setup code/);
   assert.match(html, /after setup/);
   assert.match(html, /identity/);
+  assert.match(html, /passkey within the last 10 minutes/);
+});
+
+test('expired administrator authentication gives actionable guidance without weakening forbidden responses', async () => {
+  let resultCode = 'STAFF_RECENT_STRONG_AUTH_REQUIRED';
+  const router = createWorkspaceStaffMutationRouter({ sessionService: {},
+    staffSmsDeviceSetupService: { async issue() { return { ok: false, code: resultCode }; } } });
+  const handler = router.stack.find(layer => layer.route?.path === '/workspace-access/:id/sms-device-setup').route.stack.at(-1).handle;
+  const req = { params: { id: '2' }, body: { mode: 'add', identityConfirmed: true }, staffBrowserSession: session, id: 'test' };
+  const res = { status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; return this; } };
+  await handler(req, res, error => { throw error; });
+  assert.equal(res.statusCode, 428);
+  assert.match(res.body.error, /sign in again with an authorized administrator passkey/i);
+  resultCode = 'STAFF_SMS_SETUP_FORBIDDEN';
+  await handler(req, res, error => { throw error; });
+  assert.equal(res.statusCode, 403);
+  assert.doesNotMatch(res.body.error, /sign in again/i);
 });
 
 test('the SMS code entry page serves a parseable client script without storing the code in a URL', () => {

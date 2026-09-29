@@ -229,10 +229,15 @@ function createWorkspaceStaffMutationRouter({
         mode: req.body?.mode, identityConfirmed: req.body?.identityConfirmed === true,
         requestFingerprintHash: requestFingerprintHash(req),
       });
-      if (!result.ok) return res.status(result.code === 'STAFF_RECENT_STRONG_AUTH_REQUIRED' ? 428
-        : result.code === 'STAFF_SMS_SETUP_FORBIDDEN' ? 403
+      if (!result.ok) {
+        if (result.code === 'STAFF_RECENT_STRONG_AUTH_REQUIRED') return res.status(428).json({
+          error: 'Sign out, then sign in again with an authorized administrator passkey. Return here and send the SMS setup code within 10 minutes.',
+          requestId: req.id,
+        });
+        return res.status(result.code === 'STAFF_SMS_SETUP_FORBIDDEN' ? 403
           : result.code === 'STAFF_SMS_SETUP_RATE_LIMITED' ? 429 : 503)
-        .json({ error: 'Staff device setup is unavailable or not authorized. Check your access and try again.', requestId: req.id });
+          .json({ error: 'Staff device setup is unavailable or not authorized. Check your access and try again.', requestId: req.id });
+      }
       return res.status(201).json({ url: result.url, expiresAt: result.expiresAt });
     } catch (error) { return next(error); }
   });
