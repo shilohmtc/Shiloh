@@ -180,6 +180,16 @@ async function main() {
     assert.equal(manifest.start_url, '/calendar/pwa/launch');
     assert.deepEqual(manifest.icons.map(icon => [icon.sizes, icon.type, icon.purpose]), [['192x192','image/png','any'],['512x512','image/png','any'],['512x512','image/png','maskable']]);
 
+    const installProfile = path.join(temp, 'install-profile');
+    const installPng = path.join(OUT_DIR, 'install-doorway-390x844.png');
+    await captureScreenshot(chrome, [`--user-data-dir=${installProfile}`, androidUa, '--window-size=390,844', `--screenshot=${installPng}`, `${origin}/calendar/pwa/install`], installPng);
+    const installDom = await chromeRun(chrome, [`--user-data-dir=${installProfile}`, androidUa, '--window-size=390,844', '--virtual-time-budget=1800', '--dump-dom', `${origin}/calendar/pwa/install`]);
+    assert.match(installDom, /<h1>Install Shiloh Workspace<\/h1>/);
+    assert.match(installDom, /data-workspace-install-doorway/);
+    assert.match(installDom, /Open in Chrome/);
+    assert.match(installDom, /manifest\.webmanifest\?v=official-brand-v2/);
+    assert.doesNotMatch(installDom, /Use existing passkey|data-authenticated-workspace/);
+
     const phoneProfile = path.join(temp, 'phone-profile');
     const phonePng = path.join(OUT_DIR, 'phone-390x844.png');
     await captureScreenshot(chrome, [`--user-data-dir=${phoneProfile}`, androidUa, '--window-size=390,844', `--screenshot=${phonePng}`, `${origin}/proof-auth`], phonePng);
@@ -217,6 +227,7 @@ async function main() {
       syntheticOnly: true,
       productionCredentialMutation: false,
       manifest: { name: manifest.name, display: manifest.display, startUrl: manifest.start_url, scope: manifest.scope },
+      installDoorway: { unauthenticated: true, screenshot: path.basename(installPng), sha256: sha256(installPng) },
       authenticatedPhone: { viewport: '390x844', rootHorizontalOverflow: false, screenshot: path.basename(phonePng), sha256: sha256(phonePng) },
       authenticatedDesktop: { viewport: '1440x900', rootHorizontalOverflow: false, pwaExposed: false, screenshot: path.basename(desktopPng), sha256: sha256(desktopPng) },
       expiredSession: { redirectedToCanonicalEntry: true, persistentStaleWarning: false, screenshot: path.basename(expiredPng), sha256: sha256(expiredPng) },
