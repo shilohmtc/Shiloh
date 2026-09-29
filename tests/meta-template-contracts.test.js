@@ -42,11 +42,11 @@ test('send gate rejects arbitrary names, disabled booking update and legacy iden
  process.env.WHATSAPP_BOOKING_UPDATE_TEMPLATE='shiloh_booking_update_v1';
  await assert.rejects(()=>assertTemplateSendAllowed('shiloh_booking_update_v1'),/gate is disabled/);
 });
-test('reschedule approval transport stays disabled even when provider-ready until feature activation',async()=>{
+test('retired reschedule approval transport stays disabled even when provider-ready',async()=>{
  process.env.WHATSAPP_BUSINESS_ACCOUNT_ID='hidden';
  process.env.WHATSAPP_RESCHEDULE_APPROVAL_REQUEST_TEMPLATE='shiloh_reschedule_approval_request_v1';
  process.env.WHATSAPP_RESCHEDULE_DECLINED_TEMPLATE='shiloh_reschedule_declined_v1';
- process.env.WHATSAPP_RESCHEDULE_APPROVAL_ENABLED='false';
+ process.env.WHATSAPP_RESCHEDULE_APPROVAL_ENABLED='true';
  const request=CONTRACTS.find(x=>x.key==='reschedule_approval_request');
  const declined=CONTRACTS.find(x=>x.key==='reschedule_declined');
  axios.get=async()=>({data:{data:[{id:'request',status:'APPROVED',...request.contract},{id:'declined',status:'APPROVED',...declined.contract}]}});
