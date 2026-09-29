@@ -98,7 +98,7 @@ test('preview blocks missing recipient and disabled Workspace provider gate befo
   const second = await noChannel.getPreview({ adminId: 7, clientId: 41 });
   assert.equal(second.canSend, false);
   assert.equal(second.reason, 'channel_unavailable');
-  assert.match(second.reasonMessage, /delivery gate is disabled/);
+  assert.match(second.reasonMessage, /Automated WhatsApp booking confirmations are retired/);
 });
 
 test('provider-unready state fails closed before the existing sender can be invoked', async () => {

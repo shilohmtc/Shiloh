@@ -34,18 +34,10 @@ test('birthday template v2 is brand-correct, stable and non-promotional', () => 
   assert.doesNotMatch(body.text, /discount|sale|offer|book now/i);
 });
 
-test('birthday provider status endpoint is read-only, sanitized and brand-gated', () => {
+test('retired birthday template provider inspection is not mounted', () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/routes/auditRead.js'), 'utf8');
-  assert.match(source, /\/birthday-template\/status/);
-  assert.match(source, /getBirthdayTemplateStatus/);
-  assert.match(source, /submittedCopyUsesCurrentBrand/);
-  assert.match(source, /safeToEnable/);
-  assert.match(source, /provider\.template\?\.status === "APPROVED" && submittedCopyUsesCurrentBrand/);
-  assert.match(source, /legacyProviderStatus/);
-  assert.doesNotMatch(source, /wabaId\s*:/);
-  assert.doesNotMatch(source, /templateId\s*:/);
-  assert.doesNotMatch(source, /WHATSAPP_TOKEN\s*:/);
-  assert.doesNotMatch(source, /sendWhatsApp/);
+  assert.doesNotMatch(source, /\/birthday-template\/status|\/meta-templates\/status/);
+  assert.doesNotMatch(source, /getBirthdayTemplateStatus|inspectMetaTemplateInventory/);
 });
 
 test('birthday template submission is an explicit guarded maintenance write', () => {

@@ -20,8 +20,6 @@ const customerExperienceService = require("./src/services/customerExperience");
 const clientIdentityService = require("./src/services/clientIdentityOnboarding");
 const clientDiscoveryService = require("./src/services/clientDiscoveryMenu");
 const { installClientNavigationPriority } = require("./src/services/clientNavigationPriority");
-const { submitWorkspaceBookingRequestAlertTemplate } = require("./src/services/workspaceBookingRequestAlertTemplateProvisioning");
-const { submitProblemReportResolvedTemplate } = require("./src/services/problemReportResolvedTemplateProvisioning");
 
 observability.initialize();
 validateEnv();
@@ -97,36 +95,6 @@ app.use((err, req, res, next) => {
   return res.status(500).json({ error: "Internal server error", requestId: req.id });
 });
 
-async function provisionWorkspaceBookingRequestAlertIfExplicitlyEnabled() {
-  if (String(process.env.META_WORKSPACE_BOOKING_REQUEST_ALERT_PROVISION_ON_START || '').toLowerCase() !== 'true') return;
-  try {
-    const result = await submitWorkspaceBookingRequestAlertTemplate();
-    logger.info({
-      ok: result?.ok === true,
-      templateName: result?.templateName || null,
-      submitted: result?.submitted === true,
-      reason: result?.reason || null,
-      providerStatus: result?.provider?.status || result?.verification?.status || result?.template?.status || null,
-      providerCategory: result?.provider?.category || result?.verification?.category || result?.template?.category || null,
-      providerLanguage: result?.verification?.language || result?.template?.language || null,
-      exact: result?.verification?.exact ?? result?.template?.exact ?? null,
-      duplicateCount: result?.duplicateCount ?? null,
-    }, "Workspace booking request alert provisioning checked");
-  } catch (error) {
-    logger.error({ err: error, metaError: error.response?.data?.error }, "Workspace booking request alert provisioning failed");
-  }
-}
-
-async function provisionProblemReportResolvedTemplateIfExplicitlyEnabled() {
-  if (String(process.env.META_PROBLEM_REPORT_RESOLVED_PROVISION_ON_START || '').toLowerCase() !== 'true') return;
-  try {
-    const result = await submitProblemReportResolvedTemplate();
-    logger.info(result, 'Problem report resolved template provisioning checked');
-  } catch (error) {
-    logger.error({ err: error, metaError: error.response?.data?.error }, 'Problem report resolved template provisioning failed');
-  }
-}
-
 const PORT = process.env.PORT || 3000; let server;
 async function start() {
   const migrationAuthority = await verifyMigrationState();
@@ -135,8 +103,6 @@ async function start() {
   logger.info({ initialized: true, migrationAppliedNow: false, identityContractVersion: 'whatsapp_crm_identity_compat_v1', legacyCompatibility: true, crmV2RegistrationActive: true, registrationBoundary: 'crmV2ClientService.registerWhatsAppClient' }, "WhatsApp CRM V2 identity compatibility schema verified");
   await ensureBookingConfirmationDeliverySchema(); logger.info({ initialized: true, migrations: ['071_booking_confirmation_template_evidence.sql', '083_initial_booking_confirmation_guarantee.sql', '085_calendar_clean_crm_v2_cutover.sql'], migrationAppliedNow: false, checksumVerified: true, durableRetryColumns: true, crmV2RecipientSnapshots: true }, "Booking confirmation delivery evidence schema verified");
   try { await runConfiguredClientProvenanceAudit(logger); } catch (error) { logger.error({ err: error }, "Read-only CRM provenance audit failed"); }
-  await provisionWorkspaceBookingRequestAlertIfExplicitlyEnabled();
-  await provisionProblemReportResolvedTemplateIfExplicitlyEnabled();
   server = app.listen(PORT, () => { logger.info({ port: PORT }, "Shiloh started"); startConversationSessionCleanupScheduler(); startClientWhatsAppContinuationCleanupScheduler(); startTemporarySessionCleanupScheduler(); startGoogleBusinessProfileSyncScheduler(); startAppointmentLifecycleScheduler(); startCustomerCareScheduler(); startBookingIntegrityScheduler(); startCustomerBookingConfirmationScheduler(); startConsultationFormDeliveryScheduler(); startMandatoryDemoCleanupScheduler(); startAttendanceFinalizationReminderScheduler(); startHistoricalFinalizationPromptScheduler(); startProblemReportNotificationScheduler(); setTimeout(logMyShilohCutoverCoverage, 15000).unref(); });
 }
 start().catch(async (error) => {

@@ -21,6 +21,9 @@ test('Meta webhook verifies subscriptions and acknowledges ordinary messages wit
     assert.equal(await verified.text(), 'challenge-123');
     const rejected = await fetch(`${base}?hub.mode=subscribe&hub.verify_token=wrong&hub.challenge=challenge-123`);
     assert.equal(rejected.status, 403);
+    delete process.env.VERIFY_TOKEN;
+    const missingCredential = await fetch(`${base}?hub.mode=subscribe&hub.challenge=challenge-123`);
+    assert.equal(missingCredential.status, 403);
     const inbound = await fetch(base, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ entry: [{ changes: [{ value: {
