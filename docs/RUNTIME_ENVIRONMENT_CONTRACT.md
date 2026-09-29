@@ -12,8 +12,7 @@ This file records the disposition of production environment keys audited in #654
 - `MY_SHILOH_VAPID_PRIVATE_KEY`, `MY_SHILOH_VAPID_PUBLIC_KEY`, `MY_SHILOH_VAPID_SUBJECT` — app push notifications.
 - `SHILOH_CALENDAR_READONLY_UX_ENABLED` — current Workspace Calendar feature control.
 - `SHILOH_STAFF_BROWSER_SESSION_CALENDAR_BRIDGE_ENABLED` — current authenticated Workspace Calendar bridge.
-- `WHATSAPP_BOOKING_UPDATE_ENABLED` — temporary booking-update retry fallback while `SHILOH_BOOKING_CHANGE_RETRY_ENABLED` is unset. Keep until the new policy is configured to the observed live decision and the fallback is removed. It never authorizes automated production delivery.
-- `SHILOH_BOOKING_CHANGE_RETRY_ENABLED` — Shiloh-owned retry selection for pending booking updates; literal `true` scans them, literal `false` excludes them. Set to the observed effective decision before removing the old fallback.
+- `SHILOH_BOOKING_CHANGE_RETRY_ENABLED` — Shiloh-owned retry selection for pending booking updates; only literal `true` scans them. The live legacy decision was `true` and the new policy was set to `true` on unchanged #1320 (`dep-datttvvlk1mc73cv1330` live, startup `policyConfigured=true`, `bookingChangeRetryEnabled=true`). The old retry fallback is removed after this verified cutover.
 - `SHILOH_BOOKING_CHANGE_APP_ONLY_ENABLED` — controls My Shiloh booking-change completion and retry selection for eligible CRM V2 clients. The customer-change scheduler no longer provisions Meta templates at startup; the old booking-update flag remains a separate retry-selection dependency pending decoupling.
 - `SHILOH_CLIENT_RESCHEDULE_REQUESTS_ENABLED` — clinic policy for My Shiloh reschedule requests and Calendar holds. Only the literal `true` enables these paths; missing or any other value fails closed. On 2026-09-29 the existing live decision was observed as enabled in the reschedule schema startup log, then this new Render key was set to `true` on the unchanged #1315 commit. Deploy `dep-dats58bncjis739r29g0` reached live and its startup log again reported `featureEnabled=true`.
 - `SHILOH_CLIENT_REMINDER_APP_ONLY_ENABLED` — retained app notification policy. Automated WhatsApp sends are blocked in production; an unaccepted app wake does not prove phone delivery and leaves the reminder retryable.
@@ -56,6 +55,7 @@ These are not credentials and should not remain as durable production configurat
 - `WHATSAPP_BOOKING_APPROVAL_OUTCOME_TEMPLATE`
 - `META_TEMPLATE_INVENTORY_AUDIT_ON_START`
 - `WHATSAPP_RESCHEDULE_APPROVAL_ENABLED` — retired by #1316 after the new Shiloh policy key was confirmed live. Removed from Render; same-commit deploy `dep-datscjou01pc73acdukg` reached live with reschedule `featureEnabled=true` and `/health` 200. Keep the new Shiloh policy key.
+- `WHATSAPP_BOOKING_UPDATE_ENABLED` — no longer controls production retry selection after the verified Shiloh policy cutover. Remaining code references gate dormant injected Meta delivery fixtures and a template contract; production automated Meta delivery stays blocked independently. The Render key can be removed after the code release reaches live.
 
 ## Retired runtime authority — external secret removal pending
 
