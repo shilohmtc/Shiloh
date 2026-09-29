@@ -10,9 +10,9 @@ const {
   bootstrapPolicy,
   evaluateBootstrapPrincipal,
   setupUrl,
-  createStaffWhatsAppPasskeyBootstrapService,
+  createStaffPasskeyDeviceBootstrapService,
   REPLACEMENT_PURPOSE,
-} = require('../src/services/staffWhatsAppPasskeyBootstrap');
+} = require('../src/services/staffPasskeyDeviceBootstrap');
 const { b64url } = require('../src/services/staffPasskeyAuth');
 const {
   withWhatsAppBootstrapGuidance,
@@ -170,22 +170,20 @@ function deterministicRandom() {
   };
 }
 
-test('#804 policy is separately gated and depends on released passkey authority', () => {
+test('device bootstrap depends on SMS and released passkey authority', () => {
   assert.equal(bootstrapPolicy(ENV).operational, true);
   assert.equal(bootstrapPolicy({ ...ENV, SHILOH_STAFF_WHATSAPP_PASSKEY_BOOTSTRAP_ENABLED: 'false' }).operational, true);
-  assert.equal(bootstrapPolicy(ENV).whatsappEnabled, false);
   const smsOnly = { ...ENV, SHILOH_STAFF_WHATSAPP_PASSKEY_BOOTSTRAP_ENABLED: 'false', MY_SHILOH_SMS_AUTH_ENABLED: 'true' };
   assert.equal(bootstrapPolicy(smsOnly).operational, true);
-  assert.equal(bootstrapPolicy(smsOnly).whatsappEnabled, false);
   assert.equal(bootstrapPolicy({ ...ENV, SHILOH_STAFF_PASSKEY_AUTH_ENABLED: 'false' }).operational, false);
+  assert.equal(bootstrapPolicy({ ...ENV, MY_SHILOH_SMS_AUTH_ENABLED: 'false' }).operational, false);
 });
 
-test('SMS device setup can stay enabled while WhatsApp bootstrap is retired', async () => {
+test('SMS device setup remains enabled when the old WhatsApp flag is off', async () => {
   const env = { ...ENV, SHILOH_STAFF_WHATSAPP_PASSKEY_BOOTSTRAP_ENABLED: 'false', MY_SHILOH_SMS_AUTH_ENABLED: 'true' };
   const db = new BootstrapDb();
-  const service = createStaffWhatsAppPasskeyBootstrapService({ db, env });
+  const service = createStaffPasskeyDeviceBootstrapService({ db, env });
   assert.equal(service.policy().operational, true);
-  assert.equal((await service.issueBootstrap({ whatsapp: '27721234567' })).code, 'STAFF_PASSKEY_BOOTSTRAP_DISABLED');
   assert.equal(db.bootstraps.length, 0);
 });
 
@@ -208,11 +206,9 @@ test('#804 secure setup token stays in URL fragment and never in server request 
   assert.equal(new URLSearchParams(url.hash.slice(1)).get('setup'), token);
 });
 
-test('old WhatsApp issuance and unexpired links fail closed even if the old flag remains true', async () => {
+test('old WhatsApp links fail closed even if the old flag remains true', async () => {
   const db = new BootstrapDb();
-  const service = createStaffWhatsAppPasskeyBootstrapService({ db, env: ENV });
-  const issuance = await service.issueBootstrap({ whatsapp: '27721234567' });
-  assert.equal(issuance.code, 'STAFF_PASSKEY_BOOTSTRAP_DISABLED');
+  const service = createStaffPasskeyDeviceBootstrapService({ db, env: ENV });
   assert.equal(db.bootstraps.length, 0);
   const token = Buffer.alloc(32, 9).toString('base64url');
   db.bootstraps.push({ id: 1, admin_id: 44, token_hash: crypto.createHash('sha256').update(token).digest('hex'),
@@ -224,7 +220,7 @@ test('old WhatsApp issuance and unexpired links fail closed even if the old flag
 
 test('administrator-approved SMS link consumes once before WebAuthn', async () => {
   const db = new BootstrapDb();
-  const service = createStaffWhatsAppPasskeyBootstrapService({ db, env: ENV, randomBytes: deterministicRandom() });
+  const service = createStaffPasskeyDeviceBootstrapService({ db, env: ENV, randomBytes: deterministicRandom() });
   const issued = await service.issueApprovedBootstrap(db, 44, 'add');
   assert.equal(issued.ok, true);
   assert.equal(db.bootstraps[0].source, 'admin_sms_add');
@@ -240,7 +236,7 @@ test('administrator-approved SMS link consumes once before WebAuthn', async () =
 test('#932 recent strong Workspace session creates a same-principal one-use setup link without phone lookup', async () => {
   const current = new Date('2026-09-13T10:00:00Z');
   const db = new BootstrapDb();
-  const service = createStaffWhatsAppPasskeyBootstrapService({ db, env: ENV, randomBytes: deterministicRandom(), now: () => current });
+  const service = createStaffPasskeyDeviceBootstrapService({ db, env: ENV, randomBytes: deterministicRandom(), now: () => current });
   const issued = await service.issueSelfBootstrap({
     session: { ok: true, adminId: 44, authMethod: 'passkey', authenticatedAt: current, recoveryRequired: false },
     requestFingerprintHash: 'b'.repeat(64),
@@ -262,17 +258,17 @@ test('#932 recent strong Workspace session creates a same-principal one-use setu
 test('#932 self setup fails closed for weak, recovery-required, stale, or disabled principals', async () => {
   const current = new Date('2026-09-13T10:00:00Z');
   const session = { ok: true, adminId: 44, authMethod: 'passkey', authenticatedAt: current, recoveryRequired: false };
-  const service = createStaffWhatsAppPasskeyBootstrapService({ db: new BootstrapDb(), env: ENV, now: () => current });
+  const service = createStaffPasskeyDeviceBootstrapService({ db: new BootstrapDb(), env: ENV, now: () => current });
   assert.equal((await service.issueSelfBootstrap({ session: { ...session, authMethod: 'recovery_code' } })).code, 'STAFF_RECENT_STRONG_AUTH_REQUIRED');
   assert.equal((await service.issueSelfBootstrap({ session: { ...session, recoveryRequired: true } })).code, 'STAFF_RECENT_STRONG_AUTH_REQUIRED');
   assert.equal((await service.issueSelfBootstrap({ session: { ...session, authenticatedAt: new Date(current.getTime() - 11 * 60 * 1000) } })).code, 'STAFF_RECENT_STRONG_AUTH_REQUIRED');
-  const disabled = createStaffWhatsAppPasskeyBootstrapService({ db: new BootstrapDb([principal({ admin_active: false })]), env: ENV, now: () => current });
+  const disabled = createStaffPasskeyDeviceBootstrapService({ db: new BootstrapDb([principal({ admin_active: false })]), env: ENV, now: () => current });
   assert.equal((await disabled.issueSelfBootstrap({ session })).code, 'STAFF_AUTH_FORBIDDEN');
 });
 
 test('#926 lost-device replacement revokes prior passkeys and sessions only after verified new enrollment', async () => {
   const db = new BootstrapDb();
-  const service = createStaffWhatsAppPasskeyBootstrapService({ db, env: ENV, randomBytes: deterministicRandom(), now: () => new Date('2026-09-13T12:30:00Z') });
+  const service = createStaffPasskeyDeviceBootstrapService({ db, env: ENV, randomBytes: deterministicRandom(), now: () => new Date('2026-09-13T12:30:00Z') });
   const issued = await service.issueApprovedBootstrap(db, 44, 'replace');
   const started = await service.startRegistration({ token: issued.token, mode: 'replace', requestFingerprintHash: 'c'.repeat(64) });
   assert.equal(started.ok, true);
@@ -296,7 +292,7 @@ test('#926 lost-device replacement revokes prior passkeys and sessions only afte
 
 test('#926 invalid replacement mode fails before consuming the one-use setup link', async () => {
   const db = new BootstrapDb();
-  const service = createStaffWhatsAppPasskeyBootstrapService({ db, env: ENV, randomBytes: deterministicRandom(), now: () => new Date('2026-09-13T12:30:00Z') });
+  const service = createStaffPasskeyDeviceBootstrapService({ db, env: ENV, randomBytes: deterministicRandom(), now: () => new Date('2026-09-13T12:30:00Z') });
   const issued = await service.issueApprovedBootstrap(db, 44, 'replace');
   const result = await service.startRegistration({ token: issued.token, mode: 'reset-everything' });
   assert.equal(result.ok, false);
@@ -327,7 +323,7 @@ test('#926 migration adds only purpose-isolated replacement ceremonies', () => {
 
 test('#804 bootstrap route cannot issue a Workspace session until successful passkey finish', () => {
   const route = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'staffPasskeyBootstrap.js'), 'utf8');
-  const service = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'staffWhatsAppPasskeyBootstrap.js'), 'utf8');
+  const service = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'staffPasskeyDeviceBootstrap.js'), 'utf8');
   assert.match(route, /router\.post\('\/bootstrap\/start', sameOrigin/);
   assert.match(route, /router\.post\('\/bootstrap\/finish', sameOrigin/);
   assert.match(service, /verifyRegistrationResponse/);

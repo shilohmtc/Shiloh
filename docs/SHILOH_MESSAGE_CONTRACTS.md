@@ -34,7 +34,7 @@ Retired identities remain in the registry for historical provider reconciliation
 - `appointment_reminder_legacy`
 - `client_auth_otp` (retired after My Shiloh switched to passkeys and SMS)
 
-The retired client OTP provisioner and its standalone script were removed. Existing Meta template records, if any, do not confer sign-in authority. Staff passkey registration shared with SMS device setup remains active even where older filenames mention WhatsApp.
+The retired client OTP provisioner and its standalone script were removed. Existing Meta template records, if any, do not confer sign-in authority. Staff passkey registration shared with SMS device setup remains active in `src/services/staffPasskeyDeviceBootstrap.js`. The retired WhatsApp phone lookup and issuance methods were removed; historical database sources and migrations remain for validation and audit.
 
 ## Provider-neutral contract identity
 

@@ -3,7 +3,7 @@ const QRCode = require('qrcode');
 const { pool } = require('../db/pool');
 const { createStaffBrowserSessionService } = require('../services/staffBrowserSession');
 const { createStaffPasskeyAuthService, normalizeCredentialHint, defaultDeviceLabel } = require('../services/staffPasskeyAuth');
-const { createStaffWhatsAppPasskeyBootstrapService } = require('../services/staffWhatsAppPasskeyBootstrap');
+const { createStaffPasskeyDeviceBootstrapService } = require('../services/staffPasskeyDeviceBootstrap');
 const { managePage, manageScript } = require('../presentation/staffPasskeyUx');
 const {
   sameOriginGuard,
@@ -55,7 +55,7 @@ function createStaffPasskeyAuthRouter({
   env = process.env,
   sessionService = createStaffBrowserSessionService({ db: pool }),
   passkeyService = createStaffPasskeyAuthService({ db: pool, env }),
-  bootstrapService = createStaffWhatsAppPasskeyBootstrapService({ db: pool, env }),
+  bootstrapService = createStaffPasskeyDeviceBootstrapService({ db: pool, env }),
   qrCode = QRCode,
 } = {}) {
   const router = express.Router();

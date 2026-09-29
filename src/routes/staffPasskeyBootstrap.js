@@ -2,7 +2,7 @@
 
 const express = require('express');
 const { pool } = require('../db/pool');
-const staffWhatsAppPasskeyBootstrap = require('../services/staffWhatsAppPasskeyBootstrap');
+const staffPasskeyDeviceBootstrap = require('../services/staffPasskeyDeviceBootstrap');
 const { bootstrapPage, bootstrapScript } = require('../presentation/staffPasskeyBootstrapUx');
 const {
   sameOriginGuard,
@@ -15,7 +15,7 @@ const { createStaffSmsDeviceSetupService } = require('../services/staffSmsDevice
 
 function createStaffPasskeyBootstrapRouter({
   env = process.env,
-  bootstrapService = staffWhatsAppPasskeyBootstrap,
+  bootstrapService = staffPasskeyDeviceBootstrap,
   smsSetupService = createStaffSmsDeviceSetupService({ env }),
 } = {}) {
   if (!bootstrapService || typeof bootstrapService.startRegistration !== 'function') throw new Error('staff passkey bootstrap service is required');
