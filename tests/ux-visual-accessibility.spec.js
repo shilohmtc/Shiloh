@@ -1640,7 +1640,7 @@ test('iPhone install invitation opens an accessible three-step guide without ove
 
   const host = page.locator('[data-shiloh-ios-install]');
   const opener = host.getByRole('button', { name: 'Show me how' });
-  const dialog = host.getByRole('dialog', { name: 'Install Shiloh on iPhone' });
+  const dialog = host.getByRole('dialog', { name: 'Install Shiloh Workspace on iPhone' });
   await expect(host).toBeVisible();
   await expect(dialog).toBeHidden();
   await opener.click();

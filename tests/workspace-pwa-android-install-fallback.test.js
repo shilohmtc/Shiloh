@@ -9,7 +9,7 @@ test('#837 Android install UI waits for a genuine Chromium install prompt', () =
   const client = workspacePwaClientScript();
   assert.match(client, /function androidDevice\(\).*Android/s);
   assert.match(client, /function installAction\(\)\{if\(!androidDevice\(\)\|\|standalone\(\)\|\|!deferredInstallPrompt\)/);
-  assert.match(client, /Install Shiloh on this Android phone/);
+  assert.match(client, /Install Shiloh Workspace on this Android phone/);
   assert.doesNotMatch(client, /tap the ⋮ menu, then choose Install app or Add to Home screen/);
   assert.match(client, /beforeinstallprompt',event=>\{if\(!androidDevice\(\)\|\|standalone\(\)\)return/);
 });
@@ -20,7 +20,7 @@ test('#837 native Chromium prompt enables the single Android install control', (
   const initialRenderAt = client.indexOf('installGuidance();installAction();');
   assert.ok(listenerAt >= 0 && initialRenderAt > listenerAt, 'capture listener must be installed before initial install UI evaluation');
   assert.match(client, /beforeinstallprompt[\s\S]*event\.preventDefault\(\)[\s\S]*deferredInstallPrompt=event[\s\S]*removeInstallCard\('\[data-shiloh-browser-install\]'\)[\s\S]*installAction\(\)/);
-  assert.match(client, /button\.textContent='Install Shiloh'/);
+  assert.match(client, /button\.textContent='Install Shiloh Workspace'/);
   assert.match(client, /await prompt\.prompt\(\)/);
   assert.match(client, /userChoice/);
 });
