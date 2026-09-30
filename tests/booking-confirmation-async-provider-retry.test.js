@@ -52,13 +52,10 @@ test('automatic async-provider retry is capped and routed through canonical reco
   assert.match(scanner, /provider_failed_at>provider_sent_at/);
 });
 
-test('Manage Appointment loads sanitized confirmation evidence and reuses the canonical recovery endpoint', () => {
+test('Manage Appointment checks canonical My Shiloh availability without retired delivery/recovery UI', () => {
   const script = calendarOperationalMutationsClientScript();
   assert.match(script, /data-panel-confirmation/);
-  assert.match(script, /booking-confirmation/);
-  assert.match(script, /Booking confirmation: /);
-  assert.match(script, /WORKSPACE_CLIENT_NOTIFY_FORBIDDEN/);
-  assert.match(script, /data-booking-confirmation-recover/);
-  assert.match(script, /booking-confirmation\/recover/);
-  assert.doesNotMatch(script, /provider_message_id|providerError|provider_error/);
+  assert.match(script, /my-shiloh-availability/);
+  assert.match(script, /App availability unavailable/);
+  assert.doesNotMatch(script, /booking-confirmation|data-booking-confirmation-recover|Last evidence|provider_message_id|providerError|provider_error/);
 });

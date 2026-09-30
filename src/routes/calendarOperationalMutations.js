@@ -120,6 +120,17 @@ function createCalendarOperationalMutationRouter({
     return res.redirect(302, '/calendar/messages?view=attention');
   });
 
+  router.get('/appointments/:appointmentId/my-shiloh-availability', requireSession, requireCapability, async (req, res, next) => {
+    try {
+      return res.status(200).json(await notesService.getMyShilohAvailability({
+        adminId: req.staffBrowserSession.adminId,
+        appointmentId: req.params.appointmentId,
+      }));
+    } catch (error) {
+      return sendOperationalError(error, req, res, next);
+    }
+  });
+
   router.get('/appointments/:appointmentId/booking-confirmation', requireSession, requireNotificationCapability, async (req, res, next) => {
     try {
       const result = await notificationService.getAppointmentConfirmation({

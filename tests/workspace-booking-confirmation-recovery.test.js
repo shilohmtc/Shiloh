@@ -185,7 +185,8 @@ test('Messages attention shows truthful recovery state without provider internal
   assert.match(html, /Recovery/);
   assert.match(html, /Retry is available through Shiloh/);
   assert.doesNotMatch(html, /27821234567|27829999999|private provider text|wamid|provider_error|131042/i);
-  assert.match(calendarOperationalMutationsClientScript(), /booking-confirmation\/recover/);
+  assert.match(calendarOperationalMutationsClientScript(), /my-shiloh-availability/);
+  assert.doesNotMatch(calendarOperationalMutationsClientScript(), /booking-confirmation\/recover/);
 });
 
 test('Workspace exception SQL reads only the provider error field needed for sanitized diagnostics', async () => {

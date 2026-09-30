@@ -3079,3 +3079,73 @@ test('alternative-time review states are readable and accessible on phone and de
     }
   }
 });
+
+const { workspaceStaffManageClientScript } = require('../src/presentation/workspaceStaffUx');
+test('staff deactivation uses Shiloh confirmation, safe cancellation and inline errors on Phone and Desktop', async ({ page }, testInfo) => {
+  const native = [];
+  page.on('dialog', async dialog => { native.push(dialog.type()); await dialog.dismiss(); });
+  let saves = 0;
+  await page.route('**/calendar/staff-auth/csrf', route => route.fulfill({ status:200, contentType:'application/json', body:'{"csrfToken":"synthetic-csrf"}' }));
+  await page.route('**/calendar/team/41/status', route => { saves++; return route.fulfill({ status:409, contentType:'application/json', body:'{"error":"This profile changed. Refresh and try again."}' }); });
+  for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1280,height:900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=workspace-staff-access--staff-detail&viewMode=story', { waitUntil:'networkidle' });
+    await page.addScriptTag({ content:workspaceStaffManageClientScript() });
+    const trigger = page.getByRole('button', { name:'Deactivate staff', exact:true });
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name:'Deactivate Synthetic practitioner?' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name:'Keep active' })).toBeFocused();
+    await expect(dialog).toContainText('Existing appointments and history stay intact.');
+    const axe = await new AxeBuilder({ page }).include('[data-shiloh-confirm]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    const rect = await dialog.boundingBox();
+    expect(rect.x).toBeGreaterThanOrEqual(0);
+    expect(rect.x + rect.width).toBeLessThanOrEqual(viewport.width);
+    await page.screenshot({ path:testInfo.outputPath(`staff-deactivation-shiloh-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+    const before = saves;
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+    expect(saves).toBe(before);
+    await trigger.click();
+    await dialog.getByRole('button', { name:'Keep active' }).click();
+    await expect(trigger).toBeFocused();
+    expect(saves).toBe(before);
+    await trigger.click();
+    await dialog.getByRole('button', { name:'Deactivate staff' }).click();
+    await expect(page.locator('[data-staff-status-form]').locator('..').getByRole('status')).toHaveText('This profile changed. Refresh and try again.');
+    await expect(trigger).toBeEnabled();
+    expect(saves).toBe(before + 1);
+  }
+  expect(native).toEqual([]);
+});
+
+test('appointment app availability replaces retired transport evidence with clear dates on Phone and Desktop', async ({ page }, testInfo) => {
+  let response = { label:'Available in My Shiloh', explanation:'The client can view this booking when they open My Shiloh.' };
+  await page.route('**/calendar/operations/appointments/667/my-shiloh-availability', route => route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify(response) }));
+  for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1280,height:900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=workspace-production-surfaces--appointment-app-availability&viewMode=story', { waitUntil:'networkidle' });
+    const trigger = page.getByRole('button', { name:'Open appointment' });
+    await trigger.click();
+    const panel = page.getByRole('dialog', { name:'Synthetic client' });
+    await expect(panel).toBeVisible();
+    await expect(panel.locator('[data-panel-confirmation]')).toContainText(response.label);
+    await expect(panel.locator('[data-panel-client]')).toHaveText('Appointment #667');
+    await expect(panel.locator('[data-panel-time]')).toContainText('12:00');
+    await expect(panel.locator('[data-panel-time]')).not.toContainText('2099-10-01');
+    await expect(panel).not.toContainText('WhatsApp');
+    await expect(panel).not.toContainText('Last evidence');
+    await expect(panel.locator('[data-appointment-editor-toggle="danger"]')).toContainText('Cancel appointment');
+    const axe = await new AxeBuilder({ page }).include('[data-calendar-management-panel]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`appointment-my-shiloh-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+    await panel.getByRole('button', { name:'Close',exact:true }).click();
+    response = { label:'Not linked to My Shiloh', explanation:'Reception may need to contact the client directly.' };
+    await trigger.click();
+    await expect(panel.locator('[data-panel-confirmation]')).toContainText(response.label);
+    await panel.getByRole('button', { name:'Close',exact:true }).click();
+    response = { label:'Available in My Shiloh', explanation:'The client can view this booking when they open My Shiloh.' };
+  }
+});

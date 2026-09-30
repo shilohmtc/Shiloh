@@ -70,3 +70,10 @@ export const StaffProfiles = {
     return productionSurface(onboardingPresentation.decorateStaffListOnboardingHtml(staffPresentation.renderStaffListPage(model), model));
   },
 };
+
+export const StaffDetail = {
+  render: () => productionSurface(staffPresentation.renderStaffDetailPage({ authority, manageAllowed: true, accessManageAllowed: true,
+    staff: { id: 41, display_name: 'Synthetic practitioner', status: 'active', resource_type: 'practitioner', scheduling_type: 'regular', client_bookable: true, revision: '2026-09-30T10:00:00.000Z' },
+    services: [{ name: 'Sports Massage' }], access: null,
+  })),
+};

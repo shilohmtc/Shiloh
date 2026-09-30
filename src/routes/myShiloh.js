@@ -1,3 +1,4 @@
+const { confirmationClientScript, confirmationStyles } = require('../presentation/workspaceConfirmation');
 'use strict';
 
 const path = require('path');
@@ -135,6 +136,15 @@ function createMyShilohRouter({
       client: { firstName: result.client.firstName },
     });
   }
+
+  router.get('/my-shiloh/assets/confirmation.js', (_req, res) => {
+    res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+    return res.type('application/javascript').send(confirmationClientScript({ externalStyles: true }));
+  });
+  router.get('/my-shiloh/assets/confirmation.css', (_req, res) => {
+    res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+    return res.type('text/css').send(confirmationStyles());
+  });
 
   router.use('/my-shiloh/assets', express.static(path.join(ROOT, 'assets'), {
     maxAge: '1h',

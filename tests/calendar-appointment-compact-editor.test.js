@@ -21,7 +21,7 @@ test('appointment editor becomes a one-section-at-a-time compact drawer', () => 
   assert.match(script, /Treatment & price/);
   assert.match(script, /Date & time/);
   assert.match(script, /Practitioner/);
-  assert.match(script, /Danger zone/);
+  assert.match(script, /Cancel appointment/);
   assert.match(script, /closeOthers\(button\)/);
   assert.match(script, /aria-expanded/);
   assert.match(script, /data-panel-action="appointment:reschedule"/);
