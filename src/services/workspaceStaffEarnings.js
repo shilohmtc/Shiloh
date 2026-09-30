@@ -40,6 +40,7 @@ function selectRule(rules, appointment) {
 function summarize(staff, appointments, rules) {
   const byStaff = staff.map(person => ({
     staffId: Number(person.id), name: person.display_name,
+    canAddRule: person.status === 'active',
     completedValue: 0, commission: 0, completedCount: 0, reviewCount: 0,
     appointments: [],
   }));
@@ -89,7 +90,7 @@ function createWorkspaceStaffEarningsService({ db = pool } = {}) {
   async function build({ adminId, period, selectedStaffId }) {
     await requireOwner(adminId);
     const staff = (await db.query(`/* StaffEarnings:staff */
-      SELECT s.id,s.display_name FROM staff s
+      SELECT s.id,s.display_name,s.status FROM staff s
        WHERE s.resource_type='practitioner'
          AND (s.status='active' OR EXISTS (
            SELECT 1 FROM appointment_staff ast JOIN appointments a ON a.id=ast.appointment_id
