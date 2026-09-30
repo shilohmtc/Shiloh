@@ -1992,8 +1992,9 @@ test('My Shiloh install doorway is clear, contained and accessible on Phone and 
     const gate = page.locator('[data-install-gate]');
     await expect(gate).toBeVisible();
     await expect(page.locator('[data-app-frame]')).toBeHidden();
-    await expect(page.getByRole('heading', { name: 'Keep My Shiloh one tap away.' })).toBeVisible();
-    await expect(page.getByText('Already installed? Open My Shiloh from your Home Screen.')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Add My Shiloh to your phone.' })).toBeVisible();
+    await expect(gate.locator('.install-gate__sequence')).toHaveText('After installing, open My Shiloh from your Home Screen. Register if you’re new, or sign in if you already have a profile.');
+    await expect(gate.locator('[data-install-gate-status]')).toBeEmpty();
     await expect(page.getByRole('button', { name: 'Show install steps' })).toBeVisible();
     await expect(gate.locator('[data-client-sms-start], [data-passkey-sign-in]')).toHaveCount(0);
     await expect(gate.locator('[data-install-gate-instructions]')).toHaveCount(0);
@@ -2101,7 +2102,7 @@ test('authenticated My Shiloh browser sessions still show only the install doorw
     const appFrame = page.locator('[data-app-frame]');
     await expect(gate).toBeVisible();
     await expect(appFrame).toBeHidden();
-    await expect(page.getByRole('heading', { name: 'Keep My Shiloh one tap away.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Add My Shiloh to your phone.' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Show install steps' })).toBeVisible();
     await expect(gate.locator('[data-client-sms-start], [data-passkey-sign-in]')).toHaveCount(0);
     await expect(gate.locator('[data-install-gate-instructions]')).toHaveCount(0);
@@ -2259,7 +2260,7 @@ test('Android install doorway keeps the native install action primary on Phone a
     const gate = page.locator('[data-install-gate]');
     await expect(gate.getByRole('heading', { name: 'Add My Shiloh to your phone.' })).toBeVisible();
     await expect(gate.getByRole('button', { name: 'Install My Shiloh' })).toBeVisible();
-    await expect(gate.getByText('Tap below and Android will add My Shiloh to your Home Screen.')).toBeVisible();
+    await expect(gate.getByText('Keep your bookings and vouchers close at hand.')).toBeVisible();
 
     const accessibility = await new AxeBuilder({ page })
       .include('[data-install-gate]')
