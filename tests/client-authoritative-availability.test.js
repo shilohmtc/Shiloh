@@ -20,11 +20,10 @@ const {
   slotsInteractive,
 } = require(availabilityPath);
 
-test('welcome-voucher Any available remains restricted away from Marietjie', () => {
+test('welcome-voucher Any available remains restricted to clinic practitioners', () => {
   assert.equal(isAnyPractitionerPreference('Any available welcome-voucher practitioner'), true);
   assert.equal(isWelcomeVoucherPreference('Any available welcome-voucher practitioner'), true);
   assert.match(source, /st\.business_role <> 'tenant_practitioner'/);
-  assert.match(source, /LOWER\(BTRIM\(st\.display_name\)\) <> 'marietjie'/);
   assert.match(source, /resolveEligibleStaff\(service\.id, intent\.therapist_text\)/);
 });
 

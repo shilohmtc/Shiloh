@@ -5,7 +5,7 @@ const { presentTreatmentRow, treatmentPageNavigationRow } = require('../presenta
 
 const FAMILY_PAGE_SIZE = 9;
 const FAMILY_RULES = Object.freeze({
-  beauty: { title: 'Beauty & Aesthetics', practitioner: 'Marietjie' },
+  beauty: { title: 'Beauty & Aesthetics', practitioner: null },
   massage: { title: 'Massage', practitioner: null },
   lymphatic: { title: 'Lymphatic Drainage', practitioner: 'Abigail' },
   pedicure: { title: 'Elim MediHeel Pedicures', practitioner: 'Christel' },
@@ -26,7 +26,7 @@ function familyCommandForNaturalText(text = '') {
 
 function familyFilterSql(family) {
   if (family === 'beauty') {
-    return `LOWER(st.display_name) = 'marietjie'
+    return `st.business_role = 'tenant_practitioner'
       AND LOWER(COALESCE(sc.name, '')) <> 'massage'
       AND LOWER(s.name) NOT LIKE '%lymphatic%'
       AND LOWER(s.name) NOT LIKE '%pedicur%'
@@ -94,8 +94,8 @@ async function findFamilyService(family, serviceId) {
 }
 
 async function listFamilyEligiblePractitioners(family, serviceId) {
-  const names = family === 'massage' ? ['christel', 'abigail'] : family === 'beauty' ? ['marietjie'] : family === 'pedicure' ? ['christel'] : family === 'lymphatic' ? ['abigail'] : [];
-  if (!names.length) return [];
+  const names = family === 'massage' ? ['christel', 'abigail'] : family === 'pedicure' ? ['christel'] : family === 'lymphatic' ? ['abigail'] : [];
+  if (!names.length && family !== 'beauty') return [];
   const result = await pool.query(`
     SELECT st.id, st.display_name
       FROM staff st
@@ -106,9 +106,9 @@ async function listFamilyEligiblePractitioners(family, serviceId) {
        AND st.status = 'active'
        AND st.resource_type = 'practitioner'
        AND st.client_bookable = TRUE
-       AND LOWER(st.display_name) = ANY($2::text[])
+       AND ${family === 'beauty' ? "st.business_role = 'tenant_practitioner'" : 'LOWER(st.display_name) = ANY($2::text[])'}
      GROUP BY st.id, st.display_name
-     ORDER BY CASE LOWER(st.display_name) WHEN 'christel' THEN 1 WHEN 'abigail' THEN 2 WHEN 'marietjie' THEN 3 ELSE 9 END,
+     ORDER BY CASE LOWER(st.display_name) WHEN 'christel' THEN 1 WHEN 'abigail' THEN 2 ELSE 9 END,
               st.display_name, st.id
   `, [Number(serviceId), names]);
   return result.rows;
@@ -127,7 +127,7 @@ function familyServicesInteractive(family, rows = [], page = 1) {
   } else if (safePage > 1) {
     pageRows.push({ id: `client_family_${family}_page_1`, title: '← First page', description: `Return to page 1 of ${totalPages}` });
   }
-  const owner = config.practitioner ? ` • ${config.practitioner}` : ' • Christel or Abigail';
+  const owner = config.practitioner ? ` • ${config.practitioner}` : family === 'massage' ? ' • Christel or Abigail' : '';
   return {
     type: 'list',
     body: `*${config.title}${owner}*\nChoose an active treatment. Shiloh will only offer practitioners currently eligible in CRM.`,

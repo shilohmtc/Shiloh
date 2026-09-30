@@ -41,11 +41,10 @@ test('booking entry presents the available client service families as a genuine 
   assert.ok(view.rows.every((row) => row.title.length <= 24));
 });
 
-test('Our practitioners chooser labels the three client-facing roles without exposing owner or employee status', () => {
+test('Our practitioners chooser labels current client-facing roles without exposing owner or employee status', () => {
   assert.equal(clientFacingPractitionerLabel('Christel'), 'Christel · Massage');
   assert.equal(clientFacingPractitionerLabel('Abigail'), 'Abigail · Massage');
-  assert.equal(clientFacingPractitionerLabel('Marietjie'), 'Marietjie · Esthetician');
-  const labels = [clientFacingPractitionerLabel('Christel'), clientFacingPractitionerLabel('Abigail'), clientFacingPractitionerLabel('Marietjie')].join(' ');
+  const labels = [clientFacingPractitionerLabel('Christel'), clientFacingPractitionerLabel('Abigail')].join(' ');
   assert.doesNotMatch(labels, /owner|employee/i);
 });
 

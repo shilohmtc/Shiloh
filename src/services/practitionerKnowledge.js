@@ -29,10 +29,7 @@ async function ensurePractitionerProfileSchema() {
     INSERT INTO staff_customer_profiles
       (staff_id, public_title, short_bio, approved_specialties, is_approved, approval_source, approved_at, updated_at)
     SELECT id,
-           CASE LOWER(display_name)
-             WHEN 'marietjie' THEN 'Esthetician'
-             ELSE 'Massage practitioner'
-           END,
+           'Massage practitioner',
            NULL,
            '[]'::jsonb,
            TRUE,
@@ -40,7 +37,7 @@ async function ensurePractitionerProfileSchema() {
            TIMESTAMPTZ '2026-08-12 11:33:00+02',
            NOW()
       FROM staff
-     WHERE LOWER(display_name) IN ('christel', 'abigail', 'marietjie')
+     WHERE LOWER(display_name) IN ('christel', 'abigail')
        AND status = 'active'
        AND resource_type = 'practitioner'
     ON CONFLICT (staff_id) DO UPDATE SET
@@ -87,7 +84,6 @@ async function getClientPractitionerRows() {
      ORDER BY CASE LOWER(st.display_name)
        WHEN 'christel' THEN 1
        WHEN 'abigail' THEN 2
-       WHEN 'marietjie' THEN 3
        ELSE 9 END,
        st.display_name,
        st.id
