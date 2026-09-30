@@ -267,7 +267,7 @@
       if (installGateTitle) installGateTitle.textContent = 'Add My Shiloh to your phone.';
       if (installGateCopy) {
         installGateCopy.textContent = deferredInstallPrompt
-          ? 'Tap below and Android will add My Shiloh to your Home Screen.'
+          ? 'Keep your bookings and vouchers close at hand.'
           : 'Your browser can add My Shiloh to your Home Screen in a few quick steps.';
       }
       if (installGateAction) {

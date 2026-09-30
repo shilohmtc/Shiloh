@@ -440,7 +440,7 @@ export const AndroidInstallDoorway = {
     const gateCopy = surface.querySelector('[data-install-gate-copy]');
     const action = surface.querySelector('[data-install-gate-action]');
     if (gateTitle) gateTitle.textContent = 'Add My Shiloh to your phone.';
-    if (gateCopy) gateCopy.textContent = 'Tap below and Android will add My Shiloh to your Home Screen.';
+    if (gateCopy) gateCopy.textContent = 'Keep your bookings and vouchers close at hand.';
     if (action) action.textContent = 'Install My Shiloh';
     return surface;
   },

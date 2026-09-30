@@ -210,7 +210,7 @@ test('the browser install doorway leaves sign-in inside the installed app', () =
   const html = renderMyShilohPage({ passkeysAvailable: true });
   const installDoorway = html.match(/<main class="install-gate" data-install-gate[\s\S]*?<\/main>/)?.[0] || '';
   assert.doesNotMatch(installDoorway, /data-passkey-sign-in|data-passkey-recovery-form|data-client-sms-start/);
-  assert.match(installDoorway, /Open the My Shiloh icon · Sign in there/);
+  assert.match(installDoorway, /After installing, open My Shiloh from your Home Screen/);
   assert.match(html, /data-passkey-sign-in/);
   const signedIn = renderMyShilohPage({ passkeysAvailable: true, client: { id: 1, name:'Christel', firstName:'Christel' } });
   const signedInDoorway = signedIn.match(/<main class="install-gate" data-install-gate[\s\S]*?<\/main>/)?.[0] || '';
@@ -236,7 +236,7 @@ test('SMS enrollment appears in the installed guest app only when enabled', () =
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v39/);
+  assert.match(worker, /my-shiloh-shell-v40/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /booking\.js/);

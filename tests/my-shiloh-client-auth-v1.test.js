@@ -90,9 +90,9 @@ test('every normal browser is an installation doorway while standalone mode keep
   const styles = read('public/my-shiloh/assets/app.css');
 
   assert.match(presentation, /data-install-gate/);
-  assert.match(presentation, /Keep My Shiloh one tap away/);
-  assert.match(presentation, /Already installed\? Open My Shiloh from your Home Screen/);
-  assert.match(presentation, /Already installed\? Open My Shiloh from your Home Screen\./);
+  assert.match(presentation, /Add My Shiloh to your phone/);
+  assert.match(presentation, /Register if you’re new, or sign in if you already have a profile/);
+  assert.match(presentation, /data-install-gate-status aria-live="polite"><\/p>/);
   assert.doesNotMatch(presentation, /data-install-verification-gate/);
   assert.match(presentation, /data-client-sms-start/);
   assert.match(presentation, /data-app-frame[^>]*hidden/);
