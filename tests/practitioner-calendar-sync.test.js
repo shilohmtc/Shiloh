@@ -11,10 +11,10 @@ const booking = fs.readFileSync(path.join(root, 'src/services/adminBooking.js'),
 test('verified practitioner calendars are explicit environment-backed mappings', () => {
   assert.match(google, /GOOGLE_CHRISTEL_CALENDAR_ID/);
   assert.match(google, /GOOGLE_ABIGAIL_CALENDAR_ID/);
-  assert.match(google, /GOOGLE_MARIETJIE_CALENDAR_ID/);
+  assert.doesNotMatch(google, /GOOGLE_MARIETJIE_CALENDAR_ID/);
   assert.match(practitioner, /GOOGLE_CHRISTEL_CALENDAR_ID/);
   assert.match(practitioner, /GOOGLE_ABIGAIL_CALENDAR_ID/);
-  assert.match(practitioner, /GOOGLE_MARIETJIE_CALENDAR_ID/);
+  assert.doesNotMatch(practitioner, /GOOGLE_MARIETJIE_CALENDAR_ID/);
 });
 
 test('booking confirmation creates no shared or practitioner calendar event', () => {

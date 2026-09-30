@@ -121,7 +121,7 @@ test('Calendar cleanup removes shared deterministic and every assigned-practitio
   const result = await cleanupAppointmentCalendars([
     appointment({
       id: 710,
-      staff: [{ staffId: 1, staffName: 'Christel' }, { staffId: 2, staffName: 'Abigail' }, { staffId: 3, staffName: 'Marietjie' }],
+      staff: [{ staffId: 1, staffName: 'Christel' }, { staffId: 2, staffName: 'Abigail' }],
     }),
   ], {
     calendarEnabled: () => true,
@@ -133,7 +133,7 @@ test('Calendar cleanup removes shared deterministic and every assigned-practitio
   else process.env.GOOGLE_BOOKING_CALENDAR_ID = oldShared;
   assert.equal(result[0].status, 'cancelled');
   assert.equal(shared.length, 2, 'known mapping and current deterministic shared target are both removed');
-  assert.deepEqual(practitioners.map((item) => item.staffName), ['Christel', 'Abigail', 'Marietjie']);
+  assert.deepEqual(practitioners.map((item) => item.staffName), ['Christel', 'Abigail']);
   assert.deepEqual(mappings[0].slice(0, 2), [710, 'cancelled']);
 });
 

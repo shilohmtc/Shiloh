@@ -7,7 +7,6 @@ const observability = require('../lib/observability');
 const PRACTITIONER_CALENDARS = Object.freeze([
   { name: 'Christel', env: 'GOOGLE_CHRISTEL_CALENDAR_ID' },
   { name: 'Abigail', env: 'GOOGLE_ABIGAIL_CALENDAR_ID' },
-  { name: 'Marietjie', env: 'GOOGLE_MARIETJIE_CALENDAR_ID' },
 ]);
 const SCAN_INTERVAL_MS = 15 * 60 * 1000;
 const SCAN_LOOKBACK_MS = 24 * 60 * 60 * 1000;
