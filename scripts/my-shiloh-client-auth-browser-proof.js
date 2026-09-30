@@ -3,6 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
+const AxeBuilder = require('@axe-core/playwright').default;
+const { BookingRequestError } = require('../src/services/clientBookingApproval');
 const { chromium } = require('@playwright/test');
 
 function chromeExecutable() {
@@ -26,6 +28,9 @@ const WHATSAPP_TOKEN = 'W'.repeat(43);
 const COMPLETION_CODE = '654321';
 const ACTION_TOKEN = 'A'.repeat(43);
 const RESCHEDULE_TOKEN = 'R'.repeat(43);
+let offeredProposal = false;
+let rejectProposal = false;
+const proposalResponses = [];
 let verified = false;
 let loggedOut = false;
 const assistantCalls = [];
@@ -61,7 +66,8 @@ const fakeExperienceService = {
           practitioner: 'Marietjie',
           date: 'Thu, 24 Sep',
           time: '10:00',
-          status: 'confirmed',
+          status: offeredProposal ? 'Awaiting your response' : 'confirmed',
+          proposal: offeredProposal ? { version:4,expiresAt:new Date(Date.now()+86400000).toISOString() } : null,
           forms: 'Complete',
           payment: 'Paid',
         }],
@@ -320,6 +326,30 @@ async function runViewport(browser, name, viewport) {
     throw new Error('authenticated client experience missing');
   }
 
+  offeredProposal = true;
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('[data-view-target="bookings"]').click();
+  await page.getByRole('button', { name:'Accept this time', exact:true }).waitFor();
+  const violations = (await new AxeBuilder({page}).include('[data-client-experience-bookings] .action-card--accent').analyze()).violations;
+  if (violations.length) throw new Error(`Proposal accessibility: ${JSON.stringify(violations.map(v=>v.id))}`);
+  if (await page.evaluate(()=>document.documentElement.scrollWidth > window.innerWidth)) throw new Error('Proposal controls overflow');
+  await page.screenshot({path:path.join(out, `${name}-alternative-time-offer.png`),fullPage:true});
+  rejectProposal = true;
+  await page.getByRole('button', { name:'Accept this time', exact:true }).click();
+  await page.locator('[data-booking-proposal-status]').filter({hasText:'no longer active'}).waitFor();
+  await page.getByRole('button', { name:'Accept this time', exact:true }).waitFor();
+  rejectProposal = false;
+  await page.getByRole('button', { name:'Accept this time', exact:true }).click();
+  await page.locator('[data-booking-proposal-status]').filter({hasText:'required deposit'}).waitFor();
+  await page.waitForFunction(()=>!document.querySelector('[data-booking-proposal-action]'));
+  offeredProposal = true;
+  await page.reload({ waitUntil:'networkidle' });
+  await page.locator('[data-view-target="bookings"]').click();
+  await page.getByRole('button', {name:'Ask for another option',exact:true}).click();
+  await page.locator('[data-booking-proposal-status]').filter({hasText:'Reception will review another option'}).waitFor();
+  await page.waitForFunction(()=>!document.querySelector('[data-booking-proposal-action]'));
+  await page.screenshot({path:path.join(out, `${name}-alternative-time-another-option.png`),fullPage:true});
+
   await page.locator('[data-view-target="profile"]').click();
   const profileGeometry = await page.evaluate(() => {
     const card = document.querySelector('.profile-editor');
@@ -472,6 +502,20 @@ let baseUrl;
     experienceService: fakeExperienceService,
     assistantService: fakeAssistantService,
     humanHandoffService: { async activeForClient() { return null; } },
+    proposalService: {
+      async acceptProposedAlternative(input) {
+        if (input.crmV2ClientId !== 912 || input.appointmentId !== 901 || input.proposalVersion !== 4) throw new Error('Proposal authority mismatch');
+        proposalResponses.push({...input,action:'accept'});
+        if (rejectProposal) throw new BookingRequestError('BOOKING_PROPOSAL_STALE','That proposed option is no longer active.',409);
+        offeredProposal = false;
+        return {status:'approved',reply:'Your requested time is ready. Your booking will be confirmed when the required deposit is verified.'};
+      },
+      async requestAnotherOption(input) {
+        if (input.crmV2ClientId !== 912 || input.proposalVersion !== 4) throw new Error('Proposal authority mismatch');
+        proposalResponses.push({...input,action:'another'});offeredProposal=false;
+        return {status:'pending',reply:'Reception will review another option. Your request is not confirmed yet.'};
+      },
+    },
     actionService: fakeActionService,
     voucherService: fakeVoucherService,
   }));

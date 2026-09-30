@@ -3060,3 +3060,21 @@ test('future booking completion offers clinic-device review and the secure clien
     });
   }
 });
+
+test('alternative-time review states are readable and accessible on phone and desktop', async ({page},testInfo) => {
+  for (const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]) {
+    await page.setViewportSize(viewport);
+    for (const state of ['alternative-time-offer','alternative-time-checking','alternative-time-review-needed','alternative-time-expired']) {
+      await page.goto(`/iframe.html?id=client-my-shiloh-pwa--${state}&viewMode=story`,{waitUntil:'networkidle'});
+      const view=page.locator('[data-view="bookings"]');
+      await expect(view).toBeVisible();
+      const accept=view.getByRole('button',{name:'Accept this time',exact:true});
+      if (state==='alternative-time-expired') await expect(accept).toHaveCount(0);
+      else { await expect(accept).toBeVisible(); if(state==='alternative-time-checking') await expect(accept).toBeDisabled(); }
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      const axe=await new AxeBuilder({page}).include('[data-view="bookings"]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+      expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+      await page.screenshot({path:testInfo.outputPath(`${state}-${viewport.name}.png`),fullPage:true,animations:'disabled'});
+    }
+  }
+});

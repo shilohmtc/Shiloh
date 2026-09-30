@@ -173,18 +173,23 @@ test('a canonical client request takes priority over an upcoming visit without a
     ...base.activeRequest,
     bookingRequestStatus: 'awaiting_client_confirmation',
     proposedStartsAt: '2026-10-03T08:00:00.000Z',
+    proposedPractitioners: ['Abigail'], proposalVersion: 4,
     proposalExpiresAt: '2026-09-27T10:00:00.000Z',
   } });
   assert.equal(offered.home.status, 'Awaiting your response');
-  assert.match(offered.bookings.upcoming[0].nextAction, /Reply to the Shiloh message/);
+  assert.equal(offered.bookings.upcoming[0].proposal.version,4);
+  assert.equal(offered.bookings.upcoming[0].practitioner,'Abigail');
+  assert.match(offered.bookings.upcoming[0].nextAction, /Review this proposed time/);
 
   const expired = buildClientExperience({ ...base, generatedAt: '2026-09-28T10:00:00.000Z', activeRequest: {
     ...base.activeRequest,
     bookingRequestStatus: 'awaiting_client_confirmation',
     proposedStartsAt: '2026-10-03T08:00:00.000Z',
+    proposedPractitioners: ['Abigail'], proposalVersion: 4,
     proposalExpiresAt: '2026-09-27T10:00:00.000Z',
   } });
   assert.equal(expired.home.status, 'Requested');
+  assert.equal(expired.bookings.upcoming[0].proposal,null);
 });
 
 test('declined Workspace requests appear only in bounded client history and never as upcoming bookings', async () => {

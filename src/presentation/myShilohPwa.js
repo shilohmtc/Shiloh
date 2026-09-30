@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260928-ios-install-icons-v1';
+const MY_SHILOH_ASSET_VERSION = '20260930-booking-proposals-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -441,6 +441,7 @@ function renderMyShilohPage({
           <div class="website-treatment-form__row"><input id="website-treatment-code" name="treatmentCode" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Enter or paste code" required pattern="[1-9][0-9]*"><button class="button button--soft" type="submit">Continue treatment</button></div>
           <p role="status" data-website-treatment-status></p>
         </form>` : ''}
+        <p role="status" aria-live="polite" tabindex="-1" data-booking-proposal-status></p>
         <div class="stack" data-client-experience-bookings>
           <article class="action-card action-card--accent">
             <span class="action-number">01</span>

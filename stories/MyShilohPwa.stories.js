@@ -641,3 +641,28 @@ export const AuthenticatedNotificationsProfile = {
 export const AuthenticatedNativeBooking = {
   render: () => bookingSurface(),
 };
+
+function proposalSurface({ busy = false, error = '', expired = false } = {}) {
+  const surface = AuthenticatedHome.render();
+  surface.querySelectorAll('[data-view]').forEach(view => { view.hidden = view.dataset.view !== 'bookings'; });
+  const card = surface.querySelector('[data-client-experience-bookings] .action-card');
+  card.querySelector('h2').textContent = expired ? 'Requested' : 'Awaiting your response';
+  card.querySelector('p').textContent = expired
+    ? 'The proposed time has expired. Reception is reviewing your request. Your appointment is not confirmed.'
+    : 'Hot Stone Massage · Fri, 2 Oct · 10:00 · Abigail — Review this proposed time before accepting. Availability and any required deposit will be checked again.';
+  card.querySelector('a').textContent = 'Ask Shiloh about this request';
+  card.querySelector('a').href = '#shiloh';
+  if (!expired) {
+    const controls = document.createElement('div');
+    controls.className = 'booking-proposal-controls';
+    controls.dataset.bookingProposalControls = '';
+    controls.innerHTML = `<p>Please respond before 1 Oct, 15:00.</p><div class="booking-proposal-choices"><button type="button" class="button button--primary" ${busy ? 'disabled' : ''}>Accept this time</button><button type="button" class="button button--soft" ${busy ? 'disabled' : ''}>Ask for another option</button></div>`;
+    card.append(controls);
+  }
+  surface.querySelector('[data-booking-proposal-status]').textContent = error || (busy ? 'Checking this time and your booking details…' : '');
+  return surface;
+}
+export const AlternativeTimeOffer = { render: () => proposalSurface() };
+export const AlternativeTimeChecking = { render: () => proposalSurface({ busy:true }) };
+export const AlternativeTimeReviewNeeded = { render: () => proposalSurface({ error:'Reception needs to review the price or deposit before this time can be accepted. Your proposal has not been confirmed.' }) };
+export const AlternativeTimeExpired = { render: () => proposalSurface({ expired:true }) };

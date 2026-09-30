@@ -10,6 +10,7 @@ const {
 } = require('./bookingDepositPolicy');
 const { ensureBookingApprovalInfrastructure } = require('./clientBookingApprovalSchema');
 const logger = require('../lib/logger');
+const { queueClientNotification } = require('./myShilohPush');
 
 const CLIENT_ACCEPT_PREFIX = 'booking_proposal_accept_';
 const CLIENT_ANOTHER_PREFIX = 'booking_proposal_another_';
@@ -120,7 +121,7 @@ function requestQuery({ lock = false } = {}) {
   return `
     SELECT aba.*,
            a.client_id AS current_client_id,a.crm_v2_client_id AS current_crm_v2_client_id,
-           a.location_id AS current_location_id,a.starts_at AS current_starts_at,a.ends_at AS current_ends_at,
+           v2.id AS current_active_crm_v2_client_id,a.location_id AS current_location_id,a.starts_at AS current_starts_at,a.ends_at AS current_ends_at,
            a.status AS appointment_status,a.updated_at AS current_revision,
            ast.staff_id AS current_staff_id,aps.service_id AS current_service_id,
            staff_snapshot.ids AS current_staff_ids,service_snapshot.ids AS current_service_ids,
@@ -381,9 +382,16 @@ async function acceptRequestedAppointment({
   return { ok: true, appointmentId: id, status: 'approved', confirmation };
 }
 
-async function defaultSendProposal() {
-  throw new BookingRequestError('BOOKING_REQUEST_DELIVERY_UNAVAILABLE',
-    'Reception needs to arrange this alternative with the client. App acceptance for proposed alternatives is not available yet.', 503);
+async function defaultSendProposal(row, version, { notifyClient = queueClientNotification } = {}) {
+  const notification = await notifyClient({
+    crmV2ClientId: Number(row.current_crm_v2_client_id), category: 'appointment',
+    eventKey: `booking-proposal:${row.appointment_id}:${version}`,
+    title: 'Reception has proposed another time',
+    body: 'Open Bookings to review the proposed time and choose your response. Your appointment is not confirmed yet.',
+    targetPath: '/my-shiloh/#bookings',
+  });
+  // The canonical request is the lasting app offer even without phone push.
+  return { channel: 'my_shiloh', availableInApp: true, pushAccepted: Number(notification?.accepted || 0) > 0 };
 }
 
 async function proposeAlternative({
@@ -391,9 +399,6 @@ async function proposeAlternative({
   now = new Date(), sendProposal = defaultSendProposal,
   validateWindow = canonicalWindowAvailable,
 }) {
-  // Retired WhatsApp buttons cannot create a usable client acceptance path.
-  // Refuse before acquiring a hold or changing canonical request state.
-  if (sendProposal === defaultSendProposal) await defaultSendProposal();
   const id = positiveId(appointmentId);
   const start = exactDate(startsAt);
   if (start.getTime() <= now.getTime()) throw new BookingRequestError('BOOKING_REQUEST_PAST_TIME', 'The proposed time must be in the future.');
@@ -401,6 +406,12 @@ async function proposeAlternative({
   const version = await inTransaction(dbPool, async db => {
     const row = await loadRequest(db, id, true);
     requireResolvable(principal, row, expectedRevision);
+    if (sendProposal === defaultSendProposal && (!row.current_active_crm_v2_client_id
+      || Number(row.current_active_crm_v2_client_id) !== Number(row.requested_crm_v2_client_id)
+      || row.current_client_id != null || row.requested_client_id != null)) {
+      throw new BookingRequestError('BOOKING_REQUEST_APP_IDENTITY_REQUIRED',
+        'This client needs a verified My Shiloh account to respond. Please arrange the alternative directly through Reception.', 409);
+    }
     const targetStaffId = staffId == null ? Number(row.current_staff_id) : positiveId(staffId);
     const targetServiceId = serviceId == null ? Number(row.current_service_id) : positiveId(serviceId);
     const currentStaffIds = canonicalIds(row.current_staff_ids);
@@ -442,10 +453,10 @@ async function proposeAlternative({
     return Number(updated.rows[0].proposal_version);
   });
   try {
-    await sendProposal(deliveryRow, version);
+    const delivery = await sendProposal(deliveryRow, version);
     await dbPool.query(`INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata)
       VALUES($1,'client.booking_request.alternative_sent','appointment',$2,$3::jsonb)`,
-    [principal.id, id, JSON.stringify({ surface: 'workspace_booking_requests', proposalVersion: version })]);
+    [principal.id, id, JSON.stringify({ surface: 'workspace_booking_requests', proposalVersion: version, channel: delivery?.channel || 'historical_fixture', availableInApp: delivery?.availableInApp === true, pushAccepted: delivery?.pushAccepted === true })]);
   } catch (error) {
     await dbPool.query(`UPDATE appointment_booking_approvals SET status='pending',proposed_location_id=NULL,
       proposed_staff_id=NULL,proposed_staff_ids=NULL,proposed_service_id=NULL,proposed_starts_at=NULL,proposed_ends_at=NULL,
@@ -486,7 +497,14 @@ async function cannotAccommodate({ dbPool = pool, principal, appointmentId, expe
   return { ok: true, appointmentId: id, status: 'declined', delivery };
 }
 
-async function clientIdentityMatches(row, sender) {
+async function clientIdentityMatches(row, sender, crmV2ClientId = null) {
+  if (crmV2ClientId != null) {
+    const clientId = positiveId(crmV2ClientId, 'BOOKING_PROPOSAL_IDENTITY');
+    return row.requested_client_id == null && row.current_client_id == null
+      && Number(row.requested_crm_v2_client_id) === clientId
+      && Number(row.current_crm_v2_client_id) === clientId
+      && Number(row.current_active_crm_v2_client_id) === clientId;
+  }
   const phone = normalizePhone(sender);
   return Boolean(phone && phone === normalizePhone(row.requested_client_phone) && phone === normalizePhone(row.current_client_phone)
     && String(row.requested_client_id || '') === String(row.current_client_id || '')
@@ -499,14 +517,15 @@ function clearProposalSql(nextStatus = 'pending') {
     proposed_starts_at=NULL,proposed_ends_at=NULL,proposal_expires_at=NULL,client_responded_at=NOW(),updated_at=NOW()`;
 }
 
-async function requestAnotherOption({ dbPool = pool, sender, appointmentId, proposalVersion }) {
+async function requestAnotherOption({ dbPool = pool, sender, crmV2ClientId = null, appointmentId, proposalVersion }) {
   const id = positiveId(appointmentId);
   await inTransaction(dbPool, async db => {
     const row = await loadRequest(db, id, true);
     if (!row || row.status !== 'awaiting_client_confirmation' || Number(row.proposal_version) !== positiveId(proposalVersion)) {
       throw new BookingRequestError('BOOKING_PROPOSAL_STALE', 'That proposed option is no longer active.', 409);
     }
-    if (!(await clientIdentityMatches(row, sender))) throw new BookingRequestError('BOOKING_PROPOSAL_IDENTITY', 'That response does not match the booking request.', 403);
+    if (!(await clientIdentityMatches(row, sender, crmV2ClientId))) throw new BookingRequestError('BOOKING_PROPOSAL_IDENTITY', 'That response does not match the booking request.', 403);
+    if (!requestSnapshotMatches(row)) throw new BookingRequestError('BOOKING_PROPOSAL_CANONICAL_DRIFT', 'The original request changed, so this option needs Reception review.', 409);
     const updated = await db.query(`UPDATE appointment_booking_approvals SET ${clearProposalSql()} WHERE appointment_id=$1 AND status='awaiting_client_confirmation' AND proposal_version=$2 RETURNING appointment_id`, [id, proposalVersion]);
     if (updated.rowCount !== 1) throw new BookingRequestError('BOOKING_PROPOSAL_STALE', 'That proposed option is no longer active.', 409);
     await audit(db, null, 'client.booking_request.another_option_requested', id, { proposalVersion: Number(proposalVersion) });
@@ -517,6 +536,7 @@ async function requestAnotherOption({ dbPool = pool, sender, appointmentId, prop
 async function acceptProposedAlternative({
   dbPool = pool,
   sender,
+  crmV2ClientId = null,
   appointmentId,
   proposalVersion,
   now = new Date(),
@@ -530,9 +550,11 @@ async function acceptProposedAlternative({
     if (!row || row.status !== 'awaiting_client_confirmation' || Number(row.proposal_version) !== positiveId(proposalVersion)) {
       throw new BookingRequestError('BOOKING_PROPOSAL_STALE', 'That proposed option is no longer active.', 409);
     }
-    if (!(await clientIdentityMatches(row, sender))) throw new BookingRequestError('BOOKING_PROPOSAL_IDENTITY', 'That response does not match the booking request.', 403);
+    if (!(await clientIdentityMatches(row, sender, crmV2ClientId))) throw new BookingRequestError('BOOKING_PROPOSAL_IDENTITY', 'That response does not match the booking request.', 403);
     if (!requestSnapshotMatches(row)) throw new BookingRequestError('BOOKING_PROPOSAL_CANONICAL_DRIFT', 'The original request changed, so this option cannot be confirmed.', 409);
-    if (new Date(row.proposal_expires_at).getTime() <= now.getTime()) {
+    const expiry = new Date(row.proposal_expires_at).getTime();
+    const proposedStart = new Date(row.proposed_starts_at).getTime();
+    if (!Number.isFinite(expiry) || !Number.isFinite(proposedStart) || expiry <= now.getTime() || proposedStart <= now.getTime()) {
       const expired = await db.query(`UPDATE appointment_booking_approvals SET ${clearProposalSql()} WHERE appointment_id=$1 AND status='awaiting_client_confirmation' AND proposal_version=$2 RETURNING appointment_id`, [id, proposalVersion]);
       if (expired.rowCount !== 1) throw new BookingRequestError('BOOKING_PROPOSAL_STALE', 'That proposed option is no longer active.', 409);
       await audit(db, null, 'client.booking_request.proposal_expired', id, { proposalVersion: Number(proposalVersion) });
@@ -569,13 +591,18 @@ async function acceptProposedAlternative({
       reminder_sent_at=NULL,updated_at=NOW() WHERE appointment_id=$1`, [id, row.proposed_starts_at, row.proposed_ends_at]);
     await db.query(`INSERT INTO appointment_status_history(appointment_id,from_status,to_status,changed_by,reason)
       VALUES($1,$2,$2,$3,'Client accepted Workspace-proposed booking alternative after canonical revalidation')`,
-    [id, row.appointment_status, `client:${normalizePhone(sender)}`]);
+    [id, row.appointment_status, crmV2ClientId != null ? `crm_v2_client:${crmV2ClientId}` : `client:${normalizePhone(sender)}`]);
     await audit(db, null, 'client.booking_request.alternative_accepted', id, { proposalVersion: Number(proposalVersion), staffIds: proposedStaffIds });
     return { status: 'approved' };
   });
   if (outcome.status === 'expired') return { handled: true, status: 'pending', reply: 'That option has expired, so it was not booked. The Shiloh team will review another option.' };
   if (outcome.status === 'unavailable') return { handled: true, status: 'pending', reply: 'That option is no longer available, so it was not booked. The Shiloh team will review another option.' };
-  const confirmation = await sendConfirmation(id);
+  let confirmation;
+  try { confirmation = await sendConfirmation(id); }
+  catch (error) {
+    logger.error({ err: error, appointmentId: id }, 'Accepted alternative confirmation delivery pending');
+    confirmation = { sent: false, reason: 'confirmation_pending' };
+  }
   const awaitingDeposit = confirmation?.reason === 'deposit_required';
   return { handled: true, status: 'approved', confirmation, reply: confirmation.sent
     ? 'Your appointment is confirmed. I’ve sent the final booking details. 🌿'
@@ -621,6 +648,7 @@ module.exports = {
   startReceptionPlanning,
   acceptRequestedAppointment,
   proposeAlternative,
+  defaultSendProposal,
   cannotAccommodate,
   requestAnotherOption,
   acceptProposedAlternative,

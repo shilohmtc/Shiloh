@@ -559,6 +559,7 @@
       if (primary) {
         experienceBookings.querySelectorAll('[data-experience-extra-booking]').forEach((card) => card.remove());
         const renderBooking = (card, booking, index) => {
+          card.querySelectorAll('[data-booking-proposal-controls]').forEach(node => node.remove());
           const number = card.querySelector('.action-number');
           const heading = card.querySelector('h2');
           const copy = card.querySelector('p');
@@ -576,6 +577,30 @@
               : '#shiloh';
             if (canAskForLink) { action.target = '_blank'; action.rel = 'noopener noreferrer'; }
             else { action.removeAttribute('target'); action.removeAttribute('rel'); }
+          }
+          if (booking.proposal && Number.isSafeInteger(Number(booking.id)) && Number(booking.id) > 0
+            && Number.isSafeInteger(Number(booking.proposal.version)) && Number(booking.proposal.version) > 0) {
+            const controls = document.createElement('div');
+            controls.className = 'booking-proposal-controls';
+            controls.dataset.bookingProposalControls = '';
+            const expiry = document.createElement('p');
+            expiry.textContent = `Please respond before ${new Intl.DateTimeFormat('en-ZA', {
+              timeZone: 'Africa/Johannesburg', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+            }).format(new Date(booking.proposal.expiresAt))}.`;
+            controls.append(expiry);
+            const choices = document.createElement('div');
+            choices.className = 'booking-proposal-choices';
+            [['accept', 'Accept this time'], ['another', 'Ask for another option']].forEach(([choice, label]) => {
+              const button = document.createElement('button');
+              button.type = 'button';
+              button.className = `button ${choice === 'accept' ? 'button--primary' : 'button--soft'}`;
+              button.textContent = label;
+              button.dataset.bookingProposalAction = choice;
+              button.addEventListener('click', () => respondToBookingProposal(booking, choice));
+              choices.append(button);
+            });
+            controls.append(choices);
+            card.append(controls);
           }
         };
         if (upcoming) {
@@ -648,6 +673,33 @@
     if (heading) heading.textContent = 'Your private details are temporarily unavailable.';
     if (summary) summary.textContent = 'You can still book or continue with Shiloh while this reconnects.';
     if (status) status.textContent = 'Reconnect';
+  }
+
+  let bookingProposalBusy = false;
+  async function respondToBookingProposal(booking, action) {
+    if (bookingProposalBusy) return;
+    bookingProposalBusy = true;
+    const status = document.querySelector('[data-booking-proposal-status]');
+    experienceBookings?.querySelectorAll('[data-booking-proposal-action]').forEach(button => { button.disabled = true; });
+    if (status) status.textContent = action === 'accept' ? 'Checking this time and your booking details…' : 'Sending your request to Reception…';
+    try {
+      const token = await freshCsrfToken();
+      const response = await postJson('/my-shiloh/api/booking-proposals/respond', {
+        appointmentId: booking.id, proposalVersion: booking.proposal.version, action,
+      }, { 'x-shiloh-csrf-token': token });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(response.status === 401
+        ? 'Please sign in again, then review the latest proposed time in Bookings.'
+        : result.error || 'Your response could not be checked. Refresh Bookings before trying again.');
+      if (status) status.textContent = String(result.reply || 'Your response has been recorded.');
+    } catch (error) {
+      if (status) status.textContent = error.message || 'Please refresh Bookings and check the latest request status.';
+    } finally {
+      await loadClientExperience();
+      bookingProposalBusy = false;
+      experienceBookings?.querySelectorAll('[data-booking-proposal-action]').forEach(button => { button.disabled = false; });
+      status?.focus();
+    }
   }
 
   async function loadClientExperience() {

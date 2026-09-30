@@ -16,6 +16,9 @@ const {
   proposeAlternative,
   cannotAccommodate,
   processClientBookingProposalMessage,
+  acceptProposedAlternative,
+  defaultSendProposal,
+  requestAnotherOption,
 } = require('../src/services/clientBookingApproval');
 
 const REVISION = '2026-09-08T09:00:00.000Z';
@@ -136,7 +139,7 @@ test('historical proposal payloads remain recognized without an active provider 
   assert.equal(buttons.every(button => button.title.length <= 20), true);
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'clientBookingApproval.js'), 'utf8');
   assert.doesNotMatch(source, /sendWhatsAppReplyButtons|sendWhatsAppTemplate/);
-  assert.match(source, /BOOKING_REQUEST_DELIVERY_UNAVAILABLE/);
+  assert.match(source, /BOOKING_REQUEST_APP_IDENTITY_REQUIRED/);
   assert.doesNotMatch(source, /sendWhatsAppList/);
 });
 
@@ -426,13 +429,13 @@ test('runtime cutover has no initial-booking staff template send or staff approv
 });
 
 
-test('retired proposal delivery refuses before changing or holding a booking', async () => {
+test('app proposal delivery requires a verified app identity before changing or holding a booking', async () => {
   const db = fakePool(row());
   await assert.rejects(proposeAlternative({ dbPool: db, principal: principal(),
-    appointmentId: 7651, expectedRevision: REVISION, startsAt: START }),
-  { code: 'BOOKING_REQUEST_DELIVERY_UNAVAILABLE' });
+    appointmentId: 7651, expectedRevision: REVISION, startsAt: START, now: new Date('2026-09-08T12:00:00Z') }),
+  { code: 'BOOKING_REQUEST_APP_IDENTITY_REQUIRED' });
   assert.equal(db.state.row.status, 'pending');
-  assert.equal(db.state.calls.length, 0);
+  assert.equal(db.state.calls.some(call => call.sql.startsWith('UPDATE')), false);
 });
 
 test('decline preserves canonical outcome without falsely recording a phone alert', async () => {
@@ -443,4 +446,73 @@ test('decline preserves canonical outcome without falsely recording a phone aler
   assert.equal(result.delivery.sent, false);
   assert.equal(result.delivery.reason, 'status_available_in_app_phone_alert_retired');
   assert.equal(db.state.row.status, 'declined');
+});
+
+function appProposal(overrides = {}) {
+  return row({ status: 'awaiting_client_confirmation', proposal_version: 4,
+    requested_client_id: null, current_client_id: null,
+    requested_crm_v2_client_id: 55, current_crm_v2_client_id: 55, current_active_crm_v2_client_id: 55,
+    requested_client_phone: null, current_client_phone: null,
+    proposed_location_id: 1, proposed_staff_id: 11, proposed_staff_ids: [11], proposed_service_id: 25,
+    proposed_starts_at: START, proposed_ends_at: END, proposal_expires_at: '2026-09-09T08:00:00.000Z', ...overrides });
+}
+
+test('My Shiloh accepts the exact proposal for the session client without phone authority; duplicate response is stale', async () => {
+  const db = fakePool(appProposal()); let confirmations = 0;
+  const input = { dbPool: db, crmV2ClientId: 55, appointmentId: 7651, proposalVersion: 4,
+    now: new Date('2026-09-08T12:00:00Z'), validateWindow: async () => ({ ok: true, canonical: { display_name: 'Practitioner' } }),
+    sendConfirmation: async () => { confirmations++; return { sent: false, reason: 'deposit_required', deposit: { amount: 225 } }; } };
+  const result = await acceptProposedAlternative(input);
+  assert.equal(result.status, 'approved'); assert.match(result.reply, /deposit/); assert.equal(confirmations, 1);
+  assert.equal(db.state.calls.some(call => call.sql.startsWith('UPDATE appointments')), true);
+  await assert.rejects(acceptProposedAlternative(input), { code: 'BOOKING_PROPOSAL_STALE' });
+  assert.equal(confirmations, 1);
+});
+
+test('My Shiloh rejects other clients, inactive identities and stale proposal versions without mutation', async () => {
+  for (const [overrides, client, version, code] of [[{},56,4,'BOOKING_PROPOSAL_IDENTITY'],
+    [{current_active_crm_v2_client_id:null},55,4,'BOOKING_PROPOSAL_IDENTITY'],[{},55,3,'BOOKING_PROPOSAL_STALE']]) {
+    for (const operation of [acceptProposedAlternative, requestAnotherOption]) {
+      const db = fakePool(appProposal(overrides));
+      await assert.rejects(operation({ dbPool:db, crmV2ClientId:client, appointmentId:7651, proposalVersion:version }), {code});
+      assert.equal(db.state.calls.some(call => call.sql.startsWith('UPDATE')), false);
+    }
+  }
+});
+
+test('expired or newly unavailable app offers return to Reception without approving or moving the appointment', async () => {
+  for (const [now, available] of [['2026-09-09T09:00:00Z',true],['2026-09-08T12:00:00Z',false]]) {
+    const db = fakePool(appProposal());
+    const result = await acceptProposedAlternative({ dbPool:db,crmV2ClientId:55,appointmentId:7651,proposalVersion:4,
+      now:new Date(now),validateWindow:async()=>({ok:available,reason:'staff_schedule'}),
+      sendConfirmation:async()=>{throw new Error('Must not send');} });
+    assert.equal(result.status,'pending');assert.equal(db.state.row.status,'pending');
+    assert.equal(db.state.calls.some(call=>call.sql.startsWith('UPDATE appointments')),false);
+  }
+});
+
+test('asking for another option releases the canonical offer without cancelling or confirming a booking', async () => {
+  const db = fakePool(appProposal());
+  const result = await requestAnotherOption({dbPool:db,crmV2ClientId:55,appointmentId:7651,proposalVersion:4});
+  assert.equal(result.status,'pending');assert.equal(db.state.row.status,'pending');
+  assert.equal(db.state.calls.some(call=>call.sql.startsWith('UPDATE appointments')),false);
+});
+
+test('app acceptance deposit preflight failure keeps the proposal and appointment unchanged', async () => {
+  const db=fakePool(appProposal());
+  await assert.rejects(acceptProposedAlternative({dbPool:db,crmV2ClientId:55,appointmentId:7651,proposalVersion:4,
+    now:new Date('2026-09-08T12:00:00Z'),validateWindow:async()=>({ok:true,canonical:{display_name:'Practitioner'}}),
+    depositPreflight:async()=>{throw new Error('Price unresolved');}}), /Price unresolved/);
+  assert.equal(db.state.row.status,'awaiting_client_confirmation');
+  assert.equal(db.state.calls.some(call=>call.sql.startsWith('UPDATE appointments')),false);
+});
+
+test('proposal remains available in app when phone push is disabled or unavailable', async () => {
+  for(const notification of [{queued:true,accepted:0},{queued:false,reason:'push_unavailable'}]) {
+    let notice;
+    const result=await defaultSendProposal(appProposal(),4,{notifyClient:async input=>{notice=input;return notification;}});
+    assert.deepEqual(result,{channel:'my_shiloh',availableInApp:true,pushAccepted:false});
+    assert.equal(notice.crmV2ClientId,55);assert.equal(notice.eventKey,'booking-proposal:7651:4');
+    assert.equal(notice.targetPath,'/my-shiloh/#bookings');
+  }
 });
