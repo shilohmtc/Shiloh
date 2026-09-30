@@ -1,21 +1,20 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { clinicDate, isChristelOwner, summarize, selectRule, createWorkspaceStaffEarningsService } = require('../src/services/workspaceStaffEarnings');
+const { clinicDate, hasEarningsAccess, summarize, selectRule, createWorkspaceStaffEarningsService } = require('../src/services/workspaceStaffEarnings');
 const { renderReportsPage, staffEarningsSection } = require('../src/presentation/workspaceReportsUx');
 
-const owner = { active: true, business_role: 'owner', display_name: 'Christel', staff_name: 'Christel', staff_status: 'active', permissions: { 'appointment:view': true } };
+const owner = { active: true, business_role: 'owner', display_name: 'Christel', staff_name: 'Christel', staff_status: 'active', calendar_scope: 'all_business', staff_id: 2, permissions: { 'appointment:view': true, 'staff_earnings:manage': true } };
 const rules = [
   { staff_id: 11, service_id: null, effective_from: '1970-01-01', rate_percent: 20 },
   { staff_id: 11, service_id: 22, effective_from: '2026-10-01', rate_percent: 30 },
 ];
 const visit = (id, overrides = {}) => ({ id, staff_id: 11, starts_at: '2026-10-05T08:00:00Z', total_price: '590.00', staff_count: 1, service_ids: [22], service_names: ['Massage'], ...overrides });
 
-test('only the canonical active Christel owner sees financial reports', () => {
-  assert.equal(isChristelOwner([owner]), true);
-  assert.equal(isChristelOwner([{ ...owner, business_role: 'business_admin' }]), false);
-  assert.equal(isChristelOwner([{ ...owner, staff_name: 'Reception' }]), false);
-  assert.equal(isChristelOwner([{ ...owner, permissions: {} }]), false);
-  assert.equal(isChristelOwner([owner, owner]), false);
+test('earnings require explicit capability and active business-wide authority, not a person name', () => {
+  assert.equal(hasEarningsAccess([owner]), true);
+  assert.equal(hasEarningsAccess([{ ...owner, business_role: 'business_admin', display_name: 'JP', staff_id: null, staff_status: null }]), true);
+  for (const row of [{ ...owner, active: false }, { ...owner, business_role: 'booking_operator' }, { ...owner, calendar_scope: 'own_appointments' }, { ...owner, staff_status: 'inactive' }, { ...owner, permissions: { 'appointment:view': true } }]) assert.equal(hasEarningsAccess([row]), false);
+  assert.equal(hasEarningsAccess([owner, owner]), false);
 });
 
 test('dated service rate takes priority and shared or unpriced appointments require review', () => {
@@ -66,7 +65,7 @@ test('a completed treatment keeps an inactive practitioner in its historical rep
   assert.deepEqual(staffQuery.params, [period.from, period.to]);
 });
 
-test('rule creation is owner gated, future dated and audited in one statement', async () => {
+test('rule creation is capability gated, future dated and audited in one statement', async () => {
   const seen = [];
   const db = { async query(sql, params) {
     seen.push({ sql, params });
@@ -88,7 +87,7 @@ test('another staff account cannot query earnings or create a commission rule', 
   const seen = [];
   const service = createWorkspaceStaffEarningsService({ db: { async query(sql) {
     seen.push(sql);
-    return { rows: [{ ...owner, business_role: 'business_admin' }] };
+    return { rows: [{ ...owner, business_role: 'business_admin', permissions: { 'appointment:view': true } }] };
   } } });
   const period = { from: '2026-09-01T00:00:00Z', to: '2026-10-01T00:00:00Z' };
   await assert.rejects(service.build({ adminId: 4, period }), { httpStatus: 403 });
@@ -97,8 +96,25 @@ test('another staff account cannot query earnings or create a commission rule', 
   assert.ok(seen.every(sql => sql.includes('StaffEarnings:owner')));
 });
 
+test('granted owner and business admin both create future commission rules with their own audit identity', async () => {
+  for (const [adminId, principal] of [[2, owner], [4, { ...owner, business_role: 'business_admin', display_name: 'JP', staff_id: null, staff_status: null }]]) {
+    const seen = [];
+    const service = createWorkspaceStaffEarningsService({ db: { async query(sql, params) {
+      seen.push({ sql, params });
+      if (sql.includes('StaffEarnings:owner')) return { rows: [principal] };
+      if (sql.includes('StaffEarnings:add_rule')) return { rows: [{ id: 7 }] };
+      throw new Error('Unexpected query');
+    } } });
+    await service.addRule({ adminId, staffId: 11, effectiveFrom: '2099-01-01', ratePercent: '20' });
+    assert.match(seen[0].sql, /LEFT JOIN staff/);
+    assert.equal(seen.at(-1).params[0], adminId);
+    assert.match(seen.at(-1).sql, /crm_audit_events/);
+  }
+});
+
 test('earnings are absent from ordinary report markup', () => {
   const model = { authority: { displayName: 'Reception', reportScope: 'all_business' }, period: { preset: '7d', startKey: '2026-09-01', endInclusiveKey: '2026-09-07', dayCount: 7 }, appointments: {}, totals: {}, clients: {}, capacity: [], services: [], trend: {} };
   const html = renderReportsPage(model);
   assert.doesNotMatch(html, /data-staff-earnings|data-commission-form|commission\.js/);
+  assert.doesNotMatch(staffEarningsSection({ staff: [], rules: [], services: [] }, model.period), /Christel only/);
 });

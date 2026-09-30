@@ -71,3 +71,7 @@ export default {
 export const ClinicOverview = {
   render: () => productionSurface(renderReportsPage(reportModel())),
 };
+
+export const BusinessAdminOverview = {
+  render: () => productionSurface(renderReportsPage({ ...reportModel(), authority: { displayName: 'Jean-Pierre', reportScope: 'all_business' } })),
+};

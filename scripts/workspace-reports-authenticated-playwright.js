@@ -8,6 +8,7 @@ const { once } = require('node:events');
 const express = require('express');
 const { chromium } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
+const { createWorkspaceStaffEarningsService } = require('../src/services/workspaceStaffEarnings');
 const { createWorkspaceReportsRouter } = require('../src/routes/workspaceReports');
 
 const OUT_DIR = path.join(process.cwd(), 'artifacts', 'workspace-reports-ui');
@@ -61,24 +62,30 @@ function model() {
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   let buildCalls = 0;
+  const principals = {
+    41: { active: true, display_name: 'Christel', business_role: 'owner', calendar_scope: 'all_business', permissions: { 'appointment:view': true, 'staff_earnings:manage': true } },
+    4: { active: true, display_name: 'Jean-Pierre', business_role: 'business_admin', calendar_scope: 'all_business', permissions: { 'appointment:view': true, 'staff_earnings:manage': true } },
+    51: { active: true, display_name: 'Reception', business_role: 'booking_operator', calendar_scope: 'all_business', permissions: { 'appointment:view': true } },
+  };
+  const gate = createWorkspaceStaffEarningsService({ db: { async query(_sql, params) { return { rows: principals[params[0]] ? [principals[params[0]]] : [] }; } } });
   const sessionService = {
-    validateSessionToken: async token => token === 'synthetic-reports-session'
-      ? { ok: true, adminId: 41, sessionId: 51 }
+    validateSessionToken: async token => principals[Number(String(token || '').replace('synthetic-reports-session-', ''))]
+      ? { ok: true, adminId: Number(String(token || '').replace('synthetic-reports-session-', '')), sessionId: 51 }
       : { ok: false },
     rotateCsrfToken: async () => ({ ok: true, csrfToken: 'synthetic-csrf' }),
     validateCsrfToken: (_session, token) => token === 'synthetic-csrf',
   };
   const service = {
     async buildReport({ adminId }) {
-      assert.equal(adminId, 41);
+      assert.ok(principals[adminId]);
       buildCalls += 1;
-      return model();
+      return { ...model(), authority: { displayName: principals[adminId].display_name, reportScope: 'all_business' } };
     },
   };
   const earningsService = {
-    async requireOwner(adminId) { assert.equal(adminId, 41); },
+    async requireOwner(adminId) { return gate.requireOwner(adminId); },
     async build({ adminId }) {
-      assert.equal(adminId, 41);
+      await gate.requireOwner(adminId);
       return {
         earliestNewRuleDate: '2026-09-16',
         staff: [{ staffId: 11, name: 'Abigail', completedValue: 590, commission: 118, completedCount: 1, reviewCount: 1, appointments: [
@@ -89,7 +96,7 @@ async function main() {
         rules: [{ staff_id: 11, service_id: null, effective_from: '1970-01-01', rate_percent: 20 }],
       };
     },
-    async addRule({ adminId, staffId }) { assert.equal(adminId, 41); assert.equal(staffId, '11'); return { id: 7 }; },
+    async addRule({ adminId, staffId }) { await gate.requireOwner(adminId); assert.equal(staffId, '11'); return { id: 7 }; },
   };
 
   const app = express();
@@ -117,7 +124,7 @@ async function main() {
     await unauthenticated.close();
 
     const screenshots = [];
-    for (const viewport of [
+    for (const adminId of [41, 4, 51]) for (const viewport of [
       { name: 'desktop', width: 1440, height: 960 },
       { name: 'phone', width: 390, height: 844 },
     ]) {
@@ -130,7 +137,7 @@ async function main() {
       });
       await context.addCookies([{
         name: 'shiloh_staff_session',
-        value: 'synthetic-reports-session',
+        value: `synthetic-reports-session-${adminId}`,
         url: origin,
         httpOnly: true,
         sameSite: 'Strict',
@@ -142,8 +149,11 @@ async function main() {
       assert.equal(await page.getByRole('heading', { name: 'Reports', exact: true }).isVisible(), true);
       assert.equal(await page.getByRole('button', { name: 'View report' }).isVisible(), true);
       assert.equal(await page.getByRole('heading', { name: 'Team booking time' }).isVisible(), true);
-      assert.equal(await page.getByRole('heading', { name: 'Team treatment value & commission' }).isVisible(), true);
-      assert.match(await page.getByRole('link', { name: 'Appointment #732' }).getAttribute('href'), /appointment=732/);
+      const hasEarnings = adminId !== 51;
+      assert.equal(await page.getByRole('heading', { name: 'Team treatment value & commission' }).count(), hasEarnings ? 1 : 0);
+      if (hasEarnings) assert.match(await page.getByRole('link', { name: 'Appointment #732' }).getAttribute('href'), /appointment=732/);
+      const scriptResponse = await context.request.get(`${origin}/calendar/reports/commission.js`);
+      assert.equal(scriptResponse.status(), hasEarnings ? 200 : 403);
       assert.equal(await page.getByRole('heading', { name: 'Treatments booked' }).isVisible(), true);
       assert.equal(await page.getByRole('heading', { name: 'New and returning clients' }).isVisible(), true);
 
@@ -174,7 +184,7 @@ async function main() {
       const serious = accessibility.violations.filter(item => ['serious', 'critical'].includes(item.impact));
       assert.deepEqual(serious, [], `${viewport.name} accessibility violations: ${JSON.stringify(serious)}`);
 
-      const file = `${viewport.name}-reports.png`;
+      const file = `${viewport.name}-${adminId}-reports.png`;
       const filePath = path.join(OUT_DIR, file);
       await page.screenshot({ path: filePath, fullPage: true });
       screenshots.push({

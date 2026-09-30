@@ -17,13 +17,13 @@ function nextClinicDate(now = new Date()) {
   return clinicDate(new Date(now.getTime() + 86400000));
 }
 
-function isChristelOwner(rows) {
+function hasEarningsAccess(rows) {
   return rows.length === 1 && rows[0].active === true
-    && rows[0].business_role === 'owner'
-    && String(rows[0].display_name || '').trim().toLowerCase() === 'christel'
-    && rows[0].staff_status === 'active'
-    && String(rows[0].staff_name || '').trim().toLowerCase() === 'christel'
-    && rows[0].permissions?.['appointment:view'] === true;
+    && ['owner', 'business_admin'].includes(rows[0].business_role)
+    && rows[0].calendar_scope === 'all_business'
+    && rows[0].permissions?.['staff_earnings:manage'] === true
+    && rows[0].permissions?.['appointment:view'] === true
+    && (rows[0].staff_id == null || rows[0].staff_status === 'active');
 }
 
 function selectRule(rules, appointment) {
@@ -79,11 +79,11 @@ function createWorkspaceStaffEarningsService({ db = pool } = {}) {
     const id = Number(adminId);
     if (!Number.isSafeInteger(id) || id <= 0) throw new EarningsError('Access denied.', 403);
     const result = await db.query(`/* StaffEarnings:owner */
-      SELECT a.active,a.business_role,a.display_name,a.permissions,
+      SELECT a.active,a.business_role,a.display_name,a.permissions,a.calendar_scope,a.staff_id,
              s.display_name AS staff_name,s.status AS staff_status
-        FROM staff_admin_accounts a JOIN staff s ON s.id=a.staff_id
+        FROM staff_admin_accounts a LEFT JOIN staff s ON s.id=a.staff_id
        WHERE a.id=$1 LIMIT 2`, [id]);
-    if (!isChristelOwner(result.rows)) throw new EarningsError('Access denied.', 403);
+    if (!hasEarningsAccess(result.rows)) throw new EarningsError('Access denied.', 403);
     return id;
   }
 
@@ -165,5 +165,5 @@ function createWorkspaceStaffEarningsService({ db = pool } = {}) {
   return { requireOwner, build, addRule };
 }
 
-module.exports = { EarningsError, clinicDate, nextClinicDate, isChristelOwner, selectRule, summarize, createWorkspaceStaffEarningsService,
+module.exports = { EarningsError, clinicDate, nextClinicDate, hasEarningsAccess, selectRule, summarize, createWorkspaceStaffEarningsService,
   ...createWorkspaceStaffEarningsService() };

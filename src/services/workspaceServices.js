@@ -71,6 +71,7 @@ function evaluatePrincipal(rows = [], capability, key) {
     businessRole,
     serviceScope,
     capability,
+    permissions: permissionSet(principal.permissions),
   };
 }
 

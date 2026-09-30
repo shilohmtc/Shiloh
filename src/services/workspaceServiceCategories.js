@@ -14,16 +14,15 @@ function displayOrder(value) {
 }
 
 function allowed(authority) {
-  return authority && authority.serviceScope === 'all_services' && (
-    (authority.businessRole === 'owner' && authority.displayName.toLowerCase() === 'christel') ||
-    (authority.businessRole === 'booking_operator' && authority.displayName.toLowerCase() === 'shiloh reception')
-  );
+  return authority && authority.serviceScope === 'all_services'
+    && ['owner', 'business_admin', 'booking_operator'].includes(authority.businessRole)
+    && authority.permissions?.['service_categories:manage'] === true;
 }
 
 function createWorkspaceServiceCategories({ db = pool, manageAccess = resolveManageAccess } = {}) {
   async function requireAccess(adminId, client = db) {
     const authority = await manageAccess(adminId, client);
-    if (!allowed(authority)) throw new WorkspaceServicesError('CATEGORY_FORBIDDEN', 'Category management is available to Christel and Reception.', 403);
+    if (!allowed(authority)) throw new WorkspaceServicesError('CATEGORY_FORBIDDEN', 'You do not have access to manage service categories.', 403);
     return authority;
   }
 
