@@ -9,7 +9,6 @@ const DEFAULT_TIMEZONE = "Africa/Johannesburg";
 const STAFF_CALENDAR_ENV = Object.freeze({
   christel: "GOOGLE_CHRISTEL_CALENDAR_ID",
   abigail: "GOOGLE_ABIGAIL_CALENDAR_ID",
-  marietjie: "GOOGLE_MARIETJIE_CALENDAR_ID",
 });
 let cachedToken=null,cachedTokenExpiresAt=0;
 const SHILOH_CALENDAR_SOLE_AUTHORITY=true;

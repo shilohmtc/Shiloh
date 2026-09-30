@@ -27,19 +27,6 @@ const COMMANDS = {
     description: 'Run the CRM-6 production smoke test.',
     run: async () => require('../src/services/crm6ProductionSmokeTest').runCrm6ProductionSmokeTest(),
   },
-  'p2-staff-smoke': {
-    mutates: false,
-    description: 'Run the P2 staff-scope rollout smoke test.',
-    run: async () => require('../src/services/p2StaffRolloutSmokeTest').runP2StaffRolloutSmokeTest(),
-  },
-  'marietjie-calendar-rollout': {
-    mutates: true,
-    description: 'Run the guarded Marietjie calendar rollout using configured environment values.',
-    run: async () => {
-      process.env.RUN_MARIETJIE_CALENDAR_ROLLOUT = 'true';
-      return require('../src/services/marietjieCalendarRollout').runMarietjieCalendarRolloutFromEnv();
-    },
-  },
   'abigail-calendar-rollout': {
     mutates: true,
     description: 'Run the guarded Abigail calendar rollout using configured environment values.',

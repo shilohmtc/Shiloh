@@ -12,7 +12,6 @@ const { prepareCalendarWrite } = require('./clientBookingCalendarRecovery');
 const ENV_BY_STAFF = Object.freeze({
   christel: 'GOOGLE_CHRISTEL_CALENDAR_ID',
   abigail: 'GOOGLE_ABIGAIL_CALENDAR_ID',
-  marietjie: 'GOOGLE_MARIETJIE_CALENDAR_ID',
 });
 
 function normalizeStaffName(value = '') {

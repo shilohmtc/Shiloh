@@ -9,10 +9,10 @@ const migration = fs.readFileSync(path.join(root, 'migrations/032_booking_integr
 const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const buttons = fs.readFileSync(path.join(root, 'src/services/adminEarningsButtons.js'), 'utf8');
 
-test('booking integrity monitor covers Christel Abigail and Marietjie practitioner calendars', () => {
+test('booking integrity monitor covers current practitioner calendars', () => {
   assert.match(monitor, /GOOGLE_CHRISTEL_CALENDAR_ID/);
   assert.match(monitor, /GOOGLE_ABIGAIL_CALENDAR_ID/);
-  assert.match(monitor, /GOOGLE_MARIETJIE_CALENDAR_ID/);
+  assert.doesNotMatch(monitor, /GOOGLE_MARIETJIE_CALENDAR_ID/);
   assert.match(monitor, /SCAN_LOOKAHEAD_MS = 90/);
 });
 
