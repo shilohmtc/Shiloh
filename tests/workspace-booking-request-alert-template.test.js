@@ -26,14 +26,14 @@ test('Workspace booking request alert freezes the approved provider submission c
   assert.equal(providerContractMatches(definition), true);
 });
 
-test('Workspace booking request alert is centrally registered but not configured for sending before activation', () => {
+test('Workspace booking request alert is retained as historical evidence without provider sending authority', () => {
   const contract = getShilohMessageContract('workspace_booking_request_alert');
-  assert.equal(contract?.lifecycle, 'current');
-  assert.equal(contract?.sendable, true);
+  assert.equal(contract?.lifecycle, 'retired');
+  assert.equal(contract?.sendable, false);
   const binding = getMetaTemplateBindingSpec('workspace_booking_request_alert');
   assert.equal(binding?.templateName, TEMPLATE_NAME);
-  assert.equal(binding?.env, 'WHATSAPP_WORKSPACE_BOOKING_REQUEST_ALERT_TEMPLATE');
-  assert.equal(configuredMetaTemplateName('workspace_booking_request_alert', {}), null);
+  assert.equal(binding?.env, null);
+  assert.equal(configuredMetaTemplateName('workspace_booking_request_alert', {}), TEMPLATE_NAME);
 });
 
 test('provider comparison rejects drift in category, body, or button contract', () => {

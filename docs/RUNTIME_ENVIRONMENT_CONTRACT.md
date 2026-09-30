@@ -95,3 +95,9 @@ The #654 cleanup alone did not authorize deletion or rotation of credential mate
 Production startup must retain `node scripts/verify-migrations.js` as its first authority gate. The retired #643 Meta reconnect and WABA-template-permission bootstrap modules must not be preloaded by the production start command. Provider mutation remains unavailable unless a future bounded unit deliberately reintroduces an authorized path.
 
 The two automated staff finalization WhatsApp schedulers (recurring attendance reminders and historical prompts) are retired after the Meta sending credentials were removed. Their old ledger migrations remain in the migration inventory for checksum authority; no startup timer reads them. Staff finalization remains available through the protected Workspace appointment route.
+
+## Booking-request staff alert retirement — 30 September 2026
+
+Booking requests now reuse the scoped Workspace push service and its event/subscription ledger. The existing Reception booking-request queue remains the source of pending work, including when phone notifications are unavailable. Recipient selection preserves owner/team coordination and receive-alerts opt-outs; a historical WhatsApp number is no longer required. Queued events and provider-accepted push wakes are reported separately and do not claim staff read receipt.
+
+The staff Meta alert sender, provider submission/status helper and template environment binding are removed. The historical template definition and delivery ledger remain read-only evidence. `WHATSAPP_WORKSPACE_BOOKING_REQUEST_ALERT_TEMPLATE` and `META_WORKSPACE_BOOKING_REQUEST_ALERT_PROVISION_ON_START` have no runtime authority and can be removed if still present after the code release. This source update alone does not claim a production release or Render key readback.
