@@ -51,8 +51,8 @@ test('reminder action template is provider-safe and exposes deterministic change
   assert.match(reminderTemplate, /Cancel booking/);
   assert.match(reminderTemplate, /QUICK_REPLY/);
   assert.match(lifecycle, /WHATSAPP_REMINDER_ACTIONS_TEMPLATE/);
-  assert.match(whatsapp, /quickReplyPayloads/);
-  assert.match(whatsapp, /sub_type:\s*["']quick_reply["']/);
+  assert.doesNotMatch(whatsapp, /quickReplyPayloads|axios|graph\.facebook/);
+  assert.doesNotMatch(whatsapp, /sub_type/);
 });
 
 test('client identity fails closed unless exactly one active canonical client matches the phone', () => {

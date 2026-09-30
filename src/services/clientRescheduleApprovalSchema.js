@@ -86,7 +86,7 @@ async function initializeClientRescheduleApprovalSchema() {
     clientIdentityXor: row.client_identity_xor === true,
     featureEnabled: clientRescheduleRequestsEnabled(),
     approvalTemplateConfigured: String(process.env.WHATSAPP_RESCHEDULE_APPROVAL_REQUEST_TEMPLATE || '').trim() === APPROVAL_TEMPLATE,
-    declinedTemplateConfigured: String(process.env.WHATSAPP_RESCHEDULE_DECLINED_TEMPLATE || '').trim() === DECLINED_TEMPLATE,
+    declinedPhoneAlertRetired: true,
   };
 }
 

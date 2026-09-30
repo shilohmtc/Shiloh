@@ -33,11 +33,10 @@ function futureContext(overrides = {}) {
   };
 }
 
-test('approved reschedule outcome uses the existing exact reschedule confirmation contract', () => {
-  assert.match(serviceSource, /const TEMPLATE_NAME = 'shiloh_reschedule_confirmation_v1'/);
-  assert.match(serviceSource, /WHATSAPP_RESCHEDULE_CONFIRMATION_TEMPLATE/);
-  assert.match(serviceSource, /sendWhatsAppTemplate\([\s\S]*context\.client_name[\s\S]*context\.service_name[\s\S]*context\.staff_name[\s\S]*fmtDate\(context\.current_starts_at\)[\s\S]*fmtTime\(context\.current_starts_at\)/);
-  assert.doesNotMatch(serviceSource, /shiloh_booking_update_v1|WHATSAPP_BOOKING_UPDATE_TEMPLATE/);
+test('approved reschedule outcome uses My Shiloh and cannot select a retired provider template', () => {
+  assert.match(serviceSource, /deliverApprovedRescheduleAppNotification/);
+  assert.match(serviceSource, /changeKind: 'reschedule'/);
+  assert.doesNotMatch(serviceSource, /WHATSAPP_|sendWhatsAppTemplate/);
 });
 
 test('router only intercepts when the latest canonical time audit is the practitioner-approved reschedule', () => {
@@ -122,10 +121,37 @@ test('stale delivery claims are recoverable and active claims cannot double-send
   assert.match(flush[0], /client_notification_claimed_at IS NULL[\s\S]*client_notification_claimed_at <= NOW\(\) - INTERVAL/);
 });
 
-test('successful delivery records client notification and an auditable provider message reference', () => {
+test('accepted app wake records client notification and channel evidence', () => {
   assert.match(serviceSource, /SET client_notified_at=NOW\(\)/);
   assert.match(serviceSource, /customer\.reschedule_confirmation_sent/);
-  assert.match(serviceSource, /providerMessageId/);
+  assert.match(serviceSource, /notificationId/);
   assert.match(serviceSource, /sourceAuditEventId/);
   assert.match(serviceSource, /idempotentDelivery: true/);
+});
+
+
+test('approved reschedule app delivery preserves pending obligations without an accepted wake', async () => {
+  const { deliverApprovedRescheduleAppNotification: deliver } = require('../src/services/clientRescheduleApprovedNotification');
+  const context = futureContext({ id: 17, appointment_id: 501, request_crm_v2_client_id: 9 });
+  const notices = [];
+  const pending = await deliver(context, { notifyClient: async notice => { notices.push(notice); return { queued: true, accepted: 0 }; } });
+  assert.equal(pending.sent, false);
+  assert.equal(pending.reason, 'my_shiloh_push_not_accepted');
+  assert.equal(notices[0].crmV2ClientId, 9);
+  assert.equal(notices[0].targetPath, '/my-shiloh/#bookings');
+  assert.equal(notices[0].eventKey, 'appointment-reschedule:501:17');
+  const delivered = await deliver(context, { notifyClient: async () => ({ queued: true, accepted: 1, notificationId: 10 }) });
+  assert.deepEqual(delivered, { sent: true, channel: 'my_shiloh', notificationId: 10 });
+  assert.equal((await deliver(futureContext(), { notifyClient: async () => { throw new Error('No app identity'); } })).reason, 'my_shiloh_client_unavailable');
+});
+
+test('retry wakes the existing reschedule event without creating another notice', async () => {
+  const { deliverApprovedRescheduleAppNotification: deliver } = require('../src/services/clientRescheduleApprovedNotification');
+  const wakes = [];
+  const result = await deliver(futureContext({ id: 17, appointment_id: 501, request_crm_v2_client_id: 9 }), {
+    notifyClient: async () => ({ queued: false, duplicate: true }),
+    wakeClient: async id => { wakes.push(id); return { accepted: 1 }; },
+  });
+  assert.equal(result.sent, true);
+  assert.deepEqual(wakes, [9]);
 });

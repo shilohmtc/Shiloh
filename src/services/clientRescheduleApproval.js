@@ -2,7 +2,6 @@ const { pool } = require('../db/pool');
 const { checkAssistantBookingHours: checkClinicHours } = require('./assistantBookingHours');
 const { checkAuthoritativeSchedule } = require('./adminAvailability');
 const { pendingBookingProposalConflicts } = require('./bookingRequestHolds');
-const { sendWhatsAppTemplate } = require('./whatsapp');
 const {
   IDENTITY_MODELS,
   identityAuditMetadata,
@@ -500,30 +499,10 @@ async function supersedePendingRescheduleForAppointment(appointmentId, reason = 
   return { superseded: result.rowCount };
 }
 
-async function sendDeclinedOutcome(context) {
-  if (!context.client_phone) return { sent: false, reason: 'client_phone_unavailable' };
-  const configured = String(process.env.WHATSAPP_RESCHEDULE_DECLINED_TEMPLATE || '').trim();
-  if (configured !== DECLINED_TEMPLATE) return { sent: false, reason: 'template_not_configured' };
-  try {
-    await sendWhatsAppTemplate(
-      context.client_phone,
-      DECLINED_TEMPLATE,
-      [
-        context.client_name,
-        context.service_name,
-        fmtDateTime(context.proposed_starts_at),
-        fmtDateTime(context.original_starts_at),
-        String(context.appointment_id),
-      ],
-      process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en',
-      ['client_reschedule_booking']
-    );
-    await pool.query(`UPDATE appointment_reschedule_requests SET client_notified_at=NOW(),updated_at=NOW() WHERE id=$1`, [context.id]);
-    return { sent: true };
-  } catch (error) {
-    logger.error({ err: error, requestId: Number(context.id), appointmentId: Number(context.appointment_id) }, 'Client reschedule decline notification failed');
-    return { sent: false, reason: 'send_failed' };
-  }
+async function sendDeclinedOutcome() {
+  // The original appointment remains unchanged in My Shiloh; the decline
+  // stays in canonical request/audit history. Do not claim phone delivery.
+  return { sent: false, channel: 'my_shiloh', reason: 'status_available_in_app_phone_alert_retired' };
 }
 
 async function queueApprovedCustomerUpdate(appointmentId) {

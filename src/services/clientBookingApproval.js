@@ -3,7 +3,6 @@ const { normalizeMobile } = require('./crmV2ClientService');
 const { checkAssistantBookingHours: checkClinicHours } = require('./assistantBookingHours');
 const { checkAuthoritativeSchedule } = require('./adminAvailability');
 const { pendingBookingProposalConflicts } = require('./bookingRequestHolds');
-const { sendWhatsAppReplyButtons, sendWhatsAppTemplate } = require('./whatsapp');
 const { sendCustomerBookingConfirmationForAppointment } = require('./customerBookingConfirmation');
 const {
   BookingDepositPolicyError,
@@ -382,15 +381,9 @@ async function acceptRequestedAppointment({
   return { ok: true, appointmentId: id, status: 'approved', confirmation };
 }
 
-async function defaultSendProposal(row, version) {
-  const phone = normalizePhone(row.current_client_phone);
-  if (!phone) throw new Error('Canonical client WhatsApp identity is unavailable');
-  return sendWhatsAppReplyButtons(phone, [
-    `Hi ${row.client_name}, Shiloh has another option for your booking request. 🌿`, '',
-    `Service: ${row.service_name}`, `With: ${row.proposed_staff_name || row.staff_name}`,
-    `Proposed time: ${fmtDateTime(row.proposed_starts_at)}`, '',
-    'Please choose one response. The appointment is not confirmed until your acceptance is revalidated.',
-  ].join('\n'), proposalReplyButtons(row, version));
+async function defaultSendProposal() {
+  throw new BookingRequestError('BOOKING_REQUEST_DELIVERY_UNAVAILABLE',
+    'Reception needs to arrange this alternative with the client. App acceptance for proposed alternatives is not available yet.', 503);
 }
 
 async function proposeAlternative({
@@ -398,6 +391,9 @@ async function proposeAlternative({
   now = new Date(), sendProposal = defaultSendProposal,
   validateWindow = canonicalWindowAvailable,
 }) {
+  // Retired WhatsApp buttons cannot create a usable client acceptance path.
+  // Refuse before acquiring a hold or changing canonical request state.
+  if (sendProposal === defaultSendProposal) await defaultSendProposal();
   const id = positiveId(appointmentId);
   const start = exactDate(startsAt);
   if (start.getTime() <= now.getTime()) throw new BookingRequestError('BOOKING_REQUEST_PAST_TIME', 'The proposed time must be in the future.');
@@ -461,13 +457,8 @@ async function proposeAlternative({
   return { ok: true, appointmentId: id, status: 'awaiting_client_confirmation', proposalVersion: version };
 }
 
-async function defaultSendCannotAccommodate(row) {
-  const configured = String(process.env.WHATSAPP_BOOKING_DECLINED_TEMPLATE || '').trim();
-  if (configured !== 'shiloh_booking_declined_v1') return { sent: false, reason: 'template_not_configured' };
-  await sendWhatsAppTemplate(normalizePhone(row.current_client_phone), configured,
-    [row.client_name, row.service_name, fmtDateTime(row.requested_starts_at), String(row.appointment_id)],
-    process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en', ['client_booking_start']);
-  return { sent: true };
+async function defaultSendCannotAccommodate() {
+  return { sent: false, channel: 'my_shiloh', reason: 'status_available_in_app_phone_alert_retired' };
 }
 
 async function cannotAccommodate({ dbPool = pool, principal, appointmentId, expectedRevision, sendOutcome = defaultSendCannotAccommodate }) {

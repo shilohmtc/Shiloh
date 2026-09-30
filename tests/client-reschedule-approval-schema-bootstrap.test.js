@@ -35,8 +35,8 @@ test('startup evidence exposes only sanitized activation prerequisites', () => {
   assert.match(schema, /featureEnabled: clientRescheduleRequestsEnabled\(\)/);
   assert.match(schema, /approvalTemplateConfigured: String\(process\.env\.WHATSAPP_RESCHEDULE_APPROVAL_REQUEST_TEMPLATE/);
   assert.match(schema, /=== APPROVAL_TEMPLATE/);
-  assert.match(schema, /declinedTemplateConfigured: String\(process\.env\.WHATSAPP_RESCHEDULE_DECLINED_TEMPLATE/);
-  assert.match(schema, /=== DECLINED_TEMPLATE/);
+  assert.match(schema, /declinedPhoneAlertRetired: true/);
+  assert.doesNotMatch(schema, /WHATSAPP_RESCHEDULE_DECLINED_TEMPLATE/);
   assert.doesNotMatch(schema, /approvalTemplateValue|declinedTemplateValue|DATABASE_URL/);
 });
 

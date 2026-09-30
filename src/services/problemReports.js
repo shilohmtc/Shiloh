@@ -269,10 +269,6 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
        ), status_event AS (
          INSERT INTO problem_report_status_events(problem_report_id,from_status,to_status,resolution_note_snapshot,actor_admin_id,actor_kind)
          SELECT id,previous_status,status,COALESCE(resolution_note,previous_resolution_note),$1,'staff' FROM updated
-       ), notification AS (
-         INSERT INTO problem_report_notifications(problem_report_id,event_type,report_revision)
-         SELECT id,'resolved',revision FROM updated WHERE status='fixed' AND previous_status<>'fixed'
-         ON CONFLICT(problem_report_id,event_type,report_revision) DO NOTHING
        ), audited AS (
          INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata)
          SELECT $1,'problem_report.status_changed','problem_report',id,

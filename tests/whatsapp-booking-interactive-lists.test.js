@@ -8,12 +8,9 @@ const whatsapp = fs.readFileSync(path.join(root, 'src/services/whatsapp.js'), 'u
 const webhook = fs.readFileSync(path.join(root, 'src/controllers/webhookController.js'), 'utf8');
 const buttons = fs.readFileSync(path.join(root, 'src/services/adminEarningsButtons.js'), 'utf8');
 
-test('WhatsApp transport supports Meta interactive list messages and enforces row bounds', () => {
+test('retired list entry point has no provider sender or credential dependency', () => {
   assert.match(whatsapp, /async function sendWhatsAppList/);
-  assert.match(whatsapp, /type: "list"/);
-  assert.match(whatsapp, /rows\.length < 1 \|\| rows\.length > 10/);
-  assert.match(whatsapp, /title\.length > 24/);
-  assert.match(whatsapp, /description\.length > 72/);
+  assert.doesNotMatch(whatsapp, /axios|graph\.facebook|WHATSAPP_TOKEN|PHONE_NUMBER_ID/);
 });
 
 test('incoming list replies are parsed but ordinary admin booking flow is no longer dispatched', () => {

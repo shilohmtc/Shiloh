@@ -92,7 +92,8 @@ test('in-flight practitioner decision payloads remain recognized while new reque
   assert.match(service, /reschedule_approval_approve_/);
   assert.match(service, /reschedule_approval_decline_/);
   assert.match(service, /status,decision_owner\)/);
-  assert.match(service, /WHATSAPP_RESCHEDULE_DECLINED_TEMPLATE/);
+  assert.doesNotMatch(service, /WHATSAPP_RESCHEDULE_DECLINED_TEMPLATE|sendWhatsAppTemplate/);
+  assert.match(service, /status_available_in_app_phone_alert_retired/);
   assert.doesNotMatch(service, /submit.*Template|graph\.facebook\.com/i);
 });
 

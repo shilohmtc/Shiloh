@@ -5,7 +5,6 @@ const problemReports = require('../services/problemReports');
 const { ProblemReportError } = require('../services/problemReports');
 const { renderProblemReportsPage, problemReportsClientScript } = require('../presentation/workspaceProblemReportsUx');
 const { requireStaffSession, sameOriginGuard, csrfGuard } = require('../middleware/staffBrowserSession');
-const { dispatchProblemReportNotifications } = require('../services/problemReportNotifications');
 
 function securityHeaders(_req, res, next) {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
@@ -58,7 +57,6 @@ function createWorkspaceProblemReportsRouter({ env = process.env, sessionService
   router.post('/:reference/status', sameOrigin, requireCsrf, async (req, res) => {
     try {
       const report = await service.updateStatus({ adminId: req.staffBrowserSession.adminId, reference: req.params.reference, status: req.body?.status, resolutionNote: req.body?.resolutionNote });
-      if (report.status === 'fixed') setImmediate(() => dispatchProblemReportNotifications().catch(() => {}));
       return res.status(200).json({ report });
     } catch (error) { return sendError(res, error, req.id); }
   });
