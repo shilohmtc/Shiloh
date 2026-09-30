@@ -36,12 +36,12 @@ async function resolveService(intent) {
 async function resolveEligibleStaff(serviceId, therapistText) {
   const therapist = clean(therapistText); const params = [Number(serviceId)]; let therapistClause = '';
   if (therapist && !isAnyPractitionerPreference(therapist)) { params.push(therapist); therapistClause = 'AND LOWER(st.display_name) = LOWER($2)'; }
-  const voucherClause = isWelcomeVoucherPreference(therapist) ? "AND st.business_role <> 'tenant_practitioner' AND LOWER(BTRIM(st.display_name)) <> 'marietjie'" : '';
+  const voucherClause = isWelcomeVoucherPreference(therapist) ? "AND st.business_role <> 'tenant_practitioner'" : '';
   const result = await pool.query(`
     SELECT st.id, st.display_name FROM staff st JOIN staff_services ss ON ss.staff_id = st.id
      WHERE ss.service_id = $1 AND st.status = 'active' AND st.resource_type = 'practitioner' AND st.client_bookable = TRUE ${therapistClause} ${voucherClause}
      GROUP BY st.id, st.display_name
-     ORDER BY CASE LOWER(st.display_name) WHEN 'christel' THEN 1 WHEN 'abigail' THEN 2 WHEN 'marietjie' THEN 3 ELSE 9 END, st.display_name, st.id
+     ORDER BY CASE LOWER(st.display_name) WHEN 'christel' THEN 1 WHEN 'abigail' THEN 2 ELSE 9 END, st.display_name, st.id
   `, params);
   return result.rows;
 }

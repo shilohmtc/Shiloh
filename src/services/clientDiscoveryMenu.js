@@ -59,7 +59,7 @@ async function selectedServicePractitioners(sender, requestedName, { welcomeVouc
   const staged = await processBookingMessage(sender, `Book ${service.name}`);
   const mapped = await listEligiblePractitionersForService(service.id);
   const eligible = welcomeVoucher
-    ? mapped.filter((row) => row.business_role !== 'tenant_practitioner' && comparableServiceName(row.display_name) !== 'marietjie')
+    ? mapped.filter((row) => row.business_role !== 'tenant_practitioner')
     : mapped;
   if (!eligible.length) {
     return { handled: true, reply: 'No client-bookable practitioner is currently mapped to that treatment. Nothing has been booked.' };
@@ -228,7 +228,6 @@ async function listEligiblePractitionersForService(serviceId) {
            CASE LOWER(st.display_name)
              WHEN 'christel' THEN 1
              WHEN 'abigail' THEN 2
-             WHEN 'marietjie' THEN 3
              ELSE 9
            END AS practitioner_order
       FROM staff st
@@ -645,8 +644,8 @@ async function processClientDiscoveryMessage(sender, text) {
     const existing = await getIntent(sender);
     if (!existing?.service_text) return { handled: true, interactive: bookingDiscoveryInteractive() };
     const practitioner = await practitionerEligibleForService(voucherPractitionerMatch[1], existing.service_text);
-    if (!practitioner || practitioner.business_role === 'tenant_practitioner' || comparableServiceName(practitioner.display_name) === 'marietjie') {
-      return { handled: true, reply: 'The R100 welcome voucher does not apply to Marietjie’s services. Choose another eligible practitioner.' };
+    if (!practitioner || practitioner.business_role === 'tenant_practitioner') {
+      return { handled: true, reply: 'The R100 welcome voucher does not apply to this practitioner’s services. Choose another eligible practitioner.' };
     }
     return decorateClientBookingResult(await processBookingMessage(sender, `booking with ${practitioner.display_name}`));
   }

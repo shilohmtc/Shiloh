@@ -13,14 +13,12 @@ function clientFacingPractitionerLabel(name = '') {
   switch (value.toLowerCase()) {
     case 'christel': return 'Christel · Massage';
     case 'abigail': return 'Abigail · Massage';
-    case 'marietjie': return 'Marietjie · Esthetician';
     default: return value;
   }
 }
 
 function clientFacingPractitionerRole(name = '') {
   const value = clean(name).toLowerCase();
-  if (value.startsWith('marietjie')) return 'Aesthetic Practitioner';
   if (value.startsWith('christel') || value.startsWith('abigail')) return 'Massage Practitioner';
   return 'Shiloh Practitioner';
 }
@@ -55,7 +53,6 @@ async function listClientBookableStaff() {
      ORDER BY CASE LOWER(display_name)
        WHEN 'christel' THEN 1
        WHEN 'abigail' THEN 2
-       WHEN 'marietjie' THEN 3
        ELSE 9 END,
        display_name,
        id

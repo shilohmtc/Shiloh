@@ -46,7 +46,7 @@ function buildBookingConfirmationTemplateDefinition() {
           body_text: [[
             'Christel',
             'HIFU',
-            'Marietjie',
+            'Abigail',
             'Friday, 14 August 2026',
             '10:00–10:30',
             'https://calendar.google.com/calendar/render?example=1',

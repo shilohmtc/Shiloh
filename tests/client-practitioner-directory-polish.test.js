@@ -12,7 +12,6 @@ test('client practitioner directory uses approved professional role descriptions
   const cases = [
     ['Christel', 'Christel · Massage', 'Massage Practitioner'],
     ['Abigail', 'Abigail · Massage', 'Massage Practitioner'],
-    ['Marietjie', 'Marietjie · Esthetician', 'Aesthetic Practitioner'],
   ];
 
   for (const [name, label, role] of cases) {

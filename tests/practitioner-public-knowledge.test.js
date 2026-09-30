@@ -24,14 +24,14 @@ test('public practitioner metadata is stored in a separate approval-gated CRM ta
   assert.match(source, /CREATE TABLE IF NOT EXISTS staff_customer_profiles/);
 });
 
-test('approved client-facing titles cover the three treatment practitioners and update existing Marietjie metadata', () => {
+test('approved historical titles remain verifiable while runtime seeding uses current practitioners', () => {
   assert.match(titleMigration, /LOWER\(display_name\) IN \('christel', 'abigail', 'marietjie'\)/);
   assert.match(titleMigration, /WHEN 'marietjie' THEN 'Esthetician'/);
   assert.match(titleMigration, /ELSE 'Massage practitioner'/);
   assert.match(titleMigration, /ON CONFLICT \(staff_id\) DO UPDATE SET/);
   assert.match(titleMigration, /is_approved = TRUE/);
-  assert.match(source, /WHEN 'marietjie' THEN 'Esthetician'/);
-  assert.match(source, /ELSE 'Massage practitioner'/);
+  assert.match(source, /'Massage practitioner'/);
+  assert.match(source, /LOWER\(display_name\) IN \('christel', 'abigail'\)/);
   assert.match(source, /business_direction_2026-08-12_practitioner_titles/);
 });
 

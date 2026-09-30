@@ -20,7 +20,7 @@ const {
 
 test('service-family ownership is explicit and client-facing', () => {
   assert.deepEqual(FAMILY_RULES, {
-    beauty: { title: 'Beauty & Aesthetics', practitioner: 'Marietjie' },
+    beauty: { title: 'Beauty & Aesthetics', practitioner: null },
     massage: { title: 'Massage', practitioner: null },
     lymphatic: { title: 'Lymphatic Drainage', practitioner: 'Abigail' },
     pedicure: { title: 'Elim MediHeel Pedicures', practitioner: 'Christel' },
@@ -31,7 +31,7 @@ test('family treatment prompt is client-friendly at the presentation boundary', 
   assert.equal(CLIENT_FAMILY_COPY.treatmentPrompt, 'Choose the treatment you’d like to book. 🌿');
   const raw = familyServicesInteractive('beauty', [{ id: 1, name: 'Facial', duration_minutes: 60, price: 500 }], 1);
   const view = presentClientFamilyResult({ handled: true, interactive: raw }).interactive;
-  assert.match(view.body, /Beauty & Aesthetics • Marietjie/);
+  assert.match(view.body, /Beauty & Aesthetics/);
   assert.match(view.body, /Choose the treatment you’d like to book\. 🌿/);
   assert.doesNotMatch(view.body, /CRM|eligible|active treatment/i);
   assert.match(appSource, /presentClientFamilyResult/);
@@ -45,9 +45,9 @@ test('family queries remain CRM-backed, active-only and client-bookable', () => 
   assert.match(familySource, /st\.client_bookable = TRUE/);
 });
 
-test('beauty is Marietjie-owned and excludes massage lymphatic and pedicure rows', () => {
+test('beauty is tenant-scoped and excludes massage lymphatic and pedicure rows', () => {
   const sql = familyFilterSql('beauty');
-  assert.match(sql, /LOWER\(st\.display_name\) = 'marietjie'/);
+  assert.match(sql, /st\.business_role = 'tenant_practitioner'/);
   assert.match(sql, /<> 'massage'/);
   assert.match(sql, /NOT LIKE '%lymphatic%'/);
   assert.match(sql, /NOT LIKE '%pedicur%'/);
@@ -76,7 +76,7 @@ test('Elim MediHeel Pedicures is Christel-only and limited to MediHeel/Elim serv
   assert.match(sql, /mediheel/);
   assert.match(sql, /elim/);
   assert.doesNotMatch(sql, /LOWER\(s\.name\) LIKE '%pedicur%'/);
-  assert.match(familySource, /family === 'beauty' \? \['marietjie'\] : family === 'pedicure' \? \['christel'\]/);
+  assert.match(familySource, /family === 'beauty' \? "st\.business_role = 'tenant_practitioner'"/);
 });
 
 test('family service lists use stable IDs and stay inside Meta row limits', () => {
@@ -94,7 +94,7 @@ test('massage practitioner chooser exposes Any available plus only supplied elig
     { id: 11, display_name: 'Abigail' },
   ]);
   assert.deepEqual(view.rows.map((row) => row.id), ['client_practitioner_any', 'client_practitioner_10', 'client_practitioner_11']);
-  assert.doesNotMatch(JSON.stringify(view), /Marietjie/);
+  assert.doesNotMatch(JSON.stringify(view), /tenant_practitioner/);
 });
 
 test('family router gets first chance before generic client discovery and booking fallthrough', () => {
