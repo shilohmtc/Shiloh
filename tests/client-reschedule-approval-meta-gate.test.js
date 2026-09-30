@@ -40,8 +40,8 @@ test('legacy provider definitions remain frozen while new requests use Reception
   assert.match(approvalService, /'pending','reception'/);
   assert.doesNotMatch(approvalService, /sendApprovalRequest\(/);
   assert.match(approvalService, /context\.decision_owner !== 'practitioner'/);
-  assert.match(approvalService, /context\.client_name,[\s\S]*context\.service_name,[\s\S]*fmtDateTime\(context\.proposed_starts_at\),[\s\S]*fmtDateTime\(context\.original_starts_at\),[\s\S]*String\(context\.appointment_id\)/);
-  assert.match(approvalService, /\['client_reschedule_booking'\]/);
+  assert.doesNotMatch(approvalService, /sendWhatsAppTemplate|WHATSAPP_RESCHEDULE_DECLINED_TEMPLATE/);
+  assert.match(approvalService, /status_available_in_app_phone_alert_retired/);
   assert.deepEqual(requestDefinition.components[1].buttons.map((button) => button.text), ['Approve', 'Decline']);
   assert.deepEqual(declinedDefinition.components[1].buttons.map((button) => button.text), ['Choose another time']);
 });

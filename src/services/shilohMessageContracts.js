@@ -59,6 +59,7 @@ const SOURCE_DEFINITIONS = Object.freeze({
 });
 
 const CONTRACT_LIFECYCLE = Object.freeze({
+  problem_report_resolved: 'retired',
   workspace_booking_request_alert: 'retired',
   client_auth_otp: 'retired',
   booking_update: 'retired',

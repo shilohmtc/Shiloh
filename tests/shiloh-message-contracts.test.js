@@ -13,12 +13,12 @@ const {
   resolveMetaTemplateBinding,
 } = require('../src/services/metaTemplateAdapter');
 
-test('Shiloh owns one canonical registry with 35 identities and 16 sendable contracts', () => {
+test('Shiloh owns one canonical registry with 35 identities and 15 sendable contracts', () => {
   const contracts = getShilohMessageContracts();
   assert.equal(contracts.length, 35);
   assert.equal(new Set(contracts.map((contract) => contract.id)).size, 35);
-  assert.equal(contracts.filter((contract) => contract.sendable).length, 16);
-  assert.ok(contracts.some((contract) => contract.id === 'problem_report_resolved' && contract.lifecycle === 'current' && contract.sendable));
+  assert.equal(contracts.filter((contract) => contract.sendable).length, 15);
+  assert.ok(contracts.some((contract) => contract.id === 'problem_report_resolved' && contract.lifecycle === 'retired' && !contract.sendable));
   assert.ok(contracts.some((contract) => contract.id === 'workspace_booking_request_alert' && contract.lifecycle === 'retired' && !contract.sendable));
   assert.ok(contracts.some((contract) => contract.id === 'consultation_form' && contract.lifecycle === 'current' && contract.sendable));
   assert.ok(contracts.some((contract) => contract.id === 'consultation_form_reminder' && contract.lifecycle === 'current' && contract.sendable));
@@ -28,7 +28,7 @@ test('Shiloh owns one canonical registry with 35 identities and 16 sendable cont
     contracts.filter((contract) => contract.lifecycle === 'retired').map((contract) => contract.id).sort(),
     ['appointment_followup_legacy', 'appointment_reminder_legacy', 'birthday_v1', 'birthday_v2', 'booking_approval_outcome', 'booking_approval_request', 'booking_update', 'client_auth_otp',
       'payment_balance_due', 'payment_deposit_received', 'payment_deposit_request', 'payment_deposit_request_v2', 'payment_not_verified',
-      'payment_received', 'payment_refund_update', 'payment_split_request', 'payment_voucher_issued', 'payment_voucher_request', 'workspace_booking_request_alert'],
+      'payment_received', 'payment_refund_update', 'payment_split_request', 'payment_voucher_issued', 'payment_voucher_request', 'problem_report_resolved', 'workspace_booking_request_alert'],
   );
   assert.equal(META_TEMPLATE_BINDINGS.length, contracts.length);
   assert.equal(new Set(META_TEMPLATE_BINDINGS.map((binding) => binding.contractId)).size, contracts.length);

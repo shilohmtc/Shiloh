@@ -127,7 +127,7 @@ test('client proposal actions are exact request/version payloads and plain Yes i
   assert.equal(parseClientProposalAction('Yes'), null);
 });
 
-test('client proposal delivery exposes two native reply-button choices within provider limits', () => {
+test('historical proposal payloads remain recognized without an active provider sender', () => {
   const buttons = proposalReplyButtons(row(), 3);
   assert.deepEqual(buttons, [
     { id: `${CLIENT_ACCEPT_PREFIX}7651_3`, title: 'Yes, book this' },
@@ -135,7 +135,8 @@ test('client proposal delivery exposes two native reply-button choices within pr
   ]);
   assert.equal(buttons.every(button => button.title.length <= 20), true);
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'clientBookingApproval.js'), 'utf8');
-  assert.match(source, /sendWhatsAppReplyButtons\(phone/);
+  assert.doesNotMatch(source, /sendWhatsAppReplyButtons|sendWhatsAppTemplate/);
+  assert.match(source, /BOOKING_REQUEST_DELIVERY_UNAVAILABLE/);
   assert.doesNotMatch(source, /sendWhatsAppList/);
 });
 
@@ -422,4 +423,24 @@ test('runtime cutover has no initial-booking staff template send or staff approv
   assert.doesNotMatch(webhook, /processClientBookingApprovalMessage|processAdminInteractiveMenuMessage|commandForAdminButton/);
   assert.match(webhook, /processClientBookingProposalMessage/);
   assert.match(webhook, /processRescheduleApprovalDecision/, 'adjacent confirmed-appointment reschedule contract remains explicit');
+});
+
+
+test('retired proposal delivery refuses before changing or holding a booking', async () => {
+  const db = fakePool(row());
+  await assert.rejects(proposeAlternative({ dbPool: db, principal: principal(),
+    appointmentId: 7651, expectedRevision: REVISION, startsAt: START }),
+  { code: 'BOOKING_REQUEST_DELIVERY_UNAVAILABLE' });
+  assert.equal(db.state.row.status, 'pending');
+  assert.equal(db.state.calls.length, 0);
+});
+
+test('decline preserves canonical outcome without falsely recording a phone alert', async () => {
+  const db = fakePool(row());
+  const result = await cannotAccommodate({ dbPool: db, principal: principal(),
+    appointmentId: 7651, expectedRevision: REVISION });
+  assert.equal(result.status, 'declined');
+  assert.equal(result.delivery.sent, false);
+  assert.equal(result.delivery.reason, 'status_available_in_app_phone_alert_retired');
+  assert.equal(db.state.row.status, 'declined');
 });

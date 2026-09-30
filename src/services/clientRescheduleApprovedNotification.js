@@ -1,12 +1,12 @@
 const { pool } = require('../db/pool');
 const { verifyMigrationFile } = require('./migrations');
 const { ensureClientRescheduleApprovalSchema } = require('./clientRescheduleApprovalSchema');
-const { sendWhatsAppTemplate } = require('./whatsapp');
+const { queueClientNotification, createMyShilohPushService } = require('./myShilohPush');
+const { appointmentDetails } = require('./sh05ChannelIndependence');
 const { resolveClientFacingName } = require('./clientFacingNameAuthority');
 const logger = require('../lib/logger');
 
 const MIGRATION = '065_client_reschedule_approved_confirmation.sql';
-const TEMPLATE_NAME = 'shiloh_reschedule_confirmation_v1';
 const RETRY_MS = 5 * 60 * 1000;
 const CLAIM_STALE_MINUTES = 5;
 let schemaReady = null;
@@ -76,7 +76,7 @@ async function ensureApprovedRescheduleNotificationSchema() {
       claimColumn: row.claim_column === true,
       suppressionColumn: row.suppression_column === true,
       retryIndex: row.retry_index === true,
-      confirmationTemplateConfigured: String(process.env.WHATSAPP_RESCHEDULE_CONFIRMATION_TEMPLATE || '').trim() === TEMPLATE_NAME,
+      notificationChannel: 'my_shiloh',
     };
   })();
   try {
@@ -193,7 +193,7 @@ function canonicalOutcomeState(context) {
   ) {
     return { deliverable: false, suppress: true, reason: 'canonical_appointment_changed_after_approval' };
   }
-  if (!context.client_phone) return { deliverable: false, suppress: false, reason: 'client_phone_not_found' };
+  if (!context.client_phone && !context.request_crm_v2_client_id) return { deliverable: false, suppress: false, reason: 'client_phone_not_found' };
   return { deliverable: true, suppress: false, reason: null };
 }
 
@@ -254,6 +254,25 @@ async function claimApprovedRescheduleNotification(requestId) {
   return result.rowCount > 0;
 }
 
+async function deliverApprovedRescheduleAppNotification(context, {
+  notifyClient = queueClientNotification,
+  wakeClient = createMyShilohPushService().wakeClient,
+} = {}) {
+  const clientId = Number(context.request_crm_v2_client_id);
+  if (!Number.isSafeInteger(clientId) || clientId <= 0) return { sent: false, reason: 'my_shiloh_client_unavailable' };
+  const notification = appointmentDetails({ appointmentId: context.appointment_id,
+    crmV2ClientId: clientId, startsAt: context.current_starts_at, endsAt: context.current_ends_at,
+    changeKind: 'reschedule', auditEventId: context.id });
+  const result = await notifyClient(notification);
+  // A retry wakes the same durable event rather than creating another notice.
+  const delivery = result?.duplicate === true ? await wakeClient(clientId) : result;
+  if (Number(delivery?.accepted) <= 0 || !Number.isFinite(Number(delivery?.accepted))) {
+    return { sent: false, reason: 'my_shiloh_push_not_accepted' };
+  }
+  if (result?.queued !== true && result?.duplicate !== true) return { sent: false, reason: 'my_shiloh_notification_unavailable' };
+  return { sent: true, channel: 'my_shiloh', notificationId: result.notificationId || null };
+}
+
 async function attemptApprovedRescheduleConfirmation(requestId, auditEventId = null) {
   await ensureApprovedRescheduleNotificationSchema();
   let context = await loadApprovedRequestContext(requestId);
@@ -276,24 +295,9 @@ async function attemptApprovedRescheduleConfirmation(requestId, auditEventId = n
     return { sent: false, reason: afterClaim.reason };
   }
 
-  const configured = String(process.env.WHATSAPP_RESCHEDULE_CONFIRMATION_TEMPLATE || '').trim();
-  if (configured !== TEMPLATE_NAME) {
-    return markApprovedRescheduleNotificationRetryableError(requestId, 'reschedule_confirmation_template_not_configured');
-  }
-
   try {
-    const provider = await sendWhatsAppTemplate(
-      context.client_phone,
-      TEMPLATE_NAME,
-      [
-        context.client_name || 'there',
-        context.service_name,
-        context.staff_name,
-        fmtDate(context.current_starts_at),
-        fmtTime(context.current_starts_at),
-      ],
-      process.env.WHATSAPP_TEMPLATE_LANGUAGE || 'en'
-    );
+    const delivery = await deliverApprovedRescheduleAppNotification(context);
+    if (!delivery.sent) return markApprovedRescheduleNotificationRetryableError(requestId, delivery.reason);
     await pool.query(`
       UPDATE appointment_reschedule_requests
          SET client_notified_at=NOW(),
@@ -310,16 +314,16 @@ async function attemptApprovedRescheduleConfirmation(requestId, auditEventId = n
     `, [String(context.appointment_id), JSON.stringify({
       requestId: Number(requestId),
       sourceAuditEventId: auditEventId == null ? null : Number(auditEventId),
-      templateName: TEMPLATE_NAME,
-      providerMessageId: provider?.messages?.[0]?.id || null,
+      channel: 'my_shiloh',
+      notificationId: delivery.notificationId,
       idempotentDelivery: true,
       nameAuthorityId: context.name_authority_id || null,
       identityModel: context.request_crm_v2_client_id != null ? 'crm_v2' : 'legacy',
       clientId: context.request_client_id,
       crmV2ClientId: context.request_crm_v2_client_id,
     })]);
-    logger.info({ appointmentId: Number(context.appointment_id), requestId: Number(requestId), templateName: TEMPLATE_NAME }, 'Approved reschedule customer confirmation sent');
-    return { sent: true, templateName: TEMPLATE_NAME };
+    logger.info({ appointmentId: Number(context.appointment_id), requestId: Number(requestId), channel: 'my_shiloh' }, 'Approved reschedule customer confirmation sent');
+    return delivery;
   } catch (error) {
     const message = String(error.response?.data?.error?.message || error.message || error).slice(0, 1000);
     await markApprovedRescheduleNotificationRetryableError(requestId, message);
@@ -387,7 +391,6 @@ function startApprovedRescheduleConfirmationScheduler() {
 
 module.exports = {
   MIGRATION,
-  TEMPLATE_NAME,
   RETRY_MS,
   fmtDate,
   fmtTime,
@@ -398,6 +401,7 @@ module.exports = {
   canonicalOutcomeState,
   markApprovedRescheduleNotificationRetryableError,
   suppressApprovedRescheduleNotification,
+  deliverApprovedRescheduleAppNotification,
   attemptApprovedRescheduleConfirmation,
   queueApprovedRescheduleConfirmation,
   flushApprovedRescheduleConfirmations,
