@@ -116,4 +116,5 @@ test('earnings are absent from ordinary report markup', () => {
   const model = { authority: { displayName: 'Reception', reportScope: 'all_business' }, period: { preset: '7d', startKey: '2026-09-01', endInclusiveKey: '2026-09-07', dayCount: 7 }, appointments: {}, totals: {}, clients: {}, capacity: [], services: [], trend: {} };
   const html = renderReportsPage(model);
   assert.doesNotMatch(html, /data-staff-earnings|data-commission-form|commission\.js/);
+  assert.doesNotMatch(staffEarningsSection({ staff: [], rules: [], services: [] }, model.period), /Christel only/);
 });
