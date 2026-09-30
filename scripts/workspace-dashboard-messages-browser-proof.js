@@ -410,7 +410,8 @@ const METRICS_EXPRESSION = `(() => {
     hasNotificationsToggle:!!document.querySelector('[data-workspace-push-toggle]'),
     servicesCopy:document.querySelector('[data-services-list-view]')?.parentElement?.textContent.trim()||'',
     addServiceVisible:visible(document.querySelector('[data-service-primary-action] a')),
-    addStaffVisible:visible(document.querySelector('[data-staff-primary-action] a')),
+    addStaffVisible:visible(document.querySelector('#add-staff-panel > summary')),
+    addStaffCollapsed:document.querySelector('#add-staff-panel')?.open===false,
     clinicSaveVisible:visible(document.querySelector('[data-clinic-hours-save]')),
     dashboardAttentionBeforeToday:(()=>{const attention=document.querySelector('[data-dashboard-attention-panel]'),today=document.querySelector('[data-dashboard-today]');return attention&&today?attention.getBoundingClientRect().top<today.getBoundingClientRect().top:null;})(),
   };
@@ -562,7 +563,10 @@ async function main() {
         assert.doesNotMatch(metrics.servicesCopy, /Canonical offerings|Results are bounded|Booking ready/);
         assert.equal(metrics.addServiceVisible, true, `${name} does not expose Add service at the top`);
       }
-      if (urlPath.startsWith('/calendar/team')) assert.equal(metrics.addStaffVisible, true, `${name} does not expose Add staff at the top`);
+      if (urlPath.startsWith('/calendar/team')) {
+        assert.equal(metrics.addStaffVisible, true, `${name} does not expose Add staff at the top`);
+        assert.equal(metrics.addStaffCollapsed, true, `${name} must keep Add staff collapsed until requested`);
+      }
       if (urlPath.startsWith('/calendar/clinic-hours')) assert.equal(metrics.clinicSaveVisible, true, `${name} does not expose the clinic-hours Save action`);
       return { name, phone, viewport: { width, height }, active: metrics.active, metrics, ...(await screenshot(name)) };
     }

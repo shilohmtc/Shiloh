@@ -101,7 +101,7 @@ const METRICS_EXPRESSION = `(() => {
   const targets = Array.from(document.querySelectorAll('.workspace-link,button,.button,.pager-link,.nav-button,.view-tab,.filter,.action-link')).filter(visible);
   const primary = Array.from(document.querySelectorAll('.client-row,.staff-row,.service-row,.panel,.profile-panel,.history-panel,.calendar-view,.controls,.scan-summary')).filter(visible);
   const controls = document.querySelector('.controls');
-  const createPanel = document.querySelector('main[data-staff-list-view] > .create-panel');
+  const createPanel = document.querySelector('#add-staff-panel');
   const filterPanel = document.querySelector('main[data-staff-list-view] > .filter-panel');
   const management = document.querySelector('.management-card');
   return {
@@ -125,7 +125,7 @@ const METRICS_EXPRESSION = `(() => {
     }).map(el => el.className),
     controlsPosition: controls ? getComputedStyle(controls).position : null,
     controlsColumns: controls ? getComputedStyle(controls).gridTemplateColumns : null,
-    staffCreateOrder: createPanel ? getComputedStyle(createPanel).order : null,
+    staffCreateCollapsed: createPanel ? createPanel.open === false : null,
     staffFilterOrder: filterPanel ? getComputedStyle(filterPanel).order : null,
     managementBottom: management ? getComputedStyle(management).bottom : null,
     managementRadius: management ? getComputedStyle(management).borderTopLeftRadius : null,
@@ -160,8 +160,8 @@ function assertMetrics(proof, metrics) {
   if (proof.view === 'calendar-agenda-compact' && (metrics.controlsPosition !== 'static' || /\s/.test(String(metrics.controlsColumns).trim()))) {
     throw new Error(`${proof.view} Agenda controls did not retain the stacked compact layout`);
   }
-  if (proof.view === 'staff-list-manage' && (String(metrics.staffFilterOrder) !== '1' || String(metrics.staffCreateOrder) !== '5')) {
-    throw new Error(`${proof.view} staff operational list is not ordered before creation on mobile`);
+  if (proof.view === 'staff-list-manage' && (String(metrics.staffFilterOrder) !== '1' || metrics.staffCreateCollapsed !== true)) {
+    throw new Error(`${proof.view} staff creation form must stay collapsed while browsing the mobile list`);
   }
 }
 

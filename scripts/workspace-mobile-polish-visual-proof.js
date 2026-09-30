@@ -196,7 +196,7 @@ function instrument(html) {
     var primary=Array.from(document.querySelectorAll('.client-row,.staff-row,.service-row,.panel,.profile-panel,.history-panel,.calendar-view,.controls,.scan-summary')).filter(visible);
     var overflowingPrimary=primary.filter(function(el){var r=el.getBoundingClientRect();return r.left < -1 || r.right > window.innerWidth + 1;}).map(function(el){return el.className;});
     var controls=document.querySelector('.controls');
-    var createPanel=document.querySelector('main[data-staff-list-view] > .create-panel');
+    var createPanel=document.querySelector('#add-staff-panel');
     var filterPanel=document.querySelector('main[data-staff-list-view] > .filter-panel');
     var management=document.querySelector('.management-card');
     var metrics={
@@ -213,7 +213,7 @@ function instrument(html) {
       overflowingPrimary:overflowingPrimary,
       controlsPosition:controls?getComputedStyle(controls).position:null,
       controlsColumns:controls?getComputedStyle(controls).gridTemplateColumns:null,
-      staffCreateOrder:createPanel?getComputedStyle(createPanel).order:null,
+      staffCreateCollapsed:createPanel?createPanel.open===false:null,
       staffFilterOrder:filterPanel?getComputedStyle(filterPanel).order:null,
       managementBottom:management?getComputedStyle(management).bottom:null,
       managementRadius:management?getComputedStyle(management).borderTopLeftRadius:null
@@ -282,8 +282,8 @@ for (const proof of cases) {
   if (proof.controlLayout === 'stacked' && (metrics.controlsPosition !== 'static' || /\s/.test(String(metrics.controlsColumns).trim()))) {
     throw new Error(`${proof.name} Agenda controls did not retain the stacked compact layout: ${JSON.stringify(metrics)}`);
   }
-  if (proof.expectStaffOrder && (String(metrics.staffFilterOrder) !== '1' || String(metrics.staffCreateOrder) !== '5')) {
-    throw new Error(`${proof.name} staff operational list is not ordered before creation on mobile`);
+  if (proof.expectStaffOrder && (String(metrics.staffFilterOrder) !== '1' || metrics.staffCreateCollapsed !== true)) {
+    throw new Error(`${proof.name} staff creation form must stay collapsed while browsing the mobile list`);
   }
 
   const shot = spawnSync(chrome, [`--screenshot=${pngPath}`, ...common], { encoding: 'utf8' });

@@ -73,7 +73,7 @@ function staff() {
 async function main() {
   fs.rmSync(OUT_DIR, { recursive: true, force: true });
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  const people = staff();
+  const people = [...staff(), { id: 42, displayName: 'Jean-Pierre', active: true, editable: false, businessRole: 'business_admin', profileLabel: 'Business administrator', profileSummary: 'Existing clinic access is protected.', accessGroups: [{ label: 'Vouchers & payments', capabilities: ['voucher:issue', 'payment:refund'] }] }];
   let toggleWrites = 0;
   const authority = { operatorAdminId: 1, displayName: 'Owner' };
 
@@ -89,7 +89,7 @@ async function main() {
     async requireManageAccess(adminId) { if (Number(adminId) !== 1) throw Object.assign(new Error('Forbidden'), { httpStatus: 403 }); return authority; },
   };
   const profileService = {
-    async list({ adminId }) { assert.equal(adminId, 1); return { authority, people }; },
+    async list({ adminId }) { assert.equal(adminId, 1); return { authority, people: people.filter(p => p.staffId), otherPeople: people.filter(p => !p.staffId) }; },
     async get({ adminId, principalId }) {
       assert.equal(adminId, 1);
       const person = people.find(item => item.id === Number(principalId));
@@ -100,6 +100,16 @@ async function main() {
       assert.equal(adminId, 1);
       const person = people.find(item => item.id === Number(principalId));
       assert.equal(profile, person.profileKey);
+      return { status: 'updated', person };
+    },
+    async saveChanges({ adminId, principalId, expectedRevision, changes }) {
+      assert.equal(adminId, 1);
+      const person = people.find(item => item.id === Number(principalId));
+      assert.equal(expectedRevision, person.revision);
+      if (!changes.every(change => person.toggles.some(toggle => toggle.key === change.key))) throw Object.assign(new Error('Unsupported switch.'), { httpStatus: 400, code: 'STAFF_ACCESS_TOGGLE_UNSUPPORTED' });
+      for (const change of changes) person.toggles.find(toggle => toggle.key === change.key).on = change.on;
+      person.revision = crypto.createHash('sha256').update(`${person.id}:${toggleWrites}`).digest('hex');
+      toggleWrites += 1;
       return { status: 'updated', person };
     },
     async setToggle({ adminId, principalId, toggle, on }) {
@@ -185,11 +195,20 @@ async function main() {
       assert.equal(await page.getByRole('heading', { name: 'Staff access', exact: true }).isVisible(), true);
       assert.equal(await page.getByText('Naomi', { exact: true }).isVisible(), true);
       assert.equal(await page.getByText('Marietjie', { exact: true }).isVisible(), true);
+      await page.getByRole('link', { name: /Jean-Pierre/ }).click();
+      assert.equal(await page.getByRole('heading', { name: 'Jean-Pierre', exact: true }).isVisible(), true);
+      assert.equal(await page.getByRole('switch').count(), 0);
+      assert.equal(await page.getByRole('button', { name: 'Save changes', exact: true }).count(), 0);
+      assert.equal(await page.getByRole('link', { name: 'Open device setup', exact: true }).isVisible(), false);
+      await page.getByText('Current enabled access', { exact: true }).click();
+      assert.equal(await page.getByText('Issue permitted payment refunds', { exact: true }).isVisible(), true);
+      await page.screenshot({ path: path.join(OUT_DIR, viewport.name+'-protected-administrator.png'), fullPage: true });
 
       const detailResponse = await page.goto(`${origin}/calendar/team/staff-access/31`, { waitUntil: 'networkidle' });
       assert.equal(detailResponse.status(), 200);
       assert.equal(await page.getByRole('heading', { name: 'Marietjie', exact: true }).isVisible(), true);
       assert.equal(await page.getByText('Protected boundaries', { exact: true }).isVisible(), true);
+      await page.getByText('Protected boundaries', { exact: true }).click();
       assert.equal(await page.getByText('Cannot change Clinic Hours.', { exact: true }).isVisible(), true);
       assert.equal(await page.getByText('Cannot edit, cancel, reassign or delete another practitioner’s appointments.', { exact: true }).isVisible(), true);
       const switches = page.getByRole('switch');
@@ -215,13 +234,39 @@ async function main() {
       const serious = accessibility.violations.filter(item => ['serious', 'critical'].includes(item.impact));
       assert.deepEqual(serious, [], `${viewport.name} accessibility violations: ${JSON.stringify(serious)}`);
 
+      const invalidCsrf = await page.evaluate(async () => (await fetch('/calendar/team/staff-access/31/changes', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ changes: [{ key: 'manage_my_clients', on: false }] }) })).status);
+      assert.equal(invalidCsrf, 403);
       const clientSwitch = page.getByRole('switch', { name: /Manage my clients/i });
-      const mutation = page.waitForResponse(response => response.url().endsWith('/calendar/team/staff-access/31/toggle') && response.request().method() === 'POST');
+      let accessPosts = 0;
+      page.on('request', request => { if (request.method() === 'POST' && request.url().includes('/staff-access/31/changes')) accessPosts += 1; });
       await clientSwitch.click();
+      assert.equal(await clientSwitch.getAttribute('aria-checked'), 'false');
+      assert.equal(accessPosts, 0, 'switches stage changes without a write');
+      assert.equal(await page.getByRole('button', { name: 'Save changes', exact: true }).isEnabled(), true);
+      await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
+      assert.equal(await clientSwitch.getAttribute('aria-checked'), 'true');
+      assert.equal(accessPosts, 0, 'discard must not write');
+      await clientSwitch.focus();
+      await page.keyboard.press('Space');
+      const mutation = page.waitForResponse(response => response.url().endsWith('/calendar/team/staff-access/31/changes') && response.request().method() === 'POST');
+      await page.getByRole('button', { name: 'Save changes', exact: true }).click();
       const mutationResponse = await mutation;
       assert.equal(mutationResponse.status(), 200);
+      await page.getByText('Access changes saved.', { exact: true }).waitFor();
       assert.equal(await clientSwitch.getAttribute('aria-checked'), 'false');
       assert.equal(await clientSwitch.getByText('Off', { exact: true }).isVisible(), true);
+      assert.equal(await page.getByRole('button', { name: 'Save changes', exact: true }).isDisabled(), true);
+      assert.equal(accessPosts, 1);
+      // A rejected save keeps the staged choice visible and retryable, without changing saved access.
+      await page.route('**/staff-access/31/changes', route => route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: 'Access changed. Reload before saving.' }) }));
+      await clientSwitch.click();
+      await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+      await page.getByText('Access changed. Reload before saving. Your changes have not been saved.', { exact: true }).waitFor();
+      assert.equal(await clientSwitch.getAttribute('aria-checked'), 'true');
+      assert.equal(await page.getByRole('button', { name: 'Save changes', exact: true }).isEnabled(), true);
+      await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
+      assert.equal(await clientSwitch.getAttribute('aria-checked'), 'false');
+      await page.unroute('**/staff-access/31/changes');
 
       const forbidden = await page.evaluate(async () => {
         const csrfResponse = await fetch('/calendar/staff-auth/csrf', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: '{}' });

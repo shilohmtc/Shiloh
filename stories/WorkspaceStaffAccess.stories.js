@@ -1,4 +1,6 @@
 import accessPresentation from '../src/presentation/workspaceStaffAccessProfilesUx.js';
+import staffPresentation from '../src/presentation/workspaceStaffUx.js';
+import onboardingPresentation from '../src/presentation/workspaceStaffOnboardingUx.js';
 
 const { renderStaffAccessPage, renderStaffAccessDetail } = accessPresentation;
 
@@ -66,4 +68,23 @@ export const ClinicTeam = {
 
 export const OwnWorkspace = {
   render: () => productionSurface(renderStaffAccessDetail({ authority, person: ownWorkspace })),
+};
+
+export const ProtectedAdministrator = {
+  render: () => productionSurface(renderStaffAccessDetail({ authority, person: { id: 42, displayName: 'Jean-Pierre', active: true, editable: false, businessRole: 'business_admin', profileLabel: 'Business administrator', profileSummary: 'Existing clinic access is protected.', accessGroups: [{ label: 'Bookings', capabilities: ['appointment:view', 'appointment:create', 'calendar:booking:cancel'] }, { label: 'Vouchers & payments', capabilities: ['voucher:issue', 'payment:refund'] }] } })),
+};
+
+export const AccessOff = {
+  render: () => productionSurface(renderStaffAccessDetail({ authority, person: { ...clinicTeam, active: false } })),
+};
+
+export const EmptyAccess = {
+  render: () => productionSurface(renderStaffAccessPage({ authority, people: [] })),
+};
+
+export const StaffProfiles = {
+  render: () => {
+    const model = { authority, manageAllowed: true, accessManageAllowed: true, status: 'active', offset: 0, pageSize: 40, staff: [{ id: 41, display_name: 'Naomi', status: 'active', business_role: 'employee_practitioner', service_count: 4, client_bookable: true }] };
+    return productionSurface(onboardingPresentation.decorateStaffListOnboardingHtml(staffPresentation.renderStaffListPage(model), model));
+  },
 };

@@ -156,6 +156,18 @@ function createWorkspaceStaffMutationRouter({
     } catch (error) { return sendMutationError(error, req, res, next); }
   });
 
+  router.post('/staff-access/:id/changes', ...mutationChain, async (req, res, next) => {
+    try {
+      return res.status(200).json(await profileService.saveChanges({
+        adminId: req.staffBrowserSession?.adminId,
+        principalId: req.params?.id,
+        expectedRevision: req.body?.expectedRevision,
+        requestId: req.body?.requestId,
+        changes: req.body?.changes,
+      }));
+    } catch (error) { return sendMutationError(error, req, res, next); }
+  });
+
   router.post('/staff-access/:id/toggle', ...mutationChain, async (req, res, next) => {
     try {
       return res.status(200).json(await profileService.setToggle({

@@ -339,6 +339,11 @@ async function main() {
         await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width === 390 });
         await cdp.send('Page.navigate', { url: `${origin}${route}?proof=${name}` });
         await poll(() => evaluate(cdp, "document.readyState==='complete' && !!document.querySelector('[data-workspace-staff-access]')"), Boolean);
+        if (label !== 'access-list') {
+          const collapsed = await evaluate(cdp, "Array.from(document.querySelectorAll('details.more-options')).every(detail=>!detail.open)");
+          assert.equal(collapsed, true, 'Recovery and protected boundaries start collapsed');
+          await evaluate(cdp, "Array.from(document.querySelectorAll('details.more-options')).find(detail=>detail.querySelector('summary')?.textContent==='Protected boundaries')?.querySelector('summary').click()");
+        }
         const geometry = await evaluate(cdp, `({
           width:innerWidth,
           overflow:document.documentElement.scrollWidth>innerWidth,
