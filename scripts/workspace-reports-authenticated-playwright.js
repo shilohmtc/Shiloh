@@ -69,8 +69,8 @@ async function main() {
   };
   const gate = createWorkspaceStaffEarningsService({ db: { async query(_sql, params) { return { rows: principals[params[0]] ? [principals[params[0]]] : [] }; } } });
   const sessionService = {
-    validateSessionToken: async token => principals[Number(token.replace('synthetic-reports-session-', ''))]
-      ? { ok: true, adminId: Number(token.replace('synthetic-reports-session-', '')), sessionId: 51 }
+    validateSessionToken: async token => principals[Number(String(token || '').replace('synthetic-reports-session-', ''))]
+      ? { ok: true, adminId: Number(String(token || '').replace('synthetic-reports-session-', '')), sessionId: 51 }
       : { ok: false },
     rotateCsrfToken: async () => ({ ok: true, csrfToken: 'synthetic-csrf' }),
     validateCsrfToken: (_session, token) => token === 'synthetic-csrf',
