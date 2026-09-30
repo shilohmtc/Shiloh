@@ -1,3 +1,4 @@
+const { confirmationClientScript } = require('./workspaceConfirmation');
 const { escapeHtml, workspaceShellStyles, renderWorkspaceNavigation } = require('./workspaceShell');
 const { capabilityLabel, human } = require('./workspaceAccessV2Ux');
 
@@ -47,7 +48,7 @@ function renderStaffAccessDetail(model) {
 }
 
 function clientScript() {
-  return `(()=>{'use strict';
+  return confirmationClientScript() + `(()=>{'use strict';
 const card=document.querySelector('[data-access-person]');if(!card)return;
 const status=document.querySelector('[data-access-status]'),buttons=[...document.querySelectorAll('[data-access-toggle]')],restore=document.querySelector('[data-restore-profile]'),save=document.querySelector('[data-save-access]'),discard=document.querySelector('[data-discard-access]');
 let saved=new Map(buttons.map(b=>[b.dataset.accessToggle,b.getAttribute('aria-checked')==='true'])),working=false;
@@ -62,7 +63,7 @@ function apply(person){card.dataset.accessRevision=person.revision;for(const but
 buttons.forEach(button=>button.addEventListener('click',()=>{if(button.dataset.canEnable==='false'&&!saved.get(button.dataset.accessToggle)&&button.getAttribute('aria-checked')!=='true'){msg('This access cannot be enabled within the current Workspace boundary.','error');return}state(button,button.getAttribute('aria-checked')!=='true');const n=refresh();msg(n?n+' unsaved change'+(n===1?'':'s')+'. Select Save changes to apply.':'No unsaved changes.')}));
 if(discard)discard.addEventListener('click',()=>{buttons.forEach(b=>state(b,saved.get(b.dataset.accessToggle)));refresh();msg('Changes discarded.');});
 if(save)save.addEventListener('click',async()=>{const pending=changes();if(!pending.length||working)return;working=true;refresh();msg('Saving…','working');try{const result=await post('/changes',{expectedRevision:card.dataset.accessRevision,requestId:rid(),changes:pending});apply(result.person);msg('Access changes saved.')}catch(error){msg(error.message+' Your changes have not been saved.','error')}finally{working=false;refresh()}});
-if(restore)restore.addEventListener('click',async()=>{if(changes().length||working||!confirm('Restore the recommended settings for this access profile?'))return;working=true;refresh();msg('Saving…','working');try{const result=await post('/profile',{expectedRevision:card.dataset.accessRevision,requestId:rid(),profile:card.dataset.accessProfile});apply(result.person);window.location.reload()}catch(error){msg(error.message,'error')}finally{working=false;refresh()}});
+if(restore)restore.addEventListener('click',async()=>{if(changes().length||working||!(await window.ShilohConfirm({title:'Restore recommended settings?',copy:'This replaces the current access settings with the recommendations for this profile.',cancel:'Keep settings',action:'Restore settings',danger:false})))return;working=true;refresh();msg('Saving…','working');try{const result=await post('/profile',{expectedRevision:card.dataset.accessRevision,requestId:rid(),profile:card.dataset.accessProfile});apply(result.person);window.location.reload()}catch(error){msg(error.message,'error')}finally{working=false;refresh()}});
 window.addEventListener('beforeunload',e=>{if(changes().length){e.preventDefault();e.returnValue=''}});refresh();
 })();`;
 }

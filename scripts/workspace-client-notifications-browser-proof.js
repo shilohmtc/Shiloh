@@ -462,8 +462,11 @@ async function main() {
     const previewShot = await screenshot('authorized-booking-confirmation-preview');
 
     await evaluate(cdp, `document.querySelector('[data-send-booking-confirmation]').click();true`);
+    await poll(() => evaluate(cdp, `document.querySelector('[data-shiloh-confirm]')?.open`), Boolean);
+    assert.equal(state.senderCalls, 0, 'opening the branded confirmation is non-mutating');
+    await evaluate(cdp, `document.querySelector('[data-shiloh-confirm-action]').click();true`);
     await poll(() => state.senderCalls, value => value === 1);
-    assert.ok(dialogs.some(dialog => dialog.type === 'confirm' && /Send this booking confirmation/.test(dialog.message)));
+    assert.deepEqual(dialogs, [], 'no native browser confirmation');
     assert.equal(state.syntheticSentEvidence, true);
     await navigate(`${origin}/calendar/clients/${CLIENT_ID}/booking-confirmation`);
     const afterSend = await evaluate(cdp, `({

@@ -268,6 +268,14 @@ function createFixture() {
     env,
     sessionService,
     mutationService,
+    notesService: {
+      async get() { return { appointmentId: 7001, notes: '', revision: REVISION }; },
+      async getMyShilohAvailability({ adminId, appointmentId }) {
+        assert.equal(Number(adminId), 71);
+        assert.equal(Number(appointmentId), 7001);
+        return { appointmentId: 7001, status: 'available', label: 'Available in My Shiloh', explanation: 'The client can view this booking when they open My Shiloh.' };
+      },
+    },
     customerChangeNotificationService: {
       async queueCustomerChangeNotification(appointmentId, changeKind) {
         state.customerNotifications.push({ appointmentId, changeKind });
@@ -456,8 +464,14 @@ async function main() {
       const beforeOperations = state.operations.length;
       const beforeLoads = completedLoads;
       const beforeRenders = Number(state.renders.get(adminId) || 0);
-      dialogPlan = plan.map((item) => ({ type: 'prompt', ...item }));
+      const branded = plan.find(item => item.type === 'confirm');
+      dialogPlan = plan.filter(item => item.type !== 'confirm').map((item) => ({ type: 'prompt', ...item }));
       await evaluate(cdp, `document.querySelector(${js(selector)}).click();true`);
+      if (branded) {
+        await poll(() => evaluate(cdp, `document.querySelector('[data-shiloh-confirm]')?.open`), Boolean);
+        assert.equal(state.operations.length, beforeOperations);
+        await evaluate(cdp, `document.querySelector('[data-shiloh-confirm-action]').click();true`);
+      }
       await poll(
         () => state.operations.slice(beforeOperations),
         (items) => items.some((item) => item.type === expectedType),
@@ -559,6 +573,8 @@ async function main() {
     const beforeDecline = state.operations.length;
     await evaluate(cdp, `document.querySelector('[data-appointment-management-target="true"]').click();true`);
     await poll(() => evaluate(cdp, `Boolean(document.querySelector('[data-appointment-editor-toggle="danger"]'))`), Boolean);
+    await poll(() => evaluate(cdp, `document.querySelector('[data-panel-confirmation-status]')?.textContent`), value => value === 'Available in My Shiloh');
+    assert.doesNotMatch(await evaluate(cdp, `document.querySelector('[data-panel-confirmation]').innerText`), /WhatsApp|Last evidence|delivered|read/i);
     await evaluate(cdp, `(()=>{document.querySelector('[data-appointment-editor-toggle="danger"]').click();document.querySelector('[data-panel-action="appointment:cancel"]').requestSubmit();return true;})()`);
     await new Promise((resolve) => setTimeout(resolve, 150));
     assert.equal(state.operations.length, beforeDecline, 'unchecked cancellation confirmation must not submit');

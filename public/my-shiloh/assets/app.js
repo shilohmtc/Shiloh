@@ -1027,7 +1027,7 @@
   }
 
   async function revokePasskeyDevice(id, label, button) {
-    if (!Number.isSafeInteger(id) || !window.confirm(`Remove the ${label} passkey? It will no longer sign in to My Shiloh.`)) return;
+    if (!Number.isSafeInteger(id) || !(await window.ShilohConfirm({title:`Remove ${label}?`,copy:'This passkey will no longer sign in to My Shiloh.',cancel:'Keep passkey',action:'Remove passkey'}))) return;
     button.disabled = true;
     if (passkeyDeviceStatus) passkeyDeviceStatus.textContent = 'Removing passkey…';
     try {

@@ -1,13 +1,15 @@
 'use strict';
 
-const ASSET_VERSION = '20260930-install-copy-v1';
-const SHELL_CACHE = 'my-shiloh-shell-v40';
-const STATIC_CACHE = 'my-shiloh-static-v40';
+const ASSET_VERSION = '20260930-dialog-standard-v1';
+const SHELL_CACHE = 'my-shiloh-shell-v41';
+const STATIC_CACHE = 'my-shiloh-static-v41';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',
   `/my-shiloh/assets/app.css?v=${ASSET_VERSION}`,
   `/my-shiloh/assets/app.js?v=${ASSET_VERSION}`,
+  `/my-shiloh/assets/confirmation.js?v=${ASSET_VERSION}`,
+  `/my-shiloh/assets/confirmation.css?v=${ASSET_VERSION}`,
   '/my-shiloh/assets/icon-192.png',
   '/my-shiloh/assets/icon-512.png',
   '/my-shiloh/assets/icon-maskable-512.png',

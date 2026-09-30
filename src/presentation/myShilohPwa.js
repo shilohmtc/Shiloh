@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260930-install-copy-v1';
+const MY_SHILOH_ASSET_VERSION = '20260930-dialog-standard-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -538,6 +538,8 @@ function renderMyShilohPage({
     </section>
   </div>
 
+  <link rel="stylesheet" href="/my-shiloh/assets/confirmation.css?v=${MY_SHILOH_ASSET_VERSION}">
+  <script src="/my-shiloh/assets/confirmation.js?v=${MY_SHILOH_ASSET_VERSION}" defer></script>
   <script src="/my-shiloh/assets/app.js?v=${MY_SHILOH_ASSET_VERSION}" defer></script>
 </body>
 </html>`;

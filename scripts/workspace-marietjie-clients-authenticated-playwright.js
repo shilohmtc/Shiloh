@@ -312,11 +312,16 @@ async function main() {
       assert.equal(updateResponse.status(), 200);
       await page.waitForLoadState('networkidle');
 
-      page.once('dialog', dialog => dialog.accept());
       const archiveResponsePromise = page.waitForResponse(response =>
         response.url().endsWith('/calendar/clients/701/archive') && response.request().method() === 'POST'
       );
+      const beforeArchive = archiveCalls;
       await page.getByRole('button', { name: 'Remove from my clients', exact: true }).click();
+      const confirmation = page.getByRole('dialog', { name: 'Remove client from your list?' });
+      await confirmation.waitFor({ state: 'visible' });
+      assert.equal(archiveCalls, beforeArchive, 'opening the dialog cannot archive a client');
+      assert.equal(await confirmation.getByRole('button', { name: 'Keep client' }).evaluate(node => node === document.activeElement), true);
+      await confirmation.getByRole('button', { name: 'Remove client', exact: true }).click();
       const archiveResponse = await archiveResponsePromise;
       assert.equal(archiveResponse.status(), 200);
       await page.waitForURL(/\/calendar\/clients\?status=archived$/);

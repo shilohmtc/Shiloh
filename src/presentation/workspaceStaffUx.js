@@ -1,3 +1,4 @@
+const { confirmationClientScript } = require('./workspaceConfirmation');
 const {
   escapeHtml,
   workspaceShellStyles,
@@ -83,7 +84,7 @@ function editPanel(staff) {
 function statusPanel(staff) {
   const next = staff.status === 'active' ? 'inactive' : 'active';
   const action = next === 'inactive' ? 'Deactivate staff' : 'Reactivate staff';
-  return `<section class="panel" data-staff-management><span class="eyebrow">Status</span><h2>${escapeHtml(label(staff.status))}</h2><form data-staff-status-form data-staff-id="${escapeHtml(staff.id)}" data-staff-revision="${escapeHtml(staff.revision)}"><input type="hidden" name="status" value="${next}"><button class="button ${next === 'inactive' ? 'danger' : 'primary'}" type="submit">${action}</button></form><div class="warning-note">${next === 'inactive' ? 'Deactivation stops new booking eligibility and disables linked Workspace access. Existing appointments, service assignments and history are preserved.' : 'Reactivation restores the profile to active. Booking still depends on client-bookable status and an active assigned service.'}</div></section>`;
+  return `<section class="panel" data-staff-management><span class="eyebrow">Status</span><h2>${escapeHtml(label(staff.status))}</h2><p class="status-message" role="status" aria-live="polite" data-staff-operation-status></p><form data-staff-status-form data-staff-name="${escapeHtml(staff.display_name)}" data-staff-id="${escapeHtml(staff.id)}" data-staff-revision="${escapeHtml(staff.revision)}"><input type="hidden" name="status" value="${next}"><button class="button ${next === 'inactive' ? 'danger' : 'primary'}" type="submit">${action}</button></form><div class="warning-note">${next === 'inactive' ? 'Deactivation stops new booking eligibility and disables linked Workspace access. Existing appointments, service assignments and history are preserved.' : 'Reactivation restores the profile to active. Booking still depends on client-bookable status and an active assigned service.'}</div></section>`;
 }
 
 function renderStaffDetailPage(model, options = {}) {
@@ -98,7 +99,7 @@ function renderStaffDetailPage(model, options = {}) {
 }
 
 function workspaceStaffManageClientScript() {
-  return `(function(){'use strict';
+  return confirmationClientScript() + `(function(){'use strict';
 var API='/calendar/team';var AUTH='/calendar/staff-auth';
 function one(s,r){return(r||document).querySelector(s);}function requestId(){if(window.crypto&&typeof window.crypto.randomUUID==='function')return window.crypto.randomUUID();return'T'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2);}
 function status(message,tone,root){var target=one('[data-staff-operation-status]',root)||one('[data-staff-operation-status]');if(!target)return;target.textContent=String(message||'');target.dataset.tone=tone||'ready';}
@@ -108,7 +109,7 @@ async function post(path,payload){var token=await csrf();var response=await fetc
 function busy(form,on){Array.prototype.forEach.call(form.querySelectorAll('button,input,select'),function(el){el.disabled=on;});}
 var create=one('[data-staff-create-form]');if(create){create.addEventListener('submit',async function(e){e.preventDefault();var f=new FormData(create);busy(create,true);status('Adding staff profile…','working',create.closest('[data-staff-management]'));try{var type=String(f.get('resourceType')||'practitioner');var result=await post('/create',{requestId:requestId(),displayName:f.get('displayName'),resourceType:type,schedulingType:type==='business_resource'?'system':f.get('schedulingType'),clientBookable:type==='business_resource'?false:f.get('clientBookable')==='on'});window.location.assign(API+'/'+result.staffId);}catch(err){status(err.message,'error',create.closest('[data-staff-management]'));busy(create,false);}});}
 var edit=one('[data-staff-edit-form]');if(edit){edit.addEventListener('submit',async function(e){e.preventDefault();var f=new FormData(edit);busy(edit,true);status('Saving staff profile…','working',edit.closest('[data-staff-management]'));try{await post('/'+edit.dataset.staffId+'/update',{requestId:requestId(),expectedRevision:edit.dataset.staffRevision,displayName:f.get('displayName'),schedulingType:f.get('schedulingType'),clientBookable:f.get('clientBookable')==='on'});window.location.reload();}catch(err){status(err.message,'error',edit.closest('[data-staff-management]'));busy(edit,false);}});}
-var lifecycle=one('[data-staff-status-form]');if(lifecycle){lifecycle.addEventListener('submit',async function(e){e.preventDefault();var next=String(new FormData(lifecycle).get('status')||'');if(next==='inactive'&&!window.confirm('Deactivate this staff profile? Existing appointments and history stay intact, but new booking eligibility and linked Workspace access stop.'))return;busy(lifecycle,true);try{await post('/'+lifecycle.dataset.staffId+'/status',{requestId:requestId(),expectedRevision:lifecycle.dataset.staffRevision,status:next});window.location.reload();}catch(err){window.alert(err.message);busy(lifecycle,false);}});}
+var lifecycle=one('[data-staff-status-form]');if(lifecycle){lifecycle.addEventListener('submit',async function(e){e.preventDefault();var next=String(new FormData(lifecycle).get('status')||'');if(next==='inactive'&&!(await window.ShilohConfirm({title:'Deactivate '+lifecycle.dataset.staffName+'?',copy:'Existing appointments and history stay intact. New bookings and linked Workspace access will stop.',cancel:'Keep active',action:'Deactivate staff'})))return;busy(lifecycle,true);try{await post('/'+lifecycle.dataset.staffId+'/status',{requestId:requestId(),expectedRevision:lifecycle.dataset.staffRevision,status:next});window.location.reload();}catch(err){status(err.message,'error',lifecycle.parentElement);busy(lifecycle,false);}});}
 })();`;
 }
 

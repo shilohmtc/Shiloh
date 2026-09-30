@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const express = require('express');
 const fs = require('node:fs');
 const http = require('node:http');
+const os = require('node:os');
+const path = require('node:path');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 
@@ -161,11 +163,18 @@ test('#831 real Chromium Desktop and Phone direct navigation land on simplified 
   assert.ok(chrome, 'Chrome/Chromium is required for #831 browser-navigation proof');
   await withServer(fixture(), async base => {
     async function dump(args, url) {
-      const result = await execFileAsync(chrome, [
-        '--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
-        '--virtual-time-budget=800', '--dump-dom', ...args, url,
-      ], { encoding: 'utf8', timeout: 30_000, maxBuffer: 5 * 1024 * 1024 });
-      return result.stdout || '';
+      const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'shiloh-831-chrome-'));
+      try {
+        const result = await execFileAsync(chrome, [
+          '--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
+          '--no-first-run', '--no-default-browser-check', `--user-data-dir=${profile}`,
+          '--virtual-time-budget=800', '--dump-dom', ...args, url,
+        ], { encoding: 'utf8', timeout: 30_000, maxBuffer: 5 * 1024 * 1024 });
+        assert.ok(result.stdout, `Chromium returned no document: ${result.stderr}`);
+        return result.stdout;
+      } finally {
+        fs.rmSync(profile, { recursive: true, force: true });
+      }
     }
 
     const desktop = await dump(['--window-size=1440,900'], `${base}/calendar/workspace`);

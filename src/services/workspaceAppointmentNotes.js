@@ -5,6 +5,7 @@ const {
   operationsForAuthority,
   allowsAppointmentTarget,
 } = require('./calendarAuthorization');
+const { UPCOMING_APPOINTMENT_STATUSES } = require('./myShilohClientContext');
 const { normalizeAppointmentNotes } = require('./appointmentNotes');
 
 function notesError(code, message, httpStatus = null) {
@@ -118,6 +119,38 @@ function createWorkspaceAppointmentNotesService({ db = pool } = {}) {
     };
   }
 
+  // Read-only projection over the same appointment/client link used by My Shiloh.
+  // This is availability in the app, never evidence of a phone alert or a read.
+  async function getMyShilohAvailability({ adminId, appointmentId }) {
+    const operator = await resolveOperator(db, adminId);
+    const context = await appointmentContext(db, appointmentId);
+    requireScope(operator, context);
+    const result = await db.query(
+      `/* calendar:myShilohAvailability */
+       SELECT a.crm_v2_client_id,a.client_id,a.status,a.ends_at,
+              c.status AS client_status,
+              COALESCE(g.ends_at,a.ends_at)>NOW() AS upcoming
+         FROM appointments a
+         LEFT JOIN crm_v2_clients c ON c.id=a.crm_v2_client_id
+         LEFT JOIN appointment_group_members m ON m.appointment_id=a.id
+         LEFT JOIN appointment_groups g ON g.id=m.group_id AND g.group_type='multi_service_booking'
+        WHERE a.id=$1`,
+      [Number(context.appointment.id)]
+    );
+    const row = result.rows[0];
+    if (!row) throw notesError('CALENDAR_NOTES_APPOINTMENT_NOT_FOUND', 'The appointment no longer exists.', 404);
+    const linked = Boolean(row.crm_v2_client_id) && row.client_id == null && row.client_status === 'active';
+    const available = linked && UPCOMING_APPOINTMENT_STATUSES.includes(row.status) && row.upcoming === true;
+    return {
+      appointmentId: Number(context.appointment.id),
+      status: !linked ? 'not_linked' : available ? 'available' : 'not_current',
+      label: !linked ? 'Not linked to My Shiloh' : available ? 'Available in My Shiloh' : 'Not currently shown in My Shiloh',
+      explanation: !linked ? 'Reception may need to contact the client directly.' : available
+        ? 'The client can view this booking when they open My Shiloh.'
+        : 'My Shiloh shows upcoming scheduled and confirmed bookings.',
+    };
+  }
+
   async function update({ adminId, appointmentId, expectedRevision, notes, requestId: rawRequestId }) {
     const id = positiveId(appointmentId);
     const expected = exactRevision(expectedRevision);
@@ -186,7 +219,7 @@ function createWorkspaceAppointmentNotesService({ db = pool } = {}) {
     }
   }
 
-  return { resolveOperator, get, update };
+  return { resolveOperator, get, getMyShilohAvailability, update };
 }
 
 module.exports = {

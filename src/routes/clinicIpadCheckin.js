@@ -1,3 +1,4 @@
+const { confirmationClientScript } = require('../presentation/workspaceConfirmation');
 'use strict';
 
 const express = require('express');
@@ -248,7 +249,7 @@ function createClinicIpadSetupRouter({ env = process.env, sessionService, servic
     try {return res.status(200).json(await service.approvePair(req.staffBrowserSession.adminId,req.body?.pairId));}
     catch(error){next(error);}
   });
-  router.get('/devices.js',staff,(_req,res) => res.type('application/javascript').send(`(function(){
+  router.get('/devices.js',staff,(_req,res) => res.type('application/javascript').send(confirmationClientScript() + `(function(){
 const status=document.querySelector('[data-status]'),options=document.querySelector('[data-form-options]');
 async function send(path,payload){const c=await fetch('/calendar/staff-auth/csrf',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(!c.ok)throw Error('Please sign in again.');const csrf=await c.json();const r=await fetch('/calendar/check-in/'+path,{method:'POST',headers:{'Content-Type':'application/json','X-Shiloh-Csrf-Token':csrf.csrfToken},body:JSON.stringify(payload)});if(!r.ok)throw Error('The action could not be completed. Please check the appointment and iPad.');return r.json();}
 document.querySelector('[data-setup-code]').addEventListener('click',async event=>{const button=event.currentTarget,code=document.querySelector('[data-setup-code-result]'),message=document.querySelector('[data-code-status]');button.disabled=true;code.hidden=true;message.textContent='Creating a code…';try{const result=await send('setup-code',{});code.textContent=result.code.slice(0,5)+' '+result.code.slice(5);code.hidden=false;message.textContent='Enter this code on the iPad within five minutes. It works once.';}catch(error){message.textContent='Could not create a code. Please try again.';}finally{button.disabled=false;}});
@@ -270,7 +271,7 @@ label.append(select);row.append(label);
 if(item.status==='not_sent')row.append(button);
 if(options.dataset.whatsappReady==='true' && item.status==='not_sent'){
 const whatsapp=document.createElement('button');whatsapp.type='button';whatsapp.className='button secondary';whatsapp.textContent='Send to client’s WhatsApp';
-whatsapp.addEventListener('click',async()=>{if(!window.confirm('Send '+item.title+' to '+item.client_name+' at mobile ending '+item.mobile_last4+'?'))return;
+whatsapp.addEventListener('click',async()=>{if(!(await window.ShilohConfirm({title:'Send '+item.title+'?',copy:'Send to '+item.client_name+' at mobile ending '+item.mobile_last4+'.',cancel:'Keep unsent',action:'Send form',danger:false})))return;
 whatsapp.disabled=true;try{await send('send-form',{appointmentId,assignmentId:item.id});status.textContent='The form was sent to the client’s WhatsApp.';}
 catch(e){status.textContent=e.message;whatsapp.disabled=false;}});row.append(whatsapp);}
 options.append(row);
