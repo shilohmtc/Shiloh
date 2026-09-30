@@ -31,6 +31,18 @@ test('dated service rate takes priority and shared or unpriced appointments requ
   assert.equal(rows[0].appointments[2].commission, null);
 });
 
+test('a missing commission rule keeps priced solo treatment value visible without inventing commission', () => {
+  const rows = summarize([{ id: 11, display_name: 'Therapist' }], [
+    visit(1), visit(2, { staff_count: 2 }), visit(3, { total_price: null }),
+  ], []);
+  assert.equal(rows[0].completedValue, 590);
+  assert.equal(rows[0].completedCount, 1);
+  assert.equal(rows[0].commission, 0);
+  assert.equal(rows[0].reviewCount, 3);
+  assert.equal(rows[0].appointments[0].commission, null);
+  assert.equal(rows[0].appointments[0].reason, 'Commission rule missing — review');
+});
+
 test('rule creation is owner gated, future dated and audited in one statement', async () => {
   const seen = [];
   const db = { async query(sql, params) {
