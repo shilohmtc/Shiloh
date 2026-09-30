@@ -418,6 +418,8 @@ async function main() {
     let dialogPlan = [];
     const dialogs = [];
     const dialogErrors = [];
+    let completedLoads = 0;
+    cdp.on('Page.loadEventFired', () => { completedLoads += 1; });
     cdp.on('Network.requestWillBeSent', (event) => network.push({ method: event.request.method, url: event.request.url }));
     cdp.on('Runtime.exceptionThrown', (event) => exceptions.push(event.exceptionDetails?.exception?.description || event.exceptionDetails?.text));
     cdp.on('Page.javascriptDialogOpening', (event) => {
@@ -452,6 +454,7 @@ async function main() {
     }
     async function operation(selector, plan, expectedType, adminId = 71) {
       const beforeOperations = state.operations.length;
+      const beforeLoads = completedLoads;
       const beforeRenders = Number(state.renders.get(adminId) || 0);
       dialogPlan = plan.map((item) => ({ type: 'prompt', ...item }));
       await evaluate(cdp, `document.querySelector(${js(selector)}).click();true`);
@@ -461,11 +464,15 @@ async function main() {
       );
       assert.equal(state.operations.slice(beforeOperations).at(-1).type, expectedType);
       await poll(() => Number(state.renders.get(adminId) || 0), (value) => value > beforeRenders);
+      // A server render can finish while the previous document is still ready.
+      // Wait for the actual replacement page before the next interaction.
+      await poll(() => completedLoads, (value) => value > beforeLoads);
       await poll(() => evaluate(cdp, 'document.readyState'), (value) => value === 'complete');
       assert.deepEqual(dialogPlan, []);
     }
     async function panelOperation(action, setup, expectedType, adminId = 71) {
       const beforeOperations = state.operations.length;
+      const beforeLoads = completedLoads;
       const beforeRenders = Number(state.renders.get(adminId) || 0);
       await evaluate(cdp, `document.querySelector('[data-appointment-management-target="true"]').click();true`);
       const section = action === 'appointment:reassign' ? 'practitioner' : 'danger';
@@ -474,6 +481,9 @@ async function main() {
       await poll(() => state.operations.slice(beforeOperations), (items) => items.some((item) => item.type === expectedType));
       assert.equal(state.operations.slice(beforeOperations).at(-1).type, expectedType);
       await poll(() => Number(state.renders.get(adminId) || 0), (value) => value > beforeRenders);
+      // A server render can finish while the previous document is still ready.
+      // Wait for the actual replacement page before the next interaction.
+      await poll(() => completedLoads, (value) => value > beforeLoads);
       await poll(() => evaluate(cdp, 'document.readyState'), (value) => value === 'complete');
     }
 
@@ -527,12 +537,14 @@ async function main() {
     assert.deepEqual(manualPath, { method: 'POST', path: '/calendar/operations/appointments/7001/reschedule' });
 
     const beforeDrag = state.operations.length;
+    const beforeDragLoads = completedLoads;
     const beforeDragRender = Number(state.renders.get(71));
     dialogPlan = [{ type: 'prompt', text: '11:00', includes: 'Exact new start time' }];
     await evaluate(cdp, `(()=>{const card=document.querySelector('[data-appointment-id="7001"]');const target=document.querySelector('[data-calendar-drop-target]');const transfer=new DataTransfer();card.dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:transfer}));target.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:transfer}));return true;})()`);
     await poll(() => state.operations.length, (value) => value > beforeDrag);
     assert.equal(state.operations.at(-1).type, 'reschedule');
     await poll(() => Number(state.renders.get(71)), (value) => value > beforeDragRender);
+    await poll(() => completedLoads, (value) => value > beforeDragLoads);
     assert.deepEqual(dialogPlan, []);
     const reschedulePaths = state.requests.filter((item) => item.path.endsWith('/reschedule'));
     assert.equal(reschedulePaths.length, 2);

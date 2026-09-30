@@ -156,7 +156,7 @@ function individualToggles(row) {
   const profile = profileFor(row);
   const clinicWide = row?.calendar_scope === 'all_business' && row?.service_scope === 'all_services'
     && ['owner', 'business_admin', 'booking_operator'].includes(row?.business_role);
-  const allowed = new Set(clinicWide ? Object.keys(ACCESS_CAPABILITIES) : profile === PROFILE_CLINIC_TEAM
+  const allowed = new Set(clinicWide ? Object.keys(ACCESS_CAPABILITIES).filter(key => !ACCESS_CAPABILITIES[key].legacy) : profile === PROFILE_CLINIC_TEAM
     ? [...CLINIC_TEAM_VIEW, ...CLINIC_TEAM_ACTIONS] : profile === PROFILE_OWN_WORKSPACE
       ? [...OWN_WORKSPACE_VIEW, ...OWN_WORKSPACE_ACTIONS] : []);
   // Role-specific protections are enforced by the real domain services as well.
