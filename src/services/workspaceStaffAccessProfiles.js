@@ -1,6 +1,7 @@
 const { createHash } = require('crypto');
 const { pool } = require('../db/pool');
 const workspaceStaffAccess = require('./workspaceStaffAccess');
+const { groupedCapabilities } = require('./workspaceAccessV2');
 
 const PROFILE_CLINIC_TEAM = 'clinic_team_v1';
 const PROFILE_OWN_WORKSPACE = 'own_workspace_v1';
@@ -166,11 +167,15 @@ function project(row) {
     active: row?.active === true,
     profileKey,
     profileLabel: meta?.label || 'Protected access',
-    profileSummary: meta?.summary || 'This access is managed separately.',
+    profileSummary: meta ? 'View current access and choose the actions this person may perform.' : 'Existing clinic access is protected. View the current settings below.',
     protectedRestrictions: meta?.protected || [],
     toggles: profileKey ? toggleProjection(row, profileKey) : [],
-    editable: Boolean(profileKey),
+    editable: Boolean(profileKey) && row?.staff_status === 'active',
     revision: revision(row),
+    accessGroups: groupedCapabilities(row?.permissions).map(group => ({ ...group, capabilities: group.capabilities.filter(key => !(TOGGLES[profileKey] || []).some(toggle => toggle.capabilities.includes(key))) })).filter(group => group.capabilities.length),
+    businessRole: row?.business_role || '',
+    calendarScope: row?.calendar_scope || '',
+    serviceScope: row?.service_scope || '',
   };
 }
 
@@ -272,7 +277,8 @@ function createWorkspaceStaffAccessProfilesService({ db = pool, accessService = 
     const authority = await accessService.requireManageAccess(adminId, db);
     const id = positiveId(principalId);
     if (!id) throw new WorkspaceStaffAccessProfileError('STAFF_ACCESS_INVALID_ID', 'Staff access reference is invalid.', 400);
-    const row = await requireTarget(id);
+    const row = await load(id);
+    if (!row) throw new WorkspaceStaffAccessProfileError('STAFF_ACCESS_NOT_FOUND', 'Staff access was not found.', 404);
     return { authority, person: project(row) };
   }
 
@@ -334,7 +340,28 @@ function createWorkspaceStaffAccessProfilesService({ db = pool, accessService = 
     }});
   }
 
-  return { list, get, applyProfile, setToggle };
+  async function saveChanges({ adminId, principalId, expectedRevision, requestId: rawRequestId, changes } = {}) {
+    if (!Array.isArray(changes) || !changes.length || changes.length > 6
+        || changes.some(change => !change || typeof change.key !== 'string' || typeof change.on !== 'boolean')
+        || new Set(changes.map(change => change.key)).size !== changes.length) {
+      throw new WorkspaceStaffAccessProfileError('STAFF_ACCESS_INVALID_TOGGLE', 'Choose valid access changes before saving.', 400);
+    }
+    return mutate({ adminId, principalId, expectedRevision, rawRequestId, execute: async ({ client, row }) => {
+      const profileKey = profileFor(row);
+      if (!profileKey) throw new WorkspaceStaffAccessProfileError('STAFF_ACCESS_PROFILE_UNSUPPORTED', 'This Staff access is protected.', 409);
+      let next = { ...permissions(row.permissions) };
+      for (const change of changes) {
+        const toggle = (TOGGLES[profileKey] || []).find(item => item.key === change.key);
+        if (!toggle) throw new WorkspaceStaffAccessProfileError('STAFF_ACCESS_TOGGLE_UNSUPPORTED', 'That Staff access switch is not available for this profile.', 400);
+        // Change only the selected switch. Do not reapply a profile or alter other grants.
+        next = setCapabilities(next, change.on ? toggle.capabilities : [], change.on ? [] : toggle.capabilities);
+      }
+      await client.query('UPDATE staff_admin_accounts SET permissions=$2::jsonb,updated_at=NOW() WHERE id=$1', [positiveId(row.id), JSON.stringify(next)]);
+      return { action: 'workspace.staff_access_changes_saved' };
+    }});
+  }
+
+  return { list, get, applyProfile, setToggle, saveChanges };
 }
 
 const service = createWorkspaceStaffAccessProfilesService();

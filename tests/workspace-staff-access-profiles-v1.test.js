@@ -104,8 +104,8 @@ test('administrator accounts without staff profiles are reachable for approved d
   assert.equal(model.people.length, 1);
   assert.deepEqual(model.otherPeople.map(person => person.displayName), ['Jean-Pierre']);
   const html = renderStaffAccessPage(model);
-  assert.match(html, /Administrator &amp; shared sign-in/);
-  assert.match(html, /workspace-access\/42/);
+  assert.match(html, /View access/);
+  assert.match(html, /staff-access\/42/);
   assert.match(html, /Jean-Pierre/);
   assert.doesNotMatch(html, /27821234567/);
 });
@@ -124,7 +124,9 @@ test('Staff access UI uses accessible switch semantics and avoids technical scop
   assert.match(html, /Protected boundaries/);
   assert.doesNotMatch(html, /calendar_scope|service_scope|canonical principal|capabilit(?:y|ies)/i);
   assert.match(clientScript(), /Saving…/);
-  assert.match(clientScript(), /\/staff-access\/.*\/toggle/);
+  assert.match(clientScript(), /\/staff-access\/.*suffix/);
+  assert.match(clientScript(), /post\('\/changes'/);
+  assert.match(html, /Save changes/);
 });
 
 test('reports:view_all widens only the read-only Reports projection', async () => {
