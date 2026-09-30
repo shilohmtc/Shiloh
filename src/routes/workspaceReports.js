@@ -1,11 +1,13 @@
 const express = require('express');
 const workspaceReports = require('../services/workspaceReportsProfileView');
 const workspaceWelcomeVoucherCampaign = require('../services/workspaceWelcomeVoucherCampaign');
+const staffEarnings = require('../services/workspaceStaffEarnings');
 const {
   renderReportsPage,
   renderReportsUnavailablePage,
+  commissionClientScript,
 } = require('../presentation/workspaceReportsUx');
-const { requireStaffSession } = require('../middleware/staffBrowserSession');
+const { requireStaffSession, sameOriginGuard, csrfGuard } = require('../middleware/staffBrowserSession');
 
 function isWorkspaceReportsEnabled(env = process.env) {
   return String(env.SHILOH_CALENDAR_READONLY_UX_ENABLED || '').trim().toLowerCase() === 'true'
@@ -37,6 +39,8 @@ function createWorkspaceReportsHandler({
   welcomeVoucherCampaignService = service === workspaceReports
     ? workspaceWelcomeVoucherCampaign
     : { async buildCampaign() { return null; } },
+  earningsService = service === workspaceReports ? staffEarnings : { async requireOwner() { throw Object.assign(new Error('Forbidden'), { httpStatus: 403 }); } },
+  sessionService,
   renderPage = renderReportsPage,
   renderUnavailable = renderReportsUnavailablePage,
   staffAccessPath = '/calendar/staff',
@@ -61,8 +65,23 @@ function createWorkspaceReportsHandler({
       } catch (_error) {
         model.welcomeVoucherCampaign = null;
       }
+      if (await earningsService.requireOwner(req.staffBrowserSession?.adminId).then(() => true, error => {
+        if (error?.httpStatus === 403) return false;
+        throw error;
+      })) {
+        model.staffEarnings = await earningsService.build({
+          adminId: req.staffBrowserSession.adminId,
+          period: model.period,
+          selectedStaffId: model.selectedStaffId,
+        });
+      }
+      const rotated = model.staffEarnings
+        ? await sessionService.rotateCsrfToken(req.staffBrowserSession.sessionId)
+        : null;
+      if (model.staffEarnings && !rotated?.ok) return res.status(401).type('text/plain').send('Unauthorized');
       return res.status(200).type('html').send(renderPage(model, {
         staffAccessScriptPath: `${staffAccessPath}/client.js`,
+        csrfToken: rotated?.csrfToken || '',
       }));
     } catch (error) {
       const safe = safeError(error);
@@ -77,8 +96,29 @@ function createWorkspaceReportsHandler({
 function createWorkspaceReportsRouter({ sessionService, ...options } = {}) {
   if (!sessionService) throw new Error('Workspace Reports requires the existing staff browser session service');
   const router = express.Router();
+  const earningsService = options.earningsService || staffEarnings;
+  router.use((req, res, next) => {
+    setWorkspaceReportsSecurityHeaders(res);
+    if (!isWorkspaceReportsEnabled(options.env || process.env)) return res.sendStatus(404);
+    return next();
+  });
   router.use(requireStaffSession({ service: sessionService, env: options.env }));
-  router.get('/', createWorkspaceReportsHandler(options));
+  router.get('/commission.js', async (req, res) => {
+    try {
+      await earningsService.requireOwner(req.staffBrowserSession?.adminId);
+      return res.type('application/javascript').send(commissionClientScript());
+    } catch (_error) { return res.sendStatus(403); }
+  });
+  router.post('/commission-rules', sameOriginGuard({ env: options.env }), csrfGuard({ service: sessionService }), express.json({ limit: '4kb' }), async (req, res) => {
+    try {
+      const saved = await earningsService.addRule({ ...req.body, adminId: req.staffBrowserSession?.adminId });
+      return res.status(201).json(saved);
+    } catch (error) {
+      const status = [400, 403, 409].includes(error?.httpStatus) ? error.httpStatus : 503;
+      return res.status(status).json({ error: status === 503 ? 'Commission rules are unavailable.' : error.message });
+    }
+  });
+  router.get('/', createWorkspaceReportsHandler({ ...options, earningsService, sessionService }));
   return router;
 }
 

@@ -63,8 +63,10 @@ async function main() {
   let buildCalls = 0;
   const sessionService = {
     validateSessionToken: async token => token === 'synthetic-reports-session'
-      ? { ok: true, adminId: 41 }
+      ? { ok: true, adminId: 41, sessionId: 51 }
       : { ok: false },
+    rotateCsrfToken: async () => ({ ok: true, csrfToken: 'synthetic-csrf' }),
+    validateCsrfToken: (_session, token) => token === 'synthetic-csrf',
   };
   const service = {
     async buildReport({ adminId }) {
@@ -73,6 +75,22 @@ async function main() {
       return model();
     },
   };
+  const earningsService = {
+    async requireOwner(adminId) { assert.equal(adminId, 41); },
+    async build({ adminId }) {
+      assert.equal(adminId, 41);
+      return {
+        earliestNewRuleDate: '2026-09-16',
+        staff: [{ staffId: 11, name: 'Abigail', completedValue: 590, commission: 118, completedCount: 1, reviewCount: 1, appointments: [
+          { id: 732, startsAt: '2026-09-15T08:00:00Z', serviceNames: ['Swedish Massage'], price: 590, ratePercent: 20, commission: 118 },
+          { id: 733, startsAt: '2026-09-15T10:00:00Z', serviceNames: ['Couples Massage'], price: 1080, reason: 'Shared appointment — review allocation' },
+        ] }],
+        services: [{ id: 1, name: 'Swedish Massage' }],
+        rules: [{ staff_id: 11, service_id: null, effective_from: '1970-01-01', rate_percent: 20 }],
+      };
+    },
+    async addRule({ adminId, staffId }) { assert.equal(adminId, 41); assert.equal(staffId, '11'); return { id: 7 }; },
+  };
 
   const app = express();
   app.get('/calendar/staff/client.js', (_req, res) => res.type('application/javascript').send(''));
@@ -80,6 +98,7 @@ async function main() {
     env: ENV,
     sessionService,
     service,
+    earningsService,
   }));
 
   const server = http.createServer(app);
@@ -123,6 +142,8 @@ async function main() {
       assert.equal(await page.getByRole('heading', { name: 'Reports', exact: true }).isVisible(), true);
       assert.equal(await page.getByRole('button', { name: 'View report' }).isVisible(), true);
       assert.equal(await page.getByRole('heading', { name: 'Team booking time' }).isVisible(), true);
+      assert.equal(await page.getByRole('heading', { name: 'Team treatment value & commission' }).isVisible(), true);
+      assert.match(await page.getByRole('link', { name: 'Appointment #732' }).getAttribute('href'), /appointment=732/);
       assert.equal(await page.getByRole('heading', { name: 'Treatments booked' }).isVisible(), true);
       assert.equal(await page.getByRole('heading', { name: 'New and returning clients' }).isVisible(), true);
 
