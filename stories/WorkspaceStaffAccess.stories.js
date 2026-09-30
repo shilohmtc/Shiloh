@@ -14,7 +14,7 @@ function productionSurface(pageHtml) {
 const authority = { displayName: 'Owner' };
 const metadata = capabilityMetadata.ACCESS_CAPABILITIES;
 function toggles(keys) {
-  return keys.map(key => ({ key, ...metadata[key], on: true, group: /^appointment|^calendar|^booking/.test(key) ? 'Calendar' : /^client/.test(key) ? 'Clients' : /^forms/.test(key) ? 'Forms' : /^services|^service:|^staff:services/.test(key) ? 'Services' : /^schedule/.test(key) ? 'Clinic schedule & hours' : 'Other operational access' }));
+  return keys.map(key => ({ key, ...metadata[key], on: true, group: capabilityMetadata.CAPABILITY_GROUPS.find(group => group.capabilities.includes(key))?.label || 'Other operational access' }));
 }
 const clinicTeam = {
   id: 21, staffId: 41, displayName: 'Naomi', active: true, profileKey: 'clinic_team_v1', profileLabel: 'Clinic team',

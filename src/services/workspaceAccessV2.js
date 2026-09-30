@@ -22,22 +22,7 @@ const RECEPTION_PRESET_KEY = 'reception_shared_operational_v1';
 const PRACTITIONER_COPY_CAPABILITIES = Object.freeze(['appointment:view', 'booking:update', 'forms:view', 'forms:clinical_manage']);
 const PRACTITIONER_COPY_CAPABILITY_SET = new Set(PRACTITIONER_COPY_CAPABILITIES);
 
-const CAPABILITY_GROUPS = Object.freeze([
-  Object.freeze({ key: 'calendar', label: 'Calendar', capabilities: Object.freeze([
-    'booking_requests:manage', 'appointment:view', 'appointment:create', 'appointment:record_past', 'appointment:adjust_end',
-    'booking:update', 'calendar:booking:reschedule', 'calendar:booking:cancel', 'calendar:booking:reassign',
-  ]) }),
-  Object.freeze({ key: 'clients', label: 'Clients', capabilities: Object.freeze(['client:lookup', 'client:manage', 'client:delete']) }),
-  Object.freeze({ key: 'messages', label: 'Messages', capabilities: Object.freeze(['client:notify']) }),
-  Object.freeze({ key: 'forms', label: 'Forms', capabilities: Object.freeze(['forms:view', 'forms:clinical_manage']) }),
-  Object.freeze({ key: 'services', label: 'Services', capabilities: Object.freeze(['services:view', 'services:create', 'services:manage', 'staff:services:view', 'service_categories:manage']) }),
-  Object.freeze({ key: 'schedule', label: 'Clinic schedule & hours', capabilities: Object.freeze(['schedule:view', 'schedule:availability_manage', 'schedule:manage']) }),
-  Object.freeze({ key: 'staff', label: 'Staff', capabilities: Object.freeze(['staff:view', 'staff:manage']) }),
-  Object.freeze({ key: 'access', label: 'Access', capabilities: Object.freeze(['staff_access:manage']) }),
-  Object.freeze({ key: 'reports_finance', label: 'Reports & finance', capabilities: Object.freeze(['service:pricing', 'reports:view_all', 'staff_earnings:manage', 'payment:view', 'payment:collect', 'payment:manage', 'payment:refund', 'appointment:group:discount', 'appointment:couples:discount']) }),
-  Object.freeze({ key: 'security', label: 'Security', capabilities: Object.freeze(['staff_auth:reset']) }),
-  Object.freeze({ key: 'other', label: 'Other operational access', capabilities: Object.freeze(['walkin:create', 'loyalty:view', 'loyalty:redeem', 'loyalty:manage', 'overflow:visible', 'voucher:view', 'voucher:issue', 'voucher:manage', 'voucher:redeem', 'problem_reports:manage']) }),
-]);
+const { CAPABILITY_GROUPS } = require('../domain/workspaceAccessCapabilities');
 
 function enabledCapabilities(value) {
   const permissions = permissionSet(value);
