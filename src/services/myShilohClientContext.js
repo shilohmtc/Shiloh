@@ -57,6 +57,9 @@ function appointmentFromRow(row) {
     planningStartedAt: row.planning_started_at ? new Date(row.planning_started_at).toISOString() : null,
     proposedStartsAt: row.proposed_starts_at ? new Date(row.proposed_starts_at).toISOString() : null,
     proposalExpiresAt: row.proposal_expires_at ? new Date(row.proposal_expires_at).toISOString() : null,
+    proposalVersion: Number(row.proposal_version || 0),
+    proposedEndsAt: row.proposed_ends_at ? new Date(row.proposed_ends_at).toISOString() : null,
+    proposedPractitioners: Array.isArray(row.proposed_practitioners) ? row.proposed_practitioners.map(item => String(item?.name || '')).filter(Boolean) : [],
     totalPrice: decimal(row.total_price),
     currency: String(row.currency || 'ZAR'),
     services: Array.isArray(row.services)
@@ -202,7 +205,10 @@ function createMyShilohClientContextService({
     const result = await db.query(
       `/* myShilohClientContext:active-booking-request */
        SELECT a.id,a.crm_v2_client_id,a.starts_at,a.ends_at,a.status,
-              aba.status AS booking_request_status,aba.planning_started_at,aba.proposed_starts_at,aba.proposal_expires_at,
+              aba.status AS booking_request_status,aba.planning_started_at,aba.proposed_starts_at,aba.proposed_ends_at,aba.proposal_expires_at,aba.proposal_version,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('name',st.display_name) ORDER BY offered.position)
+                FROM unnest(aba.proposed_staff_ids) WITH ORDINALITY offered(staff_id,position)
+                JOIN staff st ON st.id=offered.staff_id),'[]'::jsonb) AS proposed_practitioners,
               a.total_price,a.currency,
               COALESCE((SELECT jsonb_agg(jsonb_build_object('name',aps.service_name_snapshot) ORDER BY aps.position,aps.id)
                           FROM appointment_services aps WHERE aps.appointment_id=a.id),'[]'::jsonb) AS services,

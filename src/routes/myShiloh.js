@@ -38,6 +38,8 @@ const { createMyShilohBookingService, MyShilohBookingError } = require('../servi
 const { createClientPlanningRequestService, ClientPlanningRequestError } = require('../services/clientPlanningRequests');
 const { createClientHumanHandoffService, ClientHumanHandoffError } = require('../services/clientHumanHandoffs');
 const { createClientWhatsAppContinuationService } = require('../services/clientWhatsAppContinuation');
+const bookingProposals = require('../services/clientBookingApproval');
+const { BookingDepositPolicyError } = require('../services/bookingDepositPolicy');
 const { POLICY_TEXT } = require('../services/bookingPolicy');
 const {
   sameOriginGuard,
@@ -103,6 +105,7 @@ function createMyShilohRouter({
   problemReportService = createProblemReportService({ db: pool }),
   pushService = defaultPushService,
   bookingService = createMyShilohBookingService({ db: pool, catalogueProvider }),
+  proposalService = bookingProposals,
   planningService = createClientPlanningRequestService({ db: pool }),
   humanHandoffService = createClientHumanHandoffService({ db: pool }),
   continuationService = createClientWhatsAppContinuationService({ db: pool }),
@@ -682,6 +685,29 @@ function createMyShilohRouter({
       }
       return res.status(200).json(experience);
     } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/my-shiloh/api/booking-proposals/respond', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    setNoStoreJson(res);
+    try {
+      const { appointmentId, proposalVersion, action } = req.body || {};
+      if (!['accept', 'another'].includes(action)) {
+        return res.status(400).json({ error: 'Choose a response to the proposed time.' });
+      }
+      const input = { appointmentId, proposalVersion, crmV2ClientId: req.myShilohClientSession.crmV2ClientId };
+      const result = action === 'accept'
+        ? await proposalService.acceptProposedAlternative(input)
+        : await proposalService.requestAnotherOption(input);
+      return res.status(200).json(result);
+    } catch (error) {
+      if (error instanceof bookingProposals.BookingRequestError) {
+        return res.status(error.httpStatus).json({ error: error.message, code: error.code });
+      }
+      if (error instanceof BookingDepositPolicyError) {
+        return res.status(409).json({ error: 'Reception needs to review the price or deposit before this time can be accepted. Your proposal has not been confirmed.', code: error.code });
+      }
       return next(error);
     }
   });

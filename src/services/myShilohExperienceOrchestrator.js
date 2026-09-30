@@ -133,7 +133,7 @@ function buildClientExperience(context) {
     home = proposalDisplay ? {
       eyebrow: 'Your booking request',
       headline: 'Shiloh has offered another time.',
-      summary: `The proposed ${requestDisplay.service} is for ${proposalDisplay.date} at ${proposalDisplay.time}. Please reply to the Shiloh message with your choice. This appointment is not confirmed yet.`,
+      summary: `The proposed ${requestDisplay.service} is for ${proposalDisplay.date} at ${proposalDisplay.time}. Review the proposed time in Bookings and choose your response. This appointment is not confirmed yet.`,
       status: 'Awaiting your response',
       primaryAction: { kind: 'navigate', label: 'View request', href: '#bookings' },
     } : {
@@ -322,12 +322,13 @@ function buildClientExperience(context) {
           const offered = activeProposal ? appointmentDisplay({ ...item, startsAt: item.proposedStartsAt }) : null;
           return {
             id: item.id, service: requested?.service || 'Shiloh appointment',
-            practitioner: requested?.practitioner || 'Shiloh',
+            practitioner: offered && item.proposedPractitioners?.length ? item.proposedPractitioners.join(' + ') : requested?.practitioner || 'Shiloh',
+            proposal: offered && Number(item.proposalVersion) > 0 ? { version: Number(item.proposalVersion), expiresAt: item.proposalExpiresAt } : null,
             date: offered?.date || requested?.date,
             time: offered?.time || requested?.time,
             status: offered ? 'Awaiting your response' : item.planningStartedAt ? 'Planning' : 'Requested',
             nextAction: offered
-              ? 'Reply to the Shiloh message about the proposed time. Reception will confirm the appointment after your response.'
+              ? 'Review this proposed time before accepting. Availability and any required deposit will be checked again.'
               : 'Reception is reviewing your request. The appointment has not been confirmed.',
           };
         }),
