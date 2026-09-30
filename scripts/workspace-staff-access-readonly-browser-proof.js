@@ -337,7 +337,7 @@ async function main() {
       await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width === 390 });
       await cdp.send('Page.navigate', { url: `${origin}/calendar/team/17?proof=deactivate-${name}` });
       await poll(() => evaluate(cdp, `document.readyState==='complete' && typeof window.ShilohConfirm==='function' && !!document.querySelector('[data-staff-status-form]')`), Boolean);
-      await evaluate(cdp, `document.querySelector('[data-staff-status-form] button').click();true`);
+      await evaluate(cdp, `document.querySelector('[data-staff-status-form] button').focus();document.querySelector('[data-staff-status-form] button').click();true`);
       await poll(() => evaluate(cdp, `document.querySelector('[data-shiloh-confirm]')?.open`), Boolean);
       const confirmation = await evaluate(cdp, `({title:document.querySelector('[data-shiloh-confirm-title]').textContent,safe:document.activeElement.textContent,body:document.querySelector('[data-shiloh-confirm-copy]').textContent})`);
       assert.equal(confirmation.title, 'Deactivate Synthetic Practitioner?');

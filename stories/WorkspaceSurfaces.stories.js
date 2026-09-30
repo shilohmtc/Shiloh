@@ -200,6 +200,7 @@ function editorStory(interactive = false) {
     dialog.querySelector('h2').dataset.panelTitle = 'true';
     dialog.querySelector('[aria-label="Close"]').dataset.panelClose = 'true';
     const summary = dialog.querySelector('.panel-summary');
+    [...summary.querySelectorAll('span:not([data-panel-service]):not([data-panel-practitioners]):not([data-panel-time])')].forEach(node => node.remove());
     summary.insertAdjacentHTML('beforeend', '<span data-panel-mobile></span><span data-panel-status></span>');
     dialog.querySelector('[data-panel-confirmation]').remove();
     dialog.querySelector('[data-panel-action="appointment:reschedule"] input[type="date"]').name = 'date';
