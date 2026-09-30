@@ -1,3 +1,4 @@
+import capabilityMetadata from '../src/domain/workspaceAccessCapabilities.js';
 import accessPresentation from '../src/presentation/workspaceStaffAccessProfilesUx.js';
 import staffPresentation from '../src/presentation/workspaceStaffUx.js';
 import onboardingPresentation from '../src/presentation/workspaceStaffOnboardingUx.js';
@@ -11,47 +12,22 @@ function productionSurface(pageHtml) {
 }
 
 const authority = { displayName: 'Owner' };
+const metadata = capabilityMetadata.ACCESS_CAPABILITIES;
+function toggles(keys) {
+  return keys.map(key => ({ key, ...metadata[key], on: true, group: capabilityMetadata.CAPABILITY_GROUPS.find(group => group.capabilities.includes(key))?.label || 'Other operational access' }));
+}
 const clinicTeam = {
-  id: 21,
-  staffId: 41,
-  displayName: 'Naomi',
-  active: true,
-  profileKey: 'clinic_team_v1',
-  profileLabel: 'Clinic team',
-  profileSummary: 'Can see the clinic Workspace and finish their own visits. Clinic-wide management stays protected.',
-  protectedRestrictions: [
-    'Cannot change Clinic Hours.',
-    'Cannot edit, cancel, reassign or delete another practitioner’s appointments.',
-    'Cannot change client, service or staff records.',
-  ],
-  editable: true,
-  revision: 'a'.repeat(64),
-  toggles: [{ key: 'finish_own_appointments', label: 'Complete or mark my appointments no-show', description: 'Lets this team member finish only appointments that belong to them.', on: true }],
+  id: 21, staffId: 41, displayName: 'Naomi', active: true, profileKey: 'clinic_team_v1', profileLabel: 'Clinic team',
+  profileSummary: 'Choose individual access, then save your changes. Existing record boundaries still apply.',
+  granularAccess: true, editable: true, revision: 'a'.repeat(64),
+  protectedRestrictions: ['Cannot change Clinic Hours.', 'Cannot edit, cancel, reassign or delete another practitioner’s appointments.'],
+  toggles: toggles(['appointment:view', 'booking:update', 'client:lookup', 'services:view', 'staff:services:view', 'staff:view', 'reports:view_all', 'schedule:view', 'forms:view', 'forms:clinical_manage']),
 };
 const ownWorkspace = {
-  id: 31,
-  staffId: 51,
-  displayName: 'Marietjie',
-  active: true,
-  profileKey: 'own_workspace_v1',
-  profileLabel: 'Own workspace',
-  profileSummary: 'Can fully manage their own work while clinic-wide records and other practitioners stay protected.',
-  protectedRestrictions: [
-    'Cannot change Clinic Hours.',
-    'Cannot edit, cancel, reassign or delete another practitioner’s appointments.',
-    'Cannot access clinic-only client relationships.',
-    'Cannot create services or change staff/access settings.',
-  ],
-  editable: true,
-  revision: 'b'.repeat(64),
-  toggles: [
-    { key: 'manage_own_appointments', label: 'Manage my appointments', description: 'Create, reschedule, cancel and adjust only appointments inside this workspace boundary.', on: true },
-    { key: 'finish_own_appointments', label: 'Complete or mark my appointments no-show', description: 'Finish only appointments assigned to this practitioner.', on: true },
-    { key: 'manage_my_clients', label: 'Manage my clients', description: 'Add and update this practitioner’s own client relationships.', on: true },
-    { key: 'manage_my_services', label: 'Manage my services', description: 'Manage only services assigned and permitted to this practitioner.', on: true },
-    { key: 'view_clinic_hours', label: 'View clinic hours', description: 'See clinic and booking hours without permission to change them.', on: true },
-  ],
+  ...clinicTeam, id: 31, staffId: 51, displayName: 'Synthetic practitioner', profileKey: 'own_workspace_v1', profileLabel: 'Own workspace', revision: 'b'.repeat(64),
+  toggles: toggles(['appointment:view', 'appointment:create', 'appointment:adjust_end', 'booking:update', 'calendar:booking:reschedule', 'calendar:booking:cancel', 'client:lookup', 'client:manage', 'services:view', 'services:manage', 'service:pricing', 'staff:services:view', 'schedule:view', 'schedule:availability_manage']),
 };
+const administrator = { ...clinicTeam, id: 42, staffId: null, profileKey: null, businessRole: 'business_admin', displayName: 'Jean-Pierre', toggles: toggles(Object.keys(metadata).filter(key => !metadata[key].legacy)), protectedRestrictions: ['Record and practitioner boundaries remain unchanged.'] };
 
 export default {
   title: 'Workspace/Staff access',
@@ -59,7 +35,7 @@ export default {
 };
 
 export const AccessOverview = {
-  render: () => productionSurface(renderStaffAccessPage({ authority, people: [clinicTeam, { ...clinicTeam, id: 22, displayName: 'ILince' }, { ...clinicTeam, id: 23, displayName: 'Abigail' }, ownWorkspace], otherPeople: [{ id: 42, displayName: 'Jean-Pierre', active: true }, { id: 43, displayName: 'Shiloh Reception', active: true }] })),
+  render: () => productionSurface(renderStaffAccessPage({ authority, people: [clinicTeam, { ...clinicTeam, id: 22, displayName: 'ILince' }, { ...clinicTeam, id: 23, displayName: 'Abigail' }, ownWorkspace], otherPeople: [administrator, { ...administrator, id: 43, displayName: 'Shiloh Reception', businessRole: 'booking_operator' }] })),
 };
 
 export const ClinicTeam = {
@@ -71,7 +47,13 @@ export const OwnWorkspace = {
 };
 
 export const ProtectedAdministrator = {
-  render: () => productionSurface(renderStaffAccessDetail({ authority, person: { id: 42, displayName: 'Jean-Pierre', active: true, editable: false, businessRole: 'business_admin', profileLabel: 'Business administrator', profileSummary: 'Existing clinic access is protected.', accessGroups: [{ label: 'Bookings', capabilities: ['appointment:view', 'appointment:create', 'calendar:booking:cancel'] }, { label: 'Vouchers & payments', capabilities: ['voucher:issue', 'payment:refund'] }] } })),
+  render: () => productionSurface(renderStaffAccessDetail({ authority, person: { ...administrator, editable: false, toggles: [], editRestriction: 'Another authorized clinic administrator must change your access, so you cannot lock yourself out.', accessGroups: [{ label: 'Payments', capabilities: ['payment:refund'] }] } })),
+};
+export const AdministratorAccess = {
+  render: () => productionSurface(renderStaffAccessDetail({ authority, person: administrator })),
+};
+export const ReceptionAccess = {
+  render: () => productionSurface(renderStaffAccessDetail({ authority, person: { ...administrator, id: 43, displayName: 'Shiloh Reception', businessRole: 'booking_operator', toggles: administrator.toggles.filter(toggle => !['staff_access:manage', 'staff_auth:reset', 'staff_earnings:manage', 'welcome_vouchers:view_campaign'].includes(toggle.key)) } })),
 };
 
 export const AccessOff = {

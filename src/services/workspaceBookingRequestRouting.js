@@ -36,7 +36,10 @@ function principalStaffId(principal) {
 
 function isDerivedGlobalCoordinator(principal) {
   const role = principalRole(principal);
-  return GLOBAL_COORDINATION_ROLES.has(role) && principalCalendarScope(principal) === 'all_business'
+  // Missing means the established role-derived Reception authority; explicit Off
+  // revokes it without a migration or changing any current account grants.
+  return principal?.permissions?.['booking_requests:manage'] !== false
+    && GLOBAL_COORDINATION_ROLES.has(role) && principalCalendarScope(principal) === 'all_business'
     && (role !== 'booking_operator' || principal?.permissions?.['appointment:create'] === true);
 }
 

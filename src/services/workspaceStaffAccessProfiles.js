@@ -1,7 +1,9 @@
 const { createHash } = require('crypto');
 const { pool } = require('../db/pool');
 const workspaceStaffAccess = require('./workspaceStaffAccess');
-const { groupedCapabilities } = require('./workspaceAccessV2');
+const { ACCESS_CAPABILITIES } = require('../domain/workspaceAccessCapabilities');
+const { isDerivedGlobalCoordinator } = require('./workspaceBookingRequestRouting');
+const { CAPABILITY_GROUPS, groupedCapabilities } = require('./workspaceAccessV2');
 
 const PROFILE_CLINIC_TEAM = 'clinic_team_v1';
 const PROFILE_OWN_WORKSPACE = 'own_workspace_v1';
@@ -149,34 +151,60 @@ function profileFor(row) {
   return null;
 }
 
-function toggleProjection(row, profileKey) {
-  const enabled = permissions(row?.permissions);
-  return (TOGGLES[profileKey] || []).map((toggle) => ({
-    ...toggle,
-    on: toggle.capabilities.every((capability) => enabled[capability] === true),
+
+function individualToggles(row) {
+  const profile = profileFor(row);
+  const clinicWide = row?.calendar_scope === 'all_business' && row?.service_scope === 'all_services'
+    && ['owner', 'business_admin', 'booking_operator'].includes(row?.business_role);
+  const allowed = new Set(clinicWide ? Object.keys(ACCESS_CAPABILITIES).filter(key => !ACCESS_CAPABILITIES[key].legacy) : profile === PROFILE_CLINIC_TEAM
+    ? [...CLINIC_TEAM_VIEW, ...CLINIC_TEAM_ACTIONS] : profile === PROFILE_OWN_WORKSPACE
+      ? [...OWN_WORKSPACE_VIEW, ...OWN_WORKSPACE_ACTIONS] : []);
+  // Role-specific protections are enforced by the real domain services as well.
+  if (!['owner', 'business_admin'].includes(row?.business_role)) {
+    for (const key of ['staff_access:manage', 'staff_auth:reset', 'staff_earnings:manage', 'welcome_vouchers:view_campaign']) allowed.delete(key);
+  }
+  if (!clinicWide) allowed.delete('booking_requests:manage');
+  return Object.entries(ACCESS_CAPABILITIES).filter(([key]) => allowed.has(key) || permissions(row?.permissions)[key] === true).map(([key, item]) => ({
+    key, ...item, capabilities: [key],
+    group: CAPABILITY_GROUPS.find(group => group.capabilities.includes(key))?.label || 'Other operational access',
+    on: key === 'booking_requests:manage' ? (permissions(row?.permissions)[key] === true || (permissions(row?.permissions)[key] !== false && isDerivedGlobalCoordinator(row))) : permissions(row?.permissions)[key] === true,
+    canEnable: allowed.has(key),
   }));
 }
 
-function project(row) {
+function project(row, { operatorAdminId = null, individualManageAllowed = true } = {}) {
   const profileKey = profileFor(row);
   const meta = profileKey ? PROFILE_META[profileKey] : null;
+  const toggles = individualToggles(row);
+  const self = positiveId(operatorAdminId) === positiveId(row?.id);
+  const validTarget = !positiveId(row?.staff_id) || row?.staff_status === 'active';
+  const editable = validTarget && toggles.length > 0 && !self && individualManageAllowed;
   return {
-    id: positiveId(row?.id),
-    staffId: positiveId(row?.staff_id),
+    id: positiveId(row?.id), staffId: positiveId(row?.staff_id),
     displayName: String(row?.staff_display_name || row?.display_name || 'Staff').trim() || 'Staff',
-    active: row?.active === true,
-    profileKey,
-    profileLabel: meta?.label || 'Protected access',
-    profileSummary: meta ? 'View current access and choose the actions this person may perform.' : 'Existing clinic access is protected. View the current settings below.',
-    protectedRestrictions: meta?.protected || [],
-    toggles: profileKey ? toggleProjection(row, profileKey) : [],
-    editable: Boolean(profileKey) && row?.staff_status === 'active',
+    active: row?.active === true, profileKey, profileLabel: meta?.label || 'Workspace account',
+    profileSummary: 'Choose individual access, then save your changes. Existing record boundaries still apply.',
+    protectedRestrictions: [
+      'Record and practitioner boundaries remain unchanged.',
+      'Turning on an action does not turn on the viewing access it may also need.',
+      ...(!clinicTarget(row) && meta ? meta.protected : []),
+    ],
+    toggles, editable, granularAccess: true,
+    editRestriction: self ? 'Another authorized clinic administrator must change your access, so you cannot lock yourself out.'
+      : !individualManageAllowed ? 'Individual access changes require an authorized clinic administrator.'
+        : !validTarget ? 'This Staff profile is inactive.' : '',
     revision: revision(row),
-    accessGroups: groupedCapabilities(row?.permissions).map(group => ({ ...group, capabilities: group.capabilities.filter(key => !(TOGGLES[profileKey] || []).some(toggle => toggle.capabilities.includes(key))) })).filter(group => group.capabilities.length),
-    businessRole: row?.business_role || '',
-    calendarScope: row?.calendar_scope || '',
-    serviceScope: row?.service_scope || '',
+    accessGroups: groupedCapabilities(row?.permissions).map(group => ({ ...group, capabilities: group.capabilities.filter(key => !editable || !toggles.some(toggle => toggle.key === key)) })).filter(group => group.capabilities.length),
+    businessRole: row?.business_role || '', calendarScope: row?.calendar_scope || '', serviceScope: row?.service_scope || '',
   };
+}
+
+function clinicTarget(row) {
+  return row?.calendar_scope === 'all_business' && row?.service_scope === 'all_services';
+}
+
+function individualManageAllowed(authority) {
+  return ['owner', 'business_admin'].includes(authority?.businessRole) && authority?.calendarScope === 'all_business';
 }
 
 function exactRevision(value) {
@@ -268,8 +296,8 @@ function createWorkspaceStaffAccessProfilesService({ db = pool, accessService = 
        ORDER BY CASE WHEN a.staff_id IS NULL THEN 1 ELSE 0 END,LOWER(COALESCE(s.display_name,a.display_name)),a.id`);
     return {
       authority,
-      people: result.rows.filter(row => row.staff_id != null).map(project),
-      otherPeople: result.rows.filter(row => row.staff_id == null).map(project),
+      people: result.rows.filter(row => row.staff_id != null).map(row => project(row, { operatorAdminId: authority.operatorAdminId, individualManageAllowed: individualManageAllowed(authority) })),
+      otherPeople: result.rows.filter(row => row.staff_id == null).map(row => project(row, { operatorAdminId: authority.operatorAdminId, individualManageAllowed: individualManageAllowed(authority) })),
     };
   }
 
@@ -279,10 +307,10 @@ function createWorkspaceStaffAccessProfilesService({ db = pool, accessService = 
     if (!id) throw new WorkspaceStaffAccessProfileError('STAFF_ACCESS_INVALID_ID', 'Staff access reference is invalid.', 400);
     const row = await load(id);
     if (!row) throw new WorkspaceStaffAccessProfileError('STAFF_ACCESS_NOT_FOUND', 'Staff access was not found.', 404);
-    return { authority, person: project(row) };
+    return { authority, person: project(row, { operatorAdminId: authority.operatorAdminId, individualManageAllowed: individualManageAllowed(authority) }) };
   }
 
-  async function mutate({ adminId, principalId, expectedRevision, rawRequestId, execute }) {
+  async function mutate({ adminId, principalId, expectedRevision, rawRequestId, individual = false, execute }) {
     if (typeof db.connect !== 'function') throw new Error('Staff access profile changes require a transactional database');
     const id = positiveId(principalId);
     if (!id) throw new WorkspaceStaffAccessProfileError('STAFF_ACCESS_INVALID_ID', 'Staff access reference is invalid.', 400);
@@ -291,14 +319,18 @@ function createWorkspaceStaffAccessProfilesService({ db = pool, accessService = 
     const client = await db.connect();
     try {
       await client.query('BEGIN');
+      if (individual) await client.query('SELECT id FROM staff_admin_accounts WHERE id=$1 FOR UPDATE', [positiveId(adminId)]);
       const operator = await accessService.requireManageAccess(adminId, client);
       if (positiveId(operator.operatorAdminId) === id) throw new WorkspaceStaffAccessProfileError('STAFF_ACCESS_SELF_CHANGE_FORBIDDEN', 'You cannot change your own Staff access here.', 409);
+      if (individual && !individualManageAllowed(operator)) throw new WorkspaceStaffAccessProfileError('STAFF_ACCESS_INDIVIDUAL_FORBIDDEN', 'Individual access changes require an authorized clinic administrator.', 403);
       await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`staff-access-profile:${id}`]);
-      const row = await requireTarget(id, client, true);
+      const row = individual ? await load(id, client, true) : await requireTarget(id, client, true);
+      if (!row) throw new WorkspaceStaffAccessProfileError('STAFF_ACCESS_NOT_FOUND', 'Staff access was not found.', 404);
+      if (individual && positiveId(row.staff_id) && row.staff_status !== 'active') throw new WorkspaceStaffAccessProfileError('STAFF_ACCESS_TARGET_PROTECTED', 'This Staff profile is inactive.', 409);
       if (revision(row) !== expected) throw new WorkspaceStaffAccessProfileError('STAFF_ACCESS_STALE', 'Staff access changed. Reload before saving.', 409);
       const before = project(row);
       const result = await execute({ client, row, operator });
-      const afterRow = await requireTarget(id, client, false);
+      const afterRow = individual ? await load(id, client, false) : await requireTarget(id, client, false);
       const after = project(afterRow);
       await client.query(
         `INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata)
@@ -341,20 +373,20 @@ function createWorkspaceStaffAccessProfilesService({ db = pool, accessService = 
   }
 
   async function saveChanges({ adminId, principalId, expectedRevision, requestId: rawRequestId, changes } = {}) {
-    if (!Array.isArray(changes) || !changes.length || changes.length > 6
+    if (!Array.isArray(changes) || !changes.length || changes.length > Object.keys(ACCESS_CAPABILITIES).length
         || changes.some(change => !change || typeof change.key !== 'string' || typeof change.on !== 'boolean')
         || new Set(changes.map(change => change.key)).size !== changes.length) {
       throw new WorkspaceStaffAccessProfileError('STAFF_ACCESS_INVALID_TOGGLE', 'Choose valid access changes before saving.', 400);
     }
-    return mutate({ adminId, principalId, expectedRevision, rawRequestId, execute: async ({ client, row }) => {
-      const profileKey = profileFor(row);
-      if (!profileKey) throw new WorkspaceStaffAccessProfileError('STAFF_ACCESS_PROFILE_UNSUPPORTED', 'This Staff access is protected.', 409);
+    return mutate({ adminId, principalId, expectedRevision, rawRequestId, individual: true, execute: async ({ client, row }) => {
+      const available = individualToggles(row);
       let next = { ...permissions(row.permissions) };
       for (const change of changes) {
-        const toggle = (TOGGLES[profileKey] || []).find(item => item.key === change.key);
-        if (!toggle) throw new WorkspaceStaffAccessProfileError('STAFF_ACCESS_TOGGLE_UNSUPPORTED', 'That Staff access switch is not available for this profile.', 400);
-        // Change only the selected switch. Do not reapply a profile or alter other grants.
-        next = setCapabilities(next, change.on ? toggle.capabilities : [], change.on ? [] : toggle.capabilities);
+        const toggle = available.find(item => item.key === change.key);
+        if (!toggle || (change.on && !toggle.canEnable)) throw new WorkspaceStaffAccessProfileError('STAFF_ACCESS_TOGGLE_UNSUPPORTED', 'That access choice is outside this person’s Workspace boundary.', 400);
+        // Store explicit Off, including for the established role-derived Reception authority.
+        // Preserve every other grant and conditioned scope value.
+        next[change.key] = change.on;
       }
       await client.query('UPDATE staff_admin_accounts SET permissions=$2::jsonb,updated_at=NOW() WHERE id=$1', [positiveId(row.id), JSON.stringify(next)]);
       return { action: 'workspace.staff_access_changes_saved' };
@@ -379,6 +411,7 @@ module.exports = {
   OWN_WORKSPACE_DENIED,
   WorkspaceStaffAccessProfileError,
   profileFor,
+  individualToggles,
   project,
   canonicalProfileConfig,
   safeTogglePermissions,

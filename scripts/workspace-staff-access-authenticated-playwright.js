@@ -24,56 +24,16 @@ function sha256(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
+const { project, canonicalProfileConfig } = require('../src/services/workspaceStaffAccessProfiles');
 function staff() {
-  return [
-    {
-      id: 21,
-      staffId: 41,
-      displayName: 'Naomi',
-      active: true,
-      profileKey: 'clinic_team_v1',
-      profileLabel: 'Clinic team',
-      profileSummary: 'Can see the clinic Workspace and finish their own visits. Clinic-wide management stays protected.',
-      protectedRestrictions: [
-        'Cannot change Clinic Hours.',
-        'Cannot edit, cancel, reassign or delete another practitioner’s appointments.',
-        'Cannot change client, service or staff records.',
-      ],
-      editable: true,
-      revision: 'a'.repeat(64),
-      toggles: [{ key: 'finish_own_appointments', label: 'Complete or mark my appointments no-show', description: 'Lets this team member finish only appointments that belong to them.', on: true }],
-    },
-    {
-      id: 31,
-      staffId: 51,
-      displayName: 'Marietjie',
-      active: true,
-      profileKey: 'own_workspace_v1',
-      profileLabel: 'Own workspace',
-      profileSummary: 'Can fully manage their own work while clinic-wide records and other practitioners stay protected.',
-      protectedRestrictions: [
-        'Cannot change Clinic Hours.',
-        'Cannot edit, cancel, reassign or delete another practitioner’s appointments.',
-        'Cannot access clinic-only client relationships.',
-        'Cannot create services or change staff/access settings.',
-      ],
-      editable: true,
-      revision: 'b'.repeat(64),
-      toggles: [
-        { key: 'manage_own_appointments', label: 'Manage my appointments', description: 'Create, reschedule, cancel and adjust only appointments inside this workspace boundary.', on: true },
-        { key: 'finish_own_appointments', label: 'Complete or mark my appointments no-show', description: 'Finish only appointments assigned to this practitioner.', on: true },
-        { key: 'manage_my_clients', label: 'Manage my clients', description: 'Add and update this practitioner’s own client relationships.', on: true },
-        { key: 'manage_my_services', label: 'Manage my services', description: 'Manage only services assigned and permitted to this practitioner.', on: true },
-        { key: 'view_clinic_hours', label: 'View clinic hours', description: 'See clinic and booking hours without permission to change them.', on: true },
-      ],
-    },
-  ];
+  return [project({ id: 21, staff_id: 41, display_name: 'Naomi', active: true, staff_status: 'active', business_role: 'employee_practitioner', calendar_scope: 'own_appointments', service_scope: 'own_services', permissions: canonicalProfileConfig('clinic_team_v1').permissions }),
+    project({ id: 31, staff_id: 51, display_name: 'Synthetic practitioner', active: true, staff_status: 'active', business_role: 'tenant_practitioner', calendar_scope: 'own_appointments', service_scope: 'own_services', permissions: canonicalProfileConfig('own_workspace_v1').permissions })];
 }
 
 async function main() {
   fs.rmSync(OUT_DIR, { recursive: true, force: true });
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  const people = [...staff(), { id: 42, displayName: 'Jean-Pierre', active: true, editable: false, businessRole: 'business_admin', profileLabel: 'Business administrator', profileSummary: 'Existing clinic access is protected.', accessGroups: [{ label: 'Vouchers & payments', capabilities: ['voucher:issue', 'payment:refund'] }] }];
+  const people = [...staff(), project({ id: 42, display_name: 'Jean-Pierre', active: true, business_role: 'business_admin', calendar_scope: 'all_business', service_scope: 'all_services', permissions: { 'voucher:issue': true, 'payment:refund': true, 'appointment:create': true } }), project({ id: 43, display_name: 'Shiloh Reception', active: true, business_role: 'booking_operator', calendar_scope: 'all_business', service_scope: 'all_services', permissions: { 'appointment:create': true } })];
   let toggleWrites = 0;
   const authority = { operatorAdminId: 1, displayName: 'Owner' };
 
@@ -176,6 +136,7 @@ async function main() {
       { name: 'desktop', width: 1440, height: 960 },
       { name: 'phone', width: 390, height: 844 },
     ]) {
+      for (const id of [42, 43]) people.find(person => person.id === id).toggles.forEach(toggle => { toggle.on = true; });
       const marietjie = people.find(person => person.id === 31);
       marietjie.toggles.forEach(toggle => { toggle.on = true; });
       marietjie.revision = 'b'.repeat(64);
@@ -194,25 +155,42 @@ async function main() {
       assert.equal(listResponse.status(), 200);
       assert.equal(await page.getByRole('heading', { name: 'Staff access', exact: true }).isVisible(), true);
       assert.equal(await page.getByText('Naomi', { exact: true }).isVisible(), true);
-      assert.equal(await page.getByText('Marietjie', { exact: true }).isVisible(), true);
+      assert.equal(await page.getByText('Synthetic practitioner', { exact: true }).isVisible(), true);
       await page.getByRole('link', { name: /Jean-Pierre/ }).click();
       assert.equal(await page.getByRole('heading', { name: 'Jean-Pierre', exact: true }).isVisible(), true);
-      assert.equal(await page.getByRole('switch').count(), 0);
-      assert.equal(await page.getByRole('button', { name: 'Save changes', exact: true }).count(), 0);
+      assert.equal(await page.locator('[role="switch"]').count(), people.find(person => person.id === 42).toggles.length);
+      assert.equal(await page.getByRole('switch', { name: 'Manage Reception booking requests', exact: true }).getAttribute('aria-checked'), 'true');
+      assert.equal(await page.getByRole('button', { name: 'Save changes', exact: true }).isVisible(), true);
       assert.equal(await page.getByRole('link', { name: 'Open device setup', exact: true }).isVisible(), false);
-      await page.getByText('Current enabled access', { exact: true }).click();
+      await page.locator('details.access-group > summary').filter({ hasText: /^Reports & finance/ }).click();
       assert.equal(await page.getByText('Issue permitted payment refunds', { exact: true }).isVisible(), true);
-      await page.screenshot({ path: path.join(OUT_DIR, viewport.name+'-protected-administrator.png'), fullPage: true });
+      await page.screenshot({ path: path.join(OUT_DIR, viewport.name+'-administrator-access.png'), fullPage: true });
+      const refundSwitch = page.getByRole('switch', { name: 'Issue permitted payment refunds', exact: true });
+      await refundSwitch.click();
+      await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+      await page.getByText('Access changes saved.', { exact: true }).waitFor();
+      assert.equal(people.find(person => person.id === 42).toggles.find(toggle => toggle.key === 'payment:refund').on, false);
+      assert.equal(people.find(person => person.id === 42).toggles.find(toggle => toggle.key === 'appointment:create').on, true);
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.locator('details.access-group > summary').filter({ hasText: /^Reports & finance/ }).click();
+      assert.equal(await refundSwitch.getAttribute('aria-checked'), 'false');
+      await page.goto(`${origin}/calendar/team/staff-access/43`, { waitUntil: 'networkidle' });
+      const receptionSwitch = page.getByRole('switch', { name: 'Manage Reception booking requests', exact: true });
+      await receptionSwitch.click();
+      await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+      await page.getByText('Access changes saved.', { exact: true }).waitFor();
+      assert.equal(people.find(person => person.id === 43).toggles.find(toggle => toggle.key === 'booking_requests:manage').on, false);
+      await page.screenshot({ path: path.join(OUT_DIR, viewport.name+'-reception-access.png'), fullPage: true });
 
       const detailResponse = await page.goto(`${origin}/calendar/team/staff-access/31`, { waitUntil: 'networkidle' });
       assert.equal(detailResponse.status(), 200);
-      assert.equal(await page.getByRole('heading', { name: 'Marietjie', exact: true }).isVisible(), true);
+      assert.equal(await page.getByRole('heading', { name: 'Synthetic practitioner', exact: true }).isVisible(), true);
       assert.equal(await page.getByText('Protected boundaries', { exact: true }).isVisible(), true);
       await page.getByText('Protected boundaries', { exact: true }).click();
       assert.equal(await page.getByText('Cannot change Clinic Hours.', { exact: true }).isVisible(), true);
       assert.equal(await page.getByText('Cannot edit, cancel, reassign or delete another practitioner’s appointments.', { exact: true }).isVisible(), true);
-      const switches = page.getByRole('switch');
-      assert.equal(await switches.count(), 5);
+      const switches = page.locator('[role="switch"]');
+      assert.equal(await switches.count(), 14);
       for (let i = 0; i < await switches.count(); i += 1) assert.equal(await switches.nth(i).getAttribute('aria-checked'), 'true');
 
       const geometry = await page.evaluate(() => ({
@@ -234,9 +212,10 @@ async function main() {
       const serious = accessibility.violations.filter(item => ['serious', 'critical'].includes(item.impact));
       assert.deepEqual(serious, [], `${viewport.name} accessibility violations: ${JSON.stringify(serious)}`);
 
-      const invalidCsrf = await page.evaluate(async () => (await fetch('/calendar/team/staff-access/31/changes', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ changes: [{ key: 'manage_my_clients', on: false }] }) })).status);
+      const invalidCsrf = await page.evaluate(async () => (await fetch('/calendar/team/staff-access/31/changes', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ changes: [{ key: 'client:manage', on: false }] }) })).status);
       assert.equal(invalidCsrf, 403);
-      const clientSwitch = page.getByRole('switch', { name: /Manage my clients/i });
+      await page.locator('details.access-group > summary').filter({ hasText: /^Clients/ }).click();
+      const clientSwitch = page.getByRole('switch', { name: /Add, edit and archive clients/i });
       let accessPosts = 0;
       page.on('request', request => { if (request.method() === 'POST' && request.url().includes('/staff-access/31/changes')) accessPosts += 1; });
       await clientSwitch.click();
@@ -288,7 +267,7 @@ async function main() {
       await context.close();
     }
 
-    assert.equal(toggleWrites, 2, 'only the two permitted UI toggle writes may reach the profile service');
+    assert.equal(toggleWrites, 6, 'only the two permitted UI toggle writes may reach the profile service');
     const exactHead = spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
     fs.writeFileSync(path.join(OUT_DIR, 'manifest.json'), JSON.stringify({
       exactHead,

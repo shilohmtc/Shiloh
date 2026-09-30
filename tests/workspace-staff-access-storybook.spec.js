@@ -4,8 +4,10 @@ const AxeBuilder = require('@axe-core/playwright').default;
 const stories = [
   { id: 'workspace-staff-access--access-overview', heading: 'Staff access' },
   { id: 'workspace-staff-access--clinic-team', heading: 'Naomi' },
-  { id: 'workspace-staff-access--own-workspace', heading: 'Marietjie' },
+  { id: 'workspace-staff-access--own-workspace', heading: 'Synthetic practitioner' },
   { id: 'workspace-staff-access--protected-administrator', heading: 'Jean-Pierre' },
+  { id: 'workspace-staff-access--administrator-access', heading: 'Jean-Pierre' },
+  { id: 'workspace-staff-access--reception-access', heading: 'Shiloh Reception' },
   { id: 'workspace-staff-access--access-off', heading: 'Naomi' },
   { id: 'workspace-staff-access--empty-access', heading: 'Staff access' },
   { id: 'workspace-staff-access--staff-profiles', heading: 'Staff' },
@@ -24,13 +26,13 @@ for (const viewport of [
       await expect(page.getByRole('heading', { name: story.heading, exact: true }).first()).toBeVisible();
 
       if (story.id.endsWith('own-workspace')) {
-        await expect(page.getByRole('switch')).toHaveCount(5);
+        await expect(page.locator('[role="switch"]')).toHaveCount(14);
         await expect(page.getByText('Protected boundaries', { exact: true })).toBeVisible();
         await page.getByText('Protected boundaries', { exact: true }).click();
         await expect(page.getByText('Cannot change Clinic Hours.', { exact: true })).toBeVisible();
       }
       if (story.id.endsWith('clinic-team')) {
-        await expect(page.getByRole('switch')).toHaveCount(1);
+        await expect(page.locator('[role="switch"]')).toHaveCount(10);
         await expect(page.getByText('Clinic team', { exact: true })).toBeVisible();
       }
       if (story.id.endsWith('access-overview')) {
@@ -38,8 +40,12 @@ for (const viewport of [
         await expect(page.getByRole('link', { name: /Jean-Pierre/ })).toHaveAttribute('href', /\/calendar\/team\/staff-access\/42$/);
       }
 
+      if (story.id.endsWith('administrator-access') || story.id.endsWith('reception-access')) {
+        await expect(page.getByRole('switch', { name: 'Manage Reception booking requests', exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Save changes', exact: true })).toBeVisible();
+      }
       if (story.id.endsWith('protected-administrator')) {
-        await expect(page.getByRole('switch')).toHaveCount(0);
+        await expect(page.locator('[role="switch"]')).toHaveCount(0);
         await page.getByText('Current enabled access', { exact: true }).click();
         await expect(page.getByText('Issue permitted payment refunds', { exact: true })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Save changes' })).toHaveCount(0);

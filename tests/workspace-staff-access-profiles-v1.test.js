@@ -83,7 +83,7 @@ test('Profile projection presents human labels instead of raw permission languag
   const clinic = project(principal({ permissions: canonicalProfileConfig(PROFILE_CLINIC_TEAM).permissions }));
   assert.equal(clinic.profileKey, PROFILE_CLINIC_TEAM);
   assert.equal(clinic.profileLabel, 'Clinic team');
-  assert.equal(clinic.toggles[0].label, 'Complete or mark my appointments no-show');
+  assert.ok(clinic.toggles.some(toggle => toggle.key === 'booking:update' && toggle.on));
   const own = project(principal({
     business_role: 'tenant_practitioner',
     staff_business_role: 'tenant_practitioner',
