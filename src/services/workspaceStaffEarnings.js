@@ -89,8 +89,13 @@ function createWorkspaceStaffEarningsService({ db = pool } = {}) {
   async function build({ adminId, period, selectedStaffId }) {
     await requireOwner(adminId);
     const staff = (await db.query(`/* StaffEarnings:staff */
-      SELECT id,display_name FROM staff WHERE status='active' AND resource_type='practitioner'
-      ORDER BY display_name,id`)).rows;
+      SELECT s.id,s.display_name FROM staff s
+       WHERE s.resource_type='practitioner'
+         AND (s.status='active' OR EXISTS (
+           SELECT 1 FROM appointment_staff ast JOIN appointments a ON a.id=ast.appointment_id
+            WHERE ast.staff_id=s.id AND a.status='completed'
+              AND a.starts_at >= $1::timestamptz AND a.starts_at < $2::timestamptz))
+       ORDER BY s.display_name,s.id`, [period.from, period.to])).rows;
     const allowed = new Set(staff.map(row => Number(row.id)));
     if (selectedStaffId != null && !allowed.has(Number(selectedStaffId))) throw new EarningsError('Choose a valid team member.');
     const [visits, configured] = await Promise.all([

@@ -43,6 +43,25 @@ test('a missing commission rule keeps priced solo treatment value visible withou
   assert.equal(rows[0].appointments[0].reason, 'Commission rule missing — review');
 });
 
+test('a completed treatment keeps an inactive practitioner in its historical report period', async () => {
+  const period = { from: '2026-09-23T22:00:00Z', to: '2026-09-30T22:00:00Z' };
+  const seen = [];
+  const service = createWorkspaceStaffEarningsService({ db: { async query(sql, params) {
+    seen.push({ sql, params });
+    if (sql.includes('StaffEarnings:owner')) return { rows: [owner] };
+    if (sql.includes('StaffEarnings:staff')) return { rows: [{ id: 11, display_name: 'Marietjie' }] };
+    if (sql.includes('StaffEarnings:visits')) return { rows: [visit(1)] };
+    return { rows: [] };
+  } } });
+  const result = await service.build({ adminId: 1, period, selectedStaffId: 11 });
+  assert.equal(result.staff[0].completedValue, 590);
+  assert.equal(result.staff[0].reviewCount, 1);
+  const staffQuery = seen.find(entry => entry.sql.includes('StaffEarnings:staff'));
+  assert.match(staffQuery.sql, /status='active' OR EXISTS/);
+  assert.match(staffQuery.sql, /a\.status='completed'/);
+  assert.deepEqual(staffQuery.params, [period.from, period.to]);
+});
+
 test('rule creation is owner gated, future dated and audited in one statement', async () => {
   const seen = [];
   const db = { async query(sql, params) {
