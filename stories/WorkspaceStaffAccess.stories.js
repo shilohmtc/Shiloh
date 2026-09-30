@@ -53,7 +53,7 @@ export const AdministratorAccess = {
   render: () => productionSurface(renderStaffAccessDetail({ authority, person: administrator })),
 };
 export const ReceptionAccess = {
-  render: () => productionSurface(renderStaffAccessDetail({ authority, person: { ...administrator, id: 43, displayName: 'Shiloh Reception', businessRole: 'booking_operator', toggles: administrator.toggles.filter(toggle => !['staff_access:manage', 'staff_auth:reset', 'staff_earnings:manage'].includes(toggle.key)) } })),
+  render: () => productionSurface(renderStaffAccessDetail({ authority, person: { ...administrator, id: 43, displayName: 'Shiloh Reception', businessRole: 'booking_operator', toggles: administrator.toggles.filter(toggle => !['staff_access:manage', 'staff_auth:reset', 'staff_earnings:manage', 'welcome_vouchers:view_campaign'].includes(toggle.key)) } })),
 };
 
 export const AccessOff = {

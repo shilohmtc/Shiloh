@@ -78,12 +78,13 @@ test('individual administrator detail retains the access-management gate and exp
 
 
 test('clinic administrator can independently disable refunds and Reception approval on an unlinked administrator', async () => {
-  const f = fixture({ staff_id: null, business_role: 'business_admin', calendar_scope: 'all_business', service_scope: 'all_services', permissions: { 'payment:refund': true, 'appointment:create': true, 'appointment:record_past:crm_v2_client_ids': [91] } });
+  const f = fixture({ staff_id: null, business_role: 'business_admin', calendar_scope: 'all_business', service_scope: 'all_services', permissions: { 'payment:refund': true, 'welcome_vouchers:view_campaign': true, 'appointment:create': true, 'appointment:record_past:crm_v2_client_ids': [91] } });
   assert.equal(project(f.row()).editable, true);
+  assert.equal(project(f.row()).toggles.find(t => t.key === 'welcome_vouchers:view_campaign').on, true);
   assert.equal(project(f.row()).toggles.find(t => t.key === 'booking_requests:manage').on, true);
   const result = await f.save([{ key: 'payment:refund', on: false }, { key: 'booking_requests:manage', on: false }]);
   assert.equal(result.person.toggles.find(t => t.key === 'booking_requests:manage').on, false);
-  assert.deepEqual(f.row().permissions, { 'payment:refund': false, 'booking_requests:manage': false, 'appointment:create': true, 'appointment:record_past:crm_v2_client_ids': [91] });
+  assert.deepEqual(f.row().permissions, { 'payment:refund': false, 'booking_requests:manage': false, 'welcome_vouchers:view_campaign': true, 'appointment:create': true, 'appointment:record_past:crm_v2_client_ids': [91] });
   assert.equal(require('../src/services/workspaceBookingRequestRouting').isDerivedGlobalCoordinator(f.row()), false);
   await f.save([{ key: 'booking_requests:manage', on: true }]);
   assert.equal(require('../src/services/workspaceBookingRequestRouting').isDerivedGlobalCoordinator(f.row()), true);

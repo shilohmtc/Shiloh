@@ -161,7 +161,7 @@ function individualToggles(row) {
       ? [...OWN_WORKSPACE_VIEW, ...OWN_WORKSPACE_ACTIONS] : []);
   // Role-specific protections are enforced by the real domain services as well.
   if (!['owner', 'business_admin'].includes(row?.business_role)) {
-    for (const key of ['staff_access:manage', 'staff_auth:reset', 'staff_earnings:manage']) allowed.delete(key);
+    for (const key of ['staff_access:manage', 'staff_auth:reset', 'staff_earnings:manage', 'welcome_vouchers:view_campaign']) allowed.delete(key);
   }
   if (!clinicWide) allowed.delete('booking_requests:manage');
   return Object.entries(ACCESS_CAPABILITIES).filter(([key]) => allowed.has(key) || permissions(row?.permissions)[key] === true).map(([key, item]) => ({

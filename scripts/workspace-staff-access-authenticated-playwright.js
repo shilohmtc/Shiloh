@@ -158,7 +158,7 @@ async function main() {
       assert.equal(await page.getByText('Synthetic practitioner', { exact: true }).isVisible(), true);
       await page.getByRole('link', { name: /Jean-Pierre/ }).click();
       assert.equal(await page.getByRole('heading', { name: 'Jean-Pierre', exact: true }).isVisible(), true);
-      assert.equal(await page.locator('[role="switch"]').count(), 46);
+      assert.equal(await page.locator('[role="switch"]').count(), people.find(person => person.id === 42).toggles.length);
       assert.equal(await page.getByRole('switch', { name: 'Manage Reception booking requests', exact: true }).getAttribute('aria-checked'), 'true');
       assert.equal(await page.getByRole('button', { name: 'Save changes', exact: true }).isVisible(), true);
       assert.equal(await page.getByRole('link', { name: 'Open device setup', exact: true }).isVisible(), false);

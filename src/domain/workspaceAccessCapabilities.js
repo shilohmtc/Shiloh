@@ -46,6 +46,7 @@ const ACCESS_CAPABILITIES = Object.freeze({
   "problem_reports:manage": Object.freeze({ label: "Review and manage reported problems", description: "Review and resolve reported problems." }),
   "payment:collect": Object.freeze({ label: "Request and record payments", description: "Create payment requests and record permitted payments; payment viewing is also required." }),
   "booking_requests:manage": Object.freeze({ label: "Manage Reception booking requests", description: "Accept, plan, decline and propose alternatives for client requests in the existing Reception queue. Reception role and coordination boundaries still apply; Reception also needs Create bookings." }),
+  "welcome_vouchers:view_campaign": Object.freeze({ label: "View welcome voucher campaign", description: "See welcome voucher campaign activity and results; clinic administrator access is also required." }),
 });
 const CAPABILITY_GROUPS = Object.freeze([
   Object.freeze({ key: 'calendar', label: 'Calendar', capabilities: Object.freeze([
@@ -61,7 +62,7 @@ const CAPABILITY_GROUPS = Object.freeze([
   Object.freeze({ key: 'access', label: 'Access', capabilities: Object.freeze(['staff_access:manage']) }),
   Object.freeze({ key: 'reports_finance', label: 'Reports & finance', capabilities: Object.freeze(['service:pricing', 'reports:view_all', 'staff_earnings:manage', 'payment:view', 'payment:collect', 'payment:manage', 'payment:refund', 'appointment:group:discount', 'appointment:couples:discount']) }),
   Object.freeze({ key: 'security', label: 'Security', capabilities: Object.freeze(['staff_auth:reset']) }),
-  Object.freeze({ key: 'other', label: 'Other operational access', capabilities: Object.freeze(['walkin:create', 'loyalty:view', 'loyalty:redeem', 'loyalty:manage', 'overflow:visible', 'voucher:view', 'voucher:issue', 'voucher:manage', 'voucher:redeem', 'problem_reports:manage']) }),
+  Object.freeze({ key: 'other', label: 'Other operational access', capabilities: Object.freeze(['welcome_vouchers:view_campaign', 'walkin:create', 'loyalty:view', 'loyalty:redeem', 'loyalty:manage', 'overflow:visible', 'voucher:view', 'voucher:issue', 'voucher:manage', 'voucher:redeem', 'problem_reports:manage']) }),
 ]);
 
 module.exports = { ACCESS_CAPABILITIES, CAPABILITY_GROUPS };
