@@ -158,6 +158,7 @@ async function main() {
   if (!executable) throw new Error('Chrome is required for authenticated Staff Access proof');
 
   let incompatible = false;
+  let manageProfiles = false;
   let policyWrites = 0;
   let profileWrites = 0;
   let accessV2Writes = 0;
@@ -220,7 +221,7 @@ async function main() {
       return {
         staff: { id: 17, display_name: 'Synthetic Practitioner', status: 'active', resource_type: 'practitioner', business_role: 'employee_practitioner', scheduling_type: 'regular', client_bookable: true, revision: 'synthetic-staff-revision' },
         services: [{ name: 'Synthetic treatment', duration_minutes: 60, status: 'active' }],
-        manageAllowed: false,
+        manageAllowed: manageProfiles,
         access: incompatible
           ? { businessRole: 'business_admin', calendarScope: 'all_business', serviceScope: 'all_services', capabilities: ['appointment:view', 'staff:manage'] }
           : { businessRole: 'employee_practitioner', calendarScope: 'own_appointments', serviceScope: 'own_services', capabilities: ['appointment:view'] },
@@ -328,6 +329,26 @@ async function main() {
         screenshots.push({ ...(await capture(`${name}-${broader ? 'incompatible' : 'practitioner'}-diagnostic`)), width, height, noOverflow: true, editor: geometry.editor });
       }
     }
+
+    // Real authenticated route/script, synthetic profile: opening and cancelling cannot write.
+    manageProfiles = true;
+    incompatible = false;
+    for (const [name, width, height] of [['desktop', 1440, 960], ['phone', 390, 844]]) {
+      await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width === 390 });
+      await cdp.send('Page.navigate', { url: `${origin}/calendar/team/17?proof=deactivate-${name}` });
+      await poll(() => evaluate(cdp, `document.readyState==='complete' && typeof window.ShilohConfirm==='function' && !!document.querySelector('[data-staff-status-form]')`), Boolean);
+      await evaluate(cdp, `document.querySelector('[data-staff-status-form] button').click();true`);
+      await poll(() => evaluate(cdp, `document.querySelector('[data-shiloh-confirm]')?.open`), Boolean);
+      const confirmation = await evaluate(cdp, `({title:document.querySelector('[data-shiloh-confirm-title]').textContent,safe:document.activeElement.textContent,body:document.querySelector('[data-shiloh-confirm-copy]').textContent})`);
+      assert.equal(confirmation.title, 'Deactivate Synthetic Practitioner?');
+      assert.equal(confirmation.safe, 'Keep active');
+      assert.match(confirmation.body, /Existing appointments and history stay intact/);
+      screenshots.push({ ...(await capture(`${name}-staff-deactivation-confirmation`)), width, height, authenticated: true });
+      await evaluate(cdp, `document.querySelector('[data-shiloh-confirm-cancel]').click();true`);
+      await poll(() => evaluate(cdp, `!document.querySelector('[data-shiloh-confirm]').open && document.activeElement===document.querySelector('[data-staff-status-form] button')`), Boolean);
+      assert.equal(policyWrites + profileWrites + accessV2Writes, 0);
+    }
+    manageProfiles = false;
 
     // Canonical owner-facing Staff access: friendly profiles and protected boundaries.
     for (const [route, label, expectedSwitches] of [
