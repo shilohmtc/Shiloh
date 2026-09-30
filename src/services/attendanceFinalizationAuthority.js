@@ -4,7 +4,7 @@ function normalizedName(value = '') {
   return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-const OWN_APPOINTMENT_FINALIZERS = new Set(['christel', 'abigail', 'marietjie']);
+const OWN_APPOINTMENT_FINALIZERS = new Set(['christel', 'abigail']);
 
 function permissions(admin) {
   return admin?.permissions && typeof admin.permissions === 'object' && !Array.isArray(admin.permissions)

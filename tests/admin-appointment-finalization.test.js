@@ -42,8 +42,8 @@ test('finalization pagination reserves WhatsApp rows for More and Back controls'
   assert.match(finalization, /rows\.push\(\{ id: 'appointments'/);
 });
 
-test('certification authority is own-practitioner-only for Christel, Abigail and Marietjie', () => {
-  assert.match(authority, /OWN_APPOINTMENT_FINALIZERS = new Set\(\['christel', 'abigail', 'marietjie'\]\)/);
+test('certification authority is own-practitioner-only for current practitioners', () => {
+  assert.match(authority, /OWN_APPOINTMENT_FINALIZERS = new Set\(\['christel', 'abigail'\]\)/);
   assert.match(authority, /function canAccessOwnFinalization\(admin\)/);
   assert.match(authority, /WHERE id=\$1/);
   assert.match(authority, /lower\(trim\(display_name\)\)=\$2/);
