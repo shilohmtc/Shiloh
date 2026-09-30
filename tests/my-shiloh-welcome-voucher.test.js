@@ -64,7 +64,7 @@ test('redemption is guarded, client-confirmed and gives recovery steps', () => {
   assert.match(service, /WELCOME_VOUCHER_BALANCE_TOO_LOW/);
   assert.match(service, /WELCOME_VOUCHER_PRACTITIONER_EXCLUDED/);
   assert.match(service, /business_role='tenant_practitioner'/);
-  assert.ok(WELCOME_VOUCHER_TERMS.some((term) => /Marietjie/i.test(term)));
+  assert.ok(WELCOME_VOUCHER_TERMS.some((term) => /independent practitioner/i.test(term)));
   assert.match(routes, /requireSession, requireCsrf/);
   assert.match(routes, /resolution:error\.resolution/);
   assert.match(app, /What to do:/);
@@ -119,15 +119,15 @@ test('qualifying treatment page explains the complete application path and filte
   assert.doesNotMatch(html, /Short treatment/);
   assert.doesNotMatch(html, /Variable treatment/);
   assert.doesNotMatch(html, /Premium treatment/);
-  assert.match(html, /does not apply to Marietjie’s services/);
+  assert.match(html, /does not apply to independent practitioner treatments/);
 });
 
-test('welcome voucher catalogue and redemption exclude Marietjie at authoritative boundaries', () => {
+test('welcome voucher catalogue and redemption exclude independent practitioners at authoritative boundaries', () => {
   const service = read('src/services/myShilohWelcomeVoucher.js');
   const routes = read('src/routes/myShiloh.js');
   assert.match(service, /listEligibleServiceIds/);
   assert.match(service, /st\.business_role<>'tenant_practitioner'/);
-  assert.match(service, /LOWER\(BTRIM\(st\.display_name\)\)<>'marietjie'/);
+  assert.doesNotMatch(service, /LOWER\(BTRIM\(st\.display_name\)\)<>'marietjie'/);
   assert.match(service, /appointment_staff[\s\S]*welcome_voucher_practitioner_eligible/);
   assert.match(routes, /welcomeVoucherService\.listEligibleServiceIds\(\)/);
   assert.match(routes, /eligibleServiceIds/);

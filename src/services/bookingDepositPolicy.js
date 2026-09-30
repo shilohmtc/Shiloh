@@ -132,7 +132,7 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
               p.exempt_staff_id,p.effective_from,p.policy_version,
               st.display_name AS exempt_staff_name,st.status AS exempt_staff_status
          FROM clinic_booking_deposit_policy p
-         JOIN staff st ON st.id=p.exempt_staff_id
+         LEFT JOIN staff st ON st.id=p.exempt_staff_id
         WHERE p.id=$1`,
       [DEPOSIT_POLICY_ID],
     );
@@ -147,7 +147,7 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
       partialForfeitBasisPoints: Number(row.partial_forfeit_basis_points),
       lateForfeitBasisPoints: Number(row.late_forfeit_basis_points),
       noShowForfeitBasisPoints: Number(row.no_show_forfeit_basis_points),
-      exemptStaffId: Number(row.exempt_staff_id),
+      exemptStaffId: row.exempt_staff_id == null ? null : Number(row.exempt_staff_id),
       exemptStaffName: String(row.exempt_staff_name || ''),
       exemptStaffStatus: String(row.exempt_staff_status || ''),
       effectiveFrom: new Date(row.effective_from),
@@ -162,10 +162,7 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
       || policy.partialForfeitBasisPoints !== authority.partialForfeitBasisPoints
       || policy.lateForfeitBasisPoints !== authority.lateForfeitBasisPoints
       || policy.noShowForfeitBasisPoints !== authority.noShowForfeitBasisPoints
-      // A former practitioner's historical exemption remains authoritative
-      // until the clinic adopts a new deposit-policy version. Their staff
-      // status must not interrupt booking or payment for everyone else.
-      || policy.exemptStaffName.trim().toLowerCase() !== authority.exemptPractitionerDisplayName.toLowerCase()
+      || policy.exemptStaffId !== null
     );
     if (drift) {
       throw new BookingDepositPolicyError(
@@ -359,14 +356,14 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
 
   function calculate(scope, policy) {
     const members = scope.members.map(member => {
-      const marietjieExempt = member.staffIds.includes(policy.exemptStaffId);
+      const formerlyExempt = policy.exemptStaffId != null && member.staffIds.includes(policy.exemptStaffId);
       const zeroPrice = Number(member.allocatedAmount) === 0;
-      const eligibleAmount = marietjieExempt ? 0 : member.allocatedAmount;
+      const eligibleAmount = formerlyExempt ? 0 : member.allocatedAmount;
       return {
         ...member,
         eligibleAmount: moneyNumber(eligibleAmount),
         requiredAmount: moneyNumber(percentAmount(eligibleAmount, policy.rateBasisPoints)),
-        exemptionReason: marietjieExempt ? 'marietjie' : zeroPrice ? 'zero_price' : null,
+        exemptionReason: formerlyExempt ? 'retired_practitioner' : zeroPrice ? 'zero_price' : null,
       };
     });
     const eligibleAmount = moneyNumber(members.reduce((sum, member) => sum + member.eligibleAmount, 0));
@@ -515,7 +512,7 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
             rateBasisPoints: policy.rateBasisPoints,
             eligibleAmount: moneyText(calculated.eligibleAmount),
             requiredAmount: moneyText(calculated.requiredAmount),
-            marietjieExemptStaffId: policy.exemptStaffId,
+            exemptStaffId: policy.exemptStaffId,
             prospectiveOnly: true,
           }),
         ],
