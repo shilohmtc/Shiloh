@@ -56,6 +56,8 @@ async function alertRecipients(db, context) {
      WHERE a.active=TRUE
        AND a.business_role=ANY($2::text[])
        AND a.calendar_scope='all_business'
+       AND (a.permissions->'booking_requests:manage') IS DISTINCT FROM 'false'::jsonb
+       AND (a.business_role<>'booking_operator' OR a.permissions->'appointment:create'='true'::jsonb)
        AND (
          (a.business_role='owner' AND (brcs.admin_id IS NULL OR brcs.receive_alerts=TRUE))
          OR

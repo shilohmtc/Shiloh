@@ -1,52 +1,7 @@
 const { escapeHtml, workspaceShellStyles, renderWorkspaceNavigation } = require('./workspaceShell');
 
-const CAPABILITY_LABELS = Object.freeze({
-  'appointment:view': 'View appointments and Dashboard',
-  'appointment:create': 'Create bookings',
-  'appointment:record_past': 'Record past appointments',
-  'appointment:adjust_end': 'Adjust appointment end time',
-  'booking:update': 'Complete or mark visits no-show',
-  'calendar:booking:reschedule': 'Reschedule bookings',
-  'calendar:booking:cancel': 'Cancel bookings',
-  'calendar:booking:reassign': 'Reassign practitioners',
-  'client:lookup': 'View clients and communication evidence',
-  'client:manage': 'Add, edit and archive clients',
-  'client:notify': 'Send ordinary client notifications',
-  'client:delete': 'Permanently delete clients',
-  'services:view': 'View services',
-  'services:create': 'Add services',
-  'services:manage': 'Manage the business-wide service catalogue and practitioner assignments',
-  'service:pricing': 'Manage pricing',
-  'staff:services:view': 'View staff service assignments',
-  'schedule:manage': 'Manage clinic hours, closures and schedules',
-  'staff:view': 'View Staff',
-  'staff:manage': 'Manage Staff profiles',
-  'staff_access:manage': 'Manage Workspace access',
-  'staff_auth:reset': 'Reset staff authentication',
-  'walkin:create': 'Register walk-in clients',
-  'loyalty:redeem': 'Redeem loyalty rewards',
-  'loyalty:view': 'View Shiloh Rewards',
-  'loyalty:manage': 'Adjust Shiloh Rewards',
-  'overflow:visible': 'View overflow availability',
-  'reports:view_all': 'View clinic-wide reports',
-  'schedule:view': 'View clinic hours',
-  'schedule:availability_manage': 'Manage assigned availability and leave',
-  'forms:view': 'View permitted client forms',
-  'forms:clinical_manage': 'Manage permitted clinical forms',
-  'service_categories:manage': 'Manage treatment categories',
-  'staff_earnings:manage': 'View staff earnings and manage future commission rates',
-  'payment:refund': 'Issue permitted payment refunds',
-  'payment:view': 'View payments',
-  'payment:manage': 'Manage payments',
-  'voucher:view': 'View vouchers',
-  'voucher:issue': 'Issue vouchers',
-  'voucher:manage': 'Manage vouchers',
-  'voucher:redeem': 'Redeem vouchers',
-  'appointment:group:discount': 'Apply permitted group booking discounts',
-  'appointment:couples:discount': 'Apply permitted couples booking discounts',
-  'problem_reports:manage': 'Review and manage reported problems',
-
-});
+const { ACCESS_CAPABILITIES } = require('../domain/workspaceAccessCapabilities');
+const CAPABILITY_LABELS = Object.freeze(Object.fromEntries(Object.entries(ACCESS_CAPABILITIES).map(([key, item]) => [key, item.label])));
 
 function human(value) {
   const words = String(value || 'Not configured').replace(/_/g, ' ');
