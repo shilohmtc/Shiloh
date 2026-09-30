@@ -1,7 +1,7 @@
 'use strict';
 
-const BOOKING_POLICY_VERSION = '2026-09-27-v4';
-const BOOKING_POLICY_UPDATED = '27 September 2026';
+const BOOKING_POLICY_VERSION = '2026-09-30-v5';
+const BOOKING_POLICY_UPDATED = '30 September 2026';
 
 const DEPOSIT_RULES = Object.freeze({
   rateBasisPoints: 5000,
@@ -10,7 +10,6 @@ const DEPOSIT_RULES = Object.freeze({
   partialForfeitBasisPoints: 5000,
   lateForfeitBasisPoints: 10000,
   noShowForfeitBasisPoints: 10000,
-  exemptPractitionerDisplayName: 'Marietjie',
 });
 
 function percentText(value) {
@@ -33,10 +32,7 @@ function normalizedPractitioners(value) {
 }
 
 function depositExemptForPractitioners(practitioners = []) {
-  const names = normalizedPractitioners(practitioners);
-  if (!names.length) return false;
-  const exempt = DEPOSIT_RULES.exemptPractitionerDisplayName.toLowerCase();
-  return names.every(name => name.toLowerCase() === exempt);
+  return false;
 }
 
 function cancellationBand({ startsAt, now = new Date(), noShow = false } = {}) {

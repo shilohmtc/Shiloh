@@ -4,7 +4,7 @@ const { pool } = require('../db/pool');
 
 const WELCOME_VOUCHER_TERMS = Object.freeze([
   'R100 off one treatment priced at R450 or more.',
-  'Not valid for treatments provided by Marietjie.',
+  'Not valid for independent practitioner treatments.',
   'Valid for 60 days from the date it is unlocked.',
   'One voucher per verified Shiloh client; it cannot be transferred or exchanged for cash.',
   'Not valid for gift vouchers, packages or products, and cannot be combined with another promotional voucher.',
@@ -140,15 +140,13 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
                AND st.status='active'
                AND st.resource_type='practitioner'
                AND st.business_role<>'tenant_practitioner'
-               AND LOWER(BTRIM(st.display_name))<>'marietjie'
           )
           AND NOT EXISTS(
             SELECT 1
               FROM appointment_staff ast
               LEFT JOIN staff st ON st.id=ast.staff_id
              WHERE ast.appointment_id=a.id
-               AND (st.business_role='tenant_practitioner'
-                 OR LOWER(BTRIM(COALESCE(st.display_name,ast.staff_name_snapshot)))='marietjie')
+               AND st.business_role='tenant_practitioner'
           )
           AND NOT EXISTS(SELECT 1 FROM appointment_group_members gm WHERE gm.appointment_id=a.id)
           AND NOT EXISTS(SELECT 1 FROM package_session_redemptions psr WHERE psr.appointment_id=a.id AND psr.status IN ('reserved','redeemed'))
@@ -170,7 +168,6 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
           AND st.resource_type='practitioner'
           AND st.client_bookable=TRUE
           AND st.business_role<>'tenant_practitioner'
-          AND LOWER(BTRIM(st.display_name))<>'marietjie'
         ORDER BY ss.service_id`,
     );
     return result.rows.map((row) => Number(row.service_id));
@@ -227,14 +224,12 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
                      AND st.status='active'
                      AND st.resource_type='practitioner'
                      AND st.business_role<>'tenant_practitioner'
-                     AND LOWER(BTRIM(st.display_name))<>'marietjie'
                 ) AND NOT EXISTS(
                   SELECT 1
                     FROM appointment_staff ast
                     LEFT JOIN staff st ON st.id=ast.staff_id
                    WHERE ast.appointment_id=a.id
-                     AND (st.business_role='tenant_practitioner'
-                       OR LOWER(BTRIM(COALESCE(st.display_name,ast.staff_name_snapshot)))='marietjie')
+                     AND st.business_role='tenant_practitioner'
                 )) AS welcome_voucher_practitioner_eligible
            FROM appointments a
           WHERE a.id=$1 FOR UPDATE`,
@@ -242,7 +237,7 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
       )).rows[0];
       const invalidBooking = !booking || Number(booking.crm_v2_client_id) !== clientId || !['scheduled','confirmed'].includes(booking.status) || new Date(booking.starts_at) <= now();
       if (invalidBooking) throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_BOOKING_UNAVAILABLE', 'Choose an upcoming booking from the voucher card.', 409, ['Return to My Shiloh.', 'Choose one of the eligible upcoming bookings.']);
-      if (!booking.welcome_voucher_practitioner_eligible) throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_PRACTITIONER_EXCLUDED', 'The R100 welcome voucher does not apply to Marietjie’s services.', 409, ['Choose a qualifying treatment with Christel or Abigail.', 'Or keep the voucher for a later qualifying booking.']);
+      if (!booking.welcome_voucher_practitioner_eligible) throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_PRACTITIONER_EXCLUDED', 'The R100 welcome voucher does not apply to independent practitioner treatments.', 409, ['Choose a qualifying clinic treatment.', 'Or keep the voucher for a later qualifying booking.']);
       if (Number(booking.total_price) < Number(voucher.minimum_booking_value)) throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_MINIMUM_NOT_MET', `Choose a treatment priced at R${Number(voucher.minimum_booking_value).toFixed(0)} or more.`, 409, ['Choose another upcoming treatment.', 'Or keep the voucher for a later qualifying booking.']);
       const grouped = await client.query(`SELECT 1 FROM appointment_group_members WHERE appointment_id=$1 LIMIT 1`, [bookingId]);
       if (grouped.rowCount) throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_GROUP_BOOKING', 'This voucher cannot be applied to a linked or package booking.', 409, ['Choose a standalone treatment.', 'Contact Shiloh if you need help.']);

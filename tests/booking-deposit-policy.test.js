@@ -30,9 +30,9 @@ const policy = {
   partialForfeitBasisPoints: 5000,
   lateForfeitBasisPoints: 10000,
   noShowForfeitBasisPoints: 10000,
-  exemptStaffId: 13,
+  exemptStaffId: null,
   effectiveFrom: new Date('2026-09-23T00:00:00.000Z'),
-  policyVersion: '2026-09-27-v4',
+  policyVersion: '2026-09-30-v5',
 };
 
 function member({ appointmentId, amount, staffIds }) {
@@ -49,13 +49,14 @@ function member({ appointmentId, amount, staffIds }) {
   };
 }
 
-test('deposit policy is one forward authority with the approved 50%, 48/24 and Marietjie rules', () => {
+test('deposit policy keeps the approved 50% and 48/24 bands', () => {
   const migration = read('migrations/150_booking_deposit_policy.sql');
   assert.match(migration, /rate_basis_points[^\n]*5000|VALUES\(1, TRUE, 5000, 48, 24, 5000, 10000, 10000/);
   assert.match(migration, /free_notice_hours[^\n]*48|5000, 48, 24/);
   assert.match(migration, /partial_notice_hours[^\n]*24|48, 24/);
-  assert.match(migration, /LOWER\(TRIM\(display_name\)\)='marietjie'/);
-  assert.match(migration, /exactly one active Marietjie staff record/);
+  const retirement = read('migrations/181_remove_offboarded_practitioner_identity.sql');
+  assert.match(retirement, /ALTER COLUMN exempt_staff_id DROP NOT NULL/);
+  assert.match(retirement, /exempt_staff_id=NULL/);
   assert.match(migration, /NEW\.to_status NOT IN \('cancelled','no_show'\)/);
   assert.match(migration, /policy_forfeit_amount/);
   assert.match(migration, /Money|money/i);
@@ -96,11 +97,11 @@ test('deposit approval readiness fails before acceptance when the canonical pric
             partial_forfeit_basis_points: 5000,
             late_forfeit_basis_points: 10000,
             no_show_forfeit_basis_points: 10000,
-            exempt_staff_id: 13,
-            exempt_staff_name: 'Marietjie',
-            exempt_staff_status: 'active',
+            exempt_staff_id: null,
+            exempt_staff_name: null,
+            exempt_staff_status: null,
             effective_from: '2026-09-23T00:00:00.000Z',
-            policy_version: '2026-09-27-v4',
+            policy_version: BOOKING_POLICY_VERSION,
           }],
         };
       }
@@ -131,7 +132,7 @@ test('deposit approval readiness fails before acceptance when the canonical pric
   );
 });
 
-test('a former practitioner does not take the clinic-wide deposit policy offline', async () => {
+test('retiring the exemption keeps the clinic-wide deposit policy online', async () => {
   const db = {
     async query(sql) {
       assert.match(sql, /FROM clinic_booking_deposit_policy/);
@@ -144,20 +145,19 @@ test('a former practitioner does not take the clinic-wide deposit policy offline
         partial_forfeit_basis_points: 5000,
         late_forfeit_basis_points: 10000,
         no_show_forfeit_basis_points: 10000,
-        exempt_staff_id: 13,
-        exempt_staff_name: 'Marietjie',
-        exempt_staff_status: 'inactive',
+        exempt_staff_id: null,
+        exempt_staff_name: null,
+        exempt_staff_status: null,
         effective_from: '2026-09-23T00:00:00.000Z',
         policy_version: BOOKING_POLICY_VERSION,
       }] };
     },
   };
   const loaded = await createBookingDepositPolicyService({ db }).loadPolicy();
-  assert.equal(loaded.exemptStaffId, 13);
-  assert.equal(loaded.exemptStaffStatus, 'inactive');
+  assert.equal(loaded.exemptStaffId, null);
 });
 
-test('ordinary non-Marietjie bookings require 50 percent', () => {
+test('ordinary bookings require 50 percent', () => {
   const service = createBookingDepositPolicyService({ db: {} });
   const calculated = service.calculate({
     members: [member({ appointmentId: 1, amount: 650, staffIds: [11] })],
@@ -168,18 +168,18 @@ test('ordinary non-Marietjie bookings require 50 percent', () => {
   assert.equal(calculated.members[0].exemptionReason, null);
 });
 
-test('Marietjie bookings are deposit exempt', () => {
+test('the retired staff ID no longer exempts a booking', () => {
   const service = createBookingDepositPolicyService({ db: {} });
   const calculated = service.calculate({
     members: [member({ appointmentId: 2, amount: 490, staffIds: [13] })],
   }, policy);
-  assert.equal(calculated.eligibleAmount, 0);
-  assert.equal(calculated.requiredAmount, 0);
-  assert.equal(calculated.state, 'exempt');
-  assert.equal(calculated.members[0].exemptionReason, 'marietjie');
+  assert.equal(calculated.eligibleAmount, 490);
+  assert.equal(calculated.requiredAmount, 245);
+  assert.equal(calculated.state, 'awaiting');
+  assert.equal(calculated.members[0].exemptionReason, null);
 });
 
-test('linked bookings only charge the non-Marietjie portion', () => {
+test('linked bookings charge both nonzero portions after retirement', () => {
   const service = createBookingDepositPolicyService({ db: {} });
   const calculated = service.calculate({
     members: [
@@ -187,10 +187,10 @@ test('linked bookings only charge the non-Marietjie portion', () => {
       member({ appointmentId: 4, amount: 400, staffIds: [13] }),
     ],
   }, policy);
-  assert.equal(calculated.eligibleAmount, 600);
-  assert.equal(calculated.requiredAmount, 300);
+  assert.equal(calculated.eligibleAmount, 1000);
+  assert.equal(calculated.requiredAmount, 500);
   assert.equal(calculated.members[0].requiredAmount, 300);
-  assert.equal(calculated.members[1].requiredAmount, 0);
+  assert.equal(calculated.members[1].requiredAmount, 200);
 });
 
 test('booking confirmation and payment wiring cannot bypass the deposit gate', () => {
@@ -219,9 +219,9 @@ test('booking and deposit flows share one current Booking Policy authority', () 
   const booking = read('src/services/bookingPolicy.js');
   const deposit = read('src/services/bookingDepositPolicy.js');
   const migration = read('migrations/154_booking_policy_client_language_v3.sql');
-  assert.match(authority, /BOOKING_POLICY_VERSION = '2026-09-27-v4'/);
-  assert.match(authority, /exemptPractitionerDisplayName: 'Marietjie'/);
-  assert.equal(BOOKING_POLICY_VERSION, '2026-09-27-v4');
+  assert.match(authority, /BOOKING_POLICY_VERSION = '2026-09-30-v5'/);
+  assert.doesNotMatch(authority, /exemptPractitionerDisplayName/);
+  assert.equal(BOOKING_POLICY_VERSION, '2026-09-30-v5');
   assert.match(BOOKING_POLICY_TEXT, /50% booking deposit/);
   assert.match(BOOKING_POLICY_TEXT, /50% booking deposit is required for all appointments/);
   assert.match(BOOKING_POLICY_TEXT, /48 hours or more before your appointment/);

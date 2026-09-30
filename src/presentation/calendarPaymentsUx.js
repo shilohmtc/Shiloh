@@ -67,7 +67,7 @@ function renderCalendarPaymentPage({ model, csrfToken = '', clientScriptPath = '
     ${bookingCancelled
       ? '<p class="hint"><strong>No further deposit should be collected.</strong> This booking is cancelled. The policy record below is preserved for review and does not reopen payment collection.</p>'
       : depositExempt
-        ? '<p class="hint"><strong>No deposit required.</strong> This booking is provided by Marietjie and is excluded from Shiloh’s deposit requirement.</p>'
+        ? '<p class="hint"><strong>No deposit required.</strong> This booking retains its earlier deposit exemption.</p>'
         : `<div class="deposit-summary"><span><small>Deposit required</small><strong>${escapeHtml(rand(requirement.required_amount))}</strong></span><span><small>Still needed</small><strong>${escapeHtml(rand(depositDue))}</strong></span></div>`}
     ${latestDepositEvent ? `<p class="deposit-outcome"><strong>Latest policy outcome:</strong> ${escapeHtml(latestDepositEvent.event_type.replaceAll('_',' '))} · policy forfeit ${escapeHtml(rand(latestDepositEvent.policy_forfeit_amount))} · creditable ${escapeHtml(rand(latestDepositEvent.policy_creditable_amount))}. Money is not moved automatically.</p>` : ''}
   </section>` : '';
