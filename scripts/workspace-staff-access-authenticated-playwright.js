@@ -158,11 +158,11 @@ async function main() {
       assert.equal(await page.getByText('Synthetic practitioner', { exact: true }).isVisible(), true);
       await page.getByRole('link', { name: /Jean-Pierre/ }).click();
       assert.equal(await page.getByRole('heading', { name: 'Jean-Pierre', exact: true }).isVisible(), true);
-      assert.equal(await page.getByRole('switch').count(), 46);
+      assert.equal(await page.locator('[role="switch"]').count(), 46);
       assert.equal(await page.getByRole('switch', { name: 'Manage Reception booking requests', exact: true }).getAttribute('aria-checked'), 'true');
       assert.equal(await page.getByRole('button', { name: 'Save changes', exact: true }).isVisible(), true);
       assert.equal(await page.getByRole('link', { name: 'Open device setup', exact: true }).isVisible(), false);
-      await page.getByText('Reports & finance', { exact: false }).click();
+      await page.locator('details.access-group > summary').filter({ hasText: /^Reports & finance/ }).click();
       assert.equal(await page.getByText('Issue permitted payment refunds', { exact: true }).isVisible(), true);
       await page.screenshot({ path: path.join(OUT_DIR, viewport.name+'-administrator-access.png'), fullPage: true });
       const refundSwitch = page.getByRole('switch', { name: 'Issue permitted payment refunds', exact: true });
@@ -172,7 +172,7 @@ async function main() {
       assert.equal(people.find(person => person.id === 42).toggles.find(toggle => toggle.key === 'payment:refund').on, false);
       assert.equal(people.find(person => person.id === 42).toggles.find(toggle => toggle.key === 'appointment:create').on, true);
       await page.reload({ waitUntil: 'networkidle' });
-      await page.getByText('Reports & finance', { exact: false }).click();
+      await page.locator('details.access-group > summary').filter({ hasText: /^Reports & finance/ }).click();
       assert.equal(await refundSwitch.getAttribute('aria-checked'), 'false');
       await page.goto(`${origin}/calendar/team/staff-access/43`, { waitUntil: 'networkidle' });
       const receptionSwitch = page.getByRole('switch', { name: 'Manage Reception booking requests', exact: true });
@@ -189,7 +189,7 @@ async function main() {
       await page.getByText('Protected boundaries', { exact: true }).click();
       assert.equal(await page.getByText('Cannot change Clinic Hours.', { exact: true }).isVisible(), true);
       assert.equal(await page.getByText('Cannot edit, cancel, reassign or delete another practitioner’s appointments.', { exact: true }).isVisible(), true);
-      const switches = page.getByRole('switch');
+      const switches = page.locator('[role="switch"]');
       assert.equal(await switches.count(), 14);
       for (let i = 0; i < await switches.count(); i += 1) assert.equal(await switches.nth(i).getAttribute('aria-checked'), 'true');
 
@@ -214,7 +214,7 @@ async function main() {
 
       const invalidCsrf = await page.evaluate(async () => (await fetch('/calendar/team/staff-access/31/changes', { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ changes: [{ key: 'client:manage', on: false }] }) })).status);
       assert.equal(invalidCsrf, 403);
-      await page.getByText('Clients', { exact: false }).last().click();
+      await page.locator('details.access-group > summary').filter({ hasText: /^Clients/ }).click();
       const clientSwitch = page.getByRole('switch', { name: /Add, edit and archive clients/i });
       let accessPosts = 0;
       page.on('request', request => { if (request.method() === 'POST' && request.url().includes('/staff-access/31/changes')) accessPosts += 1; });
