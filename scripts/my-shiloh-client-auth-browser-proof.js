@@ -330,7 +330,18 @@ async function runViewport(browser, name, viewport) {
   await page.reload({ waitUntil: 'networkidle' });
   await page.locator('[data-view-target="bookings"]').click();
   await page.getByRole('button', { name:'Accept this time', exact:true }).waitFor();
+  // The Bookings view fades in for 320ms. Visibility alone does not mean its
+  // final text/background contrast is ready to measure.
+  await page.waitForFunction(() => {
+    const panel = document.querySelector('[data-client-experience-bookings]');
+    if (!panel || !panel.getClientRects().length) return false;
+    for (let node = panel; node; node = node.parentElement) {
+      if (Number(getComputedStyle(node).opacity) < 1) return false;
+    }
+    return true;
+  });
   const violations = (await new AxeBuilder({page}).include('[data-client-experience-bookings] .action-card--accent').analyze()).violations;
+  if (violations.length) fs.writeFileSync(path.join(out, `${name}-proposal-accessibility-failure.json`), JSON.stringify(violations, null, 2));
   if (violations.length) throw new Error(`Proposal accessibility: ${JSON.stringify(violations.map(v=>v.id))}`);
   if (await page.evaluate(()=>document.documentElement.scrollWidth > window.innerWidth)) throw new Error('Proposal controls overflow');
   await page.screenshot({path:path.join(out, `${name}-alternative-time-offer.png`),fullPage:true});
