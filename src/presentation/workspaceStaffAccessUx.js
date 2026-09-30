@@ -50,6 +50,9 @@ function accessPolicyMarkup(model = {}) {
 function accessEnablementMarkup(model = {}) {
   if (model.accessManageAllowed !== true) return READ_ONLY_NOTE;
   const staff = model.staff || {};
+  if (Number.isSafeInteger(Number(model.access?.id)) && Number(model.access.id) > 0) {
+    return `<div data-staff-access-management><p class="read-only-note">Manage this person’s individual permissions in Staff access.</p><a class="button primary" href="/calendar/team/staff-access/${Number(model.access.id)}">Manage individual access</a></div>`;
+  }
   if (model.access) {
     if (eligibleEmployeePractitioner(staff) && isCompatibleLegacyAccessView(model.access)) {
       return `${accessFormMarkup(staff, { mode: 'complete' })}<p class="footer-note">This completion option is available only when existing active access already matches the employee-practitioner settings and has no extra enabled access. Different or broader access remains unchanged.</p>`;
@@ -74,10 +77,10 @@ function decorateStaffDetailAccessHtml(html, model = {}) {
   const replacement = accessEnablementMarkup(model);
   if (!source.includes(READ_ONLY_NOTE)) return source;
   let result = source.replace(READ_ONLY_NOTE, replacement);
-  const canEnableOrComplete = model.accessManageAllowed === true
+  const canEnableOrComplete = !model.access?.id && model.accessManageAllowed === true
     && eligibleEmployeePractitioner(model.staff || {})
     && (!model.access || isCompatibleLegacyAccessView(model.access));
-  const canEditPolicy = model.accessManageAllowed === true && model.accessPolicy?.supported === true;
+  const canEditPolicy = !model.access?.id && model.accessManageAllowed === true && model.accessPolicy?.supported === true;
   if ((canEnableOrComplete || canEditPolicy) && !result.includes('/calendar/team/access-manage.js')) {
     result = result.replace('</head>', `${canEditPolicy ? POLICY_STYLES : ''}<script src="/calendar/team/access-manage.js" defer></script></head>`);
   }

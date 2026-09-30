@@ -124,3 +124,11 @@ test('explicit Reception Off is honored by direct approval and routing, includin
     assert.deepEqual(await routing.coordinationScopeForPrincipal({ query: async () => { throw Error('Revoked queue must not be read'); } }, principal), { kind: 'none', teamId: null, teamName: null, explicit: false });
   }
 });
+
+
+test('an existing Staff profile points to the individual access editor instead of a duplicate policy form', () => {
+  const { decorateStaffDetailAccessHtml, READ_ONLY_NOTE } = require('../src/presentation/workspaceStaffAccessUx');
+  const html = decorateStaffDetailAccessHtml(`<html><head></head><body>${READ_ONLY_NOTE}</body></html>`, { staff: { id: 51 }, access: { id: 19 }, accessManageAllowed: true, accessPolicy: { supported: true } });
+  assert.match(html, /href="\/calendar\/team\/staff-access\/19"/);
+  assert.doesNotMatch(html, /data-staff-access-policy-form|access-manage.js/);
+});
