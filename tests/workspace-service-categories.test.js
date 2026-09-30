@@ -20,17 +20,19 @@ function fakeDb({ used = 0, duplicate = false } = {}) {
   return { db: { query, async connect() { return { query, release() {} }; } }, calls };
 }
 
-const reception = { operatorAdminId: 51, businessRole: 'booking_operator', displayName: 'Shiloh Reception', serviceScope: 'all_services' };
-const christel = { operatorAdminId: 2, businessRole: 'owner', displayName: 'Christel', serviceScope: 'all_services' };
+const reception = { operatorAdminId: 51, businessRole: 'booking_operator', displayName: 'Shiloh Reception', serviceScope: 'all_services', permissions: { 'service_categories:manage': true } };
+const christel = { operatorAdminId: 2, businessRole: 'owner', displayName: 'Christel', serviceScope: 'all_services', permissions: { 'service_categories:manage': true } };
 
-test('only the two named Workspace principals with service management authority can manage categories', async () => {
+test('explicit category capability and all-service authority govern category management', async () => {
   const fake = fakeDb();
   let principal = reception;
   const service = createWorkspaceServiceCategories({ db: fake.db, manageAccess: async () => principal });
   assert.equal((await service.list(51))[0].name, 'Massage');
   principal = christel;
   assert.equal((await service.list(2))[0].id, 7);
-  for (const denied of [null, { ...reception, displayName: 'Other receptionist' }, { ...christel, serviceScope: 'assigned_services' }, { ...christel, businessRole: 'tenant_practitioner' }]) {
+  principal = { ...christel, businessRole: 'business_admin', displayName: 'JP' };
+  assert.equal((await service.list(4))[0].id, 7);
+  for (const denied of [null, { ...reception, permissions: {} }, { ...christel, serviceScope: 'assigned_services' }, { ...christel, businessRole: 'tenant_practitioner' }]) {
     principal = denied;
     await assert.rejects(service.mutate({ adminId: 10, action: 'delete', id: 7 }), { code: 'CATEGORY_FORBIDDEN', httpStatus: 403 });
   }

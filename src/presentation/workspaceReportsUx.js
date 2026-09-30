@@ -178,7 +178,7 @@ function renderReportsPage(model, {
     servicesHref: '/calendar/services',
     reportsHref: '/calendar/reports',
   })}<div class="workspace-main"><div class="shell">
-    <header class="topbar"><div class="brand"><h1>Reports</h1><p>A clear view of appointments, team time and clients.</p></div><div class="topbar-side"><span class="truth-note">${model.staffEarnings ? 'Private · Christel' : 'Read only'}</span></div></header>
+    <header class="topbar"><div class="brand"><h1>Reports</h1><p>A clear view of appointments, team time and clients.</p></div><div class="topbar-side"><span class="truth-note">${model.staffEarnings ? 'Private · Authorized staff' : 'Read only'}</span></div></header>
 
     <section class="filter-panel" aria-label="Choose report period">
       <div class="preset-row"><span class="preset-label">Choose period</span>${presetLinks}</div>
