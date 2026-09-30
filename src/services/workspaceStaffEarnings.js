@@ -54,12 +54,12 @@ function summarize(staff, appointments, rules) {
     else if (price == null || !Number.isFinite(price) || price < 0) reason = 'Price missing — review';
     else if (!rule) reason = 'Commission rule missing — review';
     const commission = reason ? null : Math.round(price * Number(rule.rate_percent)) / 100;
-    if (reason) row.reviewCount += 1;
-    else {
+    if (Number(appointment.staff_count) === 1 && price != null && Number.isFinite(price) && price >= 0) {
       row.completedValue += price;
-      row.commission += commission;
       row.completedCount += 1;
     }
+    if (reason) row.reviewCount += 1;
+    else row.commission += commission;
     row.appointments.push({
       id: Number(appointment.id), startsAt: appointment.starts_at,
       serviceNames: appointment.service_names || [], price, reason,
