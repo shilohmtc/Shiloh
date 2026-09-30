@@ -18,13 +18,11 @@ These instructions apply to the entire repository.
 
 Use [`docs/SHILOH_PLATFORM_HANDBOOK.md`](docs/SHILOH_PLATFORM_HANDBOOK.md) as the quick orientation map for the platform, its integrations, source-of-truth boundaries and operating links. Keep detailed behavior in the existing canonical code, migrations and documents linked from that handbook.
 
-## Computer Use and connected tools
+## Connected tools and secure browser
 
-- For authenticated websites or desktop applications, first check whether **Computer Use → Any App** is attached to the current session.
-- “Any App” refers specifically to ChatGPT’s computer-control feature, not any generic available application.
-- When attached, prefer Christel’s existing signed-in local Google Chrome session instead of opening a separate cloud browser or requesting another login.
-- If Any App is enabled but not attached, explain that immediately. Do not start or repeat cloud-browser sign-in flows unless Christel explicitly requests them.
-- Prefer the connected GitHub and Render tools for operations they support. Use Any App when an authenticated dashboard action is required and the connector does not expose it.
+- Use the existing connected GitHub and Render tools first for Shiloh implementation work.
+- When authenticated browser access is needed, use ChatGPT's secure browser and let Christel sign into GitHub or Render there. Reuse available signed-in sessions.
+- Do not require or check for Computer Use → Any App.
 - Never request passwords, one-time codes or other credentials in chat.
 
 ## Publishing changes through connected GitHub

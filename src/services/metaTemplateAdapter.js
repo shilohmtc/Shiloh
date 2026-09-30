@@ -7,7 +7,7 @@ const {
 
 const META_TEMPLATE_BINDINGS = Object.freeze([
   { contractId: 'booking_update', templateName: 'shiloh_booking_update_v1', env: null },
-  { contractId: 'workspace_booking_request_alert', templateName: 'shiloh_workspace_booking_request_alert_v1', env: 'WHATSAPP_WORKSPACE_BOOKING_REQUEST_ALERT_TEMPLATE' },
+  { contractId: 'workspace_booking_request_alert', templateName: 'shiloh_workspace_booking_request_alert_v1', env: null },
   { contractId: 'problem_report_resolved', templateName: 'shiloh_problem_report_resolved_v1', env: 'WHATSAPP_PROBLEM_RESOLVED_TEMPLATE', defaultWhenUnset: true },
   { contractId: 'staff_auth_otp', templateName: 'shiloh_staff_auth_otp_v1', env: 'WHATSAPP_STAFF_AUTH_TEMPLATE', defaultWhenUnset: true },
   { contractId: 'client_auth_otp', templateName: 'shiloh_client_auth_otp_v1', env: 'WHATSAPP_CLIENT_AUTH_TEMPLATE', defaultWhenUnset: true },

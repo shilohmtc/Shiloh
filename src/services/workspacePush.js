@@ -43,26 +43,32 @@ function createWorkspacePushService({ db=pool, env=process.env, send=safePushReq
     if (events.rowCount) await db.query(`UPDATE workspace_push_subscriptions SET last_notification_id=GREATEST(last_notification_id,$2) WHERE id=$1`,[sub.id,events.rows.at(-1).id]);
     return { count:events.rowCount };
   }
-  async function queue(eventKey) {
-    if (!/^(planning|handoff):[1-9]\d*$/.test(String(eventKey||''))) return;
+  async function queue(eventKey, { adminIds = null } = {}) {
+    const result = { queued: 0, accepted: 0, failed: 0 };
+    const allowed = adminIds === null ? null : new Set(adminIds.map(Number).filter((id) => Number.isSafeInteger(id) && id > 0));
+    if (!/^(planning|handoff|booking_request):[1-9]\d*$/.test(String(eventKey||''))) return result;
     const vapid=parseVapid(env);
-    if (!vapid) return;
+    if (!vapid) return result;
     const subscriptions=await db.query(`SELECT id,admin_id,endpoint FROM workspace_push_subscriptions WHERE enabled=TRUE ORDER BY id LIMIT 100`);
     const recipients=new Map();
     for (const sub of subscriptions.rows) {
       const adminId=Number(sub.admin_id);
+      if (allowed && !allowed.has(adminId)) continue;
       if (!recipients.has(adminId)) {
         if (!await permitted(adminId)) { recipients.set(adminId,false); continue; }
         const inserted=await db.query(`INSERT INTO workspace_push_notifications(admin_id,event_key) VALUES($1,$2) ON CONFLICT DO NOTHING RETURNING id`,[adminId,eventKey]);
         recipients.set(adminId,inserted.rowCount>0);
+        if (inserted.rowCount > 0) result.queued += 1;
       }
       if (!recipients.get(adminId)) continue;
       try {
         const response=await send(sub.endpoint,{headers:{ Authorization:vapidAuthorization(sub.endpoint,vapid), TTL:'300', Urgency:'normal' },resolveHost,timeoutMs:boundedPushTimeoutMs(env)});
         const gone=response.status===404||response.status===410;
+        if (response.ok) result.accepted += 1; else result.failed += 1;
         await db.query(`UPDATE workspace_push_subscriptions SET last_push_status=$2,enabled=CASE WHEN $3 THEN FALSE ELSE enabled END,updated_at=NOW() WHERE id=$1`,[sub.id,response.ok?'accepted':`rejected_${response.status}`,gone]);
-      } catch (error) { logger.warn({ err:error, subscriptionId:sub.id },'Workspace push wake failed'); }
+      } catch (error) { result.failed += 1; logger.warn({ err:error, subscriptionId:sub.id },'Workspace push wake failed'); }
     }
+    return result;
   }
   return { permitted,config,subscribe,unsubscribe,pending,queue };
 }

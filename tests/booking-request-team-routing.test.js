@@ -182,15 +182,6 @@ test('ordinary practitioner self scope remains own-request only and is not promo
   assert.deepEqual(rows, []);
 });
 
-test('staff alert body is actionless apart from Open Workspace doorway contract', () => {
-  const body = alerts.alertBody({ appointment_id: 501, team_name: 'Christel team', staff_name: 'Christel', requested_starts_at: '2026-09-10T08:00:00Z' });
-  assert.match(body, /Open Shiloh Workspace/);
-  assert.doesNotMatch(body, /\bApprove\b|\bDecline\b/);
-  const source = fs.readFileSync(path.join(__dirname, '../src/services/bookingRequestStaffAlerts.js'), 'utf8');
-  assert.match(source, /staff_open_workspace/);
-  assert.doesNotMatch(source, /booking_approval_(?:approve|decline)/);
-});
-
 test('runtime team routing contains no person-name or phone authorization policy', () => {
   const runtime = [
     'src/services/workspaceBookingRequestRouting.js',

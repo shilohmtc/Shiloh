@@ -83,7 +83,7 @@ async function stageCreatedBookingForApproval(result, { occasionNote = null, spe
 
   try {
     const alertResult = await dispatchBookingRequestAlerts({ appointmentId: result.appointmentId });
-    logger.info({ appointmentId: result.appointmentId, recipients: alertResult.recipients, sent: alertResult.sent, failed: alertResult.failed }, 'Booking request Workspace staff alert dispatch completed');
+    logger.info({ appointmentId: result.appointmentId, recipients: alertResult.recipients, queued: alertResult.queued, acceptedPushWakes: alertResult.accepted, failed: alertResult.failed }, 'Booking request Workspace staff alert dispatch completed');
   } catch (error) {
     logger.error({ err: error, appointmentId: result.appointmentId }, 'Booking request created but staff alert routing failed');
   }

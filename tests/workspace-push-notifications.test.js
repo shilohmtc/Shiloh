@@ -30,6 +30,16 @@ function fixture() {
     return { rows:[], rowCount:0 };
   } };
   const sends = [];
+  const events = new Set();
+  const originalQuery = db.query;
+  db.query = async (sql, params) => {
+    if (sql.includes('INSERT INTO workspace_push_notifications')) {
+      const key = `${params[0]}:${params[1]}`;
+      if (events.has(key)) return { rows: [], rowCount: 0 };
+      events.add(key);
+    }
+    return originalQuery(sql, params);
+  };
   const service = createWorkspacePushService({ db,env,send:async (endpoint,options)=>{sends.push([endpoint,options]);return {ok:true,status:201};} });
   return { db,queries,sends,service };
 }
@@ -53,4 +63,20 @@ test('Workspace notification UI requests device permission on tap and the worker
   assert.match(worker,/push\/pending/);
   assert.match(worker,/if\(response\.ok\)count=/);
   assert.doesNotMatch(worker,/client.*(?:name|phone|email)/i);
+});
+
+test('booking-request push respects scoped recipients, rechecks live permission and deduplicates per event', async () => {
+  const { sends, service } = fixture();
+  const first = await service.queue('booking_request:501', { adminIds: [1, 3] });
+  assert.deepEqual(first, { queued: 1, accepted: 2, failed: 0 });
+  assert.equal(sends.length, 2);
+  assert.deepEqual(await service.queue('booking_request:501', { adminIds: [1, 3] }), { queued: 0, accepted: 0, failed: 0 });
+  assert.equal(sends.length, 2);
+  assert.deepEqual(await service.queue('booking_request:502', { adminIds: [] }), { queued: 0, accepted: 0, failed: 0 });
+  assert.deepEqual(await service.queue('booking_request:503', { adminIds: [2] }), { queued: 0, accepted: 0, failed: 0 });
+});
+
+test('missing push configuration cannot claim an alert was queued or delivered', async () => {
+  const service = createWorkspacePushService({ env: {}, db: { query: async () => { throw new Error('No DB required'); } } });
+  assert.deepEqual(await service.queue('booking_request:501', { adminIds: [1] }), { queued: 0, accepted: 0, failed: 0 });
 });
