@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { clinicDate, isChristelOwner, summarize, selectRule, createWorkspaceStaffEarningsService } = require('../src/services/workspaceStaffEarnings');
-const { renderReportsPage } = require('../src/presentation/workspaceReportsUx');
+const { renderReportsPage, staffEarningsSection } = require('../src/presentation/workspaceReportsUx');
 
 const owner = { active: true, business_role: 'owner', display_name: 'Christel', staff_name: 'Christel', staff_status: 'active', permissions: { 'appointment:view': true } };
 const rules = [
@@ -41,6 +41,29 @@ test('a missing commission rule keeps priced solo treatment value visible withou
   assert.equal(rows[0].reviewCount, 3);
   assert.equal(rows[0].appointments[0].commission, null);
   assert.equal(rows[0].appointments[0].reason, 'Commission rule missing — review');
+});
+
+test('a completed treatment keeps an inactive practitioner in its historical report period', async () => {
+  const period = { from: '2026-09-23T22:00:00Z', to: '2026-09-30T22:00:00Z' };
+  const seen = [];
+  const service = createWorkspaceStaffEarningsService({ db: { async query(sql, params) {
+    seen.push({ sql, params });
+    if (sql.includes('StaffEarnings:owner')) return { rows: [owner] };
+    if (sql.includes('StaffEarnings:staff')) return { rows: [{ id: 11, display_name: 'Marietjie', status: 'inactive' }] };
+    if (sql.includes('StaffEarnings:visits')) return { rows: [visit(1)] };
+    return { rows: [] };
+  } } });
+  const result = await service.build({ adminId: 1, period, selectedStaffId: 11 });
+  assert.equal(result.staff[0].completedValue, 590);
+  assert.equal(result.staff[0].reviewCount, 1);
+  assert.equal(result.staff[0].canAddRule, false);
+  const html = staffEarningsSection({ ...result, earliestNewRuleDate: '2026-10-01' }, period);
+  assert.match(html, /Marietjie/);
+  assert.doesNotMatch(html, /<option value="11">Marietjie<\/option>/);
+  const staffQuery = seen.find(entry => entry.sql.includes('StaffEarnings:staff'));
+  assert.match(staffQuery.sql, /status='active' OR EXISTS/);
+  assert.match(staffQuery.sql, /a\.status='completed'/);
+  assert.deepEqual(staffQuery.params, [period.from, period.to]);
 });
 
 test('rule creation is owner gated, future dated and audited in one statement', async () => {

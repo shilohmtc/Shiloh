@@ -35,7 +35,7 @@ function staffEarningsSection(earnings, period, csrfToken = '') {
     }).join('');
     return `<div class="earnings-person"><h3>${escapeHtml(row.name)}</h3><p>${escapeHtml(row.completedCount)} completed solo treatment${row.completedCount === 1 ? '' : 's'} · ${escapeHtml(formatRand(row.completedValue))} treatment value · ${escapeHtml(formatRand(row.commission))} calculated commission${row.reviewCount ? ` · ${escapeHtml(row.reviewCount)} to review` : ''}</p><div class="earnings-visits">${visits || '<div class="empty">No completed appointments in this period.</div>'}</div></div>`;
   }).join('');
-  const staffOptions = people.map(row => `<option value="${escapeHtml(row.staffId)}">${escapeHtml(row.name)}</option>`).join('');
+  const staffOptions = people.filter(row => row.canAddRule).map(row => `<option value="${escapeHtml(row.staffId)}">${escapeHtml(row.name)}</option>`).join('');
   const serviceOptions = (earnings.services || []).map(row => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.name)}</option>`).join('');
   const rules = (earnings.rules || []).map(rule => {
     const person = people.find(row => row.staffId === Number(rule.staff_id));
