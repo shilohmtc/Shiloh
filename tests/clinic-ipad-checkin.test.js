@@ -28,9 +28,10 @@ test('clinic iPad renderer escapes submitted details and uses the repository bra
   assert.doesNotMatch(ux.devices([]),/apple-mobile-web-app-capable/);
 });
 
-test('staff form delivery choice appears only when approved WhatsApp delivery is ready',()=>{
-  assert.match(ux.devices([],{whatsappReady:true}),/data-whatsapp-ready="true"/);
-  assert.match(ux.devices([]),/data-whatsapp-ready="false"/);
+test('staff form preparation points clients to My Shiloh without retired WhatsApp controls',()=>{
+  const html=ux.devices([]);
+  assert.match(html,/complete assigned forms in My Shiloh/);
+  assert.doesNotMatch(html,/WhatsApp|data-whatsapp-ready/);
 });
 
 test('Workspace shows iPad controls only for authorised clinic client management while enabled',() => {
@@ -399,7 +400,7 @@ test('activation clears staff and client cookies before handing the iPad to a vi
   } finally {await new Promise(resolve=>server.close(resolve));}
 });
 
-test('Christel and Reception share the staff-only WhatsApp form action',async () => {
+test('retired WhatsApp form endpoint cannot send for any staff identity',async () => {
   const sent=[];
   const app=express();app.use(express.json());
   app.use('/calendar/check-in',createClinicIpadSetupRouter({
@@ -418,9 +419,12 @@ test('Christel and Reception share the staff-only WhatsApp form action',async ()
           'X-Shiloh-Csrf-Token':'proof','Content-Type':'application/json'},
         body:JSON.stringify({appointmentId:42,assignmentId:7}),
       });
-      assert.equal(response.status,id===4?409:200);
+      assert.equal(response.status,410);
     }
-    assert.deepEqual(sent,[[7,2],[7,3]]);
+    assert.deepEqual(sent,[]);
+    const script=await fetch(`${base}/calendar/check-in/devices.js`,{headers:{Cookie:'shiloh_staff_session=2'}});
+    assert.equal(script.status,200);
+    assert.doesNotMatch(await script.text(),/send-form|whatsappReady|WhatsApp/);
   } finally {await new Promise(resolve=>server.close(resolve));}
 });
 

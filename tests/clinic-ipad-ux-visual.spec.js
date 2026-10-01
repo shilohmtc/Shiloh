@@ -32,8 +32,11 @@ test('clinic iPad check-in screens fit phone, tablet and desktop with accessible
 test('Christel and Reception form handoff screen fits phone and desktop',async ({page},testInfo)=>{
   for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
     await page.setViewportSize({width:viewport.width,height:viewport.height});
-    await page.goto('/iframe.html?id=client-clinic-ipad-check-in--staff-devices-with-whats-app&viewMode=story',{waitUntil:'networkidle'});
+    await page.goto('/iframe.html?id=client-clinic-ipad-check-in--staff-form-preparation&viewMode=story',{waitUntil:'networkidle'});
     await expect(page.locator('[data-checkin-story]')).toBeVisible();
+    await expect(page.getByRole('button',{name:'Prepare on iPad'})).toBeVisible();
+    await expect(page.getByText('Clients can also complete assigned forms in My Shiloh.',{exact:false})).toBeVisible();
+    expect(await page.locator('[data-checkin-story]').innerText()).not.toMatch(/WhatsApp/);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
     const accessibility=await new AxeBuilder({page}).include('[data-checkin-story]')
       .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
