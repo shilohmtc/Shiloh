@@ -1,8 +1,8 @@
 'use strict';
 
-const ASSET_VERSION = '20261001-register-icons-v1';
-const SHELL_CACHE = 'my-shiloh-shell-v42';
-const STATIC_CACHE = 'my-shiloh-static-v42';
+const ASSET_VERSION = '20261001-register-toggle-v1';
+const SHELL_CACHE = 'my-shiloh-shell-v43';
+const STATIC_CACHE = 'my-shiloh-static-v43';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',

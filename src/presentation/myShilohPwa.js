@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20261001-register-icons-v1';
+const MY_SHILOH_ASSET_VERSION = '20261001-register-toggle-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -43,7 +43,7 @@ function serviceCards(catalogue = [], authenticated = false) {
 }
 
 function smsRegisterButton(scope) {
-  return `<button class="button button--primary button--wide register-choice" type="button" data-client-sms-open="register" aria-controls="${scope}-sms-setup" aria-expanded="false">${renderShilohIcon('register', { size: 24 })}<span>Register</span></button>`;
+  return `<button class="button button--primary button--wide register-choice" type="button" data-client-sms-open="register" aria-controls="${scope}-sms-setup" aria-expanded="false">${renderShilohIcon('register', { size: 24 })}<span>Register</span>${renderShilohIcon('next', { size: 18, className: 'auth-choice-summary__chevron' })}</button>`;
 }
 
 function smsSignInForm(scope) {
@@ -91,7 +91,6 @@ function renderMyShilohPage({
   const humanDigits = /^0[678]\d{8}$/.test(suppliedHumanDigits) ? `27${suppliedHumanDigits.slice(1)}`
     : /^27[678]\d{8}$/.test(suppliedHumanDigits) ? suppliedHumanDigits : '';
   const receptionPhone = humanDigits || '27662399138';
-  const receptionDisplay = receptionPhone === '27662399138' ? '066 239 9138' : `+${receptionPhone}`;
   const receptionRecoveryWhatsApp = whatsappUrl(receptionPhone,
     'Hi Reception, I need help getting back into My Shiloh. Please tell me how to verify my identity.');
   const speakToReception = whatsappUrl(receptionPhone,
@@ -130,7 +129,7 @@ function renderMyShilohPage({
         <a class="button button--soft" href="tel:+${receptionPhone}">${renderShilohIcon('call', { size: 18 })}Call Reception</a>
         <a class="button button--soft" href="${escapeHtml(receptionRecoveryWhatsApp)}" rel="noopener noreferrer">${renderShilohIcon('message', { size: 18 })}WhatsApp Reception</a>
       </div>
-      <small>Call or message ${receptionDisplay}. Reception will check that it’s your account before helping.</small>
+      <small>Reception will verify your identity before helping.</small>
     </div>
   </details>`;
 

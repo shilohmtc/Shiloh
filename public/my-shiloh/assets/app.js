@@ -1916,6 +1916,12 @@
     if (authActionInFlight) return;
     const panel = document.getElementById(button.getAttribute('aria-controls'));
     if (!panel) return;
+    if (!panel.hidden && button.getAttribute('aria-expanded') === 'true') {
+      panel.hidden = true;
+      smsOpenButtons.filter((item) => item.getAttribute('aria-controls') === panel.id)
+        .forEach((item) => item.setAttribute('aria-expanded', 'false'));
+      return;
+    }
     const recovering = button.dataset.clientSmsOpen === 'recover';
     panel.querySelector('[data-client-sms-title]').textContent = recovering
       ? 'Open My Shiloh on your new phone' : 'Register for My Shiloh';
