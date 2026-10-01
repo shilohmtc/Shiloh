@@ -1,3 +1,4 @@
+const { workspaceErrorRecoveryClientScript } = require('./workspaceErrorRecovery');
 const { confirmationClientScript } = require('./workspaceConfirmation');
 const {
   escapeHtml,
@@ -53,12 +54,12 @@ function renderBookingConfirmationPreviewPage(preview, {
 }
 
 function bookingConfirmationClientScript() {
-  return confirmationClientScript() + `(function(){'use strict';
+  return workspaceErrorRecoveryClientScript() + confirmationClientScript() + `(function(){'use strict';
 var AUTH='/calendar/staff-auth';
 function one(s){return document.querySelector(s);}async function json(r){try{return await r.json();}catch(_e){return{};}}
-function status(message,tone){var el=one('[data-client-notification-status]');if(!el)return;el.hidden=false;el.textContent=String(message||'');el.className='status'+(tone==='error'?' error':'');}
-async function csrf(){var r=await fetch(AUTH+'/csrf',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:'{}'});if(!r.ok)throw new Error('Your secure Shiloh session has expired.');var b=await json(r);if(!b.csrfToken)throw new Error('A secure operation token could not be issued.');return b.csrfToken;}
-var button=one('[data-send-booking-confirmation]');if(!button)return;button.addEventListener('click',async function(){if(!(await window.ShilohConfirm({title:'Send booking confirmation?',copy:'Send this confirmation to the client recipient shown on this page. Shiloh will recheck whether sending is allowed.',cancel:'Keep unsent',action:'Send confirmation',danger:false})))return;button.disabled=true;status('Revalidating canonical authority and delivery state…');try{var token=await csrf();var r=await fetch('/calendar/clients/'+encodeURIComponent(button.dataset.clientId)+'/booking-confirmation/send',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json','x-shiloh-csrf-token':token},body:'{}'});token='';var body=await json(r);if(!r.ok)throw new Error(body.error||'The booking confirmation was not sent.');status(body.message||'Booking confirmation sent.');setTimeout(function(){window.location.reload();},900);}catch(error){status(error.message||'The booking confirmation was not sent.','error');button.disabled=false;}});})();`;
+function status(message,tone){var el=one('[data-client-notification-status]');if(!el)return;el.hidden=false;window.ShilohErrorRecovery.render(el,message,tone);el.className='status'+(tone==='error'?' error':'');}
+async function csrf(){var r=await fetch(AUTH+'/csrf',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:'{}'});if(!r.ok)throw window.ShilohErrorRecovery.failure({},r,'Your secure Shiloh session has expired.');var b=await json(r);if(!b.csrfToken)throw new Error('A secure operation token could not be issued.');return b.csrfToken;}
+var button=one('[data-send-booking-confirmation]');if(!button)return;button.addEventListener('click',async function(){if(!(await window.ShilohConfirm({title:'Send booking confirmation?',copy:'Send this confirmation to the client recipient shown on this page. Shiloh will recheck whether sending is allowed.',cancel:'Keep unsent',action:'Send confirmation',danger:false})))return;button.disabled=true;status('Revalidating canonical authority and delivery state…');try{var token=await csrf();var r=await fetch('/calendar/clients/'+encodeURIComponent(button.dataset.clientId)+'/booking-confirmation/send',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json','x-shiloh-csrf-token':token},body:'{}'});token='';var body=await json(r);if(!r.ok)throw window.ShilohErrorRecovery.failure(body,r,'The booking confirmation was not sent.');status(body.message||'Booking confirmation sent.');setTimeout(function(){window.location.reload();},900);}catch(error){status(error,'error');button.disabled=false;}});})();`;
 }
 
 function renderClientNotificationUnavailablePage({ message = 'Client notification is unavailable.' } = {}) {

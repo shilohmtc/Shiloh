@@ -1,3 +1,4 @@
+const { workspaceErrorRecoveryClientScript } = require('./workspaceErrorRecovery');
 const {
   escapeHtml,
   workspaceShellStyles,
@@ -119,18 +120,18 @@ function renderPractitionerRecordPage(model = {}) {
 }
 
 function workspaceSportsAssessmentClientScript() {
-  return `(function(){
+  return workspaceErrorRecoveryClientScript() + `(function(){
 'use strict';
 var form=document.querySelector('[data-assessment-form]');if(!form)return;
 var save=form.querySelector('[data-save]');var status=form.querySelector('[data-status]');
-function setStatus(state,text){if(!status)return;status.dataset.state=state||'';status.textContent=text||'';}
+function setStatus(state,text){if(!status)return;status.dataset.state=state||'';window.ShilohErrorRecovery.render(status,text,state==='error'?'error':'ready',{source:form});}
 function fieldRows(selector,keys){return Array.prototype.slice.call(form.querySelectorAll(selector)).map(function(row){var item={};keys.forEach(function(key){var el=row.querySelector('[data-field="'+key+'"]');item[key]=el?el.value.trim():'';});return item;}).filter(function(item){return keys.some(function(key){return item[key];});});}
 function painMap(){return Array.prototype.slice.call(form.querySelectorAll('[data-body-region]')).map(function(button){var state=button.dataset.state||'none';return state==='none'?null:{area:button.dataset.bodyRegion,state:state};}).filter(Boolean);}
 function payload(){return {revision:Number(form.dataset.revision||0),posturalAnalysis:fieldRows('[data-postural-row]',['area','muscleState','notes']),painMap:painMap(),painConcerns:fieldRows('[data-pain-row]',['area','description']),techniques:fieldRows('[data-technique-row]',['technique','reason']),lifestyleRecommendations:(form.querySelector('[data-lifestyle]')||{}).value||'',practitionerNotes:(form.querySelector('[data-practitioner-notes]')||{}).value||''};}
 function safeJson(response){return response.json().catch(function(){return {};});}
 function postJson(url,body,csrf){var headers={'Content-Type':'application/json','Accept':'application/json'};if(csrf)headers['x-shiloh-csrf-token']=csrf;return fetch(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:headers,body:JSON.stringify(body||{})});}
 Array.prototype.forEach.call(form.querySelectorAll('[data-body-region]:not(:disabled)'),function(button){button.addEventListener('click',function(){var current=button.dataset.state||'none';var next=current==='none'?'primary':current==='primary'?'secondary':'none';button.dataset.state=next;button.setAttribute('aria-pressed',next==='none'?'false':'true');var label=button.querySelector('[data-region-state]');if(label)label.textContent=next==='primary'?'Primary':next==='secondary'?'Secondary':'None';});});
-form.addEventListener('submit',async function(event){event.preventDefault();if(!save)return;save.disabled=true;setStatus('','Saving securely…');var csrf='';try{var csrfResponse=await postJson('/calendar/staff-auth/csrf',{},null);if(csrfResponse.status===401){window.location.assign('/calendar/staff?reason=session');return;}if(!csrfResponse.ok)throw new Error('csrf');var csrfBody=await safeJson(csrfResponse);csrf=String(csrfBody.csrfToken||'');if(!csrf)throw new Error('csrf');var response=await postJson(form.dataset.action,payload(),csrf);csrf='';var body=await safeJson(response);if(response.status===401){window.location.assign('/calendar/staff?reason=session');return;}if(response.status===409){setStatus('error',body.error||'This assessment changed. Reload the page and try again.');return;}if(!response.ok){setStatus('error',body.error||'Could not save the assessment. Please check the form and try again.');return;}form.dataset.revision=String(body.revision||form.dataset.revision||0);setStatus('saved','Saved securely.');}catch(_error){setStatus('error','Could not save the assessment. Check your connection and try again.');}finally{csrf='';save.disabled=false;}});
+form.addEventListener('submit',async function(event){event.preventDefault();if(!save)return;save.disabled=true;setStatus('','Saving securely…');var csrf='';try{var csrfResponse=await postJson('/calendar/staff-auth/csrf',{},null);if(csrfResponse.status===401)throw window.ShilohErrorRecovery.failure({},csrfResponse,'Your Workspace session has expired.');if(!csrfResponse.ok)throw window.ShilohErrorRecovery.failure({},csrfResponse,'A secure action token could not be issued.');var csrfBody=await safeJson(csrfResponse);csrf=String(csrfBody.csrfToken||'');if(!csrf)throw new Error('A secure action token could not be issued.');var response=await postJson(form.dataset.action,payload(),csrf);csrf='';var body=await safeJson(response);if(response.status===401)throw window.ShilohErrorRecovery.failure(body,response,'Your Workspace session has expired.');if(response.status===409){var stale=window.ShilohErrorRecovery.failure(body,response,'This assessment changed.');stale.code='WORKSPACE_ASSESSMENT_STALE';setStatus('error',stale);return;}if(!response.ok){setStatus('error',window.ShilohErrorRecovery.failure(body,response,'Could not save the assessment. Please check the form and try again.'));return;}form.dataset.revision=String(body.revision||form.dataset.revision||0);setStatus('saved','Saved securely.');}catch(error){setStatus('error',error);}finally{csrf='';save.disabled=false;}});
 })();`;
 }
 

@@ -124,6 +124,16 @@ jobs:
           path: artifacts/calendar-operational-mutations-browser-proof
           if-no-files-found: error
           retention-days: 14
+      - name: Prove actionable Workspace errors on Phone and Desktop
+        run: node scripts/workspace-error-recovery-browser-proof.js
+      - name: Upload Workspace error recovery proof
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: workspace-error-recovery-proof
+          path: artifacts/workspace-error-recovery
+          if-no-files-found: error
+          retention-days: 14
       - name: Run Calendar Clean CRM V2 browser proof
         run: node scripts/calendar-clean-crm-v2-browser-proof.js
       - name: Upload Calendar Clean CRM V2 browser proof

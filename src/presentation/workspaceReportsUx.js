@@ -1,3 +1,4 @@
+const { workspaceErrorRecoveryClientScript } = require('./workspaceErrorRecovery');
 const {
   escapeHtml,
   workspaceShellStyles,
@@ -46,7 +47,7 @@ function staffEarningsSection(earnings, period, csrfToken = '') {
 }
 
 function commissionClientScript() {
-  return `(()=>{'use strict';const form=document.querySelector('[data-commission-form]');if(!form)return;form.addEventListener('submit',async(event)=>{event.preventDefault();const status=form.querySelector('[data-rule-status]'),button=form.querySelector('button[type="submit"]');status.textContent='Saving rule…';status.classList.remove('error');button.disabled=true;try{const data=Object.fromEntries(new FormData(form));const response=await fetch('/calendar/reports/commission-rules',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json','x-shiloh-csrf-token':form.dataset.csrf},body:JSON.stringify(data)});const body=await response.json();if(!response.ok)throw new Error(body.error||'Rule could not be saved.');window.location.reload()}catch(error){status.textContent=error.message;status.classList.add('error');button.disabled=false}})})();`;
+  return workspaceErrorRecoveryClientScript() + `(()=>{'use strict';const form=document.querySelector('[data-commission-form]');if(!form)return;form.addEventListener('submit',async(event)=>{event.preventDefault();const status=form.querySelector('[data-rule-status]'),button=form.querySelector('button[type="submit"]');status.textContent='Saving rule…';status.classList.remove('error');button.disabled=true;try{const data=Object.fromEntries(new FormData(form));const response=await fetch('/calendar/reports/commission-rules',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json','x-shiloh-csrf-token':form.dataset.csrf},body:JSON.stringify(data)});const body=await response.json();if(!response.ok)throw window.ShilohErrorRecovery.failure(body,response,'Rule could not be saved.');window.location.reload()}catch(error){window.ShilohErrorRecovery.render(status,error,'error');status.classList.add('error');button.disabled=false}})})();`;
 }
 
 function formatMinutes(value) {

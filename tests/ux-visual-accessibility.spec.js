@@ -3086,7 +3086,7 @@ test('staff deactivation uses Shiloh confirmation, safe cancellation and inline 
   page.on('dialog', async dialog => { native.push(dialog.type()); await dialog.dismiss(); });
   let saves = 0;
   await page.route('**/calendar/staff-auth/csrf', route => route.fulfill({ status:200, contentType:'application/json', body:'{"csrfToken":"synthetic-csrf"}' }));
-  await page.route('**/calendar/team/41/status', route => { saves++; return route.fulfill({ status:409, contentType:'application/json', body:'{"error":"This profile changed. Refresh and try again."}' }); });
+  await page.route('**/calendar/team/41/status', route => { saves++; return route.fulfill({ status:409, contentType:'application/json', body:'{"error":"This profile changed. Refresh and try again.","code":"WORKSPACE_STAFF_STALE_REVISION"}' }); });
   for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1280,height:900 }]) {
     await page.setViewportSize(viewport);
     await page.goto('/iframe.html?id=workspace-staff-access--staff-detail&viewMode=story', { waitUntil:'networkidle' });
@@ -3114,7 +3114,9 @@ test('staff deactivation uses Shiloh confirmation, safe cancellation and inline 
     expect(saves).toBe(before);
     await trigger.click();
     await dialog.getByRole('button', { name:'Deactivate staff' }).click();
-    await expect(page.locator('[data-staff-status-form]').locator('..').getByRole('status')).toHaveText('This profile changed. Refresh and try again.');
+    const recovery=page.locator('[data-staff-status-form]').locator('..').getByRole('alert');
+    await expect(recovery.locator('.shiloh-error-copy')).toHaveText('This profile changed. Refresh and try again.');
+    await expect(recovery.getByRole('link',{name:'Review latest record'})).toHaveAttribute('target','_blank');
     await expect(trigger).toBeEnabled();
     expect(saves).toBe(before + 1);
   }
@@ -3147,5 +3149,28 @@ test('appointment app availability replaces retired transport evidence with clea
     await expect(panel.locator('[data-panel-confirmation]')).toContainText(response.label);
     await panel.getByRole('button', { name:'Close',exact:true }).click();
     response = { label:'Available in My Shiloh', explanation:'The client can view this booking when they open My Shiloh.' };
+  }
+});
+
+
+test('actionable Workspace errors retain accessible Phone/Desktop recovery controls', async ({ page }, testInfo) => {
+  await page.route('**/calendar/operations/appointments/*/my-shiloh-availability', route => route.fulfill({ json: { label:'Available in My Shiloh', explanation:'Viewable when the client opens the app.' } }));
+  for (const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1440,height:960}]) {
+    await page.setViewportSize(viewport);
+    for (const state of ['appointment-service-recovery','appointment-restricted-recovery','workspace-session-recovery','workspace-stale-recovery','workspace-temporary-recovery']) {
+      await page.goto('/iframe.html?id=workspace-production-surfaces--'+state+'&viewMode=story', { waitUntil:'networkidle' });
+      const status=page.locator('[data-calendar-panel-status][data-tone="error"]');
+      await expect(status).toBeVisible();
+      await expect(status).toHaveAttribute('role','alert');
+      if(state.includes('service-recovery'))await expect(status.getByRole('link',{name:'Review therapist’s services'})).toHaveAttribute('target','_blank');
+      if(state.includes('restricted'))await expect(status.getByRole('link')).toHaveCount(0);
+      if(state.includes('session'))await expect(status.getByRole('link',{name:'Sign in to Workspace'})).toBeVisible();
+      if(state.includes('stale'))await expect(status.getByRole('link',{name:'Review latest record'})).toBeVisible();
+      if(state.includes('temporary'))await expect(status.getByRole('button',{name:'Review and retry'})).toBeVisible();
+      const axe=await new AxeBuilder({page}).include('[data-calendar-management-panel]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+      expect(axe.violations.filter(item=>['serious','critical'].includes(item.impact))).toEqual([]);
+      expect(await status.evaluate(node=>node.getBoundingClientRect().right<=innerWidth)).toBe(true);
+      await page.screenshot({path:testInfo.outputPath(viewport.name+'-'+state+'.png'),animations:'disabled'});
+    }
   }
 });

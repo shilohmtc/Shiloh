@@ -320,6 +320,32 @@ export const MessagesChangeDeliveryAttention = {
 };
 export const CompactAppointmentEditor = { render: () => editorStory() };
 export const AppointmentAppAvailability = { render: () => editorStory(true) };
+function appointmentRecoveryStory(kind) {
+  const root = editorStory(true);
+  window.setTimeout(() => {
+    root.querySelector('[data-calendar-operation="manage-appointment"]').click();
+    window.setTimeout(() => {
+      const panel = root.querySelector('[data-calendar-management-panel]');
+      const form = panel.querySelector('[data-panel-action="appointment:reassign"]');
+      const status = document.createElement('p');
+      status.dataset.calendarPanelStatus = 'true';
+      panel.querySelector('.panel-head').after(status);
+      const error = new Error(kind === 'mapping' || kind === 'restricted' ? 'The destination practitioner is not eligible for every booked service.' : kind === 'stale' ? 'This appointment changed.' : 'Workspace is temporarily unavailable.');
+      error.code = kind === 'mapping' || kind === 'restricted' ? 'CALENDAR_OPERATION_SERVICE_MAPPING' : kind === 'stale' ? 'CALENDAR_OPERATION_STALE_REVISION' : '';
+      error.status = kind === 'session' ? 401 : kind === 'temporary' ? 503 : 409;
+      error.recovery = { kind: 'service_mapping', ...(kind === 'mapping' ? { serviceHref: '/calendar/services/901#service-practitioners' } : {}) };
+      error.source = form;
+      window.ShilohErrorRecovery.render(status, error, 'error');
+    }, 0);
+  }, 0);
+  return root;
+}
+export const AppointmentServiceRecovery = { render: () => appointmentRecoveryStory('mapping') };
+export const AppointmentRestrictedRecovery = { render: () => appointmentRecoveryStory('restricted') };
+export const WorkspaceSessionRecovery = { render: () => appointmentRecoveryStory('session') };
+export const WorkspaceStaleRecovery = { render: () => appointmentRecoveryStory('stale') };
+export const WorkspaceTemporaryRecovery = { render: () => appointmentRecoveryStory('temporary') };
+
 export const CreateBooking = {
   render: () => {
     const page = renderCalendarCreateBookingPage({
