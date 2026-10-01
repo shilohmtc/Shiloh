@@ -163,3 +163,25 @@ test('multiple-booking routes enforce session, origin, CSRF and server-owned ide
     assert.equal(received[1].crmV2ClientId,55);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
+
+test('group confirmation waits for all approvals and dispatches each separate appointment after approval', async () => {
+  const { sendCustomerBookingConfirmationForAppointment } = require('../src/services/customerBookingConfirmation');
+  const selectedIds = [];
+  let ready = false;
+  const db = { async query(sql, values = []) {
+    if (sql.includes('linked.group_id,linked.group_source')) {
+      selectedIds.push(Number(values[0]));
+      return { rows:[{ id:values[0],source:'shiloh_client_whatsapp',group_id:77,group_source:'shiloh_my_shiloh_multi' }] };
+    }
+    if (sql.includes('FROM appointment_group_members gm JOIN appointments')) return { rows:[100,101].map(id => ({ appointment_id:id,status:'scheduled',approval_status:ready ? 'approved' : id === 100 ? 'approved' : 'pending' })) };
+    if (sql.includes('to_regclass')) return { rows:[{ table_name:'appointment_booking_approvals' }] };
+    if (sql.includes('SELECT status FROM appointment_booking_approvals')) return { rows:[{ status:'approved' }] };
+    if (sql.includes("action='customer.booking_confirmation_sent'")) return { rows:[{}],rowCount:1 };
+    throw new Error(sql);
+  } };
+  const pending = await sendCustomerBookingConfirmationForAppointment(100,{ db });
+  assert.equal(pending.reason,'practitioner_approval_required'); assert.deepEqual(selectedIds,[100]);
+  selectedIds.length = 0; ready = true;
+  const result = await sendCustomerBookingConfirmationForAppointment(101,{ db });
+  assert.equal(result.confirmations.length,2); assert.deepEqual(selectedIds,[101,100,101]);
+});
