@@ -26,7 +26,9 @@
     "lighthouse:ci": "node scripts/lighthouse-production-audit.js",
     "playwright:install": "node scripts/install-playwright-chromium.js",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "system:check": "node scripts/system-maintenance-check.js",
+    "system:snapshot": "node scripts/verify-code-snapshot.js"
   },
   "keywords": [
     "shiloh",
