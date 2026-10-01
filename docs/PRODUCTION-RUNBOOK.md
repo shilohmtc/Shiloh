@@ -26,6 +26,8 @@ Recovery exercise: download a successful run's artifact, compare the bundle's SH
 
 Independent storage/destination and retention, GitHub metadata export, Render database recovery-point evidence and an isolated restore drill, uploaded-file storage/recovery, and an owner-only Workspace health view remain follow-up work. Do not mark these verified from a Git bundle or a provider plan alone. Choose the secure backup destination before exporting any clinic data. Node/runtime or package upgrades must use a dedicated branch and the applicable exact-head tests before release.
 
+The owner selected a private Google Drive destination on 1 October 2026: [Shiloh System Backups](https://drive.google.com/drive/folders/1xP2cvE3sgR7I1PBT0hrAnGFG3WbcVLWh). Code snapshots and their checksum manifests may be copied there through the connected Drive tool and verified by download/restore. This selection does not configure recurring GitHub-to-Drive credentials or authorize public sharing; scheduled independent backup status remains unverified until that transport is configured and its copies are read back. Clinic-data exports require separate encrypted export and restore evidence. Both production-only and all-package npm audits are reported, so development-tool vulnerabilities remain visible.
+
 List commands with:
 
 ```bash

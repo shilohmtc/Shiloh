@@ -89,6 +89,7 @@ function markdown(report) {
     `- Working copy: ${report.repository.workingCopy}; upstream: ${report.repository.upstream}`,
     `- Dependency lookup: ${report.dependencies.status}`,
     `- Production security audit: ${report.audit.status}`,
+    `- All-package security audit (including development tools): ${report.toolingAudit?.status || 'unknown'}`,
     `- GitHub: ${report.github.status}`,
     `- Checkout matches current main: ${report.github.checkoutMatchesMain ?? 'unknown'}; open PRs observed: ${report.github.openPullRequests?.length ?? 'unknown'}`,
     `- Render commit alignment: ${report.render.status}`,
@@ -125,6 +126,8 @@ async function main() {
   const outdated = jsonCommand(['outdated', '--json', '--depth=0']);
   const audit = jsonCommand(['audit', '--omit=dev', '--json']);
   const counts = audit.data?.metadata?.vulnerabilities;
+  const toolingAudit = jsonCommand(['audit', '--json']);
+  const toolingCounts = toolingAudit.data?.metadata?.vulnerabilities;
   const report = {
     schemaVersion: 1,
     checkedAt: new Date().toISOString(),
@@ -155,6 +158,21 @@ async function main() {
             : 'no-high-or-critical-findings'
           : 'unknown',
       counts: counts || null,
+    },
+    toolingAudit: {
+      status:
+        toolingCounts && [0, 1].includes(toolingAudit.status)
+          ? toolingCounts.high || toolingCounts.critical
+            ? 'action-required'
+            : 'no-high-or-critical-findings'
+          : 'unknown',
+      counts: toolingCounts || null,
+      findings: Object.entries(toolingAudit.data?.vulnerabilities || {}).map(([name, finding]) => ({
+        name,
+        severity: finding.severity,
+        direct: finding.isDirect,
+        fixAvailable: Boolean(finding.fixAvailable),
+      })),
     },
     github: { status: 'unconfigured' },
     render: { status: 'unconfigured' },
