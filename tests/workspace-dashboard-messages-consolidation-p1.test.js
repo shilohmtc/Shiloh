@@ -58,28 +58,23 @@ function activityRow(overrides = {}) {
   };
 }
 
-test('cross-client Messages activity extends canonical communication evidence and preserves UNKNOWN truth', async () => {
+test('cross-client Messages activity uses current scoped app availability without WhatsApp history', async () => {
   const calls = [];
   const db = { async query(sql, params) {
-    const text = String(sql);
-    calls.push({ text, params });
-    if (text.includes('recentMessageDeliveries')) return { rows: [activityRow()] };
-    if (text.includes('recentReschedules')) return { rows: [] };
-    if (text.includes('recentCustomerCare')) return { rows: [] };
-    throw new Error('Unexpected query');
+    calls.push({ text: String(sql), params });
+    return { rows: [{ client_id: 91, client_name: 'Synthetic Client', category: 'appointment',
+      title: 'Appointment confirmed', appointment_id: 501, created_at: '2026-10-01T08:00:00Z' }] };
   } };
-  const evidence = await createWorkspaceCommunicationEvidenceService({ db }).listRecent({ limit: 20 });
+  const evidence = await createWorkspaceCommunicationEvidenceService({ db }).listRecent({ limit: 20, scope: { kind: 'clinic' } });
   assert.equal(evidence.length, 1);
-  assert.equal(evidence[0].status, 'unknown');
-  assert.equal(evidence[0].statusLabel, 'Unknown');
+  assert.equal(evidence[0].status, 'available');
+  assert.equal(evidence[0].statusLabel, 'Available in My Shiloh');
   assert.equal(evidence[0].clientId, 91);
-  assert.equal(evidence[0].mobileLast4, '4567');
   assert.equal(evidence[0].normalizedMobile, undefined);
-  assert.equal(calls.length, 3);
-  assert.ok(calls.every(call => call.params[0] === 20));
-  assert.match(calls[0].text, /JOIN crm_v2_clients c ON c\.id=d\.crm_v2_client_id/);
-  assert.doesNotMatch(calls[0].text, /provider_message_id|provider_payload|raw_message/i);
-  assert.deepEqual(messageDeliveryEntry(activityRow()).statusLabel, 'Unknown');
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].params, [20]);
+  assert.match(calls[0].text, /JOIN crm_v2_clients c ON c.id=n.crm_v2_client_id/);
+  assert.doesNotMatch(calls[0].text, /customer_message_deliveries|customer_care_delivery_log|provider_payload|raw_message/i);
 });
 
 test('Messages composes client:lookup, canonical evidence and existing client:notify recovery authority', async () => {

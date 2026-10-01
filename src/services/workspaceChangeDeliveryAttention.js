@@ -24,10 +24,10 @@ function projectChangeDelivery(row) {
     statusLabel: status === 'sending' ? 'Send status uncertain' : status === 'failed' ? 'Send attempt failed' : 'Waiting for channel',
     updatedAt: row.updated_at,
     nextAction: status === 'sending'
-      ? 'Check the client communication record before any new send. WhatsApp may have accepted the previous attempt.'
+      ? 'Review the booking in My Shiloh. The phone-alert outcome is uncertain; app availability does not confirm that the client has read it.'
       : status === 'failed'
         ? 'Shiloh retains this update for retry. Review the client record and contact the client directly if timely notice matters.'
-        : 'The approved WhatsApp template is not ready. Review the client record and contact the client directly if timely notice matters.',
+        : 'The My Shiloh phone alert has not been accepted. Review the client record and contact the client directly if timely notice matters.',
   };
 }
 
@@ -42,6 +42,11 @@ function createWorkspaceChangeDeliveryAttentionService({ db = pool } = {}) {
         JOIN appointments a ON a.id=n.appointment_id AND a.crm_v2_client_id IS NOT NULL AND a.client_id IS NULL
         JOIN crm_v2_clients c ON c.id=a.crm_v2_client_id
        WHERE n.created_at>=NOW()-INTERVAL '30 days'
+         AND (n.last_error='app_wake_unaccepted' OR EXISTS (
+           SELECT 1 FROM my_shiloh_push_notifications app_update
+            WHERE app_update.crm_v2_client_id=c.id
+              AND app_update.event_key='appointment-'||n.change_kind||':'||a.id::text||':'||n.audit_event_id::text
+              AND app_update.expires_at>NOW()))
          AND ((n.status='failed')
            OR (n.status='pending' AND n.last_error IS NOT NULL)
            OR (n.status='sending' AND n.updated_at<NOW()-INTERVAL '15 minutes'))

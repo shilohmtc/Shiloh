@@ -94,7 +94,7 @@ test('Clients and Messages keep internal architecture terms out of ordinary empt
     attention: [], activity: [], attentionUnavailable: false, activityUnavailable: false,
   });
   assert.match(messages, /Recovery actions are not available with your current access\./);
-  assert.match(messages, /No communication activity is recorded yet\./);
+  assert.match(messages, /No current My Shiloh updates\./);
   assert.doesNotMatch(messages, /client:notify|canonical communication activity|Fail closed/);
 });
 

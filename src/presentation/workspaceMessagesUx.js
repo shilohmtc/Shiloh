@@ -7,7 +7,7 @@ const { formatDateTime } = require('./workspaceClientNotificationsUx');
 
 function statusTone(status) {
   if (['failed', 'uncertain', 'unknown'].includes(String(status))) return ' attention';
-  if (['read', 'delivered'].includes(String(status))) return ' complete';
+  if (['available', 'read', 'delivered'].includes(String(status))) return ' complete';
   return '';
 }
 
@@ -31,7 +31,7 @@ function attentionItem(item) {
     || (item.canRecover ? 'Retry is available through Shiloh’s existing booking-confirmation channel.' : null)
     || item.reasonMessage
     || 'Recovery is not currently available.';
-  return `<article class="item" data-message-attention="${escapeHtml(appointment.id)}"><header class="item-head"><div><h3>${escapeHtml(client.name || 'Unnamed client')}</h3><p>Appointment #${escapeHtml(appointment.id)} · ${escapeHtml(appointment.serviceName || 'Shiloh appointment')}</p></div><span class="status attention">${escapeHtml(confirmation.statusLabel || 'Unknown')}</span></header><p>${escapeHtml(formatDateTime(appointment.startsAt))} · WhatsApp ending ${escapeHtml(client.mobileLast4 || '—')}</p><div class="explanations"><div class="explanation"><strong>Delivery</strong><span>${escapeHtml(delivery)}</span></div><div class="explanation"><strong>Recovery</strong><span>${escapeHtml(recovery)}</span></div></div><div class="item-actions"><a class="button" href="/calendar/clients/${escapeHtml(client.id)}">Client</a><a class="button" href="/calendar/read-only?view=day&amp;date=${escapeHtml(String(appointment.startsAt || '').slice(0, 10))}">Calendar</a>${recover}</div></article>`;
+  return `<article class="item" data-message-attention="${escapeHtml(appointment.id)}"><header class="item-head"><div><h3>${escapeHtml(client.name || 'Unnamed client')}</h3><p>Appointment #${escapeHtml(appointment.id)} · ${escapeHtml(appointment.serviceName || 'Shiloh appointment')}</p></div><span class="status attention">${escapeHtml(confirmation.statusLabel || 'Unknown')}</span></header><p>${escapeHtml(formatDateTime(appointment.startsAt))}</p><div class="explanations"><div class="explanation"><strong>Delivery</strong><span>${escapeHtml(delivery)}</span></div><div class="explanation"><strong>Recovery</strong><span>${escapeHtml(recovery)}</span></div></div><div class="item-actions"><a class="button" href="/calendar/clients/${escapeHtml(client.id)}">Client</a><a class="button" href="/calendar/read-only?view=day&amp;date=${escapeHtml(String(appointment.startsAt || '').slice(0, 10))}">Calendar</a>${recover}</div></article>`;
 }
 
 function changeDeliveryItem(item) {
@@ -40,7 +40,7 @@ function changeDeliveryItem(item) {
 
 function activityItem(item) {
   const context = item.appointmentId ? `Appointment #${item.appointmentId}` : 'Client communication';
-  return `<article class="item activity-row" data-message-activity data-message-status="${escapeHtml(item.status || 'unknown')}"><div class="activity-context"><strong>${escapeHtml(item.clientName || 'Unnamed client')}</strong><span>WhatsApp ending ${escapeHtml(item.mobileLast4 || '—')}</span></div><div class="activity-context"><strong>${escapeHtml(item.label || 'Shiloh notification')}</strong><span>${escapeHtml(context)} · ${escapeHtml(formatDateTime(item.occurredAt))}</span></div><span class="status${statusTone(item.status)}">${escapeHtml(item.statusLabel || 'Unknown')}</span></article>`;
+  return `<article class="item activity-row" data-message-activity data-message-status="${escapeHtml(item.status || 'unknown')}"><div class="activity-context"><strong>${escapeHtml(item.clientName || 'Unnamed client')}</strong><span>My Shiloh</span></div><div class="activity-context"><strong>${escapeHtml(item.label || 'Shiloh notification')}</strong><span>${escapeHtml(context)} · ${escapeHtml(formatDateTime(item.occurredAt))}</span></div><span class="status${statusTone(item.status)}">${escapeHtml(item.statusLabel || 'Unknown')}</span></article>`;
 }
 
 function renderMessagesPage(model, {
@@ -54,7 +54,7 @@ function renderMessagesPage(model, {
     ? '<div class="empty">Communication attention is temporarily unavailable. No recovery or delivery claim is being made.</div>'
     : !model.notificationAuthority
       ? '<div class="empty">Recovery actions are not available with your current access.</div>'
-      : (model.attention || []).map(attentionItem).join('') || '<div class="empty">No booking-confirmation exceptions currently need attention.</div>';
+      : (model.attention || []).map(attentionItem).join('') || '<div class="empty">No current My Shiloh updates need attention.</div>';
   const changeBody = model.notificationAuthority
     ? model.changeAttentionUnavailable
       ? '<div class="empty">Booking-change delivery evidence is temporarily unavailable. Review the client record before any resend.</div>'
@@ -63,9 +63,9 @@ function renderMessagesPage(model, {
   if (changeBody && !model.attentionUnavailable && model.notificationAuthority && !(model.attention || []).length) attentionBody = '';
   const activityBody = model.activityUnavailable
     ? '<div class="empty">Communication evidence is temporarily unavailable. No delivery claim is being made.</div>'
-    : (model.activity || []).map(activityItem).join('') || '<div class="empty">No communication activity is recorded yet.</div>';
+    : (model.activity || []).map(activityItem).join('') || '<div class="empty">No current My Shiloh updates.</div>';
   const operationsScript = model.notificationAuthority ? `<script src="${escapeHtml(actionScriptPath)}" defer></script>` : '';
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Messages — Shiloh Workspace</title><style>${workspaceShellStyles()}${styles()}</style><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${operationsScript}</head><body data-workspace-messages="true"><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'messages', displayName: model.authority?.displayName, messagesHref: '/calendar/messages', ...navigation })}<div class="workspace-main"><main class="shell"><header class="topbar"><div class="brand"><h1>Messages</h1><p>Client communication activity and items needing attention.</p></div><div class="topbar-side"><span class="truth-note">Delivery status is shown only when it has been recorded.</span></div></header><nav class="tabs" aria-label="Messages view"><a class="tab${model.selectedView === 'all' ? ' active' : ''}" href="/calendar/messages?view=all">All</a><a class="tab${model.selectedView === 'attention' ? ' active' : ''}" href="/calendar/messages?view=attention">Needs attention</a><a class="tab${model.selectedView === 'recent' ? ' active' : ''}" href="/calendar/messages?view=recent">Recent activity</a></nav><p class="operation-status" role="status" aria-live="polite" data-calendar-operation-status>Actions are checked again before any client message is sent.</p><div class="layout">${showAttention ? `<section class="panel" data-messages-attention><header class="panel-head"><div><span class="eyebrow">Action</span><h2>Needs attention</h2></div></header><div class="list">${attentionBody}${changeBody}</div></section>` : ''}${showRecent ? `<section class="panel" data-messages-recent><header class="panel-head"><div><span class="eyebrow">Activity</span><h2>Recent activity</h2></div></header><div class="list">${activityBody}</div></section>` : ''}</div></main></div></div></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Messages — Shiloh Workspace</title><style>${workspaceShellStyles()}${styles()}</style><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${operationsScript}</head><body data-workspace-messages="true"><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'messages', displayName: model.authority?.displayName, messagesHref: '/calendar/messages', ...navigation })}<div class="workspace-main"><main class="shell"><header class="topbar"><div class="brand"><h1>Messages</h1><p>My Shiloh updates and items needing attention.</p></div><div class="topbar-side"><span class="truth-note">Available in the app does not confirm a phone alert or that an update was read.</span></div></header><nav class="tabs" aria-label="Messages view"><a class="tab${model.selectedView === 'all' ? ' active' : ''}" href="/calendar/messages?view=all">All</a><a class="tab${model.selectedView === 'attention' ? ' active' : ''}" href="/calendar/messages?view=attention">Needs attention</a><a class="tab${model.selectedView === 'recent' ? ' active' : ''}" href="/calendar/messages?view=recent">Recent activity</a></nav><p class="operation-status" role="status" aria-live="polite" data-calendar-operation-status>Booking updates appear in My Shiloh. Review urgent communication here.</p><div class="layout">${showAttention ? `<section class="panel" data-messages-attention><header class="panel-head"><div><span class="eyebrow">Action</span><h2>Needs attention</h2></div></header><div class="list">${attentionBody}${changeBody}</div></section>` : ''}${showRecent ? `<section class="panel" data-messages-recent><header class="panel-head"><div><span class="eyebrow">Activity</span><h2>Recent activity</h2></div></header><div class="list">${activityBody}</div></section>` : ''}</div></main></div></div></body></html>`;
 }
 
 function renderMessagesUnavailablePage({ message = 'Messages are unavailable.' } = {}) {

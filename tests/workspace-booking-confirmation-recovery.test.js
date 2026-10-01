@@ -179,7 +179,7 @@ test('Messages attention shows truthful recovery state without provider internal
   });
   assert.match(html, /Failed/);
   assert.match(html, /Re-send booking confirmation/);
-  assert.match(html, /WhatsApp ending 4567/);
+  assert.doesNotMatch(html, /WhatsApp ending 4567/);
   assert.match(html, /Delivery/);
   assert.match(html, /business account has a payment or eligibility issue/);
   assert.match(html, /Recovery/);
@@ -236,4 +236,28 @@ test('client:notify rollout is least-privilege for all-business operational role
   assert.match(migration, /business_role IN \('owner','business_admin','booking_operator'\)/);
   assert.doesNotMatch(migration, /tenant_practitioner/);
   assert.doesNotMatch(migration, /Christel|Jean|Naomi|Marietjie|Juvan/i);
+});
+
+
+test('production confirmation attention reads current app events and rejects tenant client visibility', async () => {
+  let tenant = false;
+  const queries = [];
+  const db = { async query(sql) {
+    queries.push(sql);
+    if (sql.includes('principal')) return { rows: [{ id: 7, admin_active: true, staff_id: 55, staff_status: 'active',
+      business_role: tenant ? 'tenant_practitioner' : 'owner', permissions: { 'client:lookup': true, 'client:notify': true } }] };
+    assert.match(sql, /workspaceClientNotifications:appExceptions/);
+    assert.match(sql, /my_shiloh_push_notifications/);
+    assert.match(sql, /visibility_scope='tenant_private'/);
+    assert.doesNotMatch(sql, /customer_message_deliveries|provider_|template_name/);
+    return { rows: [{ appointment_id: 92, client_id: 81, client_name: 'Client', starts_at: '2026-10-02T08:00:00Z', service_name: 'Massage' }] };
+  } };
+  const service = createWorkspaceClientNotificationService({ db, env: process.env, providerGuard: async () => { throw new Error('Must not read retired provider'); } });
+  const result = await service.listBookingConfirmationExceptions({ adminId: 7, now: NOW });
+  assert.equal(result.exceptions[0].confirmation.status, 'unavailable');
+  assert.equal(result.exceptions[0].canRecover, false);
+  tenant = true;
+  const count = queries.length;
+  assert.deepEqual((await service.listBookingConfirmationExceptions({ adminId: 7, now: NOW })).exceptions, []);
+  assert.equal(queries.length - count, 2);
 });

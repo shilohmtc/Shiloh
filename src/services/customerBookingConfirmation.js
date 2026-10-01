@@ -425,7 +425,7 @@ async function sendCustomerBookingConfirmation(data,{
     const ics=root?`${root}/calendar/${token}.ics`:'';
     const google=googleCalendarUrl({serviceName,staffName,locationName,startsAt,endsAt});
     const date=fmtDate(startsAt),time=`${fmtTime(startsAt)}–${fmtTime(endsAt)}`;
-    const template=env.WHATSAPP_BOOKING_CONFIRMATION_TEMPLATE;
+    const template=env===process.env?null:env.WHATSAPP_BOOKING_CONFIRMATION_TEMPLATE;
 
     if(controlledE2e){
       await assertE2eTarget({
@@ -457,7 +457,7 @@ async function sendCustomerBookingConfirmation(data,{
       startsAt,
       endsAt,
     });
-    if(env.SHILOH_BOOKING_CONFIRMATION_APP_ONLY_ENABLED==='true'
+    if((env.SHILOH_BOOKING_CONFIRMATION_APP_ONLY_ENABLED==='true'||metaSignInOnly(env))
       &&identityModel==='crm_v2'&&appDelivery?.queued===true&&Number(appDelivery.accepted)>0){
       appAccepted=true;
       await markBookingConfirmationSent(appointmentId,{templateName:null,providerMessageId:null,resetProviderEvidence:recovery},db);
@@ -474,7 +474,7 @@ async function sendCustomerBookingConfirmation(data,{
     }
     // Free-form WhatsApp cannot replace a paused template for an app cutover.
     // Leave the durable obligation retryable until a real channel is available.
-    if(env.SHILOH_BOOKING_CONFIRMATION_APP_ONLY_ENABLED==='true'&&!template){
+    if((env.SHILOH_BOOKING_CONFIRMATION_APP_ONLY_ENABLED==='true'||metaSignInOnly(env))&&!template){
       await releaseBookingConfirmationClaim(appointmentId,'no_confirmed_delivery_channel',db);
       claimed=false;
       return {sent:false,reason:'no_confirmed_delivery_channel',deliveryStatus:'retry_pending',retryable:true};

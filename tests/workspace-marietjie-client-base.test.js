@@ -171,7 +171,7 @@ test('tenant communication history is appointment-scoped and never falls back to
     limit: 30,
     scope: { kind: 'tenant_staff', ownerStaffId: 55 },
   });
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 1);
   for (const call of calls) {
     assert.match(call.sql, /service_visibility_policies/);
     assert.match(call.sql, /owner_staff_id=\$2/);

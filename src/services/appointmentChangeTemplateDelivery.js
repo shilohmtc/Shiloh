@@ -1,5 +1,4 @@
 const { pool } = require('../db/pool');
-const { displayDate } = require('./bookingIntent');
 
 const TZ = 'Africa/Johannesburg';
 
@@ -45,50 +44,10 @@ async function appointmentTemplateContext(phone, appointmentId) {
 }
 
 async function decorateAppointmentChangeTemplate(phone, priorIntent, result) {
-  if (!result?.handled || !priorIntent?.appointment_id || typeof result.reply !== 'string') return result;
-  const context = await appointmentTemplateContext(phone, priorIntent.appointment_id);
-  if (!context) return result;
-
-  if (result.reply.includes('Your appointment has been cancelled')) {
-    const templateName = process.env.WHATSAPP_CANCELLATION_CONFIRMATION_TEMPLATE;
-    if (!templateName) return result;
-    return {
-      ...result,
-      template: {
-        name: templateName,
-        bodyParameters: [
-          context.client_name || 'there',
-          context.service_name,
-          fmtDate(context.starts_at),
-          fmtTime(context.starts_at),
-          String(context.id),
-        ],
-      },
-    };
-  }
-
-  if (result.reply.includes('Your appointment has been rescheduled') || result.reply.includes('Appointment rescheduled')) {
-    const templateName = process.env.WHATSAPP_RESCHEDULE_CONFIRMATION_TEMPLATE;
-    if (!templateName) return result;
-    const preferredDate = priorIntent.preferred_date || null;
-    const dateText = preferredDate ? displayDate(preferredDate) : fmtDate(context.starts_at);
-    return {
-      ...result,
-      template: {
-        name: templateName,
-        bodyParameters: [
-          context.client_name || 'there',
-          context.service_name,
-          context.staff_name,
-          dateText,
-          fmtTime(context.starts_at),
-        ],
-      },
-    };
-  }
-
+  // Retired transport: do not consult templates or their booking context.
   return result;
 }
+
 
 module.exports = {
   appointmentTemplateContext,

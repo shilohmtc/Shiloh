@@ -40,13 +40,13 @@ function renderCommunicationSection(communications = [], unavailable = false) {
     const template = entry?.templateName
       ? `<small class="truth-note" style="display:block;margin-top:3px">Template: ${escapeHtml(entry.templateName)}</small>`
       : '';
-    return `<article class="history-row" data-communication-intent="${escapeHtml(entry?.intent || 'notification')}"><div class="history-time"><strong>${escapeHtml(when.date)}</strong><small>${escapeHtml(when.time)}</small></div><div class="history-service">${escapeHtml(entry?.label || 'Shiloh notification')}${template}</div><div class="history-staff">${escapeHtml(context)}</div><span class="status-pill">${escapeHtml(entry?.statusLabel || 'Recorded')}</span></article>`;
+    return `<article class="history-row" data-communication-intent="${escapeHtml(entry?.intent || 'notification')}"><div class="history-time"><strong>${escapeHtml(when.date)}</strong><small>${escapeHtml(when.time)}</small></div><div class="history-service">${escapeHtml(entry?.label || 'Shiloh notification')}${template}</div><div class="history-staff">${escapeHtml(context)}</div><span class="status-pill" style="max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:center">${escapeHtml(entry?.statusLabel || 'Recorded')}</span></article>`;
   }).join('');
   const body = unavailable
     ? '<div class="empty">Communication evidence is temporarily unavailable. No delivery claim is being made.</div>'
     : (rows || '<div class="empty">No recorded Shiloh notifications yet.</div>');
 
-  return `<section class="history-panel" data-client-communications style="margin-bottom:12px"><header class="section-heading"><div><span class="eyebrow">Communications</span><h2>Shiloh notification history</h2></div><div class="detail-actions"><span class="truth-note">Shiloh + WhatsApp delivery evidence</span><a class="button" href="/calendar/messages?view=recent">View all in Messages</a></div></header><div class="history-list">${body}</div></section>`;
+  return `<section class="history-panel" data-client-communications style="margin-bottom:12px"><header class="section-heading"><div><span class="eyebrow">Communications</span><h2>My Shiloh updates</h2></div><div class="detail-actions"><span class="truth-note">App availability does not confirm a phone alert or a read receipt</span><a class="button" href="/calendar/messages?view=recent">View all in Messages</a></div></header><div class="history-list">${body}</div></section>`;
 }
 
 function renderClientDetailPageWithCommunications(model, options = {}) {
@@ -54,7 +54,7 @@ function renderClientDetailPageWithCommunications(model, options = {}) {
     renderClientDetailPage(model, options),
     model?.appointments || [],
   );
-  const actionSection = renderClientNotificationActionSection(model?.client, options.notificationActionAllowed === true);
+  const actionSection = ''; // Automated WhatsApp confirmation controls are retired.
   const communicationSection = renderCommunicationSection(model?.communications || [], model?.communicationsUnavailable === true);
   const marker = '<section class="history-panel">';
   if (!base.includes(marker)) return base;

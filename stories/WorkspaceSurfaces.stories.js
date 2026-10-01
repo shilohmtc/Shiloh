@@ -151,7 +151,7 @@ function clientModel() {
       { id: 640, starts_at: '2026-09-12T08:00:00.000Z', ends_at: '2026-09-12T08:45:00.000Z', status: 'completed', services: [{ name: 'Quick Relief: Back & Neck (45 min)' }], staff: [{ name: 'Christel' }] },
       { id: 620, starts_at: '2026-09-05T07:00:00.000Z', ends_at: '2026-09-05T07:45:00.000Z', status: 'cancelled', services: [{ name: 'Quick Relief: Back & Neck (45 min)' }], staff: [{ name: 'Christel' }] },
     ],
-    communications: [{ intent: 'booking_confirmation', label: 'Booking confirmation', statusLabel: 'Read on WhatsApp', occurredAt: '2026-09-10T11:56:00.000Z', appointmentId: 667, templateName: 'shiloh_booking_confirmation_v2' }],
+    communications: [{ intent: 'booking_confirmation', label: 'Booking confirmation', statusLabel: 'Available in My Shiloh', occurredAt: '2026-09-10T11:56:00.000Z', appointmentId: 667, templateName: null }],
     communicationsUnavailable: false,
     hasMore: false,
     historyOffset: 0,
@@ -167,19 +167,19 @@ function messagesModel() {
     attentionUnavailable: false,
     activityUnavailable: false,
     attention: [{
-      canRecover: true,
+      canRecover: false,
       actionLabel: 'Re-send confirmation',
       appointment: { id: 668, serviceName: 'Full Body Swedish', startsAt: '2026-09-12T08:00:00.000Z' },
       client: { id: 912, name: 'Michelle Sardinha', mobileLast4: '4567' },
       confirmation: {
-        statusLabel: 'Delivery failed',
-        deliveryExplanation: 'WhatsApp could not deliver this message to the recipient.',
+        statusLabel: 'App update unavailable',
+        deliveryExplanation: 'No current confirmation update is available in My Shiloh. The booking remains available in Bookings.',
       },
-      recoveryExplanation: 'Retry is available through Shiloh’s existing booking-confirmation channel.',
+      recoveryExplanation: 'Review the booking and contact the client directly if timely notice matters.',
     }],
     activity: [
-      { clientName: 'Rozel Janse van Rensburg', mobileLast4: '2241', label: 'Booking confirmation', appointmentId: 667, occurredAt: '2026-09-10T11:56:00.000Z', status: 'read', statusLabel: 'Read on WhatsApp' },
-      { clientName: 'Naomi Jacobs', mobileLast4: '8172', label: 'Appointment reminder', appointmentId: 669, occurredAt: '2026-09-11T07:15:00.000Z', status: 'delivered', statusLabel: 'Delivered on WhatsApp' },
+      { clientName: 'Rozel Janse van Rensburg', mobileLast4: '2241', label: 'Booking confirmation', appointmentId: 667, occurredAt: '2026-09-10T11:56:00.000Z', status: 'available', statusLabel: 'Available in My Shiloh' },
+      { clientName: 'Naomi Jacobs', mobileLast4: '8172', label: 'Appointment reminder', appointmentId: 669, occurredAt: '2026-09-11T07:15:00.000Z', status: 'available', statusLabel: 'Available in My Shiloh' },
     ],
   };
 }
@@ -315,7 +315,7 @@ export const MessagesChangeDeliveryAttention = {
     changeAttention:[{ id:701,appointmentId:668,clientId:912,clientName:'Michelle Sardinha',
       label:'Appointment update',status:'uncertain',statusLabel:'Send status uncertain',
       updatedAt:'2026-09-27T07:00:00.000Z',
-      nextAction:'Check the client communication record before any new send. WhatsApp may have accepted the previous attempt.' }],
+      nextAction:'Review the booking in My Shiloh. The phone-alert outcome is uncertain; app availability does not confirm that the client has read it.' }],
   })),
 };
 export const CompactAppointmentEditor = { render: () => editorStory() };

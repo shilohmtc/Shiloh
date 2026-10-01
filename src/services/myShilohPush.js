@@ -348,6 +348,7 @@ function createMyShilohPushService({
     title,
     body,
     targetPath = '/my-shiloh/',
+    retryExisting = false,
   } = {}) {
     const clientId = Number(crmV2ClientId);
     if (!Number.isSafeInteger(clientId) || clientId <= 0) return { queued: false, reason: 'client_unavailable' };
@@ -365,7 +366,19 @@ function createMyShilohPushService({
        RETURNING id`,
       [clientId, key, cleanCategory, cleanTitle, cleanBody, path, now(), NOTIFICATION_TTL_DAYS],
     );
-    if (!inserted.rowCount) return { queued: false, duplicate: true };
+    if (!inserted.rowCount) {
+      // Only a delivery retry may wake an existing, unexpired event. Never
+      // accept an event-key collision belonging to another client.
+      if (!retryExisting) return { queued: false, duplicate: true };
+      const existing = await db.query(
+        `SELECT id FROM my_shiloh_push_notifications
+          WHERE event_key=$1 AND crm_v2_client_id=$2 AND expires_at>$3::timestamptz`,
+        [key, clientId, now()],
+      );
+      if (!existing.rows.length) return { queued: false, reason: 'existing_notification_unavailable' };
+      const delivery = await wakeClient(clientId);
+      return { queued: true, duplicate: true, notificationId: Number(existing.rows[0].id), ...delivery };
+    }
     const delivery = await wakeClient(clientId);
     return { queued: true, notificationId: Number(inserted.rows[0].id), ...delivery };
   }

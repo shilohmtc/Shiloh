@@ -193,171 +193,58 @@ function activeRelationshipSql(clientExpression, scope, ownerParam) {
   )`;
 }
 
+function appNotificationEntry(row) {
+  if (!row?.created_at) return null;
+  return {
+    intent: String(row.category || 'system'), label: String(row.title || 'My Shiloh update'),
+    status: 'available', statusLabel: 'Available in My Shiloh', occurredAt: row.created_at,
+    appointmentId: positiveId(row.appointment_id), templateName: null,
+    clientId: positiveId(row.client_id), clientName: String(row.client_name || 'Client'),
+  };
+}
+
 function createWorkspaceCommunicationEvidenceService({ db = pool } = {}) {
   if (!db || typeof db.query !== 'function') throw new Error('Workspace communication evidence database is required');
-
-  async function listForClient({ clientId, waId, limit, scope } = {}) {
-    const id = positiveId(clientId);
-    if (!id) return [];
-    const safeLimit = boundedLimit(limit);
-    const normalizedWaId = normalizeWaId(waId);
-    const scoped = validClientScope(scope);
-    const values = [id];
-    let ownerParam = null;
-    if (scoped && scope.kind === CLIENT_RELATIONSHIP_TYPES.TENANT_STAFF) {
-      values.push(scopedPositiveId(scope.ownerStaffId));
-      ownerParam = `$${values.length}`;
-    }
-    values.push(safeLimit);
-    const limitParam = `$${values.length}`;
-    const appointmentPredicate = scoped ? appointmentScopeSql('appointment_id', scope, ownerParam) : null;
-
-    const deliveries = await db.query(
-      `/* workspaceCommunicationEvidence:messageDeliveries */
-       SELECT appointment_id, message_kind, status, claimed_at, sent_at, last_attempt_at, updated_at,
-              template_name, provider_sent_at, provider_delivered_at,
-              provider_read_at, provider_failed_at
-         FROM customer_message_deliveries
-        WHERE crm_v2_client_id=$1
-          ${appointmentPredicate ? `AND appointment_id IS NOT NULL AND ${appointmentPredicate}` : ''}
-        ORDER BY COALESCE(provider_read_at, provider_delivered_at, provider_failed_at,
-                          provider_sent_at, sent_at, last_attempt_at, claimed_at) DESC
-        LIMIT ${limitParam}`,
-      values
-    );
-
-    const reschedules = await db.query(
-      `/* workspaceCommunicationEvidence:reschedules */
-       SELECT appointment_id, client_notified_at, client_notification_last_error,
-              client_notification_claimed_at, client_notification_suppressed_at, updated_at
-         FROM appointment_reschedule_requests
-        WHERE crm_v2_client_id=$1
-          ${appointmentPredicate ? `AND appointment_id IS NOT NULL AND ${appointmentPredicate}` : ''}
-          AND (client_notified_at IS NOT NULL
-            OR client_notification_last_error IS NOT NULL
-            OR client_notification_claimed_at IS NOT NULL
-            OR client_notification_suppressed_at IS NOT NULL)
-        ORDER BY COALESCE(client_notified_at, client_notification_suppressed_at,
-                          client_notification_claimed_at, updated_at) DESC
-        LIMIT ${limitParam}`,
-      values
-    );
-
-    let careRows = [];
-    // Customer-care rows have no appointment relationship. They remain visible
-    // to the clinic relationship, but never cross into a tenant client base.
-    if (normalizedWaId && (!scoped || scope.kind === CLIENT_RELATIONSHIP_TYPES.CLINIC)) {
-      const care = await db.query(
-        `/* workspaceCommunicationEvidence:customerCare */
-         SELECT event_type, sent_at
-           FROM customer_care_delivery_log
-          WHERE client_wa_id=$1
-          ORDER BY sent_at DESC
-          LIMIT $2`,
-        [normalizedWaId, safeLimit]
-      );
-      careRows = care.rows || [];
-    }
-
-    return mergeEvidence([
-      (deliveries.rows || []).map(messageDeliveryEntry),
-      (reschedules.rows || []).map(rescheduleEntry),
-      careRows.map(careDeliveryEntry),
-    ], safeLimit);
-  }
-
-  function crossClientEntry(entry, row) {
-    if (!entry) return null;
-    const clientId = positiveId(row?.client_id);
-    if (!clientId) return null;
-    return {
-      ...entry,
-      clientId,
-      clientName: String(row?.client_name || 'Unnamed client').trim() || 'Unnamed client',
-      mobileLast4: String(row?.normalized_mobile || '').replace(/[^0-9]/g, '').slice(-4) || null,
-    };
-  }
-
-  async function listRecent({ limit, scope } = {}) {
-    const safeLimit = boundedLimit(limit);
-    const scoped = validClientScope(scope);
+  async function read({ clientId, limit, scope } = {}) {
+    if (!validClientScope(scope)) throw new Error('A valid client relationship scope is required');
     const values = [];
+    const where = ["c.status='active'", 'n.expires_at>NOW()'];
+    if (clientId != null) { values.push(clientId); where.push(`c.id=$${values.length}`); }
     let ownerParam = null;
-    if (scoped && scope.kind === CLIENT_RELATIONSHIP_TYPES.TENANT_STAFF) {
-      values.push(scopedPositiveId(scope.ownerStaffId));
-      ownerParam = `$${values.length}`;
+    if (scope.kind === CLIENT_RELATIONSHIP_TYPES.TENANT_STAFF) {
+      values.push(scopedPositiveId(scope.ownerStaffId)); ownerParam = `$${values.length}`;
     }
-    values.push(safeLimit);
-    const limitParam = `$${values.length}`;
-    const relationshipPredicate = scoped ? activeRelationshipSql('c.id', scope, ownerParam) : null;
-    const deliveryAppointmentPredicate = scoped ? appointmentScopeSql('d.appointment_id', scope, ownerParam) : null;
-    const rescheduleAppointmentPredicate = scoped ? appointmentScopeSql('r.appointment_id', scope, ownerParam) : null;
-
-    const deliveries = await db.query(
-      `/* workspaceCommunicationEvidence:recentMessageDeliveries */
-       SELECT c.id AS client_id,c.name AS client_name,c.normalized_mobile,
-              d.appointment_id,d.message_kind,d.status,d.claimed_at,d.sent_at,
-              d.last_attempt_at,d.updated_at,d.template_name,d.provider_sent_at,
-              d.provider_delivered_at,d.provider_read_at,d.provider_failed_at
-         FROM customer_message_deliveries d
-         JOIN crm_v2_clients c ON c.id=d.crm_v2_client_id
-        WHERE c.status='active'
-          ${relationshipPredicate ? `AND ${relationshipPredicate}` : ''}
-          ${deliveryAppointmentPredicate ? `AND d.appointment_id IS NOT NULL AND ${deliveryAppointmentPredicate}` : ''}
-        ORDER BY COALESCE(d.provider_read_at,d.provider_delivered_at,d.provider_failed_at,
-                          d.provider_sent_at,d.sent_at,d.last_attempt_at,d.claimed_at,d.updated_at) DESC
-        LIMIT ${limitParam}`,
-      values
-    );
-    const reschedules = await db.query(
-      `/* workspaceCommunicationEvidence:recentReschedules */
-       SELECT c.id AS client_id,c.name AS client_name,c.normalized_mobile,
-              r.appointment_id,r.client_notified_at,r.client_notification_last_error,
-              r.client_notification_claimed_at,r.client_notification_suppressed_at,r.updated_at
-         FROM appointment_reschedule_requests r
-         JOIN crm_v2_clients c ON c.id=r.crm_v2_client_id
-        WHERE c.status='active'
-          ${relationshipPredicate ? `AND ${relationshipPredicate}` : ''}
-          ${rescheduleAppointmentPredicate ? `AND r.appointment_id IS NOT NULL AND ${rescheduleAppointmentPredicate}` : ''}
-          AND (r.client_notified_at IS NOT NULL OR r.client_notification_last_error IS NOT NULL
-            OR r.client_notification_claimed_at IS NOT NULL OR r.client_notification_suppressed_at IS NOT NULL)
-        ORDER BY COALESCE(r.client_notified_at,r.client_notification_suppressed_at,
-                          r.client_notification_claimed_at,r.updated_at) DESC
-        LIMIT ${limitParam}`,
-      values
-    );
-    let careRows = [];
-    if (!scoped || scope.kind === CLIENT_RELATIONSHIP_TYPES.CLINIC) {
-      const careValues = [];
-      const careWhere = ["c.status='active'"];
-      if (scoped) careWhere.push(activeRelationshipSql('c.id', scope, null));
-      careValues.push(safeLimit);
-      const care = await db.query(
-        `/* workspaceCommunicationEvidence:recentCustomerCare */
-         SELECT c.id AS client_id,c.name AS client_name,c.normalized_mobile,
-                care.event_type,care.sent_at
-           FROM customer_care_delivery_log care
-           JOIN crm_v2_clients c ON c.normalized_mobile=care.client_wa_id
-          WHERE ${careWhere.join(' AND ')}
-          ORDER BY care.sent_at DESC
-          LIMIT $1`,
-        careValues
-      );
-      careRows = care.rows || [];
-    }
-    return mergeEvidence([
-      (deliveries.rows || []).map(row => crossClientEntry(messageDeliveryEntry(row), row)),
-      (reschedules.rows || []).map(row => crossClientEntry(rescheduleEntry(row), row)),
-      careRows.map(row => crossClientEntry(careDeliveryEntry(row), row)),
-    ], safeLimit);
+    where.push(activeRelationshipSql('c.id', scope, ownerParam));
+    const appointmentPredicate = appointmentScopeSql('a.id', scope, ownerParam);
+    // Only recognized appointment event keys can establish appointment scope.
+    // Shared-client payments, forms and rewards must not leak to tenant staff.
+    where.push(scope.kind === CLIENT_RELATIONSHIP_TYPES.TENANT_STAFF
+      ? `a.id IS NOT NULL AND ${appointmentPredicate}`
+      : `(linked.appointment_id IS NULL OR (a.id IS NOT NULL AND ${appointmentPredicate}))`);
+    values.push(boundedLimit(limit));
+    const result = await db.query(`/* workspaceCommunicationEvidence:myShiloh */
+      SELECT n.category,n.title,n.created_at,a.id AS appointment_id,c.id AS client_id,c.name AS client_name
+        FROM my_shiloh_push_notifications n JOIN crm_v2_clients c ON c.id=n.crm_v2_client_id
+        CROSS JOIN LATERAL (SELECT CASE
+          WHEN n.event_key ~ '^appointment-[a-z_-]+:[1-9][0-9]{0,9}:'
+            OR n.event_key ~ '^booking-proposal:[1-9][0-9]{0,9}:'
+          THEN split_part(n.event_key,':',2)::bigint ELSE NULL END AS appointment_id) linked
+        LEFT JOIN appointments a ON a.id=linked.appointment_id AND a.crm_v2_client_id=c.id AND a.client_id IS NULL
+       WHERE ${where.join(' AND ')} ORDER BY n.created_at DESC,n.id DESC LIMIT $${values.length}`, values);
+    return result.rows.map(appNotificationEntry).filter(Boolean);
   }
-
+  async function listForClient({ clientId, limit, scope } = {}) {
+    const id = positiveId(clientId);
+    return id ? read({ clientId: id, limit, scope }) : [];
+  }
+  async function listRecent({ limit, scope } = {}) { return read({ limit, scope }); }
   return { listForClient, listRecent };
 }
 
 const service = createWorkspaceCommunicationEvidenceService();
 
 module.exports = {
+  appNotificationEntry,
   DEFAULT_LIMIT,
   MAX_LIMIT,
   boundedLimit,

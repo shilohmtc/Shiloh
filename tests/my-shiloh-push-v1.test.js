@@ -268,3 +268,53 @@ test('canonical Shiloh events fan out to push without replacing their existing a
   assert.match(rewards, /loyalty_wallet_entries/);
   assert.match(rewards, /category:'rewards'/);
 });
+
+
+test('explicit delivery retry reuses only an unexpired event owned by the same client', async () => {
+  const queries = [];
+  let existing = true;
+  const service = createMyShilohPushService({ env: {}, now: () => new Date('2026-10-01T08:00:00Z'), db: {
+    async query(sql, values) {
+      queries.push({ sql, values });
+      if (sql.includes('INSERT INTO my_shiloh_push_notifications')) return { rowCount: 0, rows: [] };
+      assert.match(sql, /event_key=\$1 AND crm_v2_client_id=\$2 AND expires_at>\$3/);
+      return { rowCount: existing ? 1 : 0, rows: existing ? [{ id: 92 }] : [] };
+    },
+  } });
+  const notification = { crmV2ClientId: 31, eventKey: 'appointment-confirmation:42:current', category: 'appointment', title: 'Confirmed', body: 'Open My Shiloh' };
+  assert.deepEqual(await service.queueNotification(notification), { queued: false, duplicate: true });
+  const retry = await service.queueNotification({ ...notification, retryExisting: true });
+  assert.equal(retry.queued, true);
+  assert.equal(retry.notificationId, 92);
+  assert.equal(retry.duplicate, true);
+  assert.equal(retry.accepted, 0);
+  assert.equal(retry.configured, false);
+  assert.deepEqual(queries[2].values.slice(0, 2), [notification.eventKey, 31]);
+  existing = false;
+  assert.deepEqual(await service.queueNotification({ ...notification, retryExisting: true }), { queued: false, reason: 'existing_notification_unavailable' });
+});
+
+test('a duplicate appointment retry actually attempts the same client phone alert', async () => {
+  let alerts = 0;
+  let marked = false;
+  let existing = true;
+  const service = createMyShilohPushService({ env: vapidFixture(), now: () => new Date('2026-10-01T08:00:00Z'),
+    fetchImpl: async (endpoint) => { assert.equal(endpoint, 'https://push.example.test/device'); alerts += 1; return { ok: true, status: 201 }; },
+    db: { async query(sql, values) {
+      if (sql.includes('INSERT INTO my_shiloh_push_notifications')) return { rowCount: 0, rows: [] };
+      if (sql.startsWith('SELECT id FROM my_shiloh_push_notifications')) return { rows: existing ? [{ id: 92 }] : [] };
+      if (sql.includes('SELECT id,endpoint')) { assert.deepEqual(values, [31]); return { rowCount: 1, rows: [{ id: 12, endpoint: 'https://push.example.test/device' }] }; }
+      if (sql.includes('UPDATE my_shiloh_push_subscriptions')) { marked = true; assert.equal(values[2], 'accepted_201'); return { rowCount: 1, rows: [] }; }
+      throw new Error('Unexpected push query');
+    } },
+  });
+  const notification = { crmV2ClientId: 31, eventKey: 'appointment-confirmation:42:current', category: 'appointment', title: 'Confirmed', body: 'Open My Shiloh', retryExisting: true };
+  const result = await service.queueNotification(notification);
+  assert.equal(result.notificationId, 92);
+  assert.equal(result.accepted, 1);
+  assert.equal(alerts, 1);
+  assert.equal(marked, true);
+  existing = false;
+  await service.queueNotification(notification);
+  assert.equal(alerts, 1);
+});

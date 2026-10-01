@@ -85,7 +85,6 @@ async function initializeClientRescheduleApprovalSchema() {
     crmV2RestrictForeignKey: row.crm_v2_restrict_fk === true,
     clientIdentityXor: row.client_identity_xor === true,
     featureEnabled: clientRescheduleRequestsEnabled(),
-    approvalTemplateConfigured: String(process.env.WHATSAPP_RESCHEDULE_APPROVAL_REQUEST_TEMPLATE || '').trim() === APPROVAL_TEMPLATE,
     declinedPhoneAlertRetired: true,
   };
 }
