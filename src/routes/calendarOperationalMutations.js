@@ -11,6 +11,7 @@ const {
 const {
   calendarOperationalMutationsClientScript,
 } = require('../presentation/calendarOperationalMutationsUx');
+const workspaceServices = require('../services/workspaceServices');
 const workspaceClientNotifications = require('../services/workspaceClientNotifications');
 const customerChangeNotifications = require('../services/customerChangeNotification');
 const { createWorkspaceAppointmentNotesService } = require('../services/workspaceAppointmentNotes');
@@ -57,6 +58,7 @@ function sendOperationalError(error, req, res, next) {
     error: error.message,
     code: error.code,
     details: error.details || undefined,
+    recovery: error.recovery || undefined,
     requestId: req.id,
   });
 }
@@ -66,6 +68,7 @@ function createCalendarOperationalMutationRouter({
   sessionService,
   mutationService = createCalendarOperationalMutationService({ db: pool }),
   notificationService = workspaceClientNotifications,
+  servicesService = workspaceServices,
   customerChangeNotificationService = customerChangeNotifications,
   notesService = createWorkspaceAppointmentNotesService({ db: pool }),
   renderClient = calendarOperationalMutationsClientScript,
@@ -242,6 +245,20 @@ function createCalendarOperationalMutationRouter({
       });
       return res.status(200).json(result);
     } catch (error) {
+      if (error.code === 'CALENDAR_OPERATION_SERVICE_MAPPING' && error.details?.serviceIds?.length) {
+        error.recovery = { kind: 'service_mapping' };
+        const serviceId = Number(error.details.serviceIds[0]);
+        if (Number.isSafeInteger(serviceId) && serviceId > 0) {
+          try {
+            const adminId = req.staffBrowserSession.adminId;
+            // Both management permission and this exact service's read scope must pass.
+            if (await servicesService.resolveManageAccess(adminId)) {
+              await servicesService.getServiceDetail({ adminId, serviceId });
+              error.recovery.serviceHref = `/calendar/services/${serviceId}#service-practitioners`;
+            }
+          } catch (_recoveryError) { /* Recovery is optional; retain the original refusal. */ }
+        }
+      }
       return sendOperationalError(error, req, res, next);
     }
   });

@@ -1,3 +1,4 @@
+const { workspaceErrorRecoveryClientScript } = require('./workspaceErrorRecovery');
 const { escapeHtml, workspaceShellStyles, renderWorkspaceNavigation } = require('./workspaceShell');
 const { confirmationStyles, confirmationMarkup, confirmationClientScript } = require('./workspaceConfirmation');
 
@@ -114,7 +115,7 @@ function practitionerPanels(model, manageAllowed) {
   const assignable = (model.practitioners || []).filter((staff) => staff.assigned !== true && staff.status === 'active');
   const choices = assignable.map((staff) => `<option value="${escapeHtml(staff.id)}">${escapeHtml(staff.display_name)}${staff.client_bookable === true ? ' • client bookable' : ''}</option>`).join('');
   const assignForm = manageAllowed && choices ? `<form class="assignment-form" data-service-assign-form data-service-id="${escapeHtml(service.id)}" data-service-revision="${escapeHtml(service.revision)}"><div class="field"><label for="assign-practitioner">Assign active practitioner</label><select id="assign-practitioner" name="staffId" required><option value="">Choose practitioner</option>${choices}</select></div><button class="button primary" type="submit">Assign</button></form>` : manageAllowed ? '<p class="muted">No additional active practitioners are available to assign.</p>' : '';
-  return `<section class="panel"><span class="eyebrow">Assigned staff</span><h2>Practitioner relationships</h2><div class="staff-list">${assignedRows || '<p class="muted">No practitioner assignments.</p>'}</div>${assignForm ? `<div style="margin-top:12px">${assignForm}</div>` : ''}<p class="warning-copy">Assignment changes affect future booking eligibility only. Historical appointment snapshots are not rewritten.</p></section>`;
+  return `<section class="panel" id="service-practitioners" tabindex="-1"><span class="eyebrow">Assigned staff</span><h2>Practitioner relationships</h2><div class="staff-list">${assignedRows || '<p class="muted">No practitioner assignments.</p>'}</div>${assignForm ? `<div style="margin-top:12px">${assignForm}</div>` : ''}<p class="warning-copy">Assignment changes affect future booking eligibility only. Historical appointment snapshots are not rewritten.</p></section>`;
 }
 
 function renderServiceDetailPage(model, options = {}) {
@@ -136,17 +137,17 @@ function renderServiceDetailPage(model, options = {}) {
 }
 
 function workspaceServicesManageClientScript() {
-  return `${confirmationClientScript()}(function(){'use strict';
+  return workspaceErrorRecoveryClientScript() + `${confirmationClientScript()}(function(){'use strict';
 var API='/calendar/services';var AUTH='/calendar/staff-auth';
 function one(s,r){return(r||document).querySelector(s);}function all(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));}
 function requestId(){if(window.crypto&&typeof window.crypto.randomUUID==='function')return window.crypto.randomUUID();return'S'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2);}
-function status(message,tone){var target=one('[data-service-operation-status]');if(!target)return;target.textContent=String(message||'');target.dataset.tone=tone||'ready';}
+function status(message,tone){var target=one('[data-service-operation-status]');if(!target)return;window.ShilohErrorRecovery.render(target,message,tone);}
 async function json(response){try{return await response.json();}catch(_error){return{};}}
-async function csrf(){var response=await fetch(AUTH+'/csrf',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:'{}'});if(!response.ok)throw new Error('Your secure Shiloh session has expired.');var body=await json(response);if(!body.csrfToken)throw new Error('A secure operation token could not be issued.');return body.csrfToken;}
-async function request(path,payload){var token=await csrf();var response=await fetch(API+path,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json','x-shiloh-csrf-token':token},body:JSON.stringify(payload||{})});token='';var body=await json(response);if(!response.ok){var error=new Error(body.error||'The canonical Services operation failed closed.');error.code=body.code;throw error;}return body;}
-async function finish(work,message){status('Checking and saving…','working');try{await work();status(message||'Saved. Refreshing Services…','ready');window.location.reload();}catch(error){status(error.message||'Nothing was changed. Reload Services and retry.','error');}}
-function categoryStatus(message,tone){var target=one('[data-category-status]');if(target){target.textContent=message;target.dataset.tone=tone||'ready';}}
-async function categoryFinish(path,payload){categoryStatus('Saving category…','working');try{await request(path,payload);window.location.reload();}catch(error){categoryStatus(error.message||'The category was not changed.','error');}}
+async function csrf(){var response=await fetch(AUTH+'/csrf',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:'{}'});if(!response.ok)throw window.ShilohErrorRecovery.failure({},response,'Your secure Shiloh session has expired.');var body=await json(response);if(!body.csrfToken)throw new Error('A secure operation token could not be issued.');return body.csrfToken;}
+async function request(path,payload){var token=await csrf();var response=await fetch(API+path,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json','x-shiloh-csrf-token':token},body:JSON.stringify(payload||{})});token='';var body=await json(response);if(!response.ok){var error=new Error(body.error||'The canonical Services operation failed closed.');error.code=body.code;error.status=response.status;throw error;}return body;}
+async function finish(work,message){status('Checking and saving…','working');try{await work();status(message||'Saved. Refreshing Services…','ready');window.location.reload();}catch(error){status(error,'error');}}
+function categoryStatus(message,tone){var target=one('[data-category-status]');if(target){window.ShilohErrorRecovery.render(target,message,tone);}}
+async function categoryFinish(path,payload){categoryStatus('Saving category…','working');try{await request(path,payload);window.location.reload();}catch(error){categoryStatus(error,'error');}}
 var createCategory=one('[data-category-create]');if(createCategory)createCategory.addEventListener('submit',function(event){event.preventDefault();categoryFinish('/categories/create',{name:createCategory.elements.name.value,displayOrder:createCategory.elements.displayOrder.value});});
 all('[data-category-edit]').forEach(function(form){form.addEventListener('submit',function(event){event.preventDefault();categoryFinish('/categories/'+encodeURIComponent(form.dataset.categoryId)+'/edit',{name:form.elements.name.value,displayOrder:form.elements.displayOrder.value});});});
 all('[data-category-delete]').forEach(function(form){form.addEventListener('submit',async function(event){event.preventDefault();var approved=await window.ShilohConfirm({title:'Delete “'+form.dataset.categoryName+'”?',copy:'This empty category will be removed from Shiloh. You cannot undo this action.',cancel:'Keep category',action:'Delete category'});if(!approved)return;categoryFinish('/categories/'+encodeURIComponent(form.dataset.categoryId)+'/delete',{});});});

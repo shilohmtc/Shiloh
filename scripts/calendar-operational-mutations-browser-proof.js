@@ -232,7 +232,7 @@ function createFixture() {
       return { mode: 'window', revision: opaque('schedule-revision'), windows: [{ startsLocal: '08:00', endsLocal: '17:00' }] };
     },
     async reschedule(payload) { authorizedRecord('reschedule', 'appointment:reschedule', payload); return { status: 'rescheduled', appointmentId: Number(payload.appointmentId) }; },
-    async reassign(payload) { authorizedRecord('reassign', 'appointment:reassign', payload); return { status: 'reassigned', appointmentId: Number(payload.appointmentId) }; },
+    async reassign(payload) { if(state.recoveryFailure){const error=new Error('The destination practitioner is not eligible for every booked service.');error.code=state.recoveryFailure;error.details={serviceIds:[901]};throw error;} authorizedRecord('reassign', 'appointment:reassign', payload); return { status: 'reassigned', appointmentId: Number(payload.appointmentId) }; },
     async cancel(payload) { authorizedRecord('cancel', 'appointment:cancel', payload); return { status: 'cancelled', appointmentId: Number(payload.appointmentId) }; },
     async createBlock(payload) { authorizedRecord('block-create', 'calendar_block:manage', payload); return { status: 'created', blockId: 7301 }; },
     async editBlock(payload) { authorizedRecord('block-edit', 'calendar_block:manage', payload); return { status: 'updated', blockId: Number(payload.blockId) }; },
@@ -268,6 +268,10 @@ function createFixture() {
     env,
     sessionService,
     mutationService,
+    servicesService: {
+      async resolveManageAccess() { return state.recoveryManage === true; },
+      async getServiceDetail({ serviceId }) { if(state.recoveryScope === false) throw new Error('Service outside scope'); return { service: { id: serviceId } }; },
+    },
     notesService: {
       async get() { return { appointmentId: 7001, notes: '', revision: REVISION }; },
       async getMyShilohAvailability({ adminId, appointmentId }) {
@@ -745,7 +749,9 @@ async function main() {
   }
 }
 
-main().catch((error) => {
+if (require.main === module) main().catch((error) => {
   console.error(error.stack || error);
   process.exitCode = 1;
 });
+
+module.exports = { createFixture, createCertificate, chromeExecutable, REVISION };
