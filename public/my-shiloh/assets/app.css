@@ -38,8 +38,8 @@ button,a{font:inherit}
 .auth-choice-summary{display:flex;align-items:center;gap:11px;min-height:50px;padding:8px 0;cursor:pointer;list-style:none;font-weight:750;line-height:1.35}
 .auth-choice-summary::-webkit-details-marker{display:none}
 .auth-choice-summary:focus-visible{outline:2px solid var(--leaf-dark);outline-offset:3px;border-radius:5px}
-.auth-choice-summary__icon,.auth-choice-summary__chevron,.recovery-help__actions svg{width:21px;height:21px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.auth-choice-summary__icon{color:var(--leaf-dark)}
+.auth-choice-summary__icon,.auth-choice-summary__chevron,.recovery-help__actions svg{width:21px;height:21px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.auth-choice-summary__icon{width:24px;height:24px;color:var(--leaf-dark)}
 .auth-choice-summary__chevron{margin-left:auto;width:18px;height:18px;transition:transform .15s ease}
 [open]>.auth-choice-summary .auth-choice-summary__chevron{transform:rotate(90deg)}
 .recovery-help__body{padding:0 0 8px}
@@ -394,3 +394,7 @@ h3{font-size:20px;line-height:1.12}
   .booking-proposal-choices { flex-direction: column; }
   .booking-proposal-choices .button { width: 100%; }
 }
+
+.register-choice,.passkey-choice{display:flex;align-items:center;justify-content:center;gap:10px}
+.sms-recovery-choice{width:100%;border:0;background:transparent;text-align:left;color:var(--leaf-dark)}
+.sms-setup-choice h2{font-size:24px;margin:0 0 8px}

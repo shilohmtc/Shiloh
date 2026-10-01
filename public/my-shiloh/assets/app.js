@@ -46,6 +46,7 @@
   const recoveryCodeDisplay = document.querySelector('[data-passkey-recovery-code]');
   const recoveryForms = [...document.querySelectorAll('[data-passkey-recovery-form]')];
   const authLogoutButtons = [...document.querySelectorAll('[data-client-auth-logout]')];
+  const smsOpenButtons = [...document.querySelectorAll('[data-client-sms-open]')];
   const smsStartForms = [...document.querySelectorAll('[data-client-sms-start]')];
   const smsCompleteForms = [...document.querySelectorAll('[data-client-sms-complete]')];
   const authStatusHosts = [...document.querySelectorAll('[data-auth-status]')];
@@ -893,7 +894,7 @@
   }
 
   function setAuthControlsDisabled(disabled) {
-    for (const button of [...passkeySignInButtons, ...authLogoutButtons]) button.disabled = Boolean(disabled);
+    for (const button of [...passkeySignInButtons, ...authLogoutButtons, ...smsOpenButtons]) button.disabled = Boolean(disabled);
     for (const form of [...smsStartForms, ...smsCompleteForms]) {
       form.querySelectorAll('button,input').forEach((control) => { control.disabled = Boolean(disabled); });
     }
@@ -1910,6 +1911,25 @@
       sendShilohMessage(prompt);
     });
   });
+
+  smsOpenButtons.forEach((button) => button.addEventListener('click', () => {
+    if (authActionInFlight) return;
+    const panel = document.getElementById(button.getAttribute('aria-controls'));
+    if (!panel) return;
+    const recovering = button.dataset.clientSmsOpen === 'recover';
+    panel.querySelector('[data-client-sms-title]').textContent = recovering
+      ? 'Open My Shiloh on your new phone' : 'Register for My Shiloh';
+    panel.querySelector('[data-client-sms-copy]').textContent = recovering
+      ? 'Verify the mobile number on your existing Shiloh profile with an SMS code, then save a passkey on this phone.'
+      : 'Verify your number with an SMS code, then save a passkey for future sign-ins. If you already have a Shiloh profile, we’ll reconnect you to it.';
+    panel.hidden = false;
+    smsOpenButtons.filter((item) => item.getAttribute('aria-controls') === panel.id)
+      .forEach((item) => item.setAttribute('aria-expanded', String(item === button)));
+    const codeForm = panel.querySelector('[data-client-sms-complete]');
+    const focus = codeForm && !codeForm.hidden ? codeForm.elements.namedItem('code')
+      : panel.querySelector(recovering ? 'input[name="mobile"]' : 'input[name="name"]');
+    focus?.focus();
+  }));
 
   async function beginSmsAuth(event) {
     event.preventDefault();
