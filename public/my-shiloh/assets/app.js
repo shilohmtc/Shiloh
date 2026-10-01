@@ -1935,6 +1935,7 @@
     event.preventDefault();
     if (authActionInFlight) return;
     const form = event.currentTarget;
+    let codeSent = false;
     authActionInFlight = true;
     setAuthControlsDisabled(true);
     setAuthStatus('Sending your code…', 'working');
@@ -1947,13 +1948,13 @@
       if (!response.ok || result.status !== 'code_sent') throw new Error(result.error || 'Could not send your code.');
       for (const item of smsCompleteForms) item.hidden = false;
       setAuthStatus('Check your SMS and enter the code below.', 'waiting');
-      smsCompleteForms.find((item) => item.closest('[data-view]')?.hidden === false ||
-        item.closest('[data-install-gate]')?.hidden === false)?.elements.namedItem('code')?.focus();
+      codeSent = true;
     } catch (error) {
       setAuthStatus(error.message || 'Could not send your code.', 'error');
     } finally {
       authActionInFlight = false;
       setAuthControlsDisabled(false);
+      if (codeSent) form.parentElement.querySelector('[data-client-sms-complete]')?.elements.namedItem('code')?.focus();
     }
   }
 
