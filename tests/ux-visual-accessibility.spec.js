@@ -3086,7 +3086,7 @@ test('staff deactivation uses Shiloh confirmation, safe cancellation and inline 
   page.on('dialog', async dialog => { native.push(dialog.type()); await dialog.dismiss(); });
   let saves = 0;
   await page.route('**/calendar/staff-auth/csrf', route => route.fulfill({ status:200, contentType:'application/json', body:'{"csrfToken":"synthetic-csrf"}' }));
-  await page.route('**/calendar/team/41/status', route => { saves++; return route.fulfill({ status:409, contentType:'application/json', body:'{"error":"This profile changed. Refresh and try again."}' }); });
+  await page.route('**/calendar/team/41/status', route => { saves++; return route.fulfill({ status:409, contentType:'application/json', body:'{"error":"This profile changed. Refresh and try again.","code":"WORKSPACE_STAFF_STALE_REVISION"}' }); });
   for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1280,height:900 }]) {
     await page.setViewportSize(viewport);
     await page.goto('/iframe.html?id=workspace-staff-access--staff-detail&viewMode=story', { waitUntil:'networkidle' });
