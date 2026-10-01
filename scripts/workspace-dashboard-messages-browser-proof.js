@@ -547,7 +547,7 @@ async function main() {
         if (name === 'desktop-dashboard' || name === 'phone-dashboard') {
           const before = state.syntheticProposalRequests.length;
           await evaluate(cdp, `document.querySelector('[data-booking-request] [data-booking-action="propose"]').click();true`);
-          await poll(() => evaluate(cdp, `document.querySelector('[data-booking-request-status]').textContent.trim()`), value => value === 'Choose an alternative date and time.');
+          await poll(() => evaluate(cdp, `document.querySelector('[data-booking-request-status] .shiloh-error-copy').textContent.trim()`), value => value === 'Choose an alternative date and time.');
           assert.equal(state.syntheticProposalRequests.length, before, `${name} sent an invalid blank proposal`);
           await evaluate(cdp, `(()=>{const card=document.querySelector('[data-booking-request]');card.querySelector('[data-proposal-date]').value='2026-09-14';card.querySelector('[data-proposal-time]').value='10:00';card.querySelector('[data-booking-action="propose"]').click();return true;})()`);
           await poll(() => evaluate(cdp, `document.querySelector('[data-booking-request-status]').textContent.trim()`), value => value.includes('practitioner is already booked'));

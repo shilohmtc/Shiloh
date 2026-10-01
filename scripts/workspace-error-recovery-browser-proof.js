@@ -30,7 +30,7 @@ async function main() {
       state.recoveryManage = true;
       state.recoveryScope = true;
       await page.goto(`https://127.0.0.1:${server.address().port}/proof/christel`);
-      await page.locator('[data-calendar-operation="manage-appointment"]').first().click();
+      await page.locator('[data-appointment-management-target="true"]').first().click();
       const panel = page.locator('[data-calendar-management-panel]');
       await panel.locator('[data-appointment-editor-toggle="practitioner"]').click();
       const form = panel.locator('[data-panel-action="appointment:reassign"]');
