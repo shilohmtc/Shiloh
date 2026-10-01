@@ -13,6 +13,11 @@ const {
   MessageSquare,
   Plus,
   Ellipsis,
+  Smartphone,
+  KeyRound,
+  Headset,
+  Phone,
+  UserRoundPlus,
 } = require('lucide');
 
 const SHILOH_ICONS = Object.freeze({
@@ -30,6 +35,11 @@ const SHILOH_ICONS = Object.freeze({
   message: MessageSquare,
   add: Plus,
   more: Ellipsis,
+  phone: Smartphone,
+  key: KeyRound,
+  help: Headset,
+  call: Phone,
+  register: UserRoundPlus,
 });
 
 function escapeHtml(value) {

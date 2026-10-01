@@ -46,6 +46,7 @@
   const recoveryCodeDisplay = document.querySelector('[data-passkey-recovery-code]');
   const recoveryForms = [...document.querySelectorAll('[data-passkey-recovery-form]')];
   const authLogoutButtons = [...document.querySelectorAll('[data-client-auth-logout]')];
+  const smsOpenButtons = [...document.querySelectorAll('[data-client-sms-open]')];
   const smsStartForms = [...document.querySelectorAll('[data-client-sms-start]')];
   const smsCompleteForms = [...document.querySelectorAll('[data-client-sms-complete]')];
   const authStatusHosts = [...document.querySelectorAll('[data-auth-status]')];
@@ -893,7 +894,7 @@
   }
 
   function setAuthControlsDisabled(disabled) {
-    for (const button of [...passkeySignInButtons, ...authLogoutButtons]) button.disabled = Boolean(disabled);
+    for (const button of [...passkeySignInButtons, ...authLogoutButtons, ...smsOpenButtons]) button.disabled = Boolean(disabled);
     for (const form of [...smsStartForms, ...smsCompleteForms]) {
       form.querySelectorAll('button,input').forEach((control) => { control.disabled = Boolean(disabled); });
     }
@@ -1911,10 +1912,30 @@
     });
   });
 
+  smsOpenButtons.forEach((button) => button.addEventListener('click', () => {
+    if (authActionInFlight) return;
+    const panel = document.getElementById(button.getAttribute('aria-controls'));
+    if (!panel) return;
+    const recovering = button.dataset.clientSmsOpen === 'recover';
+    panel.querySelector('[data-client-sms-title]').textContent = recovering
+      ? 'Open My Shiloh on your new phone' : 'Register for My Shiloh';
+    panel.querySelector('[data-client-sms-copy]').textContent = recovering
+      ? 'Verify the mobile number on your existing Shiloh profile with an SMS code, then save a passkey on this phone.'
+      : 'Verify your number with an SMS code, then save a passkey for future sign-ins. If you already have a Shiloh profile, we’ll reconnect you to it.';
+    panel.hidden = false;
+    smsOpenButtons.filter((item) => item.getAttribute('aria-controls') === panel.id)
+      .forEach((item) => item.setAttribute('aria-expanded', String(item === button)));
+    const codeForm = panel.querySelector('[data-client-sms-complete]');
+    const focus = codeForm && !codeForm.hidden ? codeForm.elements.namedItem('code')
+      : panel.querySelector(recovering ? 'input[name="mobile"]' : 'input[name="name"]');
+    focus?.focus();
+  }));
+
   async function beginSmsAuth(event) {
     event.preventDefault();
     if (authActionInFlight) return;
     const form = event.currentTarget;
+    let codeSent = false;
     authActionInFlight = true;
     setAuthControlsDisabled(true);
     setAuthStatus('Sending your code…', 'working');
@@ -1927,13 +1948,13 @@
       if (!response.ok || result.status !== 'code_sent') throw new Error(result.error || 'Could not send your code.');
       for (const item of smsCompleteForms) item.hidden = false;
       setAuthStatus('Check your SMS and enter the code below.', 'waiting');
-      smsCompleteForms.find((item) => item.closest('[data-view]')?.hidden === false ||
-        item.closest('[data-install-gate]')?.hidden === false)?.elements.namedItem('code')?.focus();
+      codeSent = true;
     } catch (error) {
       setAuthStatus(error.message || 'Could not send your code.', 'error');
     } finally {
       authActionInFlight = false;
       setAuthControlsDisabled(false);
+      if (codeSent) form.parentElement.querySelector('[data-client-sms-complete]')?.elements.namedItem('code')?.focus();
     }
   }
 

@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20260930-dialog-standard-v1';
+const MY_SHILOH_ASSET_VERSION = '20261001-register-icons-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -42,10 +42,15 @@ function serviceCards(catalogue = [], authenticated = false) {
     .join('');
 }
 
-function smsSignInForm() {
-  return `<details class="sms-setup-choice" data-client-sms-choice>
-    <summary class="auth-choice-summary"><svg class="auth-choice-summary__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="6" y="2.5" width="12" height="19" rx="2"/><path d="M10 18.5h4"/></svg><span>New to My Shiloh or using a new phone?</span><svg class="auth-choice-summary__chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></summary>
-    <p>Verify your number with an SMS code, then save a passkey for future sign-ins. You can also use this if you’ve lost access to your passkey.</p>
+function smsRegisterButton(scope) {
+  return `<button class="button button--primary button--wide register-choice" type="button" data-client-sms-open="register" aria-controls="${scope}-sms-setup" aria-expanded="false">${renderShilohIcon('register', { size: 24 })}<span>Register</span></button>`;
+}
+
+function smsSignInForm(scope) {
+  return `<button class="auth-choice-summary sms-recovery-choice" type="button" data-client-sms-open="recover" aria-controls="${scope}-sms-setup" aria-expanded="false">${renderShilohIcon('phone', { size: 24, className: 'auth-choice-summary__icon' })}<span>Already registered, but using a new phone?</span>${renderShilohIcon('next', { size: 18, className: 'auth-choice-summary__chevron' })}</button>
+  <section class="sms-setup-choice" id="${scope}-sms-setup" data-client-sms-choice aria-labelledby="${scope}-sms-title" hidden>
+    <h2 id="${scope}-sms-title" data-client-sms-title>Register for My Shiloh</h2>
+    <p data-client-sms-copy>Verify your number with an SMS code, then save a passkey for future sign-ins. If you already have a Shiloh profile, we’ll reconnect you to it.</p>
     <form class="sms-auth-form" data-client-sms-start>
     <label>Full name<input name="name" autocomplete="name" maxlength="120" required placeholder="Your name"></label>
     <label>Mobile number<input name="mobile" type="tel" autocomplete="tel-national" inputmode="tel" required placeholder="082 123 4567"></label>
@@ -56,7 +61,7 @@ function smsSignInForm() {
     <button class="button button--primary button--wide" type="submit">Open My Shiloh</button>
     <p>Sent to your phone. The code works for 10 minutes.</p>
     </form>
-  </details>`;
+  </section>`;
 }
 
 function johannesburgGreeting(now = new Date()) {
@@ -104,11 +109,11 @@ function renderMyShilohPage({
   const clientName = authenticated ? escapeHtml(client.name || client.firstName) : '';
   const firstName = authenticated ? escapeHtml(client.firstName) : '';
   const passkeySignInButton = passkeysAvailable
-    ? `<button class="button button--soft button--wide passkey-choice" type="button" data-passkey-sign-in>Sign in with a passkey</button>`
+    ? `<button class="button button--soft button--wide passkey-choice" type="button" data-passkey-sign-in>${renderShilohIcon('key', { size: 24 })}<span>Sign in with a passkey</span></button>`
     : '';
   const passkeyRecovery = passkeysAvailable
-    ? `<details class="passkey-recovery"><summary class="auth-choice-summary"><svg class="auth-choice-summary__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9 2 2-2 2 1 1-2 2-1-1-4 4"/></svg><span>Can’t use your passkey?</span><svg class="auth-choice-summary__chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></summary>
-         <p>Use the recovery code you saved when setting up My Shiloh.${smsAvailable ? ' If you’re on a new phone, you can also verify your number above.' : ''}</p>
+    ? `<details class="passkey-recovery"><summary class="auth-choice-summary">${renderShilohIcon('key', { size: 24, className: 'auth-choice-summary__icon' })}<span>Can’t use your passkey?</span>${renderShilohIcon('next', { size: 18, className: 'auth-choice-summary__chevron' })}</summary>
+         <p>Use the recovery code you saved when setting up My Shiloh.${smsAvailable ? ' If you’re on a new phone, choose the new-phone option above to verify your number.' : ''}</p>
          <form data-passkey-recovery-form>
            <label>Recovery code <input required autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text" placeholder="XXXXX-XXXXX-…" name="code"></label>
            <button class="button button--soft" type="submit">Use recovery code</button>
@@ -118,12 +123,12 @@ function renderMyShilohPage({
        </details>`
     : '';
   const recoveryHelp = (id) => `<details class="recovery-help" id="${id}">
-    <summary class="auth-choice-summary"><svg class="auth-choice-summary__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.5 13v-1a8.5 8.5 0 0 1 17 0v1M3.5 13.5v4a2 2 0 0 0 2 2h2v-7h-2a2 2 0 0 0-2 2Zm17 0v4a2 2 0 0 1-2 2h-2v-7h2a2 2 0 0 1 2 2Z"/></svg><span>Lost access to your phone and recovery code?</span><svg class="auth-choice-summary__chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></summary>
+    <summary class="auth-choice-summary">${renderShilohIcon('help', { size: 24, className: 'auth-choice-summary__icon' })}<span>Lost access to your phone and recovery code?</span>${renderShilohIcon('next', { size: 18, className: 'auth-choice-summary__chevron' })}</summary>
     <div class="recovery-help__body">
       <p>Contact Reception if you no longer have your phone or recovery code. Please don’t share sign-in codes.</p>
       <div class="recovery-help__actions">
-        <a class="button button--soft" href="tel:+${receptionPhone}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 3.5h4l1.3 4.1-2.1 1.7a15 15 0 0 0 6.5 6.5l1.7-2.1 4.1 1.3v4a2 2 0 0 1-2.1 2A18.5 18.5 0 0 1 3 5.6 2 2 0 0 1 5 3.5Z"/></svg>Call Reception</a>
-        <a class="button button--soft" href="${escapeHtml(receptionRecoveryWhatsApp)}" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 11.5a8 8 0 0 1-8 8 8.5 8.5 0 0 1-3.6-.8L4 20l1.3-4.4A8 8 0 1 1 20 11.5Z"/><path d="M8 10.3c.7 2.4 2.4 4.1 4.8 4.8l1.4-1.3 2.2.7"/></svg>WhatsApp Reception</a>
+        <a class="button button--soft" href="tel:+${receptionPhone}">${renderShilohIcon('call', { size: 18 })}Call Reception</a>
+        <a class="button button--soft" href="${escapeHtml(receptionRecoveryWhatsApp)}" rel="noopener noreferrer">${renderShilohIcon('message', { size: 18 })}WhatsApp Reception</a>
       </div>
       <small>Call or message ${receptionDisplay}. Reception will check that it’s your account before helping.</small>
     </div>
@@ -138,10 +143,11 @@ function renderMyShilohPage({
     : `<div class="hero">
         <p class="eyebrow">Welcome to My Shiloh</p>
         <h1 id="home-title">Your Shiloh, all in one place.</h1>
-        <p class="hero-copy">${passkeysAvailable ? 'Use your passkey to open your personal Shiloh space.' : smsAvailable ? 'Verify your number to set up My Shiloh on this device.' : 'Sign-in is temporarily unavailable. Please contact Reception for help.'}</p>
+        <p class="hero-copy">${smsAvailable ? (passkeysAvailable ? 'New here? Register to get started. Already registered? Sign in with your passkey.' : 'New here? Register to get started. Already registered? Verify your number to open My Shiloh.') : passkeysAvailable ? 'Sign in with your saved passkey to open your personal Shiloh space.' : 'Sign-in is temporarily unavailable. Please contact Reception for help.'}</p>
         <div class="hero-actions${smsAvailable ? ' hero-actions--sms' : ''}">
+          ${smsAvailable ? smsRegisterButton('home') : ''}
           ${passkeySignInButton}
-          ${smsAvailable ? smsSignInForm() : ''}
+          ${smsAvailable ? smsSignInForm('home') : ''}
           ${passkeyRecovery}
         </div>
         ${recoveryHelp('home-recovery-help')}
@@ -170,7 +176,7 @@ function renderMyShilohPage({
         </div>
         <ol class="booking-steps">
           <li><strong>Explore treatments</strong><span>See what feels right for you.</span></li>
-          <li><strong>Confirm it’s you</strong><span>${passkeysAvailable ? 'Sign in with your passkey. New clients can verify by SMS to set one up.' : smsAvailable ? 'Verify your number by SMS to get started.' : 'Sign in securely.'}</span></li>
+          <li><strong>Confirm it’s you</strong><span>${passkeysAvailable ? 'Register if you’re new, or sign in with your saved passkey.' : smsAvailable ? 'Verify your number by SMS to get started.' : 'Sign in securely.'}</span></li>
           <li><strong>Request a time</strong><span>Reception confirms your appointment before it’s booked.</span></li>
         </ol>
       </section>`;
@@ -306,8 +312,9 @@ function renderMyShilohPage({
         <h1 id="profile-title">Your Shiloh, remembered.</h1>
         <p>${passkeysAvailable ? 'Sign in with your passkey.' : smsAvailable ? 'Verify your number to set up My Shiloh.' : 'Sign-in is temporarily unavailable. Please contact Reception for help.'}</p>
       </div>
+      ${smsAvailable ? smsRegisterButton('profile') : ''}
       ${passkeySignInButton}
-      ${smsAvailable ? smsSignInForm() : ''}
+      ${smsAvailable ? smsSignInForm('profile') : ''}
       ${passkeyRecovery}
       ${recoveryHelp('profile-recovery-help')}
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
@@ -337,8 +344,9 @@ function renderMyShilohPage({
         <h1 id="wallet-title">Your Shiloh value, together.</h1>
         <p>Sign in to see your vouchers, rewards and payment shortcuts.</p>
       </div>
+      ${smsAvailable ? smsRegisterButton('wallet') : ''}
       ${passkeySignInButton}
-      ${smsAvailable ? smsSignInForm() : ''}
+      ${smsAvailable ? smsSignInForm('wallet') : ''}
       ${passkeyRecovery}
       ${recoveryHelp('wallet-recovery-help')}
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
@@ -511,11 +519,11 @@ function renderMyShilohPage({
     </main>
 
     <nav class="bottom-nav" aria-label="My Shiloh">
-      <a href="#home" data-view-target="home" aria-current="page">${renderShilohIcon('home', { size: 21, className: 'nav-icon' })}<span>Home</span></a>
-      <a href="#bookings" data-view-target="bookings">${renderShilohIcon('calendar', { size: 21, className: 'nav-icon' })}<span>Bookings</span></a>
+      <a href="#home" data-view-target="home" aria-current="page">${renderShilohIcon('home', { size: 24, className: 'nav-icon' })}<span>Home</span></a>
+      <a href="#bookings" data-view-target="bookings">${renderShilohIcon('calendar', { size: 24, className: 'nav-icon' })}<span>Bookings</span></a>
       <a class="nav-shiloh" href="#shiloh" data-view-target="shiloh"><span class="nav-orb" aria-hidden="true">S</span><span>Shiloh</span></a>
-      <a href="#wallet" data-view-target="wallet">${renderShilohIcon('wallet', { size: 21, className: 'nav-icon' })}<span>Wallet</span></a>
-      <a href="#profile" data-view-target="profile">${renderShilohIcon('person', { size: 21, className: 'nav-icon' })}<span>Profile</span></a>
+      <a href="#wallet" data-view-target="wallet">${renderShilohIcon('wallet', { size: 24, className: 'nav-icon' })}<span>Wallet</span></a>
+      <a href="#profile" data-view-target="profile">${renderShilohIcon('person', { size: 24, className: 'nav-icon' })}<span>Profile</span></a>
     </nav>
   </div>
 

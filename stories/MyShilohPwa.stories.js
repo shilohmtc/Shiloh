@@ -111,11 +111,32 @@ export const SmsAndPasskeyGuest = {
   render: () => productionSurface(null, { passkeysAvailable: true, smsAvailable: true }),
 };
 
+export const RegisterEntry = {
+  render: () => {
+    const surface = productionSurface(null, { passkeysAvailable: true, smsAvailable: true });
+    surface.querySelector('[data-view="home"] [data-client-sms-choice]').hidden = false;
+    surface.querySelector('[data-view="home"] [data-client-sms-open="register"]').setAttribute('aria-expanded', 'true');
+    return surface;
+  },
+};
+
+export const NewPhoneRecovery = {
+  render: () => {
+    const surface = productionSurface(null, { passkeysAvailable: true, smsAvailable: true });
+    const home = surface.querySelector('[data-view="home"]');
+    home.querySelector('[data-client-sms-choice]').hidden = false;
+    home.querySelector('[data-client-sms-title]').textContent = 'Open My Shiloh on your new phone';
+    home.querySelector('[data-client-sms-copy]').textContent = 'Verify the mobile number on your existing Shiloh profile with an SMS code, then save a passkey on this phone.';
+    home.querySelector('[data-client-sms-open="recover"]').setAttribute('aria-expanded', 'true');
+    return surface;
+  },
+};
+
 export const SmsCodeEntry = {
   render: () => {
     const surface = productionSurface(null, { passkeysAvailable: true, smsAvailable: true });
     const choice = surface.querySelector('[data-view="home"] [data-client-sms-choice]');
-    if (choice) choice.open = true;
+    if (choice) choice.hidden = false;
     const code = surface.querySelector('[data-view="home"] [data-client-sms-complete]');
     if (code) code.hidden = false;
     const status = surface.querySelector('[data-view="home"] [data-auth-status]');
