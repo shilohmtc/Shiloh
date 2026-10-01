@@ -4,6 +4,12 @@
 
 **Status:** canonical orientation map, updated 2026-09-24. This document does not replace application code, migrations, approved policies, Figma files, workflow definitions or production evidence. Those remain the authorities linked below.
 
+## Shared Shiloh direction — accepted 1 October 2026
+
+Workspace for the clinic team and My Shiloh for clients are the heart of one Shiloh platform and its shared north star. Use the existing Lucide outline icons across both, with a 24-unit viewBox, rounded strokes and consistent 2-unit stroke weight; the official S mark remains the brand anchor. Reuse the shared icon renderers rather than hand-drawing substitutes.
+
+The installed client welcome screen must distinguish **Register** from **Sign in with a passkey**. Installation does not create a profile or passkey. Give existing clients on a new phone a separately named recovery action. Registration and new-phone recovery reuse the existing verified SMS/CRM identity flow and subsequent passkey setup; neither introduces a second profile authority. Keep saved-code and human Reception recovery available. The browser installation doorway stays focused on installing; registration lives in the installed app.
+
 ## How to use this handbook
 
 - Use it to find the right system, document or tool before making a change.
