@@ -242,7 +242,7 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
     const seed = await queryable.query(
       `SELECT a.id,a.created_at,
               gm.group_id,
-              g.group_type,
+              g.group_type,g.source AS group_source,
               COALESCE(g.final_total,g.total_price,a.total_price) AS canonical_total,
               COALESCE(g.updated_at,a.updated_at) AS pricing_revision,
               a.currency
@@ -304,6 +304,7 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
       appointmentId: id,
       groupId: root.group_id ? Number(root.group_id) : null,
       groupType: root.group_type || null,
+      groupSource: root.group_source || null,
       amountDue: moneyText(root.canonical_total),
       pricingRevision: new Date(root.pricing_revision).toISOString(),
       currency: String(root.currency || 'ZAR'),
