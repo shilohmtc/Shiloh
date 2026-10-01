@@ -3114,7 +3114,9 @@ test('staff deactivation uses Shiloh confirmation, safe cancellation and inline 
     expect(saves).toBe(before);
     await trigger.click();
     await dialog.getByRole('button', { name:'Deactivate staff' }).click();
-    await expect(page.locator('[data-staff-status-form]').locator('..').getByRole('status')).toHaveText('This profile changed. Refresh and try again.');
+    const recovery=page.locator('[data-staff-status-form]').locator('..').getByRole('alert');
+    await expect(recovery.locator('.shiloh-error-copy')).toHaveText('This profile changed. Refresh and try again.');
+    await expect(recovery.getByRole('link',{name:'Review latest record'})).toHaveAttribute('target','_blank');
     await expect(trigger).toBeEnabled();
     expect(saves).toBe(before + 1);
   }
