@@ -36,6 +36,7 @@ const { createProblemReportService, ProblemReportError } = require('../services/
 const { defaultPushService } = require('../services/myShilohPush');
 const { queueWorkspaceAlert } = require('../services/workspacePush');
 const { createMyShilohBookingService, MyShilohBookingError } = require('../services/myShilohBooking');
+const { createMyShilohMultipleBookingService } = require('../services/myShilohMultipleBooking');
 const { createClientPlanningRequestService, ClientPlanningRequestError } = require('../services/clientPlanningRequests');
 const { createClientHumanHandoffService, ClientHumanHandoffError } = require('../services/clientHumanHandoffs');
 const { createClientWhatsAppContinuationService } = require('../services/clientWhatsAppContinuation');
@@ -106,6 +107,7 @@ function createMyShilohRouter({
   problemReportService = createProblemReportService({ db: pool }),
   pushService = defaultPushService,
   bookingService = createMyShilohBookingService({ db: pool, catalogueProvider }),
+  multipleBookingService = createMyShilohMultipleBookingService({ db:pool, booking:bookingService }),
   proposalService = bookingProposals,
   planningService = createClientPlanningRequestService({ db: pool }),
   humanHandoffService = createClientHumanHandoffService({ db: pool }),
@@ -449,6 +451,28 @@ function createMyShilohRouter({
       return next(error);
     }
   });
+
+  for (const action of ['review', 'confirm']) {
+    router.post(`/my-shiloh/api/booking/multiple/${action}`, sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+      try {
+        setNoStoreJson(res);
+        const payload = req.body && typeof req.body === 'object' ? req.body : {};
+        const allowed = new Set(action === 'review' ? ['treatments']
+          : ['treatments','quoteHash','requestId','policyAccepted','specialOccasion','occasionNote']);
+        if (Object.keys(payload).some(key => !allowed.has(key))) {
+          return res.status(422).json({ error:'Please review your appointments again.', requestId:req.id });
+        }
+        const input = { ...payload, crmV2ClientId:req.myShilohClientSession.crmV2ClientId };
+        const result = await multipleBookingService[action === 'review' ? 'review' : 'createRequest'](input);
+        return res.status(action === 'review' ? 200 : 201).json(result);
+      } catch (error) {
+        if (error instanceof MyShilohBookingError || error instanceof BookingDepositPolicyError) {
+          return res.status(error.httpStatus).json({ error:error.message, code:error.code, resolution:error.resolution, requestId:req.id });
+        }
+        return next(error);
+      }
+    });
+  }
 
   // Client passkeys use the existing verified client session authority.
   router.post('/my-shiloh/auth/passkeys/registration/options', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {

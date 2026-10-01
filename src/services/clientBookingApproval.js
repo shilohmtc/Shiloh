@@ -158,8 +158,8 @@ async function loadRequest(db, appointmentId, lock = false) {
   return result.rows?.[0] || null;
 }
 
-async function createPendingBookingApproval(db, { appointmentId, occasionNote = null, specialOccasion = null }) {
-  await ensureBookingApprovalInfrastructure(db);
+async function createPendingBookingApproval(db, { appointmentId, occasionNote = null, specialOccasion = null }, { schemaReady = false } = {}) {
+  if (!schemaReady) await ensureBookingApprovalInfrastructure(db);
   const result = await db.query(`
     INSERT INTO appointment_booking_approvals (
       appointment_id,approver_staff_id,status,approval_mode,

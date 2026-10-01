@@ -133,6 +133,7 @@ function createMyShilohClientContextService({
          LEFT JOIN appointment_booking_approvals aba ON aba.appointment_id=a.id
          LEFT JOIN appointment_group_members group_seed ON group_seed.appointment_id=a.id
          LEFT JOIN appointment_groups linked_group ON linked_group.id=group_seed.group_id
+           AND linked_group.source IS DISTINCT FROM 'shiloh_my_shiloh_multi'
         WHERE a.crm_v2_client_id=$1
           AND a.client_id IS NULL
           AND a.status = ANY($2::text[])
@@ -187,6 +188,7 @@ function createMyShilohClientContextService({
          LEFT JOIN appointment_booking_approvals aba ON aba.appointment_id=a.id
          LEFT JOIN appointment_group_members group_seed ON group_seed.appointment_id=a.id
          LEFT JOIN appointment_groups linked_group ON linked_group.id=group_seed.group_id
+           AND linked_group.source IS DISTINCT FROM 'shiloh_my_shiloh_multi'
         WHERE a.crm_v2_client_id=$1
           AND a.client_id IS NULL
           AND a.status = ANY($2::text[])

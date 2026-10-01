@@ -687,3 +687,21 @@ export const AlternativeTimeOffer = { render: () => proposalSurface() };
 export const AlternativeTimeChecking = { render: () => proposalSurface({ busy:true }) };
 export const AlternativeTimeReviewNeeded = { render: () => proposalSurface({ error:'Reception needs to review the price or deposit before this time can be accepted. Your proposal has not been confirmed.' }) };
 export const AlternativeTimeExpired = { render: () => proposalSurface({ expired:true }) };
+
+export const MultipleAppointmentReview = {
+  render: () => {
+    const root = bookingSurface();
+    root.querySelectorAll('[data-step]').forEach(node => { node.hidden = node.dataset.step !== '4'; });
+    root.querySelectorAll('[data-progress]').forEach(node => node.classList.toggle('is-active',node.dataset.progress === '4'));
+    root.querySelector('[data-current-review]').hidden = true;
+    const host = root.querySelector('[data-cart-items]'); host.hidden = false;
+    host.innerHTML = '<div class="cart-item"><strong>1. Hot Stone Massage</strong><small>Christel · Mon, 02 Nov 2026 · 10:00–11:15</small><small>R850.00</small><button class="button button--soft" type="button" aria-label="Change appointment 1">Change</button><button class="button button--soft" type="button" aria-label="Remove appointment 1">Remove</button></div><div class="cart-item"><strong>2. Signature Pedicure</strong><small>Abigail · Tue, 03 Nov 2026 · 10:00–11:15</small><small>R620.00</small><button class="button button--soft" type="button" aria-label="Change appointment 2">Change</button><button class="button button--soft" type="button" aria-label="Remove appointment 2">Remove</button></div>';
+    root.querySelector('[data-cart-totals]').hidden = false;
+    root.querySelector('[data-cart-total]').textContent = 'R1470.00';
+    root.querySelector('[data-cart-deposit]').textContent = 'R735.00';
+    root.querySelector('[data-review-deposit]').textContent = 'One deposit payment after every appointment is approved';
+    root.querySelector('[data-change-time]').hidden = true;
+    root.querySelector('[data-submit-booking]').textContent = 'Send booking requests';
+    return root;
+  },
+};

@@ -3260,3 +3260,59 @@ test('My Shiloh Register and new-phone recovery share verified SMS with retained
     await page.unroute('**/my-shiloh/auth/sms/start');
   }
 });
+
+test('My Shiloh multiple bookings review, remove and safely retry one combined request on Phone and Desktop', async ({ page }, testInfo) => {
+  const confirmations = [];
+  let failResponse = true;
+  await page.route('**/my-shiloh/api/booking/practitioners?**', route => route.fulfill({ status:200,contentType:'application/json',body:JSON.stringify({ practitioners:[{ id:11,name:'Christel',depositExempt:false }] }) }));
+  await page.route('**/my-shiloh/api/booking/availability?**', route => {
+    const date = new URL(route.request().url()).searchParams.get('date');
+    return route.fulfill({ status:200,contentType:'application/json',body:JSON.stringify({ slots:[{ startsAt:date+'T08:00:00.000Z',endsAt:date+'T09:15:00.000Z',date,time:'10:00',endTime:'11:15' }] }) });
+  });
+  await page.route('**/my-shiloh/api/booking/multiple/review', route => route.fulfill({ status:200,contentType:'application/json',body:JSON.stringify({ total:'1470.00',deposit:'735.00',quoteHash:'a'.repeat(64),treatments:[{ price:'850.00' },{ price:'620.00' }] }) }));
+  await page.route('**/my-shiloh/api/booking/multiple/confirm', route => {
+    confirmations.push(route.request().postDataJSON());
+    if (failResponse) { failResponse = false; return route.abort('failed'); }
+    return route.fulfill({ status:201,contentType:'application/json',body:JSON.stringify({ message:'All selected times are held. Pay one combined deposit after every appointment is approved.' }) });
+  });
+  for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1365,height:950 }]) {
+    failResponse = true;
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-native-booking&viewMode=story', { waitUntil:'networkidle' });
+    await page.addScriptTag({ url:'/my-shiloh/assets/booking.js' });
+    async function choose(id,date) {
+      await page.locator(`[data-book-service][data-service-id="${id}"]`).click();
+      await page.locator('[data-practitioner-id="11"]').click();
+      await page.locator('[data-booking-date]').fill(date);
+      await page.getByRole('button',{ name:'Show available times' }).click();
+      await page.getByRole('button',{ name:/10:00–11:15/ }).click();
+    }
+    await choose(101,'2026-11-02');
+    await page.getByRole('button',{ name:'Add another booking' }).click();
+    await expect(page.locator('[data-cart-count]')).toHaveText('1 appointment selected');
+    await choose(103,'2026-11-03');
+    await expect(page.locator('[data-cart-total]')).toHaveText('R1470.00');
+    await expect(page.locator('[data-cart-deposit]')).toHaveText('R735.00');
+    await expect(page.locator('[data-cart-items]')).toContainText('Tue, 03 Nov 2026');
+    await page.screenshot({ path:testInfo.outputPath(`multiple-booking-review-${viewport.name}.png`),fullPage:true });
+    const accessibility = await new AxeBuilder({ page }).include('[data-my-shiloh-booking]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.getByRole('button',{ name:'Remove appointment 2' }).click();
+    await expect(page.locator('[data-current-review]')).toBeVisible();
+    await page.getByRole('button',{ name:'Add another booking' }).click();
+    await choose(103,'2026-11-03');
+    await expect(page.locator('[data-cart-total]')).toHaveText('R1470.00');
+    await page.locator('[data-special-occasion][value="no"]').check();
+    await page.locator('[data-policy-accepted]').check();
+    await page.getByRole('button',{ name:'Send booking requests' }).click();
+    await expect(page.locator('[data-confirm-status]')).toContainText('retry this same request safely');
+    await page.getByRole('button',{ name:'Send booking requests' }).click();
+    await expect(page.getByRole('heading',{ name:'Booking request sent.' })).toBeVisible();
+    const pair = confirmations.slice(-2);
+    expect(pair[0]).toEqual(pair[1]);
+    expect(pair[0].treatments).toHaveLength(2);
+    expect(pair[0].quoteHash).toBe('a'.repeat(64));
+    expect(pair[0]).not.toHaveProperty('crmV2ClientId');
+  }
+});

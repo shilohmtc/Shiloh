@@ -81,6 +81,11 @@ function createBookingPaymentService({
 
   async function ensureDepositRequest({ appointmentId } = {}) {
     const position = await deposits.ensureRequirement({ appointmentId });
+    if (position.scope?.groupSource === 'shiloh_my_shiloh_multi') {
+      const { clientGroupApprovalGate } = require('./myShilohMultipleBooking');
+      const gate = await clientGroupApprovalGate(db, position.scope.groupId);
+      if (!gate.ready) return { status:'awaiting_group_approval', deposit:position, requests:[] };
+    }
     if (!position.applicable || !position.requirement || position.requirement.state !== 'awaiting') {
       return { status:'not_required', deposit:position, requests:[] };
     }
@@ -215,7 +220,7 @@ function createBookingPaymentService({
     if (!position?.requirement?.transitioned) return;
     const { sendCustomerBookingConfirmationForAppointment } = require('./customerBookingConfirmation');
     for (const member of position.scope.members) {
-      try { await sendCustomerBookingConfirmationForAppointment(member.appointmentId); }
+      try { await sendCustomerBookingConfirmationForAppointment(member.appointmentId, { clientGroupDispatch:true }); }
       catch (error) { logger.error({ err:error, appointmentId:member.appointmentId }, 'Deposit satisfied but booking confirmation release failed'); }
     }
   }
@@ -529,7 +534,12 @@ function createBookingPaymentService({
                    ORDER BY agm.guest_position,agm.appointment_id
                    LIMIT 1
                 )) AS appointment_id,
-                payment_appointment.status AS appointment_status
+                CASE WHEN EXISTS (
+                  SELECT 1 FROM appointment_group_members gm JOIN appointment_groups g ON g.id=gm.group_id
+                  JOIN appointments member ON member.id=gm.appointment_id
+                  WHERE g.id=bpa.appointment_group_id AND g.source='shiloh_my_shiloh_multi'
+                    AND member.status='cancelled'
+                ) THEN 'cancelled' ELSE payment_appointment.status END AS appointment_status
            FROM payment_requests pr
            LEFT JOIN booking_payment_accounts bpa ON bpa.id=pr.payment_account_id
            LEFT JOIN appointments payment_appointment

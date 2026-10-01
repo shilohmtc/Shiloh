@@ -548,14 +548,14 @@ async function sendCustomerBookingConfirmationForAppointment(appointmentId,optio
   const db=options.db||pool;
   const r=await db.query(`
     SELECT a.id,a.client_id,
-           COALESCE(linked.starts_at,a.starts_at) AS starts_at,
-           COALESCE(linked.ends_at,a.ends_at) AS ends_at,
-           a.source,l.name AS location_name,
-           COALESCE(linked.service_name,(SELECT string_agg(service_name_snapshot,' + ' ORDER BY position) FROM appointment_services WHERE appointment_id=a.id),a.title,'Shiloh appointment') AS service_name,
-           COALESCE(linked.staff_name,(SELECT string_agg(staff_name_snapshot,' + ' ORDER BY position) FROM appointment_staff WHERE appointment_id=a.id),'Shiloh practitioner') AS staff_name
+           CASE WHEN linked.group_source='shiloh_my_shiloh_multi' THEN a.starts_at ELSE COALESCE(linked.starts_at,a.starts_at) END AS starts_at,
+           CASE WHEN linked.group_source='shiloh_my_shiloh_multi' THEN a.ends_at ELSE COALESCE(linked.ends_at,a.ends_at) END AS ends_at,
+           a.source,l.name AS location_name,linked.group_id,linked.group_source,
+           COALESCE(CASE WHEN linked.group_source IS DISTINCT FROM 'shiloh_my_shiloh_multi' THEN linked.service_name END,(SELECT string_agg(service_name_snapshot,' + ' ORDER BY position) FROM appointment_services WHERE appointment_id=a.id),a.title,'Shiloh appointment') AS service_name,
+           COALESCE(CASE WHEN linked.group_source IS DISTINCT FROM 'shiloh_my_shiloh_multi' THEN linked.staff_name END,(SELECT string_agg(staff_name_snapshot,' + ' ORDER BY position) FROM appointment_staff WHERE appointment_id=a.id),'Shiloh practitioner') AS staff_name
       FROM appointments a LEFT JOIN locations l ON l.id=a.location_id
       LEFT JOIN LATERAL (
-        SELECT ag.starts_at,ag.ends_at,
+        SELECT ag.id AS group_id,ag.source AS group_source,ag.starts_at,ag.ends_at,
                string_agg(aps.service_name_snapshot,' + ' ORDER BY gm.guest_position) AS service_name,
                string_agg(ast.staff_name_snapshot,' + ' ORDER BY gm.guest_position) AS staff_name
           FROM appointment_group_members seed
@@ -568,6 +568,19 @@ async function sendCustomerBookingConfirmationForAppointment(appointmentId,optio
       ) linked ON TRUE
      WHERE a.id=$1 AND a.status<>'cancelled'`,[appointmentId]);
   const a=r.rows[0];if(!a)return {sent:false,reason:'appointment_not_found'};
+  if(a.group_source==='shiloh_my_shiloh_multi'){
+    const {clientGroupApprovalGate}=require('./myShilohMultipleBooking');
+    const gate=await clientGroupApprovalGate(db,a.group_id);
+    if(!gate.ready)return {sent:false,reason:'practitioner_approval_required'};
+    // One deposit link; each independent visit retains its own confirmation/lifecycle.
+    if(options.clientGroupDispatch!==true){
+      const confirmations=[];
+      for(const memberId of gate.appointmentIds){
+        confirmations.push(await sendCustomerBookingConfirmationForAppointment(memberId,{...options,clientGroupDispatch:true}));
+      }
+      return {...confirmations[0],confirmations};
+    }
+  }
   if(options.controlledE2e===true){
     const authority=await loadBookingConfirmationAuthority(appointmentId,db);
     await (options.assertE2eTarget||assertControlledMessagingTestTarget)({
