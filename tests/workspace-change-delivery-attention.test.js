@@ -21,8 +21,10 @@ test('only clinic coordinators with notification authority see change delivery f
   assert.equal(sql,undefined);
   const rows=await service.list({authority:clinic,notificationAuthority:notice});
   assert.equal(rows[0].status,'uncertain');
-  assert.match(rows[0].nextAction,/may have accepted/);
+  assert.match(rows[0].nextAction,/phone-alert outcome is uncertain/);
   assert.match(sql,/crm_v2_client_relationships/);
+  assert.match(sql,/my_shiloh_push_notifications/);
+  assert.match(sql,/app_wake_unaccepted/);
   assert.match(sql,/relationship_type='clinic'/);
   assert.match(sql,/service_visibility_policies/);
   assert.match(sql,/status='sending'.*15 minutes/s);

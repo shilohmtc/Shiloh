@@ -10,7 +10,7 @@ const { queueClientNotification } = require("./myShilohPush");
 const REMINDER_HOURS = Number(process.env.APPOINTMENT_REMINDER_HOURS || 24);
 const FOLLOWUP_HOURS = Number(process.env.APPOINTMENT_FOLLOWUP_HOURS || 4);
 const SCAN_MINUTES = Number(process.env.APPOINTMENT_SCAN_MINUTES || 5);
-const LANGUAGE_CODE = process.env.WHATSAPP_TEMPLATE_LANGUAGE || "en";
+const LANGUAGE_CODE = "en";
 
 let initialized = false;
 let timer = null;
@@ -217,6 +217,7 @@ async function deliverClaimedReminder(appointment, reminderTemplate, reminderAct
     try {
       appDelivery = await notifyClient({
         crmV2ClientId: Number(appointment.crm_v2_client_id),
+        retryExisting: true,
         eventKey: `appointment-reminder:${appointment.appointment_id || appointment.id}:${new Date(appointment.appointment_at).toISOString()}`,
         category: 'appointment',
         title: 'Appointment reminder',
@@ -244,11 +245,11 @@ async function deliverClaimedReminder(appointment, reminderTemplate, reminderAct
 }
 
 async function processReminders() {
-  const paused=metaSignInOnly();
-  const reminderActionsTemplate=paused?null:process.env.WHATSAPP_REMINDER_ACTIONS_TEMPLATE;
-  const reminderTemplate=paused?null:reminderActionsTemplate||process.env.WHATSAPP_REMINDER_TEMPLATE;
-  const followupActionsTemplate=paused?null:process.env.WHATSAPP_FOLLOWUP_ACTIONS_TEMPLATE;
-  const followupTemplate=paused?null:followupActionsTemplate||process.env.WHATSAPP_FOLLOWUP_TEMPLATE;
+  const paused=true;
+  const reminderActionsTemplate=null;
+  const reminderTemplate=null;
+  const followupActionsTemplate=null;
+  const followupTemplate=null;
   const appOnlyReminders = paused || process.env.SHILOH_CLIENT_REMINDER_APP_ONLY_ENABLED === 'true';
   if(!reminderTemplate&&!followupTemplate&&!appOnlyReminders)return;
 
@@ -262,6 +263,6 @@ async function processReminders() {
 }
 
 async function runScan(){if(running)return;running=true;try{await processReminders();}catch(error){logger.error({err:error},"Appointment lifecycle scan failed");}finally{running=false;}}
-function startAppointmentLifecycleScheduler(){if(timer)return;logger.info({scanMinutes:SCAN_MINUTES,reminderHours:REMINDER_HOURS,followupHours:FOLLOWUP_HOURS,reminderTemplateConfigured:Boolean(process.env.WHATSAPP_REMINDER_TEMPLATE),reminderActionsTemplateConfigured:Boolean(process.env.WHATSAPP_REMINDER_ACTIONS_TEMPLATE),followupTemplateConfigured:Boolean(process.env.WHATSAPP_FOLLOWUP_TEMPLATE),followupActionsTemplateConfigured:Boolean(process.env.WHATSAPP_FOLLOWUP_ACTIONS_TEMPLATE)},"Appointment lifecycle scheduler started");setTimeout(runScan,5000).unref();timer=setInterval(runScan,Math.max(SCAN_MINUTES,1)*60*1000);timer.unref();}
+function startAppointmentLifecycleScheduler(){if(timer)return;logger.info({scanMinutes:SCAN_MINUTES,reminderHours:REMINDER_HOURS,followupHours:FOLLOWUP_HOURS,channel:"my_shiloh"},"Appointment lifecycle scheduler started");setTimeout(runScan,5000).unref();timer=setInterval(runScan,Math.max(SCAN_MINUTES,1)*60*1000);timer.unref();}
 
 module.exports={ensureTable,createAppointment,listAppointments,updateAppointmentStatus,claimDueReminder,deliverClaimedReminder,deliverClaimedFollowup,processReminders,startAppointmentLifecycleScheduler};

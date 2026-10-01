@@ -50,7 +50,8 @@ test('reminder action template is provider-safe and exposes deterministic change
   assert.match(reminderTemplate, /Reschedule/);
   assert.match(reminderTemplate, /Cancel booking/);
   assert.match(reminderTemplate, /QUICK_REPLY/);
-  assert.match(lifecycle, /WHATSAPP_REMINDER_ACTIONS_TEMPLATE/);
+  assert.doesNotMatch(lifecycle, /process\.env\.WHATSAPP_.*TEMPLATE/);
+  assert.match(lifecycle, /retryExisting: true/);
   assert.doesNotMatch(whatsapp, /quickReplyPayloads|axios|graph\.facebook/);
   assert.doesNotMatch(whatsapp, /sub_type/);
 });

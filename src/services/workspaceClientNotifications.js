@@ -55,6 +55,7 @@ function channelReady(env = process.env) {
 }
 
 async function defaultProviderGuard(env = process.env) {
+  if (env === process.env) throw new Error('Automated WhatsApp delivery is retired');
   const template = String(env.WHATSAPP_BOOKING_CONFIRMATION_TEMPLATE || '').trim();
   if (!template) throw new Error('Booking confirmation template is not configured');
   return assertTemplateSendAllowed(template, String(env.WHATSAPP_TEMPLATE_LANGUAGE || 'en').trim() || 'en');
@@ -391,6 +392,35 @@ function createWorkspaceClientNotificationService({
 
   async function listBookingConfirmationExceptions({ adminId, now = new Date() } = {}) {
     const authority = await requireAccess(adminId);
+    if (env === process.env) {
+      const clientAuthority = await require('./workspaceClients').createWorkspaceClientsService({ db }).requireAccess(adminId);
+      if (clientAuthority.clientScope.kind !== 'clinic') return { authority, exceptions: [], generatedAt: now.toISOString() };
+      const result = await db.query(`/* workspaceClientNotifications:appExceptions */
+        SELECT a.id AS appointment_id,a.starts_at,c.id AS client_id,c.name AS client_name,
+               COALESCE(a.title,'Shiloh appointment') AS service_name
+          FROM appointments a JOIN crm_v2_clients c ON c.id=a.crm_v2_client_id
+         WHERE a.client_id IS NULL AND a.source='shiloh_calendar'
+           AND a.created_at>=NOW()-INTERVAL '30 days' AND a.starts_at>NOW()
+           AND a.status IN ('scheduled','confirmed') AND c.status='active'
+           AND EXISTS (SELECT 1 FROM crm_v2_client_relationships rel
+             WHERE rel.client_id=c.id AND rel.relationship_type='clinic'
+               AND rel.owner_staff_id IS NULL AND rel.status='active')
+           AND NOT EXISTS (SELECT 1 FROM appointment_services aps
+             JOIN service_visibility_policies p ON p.service_id=aps.service_id
+              AND p.visibility_scope='tenant_private' WHERE aps.appointment_id=a.id)
+           AND NOT EXISTS (SELECT 1 FROM my_shiloh_push_notifications n
+             WHERE n.crm_v2_client_id=c.id AND n.event_key LIKE 'appointment-confirmation:'||a.id::text||':%'
+               AND n.expires_at>NOW())
+         ORDER BY a.starts_at,a.id LIMIT 100`);
+      return { authority, generatedAt: now.toISOString(), exceptions: result.rows.map(row => ({
+        client: { id: Number(row.client_id), name: row.client_name },
+        appointment: { id: Number(row.appointment_id), startsAt: row.starts_at, serviceName: row.service_name },
+        canRecover: false,
+        confirmation: { status: 'unavailable', statusLabel: 'App update unavailable',
+          deliveryExplanation: 'No current confirmation update is available in My Shiloh. The booking remains available in Bookings.' },
+        recoveryExplanation: 'Review the booking and contact the client directly if timely notice matters.',
+      })) };
+    }
     const result = await db.query(
       `/* workspaceClientNotifications:exceptions */
        SELECT c.id AS client_id,c.name AS client_name,c.normalized_mobile,c.mobile_verified_at,c.status AS client_status,

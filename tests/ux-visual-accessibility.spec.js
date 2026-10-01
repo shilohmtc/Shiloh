@@ -8,7 +8,7 @@ test('Reception sees uncertain booking-change delivery without a blind resend on
     await page.goto('/iframe.html?id=workspace-production-surfaces--messages-change-delivery-attention&viewMode=story',{waitUntil:'networkidle'});
     const card=page.locator('[data-change-delivery-attention="701"]');
     await expect(card).toContainText('Send status uncertain');
-    await expect(card).toContainText('may have accepted the previous attempt');
+    await expect(card).toContainText('phone-alert outcome is uncertain');
     await expect(card.getByRole('link',{name:'Review client'})).toHaveAttribute('href','/calendar/clients/912');
     await expect(card.getByRole('button',{name:/send|retry/i})).toHaveCount(0);
     const axe=await new AxeBuilder({page}).include('[data-messages-attention]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();

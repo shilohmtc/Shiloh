@@ -424,7 +424,8 @@ async function main() {
       text:document.body.innerText
     })`);
     assert.equal(lookupOnlyPage.hasPreviewLink, false);
-    assert.match(lookupOnlyPage.text, /Additional capability required: client:notify/);
+    assert.match(lookupOnlyPage.text, /My Shiloh updates/);
+    assert.doesNotMatch(lookupOnlyPage.text, /Send booking confirmation|Additional capability required: client:notify/);
     const deniedPreview = await evaluate(cdp, `(async()=>{const r=await fetch('/calendar/clients/${CLIENT_ID}/booking-confirmation',{cache:'no-store'});return{status:r.status,text:await r.text()};})()`);
     assert.equal(deniedPreview.status, 403);
     assert.match(deniedPreview.text, /does not permit client notifications/i);
@@ -444,9 +445,11 @@ async function main() {
       hasPreviewLink:[...document.querySelectorAll('a')].some(a=>a.textContent.includes('Preview booking confirmation')),
       evidenceText:document.querySelector('[data-client-communications]')?.innerText||''
     })`);
-    assert.equal(authorizedPage.hasPreviewLink, true);
+    assert.equal(authorizedPage.hasPreviewLink, false, 'Retired transport control must remain absent even for notification-authorized staff');
     assert.match(authorizedPage.evidenceText, /No recorded Shiloh notifications yet/);
-    await evaluate(cdp, `[...document.querySelectorAll('a')].find(a=>a.textContent.includes('Preview booking confirmation')).click();true`);
+    // Historical injected transport fixture: exercise the existing authorization
+    // boundary directly; the production client view has no transport action.
+    await navigate(`${origin}/calendar/clients/${CLIENT_ID}/booking-confirmation`);
     await poll(() => evaluate(cdp, 'location.pathname'), value => value.endsWith('/booking-confirmation'));
     await poll(() => evaluate(cdp, 'document.readyState'), value => value === 'complete');
     const previewState = await evaluate(cdp, `({

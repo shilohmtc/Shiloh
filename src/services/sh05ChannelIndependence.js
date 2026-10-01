@@ -34,12 +34,15 @@ async function queueIndependentMyShilohNotification(details, { channel = 'my_shi
   const clientId = Number(details?.crmV2ClientId);
   if (!Number.isSafeInteger(clientId) || clientId <= 0) return { queued: false, status: 'unavailable', reason: 'crm_v2_client_unavailable' };
   try {
-    const result = await queueClientNotification(appointmentDetails(details));
+    const result = await queueClientNotification({ ...appointmentDetails(details), retryExisting: true });
     const outcome = {
       queued: result?.queued === true,
       status: result?.queued === true ? 'queued' : 'failed',
-      reason: result?.reason || null,
+      reason: result?.reason || (result?.queued === true ? null : 'notification_not_available'),
       notificationId: result?.notificationId || null,
+      duplicate: result?.duplicate === true,
+      attempted: Number(result?.attempted) || 0,
+      configured: result?.configured === true,
       accepted: result?.queued === true ? Number(result?.accepted) || 0 : 0,
       channel,
     };

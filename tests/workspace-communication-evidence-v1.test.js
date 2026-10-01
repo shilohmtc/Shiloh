@@ -13,53 +13,11 @@ const {
 } = require('../src/presentation/workspaceCommunicationEvidenceUx');
 
 function dbForEvidence() {
-  return {
-    calls: [],
-    async query(sql, values) {
-      this.calls.push({ sql, values });
-      if (/messageDeliveries/.test(sql)) {
-        return { rows: [
-          {
-            appointment_id: 71,
-            message_kind: 'booking_confirmation',
-            status: 'sent',
-            claimed_at: '2026-09-01T08:00:00.000Z',
-            sent_at: '2026-09-01T08:00:04.000Z',
-            last_attempt_at: '2026-09-01T08:00:03.000Z',
-            template_name: 'shiloh_booking_confirmation_v2',
-            provider_sent_at: '2026-09-01T08:00:05.000Z',
-            provider_delivered_at: '2026-09-01T08:00:08.000Z',
-            provider_read_at: '2026-09-01T08:01:00.000Z',
-            provider_failed_at: null,
-          },
-          {
-            appointment_id: 72,
-            message_kind: 'appointment_reminder_actions',
-            status: 'sending',
-            claimed_at: '2026-09-02T07:00:00.000Z',
-            sent_at: null,
-            last_attempt_at: null,
-            template_name: 'shiloh_appointment_reminder_actions_v1',
-            provider_sent_at: null,
-            provider_delivered_at: null,
-            provider_read_at: null,
-            provider_failed_at: null,
-          },
-        ] };
-      }
-      if (/reschedules/.test(sql)) {
-        return { rows: [
-          { appointment_id: 73, client_notified_at: null, client_notification_last_error: 'provider unavailable', client_notification_claimed_at: '2026-09-02T06:00:00.000Z', client_notification_suppressed_at: null, updated_at: '2026-09-02T06:01:00.000Z' },
-        ] };
-      }
-      if (/customerCare/.test(sql)) {
-        return { rows: [
-          { event_type: 'birthday_v2', sent_at: '2026-08-30T09:00:00.000Z' },
-        ] };
-      }
-      throw new Error('Unexpected query');
-    },
-  };
+  return { calls: [], async query(sql, values) {
+    this.calls.push({ sql, values });
+    return { rows: [{ category: 'appointment', title: 'Appointment confirmed', appointment_id: 71,
+      client_id: 912, client_name: 'Client', created_at: '2026-10-01T08:00:00Z' }] };
+  } };
 }
 
 function clientDetailModel(overrides = {}) {
@@ -83,33 +41,21 @@ function clientDetailModel(overrides = {}) {
   };
 }
 
-test('communication evidence reads provider lifecycle and exact template without exposing provider identifiers', async () => {
+test('current communication reads only My Shiloh events with client and appointment scope', async () => {
   const db = dbForEvidence();
   const service = createWorkspaceCommunicationEvidenceService({ db });
-  const evidence = await service.listForClient({ clientId: 912, waId: '+27 82 123 4567', limit: 30 });
-
-  assert.equal(db.calls.length, 3);
-  assert.match(db.calls[0].sql, /FROM customer_message_deliveries/);
-  assert.match(db.calls[0].sql, /WHERE crm_v2_client_id=\$1/);
-  assert.match(db.calls[0].sql, /template_name/);
-  assert.match(db.calls[0].sql, /provider_sent_at/);
-  assert.match(db.calls[0].sql, /provider_delivered_at/);
-  assert.match(db.calls[0].sql, /provider_read_at/);
-  assert.match(db.calls[0].sql, /provider_failed_at/);
-  assert.doesNotMatch(db.calls[0].sql, /provider_message_id/);
+  const evidence = await service.listForClient({ clientId: 912, limit: 30, scope: { kind: 'clinic' } });
+  assert.equal(db.calls.length, 1);
+  assert.match(db.calls[0].sql, /FROM my_shiloh_push_notifications/);
+  assert.match(db.calls[0].sql, /n.expires_at>NOW\(\)/);
+  assert.match(db.calls[0].sql, /a.crm_v2_client_id=c.id/);
+  assert.match(db.calls[0].sql, /crm_v2_client_relationships/);
+  assert.doesNotMatch(db.calls[0].sql, /customer_message_deliveries|customer_care_delivery_log|provider_|template_name/);
   assert.deepEqual(db.calls[0].values, [912, 30]);
-  assert.match(db.calls[1].sql, /appointment_reschedule_requests/);
-  assert.match(db.calls[1].sql, /crm_v2_client_id=\$1/);
-  assert.deepEqual(db.calls[2].values, ['27821234567', 30]);
-
-  assert.equal(evidence[0].label, 'Appointment reminder');
-  assert.equal(evidence[0].statusLabel, 'Pending');
-  const booking = evidence.find(item => item.appointmentId === 71);
-  assert.equal(booking.statusLabel, 'Read on WhatsApp');
-  assert.equal(booking.templateName, 'shiloh_booking_confirmation_v2');
-  assert.ok(evidence.some(item => item.label === 'Reschedule confirmation' && item.statusLabel === 'Send attempt failed'));
-  assert.ok(evidence.some(item => item.label === 'Birthday message' && item.statusLabel === 'Sent by Shiloh'));
-  assert.ok(evidence.every(item => !('providerMessageId' in item)));
+  assert.equal(evidence[0].label, 'Appointment confirmed');
+  assert.equal(evidence[0].statusLabel, 'Available in My Shiloh');
+  assert.equal(evidence[0].templateName, null);
+  await assert.rejects(service.listRecent({}), /valid client relationship scope/);
 });
 
 test('provider evidence uses strongest truthful lifecycle state and never downgrades delivery/read', () => {
@@ -144,7 +90,7 @@ test('Client Communications UX shows Shiloh template and provider outcome but hi
   }), { calendarNavigationAllowed: true });
 
   assert.match(html, /data-client-communications/);
-  assert.match(html, /Shiloh notification history/);
+  assert.match(html, /My Shiloh updates/);
   assert.match(html, /Booking confirmation/);
   assert.match(html, /Delivered on WhatsApp/);
   assert.match(html, /Appointment #71/);
