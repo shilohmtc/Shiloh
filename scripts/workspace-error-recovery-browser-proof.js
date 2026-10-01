@@ -51,7 +51,7 @@ async function main() {
       await status.getByRole('link', { name: 'Review therapist’s services' }).waitFor();
       const axe = await new AxeBuilder({ page }).include('[data-calendar-management-panel]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
       assert.deepEqual(axe.violations.filter(item => ['serious', 'critical'].includes(item.impact)), []);
-      assert.equal(await status.evaluate(node => node.getBoundingClientRect().right <= innerWidth), true);
+      assert.equal(await status.evaluate(node => {const box=node.getBoundingClientRect(),heading=node.closest('.management-card').querySelector('.panel-head').getBoundingClientRect();return box.right<=innerWidth&&box.top>=heading.bottom&&box.bottom<=innerHeight;}), true, 'Recovery text and controls must be visible below the sticky heading');
       await page.screenshot({ path: path.join(out, `${name}-service-mismatch.png`) });
       state.recoveryManage = false;
       await form.locator('button[type="submit"]').click();
