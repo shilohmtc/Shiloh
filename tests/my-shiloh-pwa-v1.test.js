@@ -105,7 +105,8 @@ test('guest recovery help calls Reception for assisted identity review without o
   assert.match(guest, /href="https:\/\/wa\.me\/27662399138\?text=[^"]+" rel="noopener noreferrer"/);
   assert.match(guest, /WhatsApp Reception/);
   assert.doesNotMatch(guest.match(/id="home-recovery-help"[\s\S]*?<\/details>/)?.[0] || '', /wa\.me\/27830000000/);
-  assert.match(guest, /check that it’s your account before helping/);
+  assert.match(guest, /Reception will verify your identity before helping\./);
+  assert.doesNotMatch(guest, /Call or message/);
   assert.doesNotMatch(guest, /automatic account reset/);
   const defaultPhone = renderMyShilohPage({ passkeysAvailable: true, smsAvailable: true });
   assert.match(defaultPhone, /href="https:\/\/wa\.me\/27662399138\?text=/);
@@ -237,7 +238,7 @@ test('SMS enrollment appears in the installed guest app only when enabled', () =
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v42/);
+  assert.match(worker, /my-shiloh-shell-v43/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /booking\.js/);

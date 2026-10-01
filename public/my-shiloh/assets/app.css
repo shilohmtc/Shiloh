@@ -41,7 +41,7 @@ button,a{font:inherit}
 .auth-choice-summary__icon,.auth-choice-summary__chevron,.recovery-help__actions svg{width:21px;height:21px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .auth-choice-summary__icon{width:24px;height:24px;color:var(--leaf-dark)}
 .auth-choice-summary__chevron{margin-left:auto;width:18px;height:18px;transition:transform .15s ease}
-[open]>.auth-choice-summary .auth-choice-summary__chevron{transform:rotate(90deg)}
+[open]>.auth-choice-summary .auth-choice-summary__chevron,[aria-expanded="true"]>.auth-choice-summary__chevron{transform:rotate(90deg)}
 .recovery-help__body{padding:0 0 8px}
 .recovery-help__body p{color:var(--muted);line-height:1.55;margin:0 0 12px}
 .recovery-help__actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
@@ -396,5 +396,7 @@ h3{font-size:20px;line-height:1.12}
 }
 
 .register-choice,.passkey-choice{display:flex;align-items:center;justify-content:center;gap:10px}
+.register-choice{position:relative;padding-left:48px;padding-right:48px}
+.register-choice>.auth-choice-summary__chevron{position:absolute;right:20px}
 .sms-recovery-choice{width:100%;border:0;background:transparent;text-align:left;color:var(--leaf-dark)}
 .sms-setup-choice h2{font-size:24px;margin:0 0 8px}
