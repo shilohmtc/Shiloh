@@ -3,7 +3,7 @@ function workspaceErrorRecoveryClientScript() {
   return `(()=>{'use strict';if(window.ShilohErrorRecovery)return;
 let source=null;
 document.addEventListener('submit',event=>{source=event.target;},true);
-document.addEventListener('click',event=>{const button=event.target.closest('button');if(button&&!button.closest('[data-error-recovery-actions]'))source=button.closest('form')||button;},true);
+document.addEventListener('click',event=>{const button=event.target.closest('button');if(button&&!button.closest('[data-error-recovery-actions],[data-shiloh-confirm]'))source=button.closest('form')||button;},true);
 function failure(body,response,fallback){const error=new Error(body?.error||fallback||'This action could not be completed.');error.code=body?.code;error.status=response?.status;error.recovery=body?.recovery;error.source=source;return error;}
 function focus(node){if(!node?.isConnected)return;let parent=node.parentElement;while(parent){if(parent.hidden&&parent.id){const toggle=document.querySelector('[aria-controls="'+CSS.escape(parent.id)+'"]');if(toggle&&toggle.getAttribute('aria-expanded')!=='true')toggle.click();}parent=parent.parentElement;}node.scrollIntoView({block:'nearest'});const card=node.closest('.management-card');if(card&&node.matches('[data-calendar-panel-status]'))card.scrollTop=0;node.focus({preventScroll:true});}
 function field(origin){return origin?.matches('form')?origin.querySelector(':invalid:not(:disabled),input:not([type="hidden"]):not(:disabled),select:not(:disabled),textarea:not(:disabled),button:not(:disabled)'):origin;}
