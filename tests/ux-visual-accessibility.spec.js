@@ -43,8 +43,10 @@ const { workspaceServicesManageClientScript } = require('../src/presentation/wor
 
 test('redeemed welcome offer does not appear on the signed-out Home', async ({ page }) => {
   await page.goto('/iframe.html?id=client-my-shiloh-pwa--sms-and-passkey-guest&viewMode=story', { waitUntil:'networkidle' });
+  await page.evaluate(() => { Object.defineProperty(navigator, 'standalone', { value:true, configurable:true }); });
+  await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
   const home = page.locator('[data-view="home"]');
-  await home.locator('[data-client-sms-choice] summary').click();
+  await home.getByRole('button', { name:'Register', exact:true }).click();
   await expect(home.getByRole('button', { name:'Send my SMS code' })).toBeVisible();
   await expect(home.locator('.welcome-voucher')).toHaveCount(0);
 });
@@ -103,13 +105,15 @@ test('My Shiloh home starts without a duplicate header on phone and desktop', as
 test('SMS and passkey sign-in fits one phone column', async ({ page }, testInfo) => {
   await page.setViewportSize({ width:390, height:844 });
   await page.goto('/iframe.html?id=client-my-shiloh-pwa--sms-and-passkey-guest&viewMode=story', { waitUntil:'networkidle' });
+  await page.evaluate(() => { Object.defineProperty(navigator, 'standalone', { value:true, configurable:true }); });
+  await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
   const home = page.locator('[data-view="home"]');
   const form = home.locator('[data-client-sms-start]');
   const smsChoice = home.locator('[data-client-sms-choice]');
   const help = home.locator('#home-recovery-help');
   await expect(home.getByRole('button', { name:'Sign in with a passkey' })).toBeVisible();
-  await expect(smsChoice).not.toHaveAttribute('open', '');
-  await smsChoice.locator('summary').click();
+  await expect(smsChoice).toBeHidden();
+  await home.getByRole('button', { name:'Register', exact:true }).click();
   await expect(form.getByRole('button', { name:'Send my SMS code' })).toBeVisible();
   const formBox = await form.boundingBox();
   const helpBox = await help.boundingBox();
@@ -2367,10 +2371,12 @@ test('My Shiloh first installed launch respects an authenticated server session 
 test('My Shiloh client sign-in has no legacy WhatsApp control on phone', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/iframe.html?id=client-my-shiloh-pwa--sms-and-passkey-guest&viewMode=story', { waitUntil: 'networkidle' });
+  await page.evaluate(() => { Object.defineProperty(navigator, 'standalone', { value:true, configurable:true }); });
+  await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
   const home = page.locator('[data-view="home"]');
   await expect(home.locator('[data-client-sms-choice]')).toBeHidden();
     await expect(home.getByRole('button', { name:'Register', exact:true })).toBeVisible();
-  await home.locator('[data-client-sms-choice] summary').click();
+  await home.getByRole('button', { name:'Register', exact:true }).click();
   await expect(home.locator('[data-client-sms-start]')).toBeVisible();
   await expect(home.locator('[data-passkey-sign-in]')).toBeVisible();
   await expect(home.locator('[data-client-auth-start], [data-client-auth-code-disclosure]')).toHaveCount(0);
