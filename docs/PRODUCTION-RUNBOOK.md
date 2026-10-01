@@ -12,6 +12,20 @@ Current operating rule: normal `npm start` boots the HTTP service and long-runni
 
 ## Running maintenance explicitly
 
+### Software and release check — accepted 1 October 2026
+
+The **Shiloh system maintenance check** Actions workflow provides **Run workflow** (Check now) and a Monday 09:17 SAST report. This is the first phase of the accepted software-maintenance direction: dependencies, Node, Playwright, GitHub synchronization, Render alignment and recoverability. Meta/Facebook is outside this scope. Existing Dependabot and release gates remain the update and release authorities; this workflow installs no updates and performs no application/database writes.
+
+Run locally with `npm run system:check`. It writes sanitized JSON and Markdown to `artifacts/system-maintenance/`, reporting locked packages, npm wanted/latest versions, production vulnerability counts, Node pin/runtime/workflow consistency and same-major LTS availability, locked Playwright browser revisions, current-main checks/open PRs, local dirty/ahead/behind state, Render's **live** commit and application/database health. Registry/API failures, missing credentials, missing live deployment and unavailable backup evidence remain explicitly unknown. Open PR/check lists identify truncation. Browser revisions do not prove browser installation or a passing journey; use the existing browser quality gates for that.
+
+GitHub Actions supplies its read-only token. Automated Render alignment additionally needs the separately configured GitHub secret `SHILOH_MAINTENANCE_RENDER_API_KEY`; the connected Render session is not a credential for GitHub Actions. Never paste a key in chat or commit it. The workflow does not expose this secret to pull-request code. The optional local variables are `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, `RENDER_API_KEY` and `RENDER_SERVICE_ID`. No secret values or provider error bodies are written to the report. GitHub CI only sees its checkout, not uncommitted/unpushed work on other computers. The report is evidence of checks performed, not a release approval.
+
+`npm run system:snapshot` creates a dated Git bundle with SHA-256, verifies it, restores all included refs into a temporary bare repository, runs strict `git fsck`, compares refs and confirms the source commit exists. Full Git history is required. Scheduled/manual runs fetch current branch/tag inventory first. PR runs test the reporting code without producing a backup. The report and checkpoint are retained as GitHub artifacts for **30 days**. They are recoverable GitHub-hosted checkpoints, **not independent backups**; fetched Git history excludes GitHub issues/settings, LFS object content, database, uploads and secrets.
+
+Recovery exercise: download a successful run's artifact, compare the bundle's SHA-256 with `code-snapshot.json`, run `git bundle verify <bundle>` inside a Git repository, then restore into an isolated bare repository with `git init --bare <restore-directory>` and `git -C <restore-directory> fetch <absolute-bundle-path> '+refs/*:refs/*'`. Run `git -C <restore-directory> fsck --full --strict` and confirm the recorded commit with `git -C <restore-directory> cat-file -e '<commit>^{commit}'`. Never restore over the working production repository.
+
+Independent storage/destination and retention, GitHub metadata export, Render database recovery-point evidence and an isolated restore drill, uploaded-file storage/recovery, and an owner-only Workspace health view remain follow-up work. Do not mark these verified from a Git bundle or a provider plan alone. Choose the secure backup destination before exporting any clinic data. Node/runtime or package upgrades must use a dedicated branch and the applicable exact-head tests before release.
+
 List commands with:
 
 ```bash
