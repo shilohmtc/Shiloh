@@ -3406,3 +3406,29 @@ test('My Shiloh displays both same-day bookings on Phone and Desktop', async ({ 
     await page.screenshot({ path: testInfo.outputPath(`two-bookings-${viewport.name}.png`), fullPage: true });
   }
 });
+
+
+test('JP problem reports shows only the inbox while staff retain submission on Phone and Desktop', async ({page},testInfo) => {
+  await page.route('**/calendar/pwa/icon-192.png*', route => route.fulfill({path:require('node:path').resolve(__dirname,'../public/assets/pwa/shiloh-pwa-192.png')}));
+  for (const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=workspace-problem-reports--jp-inbox&viewMode=story',{waitUntil:'networkidle'});
+    await expect(page.getByRole('heading',{name:'Inbox',exact:true})).toBeVisible();
+    await expect(page.locator('[data-problem-report-form]')).toHaveCount(0);
+    await expect(page.getByRole('combobox',{name:'Report status'})).toBeVisible();
+    await expect(page.getByRole('combobox',{name:'Report status'}).locator('option[value="fixed"]')).toHaveText('Resolved');
+    await expect(page.getByLabel('Resolution note')).toBeVisible();
+    const metrics=await page.evaluate(()=>({viewport:innerWidth,width:document.documentElement.scrollWidth}));
+    expect(metrics.width).toBeLessThanOrEqual(metrics.viewport);
+    const axe=await new AxeBuilder({page}).include('.workspace-main').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
+    expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`jp-inbox-${viewport.name}.png`),fullPage:true});
+    await page.goto('/iframe.html?id=workspace-problem-reports--staff-submission&viewMode=story',{waitUntil:'networkidle'});
+    await expect(page.locator('[data-problem-report-form]')).toBeVisible();
+    await expect(page.getByRole('heading',{name:'Your reports',exact:true})).toBeVisible();
+    await expect(page.locator('[data-save-status]')).toHaveCount(0);
+    const staffAxe=await new AxeBuilder({page}).include('.workspace-main').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
+    expect(staffAxe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`staff-report-${viewport.name}.png`),fullPage:true});
+  }
+});
