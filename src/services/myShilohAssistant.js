@@ -4,7 +4,6 @@ const { clearSession } = require('./memory');
 const clientContext = require('./myShilohClientContext');
 const { createMyShilohReadTools } = require('./myShilohReadTools');
 const { createMyShilohActionTools } = require('./myShilohActionTools');
-const { createClientHumanHandoffService } = require('./clientHumanHandoffs');
 const { createClientWhatsAppContinuationService } = require('./clientWhatsAppContinuation');
 const logger = require('../lib/logger');
 
@@ -94,7 +93,6 @@ function createMyShilohAssistantService({
   actionTools = createMyShilohActionTools(),
   clearConversationSession = clearSession,
   limiter = createMessageLimiter(),
-  handoffService = { async activeForClient() { return null; } },
   continuationService = { async claimedForSession() { return null; } },
 } = {}) {
   if (!contextService || typeof contextService.getContext !== 'function') {
@@ -115,13 +113,6 @@ function createMyShilohAssistantService({
       throw new MyShilohAssistantError('MY_SHILOH_CLIENT_INVALID', 'Your secure client profile is unavailable.', 401);
     }
     const cleanMessage = normalizeMessage(message);
-    async function requireAssistantAvailable() {
-      if (await handoffService.activeForClient(clientId)) {
-        throw new MyShilohAssistantError('MY_SHILOH_HUMAN_HANDOFF_ACTIVE',
-          'Reception is handling your request. Please continue with them on the clinic WhatsApp number.', 409);
-      }
-    }
-    await requireAssistantAvailable();
     if (!limiter.allow(key)) {
       throw new MyShilohAssistantError(
         'MY_SHILOH_ASSISTANT_RATE_LIMITED',
@@ -154,7 +145,6 @@ function createMyShilohAssistantService({
       surface: 'my_shiloh',
       tools: [...readTools.definitions, ...actionTools.definitions],
       toolExecutor: async (name, args) => {
-        await requireAssistantAvailable();
         if (actionTools.handles(name)) {
           const result = await actionTools.execute(name, args, {
             sessionId: positiveId(sessionId),
@@ -169,7 +159,6 @@ function createMyShilohAssistantService({
       },
       maxToolRounds: 4,
     });
-    await requireAssistantAvailable();
 
     let safeReply = String(replyText || '').trim();
     if (preparedAction?.type === 'cancel_appointment') {
@@ -219,7 +208,6 @@ function createMyShilohAssistantService({
 }
 
 const service = createMyShilohAssistantService({
-  handoffService:createClientHumanHandoffService(),
   continuationService:createClientWhatsAppContinuationService(),
 });
 

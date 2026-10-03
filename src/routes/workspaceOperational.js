@@ -8,7 +8,6 @@ const {
   renderDashboardUnavailablePage,
   dashboardClientScript,
   planningRequestClientScript,
-  humanHandoffClientScript,
 } = require('../presentation/workspaceDashboardUx');
 const { decorateWorkspaceAppointmentLinks } = require('../presentation/calendarAppointmentDetailLinks');
 const { workspaceNavigationClientScript } = require('../presentation/workspaceShell');
@@ -119,7 +118,7 @@ function createWorkspaceOperationalRouter({
   router.use(requireSession);
 
   router.get('/client.js', (_req, res) => {
-    return res.status(200).type('application/javascript').send(dashboardClientScript() + '\n' + planningRequestClientScript() + '\n' + humanHandoffClientScript());
+    return res.status(200).type('application/javascript').send(dashboardClientScript() + '\n' + planningRequestClientScript());
   });
 
   router.get('/navigation', async (req, res) => {
@@ -227,19 +226,8 @@ function createWorkspaceOperationalRouter({
     }
   });
 
-  router.post('/human-handoffs/:handoffId/close', sameOrigin, requireCsrf, async (req, res) => {
-    try {
-      const result = await dashboardService.closeHumanHandoff({
-        adminId:req.staffBrowserSession?.adminId,
-        viewer:req.staffBrowserSession?.viewer,
-        ...(req.staffBrowserSession?.accountPrincipal ? { sessionPrincipal:req.staffBrowserSession.accountPrincipal } : {}),
-        handoffId:req.params.handoffId,
-      });
-      return res.status(200).json(result);
-    } catch (error) {
-      const safe = dashboardMutationError(error);
-      return res.status(safe.status).json({ error:safe.message, code:safe.code, requestId:req.id });
-    }
+  router.post('/human-handoffs/:handoffId/close', sameOrigin, requireCsrf, (_req, res) => {
+    return res.status(410).json({ error:'Reception contact no longer needs a handoff.', code:'HUMAN_HANDOFF_RETIRED' });
   });
 
   router.post('/reschedule-requests/:requestId/:decision', sameOrigin, requireCsrf, async (req, res) => {

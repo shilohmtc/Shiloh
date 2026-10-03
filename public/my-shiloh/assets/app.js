@@ -1884,27 +1884,6 @@
     sendShilohMessage(shilohChatInput?.value || '');
   });
 
-  document.querySelector('[data-human-handoff-start]')?.addEventListener('click', async (event) => {
-    event.preventDefault();
-    const link = event.currentTarget;
-    const status = document.querySelector('[data-human-handoff-status]');
-    const direct = document.querySelector('[data-human-handoff-direct]');
-    if (status) status.textContent = 'Letting Reception know you want a person…';
-    setShilohBusy(true);
-    try {
-      const token = await freshCsrfToken();
-      const response = await postJson('/my-shiloh/api/human-handoff', {}, { 'x-shiloh-csrf-token':token });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || result.status !== 'open') throw new Error(result.error || 'Reception could not be alerted in My Shiloh.');
-      if (status) status.textContent = 'Reception has your handoff. Opening the clinic WhatsApp now…';
-      window.location.assign(link.href);
-    } catch (error) {
-      setShilohBusy(false);
-      if (status) status.textContent = `${error.message} You can still message Reception directly; Shiloh’s automatic replies may remain active.`;
-      if (direct) direct.hidden = false;
-    }
-  });
-
   shilohPromptButtons.forEach((button) => {
     button.addEventListener('click', () => {
       const prompt = button.querySelector('strong')?.textContent || '';

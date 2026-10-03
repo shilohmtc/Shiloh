@@ -78,7 +78,7 @@ test('My Shiloh WhatsApp help uses the human Reception number, never the AI numb
   const planning = renderPlanningRequestPage({ humanWhatsAppNumber:'066 239 9138' });
   const app = renderMyShilohPage({ whatsappNumber:'27123456789', humanWhatsAppNumber:'066 239 9138' });
   assert.match(planning, /wa\.me\/27662399138/);
-  assert.match(app, /Speak to Reception on WhatsApp/);
+  assert.match(app, /Message Reception/);
   assert.match(app, /wa\.me\/27662399138/);
   assert.doesNotMatch(app, /wa\.me\/27123456789/);
 });

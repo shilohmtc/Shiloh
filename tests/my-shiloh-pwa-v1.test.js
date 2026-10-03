@@ -89,9 +89,9 @@ test('Home choosing help opens in-app Shiloh for clients and keeps guest and Rec
   assert.match(card(signed), /chat here in My Shiloh/);
   assert.match(card(signed), /href="#shiloh" aria-label="Open Shiloh in My Shiloh"/);
   assert.doesNotMatch(card(signed), /wa\.me|WhatsApp/);
-  assert.match(card(reception), /Reception is helping you/);
+  assert.match(card(reception), /chat here in My Shiloh/);
   assert.match(card(reception), /href="#shiloh" aria-label="Open Shiloh in My Shiloh"/);
-  assert.match(reception, /Reception is handling your request/);
+  assert.doesNotMatch(reception, /Reception is handling your request|automatic replies are paused/);
   assert.equal(card(guest), '');
 });
 
@@ -125,7 +125,7 @@ test('Bookings help stays in My Shiloh for clients and names the guest and Recep
   assert.match(bookings(signed), /href="#shiloh">Ask Shiloh<\/a>/);
   assert.doesNotMatch(bookings(signed), /wa\.me/);
   assert.match(bookings(guest), /href="https:\/\/wa\.me\/27662399138[^"]*" rel="noopener noreferrer">Ask Reception/);
-  assert.match(bookings(reception), /href="https:\/\/wa\.me\/27662399138[^"]*" rel="noopener noreferrer">Ask Reception/);
+  assert.match(bookings(reception), /href="#shiloh">Ask Shiloh<\/a>/);
 });
 
 test('My Shiloh offers human Reception WhatsApp in the guest shell', () => {
@@ -238,7 +238,7 @@ test('SMS enrollment appears in the installed guest app only when enabled', () =
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v43/);
+  assert.match(worker, /my-shiloh-shell-v44/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /booking\.js/);

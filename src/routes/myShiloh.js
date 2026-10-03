@@ -38,7 +38,6 @@ const { queueWorkspaceAlert } = require('../services/workspacePush');
 const { createMyShilohBookingService, MyShilohBookingError } = require('../services/myShilohBooking');
 const { createMyShilohMultipleBookingService } = require('../services/myShilohMultipleBooking');
 const { createClientPlanningRequestService, ClientPlanningRequestError } = require('../services/clientPlanningRequests');
-const { createClientHumanHandoffService, ClientHumanHandoffError } = require('../services/clientHumanHandoffs');
 const { createClientWhatsAppContinuationService } = require('../services/clientWhatsAppContinuation');
 const bookingProposals = require('../services/clientBookingApproval');
 const { BookingDepositPolicyError } = require('../services/bookingDepositPolicy');
@@ -110,7 +109,6 @@ function createMyShilohRouter({
   multipleBookingService = createMyShilohMultipleBookingService({ db:pool, booking:bookingService }),
   proposalService = bookingProposals,
   planningService = createClientPlanningRequestService({ db: pool }),
-  humanHandoffService = createClientHumanHandoffService({ db: pool }),
   continuationService = createClientWhatsAppContinuationService({ db: pool }),
 } = {}) {
   const router = express.Router();
@@ -389,19 +387,10 @@ function createMyShilohRouter({
     }
   });
 
-  router.post('/my-shiloh/api/human-handoff', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
-    try {
-      setNoStoreJson(res);
-      if (req.body && (typeof req.body !== 'object' || Array.isArray(req.body) || Object.keys(req.body).length)) {
-        return res.status(422).json({ error:'Please reload My Shiloh and try again.', requestId:req.id });
-      }
-      const result = await humanHandoffService.request(req.myShilohClientSession.crmV2ClientId);
-      if (result.created) void queueWorkspaceAlert(`handoff:${result.id}`);
-      return res.status(result.created ? 201 : 200).json(result);
-    } catch (error) {
-      if (error instanceof ClientHumanHandoffError) return res.status(error.httpStatus).json({ error:error.message, code:error.code, requestId:req.id });
-      return next(error);
-    }
+  // Cached clients must not create new handoffs or pause the assistant.
+  router.post('/my-shiloh/api/human-handoff', sameOrigin, requireSession, requireCsrf, (_req, res) => {
+    setNoStoreJson(res);
+    return res.status(410).json({ error:'Message Reception directly using the clinic WhatsApp link.', code:'HUMAN_HANDOFF_RETIRED' });
   });
 
   router.get('/my-shiloh/api/booking/practitioners', requireSession, async (req, res, next) => {
@@ -896,9 +885,6 @@ function createMyShilohRouter({
   router.post('/my-shiloh/api/shiloh/whatsapp-continuation', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
     try {
       setNoStoreJson(res);
-      if (await humanHandoffService.activeForClient(req.myShilohClientSession.crmV2ClientId)) {
-        return res.status(409).json({ error:'Reception is helping you now. Continue with them on WhatsApp.' });
-      }
       const exchange = await continuationService.claim({
         crmV2ClientId:req.myShilohClientSession.crmV2ClientId,
         sessionId:req.myShilohClientSession.sessionId,
@@ -1030,15 +1016,13 @@ function createMyShilohRouter({
 
   router.get(['/my-shiloh', '/my-shiloh/'], optionalSession, async (req, res) => {
     setMyShilohPageHeaders(res);
-    const [whatsappNumber, catalogue, humanHandoff] = await Promise.all([
+    const [whatsappNumber, catalogue] = await Promise.all([
       whatsappResolver(),
       catalogueProvider(),
-      req.myShilohClientSession ? humanHandoffService.activeForClient(req.myShilohClientSession.crmV2ClientId) : null,
     ]);
     return res.status(200).type('html').send(renderMyShilohPage({
       whatsappNumber,
       humanWhatsAppNumber: env.SHILOH_HUMAN_WHATSAPP_NUMBER,
-      humanHandoffActive:Boolean(humanHandoff),
       catalogue: catalogue || [],
       selectedServiceId: req.query?.service,
       client: req.myShilohClientSession?.client || null,
