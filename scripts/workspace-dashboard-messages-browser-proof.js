@@ -499,7 +499,7 @@ async function main() {
         if (openDrawer) {
           assert.equal(metrics.drawerOpen, true);
           assert.deepEqual(metrics.primary, ['Dashboard', 'Calendar', 'Clients', 'Messages']);
-          assert.deepEqual(metrics.secondary, ['Staff', 'Services', 'Reports', 'Clinic hours']);
+          assert.deepEqual(metrics.secondary, ['Staff', 'Services', 'Clinic reports', 'Clinic hours']);
           assert.ok(Math.abs(metrics.navWidth - Math.min(width * 0.6, 220)) <= 1, `${name} drawer width is not compactly contained: ${metrics.navWidth}px`);
           assert.ok(metrics.drawerHeaderRight <= metrics.navRight, `${name} drawer header escapes its panel`);
           assert.ok(metrics.drawerCloseRight <= metrics.navRight, `${name} close control escapes its panel`);
@@ -521,7 +521,7 @@ async function main() {
         }
       } else {
         assert.equal(metrics.drawerLogoLoaded, true, `${name} did not paint the Shiloh desktop logo`);
-        assert.deepEqual([...metrics.primary, ...metrics.secondary], ['Dashboard', 'Calendar', 'Clients', 'Messages', 'Staff', 'Services', 'Reports', 'Clinic hours', 'Gift vouchers', 'Rewards', 'Problem reports']);
+        assert.deepEqual([...metrics.primary, ...metrics.secondary], ['Dashboard', 'Calendar', 'Clients', 'Messages', 'Staff', 'Services', 'Clinic reports', 'Clinic hours', 'Gift vouchers', 'Rewards', 'Problem reports']);
         assert.equal(metrics.moreVisible, false);
         assert.equal(metrics.accountFooterVisible, true, `${name} does not show the Desktop account footer`);
       }

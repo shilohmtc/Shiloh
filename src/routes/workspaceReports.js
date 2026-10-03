@@ -30,7 +30,7 @@ function safeError(error) {
   const status = Number(error?.httpStatus) || 503;
   if (status === 400) return { status, message: 'Please check the selected dates or team member and try again.' };
   if (status === 403) return { status, message: 'You do not have access to this report.' };
-  return { status: 503, message: 'Reports are temporarily unavailable. Please try again shortly.' };
+  return { status: 503, message: 'Clinic reports are temporarily unavailable. Please try again shortly.' };
 }
 
 function createWorkspaceReportsHandler({

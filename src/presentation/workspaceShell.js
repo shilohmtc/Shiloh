@@ -63,7 +63,7 @@ function renderWorkspaceNavigation({ active, displayName = '', dashboardHref = n
     }),
     workspaceItem({
       key: 'reports',
-      label: 'Reports',
+      label: 'Clinic reports',
       active: active === 'reports',
       href: reportsHref,
     }),
