@@ -77,6 +77,30 @@ function snapshotEvidence(snapshot, outdir, commit) {
   return sha256 === snapshot.sha256 ? snapshot : { status: 'unverified' };
 }
 
+function independentEvidence(receipt, commit, now = Date.now()) {
+  if (['unconfigured', 'failed'].includes(receipt?.status)) return { status: receipt.status };
+  const age = now - Date.parse(receipt?.checkedAt);
+  if (
+    receipt?.schemaVersion !== 1 ||
+    receipt.status !== 'download-restore-verified' ||
+    receipt.commit !== commit ||
+    receipt.folderId !== '1xP2cvE3sgR7I1PBT0hrAnGFG3WbcVLWh' ||
+    !/^[\w-]+$/.test(receipt.fileId || '') ||
+    !/^[\w-]+$/.test(receipt.receiptId || '') ||
+    !/^[a-f0-9]{64}$/.test(receipt.sha256 || '') ||
+    !Number.isInteger(receipt.refsVerified) ||
+    receipt.refsVerified < 1 ||
+    receipt.downloadChecksumMatches !== true ||
+    receipt.isolatedRestoreVerified !== true ||
+    receipt.privateOwnerOnly !== true ||
+    !Number.isFinite(age) ||
+    age < 0 ||
+    age > 36 * 60 * 60 * 1000
+  )
+    return { status: 'unverified' };
+  return receipt;
+}
+
 function markdown(report) {
   const lines = [
     '# Shiloh maintenance check',
@@ -95,7 +119,7 @@ function markdown(report) {
     `- Render commit alignment: ${report.render.status}`,
     `- Application/database health: ${report.health.status}`,
     `- Code snapshot: ${report.backups.codeSnapshot.status}`,
-    '- Independent code backup: unverified',
+    `- Independent code backup: ${report.backups.independentCode?.status || 'unverified'}`,
     '- Database recovery: unverified',
     '- Uploaded-file recovery: unverified',
     '',
@@ -274,6 +298,17 @@ async function main() {
     // A previous or unrelated successful restore cannot establish this checkout's recovery.
     report.backups.codeSnapshot = snapshotEvidence(snapshot, outdir, report.repository.commit);
   }
+  const receiptPath = path.join(outdir, 'independent-code-backup.json');
+  if (fs.existsSync(receiptPath)) {
+    try {
+      report.backups.independentCode = independentEvidence(
+        JSON.parse(fs.readFileSync(receiptPath, 'utf8')),
+        report.repository.commit,
+      );
+    } catch {
+      report.backups.independentCode = { status: 'unverified' };
+    }
+  }
   fs.writeFileSync(path.join(outdir, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
   const summary = markdown(report);
   fs.writeFileSync(path.join(outdir, 'report.md'), summary);
@@ -281,7 +316,13 @@ async function main() {
   console.log(summary);
 }
 
-module.exports = { deploymentStatus, dependencyReport, snapshotEvidence, markdown };
+module.exports = {
+  deploymentStatus,
+  dependencyReport,
+  snapshotEvidence,
+  independentEvidence,
+  markdown,
+};
 if (require.main === module)
   main().catch(() => {
     console.error('Maintenance check failed; inspect its configuration.');

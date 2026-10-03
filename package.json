@@ -28,7 +28,8 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "system:check": "node scripts/system-maintenance-check.js",
-    "system:snapshot": "node scripts/verify-code-snapshot.js"
+    "system:snapshot": "node scripts/verify-code-snapshot.js",
+    "system:backup:code": "node scripts/independent-code-backup.js"
   },
   "keywords": [
     "shiloh",

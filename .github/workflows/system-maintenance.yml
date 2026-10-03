@@ -3,14 +3,16 @@ name: Shiloh system maintenance check
 on:
   workflow_dispatch:
   schedule:
-    # Mondays at 09:17 South African time, after the dependency update check.
-    - cron: '17 7 * * 1'
+    # Daily at 09:17 South African time; Monday follows Dependabot's check.
+    - cron: '17 7 * * *'
   pull_request:
     branches: [main]
     paths:
       - scripts/system-maintenance-check.js
       - scripts/verify-code-snapshot.js
+      - scripts/independent-code-backup.js
       - tests/system-maintenance-check.test.js
+      - tests/independent-code-backup.test.js
       - .github/workflows/system-maintenance.yml
 
 permissions:
@@ -34,14 +36,23 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - name: Test maintenance failure handling
-        run: node --test tests/system-maintenance-check.test.js
+        run: node --test tests/system-maintenance-check.test.js tests/independent-code-backup.test.js
       - name: Fetch current branch and tag inventory
         if: github.event_name != 'pull_request'
         run: git fetch origin '+refs/heads/*:refs/remotes/origin/*' --tags
       - name: Create and prove code recovery checkpoint
         if: github.event_name != 'pull_request'
         run: npm run system:snapshot
+      - name: Copy code to private Drive and restore the downloaded copy
+        if: github.event_name != 'pull_request'
+        env:
+          # Dedicated backup OAuth credentials; never reuse Calendar credentials.
+          SHILOH_BACKUP_GOOGLE_CLIENT_ID: ${{ secrets.SHILOH_BACKUP_GOOGLE_CLIENT_ID }}
+          SHILOH_BACKUP_GOOGLE_CLIENT_SECRET: ${{ secrets.SHILOH_BACKUP_GOOGLE_CLIENT_SECRET }}
+          SHILOH_BACKUP_GOOGLE_REFRESH_TOKEN: ${{ secrets.SHILOH_BACKUP_GOOGLE_REFRESH_TOKEN }}
+        run: npm run system:backup:code
       - name: Check Shiloh software and release state
+        if: always()
         env:
           GITHUB_TOKEN: ${{ github.token }}
           # Configure separately in GitHub Secrets. Never expose to PR code.
