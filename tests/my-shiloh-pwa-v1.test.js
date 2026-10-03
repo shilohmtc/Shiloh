@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 const {
   renderMyShilohPage,
   whatsappUrl,
@@ -258,6 +259,57 @@ test('offline page explains privacy without technical wording', () => {
   assert.match(html, /personal details are not shown while you’re offline/i);
   assert.doesNotMatch(html, /cache|offline shell|session|client data/i);
   assert.match(html, /Reconnect/);
+});
+
+test('My Shiloh worker activation removes only its obsolete caches and preserves Workspace and other apps', async () => {
+  const handlers = new Map();
+  const deleted = [];
+  let claimed = false;
+  const worker = read('public/my-shiloh/sw.js');
+  const current = [...worker.matchAll(/const (?:SHELL|STATIC)_CACHE = '([^']+)'/g)].map(match => match[1]);
+  const otherCaches = ['shiloh-pwa-static-official-brand-v2', 'another-app-static-v1'];
+  const keys = [...current, 'my-shiloh-shell-v1', 'my-shiloh-static-v1', ...otherCaches];
+  vm.runInNewContext(worker, {
+    self: { addEventListener: (name, handler) => handlers.set(name, handler), clients: { claim: async () => { claimed = true; } } },
+    caches: { keys: async () => keys, delete: async key => { deleted.push(key); return true; } },
+  });
+  let activation;
+  handlers.get('activate')({ waitUntil: promise => { activation = promise; } });
+  await activation;
+  assert.deepEqual(deleted, ['my-shiloh-shell-v1', 'my-shiloh-static-v1']);
+  assert.equal(claimed, true);
+});
+
+test('a My Shiloh notification reuses only a client app window and never navigates Workspace', async () => {
+  for (const hasClientWindow of [true, false]) {
+    const handlers = new Map();
+    const actions = [];
+    const target = '/my-shiloh/#bookings';
+    const origin = 'https://app.shilohmtc.co.za';
+    const windowFor = (name, path) => ({
+      url: origin + path,
+      navigate: async url => actions.push([name, 'navigate', url]),
+      focus: async () => actions.push([name, 'focus']),
+    });
+    const windows = [windowFor('workspace', '/calendar/workspace')];
+    if (hasClientWindow) windows.push(windowFor('client', '/my-shiloh/'));
+    vm.runInNewContext(read('public/my-shiloh/sw.js'), {
+      URL,
+      self: {
+        location: { origin }, addEventListener: (name, handler) => handlers.set(name, handler),
+        clients: { matchAll: async () => windows, openWindow: async url => actions.push(['open', url]) },
+      },
+    });
+    let notificationClick;
+    handlers.get('notificationclick')({
+      notification: { close() {}, data: { url: target } },
+      waitUntil: promise => { notificationClick = promise; },
+    });
+    await notificationClick;
+    assert.deepEqual(actions, hasClientWindow
+      ? [['client', 'navigate', target], ['client', 'focus']]
+      : [['open', target]]);
+  }
 });
 
 

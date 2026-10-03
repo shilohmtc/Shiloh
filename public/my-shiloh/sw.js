@@ -28,7 +28,7 @@ self.addEventListener('activate', (event) => {
     caches.keys()
       .then((keys) => Promise.all(
         keys
-          .filter((key) => key !== SHELL_CACHE && key !== STATIC_CACHE)
+          .filter((key) => key.startsWith('my-shiloh-') && key !== SHELL_CACHE && key !== STATIC_CACHE)
           .map((key) => caches.delete(key)),
       ))
       .then(() => self.clients.claim()),
@@ -164,7 +164,10 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const existing = windows.find((client) => {
-      try { return new URL(client.url).origin === self.location.origin; } catch (_) { return false; }
+      try {
+        const url = new URL(client.url);
+        return url.origin === self.location.origin && /^\/my-shiloh(?:\/|$)/.test(url.pathname);
+      } catch (_) { return false; }
     });
     if (existing) {
       if (typeof existing.navigate === 'function') await existing.navigate(target);
