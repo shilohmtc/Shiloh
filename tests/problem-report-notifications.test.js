@@ -28,6 +28,6 @@ test('Workspace completion copy describes My Shiloh and never promises retired W
   const script = problemReportsClientScript();
   assert.doesNotMatch(script,/receive a WhatsApp message/);
   assert.match(script,/My Shiloh updates/);
-  assert.match(script,/where enabled/);
+  assert.doesNotMatch(script,/Phone notifications are attempted|Codex conversation/);
   assert.match(script,/staff member can see the update/);
 });

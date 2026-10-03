@@ -276,7 +276,6 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
     if (!canManage(identity)) throw new ProblemReportError('PROBLEM_REPORT_FORBIDDEN', 'This private inbox is available only in JP’s Workspace.', 403);
     if (status !== 'fixed') throw new ProblemReportError('PROBLEM_REPORT_INVALID', 'Reports can only be marked resolved.');
     const note = cleanText(resolutionNote, { max: 1000 });
-    if (!note) throw new ProblemReportError('PROBLEM_REPORT_NOTE_REQUIRED', 'Add a short note before marking this report resolved.');
     const result = await db.query(
       `/* problemReports:updateStatus */
        WITH current AS (
@@ -295,7 +294,7 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
            (crm_v2_client_id,event_key,category,title,body,target_path)
          SELECT reporter_crm_v2_client_id,'problem-report:' || id || ':resolution:' || revision,
            'system','Your problem report is resolved',
-           LEFT('Thank you for reporting this. Your issue has now been resolved. ' || reference_code || ': ' || resolution_note,240),'/my-shiloh/#profile-reports'
+           LEFT('Thank you for reporting this. Your issue has now been resolved. ' || reference_code || COALESCE(': ' || resolution_note,''),240),'/my-shiloh/#profile-reports'
          FROM updated
          WHERE reporter_type='client' AND reporter_crm_v2_client_id IS NOT NULL
            AND status='fixed'
