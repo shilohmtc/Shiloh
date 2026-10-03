@@ -6,6 +6,7 @@ const {
   renderReportsPage,
   renderReportsUnavailablePage,
   commissionClientScript,
+  reportSectionsClientScript,
 } = require('../presentation/workspaceReportsUx');
 const { requireStaffSession, sameOriginGuard, csrfGuard } = require('../middleware/staffBrowserSession');
 
@@ -103,6 +104,7 @@ function createWorkspaceReportsRouter({ sessionService, ...options } = {}) {
     return next();
   });
   router.use(requireStaffSession({ service: sessionService, env: options.env }));
+  router.get('/sections.js', (_req, res) => res.type('application/javascript').send(reportSectionsClientScript()));
   router.get('/commission.js', async (req, res) => {
     try {
       await earningsService.requireOwner(req.staffBrowserSession?.adminId);
