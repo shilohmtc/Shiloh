@@ -318,3 +318,18 @@ test('a duplicate appointment retry actually attempts the same client phone aler
   await service.queueNotification(notification);
   assert.equal(alerts, 1);
 });
+
+test('in-app history keeps expired push events with bounded client isolation', async () => {
+  const queries = [];
+  const service = createMyShilohPushService({ db: { query: async (sql, params) => {
+    queries.push({sql, params});
+    return { rows:[{id:91, category:'system', title:'Your problem report is resolved', body:'Fixed.', target_path:'/my-shiloh/#profile-reports', created_at:'2026-09-01T00:00:00Z'}] };
+  } } });
+  const result = await service.listForClient({crmV2ClientId:501, limit:1000});
+  assert.equal(result.notifications[0].id,91);
+  assert.deepEqual(queries[0].params,[501,100]);
+  assert.match(queries[0].sql,/WHERE crm_v2_client_id=\$1/);
+  assert.doesNotMatch(queries[0].sql,/expires_at/);
+  assert.deepEqual(await service.listForClient({crmV2ClientId:0}),{notifications:[]});
+  assert.equal(queries.length,1);
+});

@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20261003-profile-save-booking-list-v1';
+const MY_SHILOH_ASSET_VERSION = '20261003-current-archived-updates-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -278,6 +278,10 @@ function renderMyShilohPage({
         <p class="profile-editor__status" data-push-status role="status" aria-live="polite"></p>
         <p class="notification-settings__note">Operational updates only. Promotional messages stay separate and are never enabled by this setting.</p>
       </section>
+      <details class="profile-editor profile-help" data-profile-archived-updates>
+        <summary class="profile-help__summary"><span><span class="eyebrow">Updates</span><strong>Archived updates</strong><small>Booking confirmations and other updates you archived on this phone.</small></span><span class="profile-help__indicator" aria-hidden="true">+</span></summary>
+        <div class="profile-help__content"><p class="problem-report-copy">Restore an update to show it in Current updates again. Your appointments stay in Bookings.</p><div class="notification-centre__list" data-client-archived-notification-list aria-live="polite"><p class="notification-centre__empty">Checking for archived updates…</p></div></div>
+      </details>
       <details class="profile-editor profile-help" data-profile-help>
         <summary class="profile-help__summary"><span><span class="eyebrow">Help</span><strong id="report-problem-title">Report a problem</strong><small>Tell us when something in My Shiloh needs attention.</small></span><span class="profile-help__indicator" aria-hidden="true">+</span></summary>
         <div class="profile-help__content">
@@ -414,9 +418,9 @@ function renderMyShilohPage({
           <a class="button button--soft" href="#profile-notifications">Set up notifications</a>
         </aside>` : ''}
         ${authenticated ? `<section class="notification-centre" aria-labelledby="notification-centre-title" data-client-notification-centre hidden>
-          <div class="section-heading"><div><p class="eyebrow">Updates</p><h2 id="notification-centre-title">Your latest Shiloh updates.</h2></div><a class="text-link" href="#profile-notifications">Notification settings</a></div>
+          <div class="section-heading"><div><p class="eyebrow">Current updates</p><h2 id="notification-centre-title">Your latest Shiloh updates.</h2></div><a class="text-link" href="#profile-notifications">Notification settings</a></div>
           <div class="notification-centre__list" data-client-notification-list aria-live="polite"><p class="notification-centre__empty">Checking for updates…</p></div>
-          <button class="notification-centre__toggle" type="button" data-client-archive-toggle hidden>Show archived</button>
+          <a class="notification-centre__toggle" href="#profile-archived-updates">Archived updates in Profile</a>
         </section>` : ''}
         <section class="section-block" aria-labelledby="discover-title">
           <div class="section-heading">

@@ -426,17 +426,17 @@ function createMyShilohPushService({
     };
   }
 
-  async function listForClient({ crmV2ClientId, limit = 8 } = {}) {
+  async function listForClient({ crmV2ClientId, limit = 100 } = {}) {
     const clientId = Number(crmV2ClientId);
     if (!Number.isSafeInteger(clientId) || clientId <= 0) return { notifications: [] };
-    const safeLimit = Math.min(Math.max(Number(limit) || 8, 1), 12);
+    const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 100);
     const result = await db.query(
       `SELECT id,category,title,body,target_path,created_at
          FROM my_shiloh_push_notifications
-        WHERE crm_v2_client_id=$1 AND expires_at>$2
+        WHERE crm_v2_client_id=$1
         ORDER BY id DESC
-        LIMIT $3`,
-      [clientId, now(), safeLimit],
+        LIMIT $2`,
+      [clientId, safeLimit],
     );
     return {
       notifications: result.rows.map((row) => ({

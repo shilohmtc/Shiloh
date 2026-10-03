@@ -76,13 +76,12 @@
   const clientProblemReportStatus = document.querySelector('[data-client-problem-report-status]');
   const clientProblemReportList = document.querySelector('[data-client-problem-report-list]');
   const clientNotificationList = document.querySelector('[data-client-notification-list]');
-  const clientArchiveToggle = document.querySelector('[data-client-archive-toggle]');
+  const clientArchivedNotificationList = document.querySelector('[data-client-archived-notification-list]');
   const notificationArchiveKey = appFrame?.dataset.notificationClientId
     ? `my-shiloh-archived-updates-v1:${appFrame.dataset.notificationClientId}` : null;
   const notificationSetupKey = appFrame?.dataset.notificationClientId
     ? `my-shiloh-notification-setup-later-v1:${appFrame.dataset.notificationClientId}` : null;
   let archivedUpdateIds = new Set();
-  let showArchivedUpdates = false;
   let latestNotifications = [];
   if (notificationArchiveKey) {
     try {
@@ -136,7 +135,7 @@
   function selectedView() {
     const fromHash = String(window.location.hash || '').replace(/^#/, '');
     if (fromHash === 'welcome-voucher') return 'wallet';
-    if (fromHash === 'profile-notifications') return 'profile';
+    if (['profile-notifications', 'profile-archived-updates', 'profile-reports'].includes(fromHash)) return 'profile';
     return viewNames.has(fromHash) ? fromHash : 'home';
   }
 
@@ -152,8 +151,12 @@
       else item.removeAttribute('aria-current');
     }
     if (target === 'shiloh') loadWhatsAppContinuation();
-    const notificationTitle = target === 'profile' && window.location.hash === '#profile-notifications' && !appFrame?.hidden
-      ? document.querySelector('#notifications-title') : null;
+    const profileDetailSelector = { '#profile-archived-updates': '[data-profile-archived-updates]', '#profile-reports': '[data-profile-help]' }[window.location.hash];
+    const profileDetail = target === 'profile' && !appFrame?.hidden && profileDetailSelector
+      ? document.querySelector(profileDetailSelector) : null;
+    if (profileDetail) profileDetail.open = true;
+    const notificationTitle = profileDetail?.querySelector('summary') || (target === 'profile' && window.location.hash === '#profile-notifications' && !appFrame?.hidden
+      ? document.querySelector('#notifications-title') : null);
     if (notificationTitle) {
       notificationTitle.focus({ preventScroll: true });
       notificationTitle.scrollIntoView({ block: 'start', behavior: 'auto' });
@@ -1442,18 +1445,18 @@
     latestNotifications = Array.isArray(notifications) ? notifications : [];
     const centre = clientNotificationList.closest('[data-client-notification-centre]');
     if (centre) centre.hidden = latestNotifications.length === 0;
-    clientNotificationList.replaceChildren();
-    const archived = latestNotifications.filter(notification => archivedUpdateIds.has(String(notification.id)));
-    const visible = latestNotifications.filter(notification => archivedUpdateIds.has(String(notification.id)) === showArchivedUpdates);
-    if (clientArchiveToggle) {
-      clientArchiveToggle.hidden = archived.length === 0 && !showArchivedUpdates;
-      clientArchiveToggle.textContent = showArchivedUpdates ? 'Show current updates' : `Show archived (${archived.length})`;
-    }
+    renderNotificationList(clientNotificationList, false);
+    if (clientArchivedNotificationList) renderNotificationList(clientArchivedNotificationList, true);
+  }
+
+  function renderNotificationList(host, archived) {
+    host.replaceChildren();
+    const visible = latestNotifications.filter(notification => archivedUpdateIds.has(String(notification.id)) === archived);
     if (visible.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'notification-centre__empty';
-      empty.textContent = showArchivedUpdates ? 'No archived updates on this phone.' : 'No current updates. Your booking details are still available in Bookings.';
-      clientNotificationList.append(empty);
+      empty.textContent = archived ? 'No archived updates on this phone.' : 'No current updates. Your booking details are still available in Bookings.';
+      host.append(empty);
     }
     for (const notification of visible) {
       const row = document.createElement('div');
@@ -1468,11 +1471,11 @@
       const action = document.createElement('button');
       action.type = 'button';
       action.className = 'notification-centre__archive';
-      action.textContent = showArchivedUpdates ? 'Restore' : 'Archive';
+      action.textContent = archived ? 'Restore' : 'Archive';
       action.setAttribute('aria-label', `${action.textContent} ${title.textContent}`);
       action.addEventListener('click', () => {
         const id = String(notification.id);
-        if (showArchivedUpdates) archivedUpdateIds.delete(id);
+        if (archived) archivedUpdateIds.delete(id);
         else archivedUpdateIds.add(id);
         if (notificationArchiveKey) {
           try { localStorage.setItem(notificationArchiveKey, JSON.stringify([...archivedUpdateIds].slice(-100))); } catch (_) {}
@@ -1480,14 +1483,9 @@
         renderClientNotifications(latestNotifications);
       });
       row.append(card, action);
-      clientNotificationList.append(row);
+      host.append(row);
     }
   }
-
-  clientArchiveToggle?.addEventListener('click', () => {
-    showArchivedUpdates = !showArchivedUpdates;
-    renderClientNotifications(latestNotifications);
-  });
 
   async function clearHomeScreenAppBadge() {
     if (!standalone()) return;
@@ -1513,10 +1511,12 @@
     } catch (_) {
       const centre = clientNotificationList.closest('[data-client-notification-centre]');
       if (centre) centre.hidden = false;
-      const message = document.createElement('p');
-      message.className = 'notification-centre__empty';
-      message.textContent = 'Your latest updates are temporarily unavailable.';
-      clientNotificationList.replaceChildren(message);
+      for (const host of [clientNotificationList, clientArchivedNotificationList].filter(Boolean)) {
+        const message = document.createElement('p');
+        message.className = 'notification-centre__empty';
+        message.textContent = 'Your updates are temporarily unavailable. Please try again later.';
+        host.replaceChildren(message);
+      }
     }
   }
 
