@@ -3,7 +3,7 @@ import presentation from '../src/presentation/workspaceAccessV2Ux.js';
 export default { title: 'Workspace/Staff SMS device setup' };
 
 const principal = {
-  id: 19, displayName: 'Abigail', active: true, principalLabel: 'Staff',
+  id: 19, revision: 'a'.repeat(64), displayName: 'Abigail', active: true, principalLabel: 'Staff',
   businessRole: 'employee_practitioner', calendarScope: 'own', serviceScope: 'own_services',
   preset: { label: 'Practitioner', status: 'current' },
   capabilities: ['appointment:view'],

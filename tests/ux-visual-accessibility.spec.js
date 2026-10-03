@@ -3676,3 +3676,47 @@ test('Workspace sign-out revokes the session from reports and menus on Phone and
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+// Exercise the production handler with real browser FormData: disabled fields
+// are excluded even when hidden. Keep failure recovery and the retry covered.
+test('Workspace access presets retain their payload while saving on Phone and Desktop', async ({ page }, testInfo) => {
+  const { workspaceAccessV2ClientScript } = require('../src/presentation/workspaceAccessV2Ux');
+  await page.route('**/calendar/staff-auth/csrf', route => route.fulfill({ json: { csrfToken: 'audit-csrf' } }));
+  const requests = [];
+  let rejectSave = true;
+  await page.route('**/calendar/team/workspace-access/19/preset', async route => {
+    const request = route.request();
+    const payload = request.postDataJSON();
+    requests.push({ payload, csrf: request.headers()['x-shiloh-csrf-token'] });
+    if (payload.preset !== 'employee_practitioner_v1') {
+      return route.fulfill({ status: 400, json: { error: 'Preset is required.' } });
+    }
+    return rejectSave
+      ? route.fulfill({ status: 409, json: { error: 'Access changed. Reload and try again.' } })
+      : route.fulfill({ json: { status: 'updated' } });
+  });
+  for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.goto('/iframe.html?id=workspace-staff-sms-device-setup--approved-device-setup&viewMode=story', { waitUntil: 'networkidle' });
+    await page.addScriptTag({ content: workspaceAccessV2ClientScript() });
+    await page.getByText('More access options', { exact: true }).click();
+    const form = page.locator('[data-access-preset-form]');
+    const button = form.getByRole('button', { name: 'Apply Practitioner preset' });
+    rejectSave = true;
+    await button.click();
+    await expect(form.locator('input[name="preset"]')).toBeEnabled();
+    await expect(button).toBeEnabled();
+    expect(requests.at(-1).payload.preset).toBe('employee_practitioner_v1');
+    expect(requests.at(-1).payload.expectedRevision).toBe('a'.repeat(64));
+    expect(requests.at(-1).csrf).toBe('audit-csrf');
+    await expect(form.locator('..').locator('[data-access-status]')).toContainText('Access changed');
+    const accessibility = await new AxeBuilder({ page }).include('[data-access-preset-form]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`workspace-access-preset-${viewport.name}.png`), fullPage: true, animations: 'disabled' });
+    rejectSave = false;
+    await Promise.all([page.waitForEvent('load'), button.click()]);
+    expect(requests.at(-1).payload.preset).toBe('employee_practitioner_v1');
+  }
+  expect(requests).toHaveLength(4);
+});
