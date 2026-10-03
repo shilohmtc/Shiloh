@@ -13,6 +13,11 @@ production deployment evidence belongs to the existing roadmap issue #611.
 | My Shiloh update deleted other applications’ caches | Execute the production worker activation handler with current/old My Shiloh caches plus Workspace and another application's caches. The original handler deleted both other applications’ caches. | Delete only obsolete caches with the `my-shiloh-` prefix. Preserve current caches and unrelated applications. |
 | A client notification could navigate Workspace | Execute the production notification-click handler with Workspace first in the same-origin window list. It navigated Workspace even with My Shiloh open. | Reuse only a same-origin My Shiloh window; otherwise open the notification target separately. Tests cover both existing-client and Workspace-only cases. |
 
+CI also reproduced a verification-tooling defect: Storybook and Vite copied the
+same public directories concurrently, failing with `EEXIST` in two independent
+jobs. Storybook now owns the static copy; Vite’s separate public directory is
+disabled. The rebuilt catalogue and required app assets were checked locally.
+
 The handbook’s older report workflow description is also aligned with the already
 accepted one-click resolution, optional note and automatic acknowledgement. No
 booking, payment, session duration, access policy or notification content change
