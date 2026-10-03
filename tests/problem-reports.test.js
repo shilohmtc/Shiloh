@@ -135,6 +135,9 @@ test('client and JP pages use friendly wording and keep support copy in JP Works
   const workspaceHtml = renderProblemReportsPage({ model: { displayName: 'Jean-Pierre', canManage: true, reports: [{ reference: 'SH-260920-01020304', status: 'new', category: 'other', reporterType: 'client', reporterName: 'Client One', source: 'my_shiloh', description: 'A visible example problem.', expectedBehavior: null, relatedAppointmentId: null, pagePath: '/my-shiloh/', requestId: null, diagnosticContext: {}, hasScreenshot: false, screenshotMimeType: null, resolutionNote: null, createdAt: '2026-09-20T10:00:00Z', updatedAt: '2026-09-20T10:00:00Z', resolvedAt: null }] }, selectedStatus: 'open' });
   assert.match(workspaceHtml, /JP only/);
   assert.match(workspaceHtml, /Copy report details/);
+  assert.doesNotMatch(workspaceHtml, /data-problem-report-form|<h2>Report a problem<\/h2>/);
+  assert.match(workspaceHtml, /inbox-only/);
+  assert.match(workspaceHtml, /value="fixed">Resolved/);
   const staffHtml = renderProblemReportsPage({ model: { displayName: 'Marietjie', canManage: false, canSubmit: true, reports: [] }, selectedStatus: 'open' });
   assert.match(staffHtml, /technical support team/);
   assert.match(staffHtml, /data-problem-report-form/);
@@ -178,7 +181,15 @@ test('report completion stores the client update atomically and push failure kee
   assert.match(query, /previous_status IS DISTINCT FROM status OR previous_resolution_note IS DISTINCT FROM resolution_note/);
   assert.match(query, /ON CONFLICT \(event_key\) DO NOTHING/);
   assert.match(query, /profile-reports/);
+  assert.match(query, /Thank you for reporting this\. Your issue has now been resolved\./);
   db.state.clientUpdateQueued = false;
   await service.updateStatus({ adminId:74, reference:report.reference, status:'fixed', resolutionNote:'The page now loads correctly.' });
   assert.deepEqual(calls, [501]);
+});
+
+test('staff without JP management permission cannot resolve a report even with a valid reference', async () => {
+  const db = fakeDb();
+  const service = createProblemReportService({db});
+  await assert.rejects(() => service.updateStatus({adminId:75,reference:'SH-EXAMPLE',status:'fixed',resolutionNote:'Resolved.'}), error => error.httpStatus === 403);
+  assert.equal(db.state.queries.some(q => q.sql.includes('problemReports:updateStatus')),false);
 });

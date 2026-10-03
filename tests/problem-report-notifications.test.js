@@ -22,3 +22,12 @@ test('historical report message cannot regain provider registration authority', 
   assert.throws(() => buildMetaTemplateRegistrationPayload(contract.id), /Retired/);
   assert.doesNotMatch(fs.readFileSync('src/services/problemReportResolvedTemplateProvisioning.js', 'utf8'), /axios|submitProblemReport|graph\.facebook/);
 });
+
+test('Workspace completion copy describes My Shiloh and never promises retired WhatsApp delivery', () => {
+  const {problemReportsClientScript} = require('../src/presentation/workspaceProblemReportsUx');
+  const script = problemReportsClientScript();
+  assert.doesNotMatch(script,/receive a WhatsApp message/);
+  assert.match(script,/My Shiloh updates/);
+  assert.match(script,/where enabled/);
+  assert.match(script,/staff member can see the update/);
+});

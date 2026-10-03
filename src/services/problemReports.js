@@ -276,7 +276,7 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
            (crm_v2_client_id,event_key,category,title,body,target_path)
          SELECT reporter_crm_v2_client_id,'problem-report:' || id || ':resolution:' || revision,
            'system',CASE WHEN status='fixed' THEN 'Your problem report is resolved' ELSE 'Your problem report is closed' END,
-           LEFT(reference_code || ': ' || resolution_note,240),'/my-shiloh/#profile-reports'
+           LEFT(CASE WHEN status='fixed' THEN 'Thank you for reporting this. Your issue has now been resolved. ' ELSE 'Thank you for reporting this. Your report has been closed. ' END || reference_code || ': ' || resolution_note,240),'/my-shiloh/#profile-reports'
          FROM updated
          WHERE reporter_type='client' AND reporter_crm_v2_client_id IS NOT NULL
            AND status IN ('fixed','closed')
