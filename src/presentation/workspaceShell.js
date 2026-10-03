@@ -1,3 +1,4 @@
+const { workspaceSignoutClientScript } = require('./workspaceSessionUx');
 const { confirmationClientScript } = require('./workspaceConfirmation');
 function escapeHtml(value = '') {
   return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -110,7 +111,7 @@ function renderWorkspaceNavigation({ active, displayName = '', dashboardHref = n
 }
 
 function workspaceNavigationClientScript() {
-  return confirmationClientScript() + `(()=>{'use strict';
+  return workspaceSignoutClientScript() + confirmationClientScript() + `(()=>{'use strict';
 const refresh=document.querySelector('[data-workspace-refresh]');
 const refreshStatus=document.querySelector('[data-workspace-refresh-status]');
 addEventListener('online',()=>{if(refreshStatus)refreshStatus.textContent='';});

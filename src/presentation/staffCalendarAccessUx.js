@@ -1,3 +1,4 @@
+const { workspaceSignoutClientScript } = require('./workspaceSessionUx');
 function escapeHtml(value = '') {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -178,32 +179,7 @@ async function probeSession(){
   }catch(_error){}
 }
 
-async function logout(){
-  var button=select('[data-shiloh-logout]');
-  var status=select('[data-shiloh-calendar-access-status]');
-  function workspaceStatus(message){if(status)status.textContent=message;else setStatus('pending',message);}
-  setBusy(button,true);
-  workspaceStatus('Signing out…');
-  var csrfToken=null;
-  try{
-    var csrfResponse=await postJson(AUTH_BASE+'/csrf',{});
-    if(csrfResponse.status===401){window.location.assign(ACCESS_PATH+'?reason=session');return;}
-    if(!csrfResponse.ok){workspaceStatus('Could not start secure sign-out. Refresh and try again.');return;}
-    var csrfBody=await safeJson(csrfResponse);
-    csrfToken=String(csrfBody.csrfToken||'');
-    if(!csrfToken){workspaceStatus('Could not start secure sign-out. Refresh and try again.');return;}
-    var logoutResponse=await postJson(AUTH_BASE+'/logout',{}, {'x-shiloh-csrf-token':csrfToken});
-    csrfToken=null;
-    if(logoutResponse.status===204){window.location.assign(ACCESS_PATH+'?reason=logout');return;}
-    if(logoutResponse.status===401){window.location.assign(ACCESS_PATH+'?reason=session');return;}
-    workspaceStatus('Could not complete secure sign-out. Refresh and try again.');
-  }catch(_error){
-    csrfToken=null;
-    workspaceStatus('Could not complete secure sign-out. Check your connection and try again.');
-  }finally{setBusy(button,false);}
-}
-
-var logoutButton=select('[data-shiloh-logout]');if(logoutButton)logoutButton.addEventListener('click',logout);
+${workspaceSignoutClientScript()}
 if(select('[data-shiloh-staff-calendar-access]'))probeSession();
 applyWeekOverlapLayout();
 installPractitionerVisibility();
