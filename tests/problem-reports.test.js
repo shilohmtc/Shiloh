@@ -134,7 +134,8 @@ test('client and JP pages use friendly wording and keep support copy in JP Works
   assert.match(clientHtml, /JP will see your report privately/);
   assert.doesNotMatch(clientHtml, /Codex|ChatGPT|Copy report details/);
   const workspaceHtml = renderProblemReportsPage({ model: { displayName: 'Jean-Pierre', canManage: true, reports: [{ reference: 'SH-260920-01020304', status: 'new', category: 'other', reporterType: 'client', reporterName: 'Client One', source: 'my_shiloh', description: 'A visible example problem.', expectedBehavior: null, relatedAppointmentId: null, pagePath: '/my-shiloh/', requestId: null, diagnosticContext: {}, hasScreenshot: false, screenshotMimeType: null, resolutionNote: null, createdAt: '2026-09-20T10:00:00Z', updatedAt: '2026-09-20T10:00:00Z', resolvedAt: null }] }, selectedStatus: 'open' });
-  assert.match(workspaceHtml, /JP only/);
+  assert.doesNotMatch(workspaceHtml, /JP only|private report inbox|support conversation/);
+  assert.match(workspaceHtml, /Resolution note \(optional\)/);
   assert.match(workspaceHtml, /Copy report details/);
   assert.doesNotMatch(workspaceHtml, /data-problem-report-form|<h2>Report a problem<\/h2>/);
   assert.match(workspaceHtml, /inbox-only/);
@@ -218,12 +219,21 @@ test('client acknowledgement is queued with report creation and survives unavail
   assert.deepEqual(wakeups,[501]);
 });
 
-test('JP has one completion outcome and must explain the resolution', async () => {
+test('JP has one completion outcome and can resolve without a note', async () => {
   const db=fakeDb();
   const service=createProblemReportService({db});
   for(const status of ['new','investigating','closed','invalid']) {
     await assert.rejects(()=>service.updateStatus({adminId:74,reference:'SH-EXAMPLE',status,resolutionNote:'An explanation.'}),error=>error.code==='PROBLEM_REPORT_INVALID');
   }
-  await assert.rejects(()=>service.updateStatus({adminId:74,reference:'SH-EXAMPLE',status:'fixed',resolutionNote:'  '}),error=>error.code==='PROBLEM_REPORT_NOTE_REQUIRED');
   assert.equal(db.state.queries.some(q=>q.sql.includes('problemReports:updateStatus')),false);
+  const report=await service.createReport({source:'my_shiloh',reporterType:'client',clientId:501,payload:{category:'other',description:'A detailed client problem report.'}});
+  const resolved=await service.updateStatus({adminId:74,reference:report.reference,status:'fixed',resolutionNote:'  '});
+  assert.equal(resolved.status,'fixed');
+  assert.equal(resolved.resolutionNote,null);
+  const query=db.state.queries.find(q=>q.sql.includes('problemReports:updateStatus'));
+  assert.equal(query.params[3],null);
+  assert.match(query.sql,/COALESCE\(': ' \|\| resolution_note,''\)/);
+  const again=await service.updateStatus({adminId:74,reference:report.reference,status:'fixed'});
+  assert.equal(again.resolutionNote,null);
+  assert.match(query.sql,/previous_status IS DISTINCT FROM status OR previous_resolution_note IS DISTINCT FROM resolution_note/);
 });

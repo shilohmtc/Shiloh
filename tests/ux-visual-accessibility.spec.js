@@ -3489,12 +3489,12 @@ test('JP problem reports shows only the inbox while staff retain submission on P
     await reportRows.first().locator('summary').focus();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('button',{name:'Mark resolved'}).first()).toBeVisible();
-    await expect(reportRows.first().getByText('Saving sends the thank-you update',{exact:false})).toBeVisible();
+    await expect(reportRows.first().getByText('Mark resolved to send the client a thank-you update.',{exact:false})).toBeVisible();
     await expect(reportRows.nth(1)).not.toHaveAttribute('open','');
     const tileGeometry=await reportRows.evaluateAll(rows=>rows.slice(1,3).map(row=>({x:row.getBoundingClientRect().x,y:row.getBoundingClientRect().y})));
     if(viewport.name==='desktop') expect(tileGeometry[0].y).toBe(tileGeometry[1].y);
     else expect(tileGeometry[1].y).toBeGreaterThan(tileGeometry[0].y);
-    await expect(page.getByLabel('Resolution note').first()).toBeVisible();
+    await expect(page.getByLabel('Resolution note (optional)').first()).toBeVisible();
     const metrics=await page.evaluate(()=>({viewport:innerWidth,width:document.documentElement.scrollWidth}));
     expect(metrics.width).toBeLessThanOrEqual(metrics.viewport);
     const axe=await new AxeBuilder({page}).include('.workspace-main').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
@@ -3505,12 +3505,13 @@ test('JP problem reports shows only the inbox while staff retain submission on P
     await page.route('**/calendar/problem-reports/*/status',route=>{submittedOutcome=route.request().postDataJSON();return route.fulfill({json:{report:{status:'fixed'}}});});
     await page.addScriptTag({content:require('../src/presentation/workspaceProblemReportsUx').problemReportsClientScript()});
     await reportRows.first().getByRole('button',{name:'Mark resolved'}).click();
-    await expect(reportRows.first().locator('[data-report-result]')).toHaveText('Add a short note before marking this report resolved.');
-    expect(submittedOutcome).toBeUndefined();
-    await reportRows.first().getByLabel('Resolution note').fill('Your personal details now save correctly.');
-    await reportRows.first().getByRole('button',{name:'Mark resolved'}).click();
-    await expect(reportRows.first().locator('[data-report-result]')).toContainText('The thank-you update');
-    expect(submittedOutcome).toEqual({status:'fixed',resolutionNote:'Your personal details now save correctly.'});
+    await expect(reportRows.first().locator('[data-report-result]')).toContainText('A thank-you update');
+    expect(submittedOutcome).toEqual({status:'fixed',resolutionNote:''});
+    await reportRows.nth(1).locator('summary').click();
+    await reportRows.nth(1).getByLabel('Resolution note (optional)').fill('Your details now save correctly.');
+    await reportRows.nth(1).getByRole('button',{name:'Mark resolved'}).click();
+    await expect(reportRows.nth(1).locator('[data-report-result]')).toContainText('A thank-you update');
+    expect(submittedOutcome).toEqual({status:'fixed',resolutionNote:'Your details now save correctly.'});
     await page.goto('/iframe.html?id=workspace-problem-reports--jp-resolved&viewMode=story',{waitUntil:'networkidle'});
     await page.locator('details[data-report] > summary').click();
     await expect(page.getByText('Your personal details now save correctly.',{exact:false})).toBeVisible();
@@ -3562,5 +3563,22 @@ test('My Shiloh automatically acknowledges a submitted report in Current updates
     const axe=await new AxeBuilder({page}).include('[data-client-notification-centre]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
     expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
     await page.screenshot({path:testInfo.outputPath(`report-acknowledgement-${viewport.name}.png`),fullPage:true});
+  }
+});
+
+test('Workspace login uses simple wording on Phone and Desktop',async({page},testInfo)=>{
+  for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=staff-passkey-sign-in--workspace-login&viewMode=story',{waitUntil:'networkidle'});
+    const surface=page.locator('[data-workspace-login-story]');
+    await expect(surface.getByRole('heading',{name:'Shiloh Workspace'})).toBeVisible();
+    await expect(surface.getByText('Sign in to your Workspace.')).toBeVisible();
+    await expect(surface.getByRole('button',{name:'Continue with device sign-in'})).toBeVisible();
+    await expect(surface).not.toContainText('security tokens');
+    await expect(surface).not.toContainText('canonical server-derived');
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    const axe=await new AxeBuilder({page}).include('[data-workspace-login-story]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
+    expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath('workspace-login-'+viewport.name+'.png'),fullPage:true});
   }
 });

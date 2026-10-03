@@ -32,6 +32,8 @@ test('direct Workspace sign-in retires legacy WhatsApp and recovery fallback pan
   assert.doesNotMatch(page, /open Workspace from your existing Shiloh WhatsApp conversation/i);
   assert.doesNotMatch(page, /Need to enroll an authenticator\?/);
 
+  assert.match(page, /Sign in to your Workspace/);
+  assert.doesNotMatch(page, /browser session or security tokens|persistent browser storage|canonical server-derived|operating workspace/);
   assert.match(page, /data-shiloh-status data-state="ready"><\/div>/);
   assert.match(page, /\[data-shiloh-status\]:empty\{display:none\}/);
 });

@@ -1,3 +1,4 @@
+import accessUx from '../src/presentation/staffCalendarAccessUx.js';
 import passkeyUx from '../src/presentation/staffPasskeyUx.js';
 
 const { signinPanel } = passkeyUx;
@@ -46,4 +47,15 @@ export const BrowserHandoff = {
 
 export const LinkedDevice = {
   render:() => surface({ linked:true }),
+};
+
+export const WorkspaceLogin = {
+  render:() => {
+    const html=accessUx.renderStaffCalendarAccessPage({reason:'logout'});
+    const styles=[...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(match=>match[1]).join('\n');
+    const body=html.match(/<body[^>]*>([\s\S]*?)<\/body>/)[1]
+      .replace(/<section class="section" data-shiloh-whatsapp-handoff-guidance>[\s\S]*?<\/section>/,signinPanel())
+      .replace(/<script[\s\S]*?<\/script>/g,'');
+    return '<style>'+styles+'</style><div data-workspace-login-story>'+body+'</div>';
+  },
 };
