@@ -220,7 +220,7 @@ test('Desktop and hidden Phone drawer share canonical destination grammar with c
   assert.ok(html.indexOf('Clients') < html.indexOf('Messages'));
   assert.ok(html.indexOf('Messages') < html.indexOf('Staff'));
   assert.ok(html.indexOf('Staff') < html.indexOf('Services'));
-  assert.ok(html.indexOf('Services') < html.indexOf('Reports'));
+  assert.ok(html.indexOf('Services') < html.indexOf('Clinic reports'));
   assert.match(html, /data-workspace-more-toggle>More<\/button>/);
   assert.match(workspaceShellStyles(), /\.workspace-nav\{position:fixed;inset:0 auto 0 0/);
   assert.match(workspaceShellStyles(), /transform:translateX\(-105%\)/);

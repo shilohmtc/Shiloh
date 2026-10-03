@@ -146,7 +146,7 @@ async function main() {
       const response = await page.goto(`${origin}/calendar/reports?range=30d`, { waitUntil: 'networkidle' });
       assert.equal(response.status(), 200);
       await page.locator('[data-workspace-reports="true"]').waitFor();
-      assert.equal(await page.getByRole('heading', { name: 'Reports', exact: true }).isVisible(), true);
+      assert.equal(await page.getByRole('heading', { name: 'Clinic reports', exact: true }).isVisible(), true);
       assert.equal(await page.getByRole('button', { name: 'View report' }).isVisible(), true);
       assert.equal(await page.getByRole('heading', { name: 'Team booking time' }).isVisible(), true);
       const hasEarnings = adminId !== 51;

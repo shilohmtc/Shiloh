@@ -11,7 +11,7 @@ for (const viewport of [
 
     const surface = page.locator('.workspace-report-story');
     await expect(surface).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Reports', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Clinic reports', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Team booking time' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Team treatment value & commission' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Commission structure' })).toBeVisible();

@@ -211,7 +211,7 @@ test('Reports and Clinic hours inherit the one direct eight-category Workspace s
     appointments: { statusCounts: {} }, services: [], capacity: [{ name: 'Practitioner', scheduledMinutes: 480, bookedMinutes: 60, blockedMinutes: 0, leaveMinutes: 0, remainingMinutes: 420, utilisationPct: 13 }], totals: {}, clients: {}, trend: {}, closures: 0,
   });
   assert.match(reportHtml, /data-workspace-drawer-toggle/);
-  assert.match(reportHtml, /data-workspace-destination="reports" aria-current="page">Reports/);
+  assert.match(reportHtml, /data-workspace-destination="reports" aria-current="page">Clinic reports/);
   assert.match(reportHtml, /src="\/calendar\/workspace\/nav\.js" defer/);
   assert.match(reportHtml, /data-label="Available"/);
   assert.match(reportHtml, /\.capacity-table\{display:block;min-width:0\}/);

@@ -567,7 +567,7 @@ async function main() {
     assert.ok(Math.abs(drawerMetrics.width - Math.min(390 * 0.6, 220)) <= 1, `Phone drawer missed the compact 60vw–220px target: ${drawerMetrics.width}px`);
     assert.ok(drawerMetrics.headerRight <= drawerMetrics.drawerRight, 'Phone drawer header escapes the drawer');
     assert.ok(drawerMetrics.closeRight <= drawerMetrics.drawerRight, 'Phone drawer close control escapes the drawer');
-    assert.deepEqual(drawerMetrics.labels, ['Dashboard', 'Calendar', 'Clients', 'Messages', 'Staff', 'Services', 'Reports']);
+    assert.deepEqual(drawerMetrics.labels, ['Dashboard', 'Calendar', 'Clients', 'Messages', 'Staff', 'Services', 'Clinic reports']);
     assert.ok(drawerMetrics.minHeight >= 44, 'Phone drawer destination is below 44px');
     assert.equal(drawerMetrics.moreVisible, false);
     assert.equal(drawerMetrics.current, 'Calendar');

@@ -162,7 +162,7 @@ async function main() {
       assert.equal(await page.getByRole('switch', { name: 'Manage Reception booking requests', exact: true }).getAttribute('aria-checked'), 'true');
       assert.equal(await page.getByRole('button', { name: 'Save changes', exact: true }).isVisible(), true);
       assert.equal(await page.getByRole('link', { name: 'Open device setup', exact: true }).isVisible(), false);
-      await page.locator('details.access-group > summary').filter({ hasText: /^Reports & finance/ }).click();
+      await page.locator('details.access-group > summary').filter({ hasText: /^Clinic reports & finance/ }).click();
       assert.equal(await page.getByText('Issue permitted payment refunds', { exact: true }).isVisible(), true);
       await page.screenshot({ path: path.join(OUT_DIR, viewport.name+'-administrator-access.png'), fullPage: true });
       const refundSwitch = page.getByRole('switch', { name: 'Issue permitted payment refunds', exact: true });
@@ -172,7 +172,7 @@ async function main() {
       assert.equal(people.find(person => person.id === 42).toggles.find(toggle => toggle.key === 'payment:refund').on, false);
       assert.equal(people.find(person => person.id === 42).toggles.find(toggle => toggle.key === 'appointment:create').on, true);
       await page.reload({ waitUntil: 'networkidle' });
-      await page.locator('details.access-group > summary').filter({ hasText: /^Reports & finance/ }).click();
+      await page.locator('details.access-group > summary').filter({ hasText: /^Clinic reports & finance/ }).click();
       assert.equal(await refundSwitch.getAttribute('aria-checked'), 'false');
       await page.goto(`${origin}/calendar/team/staff-access/43`, { waitUntil: 'networkidle' });
       const receptionSwitch = page.getByRole('switch', { name: 'Manage Reception booking requests', exact: true });

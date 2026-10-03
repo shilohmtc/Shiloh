@@ -170,7 +170,7 @@ function renderReportsPage(model, {
   const campaignJump = model.welcomeVoucherCampaign ? '<a class="jump-link" href="#welcome-voucher">R100 campaign</a>' : '';
   const earningsJump = model.staffEarnings ? '<a class="jump-link" href="#staff-earnings">Earnings</a>' : '';
 
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reports — Shiloh Workspace</title><style>${workspaceShellStyles()}${reportStyles()}${phoneCapacityStyles()}${welcomeVoucherCampaignStyles()}${earningsStyles()}</style><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${model.staffEarnings ? '<script src="/calendar/reports/commission.js" defer></script>' : ''}</head><body data-workspace-reports="true"><div class="workspace-frame">${renderWorkspaceNavigation({
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clinic reports — Shiloh Workspace</title><style>${workspaceShellStyles()}${reportStyles()}${phoneCapacityStyles()}${welcomeVoucherCampaignStyles()}${earningsStyles()}</style><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${model.staffEarnings ? '<script src="/calendar/reports/commission.js" defer></script>' : ''}</head><body data-workspace-reports="true"><div class="workspace-frame">${renderWorkspaceNavigation({
     active: 'reports',
     displayName: model.authority?.displayName,
     calendarHref: '/calendar/read-only',
@@ -179,7 +179,7 @@ function renderReportsPage(model, {
     servicesHref: '/calendar/services',
     reportsHref: '/calendar/reports',
   })}<div class="workspace-main"><div class="shell">
-    <header class="topbar"><div class="brand"><h1>Reports</h1><p>A clear view of appointments, team time and clients.</p></div><div class="topbar-side"><span class="truth-note">${model.staffEarnings ? 'Private · Authorized staff' : 'Read only'}</span></div></header>
+    <header class="topbar"><div class="brand"><h1>Clinic reports</h1><p>A clear view of appointments, team time and clients.</p></div><div class="topbar-side"><span class="truth-note">${model.staffEarnings ? 'Private · Authorized staff' : 'Read only'}</span></div></header>
 
     <section class="filter-panel" aria-label="Choose report period">
       <div class="preset-row"><span class="preset-label">Choose period</span>${presetLinks}</div>
@@ -223,14 +223,14 @@ function renderReportsPage(model, {
       </div>
     </div>
 
-    <p class="footer-note">Reports can cover up to 31 days. Appointment and client sections are read only.</p>
+    <p class="footer-note">Clinic reports can cover up to 31 days. Appointment and client sections are read only.</p>
   </div></div></div></body></html>`;
 }
 
 function renderReportsUnavailablePage({
-  message = 'Reports are temporarily unavailable. Please try again shortly.',
+  message = 'Clinic reports are temporarily unavailable. Please try again shortly.',
 } = {}) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reports unavailable — Shiloh Workspace</title><style>${workspaceShellStyles()}${reportStyles()}</style></head><body><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'reports', reportsHref: '/calendar/reports' })}<div class="workspace-main"><div class="shell"><header class="topbar"><div class="brand"><h1>Reports unavailable</h1><p>${escapeHtml(message)}</p></div></header><section class="panel"><h2>Please try again in a moment.</h2><p class="footer-note">If the problem continues, return to Calendar and try Reports again later.</p><p><a class="button" href="/calendar/read-only">Back to Calendar</a></p></section></div></div></div></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clinic reports unavailable — Shiloh Workspace</title><style>${workspaceShellStyles()}${reportStyles()}</style></head><body><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'reports', reportsHref: '/calendar/reports' })}<div class="workspace-main"><div class="shell"><header class="topbar"><div class="brand"><h1>Clinic reports unavailable</h1><p>${escapeHtml(message)}</p></div></header><section class="panel"><h2>Please try again in a moment.</h2><p class="footer-note">If the problem continues, return to Calendar and try Clinic reports again later.</p><p><a class="button" href="/calendar/read-only">Back to Calendar</a></p></section></div></div></div></body></html>`;
 }
 
 module.exports = {
