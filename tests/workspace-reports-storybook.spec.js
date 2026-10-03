@@ -14,7 +14,21 @@ for (const viewport of [
     await expect(page.getByRole('heading', { name: 'Clinic reports', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Team booking time' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Team treatment value & commission' })).toBeVisible();
+    await expect(page.locator('details[data-report-section][open]')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Commission structure' })).toBeHidden();
+    expect(await page.locator('.metrics').evaluate(node=>Boolean(node.compareDocumentPosition(document.querySelector('#staff-earnings')) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
+    await page.screenshot({path:testInfo.outputPath(`reports-compact-${viewport.name}.png`),fullPage:true});
+    await page.addScriptTag({content:require('../src/presentation/workspaceReportsUx').reportSectionsClientScript()});
+    await page.getByRole('link', {name:'Earnings',exact:true}).click();
+    await expect(page.locator('#staff-earnings')).toHaveAttribute('open','');
     await expect(page.getByRole('heading', { name: 'Commission structure' })).toBeVisible();
+    await page.getByRole('link', {name:'Team',exact:true}).click();
+    await expect(page.locator('#team-time')).toHaveAttribute('open','');
+    await page.locator('#treatments > summary').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#treatments .service-list')).toBeVisible();
+    await page.locator('#clients > summary').click();
+    await expect(page.locator('#clients .client-grid')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Appointment #732' })).toHaveAttribute('href', /appointment=732/);
     await expect(page.getByText('Shared appointment — review allocation')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Treatments booked' })).toBeVisible();
@@ -27,7 +41,7 @@ for (const viewport of [
     const geometry = await page.evaluate(() => ({
       viewportWidth: window.innerWidth,
       documentWidth: document.documentElement.scrollWidth,
-      targets: [...document.querySelectorAll('.workspace-report-story button,.workspace-report-story input,.workspace-report-story select,.workspace-report-story a')]
+      targets: [...document.querySelectorAll('.workspace-report-story button,.workspace-report-story input,.workspace-report-story select,.workspace-report-story a,.workspace-report-story summary')]
         .filter(node => node.getClientRects().length > 0)
         .map(node => ({
           label: node.textContent.trim() || node.getAttribute('aria-label') || node.id,

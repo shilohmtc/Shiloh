@@ -100,6 +100,7 @@ async function main() {
   };
 
   const app = express();
+  app.get('/calendar/pwa/icon-192.png', (_req, res) => res.sendFile(path.join(process.cwd(), 'public/assets/pwa/shiloh-pwa-192.png')));
   app.get('/calendar/staff/client.js', (_req, res) => res.type('application/javascript').send(''));
   app.use('/calendar/reports', createWorkspaceReportsRouter({
     env: ENV,
@@ -121,6 +122,7 @@ async function main() {
     const unauthenticatedPage = await unauthenticated.newPage();
     const unauthorized = await unauthenticatedPage.goto(`${origin}/calendar/reports`, { waitUntil: 'networkidle' });
     assert.equal(unauthorized.status(), 401);
+    assert.equal((await unauthenticated.request.get(`${origin}/calendar/reports/sections.js`)).status(),401);
     await unauthenticated.close();
 
     const screenshots = [];
@@ -151,11 +153,22 @@ async function main() {
       assert.equal(await page.getByRole('heading', { name: 'Team booking time' }).isVisible(), true);
       const hasEarnings = adminId !== 51;
       assert.equal(await page.getByRole('heading', { name: 'Team treatment value & commission' }).count(), hasEarnings ? 1 : 0);
+      assert.equal(await page.locator('details[data-report-section][open]').count(), 0);
+      await page.screenshot({path:path.join(OUT_DIR, `${viewport.name}-${adminId}-reports-compact.png`),fullPage:true});
+      if (hasEarnings) await page.getByRole('link', {name:'Earnings',exact:true}).click();
       if (hasEarnings) assert.match(await page.getByRole('link', { name: 'Appointment #732' }).getAttribute('href'), /appointment=732/);
+      assert.equal((await context.request.get(`${origin}/calendar/reports/sections.js`)).status(),200);
       const scriptResponse = await context.request.get(`${origin}/calendar/reports/commission.js`);
       assert.equal(scriptResponse.status(), hasEarnings ? 200 : 403);
       assert.equal(await page.getByRole('heading', { name: 'Treatments booked' }).isVisible(), true);
       assert.equal(await page.getByRole('heading', { name: 'New and returning clients' }).isVisible(), true);
+
+      await page.getByRole('link', {name:'Team',exact:true}).click();
+      assert.equal(await page.locator('#team-time').getAttribute('open'), '');
+      await page.getByRole('link', {name:'Treatments',exact:true}).click();
+      assert.equal(await page.locator('#treatments .service-list').isVisible(), true);
+      await page.getByRole('navigation',{name:'Report sections'}).getByRole('link', {name:'Clients',exact:true}).click();
+      assert.equal(await page.locator('#clients .client-grid').isVisible(), true);
 
       const bodyText = await page.locator('body').innerText();
       assert.doesNotMatch(bodyText, /canonical|business-wide operational|practitioner authority|service snapshot|aggregate identity|utilisation|fail closed/i);
@@ -163,7 +176,7 @@ async function main() {
       const geometry = await page.evaluate(() => ({
         viewportWidth: window.innerWidth,
         documentWidth: document.documentElement.scrollWidth,
-        targets: [...document.querySelectorAll('button,input,select,a')]
+        targets: [...document.querySelectorAll('button,input,select,a,summary')]
           .filter(node => node.getClientRects().length > 0)
           .map(node => ({
             label: node.textContent.trim() || node.getAttribute('aria-label') || node.id,
@@ -195,6 +208,9 @@ async function main() {
         noHorizontalOverflow: true,
         accessibilitySeriousOrCritical: 0,
       });
+      await page.goto(`${origin}/calendar/reports?range=30d#treatments`, {waitUntil:'networkidle'});
+      assert.equal(await page.locator('#treatments').getAttribute('open'), '');
+      assert.equal(await page.locator('#treatments .service-list').isVisible(), true);
       await context.close();
     }
 
