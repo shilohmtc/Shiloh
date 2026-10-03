@@ -10,7 +10,7 @@ const { renderMyShilohPage } = require('../src/presentation/myShilohPwa');
 const { createWorkspaceNavigationService } = require('../src/services/workspaceNavigation');
 
 function fakeDb({ manager = true } = {}) {
-  const state = { reports: [], intent: null, queries: [] };
+  const state = { reports: [], intent: null, queries: [], clientUpdateQueued: false };
   return {
     state,
     async query(sql, params = []) {
@@ -35,7 +35,7 @@ function fakeDb({ manager = true } = {}) {
         const row = state.reports.find((report) => report.reference_code === params[1]);
         if (!row) return { rows: [], rowCount: 0 };
         row.status = params[2]; row.resolution_note = params[3]; row.revision = Number(row.revision || 0) + 1; row.updated_at = new Date('2026-09-20T10:05:00Z');
-        return { rows: [row], rowCount: 1 };
+        return { rows: [{...row, client_update_queued: state.clientUpdateQueued}], rowCount: 1 };
       }
       if (sql.includes('problemReports:reopenFromWhatsapp')) {
         const field = params[0] === 'staff' ? 'reporter_staff_admin_id' : 'reporter_crm_v2_client_id';
@@ -161,4 +161,24 @@ test('page paths drop query strings and WhatsApp sender identity is hashed', () 
   assert.equal(cleanPath('/my-shiloh/?token=secret#profile'), '/my-shiloh/');
   assert.match(senderHash('+27 82 123 4567'), /^[0-9a-f]{64}$/);
   assert.doesNotMatch(senderHash('+27 82 123 4567'), /27821234567/);
+});
+
+test('report completion stores the client update atomically and push failure keeps the saved resolution', async () => {
+  const db = fakeDb();
+  const calls = [];
+  const service = createProblemReportService({ db, pushService: { wakeClient: async id => { calls.push(id); throw new Error('Push unavailable'); } } });
+  const report = await service.createReport({ reporterType:'client', crmV2ClientId:501, source:'my_shiloh', payload:{ category:'other', description:'The page does not load correctly.' } });
+  db.state.clientUpdateQueued = true;
+  const resolved = await service.updateStatus({ adminId:74, reference:report.reference, status:'fixed', resolutionNote:'The page now loads correctly.' });
+  assert.equal(resolved.status, 'fixed');
+  assert.deepEqual(calls, [501]);
+  const query = db.state.queries.find(q => q.sql.includes('problemReports:updateStatus')).sql;
+  assert.match(query, /client_update AS[\s\S]*INSERT INTO my_shiloh_push_notifications/);
+  assert.match(query, /reporter_type='client' AND reporter_crm_v2_client_id IS NOT NULL/);
+  assert.match(query, /previous_status IS DISTINCT FROM status OR previous_resolution_note IS DISTINCT FROM resolution_note/);
+  assert.match(query, /ON CONFLICT \(event_key\) DO NOTHING/);
+  assert.match(query, /profile-reports/);
+  db.state.clientUpdateQueued = false;
+  await service.updateStatus({ adminId:74, reference:report.reference, status:'fixed', resolutionNote:'The page now loads correctly.' });
+  assert.deepEqual(calls, [501]);
 });

@@ -2,6 +2,8 @@
 
 const crypto = require('crypto');
 const { pool } = require('../db/pool');
+const { defaultPushService } = require('./myShilohPush');
+const logger = require('../lib/logger');
 
 const CATEGORIES = new Set(['booking', 'messages', 'profile', 'payments', 'other']);
 const STATUSES = new Set(['new', 'investigating', 'fixed', 'closed']);
@@ -122,7 +124,7 @@ function reporterReport(row) {
   };
 }
 
-function createProblemReportService({ db = pool, clock = () => new Date(), randomBytes = crypto.randomBytes } = {}) {
+function createProblemReportService({ db = pool, clock = () => new Date(), randomBytes = crypto.randomBytes, pushService = defaultPushService } = {}) {
   async function staffIdentity(adminId) {
     const result = await db.query(
       `/* problemReports:staffIdentity */
@@ -269,16 +271,32 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
        ), status_event AS (
          INSERT INTO problem_report_status_events(problem_report_id,from_status,to_status,resolution_note_snapshot,actor_admin_id,actor_kind)
          SELECT id,previous_status,status,COALESCE(resolution_note,previous_resolution_note),$1,'staff' FROM updated
+       ), client_update AS (
+         INSERT INTO my_shiloh_push_notifications
+           (crm_v2_client_id,event_key,category,title,body,target_path)
+         SELECT reporter_crm_v2_client_id,'problem-report:' || id || ':resolution:' || revision,
+           'system',CASE WHEN status='fixed' THEN 'Your problem report is resolved' ELSE 'Your problem report is closed' END,
+           LEFT(reference_code || ': ' || resolution_note,240),'/my-shiloh/#profile-reports'
+         FROM updated
+         WHERE reporter_type='client' AND reporter_crm_v2_client_id IS NOT NULL
+           AND status IN ('fixed','closed')
+           AND (previous_status IS DISTINCT FROM status OR previous_resolution_note IS DISTINCT FROM resolution_note)
+         ON CONFLICT (event_key) DO NOTHING
+         RETURNING crm_v2_client_id
        ), audited AS (
          INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata)
          SELECT $1,'problem_report.status_changed','problem_report',id,
            jsonb_build_object('reference',reference_code,'status',status)
          FROM updated
-       ) SELECT * FROM updated`,
+       ) SELECT updated.*,EXISTS(SELECT 1 FROM client_update) AS client_update_queued FROM updated`,
       [Number(identity.id), String(reference || ''), status, note],
     );
     const row = result.rows[0];
     if (!row) throw new ProblemReportError('PROBLEM_REPORT_NOT_FOUND', 'That report was not found.', 404);
+    if (row.client_update_queued) {
+      try { await pushService.wakeClient(Number(row.reporter_crm_v2_client_id)); }
+      catch (error) { logger.warn({ err: error, reportId: row.id }, 'Problem report update saved; phone notification unavailable'); }
+    }
     return publicReport(row);
   }
 

@@ -776,36 +776,58 @@ test('My Shiloh Home summary cards are tappable and redeemed welcome voucher cle
   }
 });
 
-test('My Shiloh shows the Updates section when a client has a real update', async ({ page }) => {
-  await page.route('**/my-shiloh/api/notifications', route => route.fulfill({
-    status: 200, contentType: 'application/json',
-    body: JSON.stringify({ notifications: [{ id:'visit-1', title:'Appointment reminder', body:'Your appointment is coming up.', targetPath:'/my-shiloh/#bookings' }] }),
-  }));
-  await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-home&viewMode=story', { waitUntil:'networkidle' });
-  await page.evaluate(() => {
-    localStorage.setItem('my-shiloh-install-whatsapp-verified-v1', '1');
-    Object.defineProperty(navigator, 'standalone', { configurable:true, get:() => true });
-  });
-  await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
-  const centre = page.locator('[data-client-notification-centre]');
-  await expect(centre).toBeVisible();
-  await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toHaveAttribute('href', '/my-shiloh/#bookings');
-  await centre.getByRole('button', { name:'Archive Appointment reminder' }).click();
-  await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toHaveCount(0);
-  await expect(centre.getByRole('button', { name:'Show archived (1)' })).toBeVisible();
-  await page.reload({ waitUntil:'networkidle' });
-  await page.evaluate(() => {
-    localStorage.setItem('my-shiloh-install-whatsapp-verified-v1', '1');
-    Object.defineProperty(navigator, 'standalone', { configurable:true, get:() => true });
-  });
-  await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
-  await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toHaveCount(0);
-  await centre.getByRole('button', { name:'Show archived (1)' }).click();
-  await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toBeVisible();
-  await centre.getByRole('button', { name:'Restore Appointment reminder' }).click();
-  await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toHaveCount(0);
-  await centre.getByRole('button', { name:'Show current updates' }).click();
-  await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toBeVisible();
+test('My Shiloh shows current updates and restores archives from Profile on phone and desktop', async ({ page }, testInfo) => {
+  await page.route('**/my-shiloh/api/profile', route => route.fulfill({ json:{profile:{name:'Synthetic Client',dateOfBirth:'1988-05-12',gender:'female',mobile:'+27 •• ••• 0000',revision:'a'.repeat(64),registrationComplete:true}} }));
+  await page.route('**/my-shiloh/api/problem-reports', route => route.fulfill({ json:{reports:[{reference:'SH-SYNTHETIC',status:'fixed',resolutionNote:'Your personal details now save correctly.'}]} }));
+  for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html');
+    await page.evaluate(() => localStorage.clear());
+    await page.route('**/my-shiloh/api/notifications', route => route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({ notifications: [{ id:'visit-1', title:'Appointment reminder', body:'Your appointment is coming up.', targetPath:'/my-shiloh/#bookings' }, { id:'report-1', title:'Your problem report is resolved', body:'Your personal details now save correctly.', targetPath:'/my-shiloh/#profile-reports' }] }),
+    }));
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-home&viewMode=story', { waitUntil:'networkidle' });
+    await page.evaluate(() => {
+      localStorage.setItem('my-shiloh-install-whatsapp-verified-v1', '1');
+      Object.defineProperty(navigator, 'standalone', { configurable:true, get:() => true });
+    });
+    await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
+    const centre = page.locator('[data-client-notification-centre]');
+    await expect(centre).toBeVisible();
+    await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toHaveAttribute('href', '/my-shiloh/#bookings');
+    await centre.getByRole('button', { name:'Archive Appointment reminder' }).click();
+    await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toHaveCount(0);
+    await expect(centre.getByRole('link', { name:'Archived updates in Profile' })).toBeVisible();
+    await page.reload({ waitUntil:'networkidle' });
+    await page.evaluate(() => {
+      localStorage.setItem('my-shiloh-install-whatsapp-verified-v1', '1');
+      Object.defineProperty(navigator, 'standalone', { configurable:true, get:() => true });
+    });
+    await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
+    await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toHaveCount(0);
+    await centre.getByRole('link', { name:'Archived updates in Profile' }).click();
+    const archive = page.locator('[data-profile-archived-updates]');
+    await expect(page.locator('[data-view="profile"]')).toBeVisible();
+    await expect(archive.getByRole('link', { name:/Appointment reminder/ })).toBeVisible();
+    const accessibility = await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`archived-updates-${viewport.name}.png`),fullPage:true});
+    await archive.getByRole('button', { name:'Restore Appointment reminder' }).click();
+    await expect(archive.getByRole('link', { name:/Appointment reminder/ })).toHaveCount(0);
+    await page.locator('[data-view-target="home"]').click();
+    await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toBeVisible();
+    const resolutionLink = centre.getByRole('link', { name:/Your problem report is resolved/ });
+    await expect(resolutionLink).toHaveAttribute('href', '/my-shiloh/#profile-reports');
+    // Storybook serves the installed app at iframe.html; keep the production fragment.
+    await resolutionLink.evaluate(link => { link.href = new URL(link.href).hash; });
+    await resolutionLink.click();
+    await expect(page.locator('[data-view="profile"]')).toBeVisible();
+    await expect(page.locator('[data-profile-help]')).toHaveAttribute('open', '');
+    await page.locator('[data-view-target="bookings"]').click();
+    await expect(page.locator('[data-view="bookings"]')).toBeVisible();
+  }
+
 });
 
 test('Shiloh Rewards is clear, responsive and accessible on Phone and Desktop', async ({page},testInfo)=>{

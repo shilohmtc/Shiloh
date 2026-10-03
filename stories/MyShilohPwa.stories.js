@@ -705,3 +705,12 @@ export const MultipleAppointmentReview = {
     return root;
   },
 };
+
+export const ArchivedUpdates = {
+  render: () => {
+    const surface = AuthenticatedProfile.render();
+    surface.querySelector('[data-profile-archived-updates]').open = true;
+    surface.querySelector('[data-client-archived-notification-list]').innerHTML = '<div class="notification-centre__row"><a class="notification-centre__item" href="#profile-reports"><strong>Your problem report is resolved</strong><span>Your personal details now save correctly. Thank you for reporting this.</span></a><button class="notification-centre__archive" type="button">Restore</button></div>';
+    return surface;
+  },
+};
