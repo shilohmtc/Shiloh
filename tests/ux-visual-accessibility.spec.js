@@ -3582,3 +3582,97 @@ test('Workspace login uses simple wording on Phone and Desktop',async({page},tes
     await page.screenshot({path:testInfo.outputPath('workspace-login-'+viewport.name+'.png'),fullPage:true});
   }
 });
+
+test('Workspace sign-out revokes the session from reports and menus on Phone and Desktop', async ({ browser }, testInfo) => {
+  const express = require('express');
+  const crypto = require('crypto');
+  const { createStaffBrowserSessionService } = require('../src/services/staffBrowserSession');
+  const { createStaffBrowserSessionRouter } = require('../src/routes/staffBrowserSession');
+  const { createWorkspaceProblemReportsRouter } = require('../src/routes/workspaceProblemReports');
+  const { requireStaffSession } = require('../src/middleware/staffBrowserSession');
+  const { renderWorkspaceNavigation, workspaceShellStyles } = require('../src/presentation/workspaceShell');
+  const { staffCalendarAccessClientScript, renderStaffCalendarAccessPage } = require('../src/presentation/staffCalendarAccessUx');
+  const { signinPanel } = require('../src/presentation/staffPasskeyUx');
+  const token = Buffer.alloc(32, 19).toString('base64url');
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const env = { NODE_ENV: 'test' };
+  let row, revocations, rotations;
+  const db = { async query(sql, params) {
+    if (sql.includes('SELECT bs.id AS session_id')) return { rows: params[0] === tokenHash ? [{ ...row }] : [] };
+    if (sql.includes('SET csrf_hash')) {
+      row.csrf_hash = params[1]; rotations += 1;
+      return { rows: [{ id: row.session_id }], rowCount: row.revoked_at ? 0 : 1 };
+    }
+    if (sql.includes('SET revoked_at')) {
+      row.revoked_at = params[1]; revocations += 1;
+      return { rows: [{ id: row.session_id }], rowCount: 1 };
+    }
+    if (sql.includes('SET last_used_at')) return { rows: [], rowCount: 1 };
+    throw new Error('Unexpected synthetic session query');
+  } };
+  const service = createStaffBrowserSessionService({ db });
+  const app = express();
+  app.use(express.json());
+  app.use((req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); });
+  app.use('/calendar/staff-auth', createStaffBrowserSessionRouter({ env, service }));
+  app.get('/calendar/workspace/nav.js', (_req, res) => res.type('js').send(workspaceNavigationClientScript()));
+  app.get('/calendar/staff/client.js', (_req, res) => res.type('js').send(staffCalendarAccessClientScript()));
+  app.get('/calendar/workspace/navigation', requireStaffSession({ service, env }), (_req, res) => res.json({}));
+  app.use('/calendar/problem-reports', createWorkspaceProblemReportsRouter({ env, sessionService: service, service: {
+    resolveWorkspaceAccess: async () => ({ displayName: 'Jean-Pierre', canManage: true }),
+    listForManager: async () => ({ reports: [] }),
+  } }));
+  app.get('/calendar/workspace', requireStaffSession({ service, env, humanNavigationSigninPath: '/calendar/staff' }), (req, res) => {
+    const first = req.query.order === 'staff-first' ? '<script src="/calendar/staff/client.js" defer></script>' : '';
+    const last = req.query.order === 'nav-first' ? '<script src="/calendar/staff/client.js" defer></script>' : '';
+    res.type('html').send('<!doctype html><html lang="en"><head><title>Synthetic Workspace</title><style>' + workspaceShellStyles() + 'body{margin:0;font-family:system-ui}</style>' + first + '</head><body><div class="workspace-frame">' + renderWorkspaceNavigation({displayName:'Jean-Pierre'}) + '<main class="workspace-main"><h1>Workspace</h1></main></div>' + last + '</body></html>');
+  });
+  app.get('/calendar/staff', (_req, res) => res.type('html').send(renderStaffCalendarAccessPage({reason:'logout'}).replace(/<section class="section" data-shiloh-whatsapp-handoff-guidance>[\s\S]*?<\/section>/, signinPanel())));
+  app.get('/calendar/pwa/icon-192.png', (_req, res) => res.sendFile(require('path').resolve('public/assets/pwa/shiloh-pwa-192.png')));
+  const server = await new Promise(resolve => { const listening = app.listen(0, '127.0.0.1', () => resolve(listening)); });
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  try {
+    for (const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]) {
+      for (const path of ['/calendar/problem-reports', '/calendar/workspace?order=staff-first', '/calendar/workspace?order=nav-first']) {
+        row = { session_id:1,admin_id:74,id:74,admin_active:true,business_role:'business_admin',role:'manager',calendar_scope:'business_all_staff',service_scope:'all_services',permissions:{'appointment:view':true},staff_id:null,issued_at:new Date(),expires_at:new Date(Date.now()+8*60*60*1000),csrf_hash:null,revoked_at:null,auth_method:'passkey',recovery_required:false };
+        revocations = 0; rotations = 0;
+        const context = await browser.newContext({ viewport, baseURL: origin });
+        try {
+          await context.addCookies([{name:'shiloh_staff_session',value:token,url:origin,httpOnly:true,sameSite:'Strict'}]);
+          let page = await context.newPage();
+          await page.goto(origin + path, {waitUntil:'networkidle'});
+          // Closing and reopening retains a valid session until explicit sign-out.
+          await page.close();
+          page = await context.newPage();
+          await page.goto(origin + path, {waitUntil:'networkidle'});
+          const button = page.locator('[data-shiloh-logout]');
+          await expect(button).toHaveAttribute('data-shiloh-logout-bound','true');
+          if (viewport.name === 'phone') await page.locator('[data-workspace-drawer-toggle]').click();
+          await button.scrollIntoViewIfNeeded();
+          if (path === '/calendar/problem-reports') {
+            const axe = await new AxeBuilder({page}).include('[data-workspace-account-footer]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
+            expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+            await page.screenshot({path:testInfo.outputPath('workspace-signout-'+viewport.name+'.png'),fullPage:true});
+          }
+          await button.click();
+          await page.waitForURL(origin + '/calendar/staff?reason=logout');
+          expect(revocations).toBe(1); expect(rotations).toBe(1);
+          expect(row.revoked_at).toBeTruthy();
+          expect((await context.cookies()).some(cookie=>cookie.name==='shiloh_staff_session')).toBe(false);
+          await expect(page.getByRole('button',{name:'Continue with device sign-in'})).toBeVisible();
+          // Even an old cookie cannot regain access after server revocation.
+          const stale = await context.request.get(origin+'/calendar/staff-auth/session',{headers:{Cookie:'shiloh_staff_session='+token}});
+          expect(stale.status()).toBe(401);
+          await page.close();
+          page = await context.newPage();
+          await page.goto(origin+'/calendar/problem-reports');
+          await page.waitForURL(origin+'/calendar/staff?reason=session');
+          await expect(page.getByRole('button',{name:'Continue with device sign-in'})).toBeVisible();
+        } finally { await context.close(); }
+      }
+    }
+  } finally {
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+  }
+});
