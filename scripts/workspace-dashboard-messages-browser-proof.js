@@ -510,7 +510,7 @@ async function main() {
           assert.equal(metrics.moreOpen, false);
           assert.ok(metrics.minNavTargetHeight >= 44, `${name} has a drawer target below 44px`);
           assert.equal(metrics.accountFooterVisible, true, `${name} does not show the account footer in the open drawer`);
-          assert.match(metrics.accountFooterText, /Signed in as\s*Clinic Owner\s*Sign out/);
+          assert.match(metrics.accountFooterText, /Signed in as\s*Clinic Owner\s*Refresh Workspace\s*Sign out/);
           assert.equal(metrics.hasNotificationsToggle,true, `${name} is missing the Workspace notifications control`);
         } else {
           assert.equal(metrics.drawerOpen, false);
