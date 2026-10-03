@@ -512,7 +512,6 @@ let baseUrl;
     authUrlBuilder: () => '/fake-whatsapp',
     experienceService: fakeExperienceService,
     assistantService: fakeAssistantService,
-    humanHandoffService: { async activeForClient() { return null; } },
     proposalService: {
       async acceptProposedAlternative(input) {
         if (input.crmV2ClientId !== 912 || input.appointmentId !== 901 || input.proposalVersion !== 4) throw new Error('Proposal authority mismatch');

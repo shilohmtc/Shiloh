@@ -40,7 +40,7 @@ export const ReceptionAttention = {
   })),
 };
 
-export const HumanHandoff = {
+export const DirectReceptionContact = {
   render:()=>{
     const root=surface(myShiloh.renderMyShilohPage({
       client:{ id:22,firstName:'Jane' }, whatsappNumber:'27836835433',
@@ -53,7 +53,7 @@ export const HumanHandoff = {
   },
 };
 
-export const ReceptionHumanHandoff = {
+export const RetiredHandoffIgnored = {
   render:()=>surface(dashboard.renderDashboardPage({ requestedDateKey:'2026-09-27',operationalDateKey:'2026-09-27',
     displayName:'Christel',mode:'owner_overview',appointments:[],carryOver:[],teamGroups:[],awaitingFinalization:[],
     bookingRequests:[],rescheduleRequests:[],holidayDecisions:[],calendar:{ timeline:{ staff:[] } },

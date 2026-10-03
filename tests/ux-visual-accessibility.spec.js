@@ -17,26 +17,37 @@ test('Reception sees uncertain booking-change delivery without a blind resend on
   }
 });
 
-test('human handoff pauses assistant and appears in Reception on Phone and Desktop', async ({ page }, testInfo) => {
+test('direct Reception contact keeps AI available and retired handoffs out of Workspace on Phone and Desktop', async ({ page }, testInfo) => {
+  const handoffRequests=[];
+  page.on('request',request=>{if(request.url().includes('/api/human-handoff'))handoffRequests.push(request.url());});
+  await page.route('https://wa.me/**',route=>route.fulfill({status:200,contentType:'text/html',body:'Reception chat opened'}));
   for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1280,height:900 }]) {
     await page.setViewportSize({ width:viewport.width,height:viewport.height });
-    await page.goto('/iframe.html?id=client-planning-requests--human-handoff&viewMode=story',{waitUntil:'networkidle'});
-    await expect(page.locator('.assistant-chat__note[role="status"]')).toContainText('automatic replies are paused');
-    await expect(page.locator('[data-shiloh-chat-form]')).toHaveCount(0);
-    await expect(page.locator('[data-view="home"]').getByRole('link',{name:'Open Shiloh in My Shiloh'})).toHaveAttribute('href','#shiloh');
-    await expect(page.locator('.assistant-chat').getByRole('link',{name:/Continue with Reception on WhatsApp/})).toHaveAttribute('href',/wa\.me\/27662399138/);
+    await page.goto('/iframe.html?id=client-planning-requests--direct-reception-contact&viewMode=story',{waitUntil:'networkidle'});
+    await page.evaluate(() => { Object.defineProperty(navigator, 'standalone', { value:true, configurable:true }); });
+    await page.addScriptTag({url:'/my-shiloh/assets/app.js'});
+    await page.locator('[data-view-target="shiloh"]').click();
+    await expect(page.locator('[data-shiloh-chat-form]')).toBeVisible();
+    await page.getByRole('textbox',{name:'Message Shiloh',exact:true}).fill('What is my appointment status?');
+    await expect(page.locator('[data-view="shiloh"]')).not.toContainText('automatic replies are paused');
+    const contact=page.locator('.assistant-chat').getByRole('link',{name:'Message Reception →',exact:true});
+    await expect(contact).toHaveAttribute('href',/https:\/\/wa\.me\/27662399138\?text=/);
     const appAxe=await new AxeBuilder({page}).include('[data-view="shiloh"]')
       .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(appAxe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
-    await page.screenshot({path:testInfo.outputPath(`human-handoff-client-${viewport.name}.png`),fullPage:true,animations:'disabled'});
+    await page.screenshot({path:testInfo.outputPath(`direct-reception-client-${viewport.name}.png`),fullPage:true,animations:'disabled'});
+    await contact.click();
+    await expect(page).toHaveURL(/https:\/\/wa\.me\/27662399138/);
+    expect(handoffRequests).toEqual([]);
 
-    await page.goto('/iframe.html?id=client-planning-requests--reception-human-handoff&viewMode=story',{waitUntil:'networkidle'});
-    const card=page.locator('[data-dashboard-human-handoff="92"]');
-    await expect(card).toContainText('Shiloh cannot read that separate conversation');
-    const staffAxe=await new AxeBuilder({page}).include('[data-dashboard-attention-panel]')
+    await page.goto('/iframe.html?id=client-planning-requests--retired-handoff-ignored&viewMode=story',{waitUntil:'networkidle'});
+    await expect(page.locator('[data-dashboard-human-handoff]')).toHaveCount(0);
+    await expect(page.getByRole('button',{name:'Finish handoff'})).toHaveCount(0);
+    await expect(page.locator('[data-dashboard-attention-panel]')).toHaveCount(0);
+    const staffAxe=await new AxeBuilder({page}).include('[data-story-surface]')
       .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(staffAxe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
-    await page.screenshot({path:testInfo.outputPath(`human-handoff-reception-${viewport.name}.png`),fullPage:true,animations:'disabled'});
+    await page.screenshot({path:testInfo.outputPath(`direct-reception-workspace-${viewport.name}.png`),fullPage:true,animations:'disabled'});
   }
 });
 const { workspaceServicesManageClientScript } = require('../src/presentation/workspaceServicesUx');
