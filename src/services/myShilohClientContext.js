@@ -396,9 +396,10 @@ function createMyShilohClientContextService({
   async function getContext({ crmV2ClientId } = {}) {
     const client = await loadClient(crmV2ClientId);
     if (!client) return null;
-    const [appointment, activeRequests, declinedRequests, pendingRescheduleRequests] = await Promise.all([
+    const [appointment, activeRequests, declinedRequests, pendingRescheduleRequests, upcomingAppointments] = await Promise.all([
       loadNextAppointment(client.id), loadActiveBookingRequests(client.id),
       loadDeclinedBookingRequests(client.id), loadPendingRescheduleRequests(client.id),
+      loadUpcomingAppointments(client.id, { limit: 10 }),
     ]);
     const [forms, payment] = appointment
       ? await Promise.all([
@@ -412,6 +413,7 @@ function createMyShilohClientContextService({
       generatedAt: now().toISOString(),
       client,
       nextAppointment: appointment,
+      upcomingAppointments,
       activeRequest: activeRequests[0] || null,
       activeRequests,
       declinedRequests,

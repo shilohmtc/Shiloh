@@ -215,7 +215,7 @@ function buildClientExperience(context) {
       'What should I know before my first visit?',
     ];
 
-  return {
+  const experience = {
     version: 'my_shiloh_client_experience_v1',
     generatedAt: context.generatedAt,
     client: { firstName: name },
@@ -358,6 +358,19 @@ function buildClientExperience(context) {
       contextReady: true,
     },
   };
+  const shownIds = new Set(experience.bookings.upcoming.map(item => item.id));
+  for (const item of context.upcomingAppointments || []) {
+    if (shownIds.has(item.id)) continue;
+    const display = appointmentDisplay(item);
+    if (!display) continue;
+    experience.bookings.upcoming.push({
+      id: item.id, service: display.service, practitioner: display.practitioner,
+      date: display.date, time: display.time, status: item.status,
+      nextAction: 'Your appointment details are available here.',
+    });
+    shownIds.add(item.id);
+  }
+  return experience;
 }
 
 function createMyShilohExperienceOrchestrator({

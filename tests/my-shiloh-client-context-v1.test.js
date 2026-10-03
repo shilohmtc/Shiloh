@@ -37,6 +37,13 @@ test('authenticated client context is keyed only by CRM V2 identity and projects
           rowCount: 1,
         };
       }
+      if (sql.includes('myShilohClientContext:upcoming-appointments')) {
+        assert.equal(values[0], 55);
+        assert.equal(values[3], 10);
+        assert.match(sql, /a\.crm_v2_client_id=\$1/);
+        assert.match(sql, /a\.client_id IS NULL/);
+        return { rows: [], rowCount: 0 };
+      }
       if (sql.includes('myShilohClientContext:active-booking-request')) {
         assert.deepEqual(values, [55]);
         return { rows: [], rowCount: 0 };
@@ -351,4 +358,23 @@ test('My Shiloh experience API derives client identity from validated session, n
   assert.doesNotMatch(app, /INSTALL_VERIFIED_KEY|installationVerificationRequired/);
   assert.doesNotMatch(app, /sessionStorage|indexedDB/);
   assert.doesNotMatch(app, /localStorage\.setItem\([^\n]*(?:experience|appointment|payment|forms|client|token|session|csrf)/i);
+});
+
+test('Bookings includes later same-day appointments without repeating requests or change cards', () => {
+  const first = { id: 901, startsAt: '2026-10-10T07:00:00.000Z', services: ['Massage'], practitioners: ['Abigail'], status: 'confirmed' };
+  const second = { id: 902, startsAt: '2026-10-10T09:00:00.000Z', services: ['Pedicure'], practitioners: ['Ilince'], status: 'confirmed' };
+  const base = { client: { id: 55, name: 'Test Client' }, nextAppointment: first, upcomingAppointments: [first, second, second], forms: [], payment: null };
+  const experience = buildClientExperience(base);
+  assert.deepEqual(experience.bookings.upcoming.map(item => item.id), [901, 902]);
+  assert.equal(experience.bookings.upcoming[1].service, 'Pedicure');
+  assert.equal(experience.bookings.upcoming[1].time, '11:00');
+  assert.equal(experience.bookings.upcoming[1].payment, undefined);
+  const changed = buildClientExperience({ ...base, pendingRescheduleRequests: [{ ...second, proposedStartsAt: '2026-10-11T09:00:00.000Z' }] });
+  assert.equal(changed.bookings.upcoming.filter(item => item.id === 902).length, 1);
+  assert.equal(changed.bookings.upcoming.find(item => item.id === 902).status, 'Change requested');
+  const requested = buildClientExperience({ ...base, activeRequests: [{ ...second, bookingRequestStatus: 'pending' }] });
+  assert.equal(requested.bookings.upcoming.filter(item => item.id === 902).length, 1);
+  assert.equal(requested.bookings.upcoming.find(item => item.id === 902).status, 'Requested');
+  const laterOnly = buildClientExperience({ ...base, nextAppointment: second, upcomingAppointments: [second] });
+  assert.deepEqual(laterOnly.bookings.upcoming.map(item => item.id), [902]);
 });
