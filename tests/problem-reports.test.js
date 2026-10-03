@@ -4,12 +4,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { createProblemReportService, ProblemReportError, cleanPath, senderHash } = require('../src/services/problemReports');
+const { createProblemReportService, ProblemReportError, REPORT_ACKNOWLEDGEMENT, cleanPath, senderHash } = require('../src/services/problemReports');
 const { renderProblemReportsPage } = require('../src/presentation/workspaceProblemReportsUx');
 const { renderMyShilohPage } = require('../src/presentation/myShilohPwa');
 const { createWorkspaceNavigationService } = require('../src/services/workspaceNavigation');
 
-function fakeDb({ manager = true } = {}) {
+function fakeDb({ manager = true, acknowledgeClients = false } = {}) {
   const state = { reports: [], intent: null, queries: [], clientUpdateQueued: false };
   return {
     state,
@@ -21,6 +21,7 @@ function fakeDb({ manager = true } = {}) {
       if (sql.includes('problemReports:appointment')) return { rows: params[0] === 99 ? [{ id: 99 }] : [], rowCount: params[0] === 99 ? 1 : 0 };
       if (sql.includes('problemReports:create')) {
         const row = { id: state.reports.length + 1, reference_code: params[0], source: params[1], reporter_type: params[2], reporter_staff_admin_id: params[3], reporter_crm_v2_client_id: params[4], reporter_name_snapshot: params[5], category: params[6], description: params[7], expected_behavior: params[8], related_appointment_id: params[9], page_path: params[10], request_id: params[11], diagnostic_context: JSON.parse(params[12]), screenshot_mime_type: params[13], status: 'new', resolution_note: null, revision: 0, created_at: new Date('2026-09-20T10:00:00Z'), updated_at: new Date('2026-09-20T10:00:00Z'), resolved_at: null };
+        row.client_update_queued = acknowledgeClients && row.reporter_type === 'client';
         state.reports.push(row);
         return { rows: [row], rowCount: 1 };
       }
@@ -137,7 +138,8 @@ test('client and JP pages use friendly wording and keep support copy in JP Works
   assert.match(workspaceHtml, /Copy report details/);
   assert.doesNotMatch(workspaceHtml, /data-problem-report-form|<h2>Report a problem<\/h2>/);
   assert.match(workspaceHtml, /inbox-only/);
-  assert.match(workspaceHtml, /value="fixed">Resolved/);
+  assert.match(workspaceHtml, /data-resolve-report>Mark resolved/);
+  assert.doesNotMatch(workspaceHtml, /data-report-status|>Closed<|>Investigating<|>New<|data-save-status/);
   const staffHtml = renderProblemReportsPage({ model: { displayName: 'Marietjie', canManage: false, canSubmit: true, reports: [] }, selectedStatus: 'open' });
   assert.match(staffHtml, /technical support team/);
   assert.match(staffHtml, /data-problem-report-form/);
@@ -192,4 +194,36 @@ test('staff without JP management permission cannot resolve a report even with a
   const service = createProblemReportService({db});
   await assert.rejects(() => service.updateStatus({adminId:75,reference:'SH-EXAMPLE',status:'fixed',resolutionNote:'Resolved.'}), error => error.httpStatus === 403);
   assert.equal(db.state.queries.some(q => q.sql.includes('problemReports:updateStatus')),false);
+});
+
+
+test('client acknowledgement is queued with report creation and survives unavailable phone notifications', async () => {
+  const db = fakeDb({acknowledgeClients:true});
+  const wakeups = [];
+  const service = createProblemReportService({db, pushService:{wakeClient:async id=>{wakeups.push(id);throw new Error('Push unavailable');}}});
+  const report = await service.createReport({source:'my_shiloh',reporterType:'client',crmV2ClientId:501,payload:{category:'profile',description:'My personal details are not saving.',crmV2ClientId:999}});
+  assert.equal(report.status,'new');
+  assert.equal(db.state.reports.length,1);
+  assert.deepEqual(wakeups,[501]);
+  const {sql,params}=db.state.queries.find(q=>q.sql.includes('problemReports:create'));
+  assert.match(sql,/client_acknowledgement AS[\s\S]*INSERT INTO my_shiloh_push_notifications/);
+  assert.match(sql,/FROM inserted[\s\S]*WHERE reporter_type='client' AND reporter_crm_v2_client_id IS NOT NULL/);
+  assert.match(sql,/':received'/);
+  assert.match(sql,/ON CONFLICT \(event_key\) DO NOTHING/);
+  assert.match(sql,/profile-reports/);
+  assert.equal(params[4],501);
+  assert.equal(params[16],REPORT_ACKNOWLEDGEMENT);
+  assert.match(params[16],/added to our investigation queue/);
+  await service.createReport({source:'workspace',reporterType:'staff',adminId:75,payload:{category:'other',description:'A detailed staff problem report.'}});
+  assert.deepEqual(wakeups,[501]);
+});
+
+test('JP has one completion outcome and must explain the resolution', async () => {
+  const db=fakeDb();
+  const service=createProblemReportService({db});
+  for(const status of ['new','investigating','closed','invalid']) {
+    await assert.rejects(()=>service.updateStatus({adminId:74,reference:'SH-EXAMPLE',status,resolutionNote:'An explanation.'}),error=>error.code==='PROBLEM_REPORT_INVALID');
+  }
+  await assert.rejects(()=>service.updateStatus({adminId:74,reference:'SH-EXAMPLE',status:'fixed',resolutionNote:'  '}),error=>error.code==='PROBLEM_REPORT_NOTE_REQUIRED');
+  assert.equal(db.state.queries.some(q=>q.sql.includes('problemReports:updateStatus')),false);
 });

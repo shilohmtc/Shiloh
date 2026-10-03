@@ -3480,28 +3480,87 @@ test('JP problem reports shows only the inbox while staff retain submission on P
     const reportRows=page.locator('details[data-report]');
     await expect(reportRows).toHaveCount(4);
     await expect(page.locator('details[data-report][open]')).toHaveCount(0);
-    await expect(page.getByRole('combobox',{name:'Report status'}).first()).toBeHidden();
+    await expect(page.getByRole('combobox',{name:'Report status'})).toHaveCount(0);
+    await expect(page.getByRole('navigation',{name:'Report status'}).getByRole('link')).toHaveText(['Open','Resolved','All']);
+    await expect(page.getByRole('button',{name:'Mark resolved'}).first()).toBeHidden();
     const collapsedHeight=await page.locator('.report-list').evaluate(node=>node.getBoundingClientRect().height);
     expect(collapsedHeight).toBeLessThan(800);
     await page.screenshot({path:testInfo.outputPath(`jp-inbox-compact-${viewport.name}.png`),fullPage:true});
     await reportRows.first().locator('summary').focus();
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('combobox',{name:'Report status'}).first()).toBeVisible();
-    await expect(reportRows.first().getByText('the issue was fixed.',{exact:false})).toBeVisible();
+    await expect(page.getByRole('button',{name:'Mark resolved'}).first()).toBeVisible();
+    await expect(reportRows.first().getByText('Saving sends the thank-you update',{exact:false})).toBeVisible();
     await expect(reportRows.nth(1)).not.toHaveAttribute('open','');
-    await expect(page.getByRole('combobox',{name:'Report status'}).first().locator('option[value="fixed"]')).toHaveText('Resolved');
+    const tileGeometry=await reportRows.evaluateAll(rows=>rows.slice(1,3).map(row=>({x:row.getBoundingClientRect().x,y:row.getBoundingClientRect().y})));
+    if(viewport.name==='desktop') expect(tileGeometry[0].y).toBe(tileGeometry[1].y);
+    else expect(tileGeometry[1].y).toBeGreaterThan(tileGeometry[0].y);
     await expect(page.getByLabel('Resolution note').first()).toBeVisible();
     const metrics=await page.evaluate(()=>({viewport:innerWidth,width:document.documentElement.scrollWidth}));
     expect(metrics.width).toBeLessThanOrEqual(metrics.viewport);
     const axe=await new AxeBuilder({page}).include('.workspace-main').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
     expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
     await page.screenshot({path:testInfo.outputPath(`jp-inbox-${viewport.name}.png`),fullPage:true});
+    let submittedOutcome;
+    await page.route('**/calendar/staff-auth/csrf',route=>route.fulfill({json:{csrfToken:'synthetic-csrf'}}));
+    await page.route('**/calendar/problem-reports/*/status',route=>{submittedOutcome=route.request().postDataJSON();return route.fulfill({json:{report:{status:'fixed'}}});});
+    await page.addScriptTag({content:require('../src/presentation/workspaceProblemReportsUx').problemReportsClientScript()});
+    await reportRows.first().getByRole('button',{name:'Mark resolved'}).click();
+    await expect(reportRows.first().locator('[data-report-result]')).toHaveText('Add a short note before marking this report resolved.');
+    expect(submittedOutcome).toBeUndefined();
+    await reportRows.first().getByLabel('Resolution note').fill('Your personal details now save correctly.');
+    await reportRows.first().getByRole('button',{name:'Mark resolved'}).click();
+    await expect(reportRows.first().locator('[data-report-result]')).toContainText('The thank-you update');
+    expect(submittedOutcome).toEqual({status:'fixed',resolutionNote:'Your personal details now save correctly.'});
+    await page.goto('/iframe.html?id=workspace-problem-reports--jp-resolved&viewMode=story',{waitUntil:'networkidle'});
+    await page.locator('details[data-report] > summary').click();
+    await expect(page.getByText('Your personal details now save correctly.',{exact:false})).toBeVisible();
+    await expect(page.locator('[data-resolve-report]')).toHaveCount(0);
     await page.goto('/iframe.html?id=workspace-problem-reports--staff-submission&viewMode=story',{waitUntil:'networkidle'});
     await expect(page.locator('[data-problem-report-form]')).toBeVisible();
     await expect(page.getByRole('heading',{name:'Your reports',exact:true})).toBeVisible();
-    await expect(page.locator('[data-save-status]')).toHaveCount(0);
+    await expect(page.locator('[data-resolve-report]')).toHaveCount(0);
     const staffAxe=await new AxeBuilder({page}).include('.workspace-main').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
     expect(staffAxe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
     await page.screenshot({path:testInfo.outputPath(`staff-report-${viewport.name}.png`),fullPage:true});
+  }
+});
+
+test('My Shiloh automatically acknowledges a submitted report in Current updates on Phone and Desktop', async ({page},testInfo) => {
+  const {REPORT_ACKNOWLEDGEMENT}=require('../src/services/problemReports');
+  await page.route('**/my-shiloh/api/experience',route=>route.fulfill({json:{version:'my_shiloh_client_experience_v1',client:{firstName:'Client'},home:{eyebrow:'Your Shiloh',headline:'Ready when you are.',summary:'Book your next Shiloh visit.',status:'Ready',primaryAction:{kind:'navigate',label:'Book an appointment',href:'/my-shiloh/book'},facts:[{key:'appointment',label:'Appointment',value:'None upcoming',href:'#bookings'},{key:'forms',label:'Forms',value:'Nothing waiting'},{key:'payment',label:'Payment',value:'No active booking'}]},bookings:{upcoming:[]},assistant:{prompts:[],contextReady:true}}}));
+  await page.route('**/my-shiloh/api/welcome-voucher',route=>route.fulfill({json:{welcomeVoucher:{eligible:false,state:'redeemed'}}}));
+  await page.route('**/my-shiloh/auth/csrf',route=>route.fulfill({json:{csrfToken:'synthetic-csrf'}}));
+  await page.route('**/my-shiloh/api/profile',route=>route.fulfill({json:{profile:{name:'Synthetic Client',dateOfBirth:'1988-05-12',gender:'female',revision:'a'.repeat(64),registrationComplete:true}}}));
+  for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]) {
+    let submitted=false;
+    await page.setViewportSize(viewport);
+    await page.route('**/my-shiloh/api/problem-reports',route=>{
+      if(route.request().method()==='POST') {
+        expect(route.request().postDataJSON().category).toBe('profile');
+        expect(route.request().headers()['x-shiloh-csrf-token']).toBe('synthetic-csrf');
+        submitted=true;
+        return route.fulfill({status:201,json:{report:{reference:'SH-SYNTHETIC',status:'new'},acknowledgement:REPORT_ACKNOWLEDGEMENT}});
+      }
+      return route.fulfill({json:{reports:submitted?[{reference:'SH-SYNTHETIC',status:'new'}]:[]}});
+    });
+    await page.route('**/my-shiloh/api/notifications',route=>route.fulfill({json:{notifications:[{id:'booking-1',title:'Booking confirmation',body:'Your booking is confirmed.',targetPath:'/my-shiloh/#bookings'},...(submitted?[{id:'report-1',title:'Your problem report was received',body:REPORT_ACKNOWLEDGEMENT,targetPath:'/my-shiloh/#profile-reports'}]:[])]}}));
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-home&viewMode=story',{waitUntil:'networkidle'});
+    await page.evaluate(()=>{localStorage.clear();localStorage.setItem('my-shiloh-install-whatsapp-verified-v1','1');Object.defineProperty(navigator,'standalone',{configurable:true,get:()=>true});});
+    await page.addScriptTag({url:'/my-shiloh/assets/app.js'});
+    await page.locator('[data-view-target="profile"]').click();
+    await page.locator('[data-profile-help] > summary').click();
+    await page.locator('#client-problem-category').selectOption('profile');
+    await page.locator('#client-problem-description').fill('My personal details are not saving.');
+    await page.locator('[data-client-problem-report-form]').getByRole('button',{name:'Send report'}).click();
+    await expect(page.locator('[data-client-problem-report-status]')).toContainText(REPORT_ACKNOWLEDGEMENT);
+    await expect(page.locator('[data-client-problem-report-list]')).toContainText('SH-SYNTHETIC');
+    await page.locator('[data-view-target="home"]').click();
+    const updates=page.locator('[data-client-notification-centre]');
+    await expect(updates.getByRole('link',{name:/Your problem report was received/})).toHaveAttribute('href','/my-shiloh/#profile-reports');
+    await expect(updates).toContainText(REPORT_ACKNOWLEDGEMENT);
+    await expect(updates.getByRole('link',{name:/Booking confirmation/})).toBeVisible();
+    const axe=await new AxeBuilder({page}).include('[data-client-notification-centre]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
+    expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`report-acknowledgement-${viewport.name}.png`),fullPage:true});
   }
 });

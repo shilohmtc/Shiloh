@@ -2,7 +2,7 @@
 
 const express = require('express');
 const problemReports = require('../services/problemReports');
-const { ProblemReportError } = require('../services/problemReports');
+const { ProblemReportError, REPORT_ACKNOWLEDGEMENT } = require('../services/problemReports');
 const { renderProblemReportsPage, problemReportsClientScript } = require('../presentation/workspaceProblemReportsUx');
 const { requireStaffSession, sameOriginGuard, csrfGuard } = require('../middleware/staffBrowserSession');
 
@@ -33,7 +33,7 @@ function createWorkspaceProblemReportsRouter({ env = process.env, sessionService
   router.get('/', async (req, res, next) => {
     try {
       const access = await service.resolveWorkspaceAccess(req.staffBrowserSession.adminId);
-      const selectedStatus = ['open', 'new', 'investigating', 'fixed', 'closed', 'all'].includes(req.query.status) ? req.query.status : 'open';
+      const selectedStatus = ['open', 'fixed', 'all'].includes(req.query.status) ? req.query.status : req.query.status === 'closed' ? 'all' : 'open';
       const inbox = access.canManage
         ? await service.listForManager({ adminId: req.staffBrowserSession.adminId, status: selectedStatus })
         : await service.listForReporter({ reporterType: 'staff', adminId: req.staffBrowserSession.adminId });
@@ -51,7 +51,7 @@ function createWorkspaceProblemReportsRouter({ env = process.env, sessionService
       const access = await service.resolveWorkspaceAccess(req.staffBrowserSession.adminId);
       if (!access.canSubmit) throw new ProblemReportError('PROBLEM_REPORT_FORBIDDEN', 'Problem reporting is not available for this Workspace account.', 403);
       const report = await service.createReport({ source: 'workspace', reporterType: 'staff', adminId: req.staffBrowserSession.adminId, payload: req.body, requestId: req.id });
-      return res.status(201).json({ report: { reference: report.reference, status: report.status } });
+      return res.status(201).json({ acknowledgement: REPORT_ACKNOWLEDGEMENT, report: { reference: report.reference, status: report.status } });
     } catch (error) { return sendError(res, error, req.id); }
   });
   router.post('/:reference/status', sameOrigin, requireCsrf, async (req, res) => {
