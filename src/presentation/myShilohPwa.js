@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20261003-current-archived-updates-v1';
+const MY_SHILOH_ASSET_VERSION = '20261003-report-acknowledgement-v1';
 
 function escapeHtml(value = '') {
   return String(value)

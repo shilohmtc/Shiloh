@@ -32,7 +32,7 @@ const { createShilohRewardsService, ShilohRewardsError } = require('../services/
 const { renderClientRewardsPage, clientRewardsScript } = require('../presentation/shilohRewardsUx');
 const { createMyShilohProfileService, MyShilohProfileError } = require('../services/myShilohProfile');
 const { createMyShilohWelcomeVoucherService, MyShilohWelcomeVoucherError } = require('../services/myShilohWelcomeVoucher');
-const { createProblemReportService, ProblemReportError } = require('../services/problemReports');
+const { createProblemReportService, ProblemReportError, REPORT_ACKNOWLEDGEMENT } = require('../services/problemReports');
 const { defaultPushService } = require('../services/myShilohPush');
 const { queueWorkspaceAlert } = require('../services/workspacePush');
 const { createMyShilohBookingService, MyShilohBookingError } = require('../services/myShilohBooking');
@@ -821,7 +821,7 @@ function createMyShilohRouter({
         payload: req.body,
         requestId: req.id,
       });
-      return res.status(201).json({ report: { reference: report.reference, status: report.status } });
+      return res.status(201).json({ acknowledgement: REPORT_ACKNOWLEDGEMENT, report: { reference: report.reference, status: report.status } });
     } catch (error) {
       if (error instanceof ProblemReportError) {
         return res.status(error.httpStatus).json({ error: error.message, code: error.code, requestId: req.id });

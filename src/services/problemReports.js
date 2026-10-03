@@ -6,6 +6,7 @@ const { defaultPushService } = require('./myShilohPush');
 const logger = require('../lib/logger');
 
 const CATEGORIES = new Set(['booking', 'messages', 'profile', 'payments', 'other']);
+const REPORT_ACKNOWLEDGEMENT = 'Thank you for reporting your issue. It has been added to our investigation queue, and we’ll let you know once it has been resolved. 🌿';
 const STATUSES = new Set(['new', 'investigating', 'fixed', 'closed']);
 const SCREENSHOT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const MAX_SCREENSHOT_BYTES = 1024 * 1024;
@@ -179,6 +180,13 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
     return Number(result.rows[0].id);
   }
 
+  async function notifyClientIfQueued(row) {
+    if (row.client_update_queued) {
+      try { await pushService.wakeClient(Number(row.reporter_crm_v2_client_id)); }
+      catch (error) { logger.warn({ err: error, reportId: row.id }, 'Problem report update saved; phone notification unavailable'); }
+    }
+  }
+
   async function createReport({ source, reporterType, adminId, crmV2ClientId, payload = {}, requestId = null } = {}) {
     if (!['my_shiloh', 'workspace', 'whatsapp'].includes(source)) throw new ProblemReportError('PROBLEM_REPORT_INVALID', 'Report source is not valid.');
     if (!['client', 'staff'].includes(reporterType)) throw new ProblemReportError('PROBLEM_REPORT_INVALID', 'Reporter is not valid.');
@@ -209,7 +217,17 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
          SELECT $4,'problem_report.created','problem_report',id,
            jsonb_build_object('reference',reference_code,'source',source,'reporterType',reporter_type,'category',category,'hasScreenshot',screenshot_mime_type IS NOT NULL)
          FROM inserted
-       ) SELECT * FROM inserted`,
+       ), client_acknowledgement AS (
+         INSERT INTO my_shiloh_push_notifications
+           (crm_v2_client_id,event_key,category,title,body,target_path)
+         SELECT reporter_crm_v2_client_id,'problem-report:' || id || ':received',
+           'system','Your problem report was received',
+           LEFT($17::text || ' Reference: ' || reference_code,240),'/my-shiloh/#profile-reports'
+         FROM inserted
+         WHERE reporter_type='client' AND reporter_crm_v2_client_id IS NOT NULL
+         ON CONFLICT (event_key) DO NOTHING
+         RETURNING crm_v2_client_id
+       ) SELECT inserted.*,EXISTS(SELECT 1 FROM client_acknowledgement) AS client_update_queued FROM inserted`,
       [
         reference, source, reporterType,
         reporterType === 'staff' ? Number(identity.id) : null,
@@ -217,10 +235,11 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
         reporterType === 'staff' ? identity.display_name : identity.name,
         category, description, expectedBehavior, relatedAppointmentId,
         cleanPath(payload.pagePath), cleanText(requestId, { max: 120 }), JSON.stringify(context),
-        screenshot?.mimeType || null, screenshot?.bytes || null, screenshot?.sha256 || null,
+        screenshot?.mimeType || null, screenshot?.bytes || null, screenshot?.sha256 || null, REPORT_ACKNOWLEDGEMENT,
       ],
     );
     const row = inserted.rows[0];
+    await notifyClientIfQueued(row);
     return publicReport(row);
   }
 
@@ -255,9 +274,9 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
   async function updateStatus({ adminId, reference, status, resolutionNote } = {}) {
     const identity = await staffIdentity(adminId);
     if (!canManage(identity)) throw new ProblemReportError('PROBLEM_REPORT_FORBIDDEN', 'This private inbox is available only in JP’s Workspace.', 403);
-    if (!STATUSES.has(status)) throw new ProblemReportError('PROBLEM_REPORT_INVALID', 'Status is not valid.');
+    if (status !== 'fixed') throw new ProblemReportError('PROBLEM_REPORT_INVALID', 'Reports can only be marked resolved.');
     const note = cleanText(resolutionNote, { max: 1000 });
-    if (['fixed', 'closed'].includes(status) && !note) throw new ProblemReportError('PROBLEM_REPORT_NOTE_REQUIRED', 'Add a short note before marking this report complete.');
+    if (!note) throw new ProblemReportError('PROBLEM_REPORT_NOTE_REQUIRED', 'Add a short note before marking this report resolved.');
     const result = await db.query(
       `/* problemReports:updateStatus */
        WITH current AS (
@@ -275,11 +294,11 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
          INSERT INTO my_shiloh_push_notifications
            (crm_v2_client_id,event_key,category,title,body,target_path)
          SELECT reporter_crm_v2_client_id,'problem-report:' || id || ':resolution:' || revision,
-           'system',CASE WHEN status='fixed' THEN 'Your problem report is resolved' ELSE 'Your problem report is closed' END,
-           LEFT(CASE WHEN status='fixed' THEN 'Thank you for reporting this. Your issue has now been resolved. ' ELSE 'Thank you for reporting this. Your report has been closed. ' END || reference_code || ': ' || resolution_note,240),'/my-shiloh/#profile-reports'
+           'system','Your problem report is resolved',
+           LEFT('Thank you for reporting this. Your issue has now been resolved. ' || reference_code || ': ' || resolution_note,240),'/my-shiloh/#profile-reports'
          FROM updated
          WHERE reporter_type='client' AND reporter_crm_v2_client_id IS NOT NULL
-           AND status IN ('fixed','closed')
+           AND status='fixed'
            AND (previous_status IS DISTINCT FROM status OR previous_resolution_note IS DISTINCT FROM resolution_note)
          ON CONFLICT (event_key) DO NOTHING
          RETURNING crm_v2_client_id
@@ -293,10 +312,7 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
     );
     const row = result.rows[0];
     if (!row) throw new ProblemReportError('PROBLEM_REPORT_NOT_FOUND', 'That report was not found.', 404);
-    if (row.client_update_queued) {
-      try { await pushService.wakeClient(Number(row.reporter_crm_v2_client_id)); }
-      catch (error) { logger.warn({ err: error, reportId: row.id }, 'Problem report update saved; phone notification unavailable'); }
-    }
+    await notifyClientIfQueued(row);
     return publicReport(row);
   }
 
@@ -454,7 +470,7 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
         payload: { category: intent.category, description: raw },
       });
       await clearWhatsAppIntent(hash);
-      return { handled: true, reply: `Thank you — your report has been logged as *${report.reference}*. Our technical support team will investigate the issue and let you know once it has been resolved. 🌿` };
+      return { handled: true, reply: `${REPORT_ACKNOWLEDGEMENT} Reference: *${report.reference}*.` };
     }
     return { handled: false };
   }
@@ -467,6 +483,7 @@ const service = createProblemReportService();
 module.exports = {
   CATEGORIES,
   STATUSES,
+  REPORT_ACKNOWLEDGEMENT,
   MAX_SCREENSHOT_BYTES,
   ProblemReportError,
   cleanPath,

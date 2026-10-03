@@ -1564,8 +1564,8 @@
       if (!response.ok || !data.report?.reference) throw new Error(data.error || 'Your report could not be sent.');
       clientProblemReportForm.reset();
       clientProblemReportStatus.dataset.state = 'success';
-      clientProblemReportStatus.textContent = `Thank you — your report has been logged as ${data.report.reference}. Our technical support team will investigate the issue and let you know once it has been resolved. 🌿`;
-      await loadProblemReports();
+      clientProblemReportStatus.textContent = (data.acknowledgement || 'Thank you for reporting your issue. It has been added to our investigation queue, and we’ll let you know once it has been resolved. 🌿') + ` Reference: ${data.report.reference}.`;
+      await Promise.all([loadProblemReports(), loadClientNotifications()]);
     } catch (error) {
       clientProblemReportStatus.dataset.state = 'error';
       clientProblemReportStatus.textContent = error.message || 'Your report could not be sent. Please try again.';
