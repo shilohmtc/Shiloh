@@ -1,6 +1,68 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { buildClientExperience } = require('../src/services/myShilohExperienceOrchestrator');
+const { workspaceNavigationClientScript } = require('../src/presentation/workspaceShell');
+const { workspaceIconClientScript } = require('../src/presentation/workspaceIconClient');
+
+test('Workspace refresh keeps cancelled edits and offline pages, and icons preserve the report badge in either load order', async ({ page }, testInfo) => {
+  await page.route('**/calendar/workspace/navigation', route => route.fulfill({ json: { problemReports: { allowed: true, href: '/calendar/problem-reports', badge: 4 } } }));
+  for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1440, height: 960 }]) {
+    for (const iconsFirst of [true, false]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/iframe.html?id=workspace-production-surfaces--navigation-drawer-open&viewMode=story', { waitUntil: 'networkidle' });
+      if (iconsFirst) await page.addScriptTag({ content: workspaceIconClientScript() });
+      await page.addScriptTag({ content: workspaceNavigationClientScript() });
+      const report = page.locator('[data-workspace-destination="problemReports"]');
+      await expect(report.locator('.workspace-link-badge')).toHaveText('4');
+      if (!iconsFirst) await page.addScriptTag({ content: workspaceIconClientScript() });
+      await expect(report.locator('.workspace-link-label')).toHaveText('Problem reports');
+      await expect(report.locator('.workspace-link-badge')).toHaveCount(1);
+      await expect(report.locator('.workspace-link-badge')).toHaveAttribute('aria-label', '4 open');
+      expect(await report.evaluate(node => {
+        const badge = node.querySelector('.workspace-link-badge'), label = node.querySelector('.workspace-link-label');
+        return badge.parentElement === node && badge.getBoundingClientRect().left >= label.getBoundingClientRect().right;
+      })).toBe(true);
+
+      await report.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: testInfo.outputPath(`workspace-badge-${viewport.name}-${iconsFirst ? 'icons-first' : 'badge-first'}.png`), fullPage: true });
+      const refresh = page.getByRole('button', { name: 'Refresh Workspace', exact: true });
+      await refresh.scrollIntoViewIfNeeded();
+      const size = await refresh.boundingBox();
+      expect(size.height).toBeGreaterThanOrEqual(44);
+      await page.evaluate(() => {
+        const form = document.createElement('form');
+        form.innerHTML = '<input aria-label="Unsubmitted note" value="Keep this draft">';
+        document.querySelector('.workspace-main').appendChild(form);
+      });
+      await refresh.click();
+      const dialog = page.locator('[data-shiloh-confirm]');
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toContainText('Unsaved changes will be lost.');
+      await dialog.getByRole('button', { name: 'Keep working' }).click();
+      await expect(page.getByLabel('Unsubmitted note')).toHaveValue('Keep this draft');
+
+      await page.context().setOffline(true);
+      try {
+        await refresh.click();
+        await expect(page.locator('[data-workspace-refresh-status]')).toContainText('You are offline.');
+        await expect(dialog).not.toBeVisible();
+        await expect(page.getByLabel('Unsubmitted note')).toHaveValue('Keep this draft');
+      } finally {
+        await page.context().setOffline(false);
+      }
+      const axe = await new AxeBuilder({ page }).include('[data-workspace-navigation-drawer]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+      expect(axe.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
+      await page.screenshot({ path: testInfo.outputPath(`workspace-refresh-${viewport.name}-${iconsFirst ? 'icons-first' : 'badge-first'}.png`), fullPage: true });
+      await refresh.click();
+      await Promise.all([
+        page.waitForEvent('load'),
+        dialog.getByRole('button', { name: 'Refresh', exact: true }).click(),
+      ]);
+      await expect(page.getByLabel('Unsubmitted note')).toHaveCount(0);
+      await expect(page).toHaveURL(/navigation-drawer-open/);
+    }
+  }
+});
 
 test('Reception sees uncertain booking-change delivery without a blind resend on Phone and Desktop', async ({page},testInfo) => {
   for (const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]) {
