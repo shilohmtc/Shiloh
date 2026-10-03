@@ -1377,9 +1377,10 @@
   clientProfileForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!clientProfileRevision) return;
+    // Disabled controls are omitted by FormData; read values before locking the form.
+    const form = new FormData(clientProfileForm);
     setClientProfileBusy(true);
     setClientProfileStatus('Saving your personal details…', 'working');
-    const form = new FormData(clientProfileForm);
     try {
       const csrfToken = await freshCsrfToken();
       const response = await postJson('/my-shiloh/api/profile/update', {

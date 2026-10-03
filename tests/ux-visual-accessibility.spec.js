@@ -3327,3 +3327,60 @@ test('My Shiloh multiple bookings review, remove and safely retry one combined r
     expect(pair[0]).not.toHaveProperty('crmV2ClientId');
   }
 });
+
+test('My Shiloh saves entered profile details and preserves them after a refused save on Phone and Desktop', async ({ page }, testInfo) => {
+  const profile = { name: 'Test Client', dateOfBirth: '1985-06-14', gender: 'female', mobile: '+27 •• ••• 0000', revision: 'a'.repeat(64), registrationComplete: false };
+  await page.route('**/my-shiloh/api/profile', route => route.fulfill({ json: { profile } }));
+  await page.route('**/my-shiloh/auth/csrf', route => route.fulfill({ json: { csrfToken: 'synthetic-csrf' } }));
+  for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-profile&viewMode=story#profile', { waitUntil: 'networkidle' });
+    await page.evaluate(() => { Object.defineProperty(navigator, 'standalone', { value: true, configurable: true }); });
+    await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
+    const form = page.locator('[data-client-profile-form]');
+    await expect(form.getByLabel('Full name')).toHaveValue('Test Client');
+    await form.getByLabel('Full name').fill('Synthetic Updated Client');
+    await form.getByLabel('Date of birth').fill('1988-05-12');
+    await form.getByLabel('Gender').selectOption('female');
+    await page.route('**/my-shiloh/api/profile/update', route => route.fulfill({ status: 422, json: { error: 'Please review your details.' } }));
+    const refused = page.waitForRequest('**/my-shiloh/api/profile/update');
+    await form.getByRole('button', { name: 'Save personal details' }).click();
+    const payload = (await refused).postDataJSON();
+    expect(payload).toEqual({ expectedRevision: profile.revision, name: 'Synthetic Updated Client', dateOfBirth: '1988-05-12', gender: 'female' });
+    await expect(page.locator('[data-client-profile-status]')).toHaveText('Please review your details.');
+    await expect(form.getByLabel('Full name')).toHaveValue(payload.name);
+    await expect(form.getByRole('button', { name: 'Save personal details' })).toBeEnabled();
+    await page.route('**/my-shiloh/api/profile/update', route => route.fulfill({ json: { status: 'unchanged', profile: { ...profile, ...payload, registrationComplete: true } } }));
+    const accepted = page.waitForRequest('**/my-shiloh/api/profile/update');
+    await form.getByRole('button', { name: 'Save personal details' }).click();
+    expect((await accepted).headers()['x-shiloh-csrf-token']).toBe('synthetic-csrf');
+    await expect(page.locator('[data-client-profile-status]')).toHaveText('Your details are already up to date.');
+    const axe = await new AxeBuilder({ page }).include('[data-view="profile"]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+    expect(axe.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`profile-save-${viewport.name}.png`), fullPage: true });
+  }
+});
+
+test('My Shiloh displays both same-day bookings on Phone and Desktop', async ({ page }, testInfo) => {
+  const appointments = [
+    { id: 901, startsAt: '2026-10-10T07:00:00.000Z', status: 'confirmed', services: ['Massage'], practitioners: ['Abigail'] },
+    { id: 902, startsAt: '2026-10-10T09:00:00.000Z', status: 'confirmed', services: ['Pedicure'], practitioners: ['Ilince'] },
+  ];
+  const experience = buildClientExperience({ client: { id: 55, name: 'Test Client' }, nextAppointment: appointments[0], upcomingAppointments: appointments, forms: [], payment: null });
+  await page.route('**/my-shiloh/api/experience', route => route.fulfill({ json: experience }));
+  for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-profile&viewMode=story#bookings', { waitUntil: 'networkidle' });
+    await page.evaluate(() => { Object.defineProperty(navigator, 'standalone', { value: true, configurable: true }); });
+    await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
+    const bookings = page.locator('[data-client-experience-bookings]');
+    await expect(bookings.getByRole('heading', { name: 'Massage', exact: true })).toBeVisible();
+    await expect(bookings.getByRole('heading', { name: 'Pedicure', exact: true })).toBeVisible();
+    await expect(bookings).toContainText('09:00');
+    await expect(bookings).toContainText('11:00');
+    await expect(bookings.locator('[data-experience-extra-booking]')).toHaveCount(1);
+    const axe = await new AxeBuilder({ page }).include('[data-view="bookings"]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+    expect(axe.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`two-bookings-${viewport.name}.png`), fullPage: true });
+  }
+});
