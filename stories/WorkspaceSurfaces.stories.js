@@ -602,6 +602,15 @@ export const CancelledBookingPaymentReview = {
   } })),
 };
 
+export const OldDeviceRemoval = {
+  render: () => productionSurface(renderPasskeyManagePage({ credentials: [
+    { id: 1, label: 'JP current phone', current: true, createdAt: '2026-09-29T05:03:00Z' },
+    { id: 2, label: 'JP old Windows PC', createdAt: '2026-09-16T11:32:00Z' },
+    { id: 3, label: 'JP old Android', createdAt: '2026-09-14T15:17:00Z' },
+    { id: 4, label: 'JP old iPhone', createdAt: '2026-09-14T04:42:00Z' },
+    { id: 5, label: 'Unnamed old device', createdAt: '2026-09-13T15:36:00Z' },
+  ] })),
+};
 export const PhonePasskeyDevices = {
   render: () => productionSurface(renderPasskeyManagePage({
     credentials: [

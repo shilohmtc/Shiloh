@@ -340,12 +340,17 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; }
     finally { if (client !== db && typeof client.release === 'function') client.release(); }
   }
-  async function beginAuthentication({ credentialIdHint = null, requestFingerprintHash = null } = {}) {
+  async function beginAuthentication({ credentialIdHint = null, requestFingerprintHash = null, session = null } = {}) {
     const p = policy(); if (!p.operational) return { ok: false, code: unavailableCode() };
-    const credential = await resolveCredentialHint(db, credentialIdHint);
+    const credential = session ? null : await resolveCredentialHint(db, credentialIdHint);
+    const admin = session ? await resolveAdmin(db, session.adminId) : null;
+    if (session && (!admin || !Number.isSafeInteger(Number(session.sessionId)))) return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' };
+    const permitted = session ? await db.query(`SELECT credential_id, transports FROM staff_auth_passkey_credentials
+      WHERE admin_id = $1 AND revoked_at IS NULL ORDER BY id`, [admin.id]) : null;
+    if (session && !permitted.rows.length) return { ok: false, code: 'STAFF_PASSKEY_NOT_FOUND' };
     const current = now(); const challenge = randomChallenge(randomBytes); const expiresAt = new Date(current.getTime() + CHALLENGE_TTL_MS);
     await db.query(`INSERT INTO staff_auth_webauthn_challenges (challenge_hash, purpose, admin_id, request_fingerprint_hash, expires_at)
-      VALUES ($1, 'authentication', $2, $3, $4)`, [sha256(challenge), credential ? credential.admin_id : null, requestFingerprintHash, expiresAt]);
+      VALUES ($1, 'authentication', $2, $3, $4)`, [sha256(challenge), admin ? admin.id : credential ? credential.admin_id : null, requestFingerprintHash, expiresAt]);
     return {
       ok: true,
       options: {
@@ -355,14 +360,14 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
         userVerification: 'required',
         allowCredentials: credential
           ? [{ type: 'public-key', id: credential.credential_id, transports: Array.isArray(credential.transports) ? credential.transports : [] }]
-          : [],
+          : session ? permitted.rows.map(row => ({ type: 'public-key', id: row.credential_id, transports: Array.isArray(row.transports) ? row.transports : [] })) : [],
       },
       expiresAt,
       displayName: credential ? cleanDisplayName(credential.display_name) : null,
-      discoverable: !credential,
+      discoverable: !session && !credential,
     };
   }
-  async function finishAuthentication({ response, requestFingerprintHash = null } = {}) {
+  async function finishAuthentication({ response, requestFingerprintHash = null, session = null } = {}) {
     const p = policy(); const current = now();
     if (!p.operational) return { ok: false, code: unavailableCode() };
     let cd; let credentialId;
@@ -375,6 +380,7 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
         WHERE challenge_hash = $1 AND purpose = 'authentication' AND consumed_at IS NULL LIMIT 1 FOR UPDATE`, [sha256(cd.parsed.challenge)]);
       const challenge = challengeResult.rows[0];
       if (!challenge || new Date(challenge.expires_at).getTime() <= current.getTime()) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_PASSKEY_INVALID' }; }
+      if (session && (challenge.admin_id == null || Number(challenge.admin_id) !== Number(session.adminId))) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_PASSKEY_INVALID' }; }
       await client.query(`UPDATE staff_auth_webauthn_challenges SET consumed_at = $2 WHERE id = $1`, [challenge.id, current]);
       const credentialResult = await client.query(`SELECT id, admin_id, credential_id, public_key_spki, algorithm, sign_count, revoked_at
         FROM staff_auth_passkey_credentials WHERE credential_id = $1 LIMIT 1 FOR UPDATE`, [credentialId]);
@@ -386,6 +392,15 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
       try { verified = verifyAssertionResponse(response, credential, { expectedChallenge: cd.parsed.challenge, origin: p.origin, rpId: p.rpId }); }
       catch (error) { await audit(client, { eventType: 'passkey_authentication_failed', subjectAdminId: admin.id, requestFingerprintHash, reason: String(error.message || 'invalid_assertion').slice(0, 120), metadata: { credentialReference: `passkey:${credential.id}` } }); await client.query('COMMIT'); return { ok: false, code: 'STAFF_PASSKEY_INVALID' }; }
       await client.query(`UPDATE staff_auth_passkey_credentials SET sign_count = $2, backed_up = $3, last_used_at = $4 WHERE id = $1`, [credential.id, verified.signCount, verified.backedUp, current]);
+      if (session) {
+        const refreshed = await client.query(`UPDATE staff_browser_sessions
+          SET reauthenticated_at = $3, auth_method = 'passkey', recovery_required = FALSE
+          WHERE id = $1 AND admin_id = $2 AND revoked_at IS NULL AND expires_at > $3 RETURNING id`,
+        [session.sessionId, admin.id, current]);
+        if (!refreshed.rowCount) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' }; }
+        await audit(client, { eventType: 'passkey_authenticated', subjectAdminId: admin.id, requestFingerprintHash, metadata: { credentialReference: `passkey:${credential.id}`, reauthentication: true } });
+        await client.query('COMMIT'); return { ok: true, credentialHint: credential.credential_id };
+      }
       const issued = await issueStaffBrowserSession({ client, admin, current, randomBytes, sessionTtlMs, requestFingerprintHash, authMethod: 'passkey', recoveryRequired: false });
       await audit(client, { eventType: 'passkey_authenticated', subjectAdminId: admin.id, requestFingerprintHash, metadata: { credentialReference: `passkey:${credential.id}` } });
       await client.query('COMMIT'); return { ...issued, credentialHint: credential.credential_id };
