@@ -44,6 +44,8 @@ Shiloh is one clinic platform with several connected surfaces:
 | Shiloh CRM | Client, booking and operational records | PostgreSQL schema, migrations and repository services |
 | Render | Hosting, runtime, deployment and managed PostgreSQL | Render service/deployment state and repository release evidence |
 
+**Accepted 4 October 2026; compact Workspace account controls:** Notifications uses a labelled on/off switch for this device. Refresh Workspace, Devices & sign-in and Sign out use compact rows with at least 44px tap targets. Empty status messages take no space; installation, blocked-permission and error guidance remains visible when needed. The phone drawer gives the remaining height to the scrollable navigation. Refresh confirmation, subscription permissions and sign-out authority remain unchanged. Implementation and release evidence stay on #611.
+
 **Accepted 3 October 2026; Workspace refresh:** The account menu keeps a permanent Refresh Workspace action. It reloads the current server page after a Shiloh confirmation that unsaved changes will be lost, retaining sign-in and app settings. Offline refresh keeps the page open and asks the user to reconnect. Update now remains reserved for a waiting installed-app worker update. Navigation icons preserve the separate open problem-report count badge regardless of script timing.
 
 The staff app's installed name is **Shiloh Workspace** so it is distinct from the client app **My Shiloh**. Its manifest identity, launch URL and scope stay the same across this display-name change, preserving existing installations and sign-in authority.
