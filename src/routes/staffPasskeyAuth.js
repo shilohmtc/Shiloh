@@ -127,6 +127,24 @@ function createStaffPasskeyAuthRouter({
       return sendSession(res, result);
     } catch (e) { return next(e); }
   });
+  // Verify the signed-in account without rotating other Workspace sessions.
+  router.post('/reauthentication/options', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      const result = await passkeyService.beginAuthentication({ session: req.staffBrowserSession, requestFingerprintHash: requestFingerprintHash(req) });
+      if (!result.ok) return error(res, result);
+      noStore(res);
+      return res.status(200).json({ options: result.options });
+    } catch (e) { return next(e); }
+  });
+  router.post('/reauthentication/finish', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      const result = await passkeyService.finishAuthentication({ session: req.staffBrowserSession, response: req.body?.response, requestFingerprintHash: requestFingerprintHash(req) });
+      if (!result.ok) return error(res, result);
+      noStore(res);
+      res.setHeader('Set-Cookie', serializePasskeyHintCookie(result.credentialHint, { env }));
+      return res.status(204).send();
+    } catch (e) { return next(e); }
+  });
   router.get('/manage', requireSession, async (req, res, next) => {
     try {
       const result = await passkeyService.listCredentials({ session: req.staffBrowserSession, credentialIdHint: passkeyHintFromRequest(req, env) });

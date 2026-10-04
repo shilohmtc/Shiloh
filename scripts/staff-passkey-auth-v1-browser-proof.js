@@ -48,7 +48,8 @@ function fixture(origin){
 }
 function assertSimplifiedSignin(dom,{knownPrincipal=true}={}){
   assert.match(dom,/<h1>Shiloh Workspace<\/h1>/);
-  assert.match(dom,/Secure staff access to Shiloh's operating workspace\./);
+  assert.match(dom,/Sign in to your Workspace\./);
+  assert.doesNotMatch(dom,/Secure staff access to Shiloh's operating workspace\./);
   assert.match(dom,knownPrincipal?/Continue as Jean-Pierre/:/Use existing passkey/);
   if(!knownPrincipal){
     assert.match(dom,/This browser is not linked yet/);

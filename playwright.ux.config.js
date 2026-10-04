@@ -2,7 +2,7 @@ const { defineConfig } = require('@playwright/test');
 
 module.exports = defineConfig({
   testDir: './tests',
-  testMatch: ['ux-visual-accessibility.spec.js', 'clinic-ipad-ux-visual.spec.js', 'my-shiloh-passkey-ux.spec.js', 'workspace-compact-menu.spec.js'],
+  testMatch: ['ux-visual-accessibility.spec.js', 'clinic-ipad-ux-visual.spec.js', 'my-shiloh-passkey-ux.spec.js', 'workspace-compact-menu.spec.js', 'workspace-device-removal.spec.js'],
   fullyParallel: false,
   workers: 1,
   timeout: 30_000,
