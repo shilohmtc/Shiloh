@@ -40,7 +40,7 @@ function productionSurface(pageHtml) {
   return `<style>${styles}.workspace-surface-story{min-height:100vh}.workspace-surface-story script{display:none}</style><div class="workspace-surface-story" data-story-surface>${body.replace(/<script[\s\S]*?<\/script>/g, '')}</div>`;
 }
 
-function workspaceNavigationOpenStory() {
+function workspaceNavigationOpenStory(notificationState = null) {
   const root = document.createElement('div');
   root.innerHTML = productionSurface(renderDashboardPage(dashboardModel(), {
     navigation: {
@@ -59,6 +59,22 @@ function workspaceNavigationOpenStory() {
   const drawer = root.querySelector('[data-workspace-navigation-drawer]');
   const backdrop = root.querySelector('[data-workspace-nav-backdrop]');
   const toggle = root.querySelector('[data-workspace-drawer-toggle]');
+  if (notificationState !== null) {
+    const panel = root.querySelector('[data-workspace-notifications]');
+    panel.hidden = false;
+    const button = panel.querySelector('[data-workspace-push-toggle]');
+    button.disabled = notificationState === 'blocked';
+    button.setAttribute('aria-checked', String(notificationState === 'on'));
+    button.dataset.enabled = String(notificationState === 'on');
+    panel.querySelector('[data-workspace-push-state]').textContent = notificationState === 'on' ? 'On' : 'Off';
+    if (notificationState === 'blocked') panel.querySelector('[data-workspace-push-status]').textContent = 'Allow Shiloh notifications in your phone settings.';
+    const link = document.createElement('a');
+    link.className = 'workspace-account-signout';
+    link.href = '/calendar/staff-auth/passkeys/manage';
+    link.dataset.workspacePasskeySecurity = 'true';
+    link.textContent = 'Devices & sign-in';
+    root.querySelector('[data-workspace-account-footer]').insertBefore(link, root.querySelector('[data-shiloh-logout]'));
+  }
   drawer?.classList.add('open');
   backdrop?.classList.add('open');
   toggle?.setAttribute('aria-expanded', 'true');
@@ -306,7 +322,10 @@ export const ReceptionTimeChangeAttention = {
   }), dashboardClientScript()),
 };
 export const DashboardActiveNoShow = { render: () => interactiveProductionSurface(renderDashboardPage(activeNoShowDashboardModel()), dashboardClientScript()) };
-export const NavigationDrawerOpen = { render: workspaceNavigationOpenStory };
+export const NavigationDrawerOpen = { render: () => workspaceNavigationOpenStory() };
+export const CompactMenuNotificationsOn = { render: () => workspaceNavigationOpenStory('on') };
+export const CompactMenuNotificationsOff = { render: () => workspaceNavigationOpenStory('off') };
+export const CompactMenuNotificationsBlocked = { render: () => workspaceNavigationOpenStory('blocked') };
 export const ClientAppointmentHistory = { render: () => productionSurface(renderClientDetailPageWithCommunications(clientModel(), { calendarNavigationAllowed: true, notificationActionAllowed: true })) };
 export const MessagesAttention = { render: () => productionSurface(renderMessagesPage(messagesModel())) };
 export const MessagesChangeDeliveryAttention = {

@@ -158,7 +158,7 @@ async function main() {
       assert.equal(await page.getByText('Synthetic practitioner', { exact: true }).isVisible(), true);
       await page.getByRole('link', { name: /Jean-Pierre/ }).click();
       assert.equal(await page.getByRole('heading', { name: 'Jean-Pierre', exact: true }).isVisible(), true);
-      assert.equal(await page.locator('[role="switch"]').count(), people.find(person => person.id === 42).toggles.length);
+      assert.equal(await page.locator('[data-access-toggle][role="switch"]').count(), people.find(person => person.id === 42).toggles.length);
       assert.equal(await page.getByRole('switch', { name: 'Manage Reception booking requests', exact: true }).getAttribute('aria-checked'), 'true');
       assert.equal(await page.getByRole('button', { name: 'Save changes', exact: true }).isVisible(), true);
       assert.equal(await page.getByRole('link', { name: 'Open device setup', exact: true }).isVisible(), false);
@@ -189,7 +189,7 @@ async function main() {
       await page.getByText('Protected boundaries', { exact: true }).click();
       assert.equal(await page.getByText('Cannot change Clinic Hours.', { exact: true }).isVisible(), true);
       assert.equal(await page.getByText('Cannot edit, cancel, reassign or delete another practitioner’s appointments.', { exact: true }).isVisible(), true);
-      const switches = page.locator('[role="switch"]');
+      const switches = page.locator('[data-access-toggle][role="switch"]');
       assert.equal(await switches.count(), 14);
       for (let i = 0; i < await switches.count(); i += 1) assert.equal(await switches.nth(i).getAttribute('aria-checked'), 'true');
 
