@@ -369,7 +369,7 @@ async function main() {
           width:innerWidth,
           overflow:document.documentElement.scrollWidth>innerWidth,
           text:document.body.innerText,
-          switches:Array.from(document.querySelectorAll('[role="switch"]')).map(n=>({label:n.getAttribute('aria-label'),checked:n.getAttribute('aria-checked')})),
+          switches:Array.from(document.querySelectorAll('[data-access-toggle][role="switch"]')).map(n=>({label:n.getAttribute('aria-label'),checked:n.getAttribute('aria-checked')})),
           targets:Array.from(document.querySelectorAll('a.button,button,.person-card')).filter(n=>{const r=n.getBoundingClientRect();return r.width>0&&r.height>0;}).map(n=>({width:n.getBoundingClientRect().width,height:n.getBoundingClientRect().height}))
         })`);
         assert.equal(geometry.width, width);
