@@ -2787,6 +2787,9 @@ test('Reception planning card shows a client occasion on Phone and Desktop', asy
     await page.goto('/iframe.html?id=workspace-production-surfaces--reception-planning-queue&viewMode=story', { waitUntil:'networkidle' });
     const card = page.locator('[data-booking-request="801"]');
     await expect(card).toContainText('Birthday treat for two');
+    await expect(card.locator('[data-proposal-staff] option:not([disabled])')).toHaveText(['Abigail (current)','Christel']);
+    await expect(card.locator('[data-proposal-staff]')).toHaveValue('11');
+    await expect(page.locator('[data-booking-request="802"] [data-proposal-staff] option:not([disabled])')).toHaveText(['Christel (current)']);
     if (viewport.name === 'desktop') {
       const copyWidth = await card.locator('.appointment-copy').evaluate(node => node.getBoundingClientRect().width);
       expect(copyWidth).toBeGreaterThan(120);
@@ -3739,4 +3742,50 @@ test('Workspace access presets retain their payload while saving on Phone and De
     expect(requests.at(-1).payload.preset).toBe('employee_practitioner_v1');
   }
   expect(requests).toHaveLength(4);
+});
+
+
+test('Reception alternatives only allow service practitioners and preserve team-only requests on Phone and Desktop', async ({ page },testInfo) => {
+  const attempts = [];
+  await page.route('**/calendar/staff-auth/csrf',route => route.fulfill({ json:{ csrfToken:'synthetic-csrf' } }));
+  await page.route('**/calendar/workspace/booking-requests/*/propose',route => {
+    attempts.push({ url:route.request().url(),body:route.request().postDataJSON() });
+    return route.fulfill({ status:409,json:{ error:'That alternative is not canonically available.',code:'BOOKING_REQUEST_ALTERNATIVE_UNAVAILABLE' } });
+  });
+  for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1280,height:900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=workspace-production-surfaces--reception-practitioner-assignments&viewMode=story',{ waitUntil:'networkidle' });
+    const missing = page.locator('[data-booking-request="803"]');
+    await expect(missing.getByLabel('Alternative practitioner')).toBeDisabled();
+    await expect(missing.getByRole('button',{ name:'Propose alternative' })).toBeDisabled();
+    await expect(missing).toContainText('Review the practitioner assignments in Services');
+    const changed = page.locator('[data-booking-request="804"]');
+    const picker = changed.getByLabel('Alternative practitioner');
+    await expect(picker.locator('option:not([disabled])')).toHaveText(['Christel']);
+    await expect(picker).toHaveValue('');
+    await changed.getByLabel('Alternative date').fill('2026-10-06');
+    await changed.getByLabel('Alternative time').fill('09:00');
+    const before = attempts.length;
+    await changed.getByRole('button',{ name:'Propose alternative' }).click();
+    await expect(changed.locator('[data-booking-request-status]')).toContainText('Choose a practitioner for this treatment');
+    expect(attempts).toHaveLength(before);
+    await picker.selectOption('12');
+    await changed.getByRole('button',{ name:'Propose alternative' }).click();
+    await expect(changed.locator('[data-booking-request-status]')).toContainText('That alternative is not canonically available');
+    expect(attempts.at(-1).body).toEqual({ expectedRevision:'2026-10-05T09:00:00.000Z',startsAt:'2026-10-06T07:00:00.000Z',staffId:12 });
+    await expect(picker).toHaveValue('12');
+    await expect(changed.getByLabel('Alternative time')).toHaveValue('09:00');
+    const team = page.locator('[data-booking-request="805"]');
+    await expect(team.getByLabel('Alternative practitioner')).toHaveCount(0);
+    await expect(team).toContainText('keeps its current practitioner team');
+    await team.getByLabel('Alternative date').fill('2026-10-06');
+    await team.getByLabel('Alternative time').fill('10:00');
+    await team.getByRole('button',{ name:'Propose alternative' }).click();
+    await expect(team.locator('[data-booking-request-status]')).toContainText('That alternative is not canonically available');
+    expect(attempts.at(-1).body).not.toHaveProperty('staffId');
+    const axe = await new AxeBuilder({ page }).include('[data-dashboard-attention-panel]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
+    expect(axe.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path:testInfo.outputPath(`reception-service-practitioners-${viewport.name}.png`),fullPage:true });
+  }
 });
