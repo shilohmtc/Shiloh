@@ -9,6 +9,8 @@
   const status = get('[data-booking-status]');
   const slotStatus = get('[data-slot-status]');
   const confirmStatus = get('[data-confirm-status]');
+  const cartStatus = get('[data-cart-status]');
+  const retryReview = get('[data-retry-review]');
   const practitionersHost = get('[data-practitioners]');
   const slotsHost = get('[data-slots]');
   const dateInput = get('[data-booking-date]');
@@ -97,6 +99,7 @@
     const list = selected();
     if (!list.length) { step(1); return; }
     step(4); state.quote = null; submit.disabled = true;
+    setStatus(cartStatus,''); retryReview.hidden = true;
     get('[data-current-review]').hidden = list.length > 1;
     get('[data-cart-items]').hidden = list.length < 2;
     get('[data-cart-totals]').hidden = list.length < 2;
@@ -116,17 +119,33 @@
     }
     renderCart(list);
     get('[data-cart-total]').textContent = get('[data-cart-deposit]').textContent = 'Checking…';
-    setStatus(confirmStatus,'Checking your appointments and combined total…');
+    setStatus(confirmStatus,'');
+    setStatus(cartStatus,'Checking your appointments and combined total…');
     busy(true);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
     try {
-      state.quote = await post('/my-shiloh/api/booking/multiple/review', { treatments:payload(list) });
+      state.quote = await json('/my-shiloh/api/booking/multiple/review', {
+        method:'POST', signal:controller.signal,
+        headers:{ 'Content-Type':'application/json', 'x-shiloh-csrf-token':root.dataset.csrf },
+        body:JSON.stringify({ treatments:payload(list) }),
+      });
       get('[data-cart-total]').textContent = rand(state.quote.total);
       get('[data-cart-deposit]').textContent = rand(state.quote.deposit);
       get('[data-review-deposit]').textContent = 'One deposit payment after every appointment is approved';
-      renderCart(list); setStatus(confirmStatus,'');
-    } catch (error) { setStatus(confirmStatus,error.message,'error'); }
-    finally { busy(false); submit.disabled = !state.quote; }
+      renderCart(list); setStatus(cartStatus,'');
+    } catch (error) {
+      state.quote = null;
+      get('[data-cart-total]').textContent = get('[data-cart-deposit]').textContent = 'Not available yet';
+      const message = error.name === 'AbortError'
+        ? 'The check took too long. Try checking your appointments again.'
+        : error.code === 'BOOKING_CART_OVERLAP'
+          ? 'These appointments are for you and their times overlap. Change or remove an appointment so you can attend each treatment. For bookings for more than one person, contact Reception.'
+          : error.message;
+      setStatus(cartStatus,message,'error'); retryReview.hidden = false;
+    } finally { clearTimeout(timeout); busy(false); submit.disabled = !state.quote; }
   }
+  retryReview.addEventListener('click', () => { if (!state.busy) review(); });
   function practitionerButton(row) {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'option';
     button.dataset.practitionerId = String(row.id);
