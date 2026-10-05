@@ -96,7 +96,7 @@ function rowVisibleToScope(row, principal, scope) {
   return false;
 }
 
-async function rawUnresolvedRows(db) {
+async function rawUnresolvedRows(db, scope) {
   const result = await db.query(`
     SELECT aba.appointment_id,aba.approver_staff_id,aba.status,aba.requested_at,aba.planning_started_at,aba.client_occasion_note,aba.client_special_occasion,
            aba.requested_starts_at,aba.requested_ends_at,aba.requested_revision,
@@ -106,7 +106,10 @@ async function rawUnresolvedRows(db) {
            COALESCE(s.name,aps.service_name_snapshot,a.title,'Shiloh appointment') AS service_name,
            COALESCE(st.display_name,ast.staff_name_snapshot,'Shiloh practitioner') AS staff_name,
            COALESCE(pst.display_name,st.display_name,ast.staff_name_snapshot,'Shiloh practitioner') AS proposed_staff_name,
-           team.id AS team_id,team.display_name AS team_name
+           team.id AS team_id,team.display_name AS team_name,
+           ast.staff_id AS current_staff_id,
+           (SELECT COUNT(*)::int FROM appointment_staff assigned WHERE assigned.appointment_id=a.id) AS current_staff_count,
+           alternative.practitioners AS eligible_practitioners
       FROM appointment_booking_approvals aba
       JOIN appointments a ON a.id=aba.appointment_id AND a.status<>'cancelled'
       JOIN appointment_staff ast ON ast.appointment_id=a.id AND ast.position=1
@@ -118,8 +121,27 @@ async function rawUnresolvedRows(db) {
       LEFT JOIN services s ON s.id=aps.service_id
       LEFT JOIN staff_operational_team_members tm ON tm.staff_id=aba.requested_staff_id AND tm.active=TRUE
       LEFT JOIN staff_operational_teams team ON team.id=tm.team_id AND team.active=TRUE
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(jsonb_agg(jsonb_build_object('id',candidate.id,'displayName',candidate.display_name)
+          ORDER BY candidate.display_name,candidate.id),'[]'::jsonb) AS practitioners
+          FROM staff candidate
+         WHERE candidate.status='active' AND candidate.resource_type='practitioner'
+           AND EXISTS(SELECT 1 FROM locations location WHERE location.id=a.location_id AND location.status='active')
+           AND NOT EXISTS(
+             SELECT 1 FROM appointment_services booked
+             LEFT JOIN services service ON service.id=booked.service_id
+             LEFT JOIN staff_services mapping ON mapping.service_id=booked.service_id AND mapping.staff_id=candidate.id
+             WHERE booked.appointment_id=a.id
+               AND (service.status IS DISTINCT FROM 'active' OR mapping.staff_id IS NULL)
+           )
+           AND ($1::bigint IS NULL OR EXISTS(
+             SELECT 1 FROM staff_operational_team_members member
+             JOIN staff_operational_teams destination_team ON destination_team.id=member.team_id AND destination_team.active=TRUE
+             WHERE member.staff_id=candidate.id AND member.active=TRUE AND destination_team.id=$1
+           ))
+      ) alternative ON TRUE
      WHERE aba.status IN ('pending','awaiting_client_confirmation')
-     ORDER BY aba.requested_at,aba.appointment_id`);
+     ORDER BY aba.requested_at,aba.appointment_id`, [scope.kind === 'team' ? scope.teamId : null]);
   return result.rows || [];
 }
 
@@ -130,9 +152,14 @@ function revisionOf(value) {
 
 async function listUnresolvedBookingRequests({ db = pool, principal, now = new Date() }) {
   const scope = await coordinationScopeForPrincipal(db, principal);
-  const rows = await rawUnresolvedRows(db);
+  if (scope.kind === 'none') return [];
+  const rows = await rawUnresolvedRows(db, scope);
   return rows.filter(row => rowVisibleToScope(row, principal, scope)).map(row => ({
     appointmentId: Number(row.appointment_id),
+    currentStaffId: positiveId(row.current_staff_id),
+    canChangePractitioner: Number(row.current_staff_count) === 1,
+    eligiblePractitioners: Number(row.current_staff_count) === 1 && Array.isArray(row.eligible_practitioners)
+      ? row.eligible_practitioners : [],
     status: row.status,
     planningStartedAt: row.planning_started_at || null,
     occasionNote: row.client_occasion_note || null,

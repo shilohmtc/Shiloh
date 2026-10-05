@@ -230,11 +230,15 @@ function createFixture() {
           {
             appointmentId: 8201, effectiveStatus: 'pending', clientName: 'Request Client', serviceName: 'Synthetic treatment',
             staffName: 'Cedar Practitioner', requestedStartsAt: '2026-09-08T08:00:00.000Z', requestedRevision: '2026-09-05T06:40:00.000Z',
+            currentStaffId: 31, canChangePractitioner: true,
+            eligiblePractitioners: [{ id: 31, displayName: 'Cedar Practitioner' }],
           },
           {
             appointmentId: 8202, effectiveStatus: 'awaiting_client_confirmation', clientName: 'Awaiting Client', serviceName: 'Synthetic treatment',
             staffName: 'Cedar Practitioner', proposedStaffName: 'Willow Practitioner', requestedStartsAt: '2026-09-09T08:00:00.000Z',
             proposedStartsAt: '2026-09-10T09:00:00.000Z', requestedRevision: '2026-09-05T06:41:00.000Z',
+            currentStaffId: 31, proposedStaffId: 32, canChangePractitioner: true,
+            eligiblePractitioners: [{ id: 31, displayName: 'Cedar Practitioner' }, { id: 32, displayName: 'Willow Practitioner' }],
           },
         ];
       },
@@ -545,6 +549,8 @@ async function main() {
         assert.ok(metrics.bookingActionLabels.includes('Cannot accommodate'));
         assert.ok(metrics.minBookingActionHeight >= (phone ? 44 : 36), `${name} has undersized booking-request actions`);
         if (name === 'desktop-dashboard' || name === 'phone-dashboard') {
+          const practitionerChoices = await evaluate(cdp, `Array.from(document.querySelector('[data-booking-request] [data-proposal-staff]').options).filter(option=>!option.disabled).map(option=>({id:option.value,label:option.textContent.trim()}))`);
+          assert.deepEqual(practitionerChoices, [{ id: '31', label: 'Cedar Practitioner (current)' }], `${name} offered a practitioner not assigned to the booked service`);
           const before = state.syntheticProposalRequests.length;
           await evaluate(cdp, `document.querySelector('[data-booking-request] [data-booking-action="propose"]').click();true`);
           await poll(() => evaluate(cdp, `document.querySelector('[data-booking-request-status] .shiloh-error-copy').textContent.trim()`), value => value === 'Choose an alternative date and time.');

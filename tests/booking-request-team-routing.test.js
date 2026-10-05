@@ -195,3 +195,40 @@ test('runtime team routing contains no person-name or phone authorization policy
   assert.match(migration, /booking_request_staff_alerts/);
   assert.doesNotMatch(migration, /INSERT INTO appointments|UPDATE appointments SET|DELETE FROM appointments/);
 });
+
+
+test('alternative practitioner projection uses active service mappings for all treatments and narrows team scope', async () => {
+  const eligible = [{ id:3,displayName:'Christel' },{ id:4,displayName:'Abigail' }];
+  for (const scope of ['global','team']) {
+    const db = dbWith({ scopes:scope === 'team' ? { 100:{ scope_kind:'team',team_id:11 } } : {}, unresolved:[
+      { ...requestRows[0],current_staff_id:3,current_staff_count:1,eligible_practitioners:eligible },
+      { ...requestRows[0],appointment_id:503,current_staff_count:2,eligible_practitioners:eligible },
+      { ...requestRows[0],appointment_id:504,current_staff_count:1,eligible_practitioners:[] },
+    ] });
+    const query = db.query;
+    db.query = async (sql,params) => {
+      if (sql.includes('AS eligible_practitioners')) {
+        assert.match(sql,/candidate.status='active'.*candidate.resource_type='practitioner'/);
+        assert.match(sql,/location.id=a.location_id AND location.status='active'/);
+        assert.match(sql,/booked.appointment_id=a.id/);
+        assert.match(sql,/mapping.service_id=booked.service_id AND mapping.staff_id=candidate.id/);
+        assert.match(sql,/service.status IS DISTINCT FROM 'active' OR mapping.staff_id IS NULL/);
+        assert.match(sql,/destination_team.id=\$1/);
+        assert.deepEqual(params,[scope === 'team' ? 11 : null]);
+      }
+      return query(sql,params);
+    };
+    const rows = await routing.listUnresolvedBookingRequests({ db,principal:principal() });
+    assert.equal(rows[0].currentStaffId,3);
+    assert.equal(rows[0].canChangePractitioner,true);
+    assert.deepEqual(rows[0].eligiblePractitioners,eligible);
+    assert.equal(rows[1].canChangePractitioner,false);
+    assert.deepEqual(rows[1].eligiblePractitioners,[]);
+    assert.deepEqual(rows[2].eligiblePractitioners,[]);
+  }
+});
+
+test('unauthorized practitioner does not query request details or service assignments', async () => {
+  const db = { query:async () => { throw new Error('Unauthorized request read'); } };
+  assert.deepEqual(await routing.listUnresolvedBookingRequests({ db,principal:principal({ business_role:'employee_practitioner' }) }),[]);
+});

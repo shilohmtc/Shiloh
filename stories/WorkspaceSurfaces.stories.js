@@ -306,8 +306,17 @@ export const ReceptionPlanningQueue = {
     ...dashboardModel(),
     displayName: 'Shiloh Reception',
     bookingRequests: [
-      { appointmentId: 801, status: 'pending', clientName: 'Client A', serviceName: 'Massage', staffName: 'Abigail', occasionNote: 'Birthday treat for two', requestedStartsAt: '2026-09-28T08:00:00.000Z', requestedRevision: '2026-09-26T09:00:00.000Z' },
-      { appointmentId: 802, status: 'pending', planningStartedAt: '2026-09-26T10:00:00.000Z', clientName: 'Client B', serviceName: 'Facial', staffName: 'Christel', requestedStartsAt: '2026-09-28T10:00:00.000Z', requestedRevision: '2026-09-26T09:30:00.000Z' },
+      { appointmentId: 801, currentStaffId:11, canChangePractitioner:true, eligiblePractitioners:[staff[0],staff[1]], status: 'pending', clientName: 'Client A', serviceName: 'Massage', staffName: 'Abigail', occasionNote: 'Birthday treat for two', requestedStartsAt: '2026-09-28T08:00:00.000Z', requestedRevision: '2026-09-26T09:00:00.000Z' },
+      { appointmentId: 802, currentStaffId:12, canChangePractitioner:true, eligiblePractitioners:[staff[1]], status: 'pending', planningStartedAt: '2026-09-26T10:00:00.000Z', clientName: 'Client B', serviceName: 'Facial', staffName: 'Christel', requestedStartsAt: '2026-09-28T10:00:00.000Z', requestedRevision: '2026-09-26T09:30:00.000Z' },
+    ],
+  }), dashboardClientScript()),
+};
+export const ReceptionPractitionerAssignments = {
+  render: () => interactiveProductionSurface(renderDashboardPage({
+    ...dashboardModel(), displayName:'Shiloh Reception', bookingRequests:[
+      { appointmentId:803,currentStaffId:11,canChangePractitioner:true,eligiblePractitioners:[],status:'pending',clientName:'Client C',serviceName:'Toe Gel Only',staffName:'Abigail',requestedStartsAt:'2026-10-06T06:00:00.000Z',requestedRevision:'2026-10-05T09:00:00.000Z' },
+      { appointmentId:804,currentStaffId:11,canChangePractitioner:true,eligiblePractitioners:[staff[1]],status:'pending',clientName:'Client D',serviceName:'Toe Gel Only',staffName:'Abigail',requestedStartsAt:'2026-10-06T06:30:00.000Z',requestedRevision:'2026-10-05T09:00:00.000Z' },
+      { appointmentId:805,canChangePractitioner:false,eligiblePractitioners:[],status:'pending',clientName:'Client E',serviceName:'Couples Massage',staffName:'Shiloh team',requestedStartsAt:'2026-10-06T07:00:00.000Z',requestedRevision:'2026-10-05T09:00:00.000Z' },
     ],
   }), dashboardClientScript()),
 };

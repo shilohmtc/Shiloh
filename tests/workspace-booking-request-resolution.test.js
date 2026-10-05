@@ -76,6 +76,7 @@ function fakePool(initialRow) {
     state.calls.push({ sql, params });
     if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql) || sql.includes('pg_advisory_xact_lock')) return { rows: [], rowCount: 0 };
     if (sql.includes('FROM appointment_booking_approvals aba') && sql.includes('WHERE aba.appointment_id=$1')) return { rows: state.row ? [{ ...state.row }] : [], rowCount: state.row ? 1 : 0 };
+    if (sql.includes('FROM staff st CROSS JOIN services s CROSS JOIN locations l') && state.resource) return { rows:[state.resource],rowCount:1 };
     if (sql.startsWith('UPDATE appointment_booking_approvals SET')) {
       if (!state.row || !['pending', 'awaiting_client_confirmation'].includes(state.row.status)) return { rows: [], rowCount: 0 };
       if (sql.includes("SET status='awaiting_client_confirmation'")) {
@@ -514,5 +515,25 @@ test('proposal remains available in app when phone push is disabled or unavailab
     assert.deepEqual(result,{channel:'my_shiloh',availableInApp:true,pushAccepted:false});
     assert.equal(notice.crmV2ClientId,55);assert.equal(notice.eventKey,'booking-proposal:7651:4');
     assert.equal(notice.targetPath,'/my-shiloh/#bookings');
+  }
+});
+
+
+test('a crafted or stale practitioner selection is rejected by canonical eligibility before any proposal write or delivery', async () => {
+  for (const changed of [{ eligible:false },{ staff_status:'inactive' },{ service_status:'inactive' },{ resource_type:'room' }]) {
+    const db = fakePool(row());
+    db.state.resource = { staff_id:12,display_name:'Christel',staff_status:'active',resource_type:'practitioner',service_id:25,service_status:'active',location_id:1,location_status:'active',eligible:true,...changed };
+    let delivered = false;
+    await assert.rejects(proposeAlternative({
+      dbPool:db,principal:principal(),appointmentId:7651,expectedRevision:REVISION,staffId:12,
+      startsAt:'2026-09-11T08:00:00.000Z',now:new Date('2026-09-08T10:00:00.000Z'),
+      sendProposal:async () => { delivered = true; },
+    }), error => error.code === 'BOOKING_REQUEST_ALTERNATIVE_UNAVAILABLE');
+    assert.equal(delivered,false);
+    assert.equal(db.state.row.status,'pending');
+    assert.equal(db.state.calls.some(call => /^(UPDATE|INSERT)/.test(call.sql)),false);
+    const check = db.state.calls.find(call => call.sql.includes('FROM staff st CROSS JOIN services s CROSS JOIN locations l'));
+    assert.deepEqual(check.params,[12,25,1]);
+    assert.equal(db.state.calls.at(-1).sql,'ROLLBACK');
   }
 });
