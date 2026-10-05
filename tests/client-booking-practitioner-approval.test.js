@@ -32,7 +32,8 @@ test('unresolved request remains a canonical appointment conflict until explicit
   assert.match(availability, /a\.status NOT IN \('cancelled','no_show'\)/);
   assert.match(approval, /pending|awaiting_client_confirmation/);
   assert.match(approval, /sendCustomerBookingConfirmationForAppointment/);
-  assert.match(approval, /SET status='declined'/);
+  assert.doesNotMatch(approval, /SET status='declined'/);
+  assert.match(approval, /BOOKING_REQUEST_DECLINE_RETIRED/);
   assert.match(approval, /SET status='approved'/);
   assert.doesNotMatch(approval, /appointment_calendar_events|cancelBookingEvent|cancelPractitionerBookingEvent/);
 });

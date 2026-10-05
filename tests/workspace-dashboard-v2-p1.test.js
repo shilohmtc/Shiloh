@@ -282,15 +282,15 @@ test('Needs Attention projects pending and awaiting-client booking requests with
   assert.equal(listInput.now, NOW);
   assert.equal(model.bookingRequests.length, 2);
   const html = renderDashboardPage(model);
-  assert.match(html, /Requested · Reception planning/);
-  assert.match(html, /data-booking-action="start_planning"/);
+  assert.match(html, /Requested · Awaiting confirmation/);
+  assert.doesNotMatch(html, /data-booking-action="start_planning"/);
   assert.match(html, /Awaiting client response/);
   assert.match(html, /This request is not confirmed yet/);
   assert.match(html, /Occasion:<\/strong> &lt;script&gt;birthday&lt;\/script&gt;/);
   assert.doesNotMatch(html, /<script>birthday<\/script>/);
   assert.match(html, />Accept requested appointment</);
   assert.match(html, />Propose alternative</);
-  assert.match(html, />Cannot accommodate</);
+  assert.doesNotMatch(html, /data-booking-action="cannot_accommodate"|>Cannot accommodate</);
   assert.doesNotMatch(html, />Approve<|>Decline</);
   assert.doesNotMatch(html, /Alternative practitioner/);
 
@@ -304,7 +304,7 @@ test('Needs Attention projects pending and awaiting-client booking requests with
   assert.match(clientScript, /date\+'T'\+time\+':00\+02:00'/);
   assert.match(clientScript, /Choose an alternative date and time\./);
   assert.match(clientScript, /Checking this alternative…/);
-  assert.match(clientScript, /Starting planning…/);
+  assert.doesNotMatch(clientScript, /Starting planning…|cannot_accommodate/);
   assert.match(clientScript, /requestStatus/);
 });
 
@@ -342,8 +342,10 @@ test('Workspace booking-request action re-resolves authority and forwards only c
   const common = { adminId: 7, viewer: { calendarScope: 'own_staff', staffId: 11 }, appointmentId: 7651, expectedRevision: '2026-09-05T06:30:00.000Z' };
   await service.resolveBookingRequest({ ...common, action: 'accept' });
   await service.resolveBookingRequest({ ...common, action: 'propose', startsAt: '2026-09-11T08:00:00.000Z', staffId: 11, serviceId: 25 });
-  await service.resolveBookingRequest({ ...common, action: 'cannot_accommodate' });
-  assert.deepEqual(calls.map(call => call[0]), ['accept', 'propose', 'cannot']);
+  for (const action of ['cannot_accommodate', 'start_planning']) {
+    await assert.rejects(service.resolveBookingRequest({ ...common, action }), { code: 'WORKSPACE_BOOKING_REQUEST_INVALID' });
+  }
+  assert.deepEqual(calls.map(call => call[0]), ['accept', 'propose']);
   assert.equal(calls[0][1].principal.id, 7);
   assert.equal(calls[1][1].startsAt, '2026-09-11T08:00:00.000Z');
 });
@@ -391,6 +393,13 @@ test('booking-request routes preserve session, same-origin and CSRF boundaries',
   app.use(express.json());
   app.use('/calendar/workspace', createWorkspaceOperationalRouter({ env: ENABLED_ENV, sessionService, dashboardService }));
   await withServer(app, async base => {
+    for (const action of ['cannot_accommodate', 'start_planning']) {
+      const retired = await fetch(`${base}/calendar/workspace/booking-requests/7651/${action}`, {
+        method: 'POST', headers: { cookie: 'shiloh_staff_session=valid', origin: base,
+          'content-type': 'application/json', 'x-shiloh-csrf-token': 'csrf' }, body: '{}',
+      });
+      assert.equal(retired.status, 404);
+    }
     const path = `${base}/calendar/workspace/booking-requests/7651/propose`;
     const body = JSON.stringify({ expectedRevision: '2026-09-05T06:30:00.000Z', startsAt: '2026-09-11T08:00:00.000Z', staffId: 11 });
     assert.equal((await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body })).status, 401);

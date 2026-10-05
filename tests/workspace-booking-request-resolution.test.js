@@ -286,19 +286,7 @@ test('Propose alternative holds the candidate, increments a version and delivers
   assert.ok(new Date(db.state.row.proposal_expires_at).getTime() > new Date('2026-09-08T10:00:00.000Z').getTime());
 });
 
-test('Cannot accommodate terminalizes the request, appointment and lifecycle atomically before client delivery', async () => {
-  const db = fakePool(row());
-  let deliveryStatus = null;
-  const result = await cannotAccommodate({
-    dbPool: db, principal: principal(), appointmentId: 7651, expectedRevision: REVISION,
-    sendOutcome: async () => { deliveryStatus = db.state.row.status; return { sent: true }; },
-  });
-  assert.equal(result.status, 'declined');
-  assert.equal(deliveryStatus, 'declined');
-  assert.equal(db.state.calls.some(call => call.sql.startsWith('UPDATE appointments')), true);
-  assert.equal(db.state.calls.some(call => call.sql.startsWith('UPDATE appointment_lifecycle') && call.sql.includes("status='cancelled'")), true);
-  assert.equal(db.state.calls.some(call => call.sql.startsWith('INSERT INTO appointment_status_history')), true);
-});
+
 
 test('own-scope practitioner cannot propose a different practitioner and V1 never changes service', async () => {
   const staffDb = fakePool(row());
@@ -439,15 +427,7 @@ test('app proposal delivery requires a verified app identity before changing or 
   assert.equal(db.state.calls.some(call => call.sql.startsWith('UPDATE')), false);
 });
 
-test('decline preserves canonical outcome without falsely recording a phone alert', async () => {
-  const db = fakePool(row());
-  const result = await cannotAccommodate({ dbPool: db, principal: principal(),
-    appointmentId: 7651, expectedRevision: REVISION });
-  assert.equal(result.status, 'declined');
-  assert.equal(result.delivery.sent, false);
-  assert.equal(result.delivery.reason, 'status_available_in_app_phone_alert_retired');
-  assert.equal(db.state.row.status, 'declined');
-});
+
 
 function appProposal(overrides = {}) {
   return row({ status: 'awaiting_client_confirmation', proposal_version: 4,
@@ -535,5 +515,17 @@ test('a crafted or stale practitioner selection is rejected by canonical eligibi
     const check = db.state.calls.find(call => call.sql.includes('FROM staff st CROSS JOIN services s CROSS JOIN locations l'));
     assert.deepEqual(check.params,[12,25,1]);
     assert.equal(db.state.calls.at(-1).sql,'ROLLBACK');
+  }
+});
+
+
+test('retired decline cannot change pending or proposed requests or send a cancellation', async () => {
+  for (const status of ['pending', 'awaiting_client_confirmation']) {
+    const db = fakePool(row({ status }));
+    await assert.rejects(cannotAccommodate({ dbPool: db, principal: principal(), appointmentId: 7651,
+      expectedRevision: REVISION, sendOutcome: async () => { throw new Error('must not deliver'); } }),
+    { code: 'BOOKING_REQUEST_DECLINE_RETIRED', httpStatus: 409 });
+    assert.equal(db.state.row.status, status);
+    assert.equal(db.state.calls.length, 0);
   }
 });

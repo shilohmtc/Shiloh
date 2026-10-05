@@ -542,11 +542,12 @@ async function main() {
         assert.match(metrics.dashboardCommunicationText, /Client notification needs attention/);
         if (metrics.dashboardActions) assert.ok(metrics.minDashboardActionHeight >= (phone ? 44 : 36), `${name} has undersized outcome actions`);
         assert.equal(metrics.bookingRequests, 2, `${name} does not project both unresolved booking-request states`);
-        assert.match(metrics.bookingRequestText, /Requested · Reception planning/);
+        assert.match(metrics.bookingRequestText, /Requested · Awaiting confirmation/);
         assert.match(metrics.bookingRequestText, /Awaiting client response/);
         assert.ok(metrics.bookingActionLabels.includes('Accept requested appointment'));
         assert.ok(metrics.bookingActionLabels.includes('Propose alternative'));
-        assert.ok(metrics.bookingActionLabels.includes('Cannot accommodate'));
+        assert.ok(!metrics.bookingActionLabels.includes('Cannot accommodate'));
+        assert.ok(!metrics.bookingActionLabels.includes('Start planning'));
         assert.ok(metrics.minBookingActionHeight >= (phone ? 44 : 36), `${name} has undersized booking-request actions`);
         if (name === 'desktop-dashboard' || name === 'phone-dashboard') {
           const practitionerChoices = await evaluate(cdp, `Array.from(document.querySelector('[data-booking-request] [data-proposal-staff]').options).filter(option=>!option.disabled).map(option=>({id:option.value,label:option.textContent.trim()}))`);
