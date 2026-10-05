@@ -223,13 +223,11 @@ async function main() {
       await create.getByLabel('Category', { exact: true }).selectOption('1');
       await create.getByLabel('Therapist', { exact: true }).check();
       await check('package-create');
+      const created = page.waitForResponse(r => r.url() === base + '/calendar/services/packages/create' && r.request().method() === 'POST');
       await create.getByRole('button', { name: 'Create package', exact: true }).click();
-      await page.waitForLoadState('networkidle');
-      assert.ok(
-        await page
-          .getByRole('heading', { name: 'Synthetic ' + name + ' package', exact: true })
-          .isVisible(),
-      );
+      const createResponse = await created;
+      assert.equal(createResponse.status(), 201, await createResponse.text());
+      await page.getByRole('heading', { name: 'Synthetic ' + name + ' package', exact: true }).waitFor();
       if (name === 'desktop') {
         const payment = page.locator('[data-package-payment]');
         await payment.getByLabel('Package', { exact: true }).selectOption('1');
@@ -245,10 +243,13 @@ async function main() {
         await payment
           .getByRole('button', { name: 'Record payment & add treatments', exact: true })
           .click();
+        const recorded = page.waitForResponse(r => r.url() === base + '/calendar/services/packages/paid' && r.request().method() === 'POST');
         await page
           .getByRole('dialog')
           .getByRole('button', { name: 'Record paid package', exact: true })
           .click();
+        const paidResponse = await recorded;
+        assert.equal(paidResponse.status(), 201, await paidResponse.text());
         await page.waitForLoadState('networkidle');
       }
       await page.goto(base + '/my-shiloh/packages');
