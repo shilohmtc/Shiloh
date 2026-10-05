@@ -69,3 +69,11 @@ jobs:
             artifacts/ux-baseline-candidate
           if-no-files-found: ignore
           retention-days: 14
+      - name: Upload booking-for-two visual review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: my-shiloh-couples-visual-review
+          path: artifacts/ux-playwright-results/**/couples-*.png
+          if-no-files-found: ignore
+          retention-days: 14

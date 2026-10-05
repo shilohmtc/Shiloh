@@ -231,7 +231,7 @@ function createMyShilohMultipleBookingService({
         const approval = await stageApproval(connection, { appointmentId:id, occasionNote:note, specialOccasion }, { schemaReady:true });
         if (!approval) fail('BOOKING_CART_APPROVAL_FAILED', 'The requests could not be prepared safely. Nothing was booked.', 503);
         await connection.query(`INSERT INTO appointment_status_history(appointment_id,from_status,to_status,changed_by,reason)
-          VALUES($1,NULL,'scheduled',$2,'My Shiloh multiple booking request; awaiting team approval')`, [id,`client:${clientId}`]);
+          VALUES($1,NULL,'scheduled',$2,$3)`, [id,`client:${clientId}`,couples ? 'My Shiloh booking for two; awaiting team approval' : 'My Shiloh multiple booking request; awaiting team approval']);
       }
       result = { status:'pending_resolution', groupId, appointmentIds, total:quote.total, deposit:quote.deposit,
         message:couples ? 'Your booking for two is in. Both times are held while Shiloh reviews the appointments. You can pay one combined deposit from My Shiloh after both are approved.' : 'Your booking requests are in. All selected times are being held while Shiloh reviews them. Once every appointment is approved, you can pay the combined deposit in one payment from My Shiloh.' };

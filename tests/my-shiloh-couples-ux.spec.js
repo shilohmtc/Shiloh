@@ -4,7 +4,7 @@ const AxeBuilder = require('@axe-core/playwright').default;
 const path = require('node:path');
 for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1365,height:950 }]) {
   test(`Book for two keeps each person separate and recovers safely on ${viewport.name}`, async ({ page },testInfo) => {
-    await page.setViewportSize(viewport);
+    await page.setViewportSize({ width:viewport.width,height:viewport.height });
     let availabilityCalls=0,reviewCalls=0;
     const confirms=[];
     const slot={ startsAt:'2026-11-02T08:00:00.000Z',time:'10:00',endTime:'11:00',guestEndTime:'11:15' };

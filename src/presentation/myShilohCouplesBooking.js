@@ -26,8 +26,9 @@ function renderMyShilohCouplesBookingPage(options = {}) {
     <section class="step" data-couples-step="5" hidden><div class="success-card"><div class="success-mark">✓</div><h2>Booking for two requested.</h2><p data-couples-success></p><div class="actions"><a class="button button--primary" href="/my-shiloh/#bookings">View My Shiloh bookings</a><a class="button button--soft" href="/my-shiloh/">Back to My Shiloh</a></div></div></section>
   </main>`;
   return renderMyShilohBookingPage(options)
+    .replace('<title>Book an appointment | My Shiloh</title>', '<title>Book for two | My Shiloh</title>')
     .replace(/<main class="shell"[\s\S]*?<\/main>/, main)
     .replace(/<script src="\/my-shiloh\/assets\/booking.js[^>]*><\/script>/, '<script src="/my-shiloh/assets/couples-booking.js?v=20261005" defer></script>')
-    .replace('</style>', '.date-card select{width:100%;min-height:48px;padding:10px;border:1px solid #bdc8c0;border-radius:11px;background:white;font:inherit;font-size:16px}.date-card{min-width:0;display:grid;gap:10px}.date-card legend{font-weight:850}.date-card input:not([type="checkbox"]){width:100%}[data-my-shiloh-couples] [hidden]{display:none}.date-card .confirm-label{font-weight:400}.date-card p{font-size:14px;overflow-wrap:anywhere}</style>');
+    .replace('</style>', '.date-card select{width:100%;min-height:48px;padding:10px;border:1px solid #bdc8c0;border-radius:11px;background:white;font:inherit;font-size:16px}.date-card{min-width:0;display:grid;gap:10px}.date-card legend{font-weight:850}.date-card input:not([type="checkbox"]){width:100%}[data-my-shiloh-couples] [hidden]{display:none}.date-card .confirm-label{display:flex;font-weight:400}.date-card .confirm-label input{min-height:22px;padding:0}[data-my-shiloh-couples] .options{grid-template-columns:1fr 1fr}@media(max-width:620px){[data-my-shiloh-couples] .options{grid-template-columns:1fr}}.date-card p{font-size:14px;overflow-wrap:anywhere}</style>');
 }
 module.exports = { renderMyShilohCouplesBookingPage };
