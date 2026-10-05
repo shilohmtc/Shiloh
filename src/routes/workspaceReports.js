@@ -3,6 +3,8 @@ const workspaceReports = require('../services/workspaceReportsProfileView');
 const workspaceWelcomeVoucherCampaign = require('../services/workspaceWelcomeVoucherCampaign');
 const staffEarnings = require('../services/workspaceStaffEarnings');
 const financialReports = require('../services/workspaceFinancialReports');
+const financialRecords = require('../services/workspaceFinancialRecords');
+const { recordsClientScript } = require('../presentation/workspaceFinancialRecordsUx');
 const { financialCsv } = require('../presentation/workspaceFinancialReportsUx');
 const { resolvePeriod } = require('../services/workspaceReports');
 const {
@@ -45,6 +47,7 @@ function createWorkspaceReportsHandler({
     : { async buildCampaign() { return null; } },
   earningsService = service === workspaceReports ? staffEarnings : { async requireOwner() { throw Object.assign(new Error('Forbidden'), { httpStatus: 403 }); } },
   financialService = service === workspaceReports ? financialReports : null,
+  recordsService = service === workspaceReports ? financialRecords : null,
   sessionService,
   renderPage = renderReportsPage,
   renderUnavailable = renderReportsUnavailablePage,
@@ -82,6 +85,7 @@ function createWorkspaceReportsHandler({
         if (financialService) {
           try {
             model.financial = await financialService.build({ adminId: req.staffBrowserSession.adminId, period: model.period });
+            if (recordsService) model.financial.records = await recordsService.build({ adminId: req.staffBrowserSession.adminId, period: model.period });
           } catch (error) {
             if (error?.httpStatus !== 403) throw error;
           }
@@ -110,6 +114,7 @@ function createWorkspaceReportsRouter({ sessionService, ...options } = {}) {
   const router = express.Router();
   const earningsService = options.earningsService || staffEarnings;
   const financialService = options.financialService || (options.service ? null : financialReports);
+  const recordsService = options.recordsService || (options.service ? null : financialRecords);
   router.use((req, res, next) => {
     setWorkspaceReportsSecurityHeaders(res);
     if (!isWorkspaceReportsEnabled(options.env || process.env)) return res.sendStatus(404);
@@ -122,6 +127,7 @@ function createWorkspaceReportsRouter({ sessionService, ...options } = {}) {
       await financialService.requireAccess(req.staffBrowserSession?.adminId);
       const period = resolvePeriod({ preset: req.query.range, from: req.query.from, to: req.query.to });
       const model = await financialService.build({ adminId: req.staffBrowserSession.adminId, period });
+      if (recordsService) model.records = await recordsService.build({ adminId: req.staffBrowserSession.adminId, period });
       res.setHeader('Content-Disposition', `attachment; filename="shiloh-finances-${period.startKey}-${period.endInclusiveKey}.csv"`);
       return res.type('text/csv').send(financialCsv(model));
     } catch (error) {
@@ -129,6 +135,32 @@ function createWorkspaceReportsRouter({ sessionService, ...options } = {}) {
       return res.status(safe.status).type('text/plain').send(safe.message);
     }
   });
+  function recordFailure(res, error) {
+    const status = [400, 403, 404, 409].includes(error?.httpStatus) ? error.httpStatus : 503;
+    return res.status(status).json({ error: status === 503 ? 'Financial records are temporarily unavailable. Please try again.' : error.message });
+  }
+  router.get('/finance-records.js', async (req, res) => {
+    try {
+      if (!recordsService) return res.sendStatus(403);
+      await recordsService.requireAccess(req.staffBrowserSession.adminId);
+      return res.type('application/javascript').send(recordsClientScript());
+    } catch (error) { return recordFailure(res, error); }
+  });
+  router.get('/cashup-preview', async (req, res) => {
+    try {
+      if (!recordsService) return res.sendStatus(403);
+      return res.json(await recordsService.preview({ adminId: req.staffBrowserSession.adminId, date: req.query.date }));
+    } catch (error) { return recordFailure(res, error); }
+  });
+  for (const [path, method] of [['/expenses','addExpense'],['/expenses/:expenseId/void','voidExpense'],['/cashup-closes','saveCashup']]) {
+    router.post(path, sameOriginGuard({ env: options.env }), csrfGuard({ service: sessionService }), express.json({ limit: '4kb' }), async (req, res) => {
+      try {
+        if (!recordsService) return res.sendStatus(403);
+        const saved = await recordsService[method]({ ...req.body, expenseId: req.params.expenseId, adminId: req.staffBrowserSession.adminId });
+        return res.status(saved.replayed ? 200 : 201).json(saved);
+      } catch (error) { return recordFailure(res, error); }
+    });
+  }
   router.get('/sections.js', (_req, res) => res.type('application/javascript').send(reportSectionsClientScript()));
   router.get('/commission.js', async (req, res) => {
     try {
@@ -145,7 +177,7 @@ function createWorkspaceReportsRouter({ sessionService, ...options } = {}) {
       return res.status(status).json({ error: status === 503 ? 'Commission rules are unavailable.' : error.message });
     }
   });
-  router.get('/', createWorkspaceReportsHandler({ ...options, earningsService, financialService, sessionService }));
+  router.get('/', createWorkspaceReportsHandler({ ...options, earningsService, financialService, recordsService, sessionService }));
   return router;
 }
 

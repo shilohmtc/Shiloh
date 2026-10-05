@@ -1,4 +1,5 @@
 import reportsPresentation from '../src/presentation/workspaceReportsUx.js';
+import financialRecords from '../src/domain/workspaceFinancialRecords.js';
 import financialReports from '../src/domain/workspaceFinancialReports.js';
 
 const { renderReportsPage } = reportsPresentation;
@@ -32,6 +33,11 @@ function reportModel() {
         balances: [{appointment_id:732,starts_at:'2026-10-05T08:00:00Z',amount_due:'590',net_paid:'195',credits:'100'},
           {appointment_id:738,group_id:14,starts_at:'2026-10-09T08:00:00Z',amount_due:'1360',net_paid:'680',credits:'0',mixed_status:true}],
       }), period, vouchers: {issued_count:1,redeemed_value:500,available_balance:2500,expired_balance:100},
+      records: { ...financialRecords.summarizeExpenses([
+        {id:1,paid_on:'2026-10-05',category:'supplies',description:'Massage oils',reference:'Receipt 104',amount:'125.50',method:'cash',created_by:'Christel'},
+        {id:2,paid_on:'2026-10-06',category:'laundry',description:'Laundry service',reference:'Invoice 17',amount:'250',method:'manual_eft',created_by:'Jean-Pierre'},
+        {id:3,paid_on:'2026-10-06',category:'supplies',description:'Incorrect amount',reference:'',amount:'200',method:'cash',created_by:'Christel',voided_at:'2026-10-06T08:00Z',voided_by:'Jean-Pierre',void_reason:'Duplicate receipt'},
+      ]), today:'2026-10-09', closes:[{id:1,business_date:'2026-10-05',revision:1,opening_float:'200',cash_added:'0',cash_removed:'0',expected_cash:'369.50',counted_cash:'365',difference:'-4.50',created_by:'Christel',created_at:'2026-10-05T16:00Z',note:'Drawer short by R4.50; receipts checked.',snapshot:{cashExpenses:125.50}}] },
     },
     selectedStaffId: null,
     permittedStaff: [
