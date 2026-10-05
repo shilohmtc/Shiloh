@@ -209,7 +209,7 @@ async function main() {
       await page.getByRole('button', { name: 'Deactivate service', exact: true }).waitFor();
       await page.goto(base + '/calendar/services/packages');
       await check('packages');
-      await page.getByText('Edit package', { exact: true }).click();
+      await page.getByText('Edit package', { exact: true }).first().click();
       await check('package-edit');
       await page.getByText('Create a package', { exact: true }).click();
       const create = page.locator('[data-package-create]');
@@ -224,9 +224,11 @@ async function main() {
       await create.getByLabel('Therapist', { exact: true }).check();
       await check('package-create');
       const created = page.waitForResponse(r => r.url() === base + '/calendar/services/packages/create' && r.request().method() === 'POST');
+      const createReload = page.waitForNavigation({ waitUntil:'networkidle' });
       await create.getByRole('button', { name: 'Create package', exact: true }).click();
       const createResponse = await created;
-      assert.equal(createResponse.status(), 201, await createResponse.text());
+      assert.equal(createResponse.status(), 201, createResponse.status() === 201 ? 'Package created' : await createResponse.text());
+      await createReload;
       await page.getByRole('heading', { name: 'Synthetic ' + name + ' package', exact: true }).waitFor();
       if (name === 'desktop') {
         const payment = page.locator('[data-package-payment]');
@@ -243,14 +245,15 @@ async function main() {
         await payment
           .getByRole('button', { name: 'Record payment & add treatments', exact: true })
           .click();
+        const paymentReload = page.waitForNavigation({ waitUntil:'networkidle' });
         const recorded = page.waitForResponse(r => r.url() === base + '/calendar/services/packages/paid' && r.request().method() === 'POST');
         await page
           .getByRole('dialog')
           .getByRole('button', { name: 'Record paid package', exact: true })
           .click();
         const paidResponse = await recorded;
-        assert.equal(paidResponse.status(), 201, await paidResponse.text());
-        await page.waitForLoadState('networkidle');
+        assert.equal(paidResponse.status(), 201, paidResponse.status() === 201 ? 'Payment recorded' : await paidResponse.text());
+        await paymentReload;
       }
       await page.goto(base + '/my-shiloh/packages');
       await check('client-balance');
