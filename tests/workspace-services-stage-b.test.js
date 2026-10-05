@@ -343,7 +343,7 @@ test('Workspace Services manage UX exposes only bounded service/status/practitio
   assert.match(managed, /data-service-assign-form/);
   assert.match(managed, /data-service-unassign-form/);
   assert.match(managed, /\/calendar\/services\/manage\.js/);
-  assert.doesNotMatch(managed, /name="client_bookable"|Create service|Delete service|Generic settings/i);
+  assert.doesNotMatch(managed, /name="client_bookable"|Create service|Generic settings/i);
 
   const viewOnly = renderServiceDetailPage(model, { ...baseOptions, manageAllowed: false });
   assert.match(viewOnly, /View only/);

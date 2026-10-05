@@ -24,6 +24,11 @@ const RECEIPTS_SQL = `/* FinancialReports:receipts */
    WHERE e.entry_type='issue' AND e.operation_key LIKE 'issue:ozow:%'
      AND ((e.created_at >= $1::timestamptz AND e.created_at < $2::timestamptz)
        OR (e.created_at >= $3::timestamptz AND e.created_at < $4::timestamptz))
+   UNION ALL
+  SELECT e.id,e.purchased_at,'payment',e.purchase_price,e.payment_method,'package',NULL,NULL,NULL
+    FROM client_package_entitlements e WHERE e.payment_method IS NOT NULL AND e.payment_status='paid'
+     AND ((e.purchased_at >= $1::timestamptz AND e.purchased_at < $2::timestamptz)
+       OR (e.purchased_at >= $3::timestamptz AND e.purchased_at < $4::timestamptz))
    ORDER BY created_at,id`;
 
 const VOUCHERS_SQL = `/* FinancialReports:vouchers */

@@ -25,6 +25,8 @@ const {
 } = require('../presentation/clientConsultationFormUx');
 const { renderMyShilohPage } = require('../presentation/myShilohPwa');
 const { renderMyShilohBookingPage } = require('../presentation/myShilohBooking');
+const { createWorkspacePackages } = require('../services/workspacePackages');
+const { renderClientPackages } = require('../presentation/workspacePackagesUx');
 const { renderPlanningRequestPage } = require('../presentation/myShilohPlanningRequest');
 const { createGiftVoucherService, GiftVoucherError } = require('../services/giftVouchers');
 const { renderClientVoucherPage, renderPublicVoucherPage } = require('../presentation/giftVoucherUx');
@@ -105,6 +107,7 @@ function createMyShilohRouter({
   welcomeVoucherService = createMyShilohWelcomeVoucherService({ db: pool }),
   problemReportService = createProblemReportService({ db: pool }),
   pushService = defaultPushService,
+  packageService = createWorkspacePackages({ db: pool }),
   bookingService = createMyShilohBookingService({ db: pool, catalogueProvider }),
   multipleBookingService = createMyShilohMultipleBookingService({ db:pool, booking:bookingService }),
   proposalService = bookingProposals,
@@ -296,6 +299,11 @@ function createMyShilohRouter({
     return res.status(200).type('html').sendFile(path.join(ROOT, 'offline.html'));
   });
 
+  router.get('/my-shiloh/packages', optionalSession, (req,res,next) => req.myShilohClientSession ? next() : res.redirect(303,'/my-shiloh/#wallet'), requireSession, async(req,res,next)=>{
+    try { setMyShilohPageHeaders(res,{allowInlineStyles:true}); return res.type('html').send(renderClientPackages(await packageService.forClient(req.myShilohClientSession.crmV2ClientId))); }
+    catch(e){return next(e);}
+  });
+
   router.get('/my-shiloh/book', optionalSession, (req, res, next) => {
     if (!req.myShilohClientSession) {
       const serviceId = /^[1-9]\d*$/.test(String(req.query?.service || '')) ? String(req.query.service) : '';
@@ -304,7 +312,8 @@ function createMyShilohRouter({
     return next();
   }, requireSession, async (req, res, next) => {
     try {
-      const welcomeVoucherMode = String(req.query?.welcomeVoucher || '') === '1';
+      const packageServiceId = normalizePublicServiceId(req.query?.packageService);
+      const welcomeVoucherMode = !packageServiceId && String(req.query?.welcomeVoucher || '') === '1';
       let voucher = null;
       let eligibleServiceIds = null;
       if (welcomeVoucherMode) {
@@ -319,7 +328,7 @@ function createMyShilohRouter({
         if (voucher?.state !== 'available') return res.redirect(303, '/my-shiloh/#welcome-voucher');
       }
       const [catalogue, rotated, depositPolicy] = await Promise.all([
-        bookingService.catalogue({
+        packageServiceId ? bookingService.packageCatalogue({ crmV2ClientId:req.myShilohClientSession.crmV2ClientId,serviceId:packageServiceId }) : bookingService.catalogue({
           welcomeVoucherOnly: welcomeVoucherMode,
           minimumBookingValue: voucher?.minimumBookingValue || 450,
           eligibleServiceIds,
@@ -336,8 +345,9 @@ function createMyShilohRouter({
         bookingPolicyText: POLICY_TEXT,
         depositPolicy,
         welcomeVoucherMode,
+        prepaidPackageMode: Boolean(packageServiceId),
         minimumBookingValue: voucher?.minimumBookingValue || 450,
-        selectedServiceId: normalizePublicServiceId(req.query?.service),
+        selectedServiceId: packageServiceId || normalizePublicServiceId(req.query?.service),
       }));
     } catch (error) {
       if (error instanceof MyShilohWelcomeVoucherError) return res.redirect(303, '/my-shiloh/#welcome-voucher');
@@ -396,7 +406,8 @@ function createMyShilohRouter({
   router.get('/my-shiloh/api/booking/practitioners', requireSession, async (req, res, next) => {
     try {
       setNoStoreJson(res);
-      return res.status(200).json(await bookingService.practitioners({ serviceId:req.query?.serviceId }));
+      return res.status(200).json(await bookingService.practitioners({ serviceId:req.query?.serviceId,
+        crmV2ClientId:req.myShilohClientSession.crmV2ClientId }));
     } catch (error) {
       if (error instanceof MyShilohBookingError) return res.status(error.httpStatus).json({ error:error.message, code:error.code, resolution:error.resolution, requestId:req.id });
       return next(error);
@@ -410,6 +421,7 @@ function createMyShilohRouter({
         serviceId:req.query?.serviceId,
         staffId:req.query?.staffId,
         date:req.query?.date,
+        crmV2ClientId:req.myShilohClientSession.crmV2ClientId,
       }));
     } catch (error) {
       if (error instanceof MyShilohBookingError) return res.status(error.httpStatus).json({ error:error.message, code:error.code, resolution:error.resolution, requestId:req.id });

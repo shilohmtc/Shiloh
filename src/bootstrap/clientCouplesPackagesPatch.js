@@ -36,7 +36,7 @@ function buildCouplesAndPackagesInteractive(packages = []) {
     rows.push({
       id: SPORTS_PACKAGE_ACTION_ID,
       title: 'Sports Massage Package',
-      description: `${Number(pkg.sessions_included)} sessions • ${money(pkg.package_price)} • valid ${Number(pkg.validity_days)} days`,
+      description: `${Number(pkg.sessions_included)} sessions • ${money(pkg.package_price)} • valid ${pkg.validity_months ? Number(pkg.validity_months) + ' month(s)' : Number(pkg.validity_days) + ' days'}`,
     });
   }
 

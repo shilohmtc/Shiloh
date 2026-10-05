@@ -100,3 +100,18 @@ Preserve the following until explicitly superseded:
 **Production:** Render `dep-da3kik67bikc7384a7vg` LIVE on exact application SHA, startup healthy and `/health` 200.
 
 **Future boundary:** do not turn Couples Massage into ordinary self-service without separate business/data/availability design authority for two clients and coordinated resources.
+
+
+## Accepted package and Workspace standard — 5 October 2026
+
+Jean-Pierre approved R1,400 upfront for four Sports Massage treatments of 45–50 minutes, any four within one calendar month of the first treatment. Calendar reservations use a 50-minute slot. This supersedes the earlier 30 days from payment/activation rule for new purchases; existing purchased windows remain unchanged.
+
+Workspace Services separates ordinary treatments from package offers. The existing `sports-massage-monthly` definition and its session service remain the sole package authority. The exact duplicate ordinary monthly offering is recoverably deleted. Internal prepaid session services are excluded from ordinary catalogue lists and protected against service deletion.
+
+Services deletion is recoverable from Deleted, preserves history and practitioner assignments, and restores to Inactive. Package deletion retires the offer while preserving paid treatments; restoring makes the offer available again.
+
+Clinic staff with existing Services management and creation capabilities can create reusable packages in Workspace. A paid purchase additionally requires existing payment collection and client lookup authority, a selected clinic client, payment method, receipt reference and explicit confirmation of full upfront receipt. Offer revisions are checked before payment is recorded. Package receipts join the clinic financial reports once at purchase; session bookings incur no further payment. No provider checkout or automatic refund policy is introduced.
+
+Each purchase snapshots its price, treatment count, wording and validity. Bookings reserve a credit atomically; completion consumes it; existing cancellation/no-show releases remain unchanged. The first completed treatment establishes the calendar-month window using its appointment time. Proposed bookings and rescheduling must fit the same window; the first planned booking alone does not start expiry. Concurrent bookings cannot allocate more than the purchased credits. My Shiloh shows available/booked/used credits and expiry and uses the existing appointment approval flow.
+
+Implementation checkpoint: prepared on `feat/workspace-packages`; database, interface and exact-head release checks are required before production verification. Deployment evidence will be recorded on the release PR.

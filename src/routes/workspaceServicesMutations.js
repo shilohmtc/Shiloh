@@ -90,7 +90,14 @@ function createWorkspaceServicesMutationRouter({
     });
   }
 
-  router.post('/:id/description', ...mutationChain, async (req, res, next) => {
+  for (const action of ['delete', 'restore']) {
+    router.post(`/:id/${action}`, ...mutationChain, async (req, res, next) => {
+      try { return res.status(200).json(await service.deleteService({ adminId: req.staffBrowserSession?.adminId, serviceId: req.params.id, expectedRevision: req.body?.expectedRevision, requestId: req.body?.requestId, restore: action === 'restore' })); }
+      catch (error) { return sendMutationError(error, req, res, next); }
+    });
+  }
+
+  router.post('/:id/description' , ...mutationChain, async (req, res, next) => {
     try {
       const result = await service.updateCustomerDescription({
         adminId: req.staffBrowserSession?.adminId,
