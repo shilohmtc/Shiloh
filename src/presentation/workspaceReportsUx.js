@@ -1,4 +1,5 @@
 const { workspaceErrorRecoveryClientScript } = require('./workspaceErrorRecovery');
+const { recordsStyles, recordSections } = require('./workspaceFinancialRecordsUx');
 const { financialStyles, financialOverview, financialSections } = require('./workspaceFinancialReportsUx');
 const {
   escapeHtml,
@@ -180,9 +181,10 @@ function renderReportsPage(model, {
   const welcomeVoucherCampaign = welcomeVoucherCampaignSection(model.welcomeVoucherCampaign);
   const campaignJump = model.welcomeVoucherCampaign ? '<a class="jump-link" href="#welcome-voucher">R100 campaign</a>' : '';
   const earningsJump = model.staffEarnings ? '<a class="jump-link" href="#staff-earnings">Earnings</a>' : '';
+  const recordsJump = model.financial?.records ? '<a class="jump-link" href="#financial-expenses">Expenses</a><a class="jump-link" href="#financial-cashup">Cash-up</a>' : '';
   const financialJump = model.financial ? '<a class="jump-link" href="#financial-daily">Daily finances</a><a class="jump-link" href="#financial-receipts">Receipts</a><a class="jump-link" href="#financial-balances">Balances</a>' : '';
 
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clinic reports — Shiloh Workspace</title><style>${workspaceShellStyles()}${reportStyles()}${phoneCapacityStyles()}${welcomeVoucherCampaignStyles()}${earningsStyles()}${reportSectionStyles()}${financialStyles()}</style><script src="/calendar/reports/sections.js" defer></script><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${model.staffEarnings ? '<script src="/calendar/reports/commission.js" defer></script>' : ''}</head><body data-workspace-reports="true"><div class="workspace-frame">${renderWorkspaceNavigation({
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clinic reports — Shiloh Workspace</title><style>${workspaceShellStyles()}${reportStyles()}${phoneCapacityStyles()}${welcomeVoucherCampaignStyles()}${earningsStyles()}${reportSectionStyles()}${financialStyles()}${recordsStyles()}</style><script src="/calendar/reports/sections.js" defer></script><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${model.staffEarnings ? '<script src="/calendar/reports/commission.js" defer></script>' : ''}${model.financial?.records ? '<script src="/calendar/reports/finance-records.js" defer></script>' : ''}</head><body data-workspace-reports="true"><div class="workspace-frame">${renderWorkspaceNavigation({
     active: 'reports',
     displayName: model.authority?.displayName,
     calendarHref: '/calendar/read-only',
@@ -205,7 +207,7 @@ function renderReportsPage(model, {
     </section>
 
     ${financialOverview(model)}
-    <nav class="jump-row" aria-label="Report sections">${financialJump}${earningsJump}${campaignJump}<a class="jump-link" href="#team-time">Team</a><a class="jump-link" href="#treatments">Treatments</a><a class="jump-link" href="#clients">Clients</a></nav>
+    <nav class="jump-row" aria-label="Report sections">${financialJump}${recordsJump}${earningsJump}${campaignJump}<a class="jump-link" href="#team-time">Team</a><a class="jump-link" href="#treatments">Treatments</a><a class="jump-link" href="#clients">Clients</a></nav>
 
     <section class="metrics" aria-label="At a glance">
       <article class="metric-card"><span>Appointments</span><strong>${escapeHtml(model.appointments?.operational || 0)}</strong><small>Excluding cancellations.</small></article>
@@ -216,6 +218,7 @@ function renderReportsPage(model, {
     </section>
 
     ${financialSections(model.financial)}
+    ${recordSections(model.financial?.records, model.period, csrfToken)}
     ${staffEarningsSection(model.staffEarnings, model.period, csrfToken)}
     ${welcomeVoucherCampaign}
 

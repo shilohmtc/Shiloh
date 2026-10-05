@@ -9,6 +9,8 @@ const express = require('express');
 const { chromium } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { createWorkspaceStaffEarningsService } = require('../src/services/workspaceStaffEarnings');
+const { summarizeExpenses, cashCalculation } = require('../src/domain/workspaceFinancialRecords');
+const { fingerprint } = require('../src/services/workspaceFinancialRecords');
 const { summarizeFinancials } = require('../src/domain/workspaceFinancialReports');
 const { createWorkspaceReportsRouter } = require('../src/routes/workspaceReports');
 
@@ -100,6 +102,37 @@ async function main() {
     async addRule({ adminId, staffId }) { await gate.requireOwner(adminId); assert.equal(staffId, '11'); return { id: 7 }; },
   };
 
+  const recordState = { expenses: [], closes: [], writes: 0 };
+  const receiptRows = [{id:1,source:'booking',created_at:'2026-09-15T08:00:00Z',entry_type:'payment',amount:'295',method:'cash',appointment_id:732}];
+  const recordsService = {
+    async requireAccess(adminId) { await gate.requireOwner(adminId); },
+    async build({adminId}) { await gate.requireOwner(adminId); return {...summarizeExpenses(recordState.expenses),today:'2026-09-15',closes:recordState.closes}; },
+    async addExpense(input) {
+      await gate.requireOwner(input.adminId); recordState.writes++;
+      recordState.expenses.push({id:recordState.writes,paid_on:input.paidOn,category:input.category,description:input.description,reference:input.reference,amount:input.amount,method:input.method,created_by:principals[input.adminId].display_name});
+      return {id:recordState.writes};
+    },
+    async voidExpense({adminId,expenseId,reason}) {
+      await gate.requireOwner(adminId);recordState.writes++;
+      const row=recordState.expenses.find(item=>item.id===Number(expenseId));assert.ok(row);row.voided_at='2026-09-15T16:00:00Z';row.voided_by=principals[adminId].display_name;row.void_reason=reason;return {id:row.id};
+    },
+    async preview({adminId,date}) {
+      await gate.requireOwner(adminId);const period=model().period;
+      const hash=fingerprint(receiptRows,recordState.expenses);
+      return {date,fingerprint:hash,revision:recordState.closes.length,methods:summarizeFinancials({period,receipts:receiptRows}).methods,
+        cashExpenses:summarizeExpenses(recordState.expenses.filter(row=>row.method==='cash')).total,
+        changedSinceClose:recordState.closes.length>0 && recordState.closes[0].source_fingerprint!==hash};
+    },
+    async saveCashup(input) {
+      await gate.requireOwner(input.adminId);const source=await this.preview(input);
+      assert.equal(input.fingerprint,source.fingerprint);assert.equal(input.revision,source.revision);
+      const calculation=cashCalculation(source,input);recordState.writes++;
+      recordState.closes.unshift({id:recordState.writes,business_date:input.date,revision:source.revision+1,source_fingerprint:source.fingerprint,
+        opening_float:input.openingFloat,cash_added:input.cashAdded,cash_removed:input.cashRemoved,counted_cash:input.countedCash,expected_cash:calculation.expectedCash,difference:calculation.difference,
+        note:input.note,created_by:principals[input.adminId].display_name,created_at:'2026-09-15T16:00:00Z',snapshot:{cashExpenses:source.cashExpenses}});
+      return {id:recordState.writes,...calculation};
+    },
+  };
   const app = express();
   app.get('/calendar/pwa/icon-192.png', (_req, res) => res.sendFile(path.join(process.cwd(), 'public/assets/pwa/shiloh-pwa-192.png')));
   app.get('/calendar/staff/client.js', (_req, res) => res.type('application/javascript').send(''));
@@ -108,6 +141,7 @@ async function main() {
     sessionService,
     service,
     earningsService,
+    recordsService,
     financialService: {
       async requireAccess(adminId) { await gate.requireOwner(adminId); },
       async build({adminId,period}) {
@@ -138,6 +172,7 @@ async function main() {
       { name: 'desktop', width: 1440, height: 960 },
       { name: 'phone', width: 390, height: 844 },
     ]) {
+      recordState.expenses=[];recordState.closes=[];
       const context = await browser.newContext({
         viewport: { width: viewport.width, height: viewport.height },
         locale: 'en-ZA',
@@ -173,6 +208,44 @@ async function main() {
       assert.equal(await page.getByRole('heading', { name: 'Treatments booked' }).isVisible(), true);
       assert.equal(await page.getByRole('heading', { name: 'New and returning clients' }).isVisible(), true);
 
+      assert.equal((await context.request.get(`${origin}/calendar/reports/finance-records.js`)).status(),hasEarnings ? 200 : 403);
+      assert.equal((await context.request.get(`${origin}/calendar/reports/cashup-preview?date=2026-09-15`)).status(),hasEarnings ? 200 : 403);
+      if (hasEarnings) {
+        await page.getByRole('link',{name:'Expenses',exact:true}).click();
+        await page.getByLabel('Description',{exact:true}).fill('Browser proof oils');
+        await page.getByLabel('Category',{exact:true}).selectOption('supplies');
+        await page.getByLabel('Paid from',{exact:true}).selectOption('cash');
+        await page.getByLabel('Amount paid (R)',{exact:true}).fill('25');
+        await page.getByRole('button',{name:'Save expense',exact:true}).click();
+        await page.getByRole('heading',{name:'Browser proof oils · R25.00',exact:true}).waitFor();
+        await page.getByRole('link',{name:'Cash-up',exact:true}).click();
+        await page.getByRole('button',{name:'Review this day',exact:true}).click();
+        await page.getByText('Day reviewed. Enter your cash count and save.',{exact:true}).waitFor();
+        await page.getByLabel('Opening float (R)',{exact:true}).fill('100');
+        await page.getByLabel('Cash counted, including float (R)',{exact:true}).fill('365');
+        await page.getByLabel('Note / reason for a difference or revised close',{exact:true}).fill('Drawer R5 short, receipts reviewed.');
+        assert.match(await page.locator('[data-cashup-calculation]').innerText(),/Expected cash: R370.00/);
+        assert.match(await page.locator('[data-cashup-calculation]').innerText(),/Difference: R-5.00/);
+        await page.getByRole('button',{name:'Save daily close',exact:true}).click();
+        await page.getByRole('heading',{name:'2026-09-15 · Close 1',exact:true}).waitFor();
+        await page.screenshot({path:path.join(OUT_DIR, `${viewport.name}-${adminId}-cashup-saved.png`),fullPage:true});
+        await page.getByRole('link',{name:'Expenses',exact:true}).click();
+        await page.getByText('Correct this expense',{exact:true}).click();
+        await page.getByLabel('Reason for correction',{exact:true}).fill('Duplicate expense');
+        await page.getByRole('button',{name:'Void expense',exact:true}).click();
+        await page.getByText('Voided by '+principals[adminId].display_name+': Duplicate expense',{exact:true}).waitFor();
+        await page.getByRole('link',{name:'Cash-up',exact:true}).click();
+        await page.getByRole('button',{name:'Review this day',exact:true}).click();
+        await page.getByText('Day reviewed. Enter your cash count and save.',{exact:true}).waitFor();
+        assert.match(await page.locator('[data-cashup-source]').innerText(),/Entries changed since this close/);
+        const csvResponse=await context.request.get(`${origin}/calendar/reports/financial.csv?from=2026-08-17&to=2026-09-15`);
+        assert.match(await csvResponse.text(),/Duplicate expense/);
+      } else {
+        const denied=await context.request.post(`${origin}/calendar/reports/expenses`,{headers:{Origin:origin,'X-Shiloh-CSRF-Token':'synthetic-csrf'},data:{}});
+        assert.equal(denied.status(),403);
+      }
+
+      if (hasEarnings) { await page.getByRole('link',{name:'Expenses',exact:true}).click(); }
       await page.getByRole('link', {name:'Team',exact:true}).click();
       assert.equal(await page.locator('#team-time').getAttribute('open'), '');
       await page.getByRole('link', {name:'Treatments',exact:true}).click();
@@ -230,7 +303,7 @@ async function main() {
       exactHead,
       authenticated: true,
       syntheticDataOnly: true,
-      productionReads: 0,
+      productionReads: 0, syntheticFinancialWrites: recordState.writes,
       productionMutations: 0,
       providerWrites: 0,
       reportBuildCalls: buildCalls,
