@@ -4,7 +4,7 @@ const { renderPaymentStatusPage } = paymentStatusPresentation;
 
 function surface(state) {
   const html = renderPaymentStatusPage({
-    requestKey: 'example_reference',
+    requestKey: 'dep_example123456789-exampleABCDEFGHI',
     request: { amount: '295.00', state, appointment_id:779, appointment_status:'scheduled' },
     whatsappNumber: '27820001234',
   });

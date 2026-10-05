@@ -2,6 +2,22 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {renderPaymentStatusPage}=require('../src/presentation/paymentStatusUx');
 
+test('verified payment offers a same-window My Shiloh return without leaking its reference', () => {
+  const html = renderPaymentStatusPage({requestKey:'private_request_123',request:{amount:'125.00',state:'paid'}});
+  assert.match(html, /<a class="help" href="\/my-shiloh\/">Back to My Shiloh<\/a>/);
+  assert.ok(html.indexOf('Back to My Shiloh') > html.indexOf('Reference: private_request_123'));
+  assert.doesNotMatch(html, /http-equiv="refresh"|target=|<script|<form/);
+  assert.doesNotMatch(html, /href="[^"]*private_request_123/);
+});
+
+test('the received-payment return action does not imply settlement for other states', () => {
+  for (const state of ['pending','failed','cancelled','expired','refunded']) {
+    const html = renderPaymentStatusPage({request:{amount:'125.00',state}});
+    assert.doesNotMatch(html, /Back to My Shiloh/);
+    assert.match(html, state === 'pending' ? /Payment being confirmed/ : /Payment not confirmed/);
+  }
+});
+
 test('public payment status page is safe for a client without a Workspace session',()=>{const html=renderPaymentStatusPage({requestKey:'request_123',request:{amount:'20.00',state:'paid'}});assert.match(html,/Payment received/);assert.match(html,/do not need to pay again/);assert.doesNotMatch(html,/calendar\/payments\/appointments/);});
 
 test('failed link offers a prefilled human WhatsApp request, without a payment token or automatic charge', () => {

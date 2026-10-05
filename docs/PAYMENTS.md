@@ -59,6 +59,8 @@ The verified notification endpoint is `/payments/providers/ozow/notify`. Configu
 
 Browser return URLs are informational only. Only a verified provider notification or an explicit authorized manual record can assert settlement truth.
 
+The verified **Payment received** page includes **Back to My Shiloh** beneath the reference. It opens `/my-shiloh/` in the same window without carrying the private payment reference. The confirmation stays visible until the client chooses to return; this navigation does not change payment or booking state. Pending and failed payment guidance remains authoritative for those states.
+
 ## Payment notices
 
 Payment and voucher notices use My Shiloh. The historical Meta payment template contracts are retained for audit, marked retired, and cannot be registered or sent. Their nine Render template-name overrides are no longer read by the payment transport or provider inventory. The stable Shiloh `/pay/<request-key>` link redirects only to the stored Ozow payment URL. An app wake does not change payment truth; verified Ozow callbacks and authorized manual entries do.
