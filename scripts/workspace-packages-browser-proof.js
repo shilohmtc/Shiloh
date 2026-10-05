@@ -182,7 +182,7 @@ async function main() {
       const storyIndex=JSON.parse(fs.readFileSync('storybook-static/index.json','utf8'));
       for (const entry of Object.values(storyIndex.entries).filter(e=>e.title==='Workspace/Packages')) {
         await page.goto(base+'/storybook/iframe.html?id='+entry.id+'&viewMode=story');
-        await page.locator('#storybook-root h2').first().waitFor();
+        await page.locator('#storybook-root h2:visible').first().waitFor();
         await check('storybook-'+entry.id);
       }
       await page.goto(base + '/calendar/services');
