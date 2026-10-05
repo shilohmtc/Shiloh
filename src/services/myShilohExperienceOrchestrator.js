@@ -370,6 +370,39 @@ function buildClientExperience(context) {
     });
     shownIds.add(item.id);
   }
+  const paymentEntries = Array.isArray(context.appointmentPayments) ? context.appointmentPayments : [];
+  const paymentsByAppointment = new Map(paymentEntries.map(item => [item.appointmentId, item.payment]));
+  if (context.nextAppointment && !paymentsByAppointment.has(context.nextAppointment.id)) {
+    paymentsByAppointment.set(context.nextAppointment.id, context.payment);
+  }
+  const seenAccounts = new Set();
+  experience.home.payments = [];
+  for (const booking of experience.bookings.upcoming) {
+    if (['Requested', 'Planning', 'Awaiting your response'].includes(booking.status)) continue;
+    const raw = paymentsByAppointment.get(booking.id);
+    if (!raw) continue;
+    const position = paymentPosition(raw);
+    booking.payment = position.label;
+    booking.paymentPath = position.actionPath;
+    booking.paymentHelpNeeded = position.state === 'deposit_required' && !position.actionPath;
+    if (position.state === 'deposit_required') booking.nextAction = position.label;
+    if (position.state !== 'deposit_required' && !position.actionPath) continue;
+    const accountKey = raw.accountId || `appointment:${booking.id}`;
+    if (seenAccounts.has(accountKey)) continue;
+    seenAccounts.add(accountKey);
+    experience.home.payments.push({
+      appointmentId: booking.id, service: booking.service, date: booking.date, time: booking.time,
+      label: position.label,
+      actionLabel: position.actionPath ? (position.state === 'deposit_required' ? 'Pay deposit' : 'Open payment') : 'Ask Shiloh about my deposit',
+      href: position.actionPath || '#shiloh',
+      message: position.actionPath ? 'Open your secure payment.' : 'Your deposit is due, but the payment link is not ready. Please ask Shiloh for help.',
+    });
+  }
+  if (experience.home.payments.length) {
+    const due = experience.home.payments[0];
+    const fact = experience.home.facts.find(item => item.key === 'payment');
+    Object.assign(fact, { value: experience.home.payments.length > 1 ? `${experience.home.payments.length} payments waiting` : due.label, href: due.href, message: due.message });
+  }
   return experience;
 }
 

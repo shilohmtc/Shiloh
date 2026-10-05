@@ -212,19 +212,16 @@ test('signed-in choosing help opens the in-app conversation on phone and desktop
       Object.defineProperty(navigator, 'standalone', { configurable:true, get:() => true });
     });
     await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
-    const card = page.locator('[data-view="home"] .quiet-card').filter({ hasText:'Need help choosing?' });
+    await expect(page.locator('[data-view="home"] .quiet-card').filter({ hasText:'Need help choosing?' })).toHaveCount(0);
+    await page.locator('[data-view-target="shiloh"]').click();
+    const card = page.locator('[data-view="shiloh"] .quiet-card').filter({ hasText:'Need help choosing?' });
     await expect(card).toContainText('chat here in My Shiloh');
-    const cardMark = await card.locator('.quiet-icon').boundingBox();
-    const navMark = await page.locator('.bottom-nav .nav-orb').boundingBox();
-    const navLabel = await page.locator('.bottom-nav .nav-shiloh > span:last-child').boundingBox();
-    expect(cardMark && navMark && navLabel).toBeTruthy();
-    expect(navMark.width).toBe(cardMark.width);
-    expect(navMark.height).toBe(cardMark.height);
-    expect(navMark.y + navMark.height).toBeLessThanOrEqual(navLabel.y);
-    const link = card.getByRole('link', { name:'Open Shiloh in My Shiloh' });
-    await expect(link).toHaveAttribute('href', '#shiloh');
-    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-choosing-help-home-${viewport.name}.png`), fullPage:true, animations:'disabled' });
-    await link.click();
+    await page.route('**/my-shiloh/api/shiloh/message', route => {
+      expect(route.request().postDataJSON().message).toBe('Help me choose a treatment.');
+      return route.fulfill({ json: { reply:'Tell me what you would enjoy.' } });
+    });
+    await card.getByRole('button', { name:'Help me choose a treatment.' }).click();
+    await expect(page.locator('[data-shiloh-messages]')).toContainText('Tell me what you would enjoy.');
     await expect(page.locator('[data-view="shiloh"]')).toBeVisible();
     await expect(page.locator('[data-view-target="shiloh"]')).toHaveAttribute('aria-current', 'page');
     await expect(page.locator('[data-shiloh-chat-form]')).toBeVisible();
@@ -263,11 +260,12 @@ test('My Shiloh guest booking stays behind secure sign-in on phone and desktop',
     const frame = page.locator('[data-app-frame]');
     await expect(frame).toBeVisible();
     await expect(frame.locator('a[href="/book"]')).toHaveCount(0);
-    await expect(frame.getByRole('link', { name:'Sign in to book' }).first()).toBeVisible();
+    await expect(frame.locator('[data-view="home"] a[href^="/my-shiloh/book"]')).toHaveCount(0);
+    await expect(frame.locator('#discover-title')).toHaveCount(0);
     await expect(frame.locator('[data-view="home"] [data-client-sms-choice]')).toBeHidden();
     const signInOrder = await frame.locator('[data-view="home"] .hero-actions > :is([data-passkey-sign-in], [data-client-sms-choice], .passkey-recovery)').evaluateAll(nodes => nodes.map(node => node.matches('[data-passkey-sign-in]') ? 'passkey' : node.matches('[data-client-sms-choice]') ? 'sms' : 'recovery'));
     expect(signInOrder).toEqual(['passkey', 'sms', 'recovery']);
-    await expect(frame.locator('[data-view="home"] .service-scroll-hint')).toContainText('Swipe to see more');
+    await expect(frame.locator('[data-view="home"] .service-scroll-hint')).toHaveCount(0);
     await frame.locator('[data-view="home"] .passkey-recovery summary').click();
     await expect(frame.locator('[data-view="home"] .passkey-recovery')).toContainText('choose the new-phone option above');
     await frame.locator('[data-view="home"] [data-client-sms-open="recover"]').click();
@@ -2686,8 +2684,8 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-native-booking&viewMode=story', { waitUntil:'networkidle' });
     await page.addScriptTag({ url:'/my-shiloh/assets/booking.js' });
 
-    await expect(page.getByRole('heading', { name:'Choose your next appointment, Christel.' })).toBeVisible();
-    await expect(page.getByText(/Everything happens here in My Shiloh/)).toBeVisible();
+    await expect(page.getByRole('heading', { name:'Book an appointment.' })).toBeVisible();
+    await expect(page.getByText('Choose your treatment, practitioner and time.')).toBeVisible();
     await expect(page.locator('[data-step="1"]').getByRole('link', { name:/Ask Reception about a flexible time or group visit/ })).toBeVisible();
     await page.locator('[data-book-service][data-service-id="101"]').click();
 
@@ -3861,5 +3859,45 @@ test('Reception alternatives only allow service practitioners and preserve team-
     expect(axe.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path:testInfo.outputPath(`reception-service-practitioners-${viewport.name}.png`),fullPage:true });
+  }
+});
+
+
+test('Home shows the later Swedish deposit and keeps choosing help inside Shiloh', async ({ page }, testInfo) => {
+  const appointments = [
+    { id: 901, startsAt: '2026-10-06T06:30:00Z', status: 'confirmed', services: ['Toe Gel Only'], practitioners: ['Christel'] },
+    { id: 902, startsAt: '2026-10-06T08:45:00Z', status: 'confirmed', services: ['Full Body Swedish'], practitioners: ['Christel'] },
+  ];
+  const experience = buildClientExperience({ client: { name: 'Jean-Pierre Botha' }, nextAppointment: appointments[0], upcomingAppointments: appointments, forms: [], payment: { state: 'paid' }, appointmentPayments: [
+    { appointmentId: 901, payment: { state: 'paid' } },
+    { appointmentId: 902, payment: { accountId: 71, state: 'unpaid', depositState: 'awaiting', depositOutstanding: '295', activePaymentPath: '/pay/SWEDISH123' } },
+  ] });
+  await page.route('**/my-shiloh/api/experience', route => route.fulfill({ json: experience }));
+  for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--later-appointment-deposit&viewMode=story#home', { waitUntil: 'networkidle' });
+    await page.evaluate(() => { Object.defineProperty(navigator, 'standalone', { value: true, configurable: true }); });
+    await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
+    const home = page.locator('[data-view="home"]');
+    const payments = home.locator('[data-client-home-payments]');
+    await expect(payments).toContainText('R295 deposit required');
+    await expect(payments).toContainText('Full Body Swedish');
+    await expect(payments.getByRole('link', { name: 'Pay deposit' })).toHaveAttribute('href', '/pay/SWEDISH123');
+    await expect(home.getByRole('heading', { name: 'Need help choosing?' })).toHaveCount(0);
+    await expect(home.locator('#discover-title')).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const axe = await new AxeBuilder({ page }).include('[data-view="home"]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+    expect(axe.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`home-swedish-deposit-${viewport.name}.png`), fullPage: true });
+    await page.locator('[data-view-target="bookings"]').click();
+    await expect(page.locator('[data-client-experience-bookings]').getByRole('link', { name: 'Open payment' })).toHaveAttribute('href', '/pay/SWEDISH123');
+    await page.locator('[data-view-target="shiloh"]').click();
+    await expect(page.getByRole('heading', { name: 'Need help choosing?' })).toBeVisible();
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-native-booking&viewMode=story', { waitUntil: 'networkidle' });
+    const bookingTitle = page.getByRole('heading', { name: 'Book an appointment.', exact: true });
+    await expect(bookingTitle).toBeVisible();
+    expect((await bookingTitle.boundingBox()).height).toBeLessThan(72);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`compact-booking-${viewport.name}.png`), fullPage: true });
   }
 });
