@@ -3441,6 +3441,71 @@ test('My Shiloh multiple bookings review, remove and safely retry one combined r
   }
 });
 
+test('My Shiloh refused and timed-out cart reviews recover visibly on Phone and Desktop', async ({ page }, testInfo) => {
+  let mode = 'overlap';
+  let heldReview;
+  let submissions = 0;
+  await page.route('**/my-shiloh/api/booking/practitioners?**', route => route.fulfill({ json:{ practitioners:[{ id:11,name:'Christel',depositExempt:false }] } }));
+  await page.route('**/my-shiloh/api/booking/availability?**', route => {
+    const date = new URL(route.request().url()).searchParams.get('date');
+    return route.fulfill({ json:{ slots:[{ startsAt:date+'T08:00:00.000Z',date,time:'10:00',endTime:'11:15' }] } });
+  });
+  await page.route('**/my-shiloh/api/booking/multiple/review', route => {
+    if (mode === 'timeout') { heldReview = route; return; }
+    if (mode === 'overlap') return route.fulfill({ status:409,json:{ code:'BOOKING_CART_OVERLAP',error:'Your appointments overlap.' } });
+    return route.fulfill({ json:{ total:'1470.00',deposit:'735.00',quoteHash:'a'.repeat(64),treatments:[{ price:'850.00' },{ price:'620.00' }] } });
+  });
+  await page.route('**/my-shiloh/api/booking/multiple/confirm', route => { submissions += 1; return route.abort(); });
+  for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1365,height:950 }]) {
+    mode = 'overlap';
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-native-booking&viewMode=story', { waitUntil:'networkidle' });
+    await page.addScriptTag({ url:'/my-shiloh/assets/booking.js' });
+    async function choose(id) {
+      await page.locator(`[data-book-service][data-service-id="${id}"]`).click();
+      await page.locator('[data-practitioner-id="11"]').click();
+      await page.locator('[data-booking-date]').fill('2026-11-03');
+      await page.getByRole('button',{ name:'Show available times' }).click();
+      await page.getByRole('button',{ name:/10:00–11:15/ }).click();
+    }
+    await choose(101);
+    await page.getByRole('button',{ name:'Add another booking' }).click();
+    await choose(103);
+    const status = page.locator('[data-cart-status]');
+    await expect(status).toContainText('their times overlap');
+    await expect(status).toBeInViewport();
+    await expect(page.locator('[data-cart-total]')).toHaveText('Not available yet');
+    await expect(page.locator('[data-cart-deposit]')).toHaveText('Not available yet');
+    await expect(page.getByRole('button',{ name:'Send booking requests' })).toBeDisabled();
+    await expect(page.getByRole('button',{ name:'Change appointment 2' })).toBeEnabled();
+    await page.locator('[data-special-occasion][value="no"]').check();
+    await expect(status).toContainText('their times overlap');
+    const axe = await new AxeBuilder({ page }).include('[data-my-shiloh-booking]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
+    expect(axe.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path:testInfo.outputPath(`cart-review-overlap-${viewport.name}.png`),fullPage:true });
+    mode = 'timeout'; heldReview = null;
+    await page.clock.install();
+    await page.getByRole('button',{ name:'Check appointments again' }).click();
+    await expect(status).toContainText('Checking');
+    await expect.poll(() => Boolean(heldReview)).toBe(true);
+    await page.clock.runFor(20001);
+    await expect(status).toContainText('took too long');
+    await expect(page.getByRole('button',{ name:'Remove appointment 2' })).toBeEnabled();
+    await expect(page.getByRole('button',{ name:'Send booking requests' })).toBeDisabled();
+    await heldReview.abort().catch(() => {});
+    await page.screenshot({ path:testInfo.outputPath(`cart-review-timeout-${viewport.name}.png`),fullPage:true });
+    mode = 'success';
+    await page.getByRole('button',{ name:'Check appointments again' }).click();
+    await expect(page.locator('[data-cart-total]')).toHaveText('R1470.00');
+    await expect(page.locator('[data-cart-deposit]')).toHaveText('R735.00');
+    await expect(page.locator('[data-cart-items] .cart-item')).toHaveCount(2);
+    await expect(status).toBeEmpty();
+    await expect(page.getByRole('button',{ name:'Check appointments again' })).toBeHidden();
+    await expect(page.getByRole('button',{ name:'Send booking requests' })).toBeEnabled();
+  }
+  expect(submissions).toBe(0);
+});
+
 test('My Shiloh saves entered profile details and preserves them after a refused save on Phone and Desktop', async ({ page }, testInfo) => {
   const profile = { name: 'Test Client', dateOfBirth: '1985-06-14', gender: 'female', mobile: '+27 •• ••• 0000', revision: 'a'.repeat(64), registrationComplete: false };
   await page.route('**/my-shiloh/api/profile', route => route.fulfill({ json: { profile } }));
@@ -3448,6 +3513,9 @@ test('My Shiloh saves entered profile details and preserves them after a refused
   for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
     await page.setViewportSize(viewport);
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-profile&viewMode=story#profile', { waitUntil: 'networkidle' });
+    // A repeated iframe URL with a hash can keep the document and its old listeners.
+    // Reload before installing app.js so each viewport exercises one fresh app.
+    await page.reload({ waitUntil: 'networkidle' });
     await page.evaluate(() => { Object.defineProperty(navigator, 'standalone', { value: true, configurable: true }); });
     await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
     const form = page.locator('[data-client-profile-form]');
