@@ -23,7 +23,7 @@ function recordSections(records, period, csrfToken = '') {
     <p class="financial-note wide">Cash expenses are subtracted from the cash drawer for the paid date. Record only clinic spending here. Banking cash or an owner withdrawal belongs under Cash removed in the daily cash-up.</p>
     <button class="button primary" type="submit">Save expense</button><p class="finance-status" role="status"></p></form>
     <h3>Expense history</h3>${expenses || '<p class="financial-note">No expense entries in this period.</p>'}</div></details>
-    <details class="panel" id="financial-cashup" data-report-section><summary class="panel-heading"><div><span class="eyebrow">Finances</span><h2>Daily cash-up</h2><p>Review recorded payments, count the drawer and save a dated close.</p></div></summary><div class="panel-body"><p class="financial-note">Expected cash = opening float + cash payments − cash refunds − cash expenses + cash added − cash removed. Include the float in your drawer count. Card, EFT and Ozow are shown as recorded totals for comparison with your provider statements; saving a close does not confirm bank settlement.</p><form class="finance-form" data-cashup-form data-csrf="${escapeHtml(csrfToken)}">
+    <details class="panel" id="financial-cashup" data-report-section><summary class="panel-heading"><div><span class="eyebrow">Finances</span><h2>Daily cash-up</h2><p>Clinic-wide recorded payments, counted cash and a dated close.</p></div></summary><div class="panel-body"><p class="financial-note">Expected cash = opening float + cash payments − cash refunds − cash expenses + cash added − cash removed. Count all clinic drawers included in these totals, including the float. Card, EFT and Ozow are shown as recorded totals for comparison with your provider statements; saving a close does not confirm bank settlement.</p><form class="finance-form" data-cashup-form data-csrf="${escapeHtml(csrfToken)}">
     ${field('cashup-date','Cash-up date',`name="date" type="date" value="${escapeHtml(date)}" max="${escapeHtml(records.today)}" min="2000-01-01" required`)}
     <button class="button" type="button" data-cashup-review>Review this day</button><div class="finance-source wide" data-cashup-source role="status"></div>
     ${field('cashup-opening','Opening float (R)','name="openingFloat" type="number" min="0" max="9999999999.99" step="0.01" required')}
@@ -35,7 +35,7 @@ function recordSections(records, period, csrfToken = '') {
 }
 function recordsClientScript() {
   return `(() => {
-  const rand = value => 'R' + Number(value).toFixed(2);
+  const rand = value => 'R' + Number(value).toLocaleString('en-ZA', {minimumFractionDigits:2,maximumFractionDigits:2});
   const operation = () => crypto.randomUUID();
   const request = async (path, form, body) => {
     const response = await fetch('/calendar/reports/' + path, { method:'POST', headers:{'Content-Type':'application/json','X-Shiloh-CSRF-Token':form.dataset.csrf}, body:JSON.stringify(body) });

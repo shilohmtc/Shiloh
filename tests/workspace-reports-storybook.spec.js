@@ -35,7 +35,7 @@ for (const viewport of [
     await expect(page.getByRole('link',{name:'Linked booking #14',exact:true})).toHaveAttribute('href', '/calendar/payments/appointments/738');
     await page.getByRole('link', {name:'Expenses',exact:true}).click();
     await expect(page.getByLabel('Amount paid (R)',{exact:true})).toBeVisible();
-    await expect(page.getByText('Massage oils · R125.50',{exact:true})).toBeVisible();
+    await expect(page.getByText('Massage oils · R125,50',{exact:true})).toBeVisible();
     await page.getByRole('link', {name:'Cash-up',exact:true}).click();
     await expect(page.getByRole('button',{name:'Review this day',exact:true})).toBeVisible();
     await expect(page.getByLabel('Cash counted, including float (R)',{exact:true})).toBeVisible();

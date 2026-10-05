@@ -37,6 +37,7 @@ test('close fingerprint detects later cash and noncash entries, refunds and void
   const expenses = [{id:1,paid_on:'2026-10-05',amount:'50.00',method:'manual_eft'}];
   const hash = fingerprint(receipts,expenses);
   assert.equal(hash,fingerprint([...receipts].reverse(),expenses));
+  assert.notEqual(fingerprint([],[],'2026-10-04'),fingerprint([],[],'2026-10-05'));
   assert.notEqual(hash,fingerprint([...receipts,{...receipts[0],id:3,entry_type:'refund'}],expenses));
   assert.notEqual(hash,fingerprint(receipts,[{...expenses[0],voided_at:'2026-10-05T10:00Z'}]));
   assert.notEqual(hash,fingerprint(receipts,[{...expenses[0],amount:'51.00'}]));

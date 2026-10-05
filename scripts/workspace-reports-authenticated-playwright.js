@@ -118,7 +118,7 @@ async function main() {
     },
     async preview({adminId,date}) {
       await gate.requireOwner(adminId);const period=model().period;
-      const hash=fingerprint(receiptRows,recordState.expenses);
+      const hash=fingerprint(receiptRows,recordState.expenses,date);
       return {date,fingerprint:hash,revision:recordState.closes.length,methods:summarizeFinancials({period,receipts:receiptRows}).methods,
         cashExpenses:summarizeExpenses(recordState.expenses.filter(row=>row.method==='cash')).total,
         changedSinceClose:recordState.closes.length>0 && recordState.closes[0].source_fingerprint!==hash};
@@ -217,15 +217,15 @@ async function main() {
         await page.getByLabel('Paid from',{exact:true}).selectOption('cash');
         await page.getByLabel('Amount paid (R)',{exact:true}).fill('25');
         await page.getByRole('button',{name:'Save expense',exact:true}).click();
-        await page.getByRole('heading',{name:'Browser proof oils · R25.00',exact:true}).waitFor();
+        await page.getByRole('heading',{name:'Browser proof oils · R25,00',exact:true}).waitFor();
         await page.getByRole('link',{name:'Cash-up',exact:true}).click();
         await page.getByRole('button',{name:'Review this day',exact:true}).click();
         await page.getByText('Day reviewed. Enter your cash count and save.',{exact:true}).waitFor();
         await page.getByLabel('Opening float (R)',{exact:true}).fill('100');
         await page.getByLabel('Cash counted, including float (R)',{exact:true}).fill('365');
         await page.getByLabel('Note / reason for a difference or revised close',{exact:true}).fill('Drawer R5 short, receipts reviewed.');
-        assert.match(await page.locator('[data-cashup-calculation]').innerText(),/Expected cash: R370.00/);
-        assert.match(await page.locator('[data-cashup-calculation]').innerText(),/Difference: R-5.00/);
+        assert.match(await page.locator('[data-cashup-calculation]').innerText(),/Expected cash: R370,00/);
+        assert.match(await page.locator('[data-cashup-calculation]').innerText(),/Difference: R-5,00/);
         await page.getByRole('button',{name:'Save daily close',exact:true}).click();
         await page.getByRole('heading',{name:'2026-09-15 · Close 1',exact:true}).waitFor();
         await page.screenshot({path:path.join(OUT_DIR, `${viewport.name}-${adminId}-cashup-saved.png`),fullPage:true});

@@ -17,10 +17,10 @@ const CLOSES_SQL = `/* FinancialRecords:closes */
  FROM workspace_cashup_closes c JOIN staff_admin_accounts a ON a.id=c.created_by_admin_id
  WHERE c.business_date >= $1::date AND c.business_date <= $2::date
  ORDER BY c.business_date DESC,c.revision DESC`;
-function fingerprint(receipts, expenses) {
+function fingerprint(receipts, expenses, date = null) {
   const evidence = receipts.map(row => ['receipt', row.source, String(row.id), new Date(row.created_at).toISOString(), row.entry_type, String(row.amount), row.method]);
   evidence.push(...expenses.filter(row => !row.voided_at).map(row => ['expense', String(row.id), row.paid_on, String(row.amount), row.method]));
-  return crypto.createHash('sha256').update(JSON.stringify(evidence.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))))).digest('hex');
+  return crypto.createHash('sha256').update(JSON.stringify({date,evidence:evidence.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))) })).digest('hex');
 }
 function createWorkspaceFinancialRecordsService({ db = pool, now = () => new Date(),
   access = client => createWorkspaceFinancialReportsService({ db: client }) } = {}) {
@@ -90,7 +90,7 @@ function createWorkspaceFinancialRecordsService({ db = pool, now = () => new Dat
     const receipts = (await client.query(RECEIPTS_SQL, [period.from, period.to, period.from, period.to])).rows;
     const expenses = (await client.query(EXPENSES_SQL, [date, date])).rows;
     const closes = (await client.query(CLOSES_SQL, [date, date])).rows;
-    const hash = fingerprint(receipts, expenses);
+    const hash = fingerprint(receipts, expenses, date);
     return { date, fingerprint: hash, methods: summarizeFinancials({ period, receipts }).methods,
       cashExpenses: summarizeExpenses(expenses.filter(row => row.method === 'cash')).total,
       expenseTotal: summarizeExpenses(expenses).total,
