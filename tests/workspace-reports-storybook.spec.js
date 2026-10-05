@@ -26,6 +26,10 @@ for (const viewport of [
     await page.addScriptTag({content:require('../src/presentation/workspaceReportsUx').reportSectionsClientScript()});
     await page.getByRole('link', {name:'Receipts',exact:true}).click();
     await expect(page.locator('#financial-receipts')).toHaveAttribute('open','');
+    const methodTable = page.locator('#financial-receipts .financial-table-scroll').first();
+    await expect(methodTable).toHaveAttribute('tabindex', '0');
+    await methodTable.focus();
+    await expect(methodTable).toBeFocused();
     await expect(page.getByText('Gift-voucher order #10', {exact:true})).toBeVisible();
     await page.getByRole('link', {name:'Balances',exact:true}).click();
     await expect(page.getByRole('link',{name:'Linked booking #14',exact:true})).toHaveAttribute('href', '/calendar/payments/appointments/738');
