@@ -3385,10 +3385,30 @@ test('My Shiloh multiple bookings review, remove and safely retry one combined r
     await choose(101,'2026-11-02');
     await page.getByRole('button',{ name:'Add another booking' }).click();
     await expect(page.locator('[data-cart-count]')).toHaveText('1 appointment selected');
+    const original = await page.locator('[data-current-review]').textContent();
+    const back = page.getByRole('button', { name:'← Back to your booking', exact:true });
+    for (const stage of [1,2,3]) {
+      if (stage > 1) await page.locator('[data-book-service][data-service-id="103"]').click();
+      if (stage > 2) await page.locator('[data-practitioner-id="11"]').click();
+      await expect(back).toBeVisible();
+      await expect(back).toBeInViewport();
+      const axe = await new AxeBuilder({ page }).include('[data-my-shiloh-booking]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
+      expect(axe.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
+      await page.screenshot({ path:testInfo.outputPath(`booking-return-step-${stage}-${viewport.name}.png`),fullPage:true });
+      await back.click();
+      await expect(page.locator('[data-current-review]')).toHaveText(original);
+      await expect(page.locator('[data-cart-summary]')).toBeHidden();
+      await expect(page.getByRole('button', { name:'Send booking request', exact:true })).toBeEnabled();
+      await page.getByRole('button',{ name:'Add another booking' }).click();
+    }
     await choose(103,'2026-11-03');
     await expect(page.locator('[data-cart-total]')).toHaveText('R1470.00');
     await expect(page.locator('[data-cart-deposit]')).toHaveText('R735.00');
     await expect(page.locator('[data-cart-items]')).toContainText('Tue, 03 Nov 2026');
+    await page.getByRole('button',{ name:'Add another booking' }).click();
+    await page.getByRole('button',{ name:'← Back to your bookings', exact:true }).click();
+    await expect(page.locator('[data-cart-items] .cart-item')).toHaveCount(2);
+    await expect(page.locator('[data-cart-total]')).toHaveText('R1470.00');
     await page.screenshot({ path:testInfo.outputPath(`multiple-booking-review-${viewport.name}.png`),fullPage:true });
     const accessibility = await new AxeBuilder({ page }).include('[data-my-shiloh-booking]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);

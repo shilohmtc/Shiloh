@@ -34,13 +34,16 @@
   function clearCurrent() { state.service = state.practitioner = state.slot = null; state.editing = null; }
   function invalidate() { state.quote = null; state.requestId = null; policyAccepted.checked = false; }
   function step(number) {
+    const showSaved = state.cart.length > 0 && Number(number) < 4;
+    get('[data-cart-summary]').hidden = !showSaved;
+    root.classList.toggle('has-saved-bookings', showSaved);
+    get('[data-review-cart]').textContent = state.cart.length > 1 ? '← Back to your bookings' : '← Back to your booking';
     let active = null;
     steps.forEach(node => { node.hidden = Number(node.dataset.step) !== Number(number); if (!node.hidden) active = node; });
     progress.forEach(node => node.classList.toggle('is-active', Number(node.dataset.progress) === Math.min(Number(number),4)));
     active?.scrollIntoView({ block:'start', behavior:'auto' });
     const heading = active?.querySelector('h2');
     if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll:true }); }
-    get('[data-cart-summary]').hidden = !state.cart.length;
     get('[data-cart-count]').textContent = state.cart.length + ' appointment' + (state.cart.length === 1 ? '' : 's') + ' selected';
   }
   function setStatus(node, message = '', kind = '') { if (node) { node.textContent = message; node.dataset.state = kind; } }
@@ -174,7 +177,10 @@
     if (!multiple || state.busy || selected().length >= 10) return;
     state.cart = selected(); clearCurrent(); invalidate(); ++state.generation; step(1);
   });
-  get('[data-review-cart]').addEventListener('click', () => { clearCurrent(); invalidate(); review(); });
+  get('[data-review-cart]').addEventListener('click', () => {
+    if (state.busy) return;
+    ++state.generation; clearCurrent(); invalidate(); review();
+  });
   root.querySelectorAll('[data-special-occasion]').forEach(option => option.addEventListener('change', () => {
     occasionDetails.hidden = option.value !== 'yes'; if (option.value === 'no') occasionNote.value = ''; state.requestId = null; setStatus(confirmStatus,'');
   }));
