@@ -11,6 +11,20 @@ jobs:
   reports_ui_exact_head:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: shiloh_financial_test
+          POSTGRES_USER: financial_test
+          POSTGRES_PASSWORD: synthetic_test_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U financial_test -d shiloh_financial_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout exact PR head
         uses: actions/checkout@v7
@@ -26,7 +40,11 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
       - name: Run focused Reports access and presentation tests
-        run: node --test tests/workspace-reports-v1.test.js
+        run: node --test tests/workspace-reports-v1.test.js tests/workspace-staff-earnings.test.js tests/workspace-financial-reports.test.js
+      - name: Execute financial queries against isolated PostgreSQL fixtures
+        env:
+          FINANCIAL_PROOF_DATABASE_URL: postgres://financial_test:synthetic_test_only@127.0.0.1:5432/shiloh_financial_test
+        run: node scripts/workspace-financial-postgres-proof.js
       - name: Build production-backed Storybook catalogue
         env:
           STORYBOOK_DISABLE_TELEMETRY: '1'

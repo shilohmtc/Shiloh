@@ -12,6 +12,11 @@ for (const viewport of [
     const surface = page.locator('.workspace-report-story');
     await expect(surface).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Clinic reports', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Financial overview', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Today', exact: true })).toHaveAttribute('href', /range=today/);
+    await expect(page.getByRole('link', { name: 'This week', exact: true })).toHaveAttribute('href', /range=week/);
+    await expect(page.getByRole('link', { name: 'Export finances', exact: true })).toHaveAttribute('href', /financial.csv/);
+    expect(await page.locator('[data-financial-reports]').innerText()).toContain('Completed treatment value');
     await expect(page.getByRole('heading', { name: 'Team booking time' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Team treatment value & commission' })).toBeVisible();
     await expect(page.locator('details[data-report-section][open]')).toHaveCount(0);
@@ -19,6 +24,11 @@ for (const viewport of [
     expect(await page.locator('.metrics').evaluate(node=>Boolean(node.compareDocumentPosition(document.querySelector('#staff-earnings')) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
     await page.screenshot({path:testInfo.outputPath(`reports-compact-${viewport.name}.png`),fullPage:true});
     await page.addScriptTag({content:require('../src/presentation/workspaceReportsUx').reportSectionsClientScript()});
+    await page.getByRole('link', {name:'Receipts',exact:true}).click();
+    await expect(page.locator('#financial-receipts')).toHaveAttribute('open','');
+    await expect(page.getByText('Gift-voucher order #10', {exact:true})).toBeVisible();
+    await page.getByRole('link', {name:'Balances',exact:true}).click();
+    await expect(page.getByRole('link',{name:'Linked booking #14',exact:true})).toHaveAttribute('href', '/calendar/payments/appointments/738');
     await page.getByRole('link', {name:'Earnings',exact:true}).click();
     await expect(page.locator('#staff-earnings')).toHaveAttribute('open','');
     await expect(page.getByRole('heading', { name: 'Commission structure' })).toBeVisible();

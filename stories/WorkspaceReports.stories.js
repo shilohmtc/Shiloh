@@ -1,4 +1,5 @@
 import reportsPresentation from '../src/presentation/workspaceReportsUx.js';
+import financialReports from '../src/domain/workspaceFinancialReports.js';
 
 const { renderReportsPage } = reportsPresentation;
 
@@ -11,13 +12,26 @@ function productionSurface(pageHtml) {
 }
 
 function reportModel() {
+  const period = { preset: 'week', startKey: '2026-10-05', endInclusiveKey: '2026-10-09', dayCount: 5, previousStartKey: '2026-09-28', previousEndKey: '2026-10-03', from: '2026-10-04T22:00:00Z', to: '2026-10-09T22:00:00Z', previousFrom: '2026-09-27T22:00:00Z', previousTo: '2026-10-02T22:00:00Z' };
   return {
     authority: { displayName: 'Christel', reportScope: 'all_business' },
-    period: {
-      preset: '30d',
-      startKey: '2026-08-17',
-      endInclusiveKey: '2026-09-15',
-      dayCount: 30,
+    period,
+    financial: {
+      ...financialReports.summarizeFinancials({ period,
+        treatments: [{id:732,starts_at:'2026-10-05T08:00:00Z',value:'590',treatment:'Swedish Massage'},
+          {id:735,starts_at:'2026-10-06T08:00:00Z',value:'680',treatment:'Hot Stone Massage'},
+          {id:736,starts_at:'2026-10-07T08:00:00Z',value:'450',treatment:'Back & Neck Massage'},
+          {id:737,starts_at:'2026-10-08T08:00:00Z',value:'590',treatment:'Swedish Massage'},
+          {id:738,starts_at:'2026-10-09T08:00:00Z',value:'680',treatment:'Hot Stone Massage'},
+          {id:730,starts_at:'2026-09-28T08:00:00Z',value:'1500',treatment:'Massage combination'}],
+        receipts: [{id:1,created_at:'2026-10-05T08:00:00Z',amount:'295',method:'cash',entry_type:'payment',appointment_id:732},
+          {id:2,created_at:'2026-10-06T08:00:00Z',amount:'680',method:'card_machine',entry_type:'payment',appointment_id:735},
+          {id:3,created_at:'2026-10-07T08:00:00Z',amount:'100',method:'cash',entry_type:'refund',appointment_id:732},
+          {id:4,created_at:'2026-10-08T08:00:00Z',amount:'450',method:'ozow',entry_type:'payment',appointment_id:739},
+          {id:5,created_at:'2026-10-09T08:00:00Z',amount:'1000',method:'cash',entry_type:'payment',source:'voucher',voucher_order_id:10}],
+        balances: [{appointment_id:732,starts_at:'2026-10-05T08:00:00Z',amount_due:'590',net_paid:'195',credits:'100'},
+          {appointment_id:738,group_id:14,starts_at:'2026-10-09T08:00:00Z',amount_due:'1360',net_paid:'680',credits:'0',mixed_status:true}],
+      }), period, vouchers: {issued_count:1,redeemed_value:500,available_balance:2500,expired_balance:100},
     },
     selectedStaffId: null,
     permittedStaff: [
