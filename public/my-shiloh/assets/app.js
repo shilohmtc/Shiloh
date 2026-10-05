@@ -557,6 +557,29 @@
       action.href = safeExperienceHref(experience.home.primaryAction?.href);
     }
 
+    const paymentList = document.querySelector('[data-client-home-payments]');
+    if (paymentList) {
+      paymentList.replaceChildren();
+      const payments = Array.isArray(experience.home?.payments) ? experience.home.payments : [];
+      paymentList.hidden = payments.length === 0;
+      payments.forEach(payment => {
+        const card = document.createElement('article');
+        card.className = 'action-card action-card--accent';
+        const heading = document.createElement('h2');
+        heading.textContent = String(payment.label || 'Payment due');
+        const detail = document.createElement('p');
+        detail.textContent = [payment.service, payment.date, payment.time].filter(Boolean).join(' · ');
+        const message = document.createElement('p');
+        message.textContent = String(payment.message || '');
+        const action = document.createElement('a');
+        action.className = 'button button--primary';
+        action.textContent = String(payment.actionLabel || 'Open payment');
+        action.href = safeExperienceHref(payment.href);
+        card.append(heading, detail, message, action);
+        paymentList.append(card);
+      });
+    }
+
     const upcoming = Array.isArray(experience.bookings?.upcoming) ? experience.bookings.upcoming[0] : null;
     if (experienceBookings) {
       const primary = experienceBookings.querySelector('.action-card');
@@ -575,11 +598,11 @@
           if (action) {
             const clinicNumber = String(appFrame?.dataset.clientPaymentWhatsapp || '').replace(/\D/g, '');
             const canAskForLink = !isRequest && booking.paymentHelpNeeded === true && Number.isSafeInteger(Number(booking.id)) && Number(booking.id) > 0 && clinicNumber;
-            action.textContent = canAskForLink ? 'Request a new payment link' : isRequest ? 'Ask Shiloh about this request' : 'Ask Shiloh about this booking';
-            action.href = canAskForLink
+            action.textContent = booking.paymentPath ? 'Open payment' : canAskForLink ? 'Request a new payment link' : isRequest ? 'Ask Shiloh about this request' : 'Ask Shiloh about this booking';
+            action.href = booking.paymentPath ? safeExperienceHref(booking.paymentPath) : canAskForLink
               ? `https://wa.me/${clinicNumber}?text=${encodeURIComponent(`Hi Shiloh, please help me with a payment link for booking #${booking.id}. Please check the payment status first.`)}`
               : '#shiloh';
-            if (canAskForLink) { action.target = '_blank'; action.rel = 'noopener noreferrer'; }
+            if (canAskForLink && !booking.paymentPath) { action.target = '_blank'; action.rel = 'noopener noreferrer'; }
             else { action.removeAttribute('target'); action.removeAttribute('rel'); }
           }
           if (booking.proposal && Number.isSafeInteger(Number(booking.id)) && Number(booking.id) > 0
@@ -1887,7 +1910,7 @@
 
   shilohPromptButtons.forEach((button) => {
     button.addEventListener('click', () => {
-      const prompt = button.querySelector('strong')?.textContent || '';
+      const prompt = button.querySelector('strong')?.textContent || button.textContent || '';
       sendShilohMessage(prompt);
     });
   });

@@ -400,3 +400,5 @@ h3{font-size:20px;line-height:1.12}
 .register-choice>.auth-choice-summary__chevron{position:absolute;right:20px}
 .sms-recovery-choice{width:100%;border:0;background:transparent;text-align:left;color:var(--leaf-dark)}
 .sms-setup-choice h2{font-size:24px;margin:0 0 8px}
+
+.home-payments{margin:0 0 20px}.home-payments .action-card{padding:20px}.home-payments h2{font-size:26px;margin:0}.home-payments p{margin:0}

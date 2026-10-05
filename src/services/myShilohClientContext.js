@@ -379,6 +379,7 @@ function createMyShilohClientContextService({
     const depositOutstanding = depositRequired == null ? null : Math.max(0, depositRequired - netMoneyPaid);
     return {
       ...base,
+      accountId: Number(account.id),
       currency: String(account.currency || 'ZAR'),
       depositState: account.deposit_state ? String(account.deposit_state) : null,
       depositRequired: depositRequired == null ? null : depositRequired.toFixed(2),
@@ -408,12 +409,19 @@ function createMyShilohClientContextService({
       ])
       : [[], null];
 
+    const paymentAppointments = [...new Map([appointment, ...upcomingAppointments].filter(Boolean).map(item => [item.id, item])).values()];
+    const appointmentPayments = await Promise.all(paymentAppointments.map(async item => ({
+      appointmentId: item.id,
+      payment: item.id === appointment?.id ? payment : await loadPayment(item),
+    })));
+
     return {
       version: 'my_shiloh_client_context_v1',
       generatedAt: now().toISOString(),
       client,
       nextAppointment: appointment,
       upcomingAppointments,
+      appointmentPayments,
       activeRequest: activeRequests[0] || null,
       activeRequests,
       declinedRequests,

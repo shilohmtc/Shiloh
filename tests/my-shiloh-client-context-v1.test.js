@@ -164,7 +164,8 @@ test('a canonical client request takes priority over an upcoming visit without a
   assert.match(requested.home.summary, /not confirmed yet/i);
   assert.equal(requested.home.primaryAction.href, '#bookings');
   assert.equal(requested.bookings.upcoming[0].id, 902);
-  assert.doesNotMatch(JSON.stringify(requested.home), /\/pay\/existing_booking/);
+  assert.doesNotMatch(JSON.stringify(requested.home.primaryAction), /\/pay\/existing_booking/);
+  assert.equal(requested.home.payments[0].href, '/pay/existing_booking');
 
   const planning = buildClientExperience({ ...base, activeRequest: { ...base.activeRequest, planningStartedAt: '2026-09-26T10:00:00.000Z' } });
   assert.equal(planning.home.status, 'Planning');

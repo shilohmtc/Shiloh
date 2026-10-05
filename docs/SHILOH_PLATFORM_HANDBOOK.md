@@ -4,6 +4,10 @@
 
 **Status:** canonical orientation map, updated 2026-09-24. This document does not replace application code, migrations, approved policies, Figma files, workflow definitions or production evidence. Those remain the authorities linked below.
 
+## Client Home clarity — accepted 5 October 2026
+
+Home focuses on upcoming visits and required actions. Remove Discover from Home and put treatment-choice help in the Shiloh tab. Show canonical outstanding deposits for all displayed upcoming appointments, including later visits, independently of the next visit's forms or pending requests. Shared payment accounts appear once on Home; each booking retains its payment action. No new deposit calculation, payment request creation or approval bypass. Use a compact mobile booking heading without the client's name. Release verification pending.
+
 ## Booking request decisions — accepted 5 October 2026
 
 A requested appointment has two Reception actions: **Accept requested appointment** or **Propose alternative** with a date, time and a practitioner assigned to the requested service. Do not decline or cancel a booking request because the requested arrangement is unavailable; keep it open while arranging an alternative. There is no separate Start planning/reviewing step. Older decline actions must reject without changing the appointment. The client must accept a proposed alternative before confirmation; existing availability, authority and payment checks still apply. This concerns new appointment requests; the separate decision about changing an already confirmed appointment retains its existing contract.

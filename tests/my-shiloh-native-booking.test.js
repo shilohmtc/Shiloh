@@ -22,7 +22,7 @@ test('signed-in My Shiloh booking stays inside the app instead of /book', () => 
     client: { id:'55', name:'Naledi Mokoena', firstName:'Naledi' },
   });
   assert.match(authenticated, /href="\/my-shiloh\/book">Book an appointment/);
-  assert.match(authenticated, /href="\/my-shiloh\/book\?service=1">Book this service/);
+  assert.doesNotMatch(authenticated, /id="discover-title"/);
 
   const guest = renderMyShilohPage({
     whatsappNumber: '27830000000',
@@ -31,7 +31,7 @@ test('signed-in My Shiloh booking stays inside the app instead of /book', () => 
   });
   assert.match(guest, /id="how-booking-works" aria-labelledby="next-visit-title"/);
   assert.doesNotMatch(guest, /data-booking-steps-link/);
-  assert.match(guest, /href="#home">Sign in to book/);
+  assert.match(guest, /Sign in to see your appointments/);
   assert.doesNotMatch(guest, /href="\/book"/);
 
   const experience = buildClientExperience({
@@ -60,7 +60,7 @@ test('native booking page is a My Shiloh treatment-practitioner-time-review wiza
       lateForfeitBasisPoints:10000,
     },
   });
-  assert.match(html, /Choose your next appointment, Naledi/);
+  assert.match(html, /Book an appointment/);
   assert.match(html, /1 · Treatment/);
   assert.match(html, /2 · Practitioner/);
   assert.match(html, /3 · Time/);

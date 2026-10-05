@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20261003-report-acknowledgement-v1';
+const MY_SHILOH_ASSET_VERSION = '20261005-home-payments-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -413,6 +413,7 @@ function renderMyShilohPage({
           <p class="client-setup__status" role="status" aria-live="polite" data-client-setup-status></p>
         </section>` : ''}
         ${hero}
+        ${authenticated ? '<section class="home-payments stack" data-client-home-payments aria-label="Payments needing attention" hidden></section>' : ''}
         ${focus}
         ${authenticated ? `<aside class="notification-invite" data-push-invite hidden aria-labelledby="notification-invite-title">
           <div><p class="eyebrow">Appointment updates</p><h2 id="notification-invite-title">Stay ready for your next visit.</h2><p>Get reminders and booking updates on this phone so your next visit stays on your radar.</p></div>
@@ -423,19 +424,7 @@ function renderMyShilohPage({
           <div class="notification-centre__list" data-client-notification-list aria-live="polite"><p class="notification-centre__empty">Checking for updates…</p></div>
           <a class="notification-centre__toggle" href="#profile-archived-updates">Archived updates in Profile</a>
         </section>` : ''}
-        <section class="section-block" aria-labelledby="discover-title">
-          <div class="section-heading">
-            <div><p class="eyebrow">Discover</p><h2 id="discover-title">Start with what you need.</h2></div>
-            <a class="text-link" href="/treatments">See all services</a>
-          </div>
-          <div class="service-scroll" aria-label="Featured treatments; swipe sideways to see more">${serviceCards(catalogue, authenticated)}</div>
-          ${sanitizePublicCatalogue(catalogue).length > 1 ? '<p class="service-scroll-hint" aria-hidden="true">Swipe to see more treatments →</p>' : ''}
-        </section>
-        ${authenticated ? `<section class="quiet-card">
-          <div class="quiet-icon" aria-hidden="true">S</div>
-          <div><p class="eyebrow">Shiloh is close</p><h2>Need help choosing?</h2><p>${choosingHelpCopy}</p></div>
-          <a class="circle-link" href="#shiloh" aria-label="Open Shiloh in My Shiloh">→</a>
-        </section>` : ''}
+
       </section>
 
       <section class="view" id="bookings" data-view="bookings" aria-labelledby="bookings-title" hidden>
@@ -475,6 +464,10 @@ function renderMyShilohPage({
             : 'Sign in for personal help, or continue the conversation on WhatsApp.'}</p>
         </div>
         ${authenticated ? `
+        <div class="quiet-card">
+          <div><h2>Need help choosing?</h2><p>${choosingHelpCopy}</p></div>
+          <button class="button button--soft" type="button" data-shiloh-prompt>Help me choose a treatment.</button>
+        </div>
         <section class="assistant-chat" aria-label="Chat with Shiloh">
           <div class="assistant-chat__messages" data-shiloh-messages aria-live="polite" aria-relevant="additions">
             <div class="chat-bubble chat-bubble--shiloh">
