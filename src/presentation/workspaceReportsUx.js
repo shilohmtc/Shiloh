@@ -16,7 +16,7 @@ function reportSectionStyles() {
 }
 
 function reportSectionsClientScript() {
-  return `(()=>{'use strict';function openSection(hash){if(!hash)return;const panel=document.getElementById(hash.slice(1));if(!panel?.matches('details[data-report-section]'))return;panel.open=true;panel.scrollIntoView({block:'start'});}document.querySelectorAll('.jump-link[href^="#"]').forEach(link=>link.addEventListener('click',()=>openSection(link.hash)));window.addEventListener('hashchange',()=>openSection(location.hash));openSection(location.hash);})();`;
+  return `(()=>{'use strict';function measureMenu(){const menu=document.querySelector('.jump-row');const gap=menu&&getComputedStyle(menu).position==='sticky'?Math.ceil(menu.getBoundingClientRect().height+20):12;document.querySelectorAll('details[data-report-section]').forEach(panel=>{panel.style.scrollMarginTop=gap+'px';});}window.addEventListener('resize',measureMenu);measureMenu();function openSection(hash){if(!hash)return;measureMenu();const panel=document.getElementById(hash.slice(1));if(!panel?.matches('details[data-report-section]'))return;panel.open=true;panel.scrollIntoView({block:'start'});}document.querySelectorAll('.jump-link[href^="#"]').forEach(link=>link.addEventListener('click',()=>openSection(link.hash)));window.addEventListener('hashchange',()=>openSection(location.hash));openSection(location.hash);})();`;
 }
 
 function phoneCapacityStyles() {

@@ -38,6 +38,9 @@ for (const viewport of [
     await expect(page.getByText('Massage oils · R125,50',{exact:true})).toBeVisible();
     await page.getByRole('link', {name:'Cash-up',exact:true}).click();
     await expect(page.getByRole('button',{name:'Review this day',exact:true})).toBeVisible();
+    if (viewport.name === 'phone') {
+      expect(await page.evaluate(() => document.querySelector('#financial-cashup > summary').getBoundingClientRect().top >= document.querySelector('.jump-row').getBoundingClientRect().bottom + 2), 'Cash-up heading must clear the sticky section menu').toBe(true);
+    }
     await expect(page.getByLabel('Cash counted, including float (R)',{exact:true})).toBeVisible();
     await expect(page.getByRole('button',{name:'Save daily close',exact:true})).toBeDisabled();
     await page.getByRole('link', {name:'Earnings',exact:true}).click();

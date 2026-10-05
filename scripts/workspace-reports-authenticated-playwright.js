@@ -219,6 +219,7 @@ async function main() {
         await page.getByRole('button',{name:'Save expense',exact:true}).click();
         await page.getByRole('heading',{name:'Browser proof oils · R25,00',exact:true}).waitFor();
         await page.getByRole('link',{name:'Cash-up',exact:true}).click();
+        if (viewport.name==='phone') assert.equal(await page.evaluate(()=>document.querySelector('#financial-cashup > summary').getBoundingClientRect().top >= document.querySelector('.jump-row').getBoundingClientRect().bottom + 2),true,'Cash-up heading must clear the sticky section menu');
         await page.getByRole('button',{name:'Review this day',exact:true}).click();
         await page.getByText('Day reviewed. Enter your cash count and save.',{exact:true}).waitFor();
         await page.getByLabel('Opening float (R)',{exact:true}).fill('100');
