@@ -9,6 +9,7 @@ const express = require('express');
 const { chromium } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { createWorkspaceStaffEarningsService } = require('../src/services/workspaceStaffEarnings');
+const { summarizeFinancials } = require('../src/domain/workspaceFinancialReports');
 const { createWorkspaceReportsRouter } = require('../src/routes/workspaceReports');
 
 const OUT_DIR = path.join(process.cwd(), 'artifacts', 'workspace-reports-ui');
@@ -28,7 +29,7 @@ function model() {
       preset: '30d',
       startKey: '2026-08-17',
       endInclusiveKey: '2026-09-15',
-      dayCount: 30,
+      dayCount: 30, from:'2026-08-16T22:00:00Z', to:'2026-09-15T22:00:00Z', previousFrom:'2026-07-17T22:00:00Z',previousTo:'2026-08-16T22:00:00Z',previousStartKey:'2026-07-18',previousEndKey:'2026-08-17',
     },
     selectedStaffId: null,
     permittedStaff: [
@@ -107,6 +108,13 @@ async function main() {
     sessionService,
     service,
     earningsService,
+    financialService: {
+      async requireAccess(adminId) { await gate.requireOwner(adminId); },
+      async build({adminId,period}) {
+        await gate.requireOwner(adminId);
+        return {...summarizeFinancials({period,treatments:[{id:732,starts_at:'2026-09-15T08:00:00Z',value:'590',treatment:'Swedish Massage'}],receipts:[{id:1,created_at:'2026-09-15T08:00:00Z',entry_type:'payment',amount:'295',method:'cash',appointment_id:732}]}),period};
+      },
+    },
   }));
 
   const server = http.createServer(app);
@@ -152,11 +160,13 @@ async function main() {
       assert.equal(await page.getByRole('button', { name: 'View report' }).isVisible(), true);
       assert.equal(await page.getByRole('heading', { name: 'Team booking time' }).isVisible(), true);
       const hasEarnings = adminId !== 51;
+      assert.equal(await page.getByRole('heading',{name:'Financial overview',exact:true}).count(),hasEarnings ? 1 : 0);
+      assert.equal((await context.request.get(`${origin}/calendar/reports/financial.csv?from=2026-08-17&to=2026-09-15`)).status(),hasEarnings ? 200 : 403);
       assert.equal(await page.getByRole('heading', { name: 'Team treatment value & commission' }).count(), hasEarnings ? 1 : 0);
       assert.equal(await page.locator('details[data-report-section][open]').count(), 0);
       await page.screenshot({path:path.join(OUT_DIR, `${viewport.name}-${adminId}-reports-compact.png`),fullPage:true});
       if (hasEarnings) await page.getByRole('link', {name:'Earnings',exact:true}).click();
-      if (hasEarnings) assert.match(await page.getByRole('link', { name: 'Appointment #732' }).getAttribute('href'), /appointment=732/);
+      if (hasEarnings) assert.match(await page.locator('#staff-earnings').getByRole('link', { name: 'Appointment #732', exact: true }).getAttribute('href'), /appointment=732/);
       assert.equal((await context.request.get(`${origin}/calendar/reports/sections.js`)).status(),200);
       const scriptResponse = await context.request.get(`${origin}/calendar/reports/commission.js`);
       assert.equal(scriptResponse.status(), hasEarnings ? 200 : 403);

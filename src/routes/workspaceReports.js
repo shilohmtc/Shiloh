@@ -2,6 +2,9 @@ const express = require('express');
 const workspaceReports = require('../services/workspaceReportsProfileView');
 const workspaceWelcomeVoucherCampaign = require('../services/workspaceWelcomeVoucherCampaign');
 const staffEarnings = require('../services/workspaceStaffEarnings');
+const financialReports = require('../services/workspaceFinancialReports');
+const { financialCsv } = require('../presentation/workspaceFinancialReportsUx');
+const { resolvePeriod } = require('../services/workspaceReports');
 const {
   renderReportsPage,
   renderReportsUnavailablePage,
@@ -41,6 +44,7 @@ function createWorkspaceReportsHandler({
     ? workspaceWelcomeVoucherCampaign
     : { async buildCampaign() { return null; } },
   earningsService = service === workspaceReports ? staffEarnings : { async requireOwner() { throw Object.assign(new Error('Forbidden'), { httpStatus: 403 }); } },
+  financialService = service === workspaceReports ? financialReports : null,
   sessionService,
   renderPage = renderReportsPage,
   renderUnavailable = renderReportsUnavailablePage,
@@ -75,6 +79,13 @@ function createWorkspaceReportsHandler({
           period: model.period,
           selectedStaffId: model.selectedStaffId,
         });
+        if (financialService) {
+          try {
+            model.financial = await financialService.build({ adminId: req.staffBrowserSession.adminId, period: model.period });
+          } catch (error) {
+            if (error?.httpStatus !== 403) throw error;
+          }
+        }
       }
       const rotated = model.staffEarnings
         ? await sessionService.rotateCsrfToken(req.staffBrowserSession.sessionId)
@@ -98,12 +109,26 @@ function createWorkspaceReportsRouter({ sessionService, ...options } = {}) {
   if (!sessionService) throw new Error('Workspace Reports requires the existing staff browser session service');
   const router = express.Router();
   const earningsService = options.earningsService || staffEarnings;
+  const financialService = options.financialService || (options.service ? null : financialReports);
   router.use((req, res, next) => {
     setWorkspaceReportsSecurityHeaders(res);
     if (!isWorkspaceReportsEnabled(options.env || process.env)) return res.sendStatus(404);
     return next();
   });
   router.use(requireStaffSession({ service: sessionService, env: options.env }));
+  router.get('/financial.csv', async (req, res) => {
+    try {
+      if (!financialService) return res.sendStatus(403);
+      await financialService.requireAccess(req.staffBrowserSession?.adminId);
+      const period = resolvePeriod({ preset: req.query.range, from: req.query.from, to: req.query.to });
+      const model = await financialService.build({ adminId: req.staffBrowserSession.adminId, period });
+      res.setHeader('Content-Disposition', `attachment; filename="shiloh-finances-${period.startKey}-${period.endInclusiveKey}.csv"`);
+      return res.type('text/csv').send(financialCsv(model));
+    } catch (error) {
+      const safe = safeError(error);
+      return res.status(safe.status).type('text/plain').send(safe.message);
+    }
+  });
   router.get('/sections.js', (_req, res) => res.type('application/javascript').send(reportSectionsClientScript()));
   router.get('/commission.js', async (req, res) => {
     try {
@@ -120,7 +145,7 @@ function createWorkspaceReportsRouter({ sessionService, ...options } = {}) {
       return res.status(status).json({ error: status === 503 ? 'Commission rules are unavailable.' : error.message });
     }
   });
-  router.get('/', createWorkspaceReportsHandler({ ...options, earningsService, sessionService }));
+  router.get('/', createWorkspaceReportsHandler({ ...options, earningsService, financialService, sessionService }));
   return router;
 }
 

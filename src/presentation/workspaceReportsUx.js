@@ -1,4 +1,5 @@
 const { workspaceErrorRecoveryClientScript } = require('./workspaceErrorRecovery');
+const { financialStyles, financialOverview, financialSections } = require('./workspaceFinancialReportsUx');
 const {
   escapeHtml,
   workspaceShellStyles,
@@ -140,9 +141,11 @@ function renderReportsPage(model, {
   }
 
   const presetLinks = [
+    ['today', 'Today'],
+    ['week', 'This week'],
+    ['month', 'This month'],
     ['7d', '7 days'],
     ['30d', '30 days'],
-    ['month', 'This month'],
   ].map(([value, label]) => {
     const active = model.period.preset === value ? ' active' : '';
     return `<a class="preset-link${active}" href="${escapeHtml(queryForPreset(value, selectedStaffId))}">${escapeHtml(label)}</a>`;
@@ -177,8 +180,9 @@ function renderReportsPage(model, {
   const welcomeVoucherCampaign = welcomeVoucherCampaignSection(model.welcomeVoucherCampaign);
   const campaignJump = model.welcomeVoucherCampaign ? '<a class="jump-link" href="#welcome-voucher">R100 campaign</a>' : '';
   const earningsJump = model.staffEarnings ? '<a class="jump-link" href="#staff-earnings">Earnings</a>' : '';
+  const financialJump = model.financial ? '<a class="jump-link" href="#financial-daily">Daily finances</a><a class="jump-link" href="#financial-receipts">Receipts</a><a class="jump-link" href="#financial-balances">Balances</a>' : '';
 
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clinic reports — Shiloh Workspace</title><style>${workspaceShellStyles()}${reportStyles()}${phoneCapacityStyles()}${welcomeVoucherCampaignStyles()}${earningsStyles()}${reportSectionStyles()}</style><script src="/calendar/reports/sections.js" defer></script><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${model.staffEarnings ? '<script src="/calendar/reports/commission.js" defer></script>' : ''}</head><body data-workspace-reports="true"><div class="workspace-frame">${renderWorkspaceNavigation({
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clinic reports — Shiloh Workspace</title><style>${workspaceShellStyles()}${reportStyles()}${phoneCapacityStyles()}${welcomeVoucherCampaignStyles()}${earningsStyles()}${reportSectionStyles()}${financialStyles()}</style><script src="/calendar/reports/sections.js" defer></script><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${model.staffEarnings ? '<script src="/calendar/reports/commission.js" defer></script>' : ''}</head><body data-workspace-reports="true"><div class="workspace-frame">${renderWorkspaceNavigation({
     active: 'reports',
     displayName: model.authority?.displayName,
     calendarHref: '/calendar/read-only',
@@ -187,7 +191,7 @@ function renderReportsPage(model, {
     servicesHref: '/calendar/services',
     reportsHref: '/calendar/reports',
   })}<div class="workspace-main"><div class="shell">
-    <header class="topbar"><div class="brand"><h1>Clinic reports</h1><p>A clear view of appointments, team time and clients.</p></div><div class="topbar-side"><span class="truth-note">${model.staffEarnings ? 'Private · Authorized staff' : 'Read only'}</span></div></header>
+    <header class="topbar"><div class="brand"><h1>Clinic reports</h1><p>${model.financial ? 'Your clinic finances, treatments and team in one place.' : 'A clear view of appointments, team time and clients.'}</p></div><div class="topbar-side"><span class="truth-note">${model.staffEarnings ? 'Private · Authorized staff' : 'Read only'}</span></div></header>
 
     <section class="filter-panel" aria-label="Choose report period">
       <div class="preset-row"><span class="preset-label">Choose period</span>${presetLinks}</div>
@@ -200,7 +204,8 @@ function renderReportsPage(model, {
       <div class="range-note"><span>${escapeHtml(formatDate(model.period.startKey))}–${escapeHtml(formatDate(model.period.endInclusiveKey))} · ${escapeHtml(model.period.dayCount)} day${model.period.dayCount === 1 ? '' : 's'}</span><span>${escapeHtml(showingText)}</span></div>
     </section>
 
-    <nav class="jump-row" aria-label="Report sections">${campaignJump}${earningsJump}<a class="jump-link" href="#team-time">Team</a><a class="jump-link" href="#treatments">Treatments</a><a class="jump-link" href="#clients">Clients</a></nav>
+    ${financialOverview(model)}
+    <nav class="jump-row" aria-label="Report sections">${financialJump}${earningsJump}${campaignJump}<a class="jump-link" href="#team-time">Team</a><a class="jump-link" href="#treatments">Treatments</a><a class="jump-link" href="#clients">Clients</a></nav>
 
     <section class="metrics" aria-label="At a glance">
       <article class="metric-card"><span>Appointments</span><strong>${escapeHtml(model.appointments?.operational || 0)}</strong><small>Excluding cancellations.</small></article>
@@ -210,8 +215,9 @@ function renderReportsPage(model, {
       <article class="metric-card"><span>Clients</span><strong>${escapeHtml(model.clients?.uniqueClients || 0)}</strong><small>Different clients with appointments in this period.</small></article>
     </section>
 
-    ${welcomeVoucherCampaign}
+    ${financialSections(model.financial)}
     ${staffEarningsSection(model.staffEarnings, model.period, csrfToken)}
+    ${welcomeVoucherCampaign}
 
     <div class="grid">
       <div>
@@ -227,7 +233,7 @@ function renderReportsPage(model, {
 
         <details class="panel" id="clients" data-report-section><summary class="panel-heading"><div><span class="eyebrow">Clients</span><h2>New and returning clients</h2><p>A simple count for this period. Contact details are not shown here.</p></div></summary><div class="panel-body"><div class="client-grid"><div class="client-stat"><strong>${escapeHtml(model.clients?.uniqueClients || 0)}</strong><span>Total clients</span></div><div class="client-stat"><strong>${escapeHtml(model.clients?.newClients || 0)}</strong><span>New</span></div><div class="client-stat"><strong>${escapeHtml(model.clients?.returningClients || 0)}</strong><span>Returning</span></div></div></div></details>
 
-        <section class="panel"><div class="panel-heading"><div><span class="eyebrow">Comparison</span><h2>Compared with the previous period</h2><p>The same number of days immediately before this report.</p></div></div><div class="trend-card"><div class="trend-number">${Number(model.trend?.delta || 0) > 0 ? '+' : ''}${escapeHtml(model.trend?.delta || 0)}</div><div class="trend-copy">${escapeHtml(trendSummary(model.trend))} This period: ${escapeHtml(model.trend?.currentOperationalAppointments || 0)} · Previous: ${escapeHtml(model.trend?.previousOperationalAppointments || 0)}.</div></div></section>
+        <section class="panel"><div class="panel-heading"><div><span class="eyebrow">Comparison</span><h2>Compared with the previous period</h2><p>${model.period.preset === 'week' ? 'The same weekdays last week.' : model.period.preset === 'month' ? 'The same elapsed dates last month, up to its final day.' : 'The same number of days immediately before this report.'}</p></div></div><div class="trend-card"><div class="trend-number">${Number(model.trend?.delta || 0) > 0 ? '+' : ''}${escapeHtml(model.trend?.delta || 0)}</div><div class="trend-copy">${escapeHtml(trendSummary(model.trend))} This period: ${escapeHtml(model.trend?.currentOperationalAppointments || 0)} · Previous: ${escapeHtml(model.trend?.previousOperationalAppointments || 0)}.</div></div></section>
       </div>
     </div>
 

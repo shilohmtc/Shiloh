@@ -8,7 +8,7 @@ const BUSINESS_TIMEZONE = 'Africa/Johannesburg';
 const BUSINESS_UTC_OFFSET = '+02:00';
 const APPOINTMENT_VIEW_CAPABILITY = 'appointment:view';
 const MAX_REPORT_DAYS = 31;
-const PRESETS = new Set(['7d', '30d', 'month']);
+const PRESETS = new Set(['today', 'week', '7d', '30d', 'month']);
 const OWN_SCOPES = new Set(['own', 'own_services', 'own_appointments']);
 
 class WorkspaceReportsError extends Error {
@@ -73,7 +73,7 @@ function resolvePeriod({ preset, from, to, now = new Date() } = {}) {
   const requestedPreset = String(preset || '').trim().toLowerCase();
   let startKey;
   let endInclusiveKey;
-  let effectivePreset = PRESETS.has(requestedPreset) ? requestedPreset : '7d';
+  let effectivePreset = PRESETS.has(requestedPreset) ? requestedPreset : 'today';
 
   if (from != null || to != null) {
     if (!from || !to) {
@@ -86,6 +86,12 @@ function resolvePeriod({ preset, from, to, now = new Date() } = {}) {
     startKey = parseDateKey(from);
     endInclusiveKey = parseDateKey(to);
     effectivePreset = 'custom';
+  } else if (effectivePreset === 'today') {
+    startKey = today;
+    endInclusiveKey = today;
+  } else if (effectivePreset === 'week') {
+    startKey = addDays(today, -((localWeekday(today) + 6) % 7));
+    endInclusiveKey = today;
   } else if (effectivePreset === '30d') {
     startKey = addDays(today, -29);
     endInclusiveKey = today;
@@ -110,8 +116,16 @@ function resolvePeriod({ preset, from, to, now = new Date() } = {}) {
     );
   }
 
-  const previousEndKey = startKey;
-  const previousStartKey = addDays(previousEndKey, -dayCount);
+  let previousEndKey = startKey;
+  let previousStartKey = addDays(previousEndKey, -dayCount);
+  if (effectivePreset === 'week') {
+    previousStartKey = addDays(startKey, -7);
+    previousEndKey = addDays(previousStartKey, dayCount);
+  } else if (effectivePreset === 'month') {
+    previousStartKey = monthStart(addDays(startKey, -1));
+    const previousMonthDays = daysBetween(previousStartKey, startKey);
+    previousEndKey = addDays(previousStartKey, Math.min(dayCount, previousMonthDays));
+  }
   return {
     preset: effectivePreset,
     startKey,
