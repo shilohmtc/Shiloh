@@ -27,7 +27,7 @@ function paymentRequestQuery() {
                   CASE WHEN EXISTS (
                     SELECT 1 FROM appointment_group_members gm JOIN appointment_groups g ON g.id=gm.group_id
                     JOIN appointments member ON member.id=gm.appointment_id
-                    WHERE g.id=bpa.appointment_group_id AND g.source='shiloh_my_shiloh_multi' AND member.status='cancelled'
+                    WHERE g.id=bpa.appointment_group_id AND g.source IN ('shiloh_my_shiloh_multi','shiloh_my_shiloh_couples') AND member.status='cancelled'
                   ) THEN 'cancelled' ELSE payment_appointment.status END AS appointment_status
              FROM payment_requests pr
              LEFT JOIN booking_payment_accounts bpa ON bpa.id=pr.payment_account_id

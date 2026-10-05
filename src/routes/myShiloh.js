@@ -25,6 +25,7 @@ const {
 } = require('../presentation/clientConsultationFormUx');
 const { renderMyShilohPage } = require('../presentation/myShilohPwa');
 const { renderMyShilohBookingPage } = require('../presentation/myShilohBooking');
+const { renderMyShilohCouplesBookingPage } = require('../presentation/myShilohCouplesBooking');
 const { createWorkspacePackages } = require('../services/workspacePackages');
 const { renderClientPackages } = require('../presentation/workspacePackagesUx');
 const { renderPlanningRequestPage } = require('../presentation/myShilohPlanningRequest');
@@ -110,6 +111,7 @@ function createMyShilohRouter({
   packageService = createWorkspacePackages({ db: pool }),
   bookingService = createMyShilohBookingService({ db: pool, catalogueProvider }),
   multipleBookingService = createMyShilohMultipleBookingService({ db:pool, booking:bookingService }),
+  couplesBookingService = createMyShilohMultipleBookingService({ db:pool, booking:bookingService, couples:true }),
   proposalService = bookingProposals,
   planningService = createClientPlanningRequestService({ db: pool }),
   continuationService = createClientWhatsAppContinuationService({ db: pool }),
@@ -338,7 +340,7 @@ function createMyShilohRouter({
       ]);
       if (!rotated.ok) return res.status(401).type('text/plain').send('Unauthorized');
       setMyShilohPageHeaders(res, { allowInlineStyles: true });
-      return res.status(200).type('html').send(renderMyShilohBookingPage({
+      return res.status(200).type('html').send((String(req.query?.for || '') === 'two' && !welcomeVoucherMode && !packageServiceId ? renderMyShilohCouplesBookingPage : renderMyShilohBookingPage)({
         catalogue,
         clientFirstName: req.myShilohClientSession.client.firstName,
         csrfToken: rotated.csrfToken,
@@ -470,6 +472,24 @@ function createMyShilohRouter({
         if (error instanceof MyShilohBookingError || error instanceof BookingDepositPolicyError) {
           return res.status(error.httpStatus).json({ error:error.message, code:error.code, resolution:error.resolution, requestId:req.id });
         }
+        return next(error);
+      }
+    });
+  }
+
+  for (const action of ['availability','review','confirm']) {
+    router.post(`/my-shiloh/api/booking/couples/${action}`, sameOrigin, requireSession, requireCsrf, async (req,res,next) => {
+      try {
+        setNoStoreJson(res);
+        const payload = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+        const allowed = new Set(action === 'availability' ? ['serviceIds','staffIds','date'] : action === 'review' ? ['guest','treatments']
+          : ['guest','treatments','quoteHash','requestId','policyAccepted','specialOccasion','occasionNote']);
+        if (Object.keys(payload).some(key => !allowed.has(key))) return res.status(422).json({ error:'Please review your booking for two again.' });
+        const input = { ...payload,crmV2ClientId:req.myShilohClientSession.crmV2ClientId };
+        const result = await couplesBookingService[action === 'confirm' ? 'createRequest' : action](input);
+        return res.status(action === 'confirm' ? 201 : 200).json(result);
+      } catch (error) {
+        if (error instanceof MyShilohBookingError || error instanceof BookingDepositPolicyError) return res.status(error.httpStatus).json({ error:error.message,code:error.code,requestId:req.id });
         return next(error);
       }
     });

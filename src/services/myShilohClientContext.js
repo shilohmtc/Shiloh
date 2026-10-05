@@ -107,7 +107,7 @@ function createMyShilohClientContextService({
                 SELECT jsonb_agg(jsonb_build_object('name', linked_service.service_name_snapshot,'position', linked_member.guest_position) ORDER BY linked_member.guest_position)
                   FROM appointment_group_members linked_member
                   JOIN appointment_services linked_service ON linked_service.appointment_id=linked_member.appointment_id AND linked_service.position=1
-                 WHERE linked_group.group_type='multi_service_booking' AND linked_member.group_id=linked_group.id
+                 WHERE (linked_group.group_type='multi_service_booking' OR linked_group.source='shiloh_my_shiloh_couples') AND linked_member.group_id=linked_group.id
               ),(
                 SELECT jsonb_agg(jsonb_build_object(
                   'name', aps.service_name_snapshot,
@@ -120,7 +120,7 @@ function createMyShilohClientContextService({
                 SELECT jsonb_agg(jsonb_build_object('name', linked_staff.staff_name_snapshot,'position', linked_member.guest_position) ORDER BY linked_member.guest_position)
                   FROM appointment_group_members linked_member
                   JOIN appointment_staff linked_staff ON linked_staff.appointment_id=linked_member.appointment_id AND linked_staff.position=1
-                 WHERE linked_group.group_type='multi_service_booking' AND linked_member.group_id=linked_group.id
+                 WHERE (linked_group.group_type='multi_service_booking' OR linked_group.source='shiloh_my_shiloh_couples') AND linked_member.group_id=linked_group.id
               ),(
                 SELECT jsonb_agg(jsonb_build_object(
                   'name', ast.staff_name_snapshot,
@@ -134,6 +134,7 @@ function createMyShilohClientContextService({
          LEFT JOIN appointment_group_members group_seed ON group_seed.appointment_id=a.id
          LEFT JOIN appointment_groups linked_group ON linked_group.id=group_seed.group_id
            AND linked_group.source IS DISTINCT FROM 'shiloh_my_shiloh_multi'
+           AND (linked_group.source IS DISTINCT FROM 'shiloh_my_shiloh_couples' OR group_seed.guest_position=1)
         WHERE a.crm_v2_client_id=$1
           AND a.client_id IS NULL
           AND a.status = ANY($2::text[])
@@ -162,7 +163,7 @@ function createMyShilohClientContextService({
                 SELECT jsonb_agg(jsonb_build_object('name', linked_service.service_name_snapshot,'position', linked_member.guest_position) ORDER BY linked_member.guest_position)
                   FROM appointment_group_members linked_member
                   JOIN appointment_services linked_service ON linked_service.appointment_id=linked_member.appointment_id AND linked_service.position=1
-                 WHERE linked_group.group_type='multi_service_booking' AND linked_member.group_id=linked_group.id
+                 WHERE (linked_group.group_type='multi_service_booking' OR linked_group.source='shiloh_my_shiloh_couples') AND linked_member.group_id=linked_group.id
               ),(
                 SELECT jsonb_agg(jsonb_build_object(
                   'name', aps.service_name_snapshot,
@@ -175,7 +176,7 @@ function createMyShilohClientContextService({
                 SELECT jsonb_agg(jsonb_build_object('name', linked_staff.staff_name_snapshot,'position', linked_member.guest_position) ORDER BY linked_member.guest_position)
                   FROM appointment_group_members linked_member
                   JOIN appointment_staff linked_staff ON linked_staff.appointment_id=linked_member.appointment_id AND linked_staff.position=1
-                 WHERE linked_group.group_type='multi_service_booking' AND linked_member.group_id=linked_group.id
+                 WHERE (linked_group.group_type='multi_service_booking' OR linked_group.source='shiloh_my_shiloh_couples') AND linked_member.group_id=linked_group.id
               ),(
                 SELECT jsonb_agg(jsonb_build_object(
                   'name', ast.staff_name_snapshot,
@@ -189,6 +190,7 @@ function createMyShilohClientContextService({
          LEFT JOIN appointment_group_members group_seed ON group_seed.appointment_id=a.id
          LEFT JOIN appointment_groups linked_group ON linked_group.id=group_seed.group_id
            AND linked_group.source IS DISTINCT FROM 'shiloh_my_shiloh_multi'
+           AND (linked_group.source IS DISTINCT FROM 'shiloh_my_shiloh_couples' OR group_seed.guest_position=1)
         WHERE a.crm_v2_client_id=$1
           AND a.client_id IS NULL
           AND a.status = ANY($2::text[])

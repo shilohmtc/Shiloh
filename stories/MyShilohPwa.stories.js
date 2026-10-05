@@ -1,5 +1,6 @@
 import presentation from '../src/presentation/myShilohPwa.js';
 import bookingPresentation from '../src/presentation/myShilohBooking.js';
+import couplesBookingPresentation from '../src/presentation/myShilohCouplesBooking.js';
 import bookingPolicyAuthority from '../src/config/bookingPolicyAuthority.js';
 
 const { renderMyShilohPage } = presentation;
@@ -712,5 +713,16 @@ export const ArchivedUpdates = {
     surface.querySelector('[data-profile-archived-updates]').open = true;
     surface.querySelector('[data-client-archived-notification-list]').innerHTML = '<div class="notification-centre__row"><a class="notification-centre__item" href="#profile-reports"><strong>Your problem report is resolved</strong><span>Your personal details now save correctly. Thank you for reporting this.</span></a><button class="notification-centre__archive" type="button">Restore</button></div>';
     return surface;
+  },
+};
+
+export const BookForTwo = {
+  render: () => {
+    const source = couplesBookingPresentation.renderMyShilohCouplesBookingPage({ catalogue,clientFirstName:'Jean-Pierre',csrfToken:'storybook-csrf',bookingPolicyText:BOOKING_POLICY_TEXT });
+    const styles = [...source.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map(match => match[1]).join('\n');
+    const body = source.match(/<body[^>]*>([\s\S]*?)<\/body>/)?.[1] || '';
+    const root = document.createElement('div');
+    root.innerHTML = `<style>${styles}</style><div data-story-surface>${body.replace(/<script[\s\S]*?<\/script>/g, '')}</div>`;
+    return root;
   },
 };
