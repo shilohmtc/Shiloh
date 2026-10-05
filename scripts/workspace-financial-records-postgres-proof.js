@@ -22,6 +22,13 @@ async function proof(db) {
       CREATE TABLE gift_voucher_payment_entries(id bigint,order_id bigint,created_at timestamptz,amount numeric,method text);
       CREATE TABLE gift_vouchers(id bigint,order_id bigint);
       CREATE TABLE gift_voucher_ledger_entries(id bigint,voucher_id bigint,created_at timestamptz,entry_type text,amount numeric,operation_key text);
+      CREATE TABLE client_package_entitlements(id bigint,purchased_at timestamptz,purchase_price numeric,payment_method text,payment_status text);
+      INSERT INTO client_package_entitlements VALUES
+        (1,'2026-10-05 10:00Z',75,'cash','paid'),
+        (2,'2026-10-05 10:00Z',150,'card_machine','paid'),
+        (3,'2026-10-05 10:00Z',999,'cash','pending'),
+        (4,'2026-10-05 10:00Z',999,null,'paid'),
+        (5,'2026-10-05 22:00Z',999,'cash','paid');
       INSERT INTO staff_admin_accounts VALUES
         (2,true,'owner','Christel','{"staff_earnings:manage":true,"appointment:view":true,"payment:view":true,"voucher:view":true}','all_business','all_services',null),
         (4,true,'business_admin','Jean-Pierre','{"staff_earnings:manage":true,"appointment:view":true,"payment:view":true,"voucher:view":true}','all_business','all_services',null),
@@ -45,12 +52,13 @@ async function proof(db) {
     const period=resolvePeriod({from:'2026-10-05',to:'2026-10-05'});
     assert.equal((await service.build({adminId:4,period})).total,125.5);
     const preview=await service.preview({adminId:4,date:'2026-10-05'});
-    assert.equal(preview.methods.find(row=>row.key==='cash').netReceived,375);
+    assert.equal(preview.methods.find(row=>row.key==='cash').netReceived,450);
+    assert.equal(preview.methods.find(row=>row.key==='card_machine').received,650);
     assert.equal(preview.methods.find(row=>row.key==='ozow').received,200);
     assert.equal(preview.cashExpenses,125.5);
-    const close={adminId:4,operationId:crypto.randomUUID(),date:'2026-10-05',fingerprint:preview.fingerprint,revision:0,openingFloat:'200',cashAdded:'0',cashRemoved:'0',countedCash:'445',note:'R4.50 short; receipts reviewed'};
+    const close={adminId:4,operationId:crypto.randomUUID(),date:'2026-10-05',fingerprint:preview.fingerprint,revision:0,openingFloat:'200',cashAdded:'0',cashRemoved:'0',countedCash:'520',note:'R4.50 short; receipts reviewed'};
     const result=await service.saveCashup(close);
-    assert.equal(result.expectedCash,449.5);
+    assert.equal(result.expectedCash,524.5);
     assert.equal(result.difference,-4.5);
     assert.equal((await service.saveCashup(close)).replayed,true);
     await assert.rejects(service.saveCashup({...close,countedCash:'446'}),{httpStatus:409});
@@ -68,7 +76,7 @@ async function proof(db) {
     assert.equal(afterVoid.changedSinceClose,true);
     const history=await service.build({adminId:2,period});
     assert.equal(history.total,0);assert.equal(history.rows.length,1);assert.equal(history.rows[0].voided_by,'Jean-Pierre');
-    assert.equal(history.closes.length,2);assert.equal(Number(history.closes[1].expected_cash),449.5);
+    assert.equal(history.closes.length,2);assert.equal(Number(history.closes[1].expected_cash),524.5);
     assert.equal(Number(history.closes[1].snapshot.cashExpenses),125.5);
     assert.equal((await db.query('SELECT * FROM crm_audit_events')).rows.length,4);
     // Force an audit failure and prove the record itself rolls back.
@@ -77,7 +85,7 @@ async function proof(db) {
     assert.equal(Number((await db.query('SELECT COUNT(*) AS count FROM workspace_expenses')).rows[0].count),1);
     await db.query("UPDATE staff_admin_accounts SET permissions=permissions-'staff_earnings:manage' WHERE id=4");
     await assert.rejects(service.preview({adminId:4,date:'2026-10-05'}),{httpStatus:403});
-    console.log('Financial records PostgreSQL proof passed: real migration/queries, equal role access, denied/revoked authority, canonical cash/refund/voucher evidence, date boundaries, idempotent saves, stale close rejection, versioned history, void corrections and atomic audit rollback.');
+    console.log('Financial records PostgreSQL proof passed: real migration/queries, equal role access, denied/revoked authority, canonical cash/refund/voucher/paid-package evidence, pending/unattributed packages excluded, date boundaries, idempotent saves, stale close rejection, versioned history, void corrections and atomic audit rollback.');
   } finally {
     await db.query('SET search_path TO public');
     await db.query(`DROP SCHEMA ${schema} CASCADE`);
