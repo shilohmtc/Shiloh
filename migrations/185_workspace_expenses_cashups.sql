@@ -15,7 +15,7 @@ CREATE TABLE workspace_expenses (
   voided_at TIMESTAMPTZ,
   void_reason TEXT,
   CHECK ((voided_at IS NULL AND voided_by_admin_id IS NULL AND void_reason IS NULL)
-    OR (voided_at IS NOT NULL AND voided_by_admin_id IS NOT NULL AND length(void_reason) BETWEEN 1 AND 200))
+    OR (voided_at IS NOT NULL AND voided_by_admin_id IS NOT NULL AND void_reason IS NOT NULL AND length(void_reason) BETWEEN 1 AND 200))
 );
 CREATE INDEX workspace_expenses_paid_on ON workspace_expenses(paid_on,id);
 

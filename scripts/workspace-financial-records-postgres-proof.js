@@ -38,6 +38,7 @@ async function proof(db) {
     const expense={adminId:2,operationId:crypto.randomUUID(),paidOn:'2026-10-05',category:'supplies',description:'Oils',reference:'104',amount:'125.50',method:'cash'};
     const saved=await service.addExpense(expense);
     assert.equal((await service.addExpense(expense)).replayed,true);
+    await assert.rejects(db.query('UPDATE workspace_expenses SET voided_at=NOW(),voided_by_admin_id=2,void_reason=NULL WHERE id=$1',[saved.id]),{code:'23514'});
     await assert.rejects(service.addExpense({...expense,amount:'126'}),{httpStatus:409});
     await assert.rejects(service.addExpense({...expense,adminId:51,operationId:crypto.randomUUID()}),{httpStatus:403});
     const {resolvePeriod}=require('../src/services/workspaceReports');
