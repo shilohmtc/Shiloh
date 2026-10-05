@@ -44,10 +44,11 @@ test('package holders can book only after an active paid unexpired entitlement i
   assert.match(packages, /Book \$\{pkg\.session_service_name\}/);
 });
 
-test('business admins can activate a paid 30-day entitlement after payment confirmation', () => {
+test('business admins record paid entitlements whose validity starts at the first treatment', () => {
   assert.match(packages, /\['owner','business_admin'\]\.includes\(admin\.business_role\)/);
   assert.match(packages, /package\.entitlement_activated/);
-  assert.match(packages, /NOW\(\)\+\(\$4::text \|\| ' days'\)::interval/);
+  assert.match(packages, /NULL,NULL,\$5,'active',\$6/);
+  assert.match(packages, /Validity begins with the first treatment/);
   assert.match(packages, /already has an active Sports Massage package/);
 });
 

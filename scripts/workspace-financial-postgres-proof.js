@@ -11,6 +11,7 @@ const {resolvePeriod}=require(path+'/src/services/workspaceReports');
  try {
  await db.query('BEGIN');
  await db.query(`
+ CREATE TEMPORARY TABLE client_package_entitlements(id bigint,purchased_at timestamptz,purchase_price numeric,payment_method text,payment_status text);
  CREATE TEMPORARY TABLE appointments(id bigint PRIMARY KEY,starts_at timestamptz,status text,total_price numeric,title text);
  CREATE TEMPORARY TABLE appointment_services(appointment_id bigint,position int,service_name_snapshot text);
  CREATE TEMPORARY TABLE appointment_groups(id bigint PRIMARY KEY,final_total numeric,total_price numeric);
@@ -22,6 +23,7 @@ const {resolvePeriod}=require(path+'/src/services/workspaceReports');
  CREATE TEMPORARY TABLE gift_voucher_payment_entries(id bigint,order_id bigint,created_at timestamptz,amount numeric,method text);
  CREATE TEMPORARY TABLE gift_vouchers(id bigint,order_id bigint,balance numeric,state text,valid_until date);
  CREATE TEMPORARY TABLE gift_voucher_ledger_entries(id bigint,voucher_id bigint,created_at timestamptz,entry_type text,amount numeric,operation_key text);
+ INSERT INTO client_package_entitlements VALUES(1,'2026-10-05 11:30Z',1400,'card_machine','paid'),(2,'2026-10-05 11:30Z',1400,'cash','pending'),(3,'2026-10-05 11:30Z',1400,null,'paid');
  INSERT INTO appointments VALUES(1,'2026-10-05 10:00Z','completed',590,'Massage'),(2,'2026-10-05 12:00Z','completed',700,'Visit 2'),(3,'2026-10-10 10:00Z','scheduled',800,'Visit 3'),(4,'2026-10-05 14:00Z','completed',null,'Missing price'),(5,'2026-10-05 16:00Z','cancelled',1000,'Cancelled');
  INSERT INTO appointment_services VALUES(1,1,'Massage'),(1,2,'Facial');
  INSERT INTO appointment_groups VALUES(10,1500,1600);
@@ -43,9 +45,9 @@ const {resolvePeriod}=require(path+'/src/services/workspaceReports');
  const report=summarizeFinancials({period,treatments,receipts,balances});
  assert.equal(report.current.treatmentValue,1290);
  assert.equal(report.current.unpricedCount,1);
- assert.equal(report.current.received,2150);
+ assert.equal(report.current.received,3550);
  assert.equal(report.current.voucherReceipts,1100);
- assert.equal(report.current.netReceived,2125);
+ assert.equal(report.current.netReceived,3525);
  assert.equal(report.outstanding,865);
  assert.equal(report.balanceReviewCount,1);
  assert.equal(report.unpaid.length,2);

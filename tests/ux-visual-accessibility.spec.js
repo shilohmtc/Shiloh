@@ -297,6 +297,7 @@ test('Services confirmation names the category and restores focus on cancel', as
     await page.setViewportSize(viewport);
     await page.goto('/iframe.html?id=workspace-services--christel-category-management&viewMode=story', { waitUntil:'networkidle' });
     await page.addScriptTag({ content:workspaceServicesManageClientScript() });
+    await page.getByText('Manage categories', { exact:true }).click();
     const trigger = page.locator('[data-category-delete][data-category-id="18"] button');
     await trigger.click();
     const dialog = page.getByRole('dialog', { name:'Delete “New category”?' });

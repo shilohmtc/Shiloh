@@ -1,6 +1,7 @@
 'use strict';
 
 const { pool } = require('../db/pool');
+const { createWorkspacePackages } = require('./workspacePackages');
 const { getPublicServiceCatalogue } = require('./publicServiceCatalogue');
 const { ensureTable: ensureBookingIntentTable } = require('./bookingIntent');
 const {
@@ -112,6 +113,7 @@ function createMyShilohBookingService({
   ensurePolicy = ensurePolicySchema,
   acceptPolicy = recordAcceptance,
   depositPolicy = createBookingDepositPolicyService({ db }),
+  packages = createWorkspacePackages({ db }),
   now = () => new Date(),
 } = {}) {
   async function clientIdentity(crmV2ClientId) {
@@ -163,23 +165,20 @@ function createMyShilohBookingService({
     return staff.filter(row => allowed.has(Number(row.id)));
   }
 
-  async function canonicalService(serviceId) {
+  async function canonicalService(serviceId, crmV2ClientId = null) {
     const id = positiveId(serviceId, 'BOOKING_SERVICE_INVALID');
     const result = await db.query(
       `SELECT s.id,s.name,s.status,s.price,s.variable_price,s.duration_minutes,
               s.processing_time_minutes,s.extra_time_minutes,
-              sc.name AS category_name
+              sc.name AS category_name,
+              (SELECT p.id FROM service_packages p WHERE p.session_service_id=s.id) AS package_id
          FROM services s
          LEFT JOIN service_categories sc ON sc.id=s.category_id
         WHERE s.id=$1
           AND COALESCE(s.variable_price,FALSE)=FALSE
           AND s.price IS NOT NULL
           AND s.external_source IS DISTINCT FROM 'shiloh_special'
-          AND NOT EXISTS (
-            SELECT 1 FROM service_packages sp
-             WHERE sp.session_service_id=s.id
-               AND sp.status='active'
-          )
+
         LIMIT 1`,
       [id],
     );
@@ -187,15 +186,20 @@ function createMyShilohBookingService({
     if (!service || service.status !== 'active') {
       throw new MyShilohBookingError('BOOKING_SERVICE_CHANGED', 'That treatment is no longer available to book.', 409);
     }
+    let entitlement = null;
+    if (service.package_id) {
+      try { entitlement = await packages.available(crmV2ClientId, id); }
+      catch (e) { throw new MyShilohBookingError(e.code, e.message, e.httpStatus || 409); }
+    }
     const staff = await clientAppEligibleStaff(id);
     if (!staff.length) {
       throw new MyShilohBookingError('BOOKING_SERVICE_NOT_BOOKABLE', 'That treatment is not currently available for online booking.', 409);
     }
-    return { ...service, staff };
+    return { ...service, staff, entitlement, price: entitlement ? 0 : service.price };
   }
 
-  async function practitioners({ serviceId }) {
-    const service = await canonicalService(serviceId);
+  async function practitioners({ serviceId, crmV2ClientId }) {
+    const service = await canonicalService(serviceId, crmV2ClientId);
     const policy = await depositPolicy.loadPolicy(db);
     return {
       service: {
@@ -209,7 +213,7 @@ function createMyShilohBookingService({
       practitioners: service.staff.map(row => ({
         id: Number(row.id),
         name: row.display_name,
-        depositExempt: Number(row.id) === Number(policy.exemptStaffId),
+        depositExempt: Boolean(service.entitlement) || Number(row.id) === Number(policy.exemptStaffId),
       })),
       deposit: {
         ratePercent: Number(policy.rateBasisPoints) / 100,
@@ -218,8 +222,8 @@ function createMyShilohBookingService({
     };
   }
 
-  async function slots({ serviceId, staffId, date }) {
-    const service = await canonicalService(serviceId);
+  async function slots({ serviceId, staffId, date, crmV2ClientId }) {
+    const service = await canonicalService(serviceId, crmV2ClientId);
     const practitionerId = positiveId(staffId, 'BOOKING_PRACTITIONER_INVALID');
     const practitioner = service.staff.find(row => Number(row.id) === practitionerId);
     if (!practitioner) {
@@ -232,7 +236,11 @@ function createMyShilohBookingService({
       therapist_text: practitioner.display_name,
       service_verified: true,
     }, { now: now() });
-    const matching = (result.slots || []).filter(slot => Number(slot.staff_id) === practitionerId);
+    let matching = (result.slots || []).filter(slot => Number(slot.staff_id) === practitionerId);
+    if (service.entitlement) {
+      const allowed = await Promise.all(matching.map(slot => packages.permitsStart(service.entitlement.id, slot.starts_at)));
+      matching = matching.filter((_slot, index) => allowed[index]);
+    }
     return {
       status: matching.length ? 'available' : 'no_slots',
       service: { id: Number(service.id), name: service.name },
@@ -313,7 +321,7 @@ function createMyShilohBookingService({
       throw new MyShilohBookingError('BOOKING_OCCASION_CONFLICT', 'Please check your special occasion answer.', 422);
     }
     const { client, phone } = await clientIdentity(crmV2ClientId);
-    const service = await canonicalService(serviceId);
+    const service = await canonicalService(serviceId, crmV2ClientId);
     const practitionerId = positiveId(staffId, 'BOOKING_PRACTITIONER_INVALID');
     const practitioner = service.staff.find(row => Number(row.id) === practitionerId);
     if (!practitioner) {
@@ -325,7 +333,7 @@ function createMyShilohBookingService({
       throw new MyShilohBookingError('BOOKING_SLOT_PASSED', 'That appointment time has already passed. Choose another available time.', 409);
     }
     const date = localDate(requestedStart);
-    const availabilityResult = await slots({ serviceId: service.id, staffId: practitionerId, date });
+    const availabilityResult = await slots({ serviceId: service.id, staffId: practitionerId, date, crmV2ClientId });
     const exact = availabilityResult.slots.find(slot => new Date(slot.startsAt).getTime() === requestedStart.getTime());
     if (!exact) {
       throw new MyShilohBookingError(
@@ -386,7 +394,7 @@ function createMyShilohBookingService({
       }
       const staged = await stageApproval(created, { occasionNote: note, specialOccasion });
       const policy = await depositPolicy.loadPolicy(db);
-      const depositExempt = Number(practitioner.id) === Number(policy.exemptStaffId);
+      const depositExempt = Boolean(service.entitlement) || Number(practitioner.id) === Number(policy.exemptStaffId);
       return {
         status: staged.status,
         appointmentId: Number(created.appointmentId),
@@ -397,7 +405,7 @@ function createMyShilohBookingService({
         depositExempt,
         message: staged.status === 'pending_resolution'
           ? depositExempt
-            ? 'Your booking request is in. Your selected time is being held while the Shiloh team confirms it. No booking deposit is required for this appointment.'
+            ? service.entitlement ? 'Your booking request is in. One prepaid treatment is reserved while Shiloh confirms your visit. No further payment is due.' : 'Your booking request is in. Your selected time is being held while the Shiloh team confirms it. No booking deposit is required for this appointment.'
             : 'Your booking request is in. Your selected time is being held while the Shiloh team confirms it. You’ll see the deposit step in My Shiloh after approval.'
           : 'Your booking request was created and is being reviewed by Shiloh.',
       };
@@ -410,9 +418,15 @@ function createMyShilohBookingService({
     }
   }
 
+  async function packageCatalogue({ crmV2ClientId, serviceId }) {
+    const service = await canonicalService(serviceId, crmV2ClientId);
+    if (!service.entitlement) throw new MyShilohBookingError('PACKAGE_REQUIRED', 'Choose a paid package from My packages.', 409);
+    return [{ id: String(service.id), name: service.entitlement.name, category: 'Prepaid treatments', duration: `${service.duration_minutes} min slot`, price: 'R0', description: 'One treatment from your paid package. No further payment due.' }];
+  }
+
   async function policy() { return depositPolicy.loadPolicy(db); }
 
-  return { catalogue, practitioners, slots, createRequest, policy, clientAppEligibleStaff };
+  return { catalogue, packageCatalogue, practitioners, slots, createRequest, policy, clientAppEligibleStaff };
 }
 
 const service = createMyShilohBookingService();

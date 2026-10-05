@@ -31,7 +31,7 @@ async function packageSessionServiceIds() {
 async function activePackages() {
   const r = await pool.query(`
     SELECT sp.id, sp.slug, sp.name, sp.family_name, sp.package_price, sp.sessions_included,
-           sp.validity_days, sp.cancellation_notice_hours, sp.customer_description,
+           sp.validity_days, sp.validity_months, sp.cancellation_notice_hours, sp.customer_description,
            sp.session_service_id, s.name AS session_service_name, s.duration_minutes
       FROM service_packages sp
       JOIN services s ON s.id=sp.session_service_id
@@ -61,7 +61,7 @@ async function activeEntitlementForPhone(phone, packageId) {
       LEFT JOIN package_session_redemptions r ON r.entitlement_id=e.id
      WHERE e.client_id=$1 AND e.package_id=$2
        AND e.status='active' AND e.payment_status='paid'
-       AND NOW()>=e.starts_at AND NOW()<e.expires_at
+       AND (e.starts_at IS NULL OR (NOW()>=e.starts_at AND NOW()<e.expires_at))
      GROUP BY e.id
      ORDER BY e.expires_at, e.id
      LIMIT 1
@@ -81,7 +81,7 @@ function packageDirectoryInteractive(packages = []) {
     rows: packages.slice(0, 9).map((p) => ({
       id: `client_package_${p.slug}`,
       title: compactListTitle(p.name.replace(/^Sports Massage\s*[—-]\s*/i, ''), 'Package'),
-      description: fullLabelDescription(p.name, `${money(p.package_price)} • ${p.sessions_included} sessions • ${p.validity_days} days`),
+      description: fullLabelDescription(p.name, `${money(p.package_price)} • ${p.sessions_included} sessions • ${p.validity_months ? p.validity_months + ' month(s)' : p.validity_days + ' days'}`),
     })),
     sectionTitle: 'Massage Packages',
   };
@@ -93,15 +93,15 @@ function packageDetailInteractive(pkg, entitlement = null) {
     '',
     `💳 ${money(pkg.package_price)} paid in advance`,
     `🎟️ ${pkg.sessions_included} × ${pkg.duration_minutes}-minute Sports Massage sessions`,
-    `📅 Valid for ${pkg.validity_days} days from activation`,
+    `📅 Valid for ${pkg.validity_months ? pkg.validity_months + ' month(s)' : pkg.validity_days + ' days'} from your first treatment`,
     `🕒 ${pkg.cancellation_notice_hours}-hour cancellation notice`,
     `Effective value: ${money(Number(pkg.package_price) / Number(pkg.sessions_included))} per session`,
   ];
   if (pkg.customer_description) lines.push('', pkg.customer_description);
   if (entitlement) {
-    lines.push('', `*Your package:* ${entitlement.sessions_remaining} of ${entitlement.sessions_total} sessions available`, `Expires ${dateZA(entitlement.expires_at)}`);
+    lines.push('', `*Your package:* ${entitlement.sessions_remaining} of ${entitlement.sessions_total} sessions available`, entitlement.expires_at ? `Expires ${dateZA(entitlement.expires_at)}` : 'Validity begins with your first treatment');
   } else {
-    lines.push('', 'This package is not booked as an individual treatment. Choose *Enquire / buy* and the clinic will activate your 30-day package after payment is confirmed.');
+    lines.push('', 'This package is not booked as an individual treatment. Choose *Enquire / buy* and the clinic will record your full upfront payment. Validity begins with your first treatment.');
   }
   const buttons = entitlement && entitlement.sessions_remaining > 0
     ? [
@@ -193,19 +193,19 @@ async function activateSportsPackage(sender, target) {
     await db.query('BEGIN');
     const existing = await db.query(`
       SELECT id, expires_at FROM client_package_entitlements
-       WHERE client_id=$1 AND package_id=$2 AND status='active' AND payment_status='paid' AND NOW()<expires_at
+       WHERE client_id=$1 AND package_id=$2 AND status='active' AND payment_status='paid' AND (starts_at IS NULL OR NOW()<expires_at)
        FOR UPDATE
     `, [client.id, pkg.id]);
     if (existing.rowCount) {
       await db.query('ROLLBACK');
-      return { handled: true, reply: `${client.display_name || 'This client'} already has an active Sports Massage package valid until ${dateZA(existing.rows[0].expires_at)}. Nothing was duplicated.` };
+      return { handled: true, reply: `${client.display_name || 'This client'} already has an active Sports Massage package ${existing.rows[0].expires_at ? 'valid until ' + dateZA(existing.rows[0].expires_at) : 'ready for the first treatment'}. Nothing was duplicated.` };
     }
     const entitlement = await db.query(`
       INSERT INTO client_package_entitlements
-        (client_id, package_id, payment_status, purchase_price, starts_at, expires_at, sessions_total, status, activated_by_admin_id)
-      VALUES ($1,$2,'paid',$3,NOW(),NOW()+($4::text || ' days')::interval,$5,'active',$6)
+        (client_id, package_id, payment_status, purchase_price, validity_days, starts_at, expires_at, sessions_total, status, activated_by_admin_id,validity_months,purchase_name,purchase_description)
+      VALUES ($1,$2,'paid',$3,$4,NULL,NULL,$5,'active',$6,$7,$8,$9)
       RETURNING id, expires_at
-    `, [client.id, pkg.id, pkg.package_price, pkg.validity_days, pkg.sessions_included, admin.id]);
+    `, [client.id, pkg.id, pkg.package_price, pkg.validity_days, pkg.sessions_included, admin.id,pkg.validity_months,pkg.name,pkg.customer_description]);
     await db.query(`
       UPDATE package_enquiries SET status='converted', updated_at=NOW()
        WHERE package_id=$1 AND (client_id=$2 OR normalized_whatsapp=$3) AND status='open'
@@ -215,7 +215,7 @@ async function activateSportsPackage(sender, target) {
       VALUES ($1,'package.entitlement_activated','client_package_entitlement',$2,$3::jsonb)
     `, [admin.id, entitlement.rows[0].id, JSON.stringify({ clientId: client.id, packageId: pkg.id, price: Number(pkg.package_price), sessions: Number(pkg.sessions_included), validityDays: Number(pkg.validity_days) })]);
     await db.query('COMMIT');
-    return { handled: true, reply: `✅ ${pkg.name} activated for ${client.display_name || normalizedTarget}.\n\n4 package sessions are available immediately and expire on ${dateZA(entitlement.rows[0].expires_at)}. Payment recorded: ${money(pkg.package_price)}.` };
+    return { handled: true, reply: `✅ ${pkg.name} activated for ${client.display_name || normalizedTarget}.\n\n${pkg.sessions_included} package sessions are available. Validity begins with the first treatment. Payment recorded: ${money(pkg.package_price)}.` };
   } catch (error) {
     try { await db.query('ROLLBACK'); } catch (_) {}
     throw error;
@@ -274,9 +274,9 @@ async function processPackageCommand(sender, text) {
     const staged = await processBookingMessage(sender, `Book ${pkg.session_service_name}`);
     const decorated = decorateClientBookingResult(staged);
     if (decorated?.interactive?.body) {
-      decorated.interactive.body = `*Package booking* — ${entitlement.sessions_remaining} of ${entitlement.sessions_total} credits available; expires ${dateZA(entitlement.expires_at)}.\n\n${decorated.interactive.body}`;
+      decorated.interactive.body = `*Package booking* — ${entitlement.sessions_remaining} of ${entitlement.sessions_total} credits available; ${entitlement.expires_at ? 'expires ' + dateZA(entitlement.expires_at) : 'validity starts with your first treatment'}.\n\n${decorated.interactive.body}`;
     } else if (decorated?.reply) {
-      decorated.reply = `Package credit verified. ${entitlement.sessions_remaining} of ${entitlement.sessions_total} available; expires ${dateZA(entitlement.expires_at)}.\n\n${decorated.reply}`;
+      decorated.reply = `Package credit verified. ${entitlement.sessions_remaining} of ${entitlement.sessions_total} available; ${entitlement.expires_at ? 'expires ' + dateZA(entitlement.expires_at) : 'validity starts with your first treatment'}.\n\n${decorated.reply}`;
     }
     return decorated;
   }

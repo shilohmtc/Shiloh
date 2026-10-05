@@ -95,6 +95,7 @@ function normalizeSearch(value) {
 function normalizeStatus(value) {
   const status = String(value || 'active').trim().toLowerCase();
   if (status === 'all') return null;
+  if (status === 'deleted') return 'deleted';
   if (status === 'active' || status === 'inactive') return status;
   throw new WorkspaceServicesError('WORKSPACE_SERVICES_INVALID_STATUS', 'Service status filter is invalid.', 400);
 }
@@ -236,6 +237,7 @@ function serviceRevision(service, assignedStaffIds = []) {
     display_price: service?.display_price == null ? null : String(service.display_price),
     customer_description: service?.customer_description == null ? null : String(service.customer_description),
     status: String(service?.status || ''),
+    deleted_at: service?.deleted_at == null ? null : String(service.deleted_at),
     category_id: service?.category_id == null ? null : Number(service.category_id),
     category_name: String(service?.category_name || ''),
     assigned_staff_ids: [...new Set((assignedStaffIds || []).map(Number).filter(positiveId))].sort((a, b) => a - b),
@@ -309,7 +311,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
     const serviceStatus = normalizeStatus(status);
     const safeOffset = normalizeOffset(offset);
     const values = [];
-    const where = [RETIRED_TENANT_SERVICE_CLAUSE];
+    const where = [RETIRED_TENANT_SERVICE_CLAUSE, serviceStatus === 'deleted' ? 'svc.deleted_at IS NOT NULL' : 'svc.deleted_at IS NULL', 'NOT EXISTS (SELECT 1 FROM service_packages pkg WHERE pkg.session_service_id=svc.id)'];
     if (isTenantAssignedServicesAuthority(authority)) {
       values.push(authority.linkedStaffId);
       const linkedStaffParam = `$${values.length}`;
@@ -322,7 +324,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
     } else if (authority.businessRole !== 'booking_operator') {
       where.push('visibility.owner_staff_id IS NULL');
     }
-    if (serviceStatus) {
+    if (serviceStatus && serviceStatus !== 'deleted') {
       values.push(serviceStatus);
       where.push(`svc.status=$${values.length}`);
     }
@@ -338,7 +340,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
       `/* workspaceServices:list */
        SELECT svc.id, svc.name, svc.duration_minutes,
               svc.processing_time_minutes, svc.extra_time_minutes,
-              svc.variable_price, svc.price, svc.display_price, svc.status,
+              svc.variable_price, svc.price, svc.display_price, svc.status, svc.deleted_at,
               sc.name AS category_name, visibility.owner_staff_id AS private_owner_staff_id,
               (SELECT COUNT(*)::int
                  FROM staff_services ss
@@ -432,7 +434,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
       `/* workspaceServices:detail */
        SELECT svc.id, svc.name, svc.duration_minutes,
               svc.processing_time_minutes, svc.extra_time_minutes,
-              svc.variable_price, svc.price, svc.display_price, svc.status,
+              svc.variable_price, svc.price, svc.display_price, svc.status, svc.deleted_at,
               svc.customer_description, svc.booking_note,
               svc.category_id, sc.name AS category_name, visibility.owner_staff_id AS private_owner_staff_id
          FROM services svc
@@ -500,7 +502,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
     const serviceResult = await client.query(
       `/* workspaceServices:mutation-service */
        SELECT svc.id, svc.name, svc.duration_minutes, svc.processing_time_minutes, svc.extra_time_minutes,
-              svc.variable_price, svc.price, svc.display_price, svc.customer_description, svc.status,
+              svc.variable_price, svc.price, svc.display_price, svc.customer_description, svc.status, svc.deleted_at,
               svc.category_id, sc.name AS category_name, visibility.owner_staff_id AS private_owner_staff_id
          FROM services svc
          LEFT JOIN service_categories sc ON sc.id=svc.category_id
@@ -684,6 +686,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
       adminId, serviceId, expectedRevision, requestId,
       action: 'workspace.service_status_changed',
       execute: async (client, _operator, state) => {
+        if (state.service.deleted_at) throw new WorkspaceServicesError('WORKSPACE_SERVICE_DELETED', 'Restore this service before activating it.', 409);
         const updated = await client.query(
           `UPDATE services
               SET status=$2, updated_at=NOW()
@@ -703,6 +706,18 @@ function createWorkspaceServicesService({ db = pool } = {}) {
           },
         };
       },
+    });
+  }
+
+  async function deleteService({ adminId, serviceId, expectedRevision, requestId, restore = false } = {}) {
+    return inMutation({ adminId, serviceId, expectedRevision, requestId,
+      action: restore ? 'workspace.service_restored' : 'workspace.service_deleted',
+      execute: async (client, _operator, state) => {
+        const packages = await client.query('SELECT id FROM service_packages WHERE session_service_id=$1 LIMIT 1', [state.service.id]);
+        if (packages.rows.length) throw new WorkspaceServicesError('WORKSPACE_SERVICE_PACKAGE_PROTECTED', 'Manage this prepaid service from Packages. Purchased treatments must remain bookable.', 409);
+        await client.query("UPDATE services SET deleted_at=CASE WHEN $2 THEN NULL ELSE NOW() END,status='inactive',updated_at=NOW() WHERE id=$1", [state.service.id, restore]);
+        return { status: restore ? 'restored' : 'deleted', auditMetadata: { historicalAppointmentsUntouched: true, assignmentsPreserved: true, recoverable: true } };
+      }
     });
   }
 
@@ -801,6 +816,7 @@ function createWorkspaceServicesService({ db = pool } = {}) {
     updateService,
     updateCustomerDescription,
     setServiceStatus,
+    deleteService,
     assignPractitioner,
     unassignPractitioner,
   };

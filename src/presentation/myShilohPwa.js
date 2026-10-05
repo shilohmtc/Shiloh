@@ -332,6 +332,7 @@ function renderMyShilohPage({
       ${welcomeVoucher}
       <div class="wallet-stack">
         ${giftVoucher}
+        ${authenticated ? '<section class="wallet-card"><div><p class="eyebrow">Prepaid treatments</p><h2>Your packages</h2><p>Check available, booked and used treatments, then book your next session.</p></div><a class="circle-link" href="/my-shiloh/packages" aria-label="Open your prepaid treatment packages">→</a></section>' : ''}
         ${rewards}
         <section class="quiet-card" data-wallet-payments>
           <div class="quiet-icon" aria-hidden="true">P</div>

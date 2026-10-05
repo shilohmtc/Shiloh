@@ -16,8 +16,9 @@
   const occasionNote = get('[data-occasion-note]');
   const occasionDetails = get('[data-occasion-details]');
   const submit = get('[data-submit-booking]');
-  const rate = Number(root.dataset.depositRate || 50);
-  const multiple = root.dataset.multipleBookings === 'true';
+  const prepaidPackage = root.dataset.prepaidPackage === 'true';
+  const rate = prepaidPackage ? 0 : Number(root.dataset.depositRate || 50);
+  const multiple = !prepaidPackage && root.dataset.multipleBookings === 'true';
   const rand = value => 'R' + Number(value).toFixed(2);
   const current = () => state.service && state.practitioner && state.slot
     ? { service:state.service, practitioner:state.practitioner, slot:state.slot } : null;
@@ -111,7 +112,7 @@
       get('[data-review-practitioner]').textContent = item.practitioner.name;
       get('[data-review-date]').textContent = localDateLabel(item.slot.startsAt);
       get('[data-review-time]').textContent = item.slot.time + '–' + item.slot.endTime;
-      get('[data-review-deposit]').textContent = item.practitioner.depositExempt ? 'No deposit required' : rate + '% after approval';
+      get('[data-review-deposit]').textContent = prepaidPackage ? 'Paid package · no further payment due' : item.practitioner.depositExempt ? 'No deposit required' : rate + '% after approval';
       setStatus(confirmStatus,''); submit.disabled = false; return;
     }
     renderCart(list);
@@ -131,7 +132,7 @@
     const button = document.createElement('button'); button.type = 'button'; button.className = 'option';
     button.dataset.practitionerId = String(row.id);
     const name = document.createElement('strong'); name.textContent = row.name;
-    const detail = document.createElement('small'); detail.textContent = row.depositExempt ? 'This booking does not require a deposit.' : rate + '% booking deposit applies after approval.';
+    const detail = document.createElement('small'); detail.textContent = prepaidPackage ? 'Covered by your prepaid package.' : row.depositExempt ? 'This booking does not require a deposit.' : rate + '% booking deposit applies after approval.';
     button.append(name,detail);
     if (row.depositExempt) {
       const badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = 'No deposit required'; button.append(badge);
