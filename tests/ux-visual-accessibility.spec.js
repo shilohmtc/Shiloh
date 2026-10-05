@@ -2787,6 +2787,11 @@ test('Reception planning card shows a client occasion on Phone and Desktop', asy
     await page.goto('/iframe.html?id=workspace-production-surfaces--reception-planning-queue&viewMode=story', { waitUntil:'networkidle' });
     const card = page.locator('[data-booking-request="801"]');
     await expect(card).toContainText('Birthday treat for two');
+    await expect(card.locator('[data-booking-action]')).toHaveCount(2);
+    await expect(card.getByRole('button', { name: 'Accept requested appointment' })).toBeVisible();
+    await expect(card.getByRole('button', { name: 'Propose alternative' })).toBeVisible();
+    await expect(card).not.toContainText('Start planning');
+    await expect(card).not.toContainText('Cannot accommodate');
     await expect(card.locator('[data-proposal-staff] option:not([disabled])')).toHaveText(['Abigail (current)','Christel']);
     await expect(card.locator('[data-proposal-staff]')).toHaveValue('11');
     await expect(page.locator('[data-booking-request="802"] [data-proposal-staff] option:not([disabled])')).toHaveText(['Christel (current)']);

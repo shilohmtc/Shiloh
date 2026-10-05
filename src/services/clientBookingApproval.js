@@ -470,33 +470,10 @@ async function proposeAlternative({
   return { ok: true, appointmentId: id, status: 'awaiting_client_confirmation', proposalVersion: version };
 }
 
-async function defaultSendCannotAccommodate() {
-  return { sent: false, channel: 'my_shiloh', reason: 'status_available_in_app_phone_alert_retired' };
-}
-
-async function cannotAccommodate({ dbPool = pool, principal, appointmentId, expectedRevision, sendOutcome = defaultSendCannotAccommodate }) {
-  const id = positiveId(appointmentId);
-  const row = await inTransaction(dbPool, async db => {
-    const locked = await loadRequest(db, id, true);
-    requireResolvable(principal, locked, expectedRevision);
-    const updated = await db.query(`UPDATE appointment_booking_approvals SET status='declined',decided_at=NOW(),
-      decided_by_admin_id=$2,decision_note='workspace_cannot_accommodate',proposal_expires_at=NULL,updated_at=NOW()
-      WHERE appointment_id=$1 AND status IN ('pending','awaiting_client_confirmation') RETURNING appointment_id`, [id, principal.id]);
-    if (updated.rowCount !== 1) throw new BookingRequestError('BOOKING_REQUEST_STALE', 'This request changed before it could be resolved.', 409);
-    const cancelled = await db.query(`UPDATE appointments SET status='cancelled',updated_at=NOW() WHERE id=$1 AND status<>'cancelled' RETURNING id`, [id]);
-    if (cancelled.rowCount !== 1) throw new BookingRequestError('BOOKING_REQUEST_STALE', 'This appointment changed before it could be cancelled.', 409);
-    await db.query(`UPDATE appointment_lifecycle SET status='cancelled',updated_at=NOW()
-      WHERE appointment_id=$1 AND status<>'cancelled'`, [id]);
-    await db.query(`INSERT INTO appointment_status_history(appointment_id,from_status,to_status,changed_by,reason)
-      VALUES($1,$2,'cancelled',$3,'Booking request could not be accommodated in Workspace')`,
-    [id, locked.appointment_status, `admin:${principal.id}`]);
-    await audit(db, principal, 'client.booking_request.cannot_accommodate', id);
-    return locked;
-  });
-  let delivery;
-  try { delivery = await sendOutcome(row); }
-  catch (error) { logger.error({ err: error, appointmentId: id }, 'Cannot-accommodate client delivery failed'); delivery = { sent: false, reason: 'send_failed' }; }
-  return { ok: true, appointmentId: id, status: 'declined', delivery };
+// Keep a rejecting compatibility entry point for callers using an older screen.
+async function cannotAccommodate() {
+  throw new BookingRequestError('BOOKING_REQUEST_DECLINE_RETIRED',
+    'Accept the requested appointment or propose an alternative. The request remains open.', 409);
 }
 
 async function clientIdentityMatches(row, sender, crmV2ClientId = null) {

@@ -4,6 +4,12 @@
 
 **Status:** canonical orientation map, updated 2026-09-24. This document does not replace application code, migrations, approved policies, Figma files, workflow definitions or production evidence. Those remain the authorities linked below.
 
+## Booking request decisions — accepted 5 October 2026
+
+A requested appointment has two Reception actions: **Accept requested appointment** or **Propose alternative** with a date, time and a practitioner assigned to the requested service. Do not decline or cancel a booking request because the requested arrangement is unavailable; keep it open while arranging an alternative. There is no separate Start planning/reviewing step. Older decline actions must reject without changing the appointment. The client must accept a proposed alternative before confirmation; existing availability, authority and payment checks still apply. This concerns new appointment requests; the separate decision about changing an already confirmed appointment retains its existing contract.
+
+Release verification pending.
+
 ## Shared Shiloh direction — accepted 1 October 2026
 
 Workspace for the clinic team and My Shiloh for clients are the heart of one Shiloh platform and its shared north star. Use the existing Lucide outline icons across both, with a 24-unit viewBox, rounded strokes and consistent 2-unit stroke weight; the official S mark remains the brand anchor. Reuse the shared icon renderers rather than hand-drawing substitutes.
