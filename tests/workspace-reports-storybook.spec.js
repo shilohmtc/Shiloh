@@ -39,7 +39,7 @@ for (const viewport of [
     await expect(page.locator('#treatments .service-list')).toBeVisible();
     await page.locator('#clients > summary').click();
     await expect(page.locator('#clients .client-grid')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Appointment #732' })).toHaveAttribute('href', /appointment=732/);
+    await expect(page.locator('#staff-earnings').getByRole('link', { name: 'Appointment #732', exact: true })).toHaveAttribute('href', /appointment=732/);
     await expect(page.getByText('Shared appointment — review allocation')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Treatments booked' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'New and returning clients' })).toBeVisible();

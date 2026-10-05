@@ -166,7 +166,7 @@ async function main() {
       assert.equal(await page.locator('details[data-report-section][open]').count(), 0);
       await page.screenshot({path:path.join(OUT_DIR, `${viewport.name}-${adminId}-reports-compact.png`),fullPage:true});
       if (hasEarnings) await page.getByRole('link', {name:'Earnings',exact:true}).click();
-      if (hasEarnings) assert.match(await page.getByRole('link', { name: 'Appointment #732' }).getAttribute('href'), /appointment=732/);
+      if (hasEarnings) assert.match(await page.locator('#staff-earnings').getByRole('link', { name: 'Appointment #732', exact: true }).getAttribute('href'), /appointment=732/);
       assert.equal((await context.request.get(`${origin}/calendar/reports/sections.js`)).status(),200);
       const scriptResponse = await context.request.get(`${origin}/calendar/reports/commission.js`);
       assert.equal(scriptResponse.status(), hasEarnings ? 200 : 403);
