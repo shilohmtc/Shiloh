@@ -182,6 +182,7 @@ function createWorkspaceServicesRouter({ sessionService, ...options } = {}) {
     }
   });
   router.get('/', createWorkspaceServicesListHandler({ ...options, service, creationService, categoryService }));
+  router.use('/packages', require('./workspacePackages').createWorkspacePackagesRouter({ sessionService, env: options.env }));
   router.get('/:id', createWorkspaceServiceDetailHandler({ ...options, service }));
   return router;
 }

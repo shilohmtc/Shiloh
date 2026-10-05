@@ -66,15 +66,15 @@ async function activePackageChoices(appointmentId) {
            e.sessions_total - COUNT(red.id)::int AS credits_remaining
       FROM appointments a
       JOIN client_package_entitlements e ON e.client_id=a.client_id
-      JOIN service_packages sp ON sp.id=e.package_id AND sp.status='active'
+      JOIN service_packages sp ON sp.id=e.package_id
       JOIN services s ON s.id=sp.session_service_id AND s.status='active'
       JOIN appointment_staff ast ON ast.appointment_id=a.id AND ast.staff_id IS NOT NULL
       JOIN staff_services ss ON ss.staff_id=ast.staff_id AND ss.service_id=s.id
       LEFT JOIN package_session_redemptions red ON red.entitlement_id=e.id AND red.status IN ('reserved','redeemed')
      WHERE a.id=$1
        AND e.status='active' AND e.payment_status='paid'
-       AND NOW() >= e.starts_at AND NOW() < e.expires_at
-       AND a.starts_at >= e.starts_at AND a.starts_at < e.expires_at
+       AND (e.starts_at IS NULL OR (NOW() >= e.starts_at AND NOW() < e.expires_at
+       AND a.starts_at >= e.starts_at AND a.starts_at < e.expires_at))
        AND NOT EXISTS (SELECT 1 FROM appointment_services aps WHERE aps.appointment_id=a.id AND aps.service_id=s.id)
      GROUP BY sp.session_service_id,s.name,s.duration_minutes,sp.name,e.id,e.expires_at,e.sessions_total
     HAVING e.sessions_total - COUNT(red.id)::int > 0
@@ -143,8 +143,8 @@ async function changeToPackageService(sender, appointmentId, serviceId) {
       SELECT e.id,e.sessions_total,e.expires_at
         FROM client_package_entitlements e
        WHERE e.client_id=$1 AND e.package_id=$2 AND e.status='active' AND e.payment_status='paid'
-         AND NOW() >= e.starts_at AND NOW() < e.expires_at
-         AND $3::timestamptz >= e.starts_at AND $3::timestamptz < e.expires_at
+         AND (e.starts_at IS NULL OR (NOW() >= e.starts_at AND NOW() < e.expires_at
+         AND $3::timestamptz >= e.starts_at AND $3::timestamptz < e.expires_at))
        ORDER BY e.expires_at,e.id FOR UPDATE`, [a.client_id, pkg.package_id, starts]);
     for (const candidate of entitlementResult.rows) {
       const used = await db.query(`SELECT COUNT(*)::int used FROM package_session_redemptions WHERE entitlement_id=$1 AND status IN ('reserved','redeemed')`, [candidate.id]);

@@ -12,6 +12,7 @@ async function getPublicServiceCatalogue() {
         FROM services s
         LEFT JOIN service_categories sc ON sc.id = s.category_id
        WHERE s.status = 'active'
+         AND NOT EXISTS (SELECT 1 FROM service_packages p WHERE p.session_service_id=s.id)
          AND EXISTS (
            SELECT 1
              FROM staff_services ss
