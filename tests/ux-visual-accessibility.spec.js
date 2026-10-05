@@ -3512,6 +3512,9 @@ test('My Shiloh saves entered profile details and preserves them after a refused
   for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
     await page.setViewportSize(viewport);
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-profile&viewMode=story#profile', { waitUntil: 'networkidle' });
+    // A repeated iframe URL with a hash can keep the document and its old listeners.
+    // Reload before installing app.js so each viewport exercises one fresh app.
+    await page.reload({ waitUntil: 'networkidle' });
     await page.evaluate(() => { Object.defineProperty(navigator, 'standalone', { value: true, configurable: true }); });
     await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
     const form = page.locator('[data-client-profile-form]');
