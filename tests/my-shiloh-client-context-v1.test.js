@@ -340,9 +340,11 @@ test('client context never reads health answers, practitioner notes or provider 
   const source = read('src/services/myShilohClientContext.js');
   assert.match(source, /crm_v2_client_id=\$1/);
   assert.match(source, /consultation_form_assignments/);
+  assert.match(source, /sub\.id AS submission_id/);
+  assert.match(source, /sub\.assignment_id=a\.id/);
   assert.match(source, /booking_payment_accounts/);
   assert.match(source, /payment_ledger_entries/);
-  assert.doesNotMatch(source, /consultation_form_submissions|consultation_form_practitioner_notes|consultation_form_practitioner_records/);
+  assert.doesNotMatch(source, /consultation_form_practitioner_notes|consultation_form_practitioner_records/);
   assert.doesNotMatch(source, /payload_ciphertext|payload_auth_tag|payment_provider_events/);
   assert.doesNotMatch(source, /normalized_mobile|date_of_birth|gender/);
 });
@@ -378,4 +380,18 @@ test('Bookings includes later same-day appointments without repeating requests o
   assert.equal(requested.bookings.upcoming.find(item => item.id === 902).status, 'Requested');
   const laterOnly = buildClientExperience({ ...base, nextAppointment: second, upcomingAppointments: [second] });
   assert.deepEqual(laterOnly.bookings.upcoming.map(item => item.id), [902]);
+});
+
+test('missing form preparation stays mandatory with help action and cannot expose an invalid completion link',()=>{
+  const experience=buildClientExperience({
+    client:{id:55,name:'Example Client'},generatedAt:'2026-10-06T08:00:00Z',
+    nextAppointment:{id:901,startsAt:'2026-10-07T08:00:00Z',status:'confirmed',services:['Massage'],practitioners:['Abigail']},
+    forms:[{id:null,title:'Massage consultation',status:'not_assigned',actionRequired:true,canComplete:false}],payment:null,
+  });
+  assert.equal(experience.home.forms.length,1);
+  assert.equal(experience.home.forms[0].actionLabel,'Ask Shiloh for help');
+  assert.equal(experience.home.forms[0].href,'#shiloh');
+  assert.match(experience.home.forms[0].message,/Required before your treatment/);
+  assert.equal(experience.bookings.upcoming[0].formReadiness.ready,false);
+  assert.deepEqual(experience.bookings.upcoming[0].formActions,[]);
 });

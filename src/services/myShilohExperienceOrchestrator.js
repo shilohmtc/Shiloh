@@ -1,6 +1,7 @@
 'use strict';
 
 const clientContext = require('./myShilohClientContext');
+const { requiredFormsReadiness } = require('./consultationFormReadiness');
 
 function firstName(value = '') {
   return String(value || '').trim().split(/\s+/)[0] || 'there';
@@ -385,15 +386,17 @@ function buildClientExperience(context) {
     if (['Requested', 'Planning', 'Awaiting your response'].includes(booking.status)) continue;
     const assignedForms = formsByAppointment.get(booking.id) || [];
     const formState = formPosition(assignedForms);
+    booking.formReadiness = requiredFormsReadiness(assignedForms);
     booking.forms = formState.label;
-    booking.formActions = assignedForms.filter(item => item.actionRequired && Number.isSafeInteger(item.id) && item.id > 0).map(item => ({
+    booking.formActions = assignedForms.filter(item => item.actionRequired && item.canComplete !== false && Number.isSafeInteger(item.id) && item.id > 0).map(item => ({
       title: item.title, href: `/my-shiloh/forms/complete?assignmentId=${item.id}`,
     }));
-    for (const form of booking.formActions) experience.home.forms.push({
+    for (const form of assignedForms.filter(item => item.actionRequired)) experience.home.forms.push({
       appointmentId: booking.id, service: booking.service, date: booking.date, time: booking.time,
       label: `Complete your ${booking.service} form`, title: form.title,
-      message: 'Please complete your consultation form before your appointment.',
-      actionLabel: 'Complete form', href: form.href,
+      message: 'Required before your treatment. Complete and sign your consultation form before your visit.',
+      actionLabel: booking.formActions.some(item => item.href.endsWith(`assignmentId=${form.id}`)) ? 'Complete form' : 'Ask Shiloh for help',
+      href: booking.formActions.find(item => item.href.endsWith(`assignmentId=${form.id}`))?.href || '#shiloh',
     });
     const raw = paymentsByAppointment.get(booking.id);
     booking.readiness = booking.status === 'confirmed' ? 'Confirmed' : 'Upcoming';

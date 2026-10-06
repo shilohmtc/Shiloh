@@ -30,6 +30,7 @@ function setWorkspaceFormsSecurityHeaders(res) {
 }
 
 function safeError(error) {
+  if (Number(error?.httpStatus) === 422) return { status: 422, message: error.message };
   if (Number(error?.httpStatus) === 403) return { status: 403, message: error.message || 'You do not have access to this form information.' };
   if (Number(error?.httpStatus) === 404) return { status: 404, message: error.message || 'That consultation form was not found.' };
   return { status: 503, message: 'Forms are temporarily unavailable.' };
@@ -78,11 +79,22 @@ function createWorkspaceFormsRouter({
 
   router.get('/', async (req, res) => {
     try {
-      const [model, submissions] = await Promise.all([
+      const [model, submissions, treatmentQueue] = await Promise.all([
         service.listForms({ adminId: req.staffBrowserSession?.adminId }),
         submissionService.listSubmissions({ adminId: req.staffBrowserSession?.adminId }),
+        service.listTreatmentQueue({ adminId: req.staffBrowserSession?.adminId }),
       ]);
-      return res.status(200).type('html').send(renderPage({ ...model, submissions }));
+      return res.status(200).type('html').send(renderPage({ ...model, submissions, treatmentQueue }));
+    } catch (error) {
+      const safe = safeError(error);
+      return res.status(safe.status).type('html').send(renderUnavailable({ message: safe.message }));
+    }
+  });
+
+  router.get('/history', async (req, res) => {
+    try {
+      const history = await submissionService.listHistory({ adminId: req.staffBrowserSession?.adminId, search: req.query.search || '', page: req.query.page ?? '0' });
+      return res.status(200).type('html').send(renderPage({ authority: history.authority, history, submissions: history }));
     } catch (error) {
       const safe = safeError(error);
       return res.status(safe.status).type('html').send(renderUnavailable({ message: safe.message }));

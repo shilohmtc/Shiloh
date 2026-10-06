@@ -140,7 +140,7 @@ test('website treatment handoff only exposes a canonical catalogue code and keep
   assert.doesNotMatch(renderMyShilohPage({ catalogue, selectedServiceId: '103"><script>' }), /data-website-treatment-handoff/);
 });
 
-test('installed app stores only bounded update archive IDs and notification setup choice; the server session remains authority', () => {
+test('installed app stores only bounded update archive/read IDs and notification setup choice; the server session remains authority', () => {
   const client = read('public/my-shiloh/assets/app.js');
   const presentation = read('src/presentation/myShilohPwa.js');
 
@@ -148,10 +148,13 @@ test('installed app stores only bounded update archive IDs and notification setu
     .map((match) => [match[1].trim(), match[2].trim()]);
   assert.deepEqual(writes, [
     ['notificationSetupKey', "'1'"],
+    ['seenUpdatesKey', 'JSON.stringify([...seenUpdateIds]'],
     ['notificationArchiveKey', 'JSON.stringify([...archivedUpdateIds].slice(-100'],
   ]);
   assert.match(client, /my-shiloh-notification-setup-later-v1:\$\{appFrame\.dataset\.notificationClientId\}/);
   assert.match(client, /my-shiloh-archived-updates-v1:\$\{appFrame\.dataset\.notificationClientId\}/);
+  assert.match(client, /my-shiloh-seen-updates-v1:\$\{appFrame\.dataset\.notificationClientId\}/);
+  assert.match(client, /seenUpdateIds = new Set\(\[\.\.\.seenUpdateIds\]\.slice\(-100\)\)/);
   assert.match(client, /archivedUpdateIds\.add\(id\)/);
   assert.doesNotMatch(client, /localStorage\.setItem\([^\n]*(?:title|body|targetPath|auth)/i);
   assert.doesNotMatch(client, /markInstallationVerified|resetInstallationVerification/);

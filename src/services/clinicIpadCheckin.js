@@ -200,7 +200,7 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
     const assignments = await listFormAssignments(adminId,appointmentId);
     const selected = assignments.find(row => String(row.id) === String(assignmentId));
     if (!selected) throw new CheckinError('This form is not available for that appointment.', 409);
-    if (selected.status !== 'not_sent') throw new CheckinError('This form was already sent. Ask the client to use their secure link.',409);
+    if (!['not_sent','sent','opened'].includes(selected.status)) throw new CheckinError('This form is no longer waiting for completion.',409);
     if (!/^\d+$/.test(String(deviceId || ''))) throw new CheckinError('Invalid iPad reference.');
     const connection = await db.connect();
     try {
@@ -208,7 +208,7 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
       await connection.query('SELECT pg_advisory_xact_lock(-$1::bigint)',[selected.id]);
       const assignment=await connection.query(
         `SELECT status FROM consultation_form_assignments WHERE id=$1 FOR UPDATE`,[selected.id]);
-      if (assignment.rows[0]?.status!=='not_sent') throw new CheckinError('This form changed. Please refresh the appointment.',409);
+      if (!['not_sent','sent','opened'].includes(assignment.rows[0]?.status)) throw new CheckinError('This form changed. Please refresh the appointment.',409);
       const prepared=await connection.query(
         `SELECT id FROM clinic_checkin_form_handoffs
          WHERE assignment_id=$1 AND status IN ('queued','claimed') AND expires_at>$2 LIMIT 1`,

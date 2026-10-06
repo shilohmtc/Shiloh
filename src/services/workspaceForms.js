@@ -1,4 +1,5 @@
 const { pool } = require('../db/pool');
+const { requiredFormVersionsSql, projectRequiredForm, requiredFormsReadiness } = require('./consultationFormReadiness');
 
 const FORMS_VIEW_CAPABILITY = 'forms:view';
 const FORM_STATUSES = Object.freeze(['not_sent', 'sent', 'opened', 'completed', 'needs_review']);
@@ -253,6 +254,40 @@ function createWorkspaceFormsService({ db = pool } = {}) {
     };
   }
 
+  async function listTreatmentQueue({ adminId } = {}) {
+    const authority = await requireAccess(adminId);
+    const own = authority.formScope === 'own_staff';
+    const result = await db.query(`/* workspaceForms:treatment-queue */
+      SELECT ap.id,ap.starts_at,ap.status,
+        COALESCE(v2.name,c.display_name,ap.source_client_name,'Client') AS client_name,
+        (SELECT string_agg(s.service_name_snapshot,' + ' ORDER BY s.position,s.id) FROM appointment_services s WHERE s.appointment_id=ap.id) AS services,
+        (SELECT string_agg(s.staff_name_snapshot,' + ' ORDER BY s.position,s.id) FROM appointment_staff s WHERE s.appointment_id=ap.id) AS practitioners,
+        jsonb_agg(jsonb_build_object('id',fa.id,'status',fa.status,'template_version_id',tv.id,
+          'template_key',t.template_key,'title',t.title,'submission_id',sub.id) ORDER BY tv.id) AS forms
+      FROM appointments ap
+      LEFT JOIN crm_v2_clients v2 ON v2.id=ap.crm_v2_client_id
+      LEFT JOIN clients c ON c.id=ap.client_id
+      JOIN LATERAL (${requiredFormVersionsSql()}) required ON TRUE
+      JOIN consultation_form_template_versions tv ON tv.id=required.template_version_id
+      JOIN consultation_form_templates t ON t.id=tv.template_id AND t.status='active'
+      LEFT JOIN consultation_form_assignments fa ON fa.appointment_id=ap.id AND fa.template_version_id=tv.id
+        AND fa.crm_v2_client_id IS NOT DISTINCT FROM ap.crm_v2_client_id AND fa.client_id IS NOT DISTINCT FROM ap.client_id
+      LEFT JOIN consultation_form_submissions sub ON sub.assignment_id=fa.id AND sub.template_version_id=tv.id
+      WHERE ap.status IN ('scheduled','confirmed') AND ap.ends_at>NOW()
+        ${own ? 'AND EXISTS (SELECT 1 FROM appointment_staff scoped WHERE scoped.appointment_id=ap.id AND scoped.staff_id=$1)' : ''}
+      GROUP BY ap.id,v2.name,c.display_name ORDER BY ap.starts_at,ap.id LIMIT 100`, own ? [authority.linkedStaffId] : []);
+    return {
+      authority,
+      appointments: result.rows.map(row => {
+        const forms = (Array.isArray(row.forms) ? row.forms : []).map(projectRequiredForm);
+        return { id: Number(row.id), startsAt: row.starts_at, clientName: row.client_name,
+          services: row.services, practitioners: row.practitioners, forms, readiness: requiredFormsReadiness(forms),
+          canOpen: ['owner','business_admin'].includes(authority.businessRole) || own,
+          canPrepareIpad: ['owner','business_admin','booking_operator'].includes(authority.businessRole) };
+      }),
+    };
+  }
+
   async function getFormPreview({ adminId, templateKey } = {}) {
     const authority = await requireAccess(adminId);
     const form = await loadPreviewForm(templateKey);
@@ -269,6 +304,7 @@ function createWorkspaceFormsService({ db = pool } = {}) {
     resolveAccess,
     requireAccess,
     listForms,
+    listTreatmentQueue,
     getFormPreview,
   };
 }

@@ -86,8 +86,15 @@ function createWorkspaceFormSubmissionsService({
     ]);
   }
 
-  async function listRealSubmissions(authority) {
+  async function listRealSubmissions(authority, { search = '', page = 0, history = false } = {}) {
     const scope = scopeSql(authority, 1);
+    const values = [...scope.values];
+    let searchSql = '';
+    if (search) {
+      values.push(search);
+      searchSql = ` AND strpos(lower(COALESCE(v2.name,c.display_name,ap.source_client_name,'Client')),lower($${values.length}))>0`;
+    }
+    const pagingSql = history ? `LIMIT 51 OFFSET $${values.push(page * 50)}` : 'LIMIT 50';
     const result = await db.query(`/* workspaceFormSubmissions:list-real */
       SELECT sub.id,sub.submitted_at,sub.signed_at,a.status AS assignment_status,
              ap.id AS appointment_id,ap.starts_at,
@@ -108,9 +115,9 @@ function createWorkspaceFormSubmissionsService({
         JOIN consultation_form_templates t ON t.id=tv.template_id
         LEFT JOIN clients c ON c.id=a.client_id
         LEFT JOIN crm_v2_clients v2 ON v2.id=a.crm_v2_client_id
-       WHERE TRUE${scope.sql}
+       WHERE TRUE${scope.sql}${searchSql}
        ORDER BY sub.submitted_at DESC,sub.id DESC
-       LIMIT 50`, scope.values);
+       ${pagingSql}`, values);
     const canOpen = canReadSensitiveSubmission(authority);
     return result.rows.map(row => ({
       kind: 'client',
@@ -129,6 +136,16 @@ function createWorkspaceFormSubmissionsService({
       isTest: false,
       canOpen,
     }));
+  }
+
+  async function listHistory({ adminId, search = '', page = '0' } = {}) {
+    const authority = await formsService.requireAccess(adminId);
+    if (typeof search !== 'string' || search.length > 100 || !['string','number'].includes(typeof page) || !/^[0-9]{1,5}$/.test(String(page))) {
+      throw new WorkspaceFormSubmissionError('WORKSPACE_FORM_HISTORY_INVALID', 'Please check the history search.', 422);
+    }
+    const pageNumber = Number(page);
+    const items = await listRealSubmissions(authority, { search: search.trim(), page: pageNumber, history: true });
+    return { authority, items: items.slice(0,50), hasMore: items.length>50, search: search.trim(), page: pageNumber };
   }
 
   async function listTrialSubmissions(authority) {
@@ -307,6 +324,7 @@ function createWorkspaceFormSubmissionsService({
 
   return {
     listSubmissions,
+    listHistory,
     getSubmission,
     getRealSubmission,
     getTrialSubmission,

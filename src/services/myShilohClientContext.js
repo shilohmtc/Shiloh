@@ -1,6 +1,7 @@
 'use strict';
 
 const { pool } = require('../db/pool');
+const { requiredFormVersionsSql, projectRequiredForm } = require('./consultationFormReadiness');
 
 const UPCOMING_APPOINTMENT_STATUSES = Object.freeze(['scheduled', 'confirmed']);
 const CLIENT_FORM_ACTION_STATUSES = new Set(['not_sent', 'sent', 'opened']);
@@ -289,23 +290,19 @@ function createMyShilohClientContextService({
     if (!clientId || !bookingId) return [];
     const result = await db.query(
       `/* myShilohClientContext:forms-status-only */
-       SELECT a.id,a.status,t.template_key,t.title
-         FROM consultation_form_assignments a
-         JOIN consultation_form_template_versions tv ON tv.id=a.template_version_id
+       SELECT a.id,a.status,t.template_key,t.title,tv.id AS template_version_id,sub.id AS submission_id
+         FROM appointments ap
+         JOIN LATERAL (${requiredFormVersionsSql()}) required ON TRUE
+         JOIN consultation_form_template_versions tv ON tv.id=required.template_version_id
          JOIN consultation_form_templates t ON t.id=tv.template_id
-        WHERE a.crm_v2_client_id=$1
-          AND a.client_id IS NULL
-          AND a.appointment_id=$2
-        ORDER BY a.id`,
+         LEFT JOIN consultation_form_assignments a ON a.appointment_id=ap.id AND a.template_version_id=tv.id
+           AND a.crm_v2_client_id=$1 AND a.client_id IS NULL
+         LEFT JOIN consultation_form_submissions sub ON sub.assignment_id=a.id AND sub.template_version_id=tv.id
+        WHERE ap.crm_v2_client_id=$1 AND ap.client_id IS NULL AND ap.id=$2 AND t.status='active'
+        ORDER BY tv.id`,
       [clientId, bookingId],
     );
-    return result.rows.map(row => ({
-      id: Number(row.id),
-      status: String(row.status || ''),
-      templateKey: String(row.template_key || ''),
-      title: String(row.title || 'Consultation form'),
-      actionRequired: CLIENT_FORM_ACTION_STATUSES.has(String(row.status || '')),
-    }));
+    return result.rows.map(projectRequiredForm);
   }
 
   async function loadPayment(appointment) {

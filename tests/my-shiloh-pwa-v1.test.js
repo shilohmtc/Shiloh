@@ -236,7 +236,7 @@ test('SMS enrollment appears in the installed guest app only when enabled', () =
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v49/);
+  assert.match(worker, /my-shiloh-shell-v51/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /booking\.js/);
@@ -323,7 +323,7 @@ test('Wallet navigation keeps Shiloh in the exact centre and preserves welcome-v
   const client = read('public/my-shiloh/assets/app.js');
   assert.match(styles, /grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
   assert.match(styles, /\.nav-shiloh\{position:relative;grid-column:3\}/);
-  assert.match(client, /new Set\(\['home', 'bookings', 'shiloh', 'wallet', 'profile'\]\)/);
+  assert.match(client, /new Set\(\['home', 'bookings', 'shiloh', 'wallet', 'profile', 'updates'\]\)/);
   assert.match(client, /fromHash === 'welcome-voucher'\) return 'wallet'/);
   assert.match(html, /href="#wallet" data-view-target="wallet"/);
 });
