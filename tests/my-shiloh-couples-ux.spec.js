@@ -23,6 +23,8 @@ for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',w
     const root=page.locator('[data-my-shiloh-couples]'); await expect(root).toBeVisible();
     await page.addScriptTag({ path:path.join(__dirname,'../public/my-shiloh/assets/couples-booking.js') });
     async function evidence(step) {
+      // Native controls can scroll the page while being filled; align the active step for visual review.
+      await root.locator('[data-couples-step]:not([hidden])').evaluate(node=>node.scrollIntoView({ block:'start',behavior:'instant' }));
       const axe=await new AxeBuilder({ page }).include('[data-my-shiloh-couples]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
       expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);

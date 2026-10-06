@@ -39,6 +39,8 @@ jobs:
           done
           cat /tmp/shiloh-storybook.log
           exit 1
+      - name: Prove booking for two on Phone and Desktop
+        run: npx playwright test tests/my-shiloh-couples-ux.spec.js --config=playwright.ux.config.js
       - name: Compare reviewed baselines and run accessibility checks
         id: ux_check
         shell: bash
