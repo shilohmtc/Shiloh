@@ -415,4 +415,6 @@ h3{font-size:20px;line-height:1.12}
 .client-booking-actions--home{margin:16px 0 0}.client-booking-actions--home:has([data-client-home-couples][hidden]){grid-template-columns:1fr}
 .client-booking-actions .button{width:100%;margin:0;min-height:52px}.couples-booking-choice{position:relative;z-index:2;min-width:0}.couples-booking-choice[hidden]{display:none}
 .couples-booking-choice small{display:block;margin-top:7px;color:var(--muted);font-size:12px;line-height:1.45}.couples-booking-choice svg{flex:none}
+/* Match the Workspace Calendar couples entry, including its hover colour. */
+.couples-booking-choice .button{background:#fbf5f8;color:#633f55}.couples-booking-choice .button:hover{background:#f4e8ee}
 @media(max-width:600px){.client-booking-actions{grid-template-columns:1fr}}

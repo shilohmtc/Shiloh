@@ -74,6 +74,8 @@ function renderMyShilohBookingPage({
 [data-cart-summary]{position:sticky;top:74px;z-index:10;box-shadow:0 7px 22px rgba(35,52,45,.08)}.has-saved-bookings [data-step]{scroll-margin-top:210px}
 @media(max-width:620px){[data-step="4"] .step-head{margin-bottom:12px}[data-step="4"] .review-card{padding:12px}}
 .couples-booking-choice .button{gap:8px}.couples-booking-choice svg{flex:none}.couples-booking-choice small{display:block;margin-top:7px;color:var(--ink);font-size:12px;line-height:1.45}
+/* Match the Workspace Calendar couples entry, including its hover colour. */
+.couples-booking-choice .button{background:#fbf5f8;color:#633f55}.couples-booking-choice .button:hover{background:#f4e8ee}
 </style></head><body>
 <header class="top"><div class="shell"><a class="back" href="/my-shiloh/">← My Shiloh</a><span class="brand">Book with Shiloh</span></div></header>
 <main class="shell" data-my-shiloh-booking data-csrf="${escapeHtml(csrfToken)}" data-selected-service-id="${escapeHtml(selectedServiceId)}" data-multiple-bookings="${welcomeVoucherMode || prepaidPackageMode ? 'false' : 'true'}" data-prepaid-package="${prepaidPackageMode ? 'true' : 'false'}" data-deposit-rate="${escapeHtml(rate)}" data-deposit-free-hours="${escapeHtml(freeHours)}" data-deposit-partial-hours="${escapeHtml(partialHours)}" data-deposit-partial-forfeit="${escapeHtml(partialForfeit)}" data-deposit-late-forfeit="${escapeHtml(lateForfeit)}">
