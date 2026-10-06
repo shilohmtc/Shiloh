@@ -431,7 +431,7 @@ function createMyShilohPushService({
     if (!Number.isSafeInteger(clientId) || clientId <= 0) return { notifications: [] };
     const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 100);
     const result = await db.query(
-      `SELECT id,category,title,body,target_path,created_at
+      `SELECT id,category,title,body,target_path,created_at,event_key
          FROM my_shiloh_push_notifications
         WHERE crm_v2_client_id=$1
         ORDER BY id DESC
@@ -442,6 +442,7 @@ function createMyShilohPushService({
       notifications: result.rows.map((row) => ({
         id: Number(row.id),
         category: row.category,
+        requiresAttention: /^appointment-(cancellation|time|service|practitioner|price):/.test(String(row.event_key || '')),
         title: row.title,
         body: row.body,
         targetPath: safeTargetPath(row.target_path),

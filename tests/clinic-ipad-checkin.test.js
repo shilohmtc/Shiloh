@@ -530,17 +530,58 @@ test('staff cannot queue clinical forms with client management alone',async () =
   await assert.rejects(service.queueForm(7,1,42,2),{httpStatus:403});
 });
 
-test('a form already sent to WhatsApp cannot be reissued by preparing the iPad',async()=>{
-  const db={query:async sql=>{
-    if(sql.includes('calendarAuthorization:principal')) return {rows:[{id:2,admin_active:true,
-      calendar_scope:'all_business',service_scope:'all_services',business_role:'owner',
-      permissions:{'appointment:create':true,'client:lookup':true}}]};
-    if(sql.includes('FROM consultation_form_assignments a')) return {rows:[{id:7,status:'sent'}]};
-    throw new Error(`Unexpected query: ${sql}`);
-  },connect:async()=>{throw new Error('No new handoff should be created');}};
-  const service=createClinicIpadCheckinService({db,
-    clientMutations:{resolveManageAccess:async()=>({operatorAdminId:2,clientScope:{kind:'clinic'}})},
-    formsAuthority:{resolveAccess:async()=>({formScope:'all_business'})},
-  });
-  await assert.rejects(service.queueForm(2,1,42,7),{httpStatus:409});
+test('unfinished sent/opened forms can be prepared on the iPad without issuing a bearer token',async()=>{
+  for(const status of ['not_sent','sent','opened']) {
+    const queries=[];
+    const connection={query:async(sql,values)=>{
+      queries.push({sql,values});
+      if(sql.startsWith('SELECT status')) return {rows:[{status}]};
+      if(sql.includes('FROM clinic_checkin_devices')) return {rows:[{id:1}],rowCount:1};
+      return {rows:[],rowCount:0};
+    },release(){}};
+    const db={query:async sql=>{
+      if(sql.includes('calendarAuthorization:principal')) return {rows:[{id:2,admin_active:true,
+        calendar_scope:'all_business',service_scope:'all_services',business_role:'owner',
+        permissions:{'appointment:create':true,'client:lookup':true}}]};
+      if(sql.includes('FROM consultation_form_assignments a')) return {rows:[{id:7,status}]};
+      throw new Error('Unexpected query');
+    },connect:async()=>connection};
+    let issued=0;
+    const service=createClinicIpadCheckinService({db,
+      clientMutations:{resolveManageAccess:async()=>({operatorAdminId:2,clientScope:{kind:'clinic'}})},
+      formsAuthority:{resolveAccess:async()=>({formScope:'all_business'})},
+      formService:{issueAccessToken:async()=>{issued++;throw new Error('Client verification is required');}},
+    });
+    assert.deepEqual(await service.queueForm(2,1,42,7),{queued:true});
+    assert.equal(issued,0);
+    assert.ok(queries.some(q=>q.sql.includes('INSERT INTO clinic_checkin_form_handoffs') && q.values[1]===7));
+    assert.equal(queries.at(-1).sql,'COMMIT');
+  }
+});
+
+test('iPad recovery refuses completion races, duplicate handoffs and a device in use',async()=>{
+  for(const failure of ['completed','duplicate','device_in_use']) {
+    const queries=[];
+    const connection={query:async(sql)=>{
+      queries.push(sql);
+      if(sql.startsWith('SELECT status')) return {rows:[{status:failure==='completed'?'completed':'opened'}]};
+      if(sql.includes('WHERE assignment_id=') && failure==='duplicate') return {rows:[{id:11}],rowCount:1};
+      if(sql.includes('FROM clinic_checkin_devices')) return {rows:[{id:1}],rowCount:1};
+      if(sql.includes("status='claimed'") && failure==='device_in_use') return {rows:[{id:12}],rowCount:1};
+      return {rows:[],rowCount:0};
+    },release(){}};
+    const db={query:async sql=>{
+      if(sql.includes('calendarAuthorization:principal')) return {rows:[{id:2,admin_active:true,
+        calendar_scope:'all_business',service_scope:'all_services',business_role:'owner',
+        permissions:{'appointment:create':true,'client:lookup':true}}]};
+      return {rows:[{id:7,status:'opened'}]};
+    },connect:async()=>connection};
+    const service=createClinicIpadCheckinService({db,
+      clientMutations:{resolveManageAccess:async()=>({operatorAdminId:2,clientScope:{kind:'clinic'}})},
+      formsAuthority:{resolveAccess:async()=>({formScope:'all_business'})},
+    });
+    await assert.rejects(service.queueForm(2,1,42,7),{httpStatus:409});
+    assert.equal(queries.at(-1),'ROLLBACK');
+    assert.ok(!queries.some(sql=>sql.includes('INSERT INTO')));
+  }
 });

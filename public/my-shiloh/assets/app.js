@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const viewNames = new Set(['home', 'bookings', 'shiloh', 'wallet', 'profile']);
+  const viewNames = new Set(['home', 'bookings', 'shiloh', 'wallet', 'profile', 'updates']);
   const views = [...document.querySelectorAll('[data-view]')];
   const navItems = [...document.querySelectorAll('[data-view-target]')];
   const installSheet = document.querySelector('[data-install-sheet]');
@@ -83,6 +83,12 @@
     ? `my-shiloh-notification-setup-later-v1:${appFrame.dataset.notificationClientId}` : null;
   let archivedUpdateIds = new Set();
   let latestNotifications = [];
+  const seenUpdatesKey = appFrame?.dataset.notificationClientId ? `my-shiloh-seen-updates-v1:${appFrame.dataset.notificationClientId}` : null;
+  let seenUpdateIds = new Set();
+  try {
+    const stored = JSON.parse(localStorage.getItem(seenUpdatesKey) || '[]');
+    if (seenUpdatesKey && Array.isArray(stored)) seenUpdateIds = new Set(stored.filter(id => typeof id === 'string').slice(-100));
+  } catch (_) {}
   if (notificationArchiveKey) {
     try {
       const stored = JSON.parse(localStorage.getItem(notificationArchiveKey) || '[]');
@@ -147,10 +153,11 @@
       view.classList.toggle('is-active', active);
     }
     for (const item of navItems) {
-      if (item.dataset.viewTarget === target) item.setAttribute('aria-current', 'page');
+      if (item.dataset.viewTarget === target || (target === 'updates' && item.dataset.viewTarget === 'profile')) item.setAttribute('aria-current', 'page');
       else item.removeAttribute('aria-current');
     }
     if (target === 'shiloh') loadWhatsAppContinuation();
+    if (target === 'updates') markUpdatesSeen();
     const profileDetailSelector = { '#profile-archived-updates': '[data-profile-archived-updates]', '#profile-reports': '[data-profile-help]' }[window.location.hash];
     const profileDetail = target === 'profile' && !appFrame?.hidden && profileDetailSelector
       ? document.querySelector(profileDetailSelector) : null;
@@ -598,7 +605,7 @@
         message.textContent = String(form.message || '');
         const action = document.createElement('a');
         action.className = 'button button--primary';
-        action.textContent = 'Complete form';
+        action.textContent = String(form.actionLabel || 'Complete form');
         action.href = safeExperienceHref(form.href);
         card.append(heading, detail, message, action);
         formList.append(card);
@@ -1525,9 +1532,37 @@
     if (!clientNotificationList) return;
     latestNotifications = Array.isArray(notifications) ? notifications : [];
     const centre = clientNotificationList.closest('[data-client-notification-centre]');
-    if (centre) centre.hidden = latestNotifications.length === 0;
+    if (centre) centre.hidden = false;
     renderNotificationList(clientNotificationList, false);
     if (clientArchivedNotificationList) renderNotificationList(clientArchivedNotificationList, true);
+    if (selectedView() === 'updates') markUpdatesSeen();
+    else renderUpdatesAttention();
+  }
+
+  function markUpdatesSeen() {
+    latestNotifications.forEach(item => seenUpdateIds.add(String(item.id)));
+    seenUpdateIds = new Set([...seenUpdateIds].slice(-100));
+    if (seenUpdatesKey) try { localStorage.setItem(seenUpdatesKey, JSON.stringify([...seenUpdateIds])); } catch (_) {}
+    renderUpdatesAttention();
+  }
+
+  function renderUpdatesAttention() {
+    const unseen = latestNotifications.filter(item => !seenUpdateIds.has(String(item.id)) && !archivedUpdateIds.has(String(item.id)));
+    document.querySelectorAll('[data-updates-badge]').forEach(badge => {
+      badge.hidden = unseen.length === 0;
+      badge.textContent = String(unseen.length);
+      badge.setAttribute('aria-label', `${unseen.length} unread updates on this phone`);
+    });
+    const alert = document.querySelector('[data-home-critical-update]');
+    if (!alert) return;
+    alert.replaceChildren();
+    const important = unseen.find(item => item.requiresAttention === true && Date.now() - new Date(item.createdAt).getTime() < 7 * 86400000);
+    alert.hidden = !important;
+    if (!important) return;
+    const title = document.createElement('strong'); title.textContent = important.title;
+    const copy = document.createElement('p'); copy.textContent = important.body;
+    const action = document.createElement('a'); action.className = 'button button--soft'; action.href = '#updates'; action.textContent = 'View update';
+    alert.append(title, copy, action);
   }
 
   function renderNotificationList(host, archived) {

@@ -9,7 +9,7 @@ const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 const { renderCouplesBookingChoice } = require('./myShilohBookingActions');
 
-const MY_SHILOH_ASSET_VERSION = '20261006-couples-workspace-colours-v1';
+const MY_SHILOH_ASSET_VERSION = '20261006-required-forms-updates-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -418,15 +418,7 @@ function renderMyShilohPage({
         ${hero}
         ${authenticated ? '<section class="home-payments stack" data-client-home-payments aria-label="Payments needing attention" hidden></section><section class="home-forms stack" data-client-home-forms aria-label="Forms to complete before your visit" hidden></section>' : ''}
         ${focus}
-        ${authenticated ? `<aside class="notification-invite" data-push-invite hidden aria-labelledby="notification-invite-title">
-          <div><p class="eyebrow">Appointment updates</p><h2 id="notification-invite-title">Stay ready for your next visit.</h2><p>Get reminders and booking updates on this phone so your next visit stays on your radar.</p></div>
-          <a class="button button--soft" href="#profile-notifications">Set up notifications</a>
-        </aside>` : ''}
-        ${authenticated ? `<section class="notification-centre" aria-labelledby="notification-centre-title" data-client-notification-centre hidden>
-          <div class="section-heading"><div><p class="eyebrow">Current updates</p><h2 id="notification-centre-title">Your latest Shiloh updates.</h2></div><a class="text-link" href="#profile-notifications">Notification settings</a></div>
-          <div class="notification-centre__list" data-client-notification-list aria-live="polite"><p class="notification-centre__empty">Checking for updates…</p></div>
-          <a class="notification-centre__toggle" href="#profile-archived-updates">Archived updates in Profile</a>
-        </section>` : ''}
+        ${authenticated ? '<aside class="home-critical-update" data-home-critical-update hidden aria-label="Important appointment update"></aside>' : ''}
 
       </section>
 
@@ -511,8 +503,22 @@ function renderMyShilohPage({
         ${wallet}
       </section>
 
+      ${authenticated ? `<section class="view" id="updates" data-view="updates" aria-labelledby="updates-title" hidden>
+        <div class="page-intro"><p class="eyebrow">Updates</p><h1 id="updates-title">Your Shiloh updates.</h1><p>Booking changes, confirmations and other updates, all in one place.</p></div>
+        <a class="button button--soft" href="#profile">Back to Profile</a>
+        ${authenticated ? `<aside class="notification-invite" data-push-invite hidden aria-labelledby="notification-invite-title">
+          <div><p class="eyebrow">Appointment updates</p><h2 id="notification-invite-title">Stay ready for your next visit.</h2><p>Get reminders and booking updates on this phone so your next visit stays on your radar.</p></div>
+          <a class="button button--soft" href="#profile-notifications">Set up notifications</a>
+        </aside>` : ''}
+        ${authenticated ? `<section class="notification-centre" aria-labelledby="notification-centre-title" data-client-notification-centre hidden>
+          <div class="section-heading"><div><p class="eyebrow">Current updates</p><h2 id="notification-centre-title">Your latest Shiloh updates.</h2></div><a class="text-link" href="#profile-notifications">Notification settings</a></div>
+          <div class="notification-centre__list" data-client-notification-list aria-live="polite"><p class="notification-centre__empty">Checking for updates…</p></div>
+          <a class="notification-centre__toggle" href="#profile-archived-updates">Archived updates in Profile</a>
+        </section>` : ''}
+      </section>` : ''}
+
       <section class="view" id="profile" data-view="profile" aria-labelledby="profile-title" hidden>
-        ${profile}
+        ${authenticated ? '<a class="button button--soft button--wide profile-updates-action" href="#updates" data-view-target="updates">View updates <span data-updates-badge hidden></span></a>' : ''}${profile}
       </section>
     </main>
 
@@ -521,7 +527,7 @@ function renderMyShilohPage({
       <a href="#bookings" data-view-target="bookings">${renderShilohIcon('calendar', { size: 24, className: 'nav-icon' })}<span>Bookings</span></a>
       <a class="nav-shiloh" href="#shiloh" data-view-target="shiloh"><span class="nav-orb" aria-hidden="true">S</span><span>Shiloh</span></a>
       <a href="#wallet" data-view-target="wallet">${renderShilohIcon('wallet', { size: 24, className: 'nav-icon' })}<span>Wallet</span></a>
-      <a href="#profile" data-view-target="profile">${renderShilohIcon('person', { size: 24, className: 'nav-icon' })}<span>Profile</span></a>
+      <a href="#profile" data-view-target="profile">${renderShilohIcon('person', { size: 24, className: 'nav-icon' })}<span>Profile <span data-updates-badge hidden></span></span></a>
     </nav>
   </div>
 

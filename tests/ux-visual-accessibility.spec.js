@@ -849,6 +849,9 @@ test('My Shiloh shows current updates and restores archives from Profile on phon
     });
     await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
     const centre = page.locator('[data-client-notification-centre]');
+    await expect(centre).toBeHidden();
+    await page.locator('nav [data-view-target="profile"]').click();
+    await page.locator('[data-view-target="updates"]').click();
     await expect(centre).toBeVisible();
     await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toHaveAttribute('href', '/my-shiloh/#bookings');
     await centre.getByRole('button', { name:'Archive Appointment reminder' }).click();
@@ -861,6 +864,8 @@ test('My Shiloh shows current updates and restores archives from Profile on phon
     });
     await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
     await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toHaveCount(0);
+    await page.locator('nav [data-view-target="profile"]').click();
+    await page.locator('[data-view-target="updates"]').click();
     await centre.getByRole('link', { name:'Archived updates in Profile' }).click();
     const archive = page.locator('[data-profile-archived-updates]');
     await expect(page.locator('[data-view="profile"]')).toBeVisible();
@@ -870,7 +875,7 @@ test('My Shiloh shows current updates and restores archives from Profile on phon
     await page.screenshot({path:testInfo.outputPath(`archived-updates-${viewport.name}.png`),fullPage:true});
     await archive.getByRole('button', { name:'Restore Appointment reminder' }).click();
     await expect(archive.getByRole('link', { name:/Appointment reminder/ })).toHaveCount(0);
-    await page.locator('[data-view-target="home"]').click();
+    await page.locator('[data-view-target="updates"]').click();
     await expect(centre.getByRole('link', { name:/Appointment reminder/ })).toBeVisible();
     const resolutionLink = centre.getByRole('link', { name:/Your problem report is resolved/ });
     await expect(resolutionLink).toHaveAttribute('href', '/my-shiloh/#profile-reports');
@@ -2553,6 +2558,8 @@ test('My Shiloh notification invitation opens the Profile setting directly', asy
       Object.defineProperty(navigator, 'standalone', { configurable:true, get:() => true });
     });
     await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
+    await page.locator('[data-view-target="profile"]').click();
+    await page.locator('[data-view-target="updates"]').click();
     await page.evaluate(() => { document.querySelector('[data-push-invite]').hidden = false; });
     await page.locator('[data-push-invite] a').click();
     await expect(page.locator('[data-view="profile"]')).toBeVisible();
@@ -2570,6 +2577,14 @@ test('My Shiloh long names and appointment notification invitation fit Phone and
     const greeting = page.locator('[data-client-greeting]');
     const invite = page.locator('[data-push-invite]');
     await expect(greeting).toContainText('Alexandra-Marguerite');
+    await expect(greeting).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path:testInfo.outputPath(`my-shiloh-long-name-home-${viewport.name}.png`), fullPage:true, animations:'disabled' });
+    // The production notification invitation now belongs to Updates.
+    await page.evaluate(() => document.querySelectorAll('[data-view]').forEach(view => {
+      view.hidden = view.dataset.view !== 'updates';
+      view.classList.toggle('is-active', view.dataset.view === 'updates');
+    }));
     await expect(invite.getByRole('link', { name:'Set up notifications' })).toHaveAttribute('href', '#profile-notifications');
     await expect(invite).toBeVisible();
     const geometry = await page.evaluate(() => ({ width:innerWidth, scrollWidth:document.documentElement.scrollWidth }));
@@ -3646,7 +3661,7 @@ test('My Shiloh automatically acknowledges a submitted report in Current updates
     await page.locator('[data-client-problem-report-form]').getByRole('button',{name:'Send report'}).click();
     await expect(page.locator('[data-client-problem-report-status]')).toContainText(REPORT_ACKNOWLEDGEMENT);
     await expect(page.locator('[data-client-problem-report-list]')).toContainText('SH-SYNTHETIC');
-    await page.locator('[data-view-target="home"]').click();
+    await page.locator('[data-view-target="updates"]').click();
     const updates=page.locator('[data-client-notification-centre]');
     await expect(updates.getByRole('link',{name:/Your problem report was received/})).toHaveAttribute('href','/my-shiloh/#profile-reports');
     await expect(updates).toContainText(REPORT_ACKNOWLEDGEMENT);
@@ -3941,5 +3956,74 @@ test('verified deposit and completed forms clear Home actions and keep the remai
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(card.getByRole('link', { name: 'Start booking' })).toBeVisible();
     await expect(card.locator('[data-booking-details], [data-booking-status]')).toHaveCount(0);
+  }
+});
+
+test('required forms queue and scoped history work on Phone and Desktop',async({page},testInfo)=>{
+  for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]) {
+    await page.setViewportSize(viewport);
+    for(const story of ['before-treatment','practitioner-queue','reception-history','reviewer-history']) {
+      await page.goto(`/iframe.html?id=workspace-required-forms--${story}&viewMode=story`,{waitUntil:'networkidle'});
+      const main = page.locator('main');
+      if(story==='before-treatment') {
+        await expect(main.getByText('Required forms outstanding',{exact:true})).toBeVisible();
+        await expect(main.getByText('Required forms complete',{exact:true})).toBeVisible();
+        await expect(main.getByRole('link',{name:'Prepare on iPad'})).toHaveAttribute('href','/calendar/check-in/devices?appointmentId=901');
+        await expect(main.getByRole('link',{name:'Review form',exact:true})).toHaveAttribute('href','/calendar/forms/submissions/client/701');
+      } else if(story==='practitioner-queue') {
+        await expect(main.getByText('Forms for your assigned appointments.')).toBeVisible();
+        await expect(main.getByRole('link',{name:'Prepare on iPad'})).toHaveCount(0);
+      } else {
+        await expect(main.getByRole('heading',{name:'Form history',exact:true})).toBeVisible();
+        await expect(main.getByLabel('Client name')).toBeVisible();
+        await expect(main.getByRole('link',{name:'Older forms'})).toBeVisible();
+        await expect(main.getByText(/Signed .*2026/)).toBeVisible();
+        if(story==='reception-history') {
+          await expect(main.getByText('Private answers restricted')).toBeVisible();
+          await expect(main.getByRole('link',{name:/Open form/})).toHaveCount(0);
+        } else await expect(main.getByRole('link',{name:/Open form/})).toBeVisible();
+      }
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+      const axe = await new AxeBuilder({page}).include('main').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
+      expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+      await page.screenshot({path:testInfo.outputPath(`required-forms-${story}-${viewport.name}.png`),fullPage:true});
+    }
+  }
+});
+
+test('Home keeps required actions while Updates handles unread messages on this phone',async({page},testInfo)=>{
+  await page.route('**/my-shiloh/api/notifications',route=>route.fulfill({json:{notifications:[
+    {id:'general-1',title:'Appointment reminder',body:'Your appointment is coming up.',targetPath:'/my-shiloh/#bookings'},
+    {id:'change-1',title:'Appointment changed',body:'Please review your new appointment time.',targetPath:'/my-shiloh/#bookings',requiresAttention:true,createdAt:new Date().toISOString()},
+  ]}}));
+  for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-home&viewMode=story',{waitUntil:'networkidle'});
+    await page.evaluate(()=>{localStorage.clear();Object.defineProperty(navigator,'standalone',{configurable:true,get:()=>true});});
+    await page.addScriptTag({url:'/my-shiloh/assets/app.js'});
+    const centre=page.locator('[data-client-notification-centre]');
+    await expect(centre).toBeHidden();
+    const alert=page.locator('[data-home-critical-update]');
+    await expect(alert).toContainText('Appointment changed');
+    await expect(page.locator('nav [data-updates-badge]')).toHaveText('2');
+    await expect(page.locator('[data-view="home"]')).not.toContainText('Appointment reminder');
+    await alert.getByRole('link',{name:'View update'}).click();
+    await expect(page.locator('[data-view="updates"]')).toBeVisible();
+    await expect(centre.getByRole('link',{name:/Appointment reminder/})).toBeVisible();
+    await expect(page.locator('nav [data-updates-badge]')).toBeHidden();
+    const axe=await new AxeBuilder({page}).include('[data-view="updates"]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
+    expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`focused-updates-${viewport.name}.png`),fullPage:true});
+    await page.locator('[data-view-target="home"]').click();
+    await expect(alert).toBeHidden();
+    await page.reload({waitUntil:'networkidle'});
+    await page.evaluate(()=>Object.defineProperty(navigator,'standalone',{configurable:true,get:()=>true}));
+    await page.addScriptTag({url:'/my-shiloh/assets/app.js'});
+    await expect(page.locator('nav [data-updates-badge]')).toBeHidden();
+    // Read IDs are client-specific: switching the fixture identity must restore unread state.
+    await page.reload({waitUntil:'networkidle'});
+    await page.evaluate(()=>{document.querySelector('[data-app-frame]').dataset.notificationClientId='another-client';Object.defineProperty(navigator,'standalone',{configurable:true,get:()=>true});});
+    await page.addScriptTag({url:'/my-shiloh/assets/app.js'});
+    await expect(page.locator('nav [data-updates-badge]')).toHaveText('2');
   }
 });

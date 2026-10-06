@@ -265,12 +265,12 @@ for(const device of document.querySelectorAll('[data-revoke]')){const option=doc
 button.type='button';button.className='button secondary';button.textContent='Prepare on iPad';
 button.addEventListener('click',async()=>{button.disabled=true;try{await send('queue-form',{appointmentId,assignmentId:item.id,deviceId:select.value});status.textContent='The form is ready on the selected iPad.';}catch(e){status.textContent=e.message;button.disabled=false;}});
 label.append(select);row.append(label);
-if(item.status==='not_sent')row.append(button);
+if(['not_sent','sent','opened'].includes(item.status))row.append(button);
 options.append(row);
 }}catch(e){status.textContent=e.message;}});
 })();`));
   router.get('/devices',staff,async (req,res,next) => {
-    try { return res.type('html').send(ux.devices(await service.listDevices(req.staffBrowserSession.adminId))); }
+    try { return res.type('html').send(ux.devices(await service.listDevices(req.staffBrowserSession.adminId), req.query.appointmentId)); }
     catch (error) { next(error); }
   });
   router.get('/assignments/:appointmentId',staff,async (req,res,next) => {

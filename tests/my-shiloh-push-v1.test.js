@@ -333,3 +333,11 @@ test('in-app history keeps expired push events with bounded client isolation', a
   assert.deepEqual(await service.listForClient({crmV2ClientId:0}),{notifications:[]});
   assert.equal(queries.length,1);
 });
+
+test('only canonical material appointment changes are flagged for focused Home attention',async()=>{
+  const keys=['appointment-cancellation:55:1','appointment-time:55:2','appointment-service:55:3','appointment-practitioner:55:4','appointment-price:55:5','appointment-reminder:55','appointment-confirmation:55','problem-report:1',null];
+  const service=createMyShilohPushService({db:{query:async()=>({rows:keys.map((event_key,i)=>({id:i+1,event_key,title:'Update',body:'Message',target_path:'/my-shiloh/#bookings'}))})}});
+  const {notifications}=await service.listForClient({crmV2ClientId:501});
+  assert.deepEqual(notifications.map(n=>n.requiresAttention),[true,true,true,true,true,false,false,false,false]);
+  assert.ok(notifications.every(n=>!Object.hasOwn(n,'event_key')));
+});
