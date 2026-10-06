@@ -273,12 +273,12 @@ test('My Shiloh guest booking stays behind secure sign-in on phone and desktop',
     await page.screenshot({ path:testInfo.outputPath(`my-shiloh-recovery-expanded-${viewport.name}.png`), fullPage:true, animations:'disabled' });
     await frame.locator('[data-view="home"] .passkey-recovery summary').click();
     await expect(frame.locator('.booking-steps li')).toHaveCount(3);
-    await expect(frame.locator('.booking-steps')).toContainText('Reception confirms your appointment before it’s booked.');
+    await expect(frame.locator('.booking-steps')).toContainText('Reception reviews your request. Pay any required deposit to confirm.');
   await expect(frame.getByRole('link', { name:'How booking works' })).toHaveCount(0);
   await expect(frame.getByRole('heading', { name:'Your visit starts here.' })).toBeVisible();
   await expect(frame.locator('[data-view="home"] .quiet-card').filter({ hasText:'Need help choosing?' })).toHaveCount(0);
     await frame.locator('[data-view-target="bookings"]').click();
-    await expect(frame.getByRole('heading', { name:'Your time with Shiloh.' })).toBeVisible();
+    await expect(frame.getByRole('heading', { name:'Your bookings.' })).toBeVisible();
     await frame.getByRole('link', { name:'Sign in to book' }).last().click();
     await expect(frame.locator('[data-view="home"] [data-passkey-sign-in]')).toBeVisible();
     const accessibility = await new AxeBuilder({ page }).include('[data-app-frame]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
@@ -607,7 +607,7 @@ test('My Shiloh personal details stay contained and accessible on Phone and Desk
   }
 });
 
-test('My Shiloh presents a client request as planning on phone and desktop', async ({ page }, testInfo) => {
+test('My Shiloh presents a client request as awaiting approval on phone and desktop', async ({ page }, testInfo) => {
   await page.route('**/my-shiloh/api/experience', route => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({
       version: 'my_shiloh_client_experience_v1', generatedAt: '2026-09-26T10:00:00.000Z', client: { firstName: 'Christel' },
@@ -639,7 +639,7 @@ test('My Shiloh presents a client request as planning on phone and desktop', asy
     });
     await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
     await expect(page.locator('[data-client-experience-home]')).toContainText('This appointment is not confirmed yet.');
-    await expect(page.locator('[data-client-experience-bookings] .action-card').first()).toContainText('Planning');
+    await expect(page.locator('[data-client-experience-bookings] .action-card').first()).toContainText('Awaiting approval');
     await expect(page.locator('[data-client-experience-bookings] .action-card').first().locator('a')).toContainText('request');
     await expect(page.locator('[data-experience-extra-booking]').first()).toContainText('Awaiting your response');
     await expect(page.locator('[data-experience-extra-booking]').last()).toContainText('Could not accommodate');
@@ -724,7 +724,7 @@ test('Reception can see a pending time change without an unsafe decision action 
   }
 });
 
-test('My Shiloh Home summary cards are tappable and redeemed welcome voucher clears from Home', async ({ page }, testInfo) => {
+test('My Shiloh Home keeps quiet details hidden and redeemed welcome voucher clears from Home', async ({ page }, testInfo) => {
   await page.route('**/my-shiloh/api/experience', async (route) => route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -802,16 +802,14 @@ test('My Shiloh Home summary cards are tappable and redeemed welcome voucher cle
       return Boolean(action && hospitality && action.compareDocumentPosition(hospitality) & Node.DOCUMENT_POSITION_FOLLOWING);
     });
     expect(focusOrder).toBe(true);
-    await expect(focus.getByRole('button', { name: /Appointment: None upcoming/ })).toBeVisible();
-    await expect(focus.getByRole('button', { name: /Forms: Nothing waiting/ })).toBeVisible();
-    await expect(focus.getByRole('button', { name: /Payment: No active booking/ })).toBeVisible();
+    await expect(focus.locator('.focus-grid')).toBeHidden();
     await expect(page.locator('[data-welcome-voucher]')).toBeHidden();
 
     const metrics = await focus.evaluate((node) => ({
       viewport: innerWidth,
       document: document.documentElement.scrollWidth,
       short: [...node.querySelectorAll('[data-client-experience-fact]')]
-        .filter((target) => target.getBoundingClientRect().height < 44).length,
+        .filter((target) => target.getBoundingClientRect().height > 0 && target.getBoundingClientRect().height < 44).length,
     }));
     expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
     expect(metrics.short).toBe(0);
@@ -828,11 +826,7 @@ test('My Shiloh Home summary cards are tappable and redeemed welcome voucher cle
       animations: 'disabled',
     });
 
-    await focus.getByRole('button', { name: /Forms: Nothing waiting/ }).click();
-    await expect(page.locator('[data-client-experience-fact-status]')).toHaveText('Nothing waiting right now.');
-    await focus.getByRole('button', { name: /Payment: No active booking/ }).click();
-    await expect(page.locator('[data-client-experience-fact-status]')).toHaveText('There is no payment action waiting right now.');
-    await focus.getByRole('button', { name: /Appointment: None upcoming/ }).click();
+    await page.locator('[data-view-target="bookings"]').click();
     await expect(page.locator('[data-view="bookings"]')).toBeVisible();
   }
 });
@@ -1001,11 +995,11 @@ test('My Shiloh deposit request is clear and accessible on Phone and Desktop', a
   for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-deposit-required&viewMode=story',{waitUntil:'networkidle'});
-    const home=page.locator('[data-client-experience-home]');
-    await expect(home.getByRole('heading',{name:'Your booking is awaiting its deposit.'})).toBeVisible();
-    await expect(home.getByText('R340 deposit required')).toBeVisible();
-    await expect(home.getByRole('link',{name:'Pay deposit'})).toHaveAttribute('href','/pay/dep_storybook123');
-    await expect(home.getByText(/is held for/)).toBeVisible();
+    const home=page.locator('[data-client-home-payments]');
+    await expect(home.getByRole('heading',{name:'R340 deposit required'})).toBeVisible();
+    await expect(home.getByText('Pay your deposit to confirm your booking.')).toBeVisible();
+    await expect(home.getByRole('link',{name:'Pay R340 deposit'})).toHaveAttribute('href','/pay/dep_storybook123');
+    await expect(home.getByText(/Hot Stone Massage/)).toBeVisible();
     await expect(home.getByText(/cancellation penalty|may forfeit/)).toHaveCount(0);
     const metrics=await home.evaluate(node=>({
       viewport:innerWidth,
@@ -1014,7 +1008,7 @@ test('My Shiloh deposit request is clear and accessible on Phone and Desktop', a
     }));
     expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
     expect(metrics.short).toBe(0);
-    const accessibility=await new AxeBuilder({page}).include('[data-client-experience-home]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    const accessibility=await new AxeBuilder({page}).include('[data-view="home"]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
     await page.screenshot({path:testInfo.outputPath(`my-shiloh-deposit-${viewport.name}.png`),fullPage:true,animations:'disabled'});
   }
@@ -1024,11 +1018,11 @@ test('My Shiloh keeps an awaiting deposit clear when its link is unavailable on 
   for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-deposit-link-unavailable&viewMode=story',{waitUntil:'networkidle'});
-    const home=page.locator('[data-client-experience-home]');
-    await expect(home.getByRole('heading',{name:'Your booking is awaiting its deposit.'})).toBeVisible();
-    await expect(home.getByText(/secure payment link is not available yet/)).toBeVisible();
+    const home=page.locator('[data-client-home-payments]');
+    await expect(home.getByRole('heading',{name:'R340 deposit required'})).toBeVisible();
+    await expect(home.getByText(/payment link is not ready/)).toBeVisible();
     await expect(home.getByRole('link',{name:'Ask Shiloh about my deposit'})).toHaveAttribute('href','#shiloh');
-    await expect(home.getByRole('link',{name:'Pay deposit'})).toHaveCount(0);
+    await expect(home.getByRole('link',{name:'Pay R340 deposit'})).toHaveCount(0);
     const metrics=await home.evaluate(node=>({
       viewport:innerWidth,
       document:document.documentElement.scrollWidth,
@@ -1036,7 +1030,7 @@ test('My Shiloh keeps an awaiting deposit clear when its link is unavailable on 
     }));
     expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
     expect(metrics.short).toBe(0);
-    const accessibility=await new AxeBuilder({page}).include('[data-client-experience-home]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    const accessibility=await new AxeBuilder({page}).include('[data-view="home"]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
     await page.screenshot({path:testInfo.outputPath(`my-shiloh-deposit-link-unavailable-${viewport.name}.png`),fullPage:true,animations:'disabled'});
   }
@@ -2152,6 +2146,7 @@ test('website treatment code carries a booking choice into the installed app on 
     });
     await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
     await page.locator('[data-view-target="bookings"]').click();
+    await page.getByText('Have a treatment code?', { exact: true }).click();
     const form = page.locator('[data-website-treatment-form]');
     await expect(form).toBeVisible();
     if (viewport.name === 'phone') {
@@ -3547,6 +3542,7 @@ test('My Shiloh displays both same-day bookings on Phone and Desktop', async ({ 
   ];
   const experience = buildClientExperience({ client: { id: 55, name: 'Test Client' }, nextAppointment: appointments[0], upcomingAppointments: appointments, forms: [], payment: null });
   await page.route('**/my-shiloh/api/experience', route => route.fulfill({ json: experience }));
+  await page.route('**/my-shiloh/api/notifications', route => route.fulfill({ json: { notifications: [] } }));
   for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
     await page.setViewportSize(viewport);
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-profile&viewMode=story#bookings', { waitUntil: 'networkidle' });
@@ -3868,11 +3864,12 @@ test('Home shows the later Swedish deposit and keeps choosing help inside Shiloh
     { id: 901, startsAt: '2026-10-06T06:30:00Z', status: 'confirmed', services: ['Toe Gel Only'], practitioners: ['Christel'] },
     { id: 902, startsAt: '2026-10-06T08:45:00Z', status: 'confirmed', services: ['Full Body Swedish'], practitioners: ['Christel'] },
   ];
-  const experience = buildClientExperience({ client: { name: 'Jean-Pierre Botha' }, nextAppointment: appointments[0], upcomingAppointments: appointments, forms: [], payment: { state: 'paid' }, appointmentPayments: [
+  const experience = buildClientExperience({ client: { name: 'Jean-Pierre Botha' }, nextAppointment: appointments[0], upcomingAppointments: appointments, forms: [], payment: { state: 'paid' }, appointmentForms: [{ appointmentId: 901, forms: [] }, { appointmentId: 902, forms: [{ id: 81, title: 'Massage consultation', status: 'sent', actionRequired: true }] }], appointmentPayments: [
     { appointmentId: 901, payment: { state: 'paid' } },
     { appointmentId: 902, payment: { accountId: 71, state: 'unpaid', depositState: 'awaiting', depositOutstanding: '295', activePaymentPath: '/pay/SWEDISH123' } },
   ] });
   await page.route('**/my-shiloh/api/experience', route => route.fulfill({ json: experience }));
+  await page.route('**/my-shiloh/api/notifications', route => route.fulfill({ json: { notifications: [] } }));
   for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
     await page.setViewportSize(viewport);
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--later-appointment-deposit&viewMode=story#home', { waitUntil: 'networkidle' });
@@ -3882,7 +3879,12 @@ test('Home shows the later Swedish deposit and keeps choosing help inside Shiloh
     const payments = home.locator('[data-client-home-payments]');
     await expect(payments).toContainText('R295 deposit required');
     await expect(payments).toContainText('Full Body Swedish');
-    await expect(payments.getByRole('link', { name: 'Pay deposit' })).toHaveAttribute('href', '/pay/SWEDISH123');
+    await expect(payments).toContainText('Pay your deposit to confirm your booking.');
+    const forms = home.locator('[data-client-home-forms]');
+    await expect(forms).toContainText('Full Body Swedish');
+    await expect(forms.getByRole('link', { name: 'Complete form' })).toHaveAttribute('href', '/my-shiloh/forms/complete?assignmentId=81');
+    await expect(home.locator('[data-client-experience-home]')).not.toContainText('R295');
+    await expect(payments.getByRole('link', { name: 'Pay R295 deposit' })).toHaveAttribute('href', '/pay/SWEDISH123');
     await expect(home.getByRole('heading', { name: 'Need help choosing?' })).toHaveCount(0);
     await expect(home.locator('#discover-title')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -3890,7 +3892,16 @@ test('Home shows the later Swedish deposit and keeps choosing help inside Shiloh
     expect(axe.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
     await page.screenshot({ path: testInfo.outputPath(`home-swedish-deposit-${viewport.name}.png`), fullPage: true });
     await page.locator('[data-view-target="bookings"]').click();
-    await expect(page.locator('[data-client-experience-bookings]').getByRole('link', { name: 'Open payment' })).toHaveAttribute('href', '/pay/SWEDISH123');
+    await expect(page.locator('[data-client-experience-bookings]').getByRole('link', { name: 'Pay R295 deposit' })).toHaveAttribute('href', '/pay/SWEDISH123');
+    const bookingCards = page.locator('[data-client-experience-bookings]');
+    const swedish = bookingCards.locator('article').filter({ has: page.getByRole('heading', { name: 'Full Body Swedish', exact: true }) });
+    await expect(swedish).toContainText('Pay your deposit to confirm your booking.');
+    await swedish.getByText('Appointment details', { exact: true }).click();
+    await expect(swedish).toContainText('Form required');
+    await expect(swedish.getByRole('link', { name: 'Complete form: Massage consultation' })).toHaveAttribute('href', '/my-shiloh/forms/complete?assignmentId=81');
+    const bookingsAxe = await new AxeBuilder({ page }).include('[data-view="bookings"]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+    expect(bookingsAxe.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`booking-readiness-${viewport.name}.png`), fullPage: true });
     await page.locator('[data-view-target="shiloh"]').click();
     await expect(page.getByRole('heading', { name: 'Need help choosing?' })).toBeVisible();
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-native-booking&viewMode=story', { waitUntil: 'networkidle' });
@@ -3899,5 +3910,36 @@ test('Home shows the later Swedish deposit and keeps choosing help inside Shiloh
     expect((await bookingTitle.boundingBox()).height).toBeLessThan(72);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`compact-booking-${viewport.name}.png`), fullPage: true });
+  }
+});
+
+
+test('verified deposit and completed forms clear Home actions and keep the remaining balance in Bookings', async ({ page }) => {
+  const appointment = { id: 902, startsAt: '2026-10-06T08:45:00Z', status: 'confirmed', services: ['Full Body Swedish'], practitioners: ['Christel'] };
+  const settled = buildClientExperience({ client: { name: 'Jean-Pierre Botha' }, nextAppointment: appointment, upcomingAppointments: [appointment],
+    forms: [{ id: 81, title: 'Massage consultation', status: 'completed', actionRequired: false }],
+    payment: { accountId: 71, state: 'partially_paid', depositState: 'satisfied', outstanding: '295', activePaymentPath: null },
+  });
+  let experience = settled;
+  await page.route('**/my-shiloh/api/experience', route => route.fulfill({ json: experience }));
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 900 }]) {
+    experience = settled;
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--later-appointment-deposit&viewMode=story#home', { waitUntil: 'networkidle' });
+    await page.evaluate(() => { Object.defineProperty(navigator, 'standalone', { value: true, configurable: true }); });
+    await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
+    await expect(page.locator('[data-client-home-payments]')).toBeHidden();
+    await expect(page.locator('[data-client-home-forms]')).toBeHidden();
+    await expect(page.locator('[data-client-experience-home] .status-pill')).toHaveText('Confirmed');
+    await page.locator('[data-view-target="bookings"]').click();
+    const card = page.locator('[data-client-experience-bookings] article').first();
+    await expect(card).toContainText('Booking confirmed · Forms completed');
+    await card.getByText('Appointment details', { exact: true }).click();
+    await expect(card).toContainText('Deposit paid · R295 remaining');
+    await expect(card.getByRole('link', { name: /Pay .*deposit|Complete form/ })).toHaveCount(0);
+    experience = buildClientExperience({ client: { name: 'Jean-Pierre Botha' }, forms: [], payment: null, upcomingAppointments: [] });
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(card.getByRole('link', { name: 'Start booking' })).toBeVisible();
+    await expect(card.locator('[data-booking-details], [data-booking-status]')).toHaveCount(0);
   }
 });

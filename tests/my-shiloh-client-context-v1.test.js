@@ -146,7 +146,7 @@ test('pending CRM reschedule retains the original appointment and proposed time 
     pendingRescheduleRequests: pending,
     forms: [{ title: 'Facial form', actionRequired: true }], payment: { state: 'paid' },
   });
-  assert.equal(earlierVisit.home.status, 'Action needed');
+  assert.equal(earlierVisit.home.status, 'Confirmed');
   assert.deepEqual(earlierVisit.bookings.upcoming.map(item => item.id), [900, 901]);
 });
 
@@ -272,8 +272,8 @@ test('Shiloh experience prioritises client action without becoming booking, form
 
   assert.equal(experience.version, 'my_shiloh_client_experience_v1');
   assert.equal(experience.client.firstName, 'Naledi');
-  assert.equal(experience.home.status, 'Action needed');
-  assert.equal(experience.home.primaryAction.href, '#shiloh');
+  assert.equal(experience.home.status, 'Confirmed');
+  assert.equal(experience.home.primaryAction.href, '#bookings');
   assert.equal(experience.bookings.upcoming[0].service, 'Hot Stone Massage');
   assert.equal(experience.home.facts.find(item => item.key === 'appointment').href, '#bookings');
   assert.equal(experience.home.facts.find(item => item.key === 'forms').href, '/my-shiloh/forms/complete');
@@ -282,7 +282,7 @@ test('Shiloh experience prioritises client action without becoming booking, form
   assert.ok(experience.assistant.prompts.some(prompt => /consultation form/i.test(prompt)));
 });
 
-test('payment action becomes primary only when forms need no client action', () => {
+test('payment action remains in its own card beside the next visit', () => {
   const experience = buildClientExperience({
     generatedAt: '2026-09-18T20:00:00.000Z',
     client: { id: 55, name: 'Naledi Mokoena' },
@@ -302,8 +302,8 @@ test('payment action becomes primary only when forms need no client action', () 
     },
   });
 
-  assert.equal(experience.home.status, 'Payment');
-  assert.equal(experience.home.primaryAction.href, '/pay/PAYREQ_123456');
+  assert.equal(experience.home.status, 'Confirmed');
+  assert.equal(experience.home.primaryAction.href, '#bookings');
   assert.equal(experience.bookings.upcoming[0].paymentHelpNeeded, false);
 });
 

@@ -313,10 +313,10 @@ test('My Shiloh Home asks for the deposit before claiming the booking is ready',
       activePaymentPath: '/pay/dep_example123',
     },
   });
-  assert.equal(experience.home.status, 'Deposit');
-  assert.equal(experience.home.primaryAction.label, 'Pay deposit');
-  assert.match(experience.home.headline, /awaiting its deposit/);
-  assert.match(experience.home.summary, /is held for/);
+  assert.equal(experience.home.status, 'Deposit required');
+  assert.equal(experience.home.payments[0].actionLabel, 'Pay R340 deposit');
+  assert.equal(experience.home.headline, 'Your next appointment');
+  assert.match(experience.home.payments[0].message, /confirm your booking/);
   assert.doesNotMatch(experience.home.summary, /deposit|cancellation|forfeit/i);
 });
 
@@ -341,12 +341,11 @@ test('My Shiloh keeps an awaiting deposit visible when its payment link is unava
     },
   });
   assert.equal(paymentPosition({ depositState: 'awaiting', depositRequired: '340.00', activePaymentPath: null }).state, 'deposit_required');
-  assert.equal(experience.home.status, 'Deposit');
-  assert.match(experience.home.headline, /awaiting its deposit/);
-  assert.match(experience.home.summary, /payment link is not available yet/);
+  assert.equal(experience.home.status, 'Deposit required');
+  assert.equal(experience.home.headline, 'Your next appointment');
+  assert.match(experience.home.payments[0].message, /payment link is not ready/);
   assert.match(experience.home.facts.find(fact => fact.key === 'payment').message, /deposit is due, but the payment link is not ready/);
-  assert.deepEqual(experience.home.primaryAction, {
-    kind: 'shiloh', label: 'Ask Shiloh about my deposit', href: '#shiloh',
-  });
+  assert.equal(experience.home.payments[0].actionLabel, 'Ask Shiloh about my deposit');
+  assert.equal(experience.home.payments[0].href, '#shiloh');
   assert.doesNotMatch(experience.home.headline, /You're set/);
 });

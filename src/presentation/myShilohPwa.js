@@ -8,7 +8,7 @@ const {
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 
-const MY_SHILOH_ASSET_VERSION = '20261005-home-payments-v1';
+const MY_SHILOH_ASSET_VERSION = '20261006-booking-readiness-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -131,10 +131,9 @@ function renderMyShilohPage({
   </details>`;
 
   const hero = authenticated
-    ? `<div class="hero">
-        <p class="eyebrow">Welcome back</p>
+    ? `<div class="hero hero--client">
         <h1 id="home-title" class="hero-greeting" data-client-greeting data-first-name="${firstName}">${escapeHtml(greeting)}, <span>${firstName}.</span></h1>
-        <p class="hero-copy">Your next visit and anything that needs your attention, all in one place.</p>
+        <p class="hero-copy">Your appointments, payments and forms.</p>
       </div>`
     : `<div class="hero">
         <p class="eyebrow">Welcome to My Shiloh</p>
@@ -173,7 +172,7 @@ function renderMyShilohPage({
         <ol class="booking-steps">
           <li><strong>Explore treatments</strong><span>See what feels right for you.</span></li>
           <li><strong>Confirm it’s you</strong><span>${passkeysAvailable ? 'Register if you’re new, or sign in with your saved passkey.' : smsAvailable ? 'Verify your number by SMS to get started.' : 'Sign in securely.'}</span></li>
-          <li><strong>Request a time</strong><span>Reception confirms your appointment before it’s booked.</span></li>
+          <li><strong>Request a time</strong><span>Reception reviews your request. Pay any required deposit to confirm.</span></li>
         </ol>
       </section>`;
 
@@ -413,7 +412,7 @@ function renderMyShilohPage({
           <p class="client-setup__status" role="status" aria-live="polite" data-client-setup-status></p>
         </section>` : ''}
         ${hero}
-        ${authenticated ? '<section class="home-payments stack" data-client-home-payments aria-label="Payments needing attention" hidden></section>' : ''}
+        ${authenticated ? '<section class="home-payments stack" data-client-home-payments aria-label="Payments needing attention" hidden></section><section class="home-forms stack" data-client-home-forms aria-label="Forms to complete before your visit" hidden></section>' : ''}
         ${focus}
         ${authenticated ? `<aside class="notification-invite" data-push-invite hidden aria-labelledby="notification-invite-title">
           <div><p class="eyebrow">Appointment updates</p><h2 id="notification-invite-title">Stay ready for your next visit.</h2><p>Get reminders and booking updates on this phone so your next visit stays on your radar.</p></div>
@@ -430,15 +429,15 @@ function renderMyShilohPage({
       <section class="view" id="bookings" data-view="bookings" aria-labelledby="bookings-title" hidden>
         <div class="page-intro">
           <p class="eyebrow">Bookings</p>
-          <h1 id="bookings-title">Your time with Shiloh.</h1>
-          <p>${authenticated ? 'Your appointments and visit details will appear here.' : 'Sign in to see your appointments and request a new booking.'}</p>
+          <h1 id="bookings-title">Your bookings.</h1>
+          <p>${authenticated ? 'Check your appointment status and anything to complete before your visit.' : 'Sign in to see your appointments and request a new booking.'}</p>
         </div>
         ${authenticated ? '<a class="button button--primary bookings-new-action" href="/my-shiloh/book">Book another appointment</a>' : ''}
-        ${authenticated ? `<form class="website-treatment-form" data-website-treatment-form>
+        ${authenticated ? `<details class="website-treatment-disclosure"><summary>Have a treatment code?</summary><form class="website-treatment-form" data-website-treatment-form>
           <label for="website-treatment-code">Have a treatment code from the website?</label>
           <div class="website-treatment-form__row"><input id="website-treatment-code" name="treatmentCode" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Enter or paste code" required pattern="[1-9][0-9]*"><button class="button button--soft" type="submit">Continue treatment</button></div>
           <p role="status" data-website-treatment-status></p>
-        </form>` : ''}
+        </form></details>` : ''}
         <p role="status" aria-live="polite" tabindex="-1" data-booking-proposal-status></p>
         <div class="stack" data-client-experience-bookings>
           <article class="action-card action-card--accent">

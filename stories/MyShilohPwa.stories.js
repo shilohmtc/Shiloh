@@ -526,33 +526,18 @@ export const FirstLaunchAuthenticatedSession = {
 
 export const AuthenticatedDepositRequired = {
   render: () => {
-    const surface = productionSurface({
-      id: '912',
-      name: 'Christel Botha',
-      firstName: 'Christel',
-    });
+    const surface = productionSurface({ id: '912', name: 'Christel Botha', firstName: 'Christel' });
+    const payments = surface.querySelector('[data-client-home-payments]');
+    payments.hidden = false;
+    payments.innerHTML = '<article class="action-card action-card--accent"><h2>R340 deposit required</h2><p>Hot Stone Massage · Wed, 30 Sep · 10:00</p><p data-story-payment-message>Pay your deposit to confirm your booking.</p><a class="button button--primary" href="/pay/dep_storybook123">Pay R340 deposit</a></article>';
     const home = surface.querySelector('[data-client-experience-home]');
-    if (home) {
-      const eyebrow = home.querySelector('.eyebrow');
-      const heading = home.querySelector('h2');
-      const copy = home.querySelector(':scope > p');
-      const status = home.querySelector('.status-pill');
-      if (eyebrow) eyebrow.textContent = 'Before your visit';
-      if (heading) heading.textContent = 'Your booking is awaiting its deposit.';
-      if (copy) copy.textContent = 'Hot Stone Massage is held for Wed, 30 Sep at 10:00. Pay the 50% booking deposit to secure it.';
-      if (status) status.textContent = 'Deposit';
-      const values = {
-        appointment: 'Wed, 30 Sep · 10:00',
-        forms: 'None required',
-        payment: 'R340 deposit required',
-      };
-      home.querySelectorAll('[data-client-experience-fact]').forEach((button) => {
-        const value = button.querySelector('strong');
-        if (value) value.textContent = values[button.dataset.factKey] || '';
-      });
-      const action = home.querySelector('[data-client-experience-primary]');
-      if (action) { action.href = '/pay/dep_storybook123'; action.textContent = 'Pay deposit'; }
-    }
+    home.querySelector('.eyebrow').textContent = 'Next visit';
+    home.querySelector('h2').textContent = 'Your next appointment';
+    home.querySelector(':scope > p').textContent = 'Hot Stone Massage · Wed, 30 Sep · 10:00 · Christel';
+    home.querySelector('.status-pill').textContent = 'Deposit required';
+    const action = home.querySelector('[data-client-experience-primary]');
+    action.href = '#bookings';
+    action.textContent = 'View booking';
     const voucher = surface.querySelector('[data-welcome-voucher]');
     if (voucher) voucher.hidden = true;
     return surface;
@@ -562,14 +547,11 @@ export const AuthenticatedDepositRequired = {
 export const AuthenticatedDepositLinkUnavailable = {
   render: () => {
     const surface = AuthenticatedDepositRequired.render();
-    const home = surface.querySelector('[data-client-experience-home]');
-    const copy = home?.querySelector(':scope > p');
-    if (copy) copy.textContent = 'Hot Stone Massage is held for Wed, 30 Sep at 10:00. Your secure payment link is not available yet. Ask Shiloh for help with the deposit before your visit.';
-    const action = home?.querySelector('[data-client-experience-primary]');
-    if (action) {
-      action.href = '#shiloh';
-      action.textContent = 'Ask Shiloh about my deposit';
-    }
+    const payments = surface.querySelector('[data-client-home-payments]');
+    payments.querySelector('[data-story-payment-message]').textContent = 'Pay your deposit to confirm your booking. Your payment link is not ready. Please ask Shiloh for help.';
+    const action = payments.querySelector('a');
+    action.href = '#shiloh';
+    action.textContent = 'Ask Shiloh about my deposit';
     return surface;
   },
 };
@@ -732,7 +714,7 @@ export const LaterAppointmentDeposit = {
     const surface = productionSurface({ id: '912', name: 'Jean-Pierre Botha', firstName: 'Jean-Pierre' });
     const payments = surface.querySelector('[data-client-home-payments]');
     payments.hidden = false;
-    payments.innerHTML = '<article class="action-card action-card--accent"><h2>R295 deposit required</h2><p>Full Body Swedish · Tue, 6 Oct · 10:45</p><p>Open your secure payment.</p><a class="button button--primary" href="/pay/story_deposit">Pay deposit</a></article>';
+    payments.innerHTML = '<article class="action-card action-card--accent"><h2>R295 deposit required</h2><p>Full Body Swedish · Tue, 6 Oct · 10:45</p><p>Pay your deposit to confirm your booking.</p><a class="button button--primary" href="/pay/story_deposit">Pay R295 deposit</a></article>';
     const home = surface.querySelector('[data-client-experience-home]');
     home.querySelector('h2').textContent = 'Your next visit';
     home.querySelector(':scope > p').textContent = 'Toe Gel Only · Tue, 6 Oct · 08:30 · Christel';

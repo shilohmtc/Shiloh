@@ -1006,6 +1006,7 @@ function createMyShilohRouter({
       }
       formService.parseDataKey(env);
       const opened = await formActionService.openForSession({
+        assignmentId: req.query.assignmentId,
         sessionId: req.myShilohClientSession.sessionId,
         crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
       });

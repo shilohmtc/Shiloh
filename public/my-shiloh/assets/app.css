@@ -402,3 +402,10 @@ h3{font-size:20px;line-height:1.12}
 .sms-setup-choice h2{font-size:24px;margin:0 0 8px}
 
 .home-payments{margin:0 0 20px}.home-payments .action-card{padding:20px}.home-payments h2{font-size:26px;margin:0}.home-payments p{margin:0}
+
+.hero.hero--client{padding:18px 2px 16px}.hero--client .hero-greeting{font-size:clamp(26px,6vw,36px);line-height:1.15;margin-bottom:8px}.hero--client .hero-copy{margin-bottom:0;font-size:13px}
+[data-client-experience-home] .focus-grid,[data-client-experience-home] .focus-card__fact-status{display:none}
+.home-forms{margin:0 0 20px}.home-forms .action-card{padding:20px}.home-forms h2{font-size:24px;margin:0}.home-forms p{margin:0}
+.booking-readiness{font-weight:750;color:var(--leaf-dark)}.booking-details{margin-top:12px}.booking-details summary{cursor:pointer;font-weight:750}.booking-details p{margin:10px 0}.booking-details .button{margin-top:8px}
+
+.website-treatment-disclosure{margin:0 0 18px}.website-treatment-disclosure>summary{cursor:pointer;font-size:13px;color:var(--muted);font-weight:750}#bookings .page-intro h1{font-size:clamp(30px,7vw,42px);line-height:1.1}

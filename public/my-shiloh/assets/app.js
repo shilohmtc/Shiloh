@@ -518,7 +518,7 @@
   function safeExperienceHref(value) {
     const href = String(value || '');
     if (href === '/book') return '/my-shiloh/book';
-    if (href === '/my-shiloh/book' || href === '/my-shiloh/book?welcomeVoucher=1' || href === '/my-shiloh/forms/complete' || /^\/pay\/[A-Za-z0-9_-]{8,100}$/.test(href) || /^#[a-z-]+$/.test(href)) return href;
+    if (href === '/my-shiloh/book' || href === '/my-shiloh/book?welcomeVoucher=1' || href === '/my-shiloh/forms/complete' || /^\/my-shiloh\/forms\/complete\?assignmentId=[1-9][0-9]*$/.test(href) || /^\/pay\/[A-Za-z0-9_-]{8,100}$/.test(href) || /^#[a-z-]+$/.test(href)) return href;
     return '#shiloh';
   }
 
@@ -533,7 +533,7 @@
       if (eyebrow) eyebrow.textContent = String(experience.home.eyebrow || 'Your Shiloh');
       if (heading) heading.textContent = String(experience.home.headline || 'Your Shiloh is ready.');
       if (summary) summary.textContent = String(experience.home.summary || '');
-      if (status) status.textContent = String(experience.home.status || 'Ready');
+      if (status) status.textContent = String(['Requested', 'Planning'].includes(experience.home.status) ? 'Awaiting approval' : experience.home.status || 'Ready');
 
       const facts = Array.isArray(experience.home.facts) ? experience.home.facts.slice(0, 3) : [];
       experienceFactButtons.forEach((item, index) => {
@@ -580,30 +580,82 @@
       });
     }
 
+    const formList = document.querySelector('[data-client-home-forms]');
+    if (formList) {
+      formList.replaceChildren();
+      const forms = Array.isArray(experience.home?.forms) ? experience.home.forms : [];
+      formList.hidden = forms.length === 0;
+      forms.forEach(form => {
+        const card = document.createElement('article');
+        card.className = 'action-card';
+        const heading = document.createElement('h2');
+        heading.textContent = String(form.label || 'Complete your consultation form');
+        const detail = document.createElement('p');
+        detail.textContent = [form.service, form.date, form.time, form.title].filter(Boolean).join(' · ');
+        const message = document.createElement('p');
+        message.textContent = String(form.message || '');
+        const action = document.createElement('a');
+        action.className = 'button button--primary';
+        action.textContent = 'Complete form';
+        action.href = safeExperienceHref(form.href);
+        card.append(heading, detail, message, action);
+        formList.append(card);
+      });
+    }
+
     const upcoming = Array.isArray(experience.bookings?.upcoming) ? experience.bookings.upcoming[0] : null;
     if (experienceBookings) {
       const primary = experienceBookings.querySelector('.action-card');
       if (primary) {
         experienceBookings.querySelectorAll('[data-experience-extra-booking]').forEach((card) => card.remove());
         const renderBooking = (card, booking, index) => {
-          card.querySelectorAll('[data-booking-proposal-controls]').forEach(node => node.remove());
+          card.querySelectorAll('[data-booking-proposal-controls], [data-booking-details], [data-booking-status]').forEach(node => node.remove());
           const number = card.querySelector('.action-number');
           const heading = card.querySelector('h2');
           const copy = card.querySelector('p');
           const action = card.querySelector('.button');
           if (number) number.textContent = String(index + 1).padStart(2, '0');
           const isRequest = booking.status === 'Requested' || booking.status === 'Planning' || booking.status === 'Awaiting your response' || booking.status === 'Change requested';
-          if (heading) heading.textContent = isRequest ? String(booking.status) : String(booking.service || 'Upcoming appointment');
-          if (copy) copy.textContent = [[booking.service, booking.date, booking.time, booking.practitioner].filter(Boolean).join(' · '), booking.nextAction].filter(Boolean).join(' — ');
+          if (heading) heading.textContent = isRequest ? String(booking.status === 'Requested' || booking.status === 'Planning' ? 'Awaiting approval' : booking.status) : String(booking.service || 'Upcoming appointment');
+          if (copy) copy.textContent = isRequest
+            ? [[booking.service, booking.date, booking.time, booking.practitioner].filter(Boolean).join(' · '), booking.nextAction].filter(Boolean).join(' — ')
+            : [booking.date, booking.time, booking.practitioner].filter(Boolean).join(' · ');
           if (action) {
             const clinicNumber = String(appFrame?.dataset.clientPaymentWhatsapp || '').replace(/\D/g, '');
             const canAskForLink = !isRequest && booking.paymentHelpNeeded === true && Number.isSafeInteger(Number(booking.id)) && Number(booking.id) > 0 && clinicNumber;
-            action.textContent = booking.paymentPath ? 'Open payment' : canAskForLink ? 'Request a new payment link' : isRequest ? 'Ask Shiloh about this request' : 'Ask Shiloh about this booking';
-            action.href = booking.paymentPath ? safeExperienceHref(booking.paymentPath) : canAskForLink
+            action.hidden = !isRequest && !booking.paymentPath && !booking.formActions?.length && !canAskForLink;
+            action.textContent = booking.paymentPath ? String(booking.paymentActionLabel || 'Open payment') : booking.formActions?.length ? 'Complete form' : canAskForLink ? 'Request a new payment link' : isRequest ? 'Ask Shiloh about this request' : 'Ask Shiloh about this booking';
+            action.href = booking.paymentPath ? safeExperienceHref(booking.paymentPath) : booking.formActions?.length ? safeExperienceHref(booking.formActions[0].href) : canAskForLink
               ? `https://wa.me/${clinicNumber}?text=${encodeURIComponent(`Hi Shiloh, please help me with a payment link for booking #${booking.id}. Please check the payment status first.`)}`
               : '#shiloh';
-            if (canAskForLink && !booking.paymentPath) { action.target = '_blank'; action.rel = 'noopener noreferrer'; }
+            if (canAskForLink && !booking.paymentPath && !booking.formActions?.length) { action.target = '_blank'; action.rel = 'noopener noreferrer'; }
             else { action.removeAttribute('target'); action.removeAttribute('rel'); }
+          }
+          if (!isRequest || booking.status === 'Change requested') {
+            const body = heading?.parentElement;
+            const status = document.createElement('p');
+            status.dataset.bookingStatus = '';
+            status.className = 'booking-readiness';
+            status.textContent = String(booking.readinessSummary || booking.readiness || 'Upcoming');
+            body?.append(status);
+            const details = document.createElement('details');
+            details.dataset.bookingDetails = '';
+            details.className = 'booking-details';
+            const summary = document.createElement('summary');
+            summary.textContent = 'Appointment details';
+            const formStatus = document.createElement('p');
+            formStatus.textContent = String(booking.forms || 'No form required');
+            const paymentStatus = document.createElement('p');
+            paymentStatus.textContent = String(booking.payment || 'Payment status unavailable');
+            details.append(summary, formStatus, paymentStatus);
+            (booking.formActions || []).forEach(form => {
+              const link = document.createElement('a');
+              link.className = 'button button--soft';
+              link.textContent = `Complete form: ${form.title || 'Consultation'}`;
+              link.href = safeExperienceHref(form.href);
+              details.append(link);
+            });
+            body?.append(details);
           }
           if (booking.proposal && Number.isSafeInteger(Number(booking.id)) && Number(booking.id) > 0
             && Number.isSafeInteger(Number(booking.proposal.version)) && Number(booking.proposal.version) > 0) {
@@ -641,12 +693,16 @@
             precedingCard = card;
           });
         } else {
+          primary.querySelectorAll('[data-booking-details], [data-booking-status], [data-booking-proposal-controls]').forEach(node => node.remove());
           const heading = primary.querySelector('h2');
           const copy = primary.querySelector('p');
           const action = primary.querySelector('.button');
           if (heading) heading.textContent = 'Book something new';
           if (copy) copy.textContent = 'You don’t have an upcoming appointment at the moment.';
           if (action) {
+            action.hidden = false;
+            action.removeAttribute('target');
+            action.removeAttribute('rel');
             action.textContent = 'Start booking';
             action.href = '/my-shiloh/book';
           }
