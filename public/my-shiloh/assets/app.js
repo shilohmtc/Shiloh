@@ -555,6 +555,8 @@
       const action = experienceHome.querySelector('[data-client-experience-primary]');
       action.textContent = String(experience.home.primaryAction?.label || 'Ask Shiloh');
       action.href = safeExperienceHref(experience.home.primaryAction?.href);
+      const couplesChoice = experienceHome.querySelector('[data-client-home-couples]');
+      if (couplesChoice) couplesChoice.hidden = action.getAttribute('href') !== '/my-shiloh/book';
     }
 
     const paymentList = document.querySelector('[data-client-home-payments]');
