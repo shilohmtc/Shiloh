@@ -70,6 +70,7 @@ jobs:
           path: |
             artifacts/ux-playwright-results
             artifacts/ux-playwright-report
+            artifacts/workspace-deposits
             artifacts/ux-baseline-candidate
           if-no-files-found: ignore
           retention-days: 14
@@ -80,4 +81,12 @@ jobs:
           name: my-shiloh-couples-visual-review
           path: artifacts/ux-playwright-results/**/couples-*.png
           if-no-files-found: ignore
+          retention-days: 14
+      - name: Upload Workspace deposit visual review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: workspace-deposit-visual-review
+          path: artifacts/workspace-deposits/*.png
+          if-no-files-found: error
           retention-days: 14
