@@ -39,7 +39,7 @@ function createMyShilohConsultationFormActionService({
     return result.rowCount === 1;
   }
 
-  async function pendingAssignments(crmV2ClientId) {
+  async function pendingAssignments(crmV2ClientId, assignmentId = null) {
     const clientId = positiveId(crmV2ClientId);
     if (!clientId) return [];
     const result = await db.query(
@@ -58,9 +58,10 @@ function createMyShilohConsultationFormActionService({
         WHERE a.crm_v2_client_id=$1
           AND a.client_id IS NULL
           AND a.status = ANY($2::text[])
+          AND ($3::bigint IS NULL OR a.id=$3)
         ORDER BY ap.starts_at,a.id
         LIMIT 2`,
-      [clientId, [...PENDING_FORM_STATUSES]],
+      [clientId, [...PENDING_FORM_STATUSES], assignmentId],
     );
     return result.rows;
   }
@@ -92,11 +93,12 @@ function createMyShilohConsultationFormActionService({
     };
   }
 
-  async function openForSession({ sessionId, crmV2ClientId } = {}) {
+  async function openForSession({ sessionId, crmV2ClientId, assignmentId } = {}) {
     if (!await requireActiveSession(sessionId, crmV2ClientId)) {
       return { ok: false, code: 'CLIENT_FORM_SESSION_INVALID' };
     }
-    const rows = await pendingAssignments(crmV2ClientId);
+    if (assignmentId != null && ((!['string', 'number'].includes(typeof assignmentId)) || !/^[1-9][0-9]*$/.test(String(assignmentId)) || !positiveId(assignmentId))) return { ok: false, code: 'CLIENT_FORM_UNAVAILABLE' };
+    const rows = await pendingAssignments(crmV2ClientId, assignmentId == null ? null : positiveId(assignmentId));
     if (!rows.length) return { ok: false, code: 'CLIENT_FORM_UNAVAILABLE' };
     if (rows.length !== 1) return { ok: false, code: 'CLIENT_FORM_MULTIPLE_PENDING' };
 

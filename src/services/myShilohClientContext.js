@@ -412,6 +412,10 @@ function createMyShilohClientContextService({
       : [[], null];
 
     const paymentAppointments = [...new Map([appointment, ...upcomingAppointments].filter(Boolean).map(item => [item.id, item])).values()];
+    const appointmentForms = await Promise.all(paymentAppointments.map(async item => ({
+      appointmentId: item.id,
+      forms: item.id === appointment?.id ? forms : await loadForms(client.id, item.id),
+    })));
     const appointmentPayments = await Promise.all(paymentAppointments.map(async item => ({
       appointmentId: item.id,
       payment: item.id === appointment?.id ? payment : await loadPayment(item),
@@ -424,6 +428,7 @@ function createMyShilohClientContextService({
       nextAppointment: appointment,
       upcomingAppointments,
       appointmentPayments,
+      appointmentForms,
       activeRequest: activeRequests[0] || null,
       activeRequests,
       declinedRequests,

@@ -40,18 +40,19 @@ function formPosition(forms = []) {
   if (required.length) {
     return {
       state: 'action_required',
-      label: required.length === 1 ? '1 form waiting' : `${required.length} forms waiting`,
+      label: required.length === 1 ? 'Form required' : `${required.length} forms required`,
       titles: required.map(item => item.title),
     };
   }
-  if (forms.length) {
+  if (forms.some(item => item.status === 'needs_review')) return { state: 'review', label: 'Form under review', titles: forms.map(item => item.title) };
+  if (forms.length && forms.every(item => item.status === 'completed')) {
     return {
       state: 'complete',
-      label: 'Complete',
+      label: 'Forms completed',
       titles: forms.map(item => item.title),
     };
   }
-  return { state: 'none', label: 'None required', titles: [] };
+  return { state: 'none', label: 'No form required', titles: [] };
 }
 
 function paymentPosition(payment) {
@@ -138,8 +139,8 @@ function buildClientExperience(context) {
       primaryAction: { kind: 'navigate', label: 'View request', href: '#bookings' },
     } : {
       eyebrow: 'Your booking request',
-      headline: 'Shiloh is planning your request.',
-      summary: `You requested ${requestDisplay.service} for ${requestDisplay.date} at ${requestDisplay.time}. Reception will review the arrangement before confirming it. This appointment is not confirmed yet.`,
+      headline: 'Your request is awaiting approval.',
+      summary: `You requested ${requestDisplay.service} for ${requestDisplay.date} at ${requestDisplay.time}. Reception will review your request. This appointment is not confirmed yet. After approval, pay any required deposit to confirm.`,
       status: request.planningStartedAt ? 'Planning' : 'Requested',
       primaryAction: { kind: 'navigate', label: 'View request', href: '#bookings' },
     };
@@ -329,7 +330,7 @@ function buildClientExperience(context) {
             status: offered ? 'Awaiting your response' : item.planningStartedAt ? 'Planning' : 'Requested',
             nextAction: offered
               ? 'Review this proposed time before accepting. Availability and any required deposit will be checked again.'
-              : 'Reception is reviewing your request. The appointment has not been confirmed.',
+              : 'Reception is reviewing your request. The appointment has not been confirmed. After approval, pay any required deposit to confirm.',
           };
         }),
         ...pendingRescheduleCards,
@@ -375,33 +376,71 @@ function buildClientExperience(context) {
   if (context.nextAppointment && !paymentsByAppointment.has(context.nextAppointment.id)) {
     paymentsByAppointment.set(context.nextAppointment.id, context.payment);
   }
+  const formsByAppointment = new Map((context.appointmentForms || []).map(item => [item.appointmentId, item.forms]));
+  if (context.nextAppointment && !formsByAppointment.has(context.nextAppointment.id)) formsByAppointment.set(context.nextAppointment.id, context.forms || []);
+  experience.home.forms = [];
   const seenAccounts = new Set();
   experience.home.payments = [];
   for (const booking of experience.bookings.upcoming) {
     if (['Requested', 'Planning', 'Awaiting your response'].includes(booking.status)) continue;
+    const assignedForms = formsByAppointment.get(booking.id) || [];
+    const formState = formPosition(assignedForms);
+    booking.forms = formState.label;
+    booking.formActions = assignedForms.filter(item => item.actionRequired && Number.isSafeInteger(item.id) && item.id > 0).map(item => ({
+      title: item.title, href: `/my-shiloh/forms/complete?assignmentId=${item.id}`,
+    }));
+    for (const form of booking.formActions) experience.home.forms.push({
+      appointmentId: booking.id, service: booking.service, date: booking.date, time: booking.time,
+      label: `Complete your ${booking.service} form`, title: form.title,
+      message: 'Please complete your consultation form before your appointment.',
+      actionLabel: 'Complete form', href: form.href,
+    });
     const raw = paymentsByAppointment.get(booking.id);
+    booking.readiness = booking.status === 'confirmed' ? 'Confirmed' : 'Upcoming';
     if (!raw) continue;
     const position = paymentPosition(raw);
     booking.payment = position.label;
+    booking.paymentState = position.state;
+    booking.paymentActionLabel = position.state === 'deposit_required' ? `Pay ${rand(raw.depositOutstanding) || rand(raw.depositRequired) || ''} deposit`.replace('  ', ' ') : 'Open payment';
+    if (position.state === 'deposit_required') booking.readiness = 'Deposit required';
+    else if (raw.depositState === 'satisfied' || raw.depositState === 'exempt') booking.readiness = 'Confirmed';
+    booking.readinessSummary = booking.readiness === 'Confirmed'
+      ? `Booking confirmed${formState.state === 'complete' ? ' · Forms completed' : formState.state === 'action_required' ? ' · Form required before your visit' : ''}`
+      : booking.readiness === 'Deposit required' ? 'Pay your deposit to confirm your booking.' : 'Your appointment details are available here.';
     booking.paymentPath = position.actionPath;
     booking.paymentHelpNeeded = position.state === 'deposit_required' && !position.actionPath;
-    if (position.state === 'deposit_required') booking.nextAction = position.label;
+    if (position.state === 'deposit_required') booking.nextAction = `${position.label}. Pay your deposit to confirm your booking.`;
     if (position.state !== 'deposit_required' && !position.actionPath) continue;
     const accountKey = raw.accountId || `appointment:${booking.id}`;
+    booking.paymentAccountId = accountKey;
     if (seenAccounts.has(accountKey)) continue;
     seenAccounts.add(accountKey);
     experience.home.payments.push({
       appointmentId: booking.id, service: booking.service, date: booking.date, time: booking.time,
-      label: position.label,
-      actionLabel: position.actionPath ? (position.state === 'deposit_required' ? 'Pay deposit' : 'Open payment') : 'Ask Shiloh about my deposit',
+      label: position.label, paymentState: position.state,
+      actionLabel: position.actionPath ? booking.paymentActionLabel : 'Ask Shiloh about my deposit',
       href: position.actionPath || '#shiloh',
-      message: position.actionPath ? 'Open your secure payment.' : 'Your deposit is due, but the payment link is not ready. Please ask Shiloh for help.',
+      message: position.state === 'deposit_required'
+        ? `Pay your deposit to confirm your booking.${position.actionPath ? '' : ' Your payment link is not ready. Please ask Shiloh for help.'}`
+        : 'Open your secure payment.',
     });
   }
-  if (experience.home.payments.length) {
-    const due = experience.home.payments[0];
-    const fact = experience.home.facts.find(item => item.key === 'payment');
-    Object.assign(fact, { value: experience.home.payments.length > 1 ? `${experience.home.payments.length} payments waiting` : due.label, href: due.href, message: due.message });
+  for (const due of experience.home.payments) {
+    const key = paymentsByAppointment.get(due.appointmentId)?.accountId;
+    const members = key ? experience.bookings.upcoming.filter(item => item.paymentAccountId === key) : [];
+    if (members.length > 1) {
+      const depositDue = due.paymentState === 'deposit_required';
+      due.service = `Combined ${depositDue ? 'deposit' : 'payment'}: ${members.map(item => item.service).join(' + ')}`;
+      if (depositDue) due.message = 'Pay this combined deposit to confirm these bookings.';
+    }
+  }
+  if (appointment && !requestDisplay && !nextAppointmentChange) {
+    const next = experience.bookings.upcoming.find(item => item.id === context.nextAppointment.id);
+    experience.home.eyebrow = 'Next visit';
+    experience.home.headline = 'Your next appointment';
+    experience.home.summary = `${appointment.service} · ${appointment.date} · ${appointment.time} · ${appointment.practitioner}`;
+    experience.home.status = next?.readiness || 'Upcoming';
+    experience.home.primaryAction = { kind: 'navigate', label: 'View booking', href: '#bookings' };
   }
   return experience;
 }

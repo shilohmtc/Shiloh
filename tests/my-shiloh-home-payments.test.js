@@ -17,10 +17,10 @@ test('later Swedish deposit stays visible alongside an earlier paid visit, forms
   assert.equal(experience.home.payments[0].service, 'Full Body Swedish');
   assert.equal(experience.home.payments[0].label, 'R295 deposit required');
   assert.equal(experience.home.payments[0].href, '/pay/SWEDISH123');
-  assert.equal(experience.home.facts.find(item => item.key === 'payment').value, 'R295 deposit required');
+  assert.equal(experience.home.facts.find(item => item.key === 'payment').value, 'No action yet');
   const booking = experience.bookings.upcoming.find(item => item.id === 2);
   assert.equal(booking.paymentPath, '/pay/SWEDISH123');
-  assert.equal(booking.nextAction, 'R295 deposit required');
+  assert.equal(booking.nextAction, 'R295 deposit required. Pay your deposit to confirm your booking.');
 });
 test('shared payment account appears once and missing links keep the deposit visible', () => {
   const data = context();
@@ -46,10 +46,15 @@ test('client context loads later payment accounts with the same signed-in payer 
   const { createMyShilohClientContextService } = require('../src/services/myShilohClientContext');
   const rows = [1, 2].map(id => ({ id, crm_v2_client_id: 55, starts_at: '2026-10-06T08:45:00Z', ends_at: '2026-10-06T09:45:00Z', status: 'confirmed', total_price: '590', services: [{ name: id === 1 ? 'Toe Gel Only' : 'Full Body Swedish' }], practitioners: [{ name: 'Christel' }] }));
   const calls = [];
+  const formCalls = [];
   const db = { async query(sql, values) {
     if (sql.includes('myShilohClientContext:client')) return { rows: [{ id: 55, name: 'Jean-Pierre Botha' }] };
     if (sql.includes('myShilohClientContext:next-appointment')) return { rows: [rows[0]] };
     if (sql.includes('myShilohClientContext:upcoming-appointments')) return { rows };
+    if (sql.includes('myShilohClientContext:forms-status-only')) {
+      formCalls.push(values);
+      return { rows: values[1] === 2 ? [{ id: 81, status: 'sent', title: 'Massage consultation' }] : [] };
+    }
     if (sql.includes('myShilohClientContext:payment-position')) {
       calls.push(values[0]);
       return { rows: [{ id: values[0] + 10, canonical_amount_due: '590', paid: values[0] === 1 ? '590' : '0', refunded: '0', deposit_state: values[0] === 1 ? 'satisfied' : 'awaiting', deposit_required_amount: '295' }] };
@@ -65,5 +70,42 @@ test('client context loads later payment accounts with the same signed-in payer 
   const data = await service.getContext({ crmV2ClientId: 55 });
   assert.deepEqual(calls.sort(), [1, 2]);
   assert.equal(data.appointmentPayments.length, 2);
+  assert.deepEqual(formCalls.sort((a,b) => a[1]-b[1]), [[55,1],[55,2]]);
+  assert.equal(buildClientExperience(data).home.forms[0].appointmentId, 2);
   assert.equal(buildClientExperience(data).home.payments[0].href, '/pay/SWEDISH123');
+});
+
+ test('next visit keeps its own payment and later forms have exact secure actions', () => {
+  const data = context();
+  data.forms = [];
+  data.appointmentForms = [{ appointmentId: 1, forms: [] }, { appointmentId: 2, forms: [{ id: 81, title: 'Massage consultation', status: 'sent', actionRequired: true }] }];
+  const result = buildClientExperience(data);
+  assert.equal(result.home.facts.find(item => item.key === 'payment').value, 'Paid');
+  assert.equal(result.home.headline, 'Your next appointment');
+  assert.equal(result.home.forms.length, 1);
+  assert.equal(result.home.forms[0].service, 'Full Body Swedish');
+  assert.equal(result.home.forms[0].href, '/my-shiloh/forms/complete?assignmentId=81');
+  const swedish = result.bookings.upcoming.find(item => item.id === 2);
+  assert.equal(swedish.readiness, 'Deposit required');
+  assert.equal(swedish.paymentActionLabel, 'Pay R295 deposit');
+  assert.equal(swedish.forms, 'Form required');
+  data.appointmentPayments[1].payment = { ...deposit, depositState: 'satisfied', state: 'partially_paid', outstanding: '295', activePaymentPath: null };
+  data.appointmentForms[1].forms[0] = { id: 81, title: 'Massage consultation', status: 'completed', actionRequired: false };
+  const settled = buildClientExperience(data);
+  assert.equal(settled.home.payments.length, 0);
+  assert.equal(settled.home.forms.length, 0);
+  assert.equal(settled.bookings.upcoming.find(item => item.id === 2).readinessSummary, 'Booking confirmed · Forms completed');
+  assert.match(settled.bookings.upcoming.find(item => item.id === 2).payment, /R295 remaining/);
+});
+
+test('shared balance payment does not ask already confirmed bookings for another deposit', () => {
+  const data = context();
+  const paidDeposit = { accountId: 20, state: 'partially_paid', depositState: 'satisfied', outstanding: '295', activePaymentPath: '/pay/BALANCE123' };
+  data.appointmentPayments = [{ appointmentId: 1, payment: paidDeposit }, { appointmentId: 2, payment: paidDeposit }];
+  const result = buildClientExperience(data);
+  assert.equal(result.home.payments.length, 1);
+  assert.match(result.home.payments[0].service, /^Combined payment:/);
+  assert.equal(result.home.payments[0].actionLabel, 'Open payment');
+  assert.doesNotMatch(result.home.payments[0].message, /deposit|confirm/);
+  assert.equal(result.bookings.upcoming[1].readiness, 'Confirmed');
 });

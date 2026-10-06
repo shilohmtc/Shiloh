@@ -123,3 +123,30 @@ test('My Shiloh route and browser action use a fixed path with authenticated ser
   assert.match(browser, /String\(action\.href \|\| ''\) !== '\/my-shiloh\/forms\/complete'/);
   assert.match(browser, /open\.textContent = String\(action\.label \|\| 'Complete form'\)/);
 });
+
+test('explicit form selection stays scoped to signed-in client and rejects invalid or foreign assignments', async () => {
+  let issued = 0;
+  const db = formDb([]);
+  const service = createMyShilohConsultationFormActionService({ db, now: () => NOW, formService: {
+    async issueAccessToken() { issued++; throw new Error('must not issue'); }, async openForm() {},
+  } });
+  assert.equal((await service.openForSession({ sessionId: 55, crmV2ClientId: 912, assignmentId: '44' })).code, 'CLIENT_FORM_UNAVAILABLE');
+  assert.deepEqual(db.calls[1].params, [912, ['not_sent', 'sent', 'opened'], 44]);
+  assert.match(db.calls[1].sql, /a.id=\$3/);
+  assert.match(db.calls[1].sql, /ap.crm_v2_client_id=\$1/);
+  assert.equal((await service.openForSession({ sessionId: 55, crmV2ClientId: 912, assignmentId: ['44', '45'] })).code, 'CLIENT_FORM_UNAVAILABLE');
+  assert.equal(issued, 0);
+});
+
+test('a selected owned form opens even when other forms are pending', async () => {
+  const db = formDb([{ id: 44, status: 'sent', appointment_id: 901 }]);
+  const issued = [];
+  const service = createMyShilohConsultationFormActionService({ db, now: () => NOW, formService: {
+    async issueAccessToken(input) { issued.push(input); return { token: 'T'.repeat(43) }; },
+    async openForm() { return { assignmentId: 44, completed: false }; },
+  } });
+  const result = await service.openForSession({ sessionId: 55, crmV2ClientId: 912, assignmentId: '44' });
+  assert.equal(result.ok, true);
+  assert.deepEqual(db.calls[1].params, [912, ['not_sent','sent','opened'], 44]);
+  assert.deepEqual(issued, [{ assignmentId: 44 }]);
+});
