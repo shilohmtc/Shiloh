@@ -67,6 +67,9 @@ function createBookingPaymentService({
     const byAppointment = depositMemberMap(position);
     const eligibleMembers = position.scope.members.filter(member => Number(byAppointment.get(member.appointmentId)?.required_amount || 0) > 0);
     if (!eligibleMembers.length) return [];
+    if (position.scope.groupSource === 'shiloh_my_shiloh_couples') {
+      return [{ member:position.scope.members[0],amount:Number(requirement.required_amount).toFixed(2) }];
+    }
     if (['couples_massage','group_booking'].includes(String(position.scope.groupType || ''))) {
       return eligibleMembers.map(member => ({
         member,
@@ -81,7 +84,7 @@ function createBookingPaymentService({
 
   async function ensureDepositRequest({ appointmentId } = {}) {
     const position = await deposits.ensureRequirement({ appointmentId });
-    if (position.scope?.groupSource === 'shiloh_my_shiloh_multi') {
+    if (['shiloh_my_shiloh_multi','shiloh_my_shiloh_couples'].includes(position.scope?.groupSource)) {
       const { clientGroupApprovalGate } = require('./myShilohMultipleBooking');
       const gate = await clientGroupApprovalGate(db, position.scope.groupId);
       if (!gate.ready) return { status:'awaiting_group_approval', deposit:position, requests:[] };

@@ -348,3 +348,7 @@ jobs:
         env:
           TEST_PACKAGE_DATABASE_URL: postgres://postgres:synthetic-test-only@localhost:5432/package_proof
         run: node scripts/workspace-package-postgres-proof.js
+      - name: Prove atomic My Shiloh couples booking in PostgreSQL
+        env:
+          TEST_COUPLES_DATABASE_URL: postgres://postgres:synthetic-test-only@localhost:5432/package_proof
+        run: node scripts/my-shiloh-couples-postgres-proof.js

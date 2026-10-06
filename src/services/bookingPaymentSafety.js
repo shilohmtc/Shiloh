@@ -26,7 +26,7 @@ async function cancelOutstandingPaymentRequestsForAppointment(db, {
           OR pr.deposit_member_appointment_id=$1
           OR EXISTS (
             SELECT 1 FROM appointment_group_members gm JOIN appointment_groups g ON g.id=gm.group_id
-            WHERE gm.appointment_id=$1 AND g.id=bpa.appointment_group_id AND g.source='shiloh_my_shiloh_multi'
+            WHERE gm.appointment_id=$1 AND g.id=bpa.appointment_group_id AND g.source IN ('shiloh_my_shiloh_multi','shiloh_my_shiloh_couples')
           )
         )
     RETURNING pr.id,pr.request_key,pr.purpose,pr.amount,pr.payer_crm_v2_client_id`,
