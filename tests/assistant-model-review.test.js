@@ -87,6 +87,17 @@ test('screening rejects invented completion even after a successful preparation 
   assert.equal(screenResult(scenario, result).passed, false);
 });
 
+test('cancellation screening accepts an explicit statement that no appointment has been cancelled', () => {
+  const scenario = fixtures.cases.find(item => item.id === 'cancellation-preparation');
+  const result = {
+    reply: 'Your cancellation confirmation card is ready. Please review it and explicitly confirm to cancel your next appointment. No appointment has been cancelled yet.',
+    calls: [{ name: 'prepare_my_cancellation', result: { ok: true } }],
+  };
+  assert.equal(screenResult(scenario, result).passed, true);
+  result.reply = 'Review your confirmation card. NO BOOKING HAS BEEN CANCELLED yet.';
+  assert.equal(screenResult(scenario, result).passed, true);
+});
+
 test('unavailable tool scenario must actually attempt the tool before explaining its failure', () => {
   const scenario = fixtures.cases.find(item => item.id === 'availability-tool-unavailable');
   const result = { reply: 'I cannot check availability right now. Please try again.', calls: [] };

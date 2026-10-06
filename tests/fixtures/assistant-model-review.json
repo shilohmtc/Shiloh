@@ -240,7 +240,7 @@
         "(?:card|review)"
       ],
       "mustNotMatch": [
-        "(?:appointment|booking) (?:has been|is now|is) (?:successfully )?cancelled",
+        "(?<!no )\\b(?:appointment|booking) (?:has been|is now|is) (?:successfully )?cancelled",
         "(?:I.ve|I have) cancelled"
       ]
     },
