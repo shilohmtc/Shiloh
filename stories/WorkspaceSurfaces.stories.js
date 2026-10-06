@@ -645,3 +645,23 @@ export const DeviceManagementDialogs = {
 };
 export const PwaIconOpticalScale = { render: pwaIconStory };
 export const IosInstallGuidance = { render: iosInstallGuidanceStory };
+
+
+const depositReviewItems = [{
+  accountId: 901, appointmentId: 901, outstanding: '350.00', state: 'partial', hasLink: true,
+  members: [
+    { appointmentId: 901, clientName: 'Synthetic Aloe', serviceName: 'Relaxation massage', startsAt: '2026-10-08T10:00:00Z', staffNames: ['Practitioner'] },
+    { appointmentId: 902, clientName: 'Synthetic Fynbos', serviceName: 'Deep tissue massage', startsAt: '2026-10-08T10:00:00Z', staffNames: ['Practitioner Two'] },
+  ],
+}, {
+  accountId: 903, appointmentId: 903, outstanding: null, state: 'review', hasLink: false,
+  members: [{ appointmentId: 903, clientName: 'Synthetic Protea', serviceName: 'Facial', startsAt: '2026-10-09T10:00:00Z', staffNames: ['Practitioner'] }],
+}];
+function depositStory(queue) {
+  return productionSurface(renderDashboardPage({ ...dashboardModel(), displayName: 'Synthetic owner', appointments: [], teamGroups: [], carryOver: [], awaitingFinalization: [], recentActivity: [], communications: null, depositQueue: queue }));
+}
+export const DashboardAwaitingDeposits = { render: () => depositStory({ items: depositReviewItems }) };
+export const DashboardDepositsEmpty = { render: () => depositStory({ items: [] }) };
+export const DashboardDepositsLoading = { render: () => depositStory({ loading: true }) };
+export const DashboardDepositsUnavailable = { render: () => depositStory({ unavailable: true }) };
+export const DashboardDepositsRestricted = { render: () => depositStory(null) };

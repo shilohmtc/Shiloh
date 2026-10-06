@@ -14,6 +14,7 @@ const bookingRequestResolution = require('./workspaceBookingRequestRouting');
 const { createClientPlanningRequestService } = require('./clientPlanningRequests');
 const workspaceHolidayAttention = require('./workspaceHolidayAttention');
 const workspaceWelcomeVoucherCampaign = require('./workspaceWelcomeVoucherCampaign');
+const workspaceDepositAttention = require('./workspaceDepositAttention');
 
 const FINAL_STATUSES = new Set(['completed', 'cancelled', 'no_show']);
 const OWNER_ROLES = new Set(['owner', 'business_admin']);
@@ -211,6 +212,7 @@ function createWorkspaceDashboardService({
   backlogService = NO_DASHBOARD_BACKLOG,
   holidayAttentionService = NO_HOLIDAY_ATTENTION,
   welcomeVoucherCampaignService = NO_WELCOME_VOUCHER_CAMPAIGN,
+  depositAttentionService = { async list() { return null; } },
 } = {}) {
   if (!calendarService || typeof calendarService.buildModel !== 'function') {
     throw new Error('Workspace Dashboard requires canonical CalendarReadOnlyUx authority');
@@ -328,7 +330,9 @@ function createWorkspaceDashboardService({
       welcomeVoucherCampaignUnavailable = true;
     }
 
+    const depositQueue = await projectDeposits(principal, now);
     return {
+      depositQueue,
       generatedAt: now.toISOString(),
       requestedDateKey,
       operationalDateKey: calendar.dateKey,
@@ -356,6 +360,20 @@ function createWorkspaceDashboardService({
       welcomeVoucherCampaign,
       welcomeVoucherCampaignUnavailable,
     };
+  }
+
+  async function projectDeposits(principal, now) {
+    try {
+      const items = await depositAttentionService.list({ principal, now });
+      return items == null ? null : { items, unavailable: false };
+    } catch (_error) {
+      return principal.permissions?.['payment:view'] === true ? { items: [], unavailable: true } : null;
+    }
+  }
+
+  async function depositQueue({ adminId, viewer, sessionPrincipal = null, now = new Date() } = {}) {
+    const { principal } = await resolveAuthority(adminId, viewer, sessionPrincipal);
+    return projectDeposits(principal, now);
   }
 
   async function finalizeVisit({ adminId, viewer, sessionPrincipal = null, appointmentId, expectedRevision, outcome, operationalDateKey, now = new Date() } = {}) {
@@ -413,7 +431,7 @@ function createWorkspaceDashboardService({
     return planningRequestService.decide({ principal, id:requestId, action, appointmentId });
   }
 
-  return { buildModel, finalizeVisit, resolveBookingRequest, resolveRescheduleRequest, resolvePlanningRequest };
+  return { buildModel, depositQueue, finalizeVisit, resolveBookingRequest, resolveRescheduleRequest, resolvePlanningRequest };
 }
 
 const service = createWorkspaceDashboardService({
@@ -422,6 +440,7 @@ const service = createWorkspaceDashboardService({
   backlogService: workspaceDashboardBacklog,
   holidayAttentionService: workspaceHolidayAttention,
   welcomeVoucherCampaignService: workspaceWelcomeVoucherCampaign,
+  depositAttentionService: workspaceDepositAttention,
 });
 
 module.exports = {

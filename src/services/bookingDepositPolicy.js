@@ -39,6 +39,17 @@ function moneyText(value) {
   return moneyNumber(value).toFixed(2);
 }
 
+// Pure settlement projection shared by state synchronization and read-only views.
+// A stored requirement state is not evidence that money is still outstanding.
+function depositSettlementPosition(requirement, netPaid) {
+  const required = moneyNumber(requirement.required_amount);
+  const paid = moneyNumber(netPaid);
+  return {
+    satisfied: paid + 0.0001 >= required,
+    outstanding: moneyText(Math.max(0, required - paid)),
+  };
+}
+
 function percentAmount(amount, basisPoints) {
   return Math.round(moneyNumber(amount) * Number(basisPoints) * 100 / 10000) / 100;
 }
@@ -405,7 +416,7 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
     if (!requirement) return null;
     if (requirement.state === 'exempt') return requirement;
     const netPaid = await effectiveNetPaid(queryable, requirement.payment_account_id);
-    const satisfied = netPaid + 0.0001 >= Number(requirement.required_amount);
+    const { satisfied } = depositSettlementPosition(requirement, netPaid);
     if (satisfied && requirement.state !== 'satisfied') {
       const result = await queryable.query(
         `UPDATE booking_deposit_requirements
@@ -608,6 +619,7 @@ module.exports = {
   positiveId,
   moneyNumber,
   moneyText,
+  depositSettlementPosition,
   percentAmount,
   percentText,
   bookingDepositPolicyPreview,

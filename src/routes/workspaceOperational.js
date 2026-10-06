@@ -8,6 +8,8 @@ const {
   renderDashboardUnavailablePage,
   dashboardClientScript,
   planningRequestClientScript,
+  depositQueueContent,
+  depositQueueClientScript,
 } = require('../presentation/workspaceDashboardUx');
 const { decorateWorkspaceAppointmentLinks } = require('../presentation/calendarAppointmentDetailLinks');
 const { workspaceNavigationClientScript } = require('../presentation/workspaceShell');
@@ -118,7 +120,7 @@ function createWorkspaceOperationalRouter({
   router.use(requireSession);
 
   router.get('/client.js', (_req, res) => {
-    return res.status(200).type('application/javascript').send(dashboardClientScript() + '\n' + planningRequestClientScript());
+    return res.status(200).type('application/javascript').send(dashboardClientScript() + '\n' + planningRequestClientScript() + '\n' + depositQueueClientScript());
   });
 
   router.get('/navigation', async (req, res) => {
@@ -133,6 +135,19 @@ function createWorkspaceOperationalRouter({
       });
     } catch (_error) {
       return res.status(403).json({ error: 'Workspace navigation is unavailable.' });
+    }
+  });
+
+  router.get('/deposits', async (req, res) => {
+    try {
+      const queue = await dashboardService.depositQueue({
+        adminId: req.staffBrowserSession?.adminId,
+        viewer: req.staffBrowserSession?.viewer,
+        sessionPrincipal: req.staffBrowserSession?.accountPrincipal || null,
+      });
+      return res.status(queue?.unavailable ? 503 : 200).type('html').send(depositQueueContent(queue));
+    } catch (_error) {
+      return res.status(403).type('html').send('');
     }
   });
 
