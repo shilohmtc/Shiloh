@@ -721,3 +721,15 @@ export const LaterAppointmentDeposit = {
     return surface;
   },
 };
+
+export const CouplesBookingChoices = {
+  render: () => {
+    const surface = productionSurface({ id:'912',name:'Jean-Pierre Botha',firstName:'Jean-Pierre' });
+    const home = surface.querySelector('[data-client-experience-home]');
+    home.querySelector('h2').textContent = 'Ready when you are, Jean-Pierre.';
+    home.querySelector(':scope > p').textContent = 'Choose a treatment for yourself or book together.';
+    home.querySelector('.status-pill').textContent = 'Ready';
+    home.querySelector('[data-client-home-couples]').hidden = false;
+    return surface;
+  },
+};

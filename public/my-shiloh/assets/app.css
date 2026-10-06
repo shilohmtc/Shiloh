@@ -409,3 +409,10 @@ h3{font-size:20px;line-height:1.12}
 .booking-readiness{font-weight:750;color:var(--leaf-dark)}.booking-details{margin-top:12px}.booking-details summary{cursor:pointer;font-weight:750}.booking-details p{margin:10px 0}.booking-details .button{margin-top:8px}
 
 .website-treatment-disclosure{margin:0 0 18px}.website-treatment-disclosure>summary{cursor:pointer;font-size:13px;color:var(--muted);font-weight:750}#bookings .page-intro h1{font-size:clamp(30px,7vw,42px);line-height:1.1}
+
+/* Shared ordinary and couples booking choices. */
+.client-booking-actions{position:relative;z-index:2;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 0 18px;align-items:start}
+.client-booking-actions--home{margin:16px 0 0}.client-booking-actions--home:has([data-client-home-couples][hidden]){grid-template-columns:1fr}
+.client-booking-actions .button{width:100%;margin:0;min-height:52px}.couples-booking-choice{position:relative;z-index:2;min-width:0}.couples-booking-choice[hidden]{display:none}
+.couples-booking-choice small{display:block;margin-top:7px;color:var(--muted);font-size:12px;line-height:1.45}.couples-booking-choice svg{flex:none}
+@media(max-width:600px){.client-booking-actions{grid-template-columns:1fr}}

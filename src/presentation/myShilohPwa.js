@@ -7,8 +7,9 @@ const {
 } = require('../services/publicPresentation');
 const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
+const { renderCouplesBookingChoice } = require('./myShilohBookingActions');
 
-const MY_SHILOH_ASSET_VERSION = '20261006-booking-readiness-v1';
+const MY_SHILOH_ASSET_VERSION = '20261006-couples-booking-entry-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -162,7 +163,10 @@ function renderMyShilohPage({
           <button class="focus-fact" type="button" data-client-experience-fact data-fact-key="payment"><span>Payment</span><strong>Checking</strong><b aria-hidden="true">›</b></button>
         </div>
         <p class="focus-card__fact-status" data-client-experience-fact-status role="status" aria-live="polite"></p>
+        <div class="client-booking-actions client-booking-actions--home">
         <a class="button button--primary experience-primary" data-client-experience-primary href="/my-shiloh/book">Book an appointment</a>
+        ${renderCouplesBookingChoice({ scope:'home',hidden:true })}
+        </div>
         <p class="focus-card__hospitality">${escapeHtml(STANDARD_HOSPITALITY)}</p>
       </section>`
     : `<section class="focus-card focus-card--guest" id="how-booking-works" aria-labelledby="next-visit-title">
@@ -432,7 +436,7 @@ function renderMyShilohPage({
           <h1 id="bookings-title">Your bookings.</h1>
           <p>${authenticated ? 'Check your appointment status and anything to complete before your visit.' : 'Sign in to see your appointments and request a new booking.'}</p>
         </div>
-        ${authenticated ? '<a class="button button--primary bookings-new-action" href="/my-shiloh/book">Book another appointment</a>' : ''}
+        ${authenticated ? `<div class="client-booking-actions"><a class="button button--primary bookings-new-action" href="/my-shiloh/book">Book another appointment</a>${renderCouplesBookingChoice()}</div>` : ''}
         ${authenticated ? `<details class="website-treatment-disclosure"><summary>Have a treatment code?</summary><form class="website-treatment-form" data-website-treatment-form>
           <label for="website-treatment-code">Have a treatment code from the website?</label>
           <div class="website-treatment-form__row"><input id="website-treatment-code" name="treatmentCode" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Enter or paste code" required pattern="[1-9][0-9]*"><button class="button button--soft" type="submit">Continue treatment</button></div>
