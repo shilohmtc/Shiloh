@@ -205,12 +205,15 @@ test('declined Workspace requests appear only in bounded client history and neve
     assert.match(sql, /a\.crm_v2_client_id=\$1 AND a\.client_id IS NULL/);
     assert.match(sql, /aba\.decision_note='workspace_cannot_accommodate'/);
     assert.match(sql, /aba\.status='declined'/);
+    assert.match(sql, /COALESCE\(visibility\.hidden,TRUE\) AS history_hidden/);
+    assert.match(sql, /visibility\.appointment_id=a\.id AND visibility\.crm_v2_client_id=a\.crm_v2_client_id/);
     assert.match(sql, /LIMIT 5/);
     assert.deepEqual(values, [55]);
     return { rows: [{
       id: 904, crm_v2_client_id: 55, starts_at: '2026-10-02T08:00:00.000Z',
       ends_at: '2026-10-02T09:00:00.000Z', status: 'cancelled',
       booking_request_status: 'declined', services: [{ name: 'Facial' }],
+      booking_request_decision_note: 'workspace_cannot_accommodate',
       practitioners: [{ name: 'Christel' }],
     }] };
   } };
@@ -222,6 +225,8 @@ test('declined Workspace requests appear only in bounded client history and neve
   assert.deepEqual(experience.bookings.upcoming, []);
   assert.equal(experience.bookings.history[0].id, 904);
   assert.equal(experience.bookings.history[0].status, 'Could not accommodate');
+  assert.equal(experience.bookings.history[0].hidden, true);
+  assert.equal(experience.bookings.history[0].canChangeVisibility, true);
   assert.match(experience.bookings.history[0].nextAction, /not booked/);
 });
 
