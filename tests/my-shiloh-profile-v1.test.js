@@ -148,7 +148,8 @@ test('profile UI edits only approved fields and never persists private profile d
   assert.match(app, /postJson\('\/my-shiloh\/api\/profile\/update'/);
   assert.match(app, /freshCsrfToken\(\)/);
   assert.match(app, /registrationComplete/);
-  assert.match(app, /finish registration and unlock your R100 voucher/);
+  assert.match(app, /to finish registration\./);
+  assert.doesNotMatch(app, /unlock your R100 voucher/);
   const styles = read('public/my-shiloh/assets/app.css');
   assert.match(styles, /\.profile-field\{[^}]*min-width:0/);
   assert.match(styles, /\.profile-field input,[^{]+\{[^}]*max-width:100%[^}]*min-width:0/);

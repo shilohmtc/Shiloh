@@ -92,16 +92,8 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
     const authority = await loadAuthority(db, clientId);
     if (!authority) throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_CLIENT_UNAVAILABLE', 'Your active Shiloh profile is unavailable.', 404, ['Sign in again with your verified WhatsApp number.', 'Contact Shiloh if the problem continues.']);
     const progress = registrationProgress(authority);
-    if (progress.complete) {
-      await db.query(
-        `INSERT INTO my_shiloh_welcome_vouchers(crm_v2_client_id,amount,minimum_booking_value,issued_at,expires_at)
-         SELECT $1,s.amount,s.minimum_booking_value,$2::timestamptz,$2::timestamptz + make_interval(days => s.validity_days)
-           FROM my_shiloh_welcome_voucher_settings s
-          WHERE s.singleton=TRUE AND s.active=TRUE AND s.activated_at<=$2::timestamptz
-         ON CONFLICT(crm_v2_client_id) DO NOTHING`,
-        [clientId, now()],
-      );
-    }
+    // The signup campaign is closed. Retain this compatibility entry point to
+    // read and expire previously issued vouchers, but never grant a new one.
     await db.query(
       `UPDATE my_shiloh_welcome_vouchers
           SET state='expired',updated_at=NOW()
@@ -182,7 +174,7 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
       eligibility: synced.progress,
       voucher: publicVoucher(eligibleVoucher),
       eligibleBookings: await eligibleBookings(clientId, eligibleVoucher),
-      terms: [...WELCOME_VOUCHER_TERMS],
+      terms: eligibleVoucher ? [...WELCOME_VOUCHER_TERMS] : [],
     };
   }
 
@@ -204,13 +196,13 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
       if (replay) { await client.query('COMMIT'); return { status: 'idempotent_replay', amount: Number(replay.amount) }; }
       const authority = await loadAuthority(client, clientId, { lock: true });
       if (!authority || !registrationProgress(authority).complete) {
-        throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_NOT_UNLOCKED', 'Complete your registration to unlock your R100 voucher.', 409, ['Open Profile in My Shiloh.', 'Add your date of birth and gender, then save your personal details.']);
+        throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_NOT_UNLOCKED', 'Complete your registration before using an existing welcome voucher.', 409, ['Open Profile in My Shiloh.', 'Add your date of birth and gender, then save your personal details.']);
       }
       const voucher = (await client.query(
         `SELECT * FROM my_shiloh_welcome_vouchers WHERE crm_v2_client_id=$1 FOR UPDATE`,
         [clientId],
       )).rows[0];
-      if (!voucher) throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_NOT_UNLOCKED', 'Complete your registration to unlock your R100 voucher.', 409, ['Open Profile in My Shiloh.', 'Complete and save your personal details.']);
+      if (!voucher) throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_CAMPAIGN_CLOSED', 'The welcome voucher offer has ended. No new vouchers are being issued.', 409, ['Choose another payment method for this booking.', 'Existing vouchers remain in your Wallet under their original terms.']);
       if (voucher.state !== 'available' || new Date(voucher.expires_at) <= now()) {
         throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_UNAVAILABLE', 'This welcome voucher is no longer available.', 409, ['Check the voucher status shown in My Shiloh.', 'Choose another payment method for this booking.']);
       }

@@ -14,25 +14,26 @@ test('client home uses exactly three genuine WhatsApp reply-button actions', () 
   const home = clientHomeInteractive();
   assert.equal(home.type, 'button');
   assert.deepEqual(home.buttons.map((button) => button.id), [
-    'client_welcome_voucher',
+    'client_my_shiloh',
     'client_browse_services',
     'client_book_now',
   ]);
   assert.deepEqual(home.buttons.map((button) => button.title), [
-    'Get R100 voucher',
+    'Open My Shiloh',
     'Browse services',
     'Book now',
   ]);
   assert.match(home.body, /My Shiloh keeps your bookings/);
-  assert.match(home.body, /R100 welcome voucher/);
+  assert.doesNotMatch(home.body, /R100|welcome voucher/);
   assert.ok(home.buttons.every((button) => button.title.length <= 20));
 });
 
-test('R100 first action opens the canonical My Shiloh registration journey', () => {
+test('old voucher actions explain closure without promising new vouchers', () => {
   const reply = welcomeVoucherReply();
-  assert.match(reply, /install it on your phone/);
-  assert.match(reply, /complete your registration/);
-  assert.match(reply, /treatment of R450 or more/);
+  assert.match(reply, /offer has ended/);
+  assert.match(reply, /No new welcome vouchers/);
+  assert.match(reply, /original terms/);
+  assert.doesNotMatch(reply, /unlock|complete your registration/);
   assert.match(reply, /https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/#welcome-voucher/);
 });
 
@@ -47,7 +48,7 @@ test('website introduction responds only after its exact visitor message and lea
   const result = await processClientDiscoveryMessage('27820000000', MY_SHILOH_WEBSITE_PROMPT);
   assert.deepEqual(result, { handled: true, reply: myShilohAwarenessReply() });
   assert.match(result.reply, /turn on notifications if you would like appointment alerts/);
-  assert.match(result.reply, /whether you qualify/);
+  assert.doesNotMatch(result.reply, /R100|welcome voucher/);
   assert.match(result.reply, /birthday wishes/);
   assert.match(result.reply, /Reception is here for you/);
   const booking = await processClientDiscoveryMessage('27820000000', "Hi Shiloh 👋 I'd like to book an appointment.");

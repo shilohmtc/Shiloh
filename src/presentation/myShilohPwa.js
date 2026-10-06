@@ -9,7 +9,7 @@ const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 const { renderCouplesBookingChoice } = require('./myShilohBookingActions');
 
-const MY_SHILOH_ASSET_VERSION = '20261006-required-forms-updates-v1';
+const MY_SHILOH_ASSET_VERSION = '20261006-welcome-offer-retired-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -202,7 +202,7 @@ function renderMyShilohPage({
         <div class="welcome-voucher__body">
           <p class="eyebrow">My Shiloh welcome</p>
           <h2 id="welcome-voucher-title">Your R100 welcome voucher.</h2>
-          <p data-welcome-voucher-copy>Checking your registration…</p>
+          <p data-welcome-voucher-copy>Checking your existing voucher…</p>
           <ol class="welcome-voucher__steps" data-welcome-voucher-steps></ol>
           <div class="welcome-voucher__bookings" data-welcome-voucher-bookings></div>
           <details><summary>Voucher terms</summary><ul data-welcome-voucher-terms></ul></details>

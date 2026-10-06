@@ -34,19 +34,19 @@ test('voucher schema is once per canonical client and separate from Rewards and 
   assert.doesNotMatch(migration, /INSERT INTO payment_ledger_entries/);
 });
 
-test('public promotion leads to an eligibility-checked My Shiloh voucher', () => {
+test('public and registration surfaces no longer advertise a welcome voucher', () => {
   const website = renderHome([]);
   const guest = renderMyShilohPage({ whatsappNumber:'27830000000' });
   const signedIn = renderMyShilohPage({ client:{ id:1, firstName:'Dinah', name:'Dinah Harris' } });
-  assert.match(website, /R100 welcome voucher/);
+  assert.doesNotMatch(website, /R100|welcome voucher/);
   assert.match(website, /href="https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/"[^>]*>Install My Shiloh/);
-  assert.match(website, /Eligible first-time registrations can unlock a R100 welcome voucher/);
   assert.doesNotMatch(guest, /Complete your registration\. Unlock R100\.|data-client-auth-start>Claim my R100|class="welcome-voucher"/);
   assert.doesNotMatch(guest, /data-client-auth-start>Open WhatsApp to verify/);
   assert.match(signedIn, /id="wallet" data-view="wallet"/);
   assert.match(signedIn, /data-welcome-voucher[^>]*hidden/);
-  assert.match(transition.buildRegisteredClientPrompt(), /R100 welcome voucher/);
-  assert.match(transition.buildRegisteredClientPrompt(), /my-shiloh\/#welcome-voucher/);
+  assert.doesNotMatch(transition.buildRegisteredClientPrompt(), /R100|welcome voucher/);
+  assert.doesNotMatch(transition.buildNewClientPrompt(), /R100|welcome voucher/);
+  assert.match(transition.buildRegisteredClientPrompt(), /my-shiloh\//);
   const client = read('public/my-shiloh/assets/app.js');
   assert.match(client, /fromHash === 'welcome-voucher'\) return 'wallet'/);
 });
@@ -74,7 +74,7 @@ test('redemption is guarded, client-confirmed and gives recovery steps', () => {
 test('redeemed welcome voucher leaves Home after showing success in the redemption view', () => {
   const app = read('public/my-shiloh/assets/app.js');
   assert.match(app, /welcomeVoucherRedeemedThisView = true/);
-  assert.match(app, /voucher\?\.state === 'redeemed' && !welcomeVoucherRedeemedThisView/);
+  assert.match(app, /!voucher \|\| \(voucher\.state === 'redeemed' && !welcomeVoucherRedeemedThisView\)/);
   assert.match(app, /welcomeVoucherHost\.hidden = true/);
   assert.match(app, /Your R100 welcome voucher has been redeemed/);
   assert.doesNotMatch(app, /DELETE FROM my_shiloh_welcome_vouchers|UPDATE my_shiloh_welcome_vouchers[^\n]*state='cancelled'/i);
