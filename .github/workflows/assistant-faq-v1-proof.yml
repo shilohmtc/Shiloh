@@ -27,3 +27,7 @@ jobs:
         run: node scripts/assistant-faq-eval.js
       - name: Run Assistant Knowledge and FAQ authority tests
         run: node --test tests/assistant-faq-v1.test.js
+      - name: Validate synthetic model comparison boundaries without API calls
+        run: node --test tests/assistant-model-review.test.js
+      - name: Prepare offline model comparison manifest
+        run: npm run ai:review:preflight

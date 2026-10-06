@@ -1,6 +1,6 @@
 # Shiloh AI model review
 
-Shiloh's WhatsApp and My Shiloh conversations use `src/services/ai.js` through the OpenAI Responses API. The English language guard uses the lighter model. The runtime variables `OPENAI_MODEL` and `OPENAI_FAST_MODEL` override the code defaults; the production values must be checked privately in Render before declaring a model live. Never put API keys or client messages in a review issue.
+Shiloh's active client assistant is inside My Shiloh and uses `src/services/ai.js` through the OpenAI Responses API. Automated WhatsApp conversations are retired; the human Message Reception link remains separate. The runtime variables `OPENAI_MODEL` and `OPENAI_FAST_MODEL` override the code defaults; the production values must be checked privately in Render before declaring a model live. Never put API keys or client messages in a review issue.
 
 ## Current intended choice — 28 September 2026
 
@@ -22,3 +22,27 @@ The scheduled GitHub workflow opens one review issue each month. An authorized m
 5. Close the monthly issue with `keep` or `change`, the evidence and the next review month. If the production override differs from source, reconcile it explicitly.
 
 The monthly workflow is a reminder and decision record. It does not call OpenAI, change a model, alter a client conversation or claim to know new model prices automatically.
+
+## GPT-6.1 Sol comparison — accepted first step, 6 October 2026
+
+Evaluate `gpt-6.1-sol` against the existing `gpt-6-sol` conversation default before deciding on a switch. Keep `gpt-6-luna` unchanged. Current official references: [Sol 6.1](https://developers.openai.com/api/docs/models/gpt-6.1-sol), [Sol 6](https://developers.openai.com/api/docs/models/gpt-6-sol), and [pricing](https://developers.openai.com/api/docs/pricing). Both conversation models publish standard short-context rates of $2 input and $10 output per million tokens; cached input, cache writes, reasoning consumption and actual request counts can change the total. A better result or lower bill has not been measured yet.
+
+Run from a checkout of the exact reviewed revision:
+
+```sh
+npm ci
+node --test tests/assistant-model-review.test.js
+npm run ai:review:preflight
+# Only in an authorized environment with OPENAI_API_KEY securely provided:
+npm run ai:review:live
+```
+
+Preflight requires no key, network call or database. Live mode makes billable OpenAI calls, with SDK retries disabled and a 45-second request timeout. Twelve cases across two fixed models have at most four requests per case and 1,600 output tokens per request (including reasoning). Provider errors stop the remaining comparison. `artifacts/assistant-model-review/latest.json` is ignored by Git; it contains synthetic replies, tool traces, token counts, latency, screening and pending human review. Dry runs contain no model results and are never performance evidence. The runner does not load `.env`; environment credentials must be supplied by the authorized execution environment, never pasted into chat or GitHub.
+
+The runner reuses the production `buildInstructions` for My Shiloh and tool-schema snapshots checked against current exports. It never imports production tool executors, reads client records, creates sessions, queries the database, contacts Reception, or changes bookings/payments. All service facts and tool results in this pack are synthetic; ZAR 590, ZAR 295 and the October appointment are test values, not claims about current clinic prices or availability.
+
+Coverage: canonical price/duration, typos, unsupported policies, payment truth versus user claims, exact practitioner/date availability, unavailable tools, cancellation preparation, flexible/group planning, direct human Reception, English-only replies, off-topic requests and prompt injection. Regex and tool-use screening is only a first pass: inspect every answer for factual correctness, warmth, concise wording, SAST time interpretation and absence of false action claims. Record human pass/fail and reasons separately in the monthly review. Repeat borderline cases before selecting a model.
+
+This is an isolated model/prompt/tool comparison, not an end-to-end production evaluation: production deterministic FAQ shortcuts, persistent `previous_response_id` continuity, authentication and client UI confirmations are excluded. Live evaluation uses `store:false` and explicitly carries ephemeral conversation output between synthetic tool rounds. Existing FAQ, privacy and My Shiloh integration regressions plus real-device review remain required before a switch. The retired WhatsApp English-language classifier is not being upgraded in this phase.
+
+Decision remains **pending live evidence and human review**. Verify the actual Render model overrides and baseline usage privately, compare each model's quality, total tokens, errors and latency, and retain the old model IDs for rollback. A green offline test or regex screen must never trigger a production model switch. The private staff connection is the proposed next phase; its authentication and record scopes require separate design before implementation.
