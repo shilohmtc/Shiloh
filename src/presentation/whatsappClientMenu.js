@@ -7,9 +7,9 @@ const MY_SHILOH_WEBSITE_PROMPT = 'Hi Shiloh, tell me about My Shiloh';
 function clientHomeInteractive() {
   return {
     type: 'button',
-    body: '*Shiloh 🌿*\nHow can I help you today?\n\nMy Shiloh keeps your bookings, appointment details and Wallet together. Eligible first-time registrations can unlock a once-off *R100 welcome voucher*.',
+    body: '*Shiloh 🌿*\nHow can I help you today?\n\nMy Shiloh keeps your bookings, appointment details and Wallet together.',
     buttons: [
-      { id: 'client_welcome_voucher', title: 'Get R100 voucher' },
+      { id: 'client_my_shiloh', title: 'Open My Shiloh' },
       { id: 'client_browse_services', title: 'Browse services' },
       { id: 'client_book_now', title: 'Book now' },
     ],
@@ -18,9 +18,9 @@ function clientHomeInteractive() {
 
 function welcomeVoucherReply() {
   return [
-    '🎁 *Get your R100 welcome voucher*',
+    '*The welcome voucher offer has ended*',
     '',
-    'Open My Shiloh, install it on your phone and complete your registration. If eligible, you can unlock a once-off R100 voucher for a treatment of R450 or more. Your Wallet will show your eligibility and terms.',
+    'No new welcome vouchers are being issued. If you already have one, open your My Shiloh Wallet to see its status and original terms.',
     '',
     MY_SHILOH_WELCOME_VOUCHER_URL,
   ].join('\n');
@@ -32,7 +32,7 @@ function myShilohAwarenessReply() {
     '',
     'Keep your Shiloh bookings, latest appointment details and Wallet together in one easy place. Add My Shiloh to your phone, sign in with a passkey or set one up using an SMS code, and turn on notifications if you would like appointment alerts.',
     '',
-    'Complete your registration to see whether you qualify for our once-off R100 welcome voucher for a treatment of R450 or more. For birthday wishes, reply BIRTHDAY ON here on WhatsApp. You can switch them off with BIRTHDAY OFF. 🎂',
+    'For birthday wishes, reply BIRTHDAY ON here on WhatsApp. You can switch them off with BIRTHDAY OFF. 🎂',
     '',
     MY_SHILOH_URL,
     '',

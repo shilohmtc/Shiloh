@@ -840,7 +840,7 @@
         !profile.gender ? 'gender' : '',
       ].filter(Boolean);
       setClientProfileStatus(
-        `Add your ${missing.join(' and ') || 'missing details'} to finish registration and unlock your R100 voucher.`,
+        `Add your ${missing.join(' and ') || 'missing details'} to finish registration.`,
         'error',
       );
     }
@@ -885,7 +885,7 @@
     welcomeVoucherHost.classList.remove('welcome-voucher--redeemed-now');
     if (termsDetails) termsDetails.hidden = false;
 
-    if (voucher?.state === 'redeemed' && !welcomeVoucherRedeemedThisView) {
+    if (!voucher || (voucher.state === 'redeemed' && !welcomeVoucherRedeemedThisView)) {
       welcomeVoucherHost.hidden = true;
       return true;
     }
@@ -902,10 +902,7 @@
       const item = document.createElement('li'); item.textContent = String(term); welcomeVoucherTerms.appendChild(item);
     }
     welcomeVoucherBookings.textContent = '';
-    if (!model.eligibility?.complete) {
-      welcomeVoucherCopy.textContent = 'Complete the steps below to unlock your once-off R100 voucher.';
-      const link = document.createElement('a'); link.className = 'button button--primary'; link.href = '#profile'; link.textContent = 'Complete registration'; welcomeVoucherBookings.appendChild(link);
-    } else if (voucher?.state === 'available') {
+    if (voucher.state === 'available') {
       const expiry = new Intl.DateTimeFormat('en-ZA', { day:'numeric', month:'short', year:'numeric' }).format(new Date(voucher.expiresAt));
       welcomeVoucherCopy.textContent = `Unlocked — R${voucher.amount.toFixed(0)} is ready to use until ${expiry}. Choose a qualifying booking below.`;
       const bookings = Array.isArray(model.eligibleBookings) ? model.eligibleBookings : [];
@@ -942,7 +939,7 @@
       welcomeVoucherCopy.textContent = 'This welcome voucher has expired.';
       setWelcomeVoucherStatus('The 60-day validity period has ended.', 'error');
     } else {
-      welcomeVoucherCopy.textContent = 'Your registration is complete. Your voucher is being prepared.';
+      welcomeVoucherCopy.textContent = 'This welcome voucher is no longer available.';
     }
     if (window.location.hash === '#welcome-voucher' && !welcomeVoucherHost.hidden) {
       window.setTimeout(() => welcomeVoucherHost.scrollIntoView({ block: 'start', behavior: 'smooth' }), 0);

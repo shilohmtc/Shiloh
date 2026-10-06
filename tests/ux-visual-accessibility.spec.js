@@ -545,14 +545,15 @@ test('My Shiloh Wallet is a centred five-tab hub on Phone and Desktop', async ({
   }
 });
 
-test('WhatsApp client menu leads with the My Shiloh R100 welcome voucher on Phone and Desktop', async ({ page }, testInfo) => {
+test('WhatsApp client menu offers My Shiloh without the retired voucher on Phone and Desktop', async ({ page }, testInfo) => {
   for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
-    await page.goto('/iframe.html?id=whatsapp-client-menu--welcome-voucher-first&viewMode=story', { waitUntil: 'networkidle' });
+    await page.goto('/iframe.html?id=whatsapp-client-menu--my-shiloh-first&viewMode=story', { waitUntil: 'networkidle' });
     await expect(page.locator('.wa-copy')).toContainText('My Shiloh keeps your bookings');
     const buttons = page.locator('.wa-action');
     await expect(buttons).toHaveCount(3);
-    await expect(buttons.nth(0)).toHaveText('Get R100 voucher');
+    await expect(buttons.nth(0)).toHaveText('Open My Shiloh');
+    await expect(page.locator('.wa-copy')).not.toContainText('R100');
     await expect(buttons.nth(1)).toHaveText('Browse services');
     await expect(buttons.nth(2)).toHaveText('Book now');
     const metrics = await page.evaluate(() => ({
@@ -564,7 +565,7 @@ test('WhatsApp client menu leads with the My Shiloh R100 welcome voucher on Phon
     expect(metrics.short).toBe(0);
     const accessibility = await new AxeBuilder({ page }).include('.wa-story').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
     expect(accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact))).toEqual([]);
-    await page.screenshot({ path: testInfo.outputPath(`whatsapp-client-menu-voucher-first-${viewport.name}.png`), fullPage: true });
+    await page.screenshot({ path: testInfo.outputPath(`whatsapp-client-menu-my-shiloh-${viewport.name}.png`), fullPage: true });
   }
 });
 
@@ -4025,5 +4026,80 @@ test('Home keeps required actions while Updates handles unread messages on this 
     await page.evaluate(()=>{document.querySelector('[data-app-frame]').dataset.notificationClientId='another-client';Object.defineProperty(navigator,'standalone',{configurable:true,get:()=>true});});
     await page.addScriptTag({url:'/my-shiloh/assets/app.js'});
     await expect(page.locator('nav [data-updates-badge]')).toHaveText('2');
+  }
+});
+
+
+test('retired welcome offer stays absent on public pages and My Shiloh registration and Wallet', async ({ page }, testInfo) => {
+  let complete = false;
+  const voucherModel = () => ({ version: 'my_shiloh_welcome_voucher_v1', eligibility: { complete, steps: [] }, voucher: null, eligibleBookings: [], terms: [] });
+  await page.route('**/my-shiloh/api/**', route => {
+    const endpoint = new URL(route.request().url()).pathname;
+    if (endpoint.endsWith('/welcome-voucher')) return route.fulfill({ json: voucherModel() });
+    if (endpoint.endsWith('/profile')) return route.fulfill({ json: { profile: { revision: 'a'.repeat(64), name: 'Test Client', dateOfBirth: complete ? '1980-01-02' : '', gender: complete ? 'female' : '', registrationComplete: complete } } });
+    return route.fulfill({ json: {} });
+  });
+  for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    for (const story of ['home', 'contact']) {
+      await page.goto(`/iframe.html?id=public-website-production-pages--${story}&viewMode=story`, { waitUntil: 'networkidle' });
+      await expect(page.locator('.welcome-offer')).toContainText('Meet My Shiloh');
+      await expect(page.locator('body')).not.toContainText('R100');
+      const axe = await new AxeBuilder({ page }).include('.welcome-offer').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+      expect(axe.violations.filter(item => ['serious', 'critical'].includes(item.impact))).toEqual([]);
+      await page.screenshot({ path: testInfo.outputPath(`retired-offer-public-${story}-${viewport.name}.png`), fullPage: true });
+    }
+    for (complete of [false, true]) {
+      await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-wallet&viewMode=story#welcome-voucher', { waitUntil: 'networkidle' });
+      await page.evaluate(() => Object.defineProperty(navigator, 'standalone', { configurable: true, get: () => true }));
+      const response = page.waitForResponse('**/my-shiloh/api/welcome-voucher');
+      await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
+      await response;
+      const wallet = page.locator('[data-view="wallet"]');
+      await expect(wallet).toBeVisible();
+      await expect(page.locator('[data-welcome-voucher]')).toBeHidden();
+      await expect(wallet.getByRole('link', { name: 'Open your Shiloh voucher wallet' })).toBeVisible();
+      await page.locator('[data-view-target="profile"]').click();
+      await expect(page.locator('[data-client-profile-status]')).toContainText(complete ? 'registration details are complete' : 'to finish registration.');
+      await expect(page.locator('[data-client-profile-status]')).not.toContainText('R100');
+      await page.locator('[data-view-target="wallet"]').click();
+      await expect(page.locator('[data-welcome-voucher]')).toBeHidden();
+      await page.evaluate(() => { location.hash = '#welcome-voucher'; });
+      await expect(wallet).toBeVisible();
+      await expect(page.locator('[data-welcome-voucher]')).toBeHidden();
+      const axe = await new AxeBuilder({ page }).include('[data-view="wallet"]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+      expect(axe.violations.filter(item => ['serious', 'critical'].includes(item.impact))).toEqual([]);
+      await page.screenshot({ path: testInfo.outputPath(`retired-offer-wallet-${complete ? 'registered' : 'incomplete'}-${viewport.name}.png`), fullPage: true });
+    }
+  }
+});
+
+test('previously issued welcome vouchers keep their Wallet redemption after offer retirement', async ({ page }, testInfo) => {
+  await page.route('**/my-shiloh/api/**', route => {
+    if (new URL(route.request().url()).pathname.endsWith('/welcome-voucher')) return route.fulfill({ json: {
+      version: 'my_shiloh_welcome_voucher_v1', eligibility: { complete: true, steps: [] },
+      voucher: { state: 'available', amount: 100, minimumBookingValue: 450, issuedAt: '2026-09-20T10:00:00Z', expiresAt: '2026-11-19T10:00:00Z' },
+      eligibleBookings: [], terms: ['Valid for 60 days from the date it is unlocked.'],
+    } });
+    return route.fulfill({ json: {} });
+  });
+  for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-wallet&viewMode=story#welcome-voucher', { waitUntil: 'networkidle' });
+    await page.evaluate(() => Object.defineProperty(navigator, 'standalone', { configurable: true, get: () => true }));
+    await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
+    const voucher = page.locator('[data-welcome-voucher]');
+    await expect(voucher).toBeVisible();
+    await expect(voucher).toContainText('R100 is ready to use');
+    await expect(voucher.getByRole('link', { name: 'Find a qualifying treatment' })).toHaveAttribute('href', '/my-shiloh/book?welcomeVoucher=1');
+    await voucher.getByText('Voucher terms', { exact: true }).click();
+    await expect(voucher).toContainText('Valid for 60 days');
+    await page.locator('[data-view-target="home"]').click();
+    await expect(voucher).toBeHidden();
+    await page.locator('[data-view-target="wallet"]').click();
+    await expect(voucher).toBeVisible();
+    const axe = await new AxeBuilder({ page }).include('[data-view="wallet"]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+    expect(axe.violations.filter(item => ['serious', 'critical'].includes(item.impact))).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`retired-offer-existing-voucher-${viewport.name}.png`), fullPage: true });
   }
 });

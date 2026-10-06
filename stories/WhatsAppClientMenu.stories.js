@@ -26,14 +26,14 @@ export default {
   parameters: { layout: 'fullscreen', viewport: { defaultViewport: 'mobile1' } },
 };
 
-export const WelcomeVoucherFirst = {
+export const MyShilohFirst = {
   render: () => {
     const menu = clientHomeInteractive();
     return phoneFrame(`<section class="wa-bubble" aria-label="Shiloh client menu"><div class="wa-copy">${messageMarkup(menu.body)}</div><div class="wa-actions">${menu.buttons.map((button) => `<button class="wa-action" type="button" data-action="${escapeHtml(button.id)}">${escapeHtml(button.title)}</button>`).join('')}</div></section>`);
   },
 };
 
-export const WelcomeVoucherReply = {
+export const RetiredVoucherReply = {
   render: () => phoneFrame(`<section class="wa-bubble" aria-label="My Shiloh welcome voucher"><div class="wa-copy">${messageMarkup(welcomeVoucherReply()).replace(/(https:\/\/[^<]+)/, '<span class="wa-link">$1</span>')}</div></section>`),
 };
 

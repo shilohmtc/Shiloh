@@ -480,7 +480,10 @@ async function processClientDiscoveryMessage(sender, text) {
     return { handled: true, reply: myShilohAwarenessReply() };
   }
 
-  if (['client_welcome_voucher', 'get r100 voucher', 'install my shiloh', 'my shiloh'].includes(value)) {
+  if (['client_my_shiloh', 'open my shiloh', 'install my shiloh', 'my shiloh'].includes(value)) {
+    return { handled: true, reply: myShilohAwarenessReply() };
+  }
+  if (['client_welcome_voucher', 'get r100 voucher'].includes(value)) {
     return { handled: true, reply: welcomeVoucherReply() };
   }
 
