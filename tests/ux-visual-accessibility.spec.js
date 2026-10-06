@@ -1952,7 +1952,8 @@ for (const viewport of [
       await expect(surface.locator('a[href="/book"]').first()).toBeAttached();
       await expect(surface.locator('a[href="https://app.shilohmtc.co.za/my-shiloh/"]').first()).toBeAttached();
       if (name !== 'book') {
-        await expect(surface.locator('.welcome-offer')).toContainText('Eligible first-time registrations');
+        await expect(surface.locator('.welcome-offer')).toContainText('Your bookings, latest appointment details and Wallet in one place.');
+        await expect(surface.locator('.welcome-offer')).not.toContainText(/R100|welcome voucher|first-time registrations/);
       }
 
       if (name === 'contact') {
