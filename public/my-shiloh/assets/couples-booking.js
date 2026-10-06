@@ -68,7 +68,7 @@
   });
   root.querySelectorAll('[data-couples-service]').forEach(select => select.addEventListener('change',async () => {
     const index = Number(select.dataset.couplesService), generation = ++state.generations[index];
-    state.serviceIds[index] = Number(select.value) || null; state.staffIds[index] = null; state.slot = null; invalidate();
+    state.serviceIds[index] = Number(select.value) || null; state.staffIds[index] = null; state.slot = null; invalidate(); status('[data-couples-selection-status]');
     const staff = get(`[data-couples-staff="${index}"]`); staff.replaceChildren(new Option('Choose a therapist','')); staff.disabled = true;
     const selector = `[data-couples-practitioner-status="${index}"]`; status(selector,'');
     if (!state.serviceIds[index]) return;
@@ -80,7 +80,7 @@
       data.practitioners.forEach(person => staff.append(new Option(person.name,String(person.id)))); staff.disabled = false; status(selector,'');
     } catch (error) { if (generation === state.generations[index]) status(selector,error.message,true); }
   }));
-  root.querySelectorAll('[data-couples-staff]').forEach(select => select.addEventListener('change',() => { state.staffIds[Number(select.dataset.couplesStaff)] = Number(select.value) || null; state.slot = null; invalidate(); }));
+  root.querySelectorAll('[data-couples-staff]').forEach(select => select.addEventListener('change',() => { state.staffIds[Number(select.dataset.couplesStaff)] = Number(select.value) || null; state.slot = null; invalidate(); status('[data-couples-selection-status]'); }));
   get('[data-couples-next]').addEventListener('click',() => {
     if (state.serviceIds.some(value => !value) || state.staffIds.some(value => !value)) { status('[data-couples-selection-status]','Choose a treatment and therapist for each person.',true); return; }
     if (state.staffIds[0] === state.staffIds[1]) { status('[data-couples-selection-status]','Choose two different therapists so both treatments can start together.',true); return; }
@@ -100,7 +100,7 @@
   });
   root.querySelectorAll('[data-couples-back]').forEach(button => button.addEventListener('click',() => { if (!state.busy) { invalidate(); step(Number(button.dataset.couplesBack)); } }));
   get('[data-couples-retry]').addEventListener('click',() => { if (!state.busy) review(); });
-  root.querySelectorAll('[name="couples-occasion"]').forEach(input => input.addEventListener('change',() => { get('[data-couples-occasion]').disabled = input.value !== 'yes'; state.requestId = null; }));
+  root.querySelectorAll('[name="couples-occasion"]').forEach(input => input.addEventListener('change',() => { get('[data-couples-occasion]').disabled = input.value !== 'yes'; get('[data-couples-occasion-details]').hidden = input.value !== 'yes'; state.requestId = null; }));
   get('[data-couples-occasion]').addEventListener('input',() => { state.requestId = null; });
   submit.addEventListener('click',async () => {
     if (state.busy || !state.quote) return;
