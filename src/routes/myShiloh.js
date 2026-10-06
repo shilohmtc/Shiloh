@@ -34,6 +34,11 @@ const { renderClientVoucherPage, renderPublicVoucherPage } = require('../present
 const { createShilohRewardsService, ShilohRewardsError } = require('../services/shilohRewards');
 const { renderClientRewardsPage, clientRewardsScript } = require('../presentation/shilohRewardsUx');
 const { createMyShilohProfileService, MyShilohProfileError } = require('../services/myShilohProfile');
+const {
+  createMyShilohBookingHistoryVisibilityService,
+  MyShilohBookingHistoryVisibilityError,
+  normalizeVisibilityPayload,
+} = require('../services/myShilohBookingHistoryVisibility');
 const { createMyShilohWelcomeVoucherService, MyShilohWelcomeVoucherError } = require('../services/myShilohWelcomeVoucher');
 const { createProblemReportService, ProblemReportError, REPORT_ACKNOWLEDGEMENT } = require('../services/problemReports');
 const { defaultPushService } = require('../services/myShilohPush');
@@ -105,6 +110,7 @@ function createMyShilohRouter({
   voucherService = createGiftVoucherService({ db: pool }),
   rewardsService = createShilohRewardsService({ db: pool }),
   profileService = createMyShilohProfileService({ db: pool }),
+  bookingHistoryVisibilityService = createMyShilohBookingHistoryVisibilityService({ db: pool }),
   welcomeVoucherService = createMyShilohWelcomeVoucherService({ db: pool }),
   problemReportService = createProblemReportService({ db: pool }),
   pushService = defaultPushService,
@@ -740,6 +746,24 @@ function createMyShilohRouter({
       }
       return res.status(200).json(experience);
     } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.post('/my-shiloh/api/booking-history/visibility', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    setNoStoreJson(res);
+    try {
+      const payload = normalizeVisibilityPayload(req.body);
+      const result = await bookingHistoryVisibilityService.setVisibility({
+        sessionId: req.myShilohClientSession.sessionId,
+        crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
+        ...payload,
+      });
+      return res.status(200).json(result);
+    } catch (error) {
+      if (error instanceof MyShilohBookingHistoryVisibilityError) {
+        return res.status(error.httpStatus).json({ error: error.message, code: error.code });
+      }
       return next(error);
     }
   });

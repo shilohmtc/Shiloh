@@ -312,6 +312,10 @@ function buildClientExperience(context) {
           practitioner: requested?.practitioner || 'Shiloh',
           date: requested?.date, time: requested?.time,
           status: 'Could not accommodate',
+          hidden: item.historyHidden !== false,
+          canChangeVisibility: item.status === 'cancelled'
+            && item.bookingRequestStatus === 'declined'
+            && item.bookingRequestDecisionNote === 'workspace_cannot_accommodate',
           nextAction: 'This request was not booked. Ask Shiloh if you would like to find another time.',
         };
       }),

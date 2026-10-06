@@ -626,7 +626,7 @@ test('My Shiloh presents a client request as awaiting approval on phone and desk
         { service: 'Hot Stone Massage', date: 'Fri, 2 Oct', time: '10:00', practitioner: 'Christel', status: 'Planning', nextAction: 'Reception is reviewing your request. The appointment has not been confirmed.' },
         { service: 'Facial', date: 'Sat, 3 Oct', time: '11:00', practitioner: 'Abigail', status: 'Awaiting your response', nextAction: 'Reply to the Shiloh message about the proposed time.' },
       ], history: [
-        { service: 'Sports Massage', date: 'Thu, 1 Oct', time: '09:00', practitioner: 'Christel', status: 'Could not accommodate', nextAction: 'This request was not booked. Ask Shiloh if you would like to find another time.' },
+        { id: 904, hidden: true, canChangeVisibility: true, service: 'Sports Massage', date: 'Thu, 1 Oct', time: '09:00', practitioner: 'Christel', status: 'Could not accommodate', nextAction: 'This request was not booked. Ask Shiloh if you would like to find another time.' },
       ] },
       assistant: { prompts: ['What is the status of my request?'], contextReady: true },
     }),
@@ -643,12 +643,14 @@ test('My Shiloh presents a client request as awaiting approval on phone and desk
     await expect(page.locator('[data-client-experience-bookings] .action-card').first()).toContainText('Awaiting approval');
     await expect(page.locator('[data-client-experience-bookings] .action-card').first().locator('a')).toContainText('request');
     await expect(page.locator('[data-experience-extra-booking]').first()).toContainText('Awaiting your response');
-    await expect(page.locator('[data-experience-extra-booking]').last()).toContainText('Could not accommodate');
-    await expect(page.locator('[data-experience-extra-booking]').last()).toContainText('not booked');
+    await expect(page.locator('[data-client-experience-bookings]')).not.toContainText('Could not accommodate');
+    await expect(page.locator('[data-booking-history-hidden]')).toBeHidden();
     await expect(page.locator('[data-client-experience-bookings] .action-card').first()).not.toContainText('Upcoming appointment');
     await page.locator('[data-view-target="bookings"]').click();
     await expect(page.locator('[data-view="bookings"]')).toBeVisible();
     await expect(page.locator('[data-view="bookings"]').getByRole('link', { name: 'Book another appointment' })).toHaveAttribute('href', '/my-shiloh/book');
+    await expect(page.getByText('Could not accommodate')).toBeHidden();
+    await page.getByRole('button', { name: 'Show hidden requests (1)' }).click();
     await expect(page.getByText('Could not accommodate')).toBeVisible();
     const bounds = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }));
     expect(bounds.document).toBeLessThanOrEqual(bounds.viewport);

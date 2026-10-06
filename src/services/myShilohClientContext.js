@@ -241,12 +241,16 @@ function createMyShilohClientContextService({
        SELECT a.id,a.crm_v2_client_id,aba.requested_starts_at AS starts_at,
               aba.requested_ends_at AS ends_at,a.status,
               aba.status AS booking_request_status,
+              aba.decision_note AS booking_request_decision_note,
+              COALESCE(visibility.hidden,TRUE) AS history_hidden,
               COALESCE((SELECT jsonb_agg(jsonb_build_object('name',aps.service_name_snapshot) ORDER BY aps.position,aps.id)
                           FROM appointment_services aps WHERE aps.appointment_id=a.id),'[]'::jsonb) AS services,
               COALESCE((SELECT jsonb_agg(jsonb_build_object('name',ast.staff_name_snapshot) ORDER BY ast.position,ast.id)
                           FROM appointment_staff ast WHERE ast.appointment_id=a.id),'[]'::jsonb) AS practitioners
          FROM appointment_booking_approvals aba
          JOIN appointments a ON a.id=aba.appointment_id
+         LEFT JOIN my_shiloh_booking_history_visibility visibility
+           ON visibility.appointment_id=a.id AND visibility.crm_v2_client_id=a.crm_v2_client_id
         WHERE a.crm_v2_client_id=$1 AND a.client_id IS NULL
           AND a.status='cancelled' AND aba.status='declined'
           AND aba.decision_note='workspace_cannot_accommodate'
@@ -254,7 +258,11 @@ function createMyShilohClientContextService({
         ORDER BY aba.decided_at DESC NULLS LAST,a.id DESC
         LIMIT 5`, [id],
     );
-    return result.rows.map(appointmentFromRow);
+    return result.rows.map(row => ({
+      ...appointmentFromRow(row),
+      bookingRequestDecisionNote: String(row.booking_request_decision_note || ''),
+      historyHidden: row.history_hidden !== false,
+    }));
   }
 
   async function loadPendingRescheduleRequests(crmV2ClientId) {
