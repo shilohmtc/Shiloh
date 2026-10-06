@@ -52,9 +52,7 @@ test('My Shiloh renders the approved five-tab PWA shell with public-safe service
   assert.doesNotMatch(html, /data-notification-badge|nav-icon--badged/);
   assert.match(html, /id="wallet" data-view="wallet"/);
   assert.match(html, /Your Shiloh value, together/);
-  assert.match(html, /Full Body Swedish/);
-  assert.match(html, /R720/);
-  assert.match(html, /Pedicures &amp; Foot Care/);
+  assert.doesNotMatch(html, /id="discover-title"/);
   assert.doesNotMatch(html, /Clinical therapeutic claim/);
   assert.doesNotMatch(html, /\btherapy\b/i);
   assert.doesNotMatch(html, /ADMIN_API_KEY|x-admin-key/i);
@@ -78,7 +76,7 @@ test('authenticated My Shiloh Home exposes tappable summary cards without duplic
   assert.doesNotMatch(html, /onclick=/i);
 });
 
-test('Home choosing help opens in-app Shiloh for clients and keeps guest and Reception paths honest', () => {
+test('Shiloh choosing help opens in-app Shiloh for clients and keeps guest and Reception paths honest', () => {
   const guest = renderMyShilohPage({ whatsappNumber:'27830000000' });
   const client = { id:'912', name:'Christel Botha', firstName:'Christel' };
   const signed = renderMyShilohPage({ whatsappNumber:'27830000000', client });
@@ -86,12 +84,11 @@ test('Home choosing help opens in-app Shiloh for clients and keeps guest and Rec
     whatsappNumber:'27830000000', humanWhatsAppNumber:'0662399138',
     humanHandoffActive:true, client,
   });
-  const card = (html) => html.match(/<section class="quiet-card">\s*<div class="quiet-icon"[^>]*>S<\/div>[\s\S]*?<\/section>/)?.[0] || '';
+  const card = (html) => html.match(/<div class="quiet-card">[\s\S]*?Need help choosing[\s\S]*?<\/div>/)?.[0] || '';
   assert.match(card(signed), /chat here in My Shiloh/);
-  assert.match(card(signed), /href="#shiloh" aria-label="Open Shiloh in My Shiloh"/);
+  assert.match(signed.split('id="shiloh"')[1], /data-shiloh-prompt>Help me choose a treatment/);
   assert.doesNotMatch(card(signed), /wa\.me|WhatsApp/);
   assert.match(card(reception), /chat here in My Shiloh/);
-  assert.match(card(reception), /href="#shiloh" aria-label="Open Shiloh in My Shiloh"/);
   assert.doesNotMatch(reception, /Reception is handling your request|automatic replies are paused/);
   assert.equal(card(guest), '');
 });
@@ -239,7 +236,7 @@ test('SMS enrollment appears in the installed guest app only when enabled', () =
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v47/);
+  assert.match(worker, /my-shiloh-shell-v48/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /booking\.js/);

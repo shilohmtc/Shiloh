@@ -73,7 +73,7 @@ function bookingSurface() {
       { id: 101, name: 'Hot Stone Massage', category: 'Massage', duration: '75 min', price: 'R850' },
       { id: 103, name: 'Signature Pedicure', category: 'Pedicures & Foot Care', duration: '75 min', price: 'R620' },
     ],
-    clientFirstName: 'Christel',
+    clientFirstName: 'Jean-Pierre',
     csrfToken: 'storybook-csrf',
     bookingPolicyText: BOOKING_POLICY_TEXT,
     depositPolicy: {
@@ -724,5 +724,18 @@ export const BookForTwo = {
     const root = document.createElement('div');
     root.innerHTML = `<style>${styles}</style><div data-story-surface>${body.replace(/<script[\s\S]*?<\/script>/g, '')}</div>`;
     return root;
+  },
+};
+
+export const LaterAppointmentDeposit = {
+  render: () => {
+    const surface = productionSurface({ id: '912', name: 'Jean-Pierre Botha', firstName: 'Jean-Pierre' });
+    const payments = surface.querySelector('[data-client-home-payments]');
+    payments.hidden = false;
+    payments.innerHTML = '<article class="action-card action-card--accent"><h2>R295 deposit required</h2><p>Full Body Swedish · Tue, 6 Oct · 10:45</p><p>Open your secure payment.</p><a class="button button--primary" href="/pay/story_deposit">Pay deposit</a></article>';
+    const home = surface.querySelector('[data-client-experience-home]');
+    home.querySelector('h2').textContent = 'Your next visit';
+    home.querySelector(':scope > p').textContent = 'Toe Gel Only · Tue, 6 Oct · 08:30 · Christel';
+    return surface;
   },
 };
