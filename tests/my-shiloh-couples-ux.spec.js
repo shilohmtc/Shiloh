@@ -26,7 +26,7 @@ for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',w
       const axe=await new AxeBuilder({ page }).include('[data-my-shiloh-couples]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
       expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
-      expect(await root.locator('[data-couples-step]:not([hidden]) h2').evaluate(heading=>heading.getBoundingClientRect().top >= document.querySelector('.top').getBoundingClientRect().bottom)).toBe(true);
+      expect(await root.locator('[data-couples-step]:not([hidden]) > .step-head > h2, [data-couples-step]:not([hidden]) > .success-card > h2').evaluate(heading=>heading.getBoundingClientRect().top >= document.querySelector('.top').getBoundingClientRect().bottom)).toBe(true);
       await page.screenshot({ path:testInfo.outputPath(`couples-${viewport.name}-${step}.png`),fullPage:true,animations:'disabled' });
     }
     await evidence('guest');
