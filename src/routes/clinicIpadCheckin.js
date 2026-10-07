@@ -272,7 +272,7 @@ status.textContent='Confirm the client, appointment and form before preparing it
 for(const item of data.assignments){
 const row=document.createElement('div'),label=document.createElement('label'),select=document.createElement('select'),button=document.createElement('button');
 label.textContent=item.client_name+' · mobile ending '+item.mobile_last4+' · '+new Date(item.starts_at).toLocaleString('en-ZA',{timeZone:'Africa/Johannesburg'})+' · '+item.title+' · iPad ';
-for(const device of document.querySelectorAll('[data-revoke]')){const option=document.createElement('option');option.value=device.dataset.revoke;option.textContent='iPad '+device.dataset.revoke;select.append(option);}
+for(const device of document.querySelectorAll('[data-device-choice]')){const option=document.createElement('option');option.value=device.dataset.deviceChoice;option.textContent='iPad '+device.dataset.deviceChoice;select.append(option);}
 button.type='button';button.className='button secondary';button.textContent='Prepare on iPad';
 if(item.handoff_id){const cancel=document.createElement('button');cancel.type='button';cancel.className='button secondary';cancel.textContent='Cancel prepared form on iPad '+item.handoff_device_id;cancel.addEventListener('click',async()=>{cancel.disabled=true;try{await send('cancel-handover',{deviceId:item.handoff_device_id,handoffId:item.handoff_id});document.querySelector('[data-find-forms]').requestSubmit();}catch(e){status.textContent=e.message;cancel.disabled=false;}});label.append(select);select.value=String(item.handoff_device_id);select.disabled=true;row.append(label,cancel);options.append(row);continue;}
 button.addEventListener('click',async()=>{button.disabled=true;select.disabled=true;try{const deviceId=select.value;

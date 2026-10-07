@@ -1899,6 +1899,12 @@ const states = [
 
 for (const state of states) {
   test(`${state.name} visual and accessibility baseline`, async ({ page }) => {
+    // Static Storybook has no production PWA router. Reproduce that router's
+    // original asset for these changed Workspace references before comparing pixels.
+    const workspaceReference = ['dashboard-desktop', 'dashboard-phone', 'client-history-desktop'].includes(state.name);
+    if (workspaceReference) await page.route('**/calendar/pwa/icon-192.png*', route => route.fulfill({
+      path: require('node:path').resolve(__dirname, '../public/assets/pwa/shiloh-pwa-192.png'),
+    }));
     await page.setViewportSize(state.viewport);
     await page.goto(`/iframe.html?id=${state.storyId}&viewMode=story`, { waitUntil: 'networkidle' });
     await page.evaluate(async () => {
@@ -1907,6 +1913,12 @@ for (const state of states) {
 
     const reference = page.locator(state.selector || '.calendar-reference');
     await expect(reference).toBeVisible();
+    if (workspaceReference) {
+      const logo = page.locator(state.name.endsWith('-phone') ? '.workspace-menu-brand-icon' : '.workspace-desktop-mark .workspace-brand-icon');
+      await expect(logo).toBeVisible();
+      await expect.poll(() => logo.evaluate(node => node.complete && node.naturalWidth > 0)).toBe(true);
+      await logo.evaluate(node => node.decode());
+    }
 
     const accessibility = await new AxeBuilder({ page })
       .include(state.selector || '.calendar-reference')

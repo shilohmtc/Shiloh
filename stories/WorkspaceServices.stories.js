@@ -1,6 +1,11 @@
 import servicePresentation from '../src/presentation/workspaceServicesUx.js';
+import creationPresentation from '../src/presentation/workspaceServiceCreationUx.js';
 
 const { renderServicesListPage, renderServiceDetailPage } = servicePresentation;
+
+export const CreateService = {
+  render: () => productionSurface(creationPresentation.renderWorkspaceServiceCreationPage()),
+};
 
 function productionSurface(pageHtml) {
   const styles = [...String(pageHtml).matchAll(/<style>([\s\S]*?)<\/style>/g)]

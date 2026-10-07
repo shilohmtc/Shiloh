@@ -29,16 +29,20 @@ Committed baseline authority is the reviewed `tests/ux-baselines/*.png.b64.part*
 
 The normal encoder emits deterministic bounded numeric parts. Smaller subparts/nested segments are permitted only as an equivalent transport representation when required by repository tooling; they do not change the reviewed PNG bytes.
 
-Never auto-accept visual drift. If a visual change is intentional:
+Never auto-accept unexplained visual drift. If a visual change is intentional:
 
 1. verify the underlying production-backed story changed for an authorized reason;
-2. run the Storybook build and Playwright suite with `--update-snapshots` in the same Ubuntu/Chromium environment used by CI;
-3. inspect the generated PNGs visually on both Desktop and Phone;
+2. capture candidate PNGs in the same Ubuntu/Chromium environment used by CI, using the exact-head comparison's actual images or an explicit `--update-snapshots` run;
+3. deliberately inspect expected, candidate and diff PNGs on the affected Desktop and Phone states, preserving original brand assets and checking clipping, lost content, focus, target size and intended meaning;
 4. run `node scripts/ux-baseline-codec.js encode`, which replaces the prior parts with deterministic bounded parts;
 5. commit only the approved `.png.b64.part*` fixtures together with the authorized presentation change;
 6. rerun the exact-head UX gate and normal repository gates.
 
-When a new baseline has not yet been committed, the PR workflow generates candidate PNGs plus their encoded part fixtures as an artifact and fails closed. A deliberate human visual review must accept the pixels and commit the corresponding parts before the gate can pass.
+When a new baseline has not yet been committed, the PR workflow generates candidate evidence as an artifact and fails closed. A deliberate visual review must accept the pixels and commit the corresponding parts before the gate can pass.
+
+**Owner clarification, 7 October 2026:** for explicitly owner-requested or approved routine presentation changes, the owner delegates technical visual acceptance to the assistant and reviews the result after the authorized live release. In this bounded case, assistant acceptance may replace pre-release human pixel acceptance only after the inspection above, documented intent, retained synthetic artifacts, accessibility and behaviour tests, and all required exact-head gates pass after the fixtures are committed. Record the reviewer as an assistant; never imply that a human inspected the pixels. Baseline acceptance does not itself authorize a merge or release; use the owner's applicable release instruction.
+
+This delegation does not authorize unrequested drift or changes to security, client data, business behaviour, migrations, destructive operations, costs or production configuration. Escalate those changes for the applicable explicit owner decision. Keep repository branch protection, access and settings intact; never waive a failed check or merge a red head. For other changes, retain deliberate human visual acceptance before committing the corresponding baseline parts.
 
 ## Clean Change
 

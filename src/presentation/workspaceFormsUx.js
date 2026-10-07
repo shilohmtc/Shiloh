@@ -50,7 +50,7 @@ function renderSubmissionList(submissions = {}) {
     const submitted = formatDateTime(item.submittedAt);
     const tags = `${item.isTest ? '<span class="submission-tag test">TEST</span>' : ''}<span class="submission-tag">${escapeHtml(labelStatus(item.status || 'completed'))}</span>`;
     const action = item.canOpen
-      ? `<a class="submission-action" href="${escapeHtml(submissionHref(item))}">Open form →</a>`
+      ? `<a data-workspace-action="secondary" class="submission-action" href="${escapeHtml(submissionHref(item))}">Open form →</a>`
       : '<span class="submission-restricted">Private answers restricted</span>';
     return `<article class="submission-card" data-form-submission="${escapeHtml(item.kind)}">
       <div class="submission-main"><strong>${escapeHtml(item.clientName || 'Client')}</strong><span>${escapeHtml(item.formTitle || 'Consultation form')}</span><div class="submission-tags">${tags}</div></div>
@@ -66,8 +66,8 @@ function renderTreatmentQueue(queue = {}) {
     <div class="submission-main"><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(item.services)}</span><span>${escapeHtml(formatDateTime(item.startsAt))} · ${escapeHtml(item.practitioners)}</span>
       <p class="form-readiness ${item.readiness.ready ? '' : 'required'}">${escapeHtml(item.readiness.label)}</p>
       <p>${item.readiness.ready ? 'Review the submitted forms before treatment.' : 'Required before treatment. The client must complete and sign every required form.'}</p>
-      <ul>${item.forms.map(form => `<li>${escapeHtml(form.title)} · ${escapeHtml(labelStatus(form.status))}${form.submissionId && item.canOpen ? ` <a class="submission-action" href="/calendar/forms/submissions/client/${form.submissionId}">Review form</a>` : ''}</li>`).join('')}</ul>
-    </div>${!item.readiness.ready && item.canPrepareIpad && item.forms.some(form => form.canComplete) ? `<a class="submission-action" href="/calendar/check-in/devices?appointmentId=${item.id}">Prepare on iPad</a>` : ''}
+      <ul>${item.forms.map(form => `<li>${escapeHtml(form.title)} · ${escapeHtml(labelStatus(form.status))}${form.submissionId && item.canOpen ? ` <a data-workspace-action="secondary" class="submission-action" href="/calendar/forms/submissions/client/${form.submissionId}">Review form</a>` : ''}</li>`).join('')}</ul>
+    </div>${!item.readiness.ready && item.canPrepareIpad && item.forms.some(form => form.canComplete) ? `<a data-workspace-action="secondary" class="submission-action" href="/calendar/check-in/devices?appointmentId=${item.id}">Prepare on iPad</a>` : ''}
     </article>`).join('') || '<div class="empty">No upcoming consultation forms waiting.</div>'}</section>`;
 }
 
@@ -113,10 +113,10 @@ function renderFormsPage(model = {}) {
     formsHref: '/calendar/forms',
   })}<main class="workspace-main"><div class="shell">
     <header class="topbar"><div class="brand"><h1>${history ? 'Form history' : 'Forms'}</h1><p>${model.authority?.formScope === 'own_staff' ? 'Forms for your assigned appointments.' : 'Clinic forms, completion status and client history.'}</p></div><span class="truth-note">Protected Workspace</span></header>
-    ${history ? `<a class="preview-back" href="/calendar/forms">Back to Forms</a><form class="form-history-search" method="get" action="/calendar/forms/history"><label for="form-history-search">Client name</label><input id="form-history-search" name="search" maxlength="100" value="${escapeHtml(history.search)}"><button type="submit">Search history</button></form>${renderSubmissionList(history)}<nav class="form-history-paging" aria-label="Form history pages">${history.page>0 ? `<a class="submission-action" href="${escapeHtml(historyHref(history.page-1,history.search))}">Newer forms</a>` : ''}${history.hasMore ? `<a class="submission-action" href="${escapeHtml(historyHref(history.page+1,history.search))}">Older forms</a>` : ''}</nav>` : `
-    <div class="section-title-row"><div><h2>Before treatment</h2><p>Required forms must be submitted and signed. Readiness updates from the saved forms.</p></div><a class="submission-action" href="/calendar/forms/history">Search form history</a></div>
+    ${history ? `<a data-workspace-action="secondary" class="preview-back" href="/calendar/forms">Back to Forms</a><form class="form-history-search" method="get" action="/calendar/forms/history"><label for="form-history-search">Client name</label><input id="form-history-search" name="search" maxlength="100" value="${escapeHtml(history.search)}"><button data-workspace-action="secondary" type="submit">Search history</button></form>${renderSubmissionList(history)}<nav class="form-history-paging" aria-label="Form history pages">${history.page>0 ? `<a data-workspace-action="secondary" class="submission-action" href="${escapeHtml(historyHref(history.page-1,history.search))}">Newer forms</a>` : ''}${history.hasMore ? `<a data-workspace-action="secondary" class="submission-action" href="${escapeHtml(historyHref(history.page+1,history.search))}">Older forms</a>` : ''}</nav>` : `
+    <div class="section-title-row"><div><h2>Before treatment</h2><p>Required forms must be submitted and signed. Readiness updates from the saved forms.</p></div><a data-workspace-action="secondary" class="submission-action" href="/calendar/forms/history">Search form history</a></div>
     ${renderTreatmentQueue(model.treatmentQueue)}
-    ${appointmentId ? `<p>Appointment #${escapeHtml(appointmentId)} · <a class="submission-action" href="${escapeHtml(model.returnHref || '/calendar')}">Back to Calendar</a> · <a class="submission-action" href="/calendar/forms">All Forms</a></p>` : ''}
+    ${appointmentId ? `<p>Appointment #${escapeHtml(appointmentId)} · <a data-workspace-action="secondary" class="submission-action" href="${escapeHtml(model.returnHref || '/calendar')}">Back to Calendar</a> · <a data-workspace-action="secondary" class="submission-action" href="/calendar/forms">All Forms</a></p>` : ''}
     <section class="status-grid" aria-label="Form completion status">${statusCards}</section>
     <section class="notice" aria-label="Forms setup status"><div><strong>Consultation forms are protected.</strong><p>Form templates can be previewed below. Completed submissions appear here without placing health answers in WhatsApp, Calendar cards or ordinary client lists.</p></div></section>
     <div class="section-title-row"><div><h2>Recent submissions</h2><p>Completed client forms and isolated private tests.</p></div></div>
@@ -188,7 +188,7 @@ function renderFormPreviewPage(model = {}) {
     reportsHref: '/calendar/reports',
     clinicHoursHref: '/calendar/clinic-hours',
   })}<main class="workspace-main"><div class="shell preview-shell">
-    <a class="preview-back" href="/calendar/forms">← Back to Forms</a>
+    <a data-workspace-action="secondary" class="preview-back" href="/calendar/forms">← Back to Forms</a>
     <article class="preview-panel">
       <header class="preview-hero">
         <div class="preview-hero-top"><div><h1>${escapeHtml(form.title || 'Consultation form')}</h1></div><span class="preview-pill">Staff preview · Version ${escapeHtml(form.version || 0)}</span></div>
@@ -259,7 +259,7 @@ function renderSubmissionPage(model = {}) {
     reportsHref: '/calendar/reports',
     clinicHoursHref: '/calendar/clinic-hours',
   })}<main class="workspace-main"><div class="shell preview-shell">
-    <a class="preview-back" href="${Number.isSafeInteger(Number(appointment.id)) && Number(appointment.id)>0 ? `/calendar/forms?appointmentId=${Number(appointment.id)}#appointment-${Number(appointment.id)}` : "/calendar/forms"}">← Back to Forms</a>
+    <a data-workspace-action="secondary" class="preview-back" href="${Number.isSafeInteger(Number(appointment.id)) && Number(appointment.id)>0 ? `/calendar/forms?appointmentId=${Number(appointment.id)}#appointment-${Number(appointment.id)}` : "/calendar/forms"}">← Back to Forms</a>
     ${model.isTest ? '<div class="test-banner"><strong>TEST SUBMISSION.</strong> This isolated submission is not attached to a client or appointment.</div>' : '<div class="sensitive-banner"><strong>Private health information.</strong> View only when needed for treatment preparation and do not copy it into WhatsApp or ordinary Calendar notes.</div>'}
     <article class="submission-panel">
       <header class="preview-hero">
@@ -276,7 +276,7 @@ function renderSubmissionPage(model = {}) {
 }
 
 function renderFormsUnavailablePage({ message = 'Forms are temporarily unavailable.' } = {}) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Forms — Shiloh Workspace</title><style>${workspaceShellStyles()}${formsStyles()}</style></head><body><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'forms' })}<main class="workspace-main"><div class="shell"><header class="topbar"><div class="brand"><h1>Forms</h1><p>${escapeHtml(message)}</p></div></header><a class="preview-back" href="/calendar/forms">Back to Forms</a></div></main></div></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Forms — Shiloh Workspace</title><style>${workspaceShellStyles()}${formsStyles()}</style></head><body><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'forms' })}<main class="workspace-main"><div class="shell"><header class="topbar"><div class="brand"><h1>Forms</h1><p>${escapeHtml(message)}</p></div></header><a data-workspace-action="secondary" class="preview-back" href="/calendar/forms">Back to Forms</a></div></main></div></body></html>`;
 }
 
 module.exports = {

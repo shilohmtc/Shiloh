@@ -24,18 +24,18 @@ function attentionItem(item) {
   const client = item.client || {};
   const confirmation = item.confirmation || {};
   const recover = item.canRecover
-    ? `<button class="button primary" type="button" data-booking-confirmation-recover data-appointment-id="${escapeHtml(appointment.id)}">${escapeHtml(item.actionLabel)}</button>`
+    ? `<button data-workspace-action="primary" class="button primary" type="button" data-booking-confirmation-recover data-appointment-id="${escapeHtml(appointment.id)}">${escapeHtml(item.actionLabel)}</button>`
     : '';
   const delivery = confirmation.deliveryExplanation || 'No additional safe delivery detail is available.';
   const recovery = item.recoveryExplanation
     || (item.canRecover ? 'Retry is available through Shiloh’s existing booking-confirmation channel.' : null)
     || item.reasonMessage
     || 'Recovery is not currently available.';
-  return `<article class="item" data-message-attention="${escapeHtml(appointment.id)}"><header class="item-head"><div><h3>${escapeHtml(client.name || 'Unnamed client')}</h3><p>Appointment #${escapeHtml(appointment.id)} · ${escapeHtml(appointment.serviceName || 'Shiloh appointment')}</p></div><span class="status attention">${escapeHtml(confirmation.statusLabel || 'Unknown')}</span></header><p>${escapeHtml(formatDateTime(appointment.startsAt))}</p><div class="explanations"><div class="explanation"><strong>Delivery</strong><span>${escapeHtml(delivery)}</span></div><div class="explanation"><strong>Recovery</strong><span>${escapeHtml(recovery)}</span></div></div><div class="item-actions"><a class="button" href="/calendar/clients/${escapeHtml(client.id)}">Client</a><a class="button" href="/calendar/read-only?view=day&amp;date=${escapeHtml(String(appointment.startsAt || '').slice(0, 10))}">Calendar</a>${recover}</div></article>`;
+  return `<article class="item" data-message-attention="${escapeHtml(appointment.id)}"><header class="item-head"><div><h3>${escapeHtml(client.name || 'Unnamed client')}</h3><p>Appointment #${escapeHtml(appointment.id)} · ${escapeHtml(appointment.serviceName || 'Shiloh appointment')}</p></div><span class="status attention">${escapeHtml(confirmation.statusLabel || 'Unknown')}</span></header><p>${escapeHtml(formatDateTime(appointment.startsAt))}</p><div class="explanations"><div class="explanation"><strong>Delivery</strong><span>${escapeHtml(delivery)}</span></div><div class="explanation"><strong>Recovery</strong><span>${escapeHtml(recovery)}</span></div></div><div class="item-actions"><a data-workspace-action="secondary" class="button" href="/calendar/clients/${escapeHtml(client.id)}">Client</a><a data-workspace-action="secondary" class="button" href="/calendar/read-only?view=day&amp;date=${escapeHtml(String(appointment.startsAt || '').slice(0, 10))}">Calendar</a>${recover}</div></article>`;
 }
 
 function changeDeliveryItem(item) {
-  return `<article class="item" data-change-delivery-attention="${escapeHtml(item.id)}"><header class="item-head"><div><h3>${escapeHtml(item.clientName)}</h3><p>Appointment #${escapeHtml(item.appointmentId)} · ${escapeHtml(item.label)}</p></div><span class="status attention">${escapeHtml(item.statusLabel)}</span></header><p>${escapeHtml(formatDateTime(item.updatedAt))}</p><div class="explanations"><div class="explanation"><strong>Next step</strong><span>${escapeHtml(item.nextAction)}</span></div></div><div class="item-actions"><a class="button" href="/calendar/clients/${escapeHtml(item.clientId)}">Review client</a></div></article>`;
+  return `<article class="item" data-change-delivery-attention="${escapeHtml(item.id)}"><header class="item-head"><div><h3>${escapeHtml(item.clientName)}</h3><p>Appointment #${escapeHtml(item.appointmentId)} · ${escapeHtml(item.label)}</p></div><span class="status attention">${escapeHtml(item.statusLabel)}</span></header><p>${escapeHtml(formatDateTime(item.updatedAt))}</p><div class="explanations"><div class="explanation"><strong>Next step</strong><span>${escapeHtml(item.nextAction)}</span></div></div><div class="item-actions"><a data-workspace-action="secondary" class="button" href="/calendar/clients/${escapeHtml(item.clientId)}">Review client</a></div></article>`;
 }
 
 function activityItem(item) {
