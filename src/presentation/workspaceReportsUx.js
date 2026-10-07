@@ -23,10 +23,6 @@ function phoneCapacityStyles() {
   return `@media(max-width:700px){.table-scroll{overflow:visible}.capacity-table{display:block;min-width:0}.capacity-table thead{display:none}.capacity-table tbody{display:grid;gap:9px}.capacity-table tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border:1px solid var(--line);border-radius:12px;background:#fff;padding:10px}.capacity-table td{display:grid;gap:3px;border:0!important;border-radius:0!important;padding:7px!important;text-align:left!important;background:transparent}.capacity-table td:first-child{grid-column:1/-1;padding-bottom:9px!important;border-bottom:1px solid var(--line)!important}.capacity-table td::before{content:attr(data-label);color:var(--muted);font-size:.62rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.capacity-table .util{min-width:0}.capacity-table .util small{text-align:left}}`;
 }
 
-function welcomeVoucherCampaignStyles() {
-  return `.campaign-panel{border-color:#cbd8cf;background:linear-gradient(145deg,#fffdf9 0%,#f5f8f4 100%)}.campaign-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.campaign-metric{padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff}.campaign-metric span,.campaign-metric strong,.campaign-metric small{display:block}.campaign-metric span{color:var(--muted);font-size:.67rem;font-weight:800}.campaign-metric strong{margin-top:5px;font-size:1.25rem;color:var(--leaf-deep)}.campaign-metric small{margin-top:5px;color:var(--muted);font-size:.65rem;line-height:1.35}.campaign-activity{display:grid;gap:0;margin-top:14px;border-top:1px solid var(--line)}.campaign-activity-row{display:grid;grid-template-columns:minmax(100px,.65fr) minmax(130px,1fr) auto;gap:10px;align-items:center;padding:10px 2px;border-bottom:1px solid var(--line);font-size:.74rem}.campaign-activity-row strong,.campaign-activity-row span{overflow-wrap:anywhere}.campaign-activity-row span{color:var(--muted);font-size:.69rem}.campaign-state{justify-self:end;border-radius:999px;padding:5px 8px;background:var(--leaf-soft);color:var(--leaf-deep)!important;font-weight:800}.campaign-state.expired,.campaign-state.cancelled{background:var(--danger-soft);color:var(--danger)!important}@media(max-width:850px){.campaign-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:540px){.campaign-activity-row{grid-template-columns:minmax(0,1fr) auto}.campaign-activity-row>span:nth-child(2){grid-column:1/-1;grid-row:2}.campaign-state{grid-column:2;grid-row:1}}`;
-}
-
 function earningsStyles() {
   return `.earnings-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-bottom:14px}.earnings-summary article{padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff}.earnings-summary span,.earnings-summary strong{display:block}.earnings-summary span{color:var(--muted);font-size:.72rem}.earnings-summary strong{font-size:1.15rem;margin-top:5px}.earnings-person{border-top:1px solid var(--line);padding:15px 0}.earnings-person h3{margin:0 0 5px;font-size:1rem}.earnings-person p{margin:0 0 10px;color:var(--muted);font-size:.75rem}.earnings-visits{display:grid;gap:6px}.earnings-visit{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:9px;border:1px solid var(--line);border-radius:9px;background:#fff;font-size:.78rem}.earnings-visit a{font-weight:800;color:var(--leaf-deep);min-height:44px;display:inline-flex;align-items:center}.earnings-visit small{display:block;color:var(--muted);line-height:1.5}.earnings-review{color:var(--danger);font-weight:750}.rule-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.rule-grid .field:last-of-type{grid-column:1/-1}.rule-list{margin:14px 0 0;padding-left:20px;font-size:.76rem;line-height:1.8}.rule-status{min-height:22px;font-size:.76rem}.rule-status.error{color:var(--danger)}@media(max-width:700px){.earnings-summary{grid-template-columns:1fr 1fr}.earnings-summary article:last-child{grid-column:1/-1}.earnings-visit{grid-template-columns:1fr auto}.earnings-visit>span:last-child{grid-column:1/-1}.rule-grid{grid-template-columns:1fr}.rule-grid .field:last-of-type{grid-column:auto}}`;
 }
@@ -93,17 +89,6 @@ function formatTimestamp(value) {
 
 function formatRand(value) {
   return `R${Math.max(0, Number(value) || 0).toLocaleString('en-ZA', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
-}
-
-function welcomeVoucherCampaignSection(campaign) {
-  if (!campaign) return '';
-  const activity = (campaign.recentActivity || []).map((item) => {
-    const state = String(item.state || 'available').toLowerCase();
-    const eventAt = state === 'redeemed' ? item.redeemedAt : state === 'available' ? item.issuedAt : item.expiresAt;
-    const treatment = item.treatment ? ` · ${item.treatment}` : '';
-    return `<div class="campaign-activity-row"><strong>${escapeHtml(item.clientFirstName || 'Client')}</strong><span>${escapeHtml(formatTimestamp(eventAt))}${escapeHtml(treatment)}</span><span class="campaign-state ${escapeHtml(state)}">${escapeHtml(statusLabel(state))}</span></div>`;
-  }).join('');
-  return `<details class="panel campaign-panel" id="welcome-voucher" data-report-section data-welcome-voucher-campaign><summary class="panel-heading"><div><span class="eyebrow">Private · Christel and JP only</span><h2>R100 Welcome Voucher campaign</h2><p>Live campaign performance since launch. Recent activity shows first names only—no phone numbers or personal profile details.</p></div><span class="truth-note">Read only</span></summary><div class="panel-body"><div class="campaign-metrics"><div class="campaign-metric"><span>Completed registrations</span><strong>${escapeHtml(campaign.registrationsCompleted || 0)}</strong><small>Verified full profiles completed since launch.</small></div><div class="campaign-metric"><span>Vouchers unlocked</span><strong>${escapeHtml(campaign.vouchersUnlocked || 0)}</strong><small>Once-off R100 vouchers issued.</small></div><div class="campaign-metric"><span>Vouchers redeemed</span><strong>${escapeHtml(campaign.vouchersRedeemed || 0)}</strong><small>Applied to qualifying bookings.</small></div><div class="campaign-metric"><span>Redemption rate</span><strong>${escapeHtml(campaign.redemptionPercent || 0)}%</strong><small>Redeemed as a share of unlocked.</small></div><div class="campaign-metric"><span>Expiring soon</span><strong>${escapeHtml(campaign.expiringSoon || 0)}</strong><small>Available vouchers expiring in 7 days.</small></div><div class="campaign-metric"><span>Discounts given</span><strong>${escapeHtml(formatRand(campaign.discountsGiven))}</strong><small>Applied voucher value, excluding reversals.</small></div><div class="campaign-metric"><span>Booking revenue received</span><strong>${escapeHtml(formatRand(campaign.bookingRevenueReceived))}</strong><small>Actual net payments on voucher bookings.</small></div></div><div class="campaign-activity">${activity || '<div class="empty">No welcome-voucher activity has been recorded yet.</div>'}</div></div></details>`;
 }
 
 function queryForPreset(preset, selectedStaffId) {
@@ -178,13 +163,11 @@ function renderReportsPage(model, {
     : selectedStaffId
       ? `Showing ${selectedStaff?.displayName || selectedStaff?.display_name || 'the selected team member'}.`
       : 'Showing the whole team.';
-  const welcomeVoucherCampaign = welcomeVoucherCampaignSection(model.welcomeVoucherCampaign);
-  const campaignJump = model.welcomeVoucherCampaign ? '<a class="jump-link" href="#welcome-voucher">R100 campaign</a>' : '';
   const earningsJump = model.staffEarnings ? '<a class="jump-link" href="#staff-earnings">Earnings</a>' : '';
   const recordsJump = model.financial?.records ? '<a class="jump-link" href="#financial-expenses">Expenses</a><a class="jump-link" href="#financial-cashup">Cash-up</a>' : '';
   const financialJump = model.financial ? '<a class="jump-link" href="#financial-daily">Daily finances</a><a class="jump-link" href="#financial-receipts">Receipts</a><a class="jump-link" href="#financial-balances">Balances</a>' : '';
 
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clinic reports — Shiloh Workspace</title><style>${workspaceShellStyles()}${reportStyles()}${phoneCapacityStyles()}${welcomeVoucherCampaignStyles()}${earningsStyles()}${reportSectionStyles()}${financialStyles()}${recordsStyles()}</style><script src="/calendar/reports/sections.js" defer></script><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${model.staffEarnings ? '<script src="/calendar/reports/commission.js" defer></script>' : ''}${model.financial?.records ? '<script src="/calendar/reports/finance-records.js" defer></script>' : ''}</head><body data-workspace-reports="true"><div class="workspace-frame">${renderWorkspaceNavigation({
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clinic reports — Shiloh Workspace</title><style>${workspaceShellStyles()}${reportStyles()}${phoneCapacityStyles()}${earningsStyles()}${reportSectionStyles()}${financialStyles()}${recordsStyles()}</style><script src="/calendar/reports/sections.js" defer></script><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${model.staffEarnings ? '<script src="/calendar/reports/commission.js" defer></script>' : ''}${model.financial?.records ? '<script src="/calendar/reports/finance-records.js" defer></script>' : ''}</head><body data-workspace-reports="true"><div class="workspace-frame">${renderWorkspaceNavigation({
     active: 'reports',
     displayName: model.authority?.displayName,
     calendarHref: '/calendar/read-only',
@@ -207,7 +190,7 @@ function renderReportsPage(model, {
     </section>
 
     ${financialOverview(model)}
-    <nav class="jump-row" aria-label="Report sections">${financialJump}${recordsJump}${earningsJump}${campaignJump}<a class="jump-link" href="#team-time">Team</a><a class="jump-link" href="#treatments">Treatments</a><a class="jump-link" href="#clients">Clients</a></nav>
+    <nav class="jump-row" aria-label="Report sections">${financialJump}${recordsJump}${earningsJump}<a class="jump-link" href="#team-time">Team</a><a class="jump-link" href="#treatments">Treatments</a><a class="jump-link" href="#clients">Clients</a></nav>
 
     <section class="metrics" aria-label="At a glance">
       <article class="metric-card"><span>Appointments</span><strong>${escapeHtml(model.appointments?.operational || 0)}</strong><small>Excluding cancellations.</small></article>
@@ -220,7 +203,6 @@ function renderReportsPage(model, {
     ${financialSections(model.financial)}
     ${recordSections(model.financial?.records, model.period, csrfToken)}
     ${staffEarningsSection(model.staffEarnings, model.period, csrfToken)}
-    ${welcomeVoucherCampaign}
 
     <div class="grid">
       <div>
@@ -258,7 +240,6 @@ module.exports = {
   trendSummary,
   formatTimestamp,
   formatRand,
-  welcomeVoucherCampaignSection,
   staffEarningsSection,
   commissionClientScript,
   reportSectionsClientScript,

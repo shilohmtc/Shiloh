@@ -234,7 +234,7 @@ test('canonical finalizer row-locks and audits the actual Workspace operator, wh
   assert.equal(JSON.parse(audit.params[2]).surface, 'workspace_dashboard');
 });
 
-test('Dashboard presentation makes appointment operations primary and communication failures unambiguous', () => {
+test('Dashboard keeps appointment operations and omits duplicated communication alerts', () => {
   const model = {
     generatedAt: NOW.toISOString(), requestedDateKey: '2026-09-05', operationalDateKey: '2026-09-05',
     displayName: 'Canonical Practitioner', mode: 'my_day', calendar: calendarModel(), closures: [],
@@ -249,9 +249,9 @@ test('Dashboard presentation makes appointment operations primary and communicat
   assert.match(html, /href="\/calendar\/read-only\?view=week&amp;date=2026-09-05&amp;staff=all">Open calendar/);
   assert.match(html, /href="\/calendar\/read-only\?view=week&amp;date=2026-09-05&amp;staff=all">Open \/ manage/);
   assert.doesNotMatch(html, /\/calendar\/read-only\?view=day/);
-  assert.match(html, /Client notification needs attention/);
+  assert.doesNotMatch(html, /Client notification needs attention|data-dashboard-communications-panel|data-dashboard-voucher-panel/);
   assert.doesNotMatch(html, /Appointment #501 · Failed/);
-  assert.ok(html.indexOf('data-dashboard-today') < html.indexOf('data-dashboard-communications-panel'));
+  assert.match(html, /data-dashboard-today/);
   assert.match(dashboardClientScript(), /x-shiloh-csrf-token/);
   assert.match(dashboardClientScript(), /expectedRevision/);
 });

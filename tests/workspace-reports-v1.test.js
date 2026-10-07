@@ -231,3 +231,23 @@ test('Reports route keeps private no-store security and returns friendly access 
   assert.match(routeRes.body, /You do not have access to this report/);
   assert.doesNotMatch(routeRes.body, /secret detail|scope|authority|canonical/i);
 });
+
+test('Reports skips retired campaign reads while retaining independently authorized financial credits and history', async () => {
+  let campaignReads = 0;
+  const period = { startKey: '2026-10-06', endInclusiveKey: '2026-10-06', dayCount: 1 };
+  const financial = { balances: [{ appointmentId: 901, credits: '100.00' }], receipts: [{ amount: '200.00', entryType: 'payment' }] };
+  const handler = createWorkspaceReportsHandler({
+    env: { SHILOH_CALENDAR_READONLY_UX_ENABLED: 'true', SHILOH_STAFF_BROWSER_SESSION_CALENDAR_BRIDGE_ENABLED: 'true' },
+    service: { async buildReport() { return { period }; } },
+    welcomeVoucherCampaignService: { async buildCampaign() { campaignReads++; throw Error('Retired display read'); } },
+    earningsService: { async requireOwner(id) { assert.equal(id, 7); }, async build() { return { staff: [] }; } },
+    financialService: { async build({adminId, period: requested}) { assert.equal(adminId, 7); assert.equal(requested, period); return financial; } },
+    sessionService: { async rotateCsrfToken(id) { assert.equal(id, 'synthetic-session'); return { ok:true, csrfToken:'synthetic-csrf' }; } },
+    renderPage(model) { assert.equal(Object.hasOwn(model, 'welcomeVoucherCampaign'), false); return JSON.stringify(model.financial); },
+  });
+  const res = { statusCode:0, body:'', setHeader(){}, status(code){this.statusCode=code;return this;},type(){return this;},send(body){this.body=body;return this;} };
+  await handler({staffBrowserSession:{adminId:7,sessionId:'synthetic-session'},query:{}},res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(campaignReads, 0);
+  assert.deepEqual(JSON.parse(res.body), financial);
+});

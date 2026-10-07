@@ -1,3 +1,4 @@
+const { bookingActionStyles } = require('./calendarBookingsMenuPolish');
 const {
   SERVICE_FAMILIES,
   renderServiceFamilyIcon,
@@ -44,7 +45,7 @@ function renderCalendarCreateBookingPage({ options = { staff: [], services: [] }
     },
     services: (options.services || []).map(withServiceFamily),
   };
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Create Shiloh booking</title><style>${serviceFamilyAccentCss()}${styles()}${recoveryStyles()}</style><script src="${escapeHtml(clientScriptPath)}" defer></script></head><body data-calendar-create-booking="true"><div class="shell">
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Create Shiloh booking</title><style>${serviceFamilyAccentCss()}${styles()}${recoveryStyles()}${bookingActionStyles()}</style><script src="${escapeHtml(clientScriptPath)}" defer></script></head><body data-calendar-create-booking="true"><div class="shell">
     <header class="topbar"><div><h1>Create booking</h1><p>Choose the client, treatment, practitioner and time.</p></div><div class="actions"><a class="button secondary" data-couples-booking-entry href="/calendar/book/couples${resolvedDate ? `?date=${encodeURIComponent(resolvedDate)}` : ''}">Couples Massage</a><a class="button secondary" data-group-booking-entry href="/calendar/book/group${resolvedDate ? `?date=${encodeURIComponent(resolvedDate)}` : ''}">Group booking</a><a class="button secondary" data-back-calendar href="${escapeHtml(backHref)}">← Back to Calendar</a></div></header>
     <main>
       <section class="panel"><div class="steps">

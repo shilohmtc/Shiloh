@@ -90,3 +90,14 @@ jobs:
           path: artifacts/workspace-deposits/*.png
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload focused Workspace polish visual review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: workspace-polish-visual-review
+          path: |
+            artifacts/workspace-polish
+            artifacts/ux-playwright-results/**/dashboard-*-actual.png
+          if-no-files-found: error
+          retention-days: 14

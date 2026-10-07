@@ -95,3 +95,11 @@ export const ClinicOverview = {
 export const BusinessAdminOverview = {
   render: () => productionSurface(renderReportsPage({ ...reportModel(), authority: { displayName: 'Jean-Pierre', reportScope: 'all_business' } })),
 };
+
+export const FocusedWorkspaceReports = {
+  render: () => productionSurface(renderReportsPage({ ...reportModel(),
+    permittedStaff: [{ id: 11, displayName: 'Synthetic practitioner' }],
+    capacity: [], staffEarnings: null,
+    welcomeVoucherCampaign: { vouchersUnlocked: 10, vouchersRedeemed: 4, discountsGiven: 400 },
+  })),
+};

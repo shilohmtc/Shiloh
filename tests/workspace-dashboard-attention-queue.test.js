@@ -43,7 +43,7 @@ function model({ canFinalize = true } = {}) {
 
 function attentionPanel(html) {
   const start = html.indexOf('<section class="panel" data-dashboard-attention-panel>');
-  const end = html.indexOf('<section class="panel" data-dashboard-communications-panel>', start);
+  const end = html.indexOf('<section class="panel" data-dashboard-activity-panel>', start);
   assert.notEqual(start, -1);
   assert.notEqual(end, -1);
   return html.slice(start, end);
