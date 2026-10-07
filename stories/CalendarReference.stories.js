@@ -1,4 +1,5 @@
 // Synthetic markup generated with the production renderEventCard authority.
+import cardStyles from '../src/presentation/workspaceCardStyles.js';
 import bookingNotesCard from './fixtures/consultationBookingNoteCard.html?raw';
 import bookingsMenu from './fixtures/calendarBookingsMenu.html?raw';
 import bookingsPolish from '../src/presentation/calendarBookingsMenuPolish.js';
@@ -322,4 +323,4 @@ export const DesktopCompleteNewMenu = {
   `, '720px'),
 };
 
-export const BookingNotesIndicator = {render:()=>frame(`<style>.calendar-language .event-time-start{display:none}.booking-notes-indicator{display:inline-flex;align-items:center;gap:4px;min-height:32px;min-width:32px;padding:3px 6px;border:1px solid #dce3dd;border-radius:8px;background:#f2f5ee;color:#294c3c;font:700 11px system-ui}</style><section class="calendar-language"><h2>Booking notes</h2><p>Open the existing appointment notes panel.</p>${bookingNotesCard}</section>`,'430px')};
+export const BookingNotesIndicator = {render:()=>frame(`<style>.calendar-language .event-time-start{display:none}${cardStyles.workspaceCardStyles()}</style><section class="calendar-language workspace-main"><h2>Booking notes</h2><p>Open the existing appointment notes panel.</p>${bookingNotesCard}</section>`,'430px')};

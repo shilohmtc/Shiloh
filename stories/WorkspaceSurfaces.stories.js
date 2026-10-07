@@ -557,7 +557,7 @@ export const LinkedBookingPayment = {
 
 export const BookingDepositAwaiting = {
   render: () => productionSurface(renderCalendarPaymentPage({ model: {
-    subject: { appointmentId: 812, groupId: null, clientName:'Naledi', clientMobile:'27821234567', crmV2ClientId:91 },
+    subject: { appointmentId: 812, groupId: null, clientName:'Synthetic Aloe', clientMobile:'27821234567', crmV2ClientId:91 },
     payment: {
       state:'unpaid', amountDue:'650.00', paid:'0.00', refunded:'0.00', netPaid:'0.00', rewardsApplied:'0.00', outstanding:'650.00',
       requests:[{ amount:'325.00', state:'link_issued', purpose:'deposit', provider_payment_url:'https://pay.example.test/deposit', created_at:'2026-09-23T17:00:00.000Z' }],
@@ -576,7 +576,7 @@ export const BookingDepositAwaiting = {
 
 export const MarietjieDepositExempt = {
   render: () => productionSurface(renderCalendarPaymentPage({ model: {
-    subject: { appointmentId: 813, groupId: null, clientName:'Evelyn', clientMobile:'27831234567', crmV2ClientId:92 },
+    subject: { appointmentId: 813, groupId: null, clientName:'Synthetic Protea', clientMobile:'27831234567', crmV2ClientId:92 },
     payment: {
       state:'unpaid', amountDue:'490.00', paid:'0.00', refunded:'0.00', netPaid:'0.00', rewardsApplied:'0.00', outstanding:'490.00',
       requests:[],
@@ -594,7 +594,7 @@ export const MarietjieDepositExempt = {
 
 export const CancelledBookingPaymentReview = {
   render: () => productionSurface(renderCalendarPaymentPage({ model: {
-    subject: { appointmentId: 759, groupId: null, clientName:'Jean-Pierre Botha', clientMobile:'27716742646', crmV2ClientId:49, final:true },
+    subject: { appointmentId: 759, groupId: null, clientName:'Synthetic Fynbos', clientMobile:'27821234567', crmV2ClientId:49, final:true },
     payment: {
       state:'partially_paid', amountDue:'250.00', paid:'125.00', refunded:'0.00', netPaid:'125.00', rewardsApplied:'0.00', outstanding:'125.00',
       requests:[{ id:8, amount:'125.00', state:'paid', purpose:'deposit', provider_payment_url:'https://pay.ozow.com/old', created_at:'2026-09-24T18:52:00.000Z' }],
@@ -649,6 +649,9 @@ export const IosInstallGuidance = { render: iosInstallGuidanceStory };
 
 
 const depositReviewItems = [{
+  accountId: 900, appointmentId: 900, outstanding: '325.00', state: 'awaiting', hasLink: true,
+  members: [{ appointmentId: 900, clientName: 'Synthetic Aloe', serviceName: 'Relaxation massage', startsAt: '2026-10-08T08:00:00Z', staffNames: ['Practitioner'] }],
+}, {
   accountId: 901, appointmentId: 901, outstanding: '350.00', state: 'partial', hasLink: true,
   members: [
     { appointmentId: 901, clientName: 'Synthetic Aloe', serviceName: 'Relaxation massage', startsAt: '2026-10-08T10:00:00Z', staffNames: ['Practitioner'] },

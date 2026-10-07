@@ -65,3 +65,16 @@ test('Workspace copies the guarded Shiloh payment link, never the raw Ozow targe
   assert.match(script, /clipboard\.writeText\(location\.origin\+'\/pay\/'\+encodeURIComponent\(key\)\)/);
   assert.doesNotMatch(script, /clipboard\.writeText\(data\.request\.provider_payment_url\)/);
 });
+
+test('deposit card accent follows existing pending requirement, never settlement or cancelled history',()=>{
+  const base={subject:{appointmentId:42,clientName:'Synthetic Client'},payment:{state:'unpaid',amountDue:'650.00',netPaid:'0.00',outstanding:'650.00',requests:[],entries:[]},deposit:{applicable:true,requirement:{state:'awaiting',required_amount:'325.00',net_paid:'0.00'},events:[]},authority:{canCollect:false,canRefund:false}};
+  for(const [state,netPaid,final,review,expected] of [
+    ['awaiting','0.00',false,false,true],['awaiting','100.00',false,false,true],
+    ['awaiting','325.00',false,false,false],['satisfied','325.00',false,false,false],
+    ['exempt','0.00',false,false,false],['awaiting','0.00',true,false,false],
+    ['awaiting','0.00',false,true,false],
+  ]){
+    const html=renderCalendarPaymentPage({model:{...base,subject:{...base.subject,final},deposit:{...base.deposit,requirement:{...base.deposit.requirement,state,net_paid:netPaid}},paymentReview:review?{kind:'cancelled_booking_payment_received',metadata:{}}:null}});
+    assert.equal(/data-deposit-policy data-workspace-card="deposit-pending"/.test(html),expected,`${state}/${netPaid}/${final}/${review}`);
+  }
+});
