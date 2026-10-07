@@ -908,6 +908,14 @@
     clientProfileForm.elements.dateOfBirth.value = String(profile.dateOfBirth || '');
     clientProfileForm.elements.gender.value = String(profile.gender || '');
     if (clientProfileMobile) clientProfileMobile.textContent = String(profile.mobile || 'Verified mobile number');
+    const dobRequest=document.querySelector('[data-dob-request]');
+    if(dobRequest) {
+      dobRequest.hidden=!profile.dobRequestNeeded;
+      dobRequest.querySelector('[data-dob-request-copy]').textContent=profile.requiresDobBeforeBooking
+        ? 'Please add your date of birth in Profile before your first booking.'
+        : 'Please add your date of birth in Profile when you have a moment. Your existing bookings stay as they are.';
+      dobRequest.querySelector('[data-dob-request-later]').hidden=profile.requiresDobBeforeBooking===true;
+    }
     clientProfileRevision = profile.revision;
     setClientProfileBusy(false);
     if (profile.registrationComplete === true) {
@@ -924,6 +932,19 @@
     }
     return true;
   }
+
+  document.querySelectorAll('[data-dob-request-acknowledge],[data-dob-request-later]').forEach(button=>button.addEventListener('click',async()=>{
+    if(button.hasAttribute('data-dob-request-acknowledge'))activateView('profile');
+    button.disabled=true;
+    try {
+      const csrfToken=await freshCsrfToken();
+      const response=await postJson('/my-shiloh/api/profile/dob-request/acknowledge',{},{'x-shiloh-csrf-token':csrfToken});
+      if(!response.ok)throw new Error('Please try again.');
+      if(response.ok)document.querySelector('[data-dob-request]').hidden=true;
+    } catch(error) {
+      document.querySelector('[data-dob-request-status]').textContent=error.message||'Please try again.';
+    } finally {button.disabled=false;}
+  }));
 
   async function loadClientProfile() {
     if (!clientProfileForm || appFrame?.dataset.clientAuthenticated !== 'true') return;

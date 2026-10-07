@@ -18,3 +18,5 @@ export const BeforeTreatment = {render:()=>surface({authority,treatmentQueue:{ap
 export const PractitionerQueue = {render:()=>surface({authority:{...authority,displayName:'Abigail',formScope:'own_staff',businessRole:'practitioner'},treatmentQueue:{appointments:[{...appointments[0],canPrepareIpad:false}]}})};
 export const ReceptionHistory = {render:()=>surface({authority:{...authority,displayName:'Reception',businessRole:'booking_operator'},history:{items:historyItems.map(item=>({...item,canOpen:false})),search:'',page:0,hasMore:true}})};
 export const ReviewerHistory = {render:()=>surface({authority,history:{items:historyItems,search:'Client',page:1,hasMore:true}})};
+
+export const AppointmentContext = {render:()=>surface({authority,appointmentId:901,returnHref:'/calendar?view=week&date=2026-10-07&appointment=901',treatmentQueue:{appointments:[appointments[0]]},templates:[],submissions:{items:[]}})};

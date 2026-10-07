@@ -1,3 +1,4 @@
+const {attachBookingNotePresence}=require('../services/workspaceAppointmentNotes');
 const express = require('express');
 const { pool } = require('../db/pool');
 const calendarReadOnlyUx = require('../services/calendarReadOnlyUx');
@@ -361,6 +362,7 @@ function createCalendarReadOnlyHandler({
         viewer,
       });
 
+      await attachBookingNotePresence(model,req.staffBrowserSession?.adminId);
       let bookingAllowed = false;
       try {
         await bookingService.resolveOperator(req.staffBrowserSession?.adminId);

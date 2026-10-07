@@ -77,6 +77,8 @@ function publicProfile(row) {
     registrationComplete,
     mobile: maskMobile(row.normalized_mobile),
     mobileEditable: false,
+    requiresDobBeforeBooking: !dateOfBirth && row.provenance?.actorReference === 'my_shiloh_sms' && row.has_appointment === false,
+    dobRequestNeeded: !dateOfBirth && row.dob_request_acknowledged === false,
     revision: profileRevision(row),
   };
 }
@@ -117,8 +119,11 @@ function createMyShilohProfileService({ db = pool, now = () => new Date() } = {}
     const result = await db.query(
       `/* myShilohProfile:load */
        SELECT id,name,normalized_mobile,date_of_birth,gender,profile_status,
-              mobile_verified_at,status,updated_at
-         FROM crm_v2_clients
+              mobile_verified_at,status,updated_at,provenance,
+              EXISTS (SELECT 1 FROM appointments ap WHERE ap.crm_v2_client_id=c.id) AS has_appointment,
+              EXISTS (SELECT 1 FROM client_auth_security_events e WHERE e.crm_v2_client_id=c.id
+                AND e.event_type='client_dob_request_acknowledged') AS dob_request_acknowledged
+         FROM crm_v2_clients c
         WHERE id=$1
           AND status='active'
           AND mobile_verified_at IS NOT NULL
@@ -208,7 +213,25 @@ function createMyShilohProfileService({ db = pool, now = () => new Date() } = {}
     }
   }
 
-  return { loadProfile, updateProfile };
+  async function acknowledgeDobRequest({sessionId,crmV2ClientId}={}) {
+    const session=positiveId(sessionId),clientId=positiveId(crmV2ClientId);
+    if (!session || !clientId) throw new MyShilohProfileError('MY_SHILOH_PROFILE_SESSION_INVALID','Please sign in again.',401);
+    const client=await db.connect();
+    try {
+      await client.query('BEGIN');
+      const result=await client.query(`SELECT c.id FROM client_browser_sessions s JOIN crm_v2_clients c ON c.id=s.crm_v2_client_id
+        WHERE s.id=$1 AND c.id=$2 AND s.revoked_at IS NULL AND s.expires_at>$3
+          AND c.status='active' AND c.mobile_verified_at IS NOT NULL FOR UPDATE OF c`,[session,clientId,now()]);
+      if (!result.rows[0]) throw new MyShilohProfileError('MY_SHILOH_PROFILE_SESSION_INVALID','Please sign in again.',401);
+      await client.query(`INSERT INTO client_auth_security_events(event_type,crm_v2_client_id,session_id,metadata)
+        SELECT 'client_dob_request_acknowledged',$1,$2,'{}'::jsonb WHERE NOT EXISTS
+        (SELECT 1 FROM client_auth_security_events WHERE crm_v2_client_id=$1 AND event_type='client_dob_request_acknowledged')`,[clientId,session]);
+      await client.query('COMMIT');
+      return {acknowledged:true};
+    } catch(error) {await client.query('ROLLBACK');throw error;}
+    finally {client.release();}
+  }
+  return { loadProfile, updateProfile, acknowledgeDobRequest };
 }
 
 module.exports = {

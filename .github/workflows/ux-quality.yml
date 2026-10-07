@@ -101,3 +101,16 @@ jobs:
             artifacts/ux-playwright-results/**/dashboard-*-actual.png
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload synthetic consultation review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: consultation-handover-review
+          path: |
+            artifacts/ux-playwright-results/**/phone-*.png
+            artifacts/ux-playwright-results/**/tablet-*.png
+            artifacts/ux-playwright-results/**/desktop-*.png
+            artifacts/ux-playwright-results/**/clinic-ipad-*.png
+          if-no-files-found: error
+          retention-days: 14

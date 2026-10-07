@@ -171,21 +171,23 @@ test('Safari form posts without Origin use the iPad page token, while cross-site
   });
 });
 
-test('a prepared form remains hidden until the client confirms their mobile and date of birth',async () => {
-  const service={ deviceFor:async()=>({ id:1 }),readyForm:async()=>true,
-    beginForm:async (_token,details)=>details.mobile==='0821234567'&&details.dateOfBirth==='1985-05-14'
-      ? { formToken:rawDevice,visitToken:rawVisit } : { verified:false } };
+test('handed-over form shows fixed CRM details and requires explicit confirmation',async () => {
+  const service={deviceFor:async()=>({id:1}),readyForm:async()=>true,
+    formDetails:async()=>({mobile:'082 123 4567',dateOfBirth:'1985-05-14',confirmationToken:rawVisit}),
+    beginForm:async(_token,details)=>{
+      if(details.detailsCorrect!=='yes')throw new (require('../src/services/clinicIpadCheckin').CheckinError)('Review your details.',409);
+      return {formToken:rawDevice,visitToken:rawVisit};
+    }};
   await withServer(service,async base=>{
-    const headers={ Cookie:`shiloh_checkin_device=${rawDevice}`,Origin:base,'Content-Type':'application/x-www-form-urlencoded' };
+    const headers={Cookie:`shiloh_checkin_device=${rawDevice}`,Origin:base,'Content-Type':'application/x-www-form-urlencoded'};
     const verify=await fetch(`${base}/check-in/verify`,{headers});
     assert.equal(verify.status,200);
-    assert.match(await verify.text(),/Confirm it’s you/);
-    const wrong=await fetch(`${base}/check-in/start-form`,{method:'POST',headers,body:'mobile=0821234567&dateOfBirth=1990-01-01',redirect:'manual'});
-    assert.equal(wrong.status,422);
-    assert.doesNotMatch(await wrong.text(),new RegExp(rawDevice));
-    const right=await fetch(`${base}/check-in/start-form`,{method:'POST',headers,body:'mobile=0821234567&dateOfBirth=1985-05-14',redirect:'manual'});
-    assert.equal(right.status,303);
-    assert.equal(right.headers.get('location'),`/forms/f/${rawDevice}`);
+    const html=await verify.text();assert.match(html,/These details are correct/);
+    assert.match(html,/082 123 4567/);assert.doesNotMatch(html,/name="mobile"|name="dateOfBirth"/);
+    const denied=await fetch(`${base}/check-in/start-form`,{method:'POST',headers,body:'',redirect:'manual'});
+    assert.equal(denied.status,409);
+    const right=await fetch(`${base}/check-in/start-form`,{method:'POST',headers,body:'detailsCorrect=yes',redirect:'manual'});
+    assert.equal(right.status,303);assert.equal(right.headers.get('location'),`/forms/f/${rawDevice}`);
     assert.match(right.headers.get('set-cookie'),/shiloh_checkin_form=.*Path=\/forms/);
   });
 });
@@ -428,37 +430,29 @@ test('retired WhatsApp form endpoint cannot send for any staff identity',async (
   } finally {await new Promise(resolve=>server.close(resolve));}
 });
 
-test('five mismatched form identity attempts cancel the handoff without issuing a link',async () => {
-  const pending={id:3,assignment_id:5,attempts:0};
-  let issued=0,started=0;
-  const connection={query:async (sql)=>{
-    if (sql==='BEGIN') {started++;return {};}
-    if (sql==='COMMIT'||sql==='ROLLBACK') return {};
-    if (sql.includes('FROM clinic_checkin_form_handoffs')) return pending.attempts<5
-      ? {rowCount:1,rows:[pending]}:{rowCount:0,rows:[]};
-    if (sql.includes('FROM consultation_form_assignments')) return {rows:[{normalized_mobile:'27821234567',date_of_birth:'1985-05-14'}]};
-    if (sql.includes('SET attempts=attempts+1')) {pending.attempts++;return {rowCount:1};}
-    throw new Error('Unexpected query');
-  },release:()=>{}};
-  const service=createClinicIpadCheckinService({
-    db:{query:async()=>({rows:[{id:9}]}),connect:async()=>connection},
-    formService:{issueAccessToken:async()=>{issued++;return {token:rawDevice};}},
-  });
-  for(let attempt=0;attempt<5;attempt++) assert.deepEqual(await service.beginForm(rawDevice,{mobile:'0820000000',dateOfBirth:'1985-05-14'}),{verified:false});
+test('old identity re-entry cannot claim a handover without its confirmation capability',async()=>{
+  let issued=0;
+  const query=async sql=>{
+    if(sql.includes('clinic_checkin_devices'))return {rowCount:1,rows:[{id:9}]};
+    if(sql.includes('clinic_checkin_form_handoffs'))return {rowCount:0,rows:[]};
+    return {rows:[],rowCount:0};
+  };
+  const service=createClinicIpadCheckinService({db:{query,connect:async()=>({query,release(){}})},
+    formService:{issueAccessToken:async()=>{issued++;}}});
   await assert.rejects(service.beginForm(rawDevice,{mobile:'0821234567',dateOfBirth:'1985-05-14'}),{httpStatus:409});
-  assert.equal(pending.attempts,5);
-  assert.equal(started,6);
   assert.equal(issued,0);
 });
 
 test('disabled device immediately loses its check-in capability',async () => {
   let disabled=false;
-  const db={ query:async (sql)=>{
+  const query=async (sql)=>{
+    if (['BEGIN','COMMIT','ROLLBACK'].includes(sql))return {};
     if (sql.includes('UPDATE clinic_checkin_devices')) { disabled=true; return { rowCount:1,rows:[{id:9}] }; }
     if (sql.includes('UPDATE clinic_checkin_form_handoffs')) return { rowCount:0,rows:[] };
     if (sql.includes('SELECT id,activated_by_admin_id')) return { rows:disabled?[]:[{id:9,activated_by_admin_id:7}] };
     throw new Error('Unexpected database query');
-  } };
+  };
+  const db={query,connect:async()=>({query,release(){}})};
   const service=createClinicIpadCheckinService({
     db,
     clientMutations:{ resolveManageAccess:async()=>({ operatorAdminId:7,clientScope:{kind:'clinic'} }) },
@@ -535,7 +529,8 @@ test('unfinished sent/opened forms can be prepared on the iPad without issuing a
     const queries=[];
     const connection={query:async(sql,values)=>{
       queries.push({sql,values});
-      if(sql.startsWith('SELECT status')) return {rows:[{status}]};
+      if(sql.includes('SELECT a.crm_v2_client_id')) return {rows:[{crm_v2_client_id:10,appointment_id:42,template_version_id:8,normalized_mobile:'27821234567',date_of_birth:null,name:'Synthetic Client'}]};
+      if(sql.includes('INSERT INTO clinic_checkin_form_handoffs'))return {rows:[{id:11,device_id:1,assignment_id:7,crm_v2_client_id:10,appointment_id:42}],rowCount:1};
       if(sql.includes('FROM clinic_checkin_devices')) return {rows:[{id:1}],rowCount:1};
       return {rows:[],rowCount:0};
     },release(){}};
@@ -552,7 +547,7 @@ test('unfinished sent/opened forms can be prepared on the iPad without issuing a
       formsAuthority:{resolveAccess:async()=>({formScope:'all_business'})},
       formService:{issueAccessToken:async()=>{issued++;throw new Error('Client verification is required');}},
     });
-    assert.deepEqual(await service.queueForm(2,1,42,7),{queued:true});
+    assert.deepEqual(await service.queueForm(2,1,42,7),{queued:true,handoffId:11});
     assert.equal(issued,0);
     assert.ok(queries.some(q=>q.sql.includes('INSERT INTO clinic_checkin_form_handoffs') && q.values[1]===7));
     assert.equal(queries.at(-1).sql,'COMMIT');
@@ -564,7 +559,7 @@ test('iPad recovery refuses completion races, duplicate handoffs and a device in
     const queries=[];
     const connection={query:async(sql)=>{
       queries.push(sql);
-      if(sql.startsWith('SELECT status')) return {rows:[{status:failure==='completed'?'completed':'opened'}]};
+      if(sql.includes('SELECT a.crm_v2_client_id')) return {rows:failure==='completed'?[]:[{crm_v2_client_id:10,appointment_id:42,template_version_id:8}]};
       if(sql.includes('WHERE assignment_id=') && failure==='duplicate') return {rows:[{id:11}],rowCount:1};
       if(sql.includes('FROM clinic_checkin_devices')) return {rows:[{id:1}],rowCount:1};
       if(sql.includes("status='claimed'") && failure==='device_in_use') return {rows:[{id:12}],rowCount:1};

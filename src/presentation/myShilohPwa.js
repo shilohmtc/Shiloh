@@ -9,7 +9,7 @@ const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 const { renderCouplesBookingChoice } = require('./myShilohBookingActions');
 
-const MY_SHILOH_ASSET_VERSION = '20261006-booking-history-v1';
+const MY_SHILOH_ASSET_VERSION = '20261007-consultation-handover-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -415,6 +415,7 @@ function renderMyShilohPage({
           <button class="client-setup__later" type="button" data-client-setup-later hidden>Maybe later</button>
           <p class="client-setup__status" role="status" aria-live="polite" data-client-setup-status></p>
         </section>` : ''}
+        ${authenticated ? `<aside class="client-setup" data-dob-request hidden aria-labelledby="dob-request-title"><h2 id="dob-request-title">Add your date of birth</h2><p data-dob-request-copy></p><p data-dob-request-status role="status"></p><div class="actions"><button type="button" class="button button--primary" data-dob-request-acknowledge>Open Profile</button><button type="button" class="button" data-dob-request-later>Not now</button></div></aside>` : ''}
         ${hero}
         ${authenticated ? '<section class="home-payments stack" data-client-home-payments aria-label="Payments needing attention" hidden></section><section class="home-forms stack" data-client-home-forms aria-label="Forms to complete before your visit" hidden></section>' : ''}
         ${focus}

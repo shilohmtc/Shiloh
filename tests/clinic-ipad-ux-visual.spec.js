@@ -14,6 +14,8 @@ test('clinic iPad check-in screens fit phone, tablet and desktop with accessible
       { name:'setup-needed', id:'client-clinic-ipad-check-in--setup-needed' },
       { name:'new-client', id:'client-clinic-ipad-check-in--new-client' },
       { name:'verify-for-form', id:'client-clinic-ipad-check-in--verify-for-form' },
+      { name:'missing-dob', id:'client-clinic-ipad-check-in--missing-dob' },
+      { name:'incorrect-details', id:'client-clinic-ipad-check-in--incorrect-details' },
       { name:'form-ready', id:'client-clinic-ipad-check-in--form-ready' },
     ]) {
       await page.goto(`/iframe.html?id=${state.id}&viewMode=story`,{ waitUntil:'networkidle' });
