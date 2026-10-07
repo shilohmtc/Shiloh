@@ -1,5 +1,7 @@
 // Synthetic markup generated with the production renderEventCard authority.
 import bookingNotesCard from './fixtures/consultationBookingNoteCard.html?raw';
+import bookingsMenu from './fixtures/calendarBookingsMenu.html?raw';
+import bookingsPolish from '../src/presentation/calendarBookingsMenuPolish.js';
 import primitives from '../src/presentation/shilohUiPrimitives.js';
 import calendarReference from '../src/presentation/calendarUxReference.js';
 import eventVisuals from '../src/presentation/calendarEventVisuals.js';
@@ -56,6 +58,16 @@ const frame = (body, width = '960px') => `
 export default {
   title: 'Calendar/Reference implementation',
   parameters: { layout: 'centered' },
+};
+
+export const CompactBookingsMenu = {
+  parameters: { layout: 'fullscreen' },
+  render: () => {
+    const root = document.createElement('main');
+    root.innerHTML = `<style>*,*::before,*::after{box-sizing:border-box}:root{--ink:#20322b;--line:#d5ded7;--line-strong:#afc2b5;--leaf-deep:#17382d;--leaf-soft:#e7eee9}body{margin:0;background:#f4f3ed;font-family:system-ui}main{padding:12px;min-height:500px}a{text-decoration:none}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}</style>${bookingsMenu}`;
+    window.setTimeout(() => new Function(bookingsPolish.calendarBookingsMenuPolishClientScript())(), 0);
+    return root;
+  },
 };
 
 export const DesktopToolbarAndIdentity = {
