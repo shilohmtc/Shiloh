@@ -74,7 +74,9 @@ test('every visible canonical appointment is enhanced for read-only details inde
   const script = calendarAppointmentDetailsClientScript();
   assert.match(script, /event-card\[data-kind="appointment"\]\[data-canonical="true"\]/);
   assert.match(script, /appointmentDetailsReady/);
-  assert.match(script, /setAttribute\('role','button'\)/);
+  assert.match(script, /setAttribute\('role',phoneNotes\?'region':'button'\)/);
+  assert.match(script, /phoneNotes=innerWidth<=700&&document\.body\.dataset\.phoneColumnMode==='true'&&!!card\.querySelector\('\[data-notes-indicator\]'\)/);
+  assert.match(script, /setAttribute\('aria-keyshortcuts','Enter Space'\)/);
   assert.match(script, /setAttribute\('tabindex','0'\)/);
   assert.match(script, /min-height:44px/);
   assert.match(script, /appointmentManagementTarget==='true'/);
