@@ -148,3 +148,29 @@ test('booking note indicator opens the existing authorized panel without card co
     expect(reads).toBe(2);
   }finally{await new Promise(resolve=>server.close(resolve));await f.close();}
 });
+
+for(const change of ['revoked','stale','expired','replaced']){
+  test(`an open iPad confirmation clears after ${change} handover`,async({page})=>{
+    const f=await fixture();
+    const app=express();app.use(express.json());app.use('/assets',express.static(path.join(__dirname,'../public/assets')));
+    app.use('/check-in',createClinicIpadPublicRouter({env:{SHILOH_CLINIC_IPAD_CHECKIN_ENABLED:'true'},service:f.service}));
+    const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
+    const base=`http://127.0.0.1:${server.address().port}`;
+    try{
+      const prepared=await f.service.queueForm(2,1,42,7);await f.service.confirmHandover(3,1,prepared.handoffId,true);
+      await page.context().addCookies([{name:'shiloh_checkin_device',value:f.deviceToken,domain:'127.0.0.1',path:'/check-in'}]);
+      await page.goto(base+'/check-in/verify');await expect(page.getByText('+27821234567',{exact:true})).toBeVisible();
+      let replacement;
+      if(change==='revoked')await f.service.revoke(2,1);
+      if(change==='stale')await f.db.query("UPDATE crm_v2_clients SET date_of_birth='1990-01-01',updated_at=NOW() WHERE id=10");
+      if(change==='expired')f.setClock(new Date(Date.now()+16*60*1000));
+      if(change==='replaced')replacement=await f.service.queueForm(2,1,43,8);
+      await expect(page.getByText('+27821234567',{exact:true})).toHaveCount(0,{timeout:10000});
+      if(replacement){
+        const row=(await f.db.query('SELECT status,handed_over_at FROM clinic_checkin_form_handoffs WHERE id=$1',[replacement.handoffId])).rows[0];
+        expect(row.status).toBe('queued');expect(row.handed_over_at).toBe(null);
+        await expect(page.getByText('+27829876543',{exact:true})).toHaveCount(0);
+      }
+    }finally{await new Promise(resolve=>server.close(resolve));await f.close();}
+  });
+}

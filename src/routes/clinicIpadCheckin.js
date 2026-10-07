@@ -182,6 +182,10 @@ function createClinicIpadPublicRouter({ env = process.env, service = createClini
       return res.redirect(303,'/check-in/details');
     } catch (error) { next(error); }
   });
+  router.post('/handover-current',async(req,res,next)=>{
+    try{return res.json({current:await service.handoverCurrent(req.checkinDeviceToken,req.body?.confirmationToken)});}
+    catch(error){next(error);}
+  });
   router.post('/start-form', async (req,res,next) => {
     try {
       const form = await service.beginForm(req.checkinDeviceToken,req.body);
@@ -213,7 +217,7 @@ function createClinicIpadPublicRouter({ env = process.env, service = createClini
   router.post('/finish', async (req,res,next) => {
     try {
       await service.finish(req.checkinDeviceToken,parseCookieValue(req.headers.cookie,VISIT_COOKIE));
-      await service.cancelDeviceForm(req.checkinDeviceToken,{includeQueued:true});
+      await service.cancelDeviceForm(req.checkinDeviceToken,{includeQueued:true,confirmationToken:req.body?.confirmationToken});
       res.append('Set-Cookie',cookie(VISIT_COOKIE,'',{ env,seconds:0 }));
       res.append('Set-Cookie',cookie(FORM_COOKIE,'',{ env,seconds:0 }));
       return res.redirect(303,'/check-in/');

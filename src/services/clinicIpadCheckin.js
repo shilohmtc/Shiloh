@@ -288,6 +288,7 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
       || identityRevision(identity)!==row.identity_revision) {
       throw new CheckinError('The client or appointment details changed. Reception must check and prepare the form again.',409);
     }
+    if(new Date(row.expires_at)<=now())throw new CheckinError('This handover has expired. Reception must prepare it again.',410);
     return {row,identity};
   }
   async function confirmHandover(adminId,deviceId,handoffId,confirmed) {
@@ -349,6 +350,16 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
     } catch(error) {await connection.query('ROLLBACK');throw error;}
     finally {connection.release();}
   }
+  async function handoverCurrent(rawDeviceToken,proof) {
+    if(typeof proof!=='string'||!validToken(proof))return false;
+    try {
+      const current=await formDetails(rawDeviceToken);
+      return crypto.timingSafeEqual(Buffer.from(proof),Buffer.from(current.confirmationToken));
+    } catch(error) {
+      if(error instanceof CheckinError)return false;
+      throw error;
+    }
+  }
   async function beginForm(rawDeviceToken,{ dateOfBirth,confirmationToken:provided,detailsCorrect,mobile,clientId } = {}) {
     const device=await deviceFor(rawDeviceToken);
     if (!device) throw new CheckinError('Please ask reception to set up this iPad.',401);
@@ -357,7 +368,7 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
       await connection.query('BEGIN');
       const {row,identity}=await lockedHandoff(connection,device.id);
       const expected=confirmationToken(rawDeviceToken,row);
-      if (!row.handed_over_at || detailsCorrect!=='yes' || !validToken(provided)
+      if (!row.handed_over_at || detailsCorrect!=='yes' || typeof provided!=='string' || !validToken(provided)
         || !crypto.timingSafeEqual(Buffer.from(provided),Buffer.from(expected))) throw new CheckinError('Please review the details on this iPad first.',409);
       if (mobile!==undefined || clientId!==undefined) throw new CheckinError('Reception must correct client details.',422);
       if (identity.date_of_birth) {
@@ -424,15 +435,22 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
     finally{connection.release();}
   }
 
-  async function cancelDeviceForm(rawDeviceToken,{includeQueued=false}={}) {
+  async function cancelDeviceForm(rawDeviceToken,{includeQueued=false,confirmationToken:proof}={}) {
     const device=await deviceFor(rawDeviceToken);
     if (!device) return;
     const connection=await db.connect();
     try {
       await connection.query('BEGIN');
       await connection.query('SELECT id FROM clinic_checkin_devices WHERE id=$1 FOR UPDATE',[device.id]);
+      let queuedId=null;
+      if(includeQueued && typeof proof==='string' && validToken(proof)) {
+        const queued=await connection.query(`SELECT * FROM clinic_checkin_form_handoffs
+          WHERE device_id=$1 AND status='queued' ORDER BY id DESC LIMIT 1 FOR UPDATE`,[device.id]);
+        const row=queued.rows[0];
+        if(row?.identity_revision && crypto.timingSafeEqual(Buffer.from(proof),Buffer.from(confirmationToken(rawDeviceToken,row))))queuedId=row.id;
+      }
       const result=await connection.query(`UPDATE clinic_checkin_form_handoffs SET status='cancelled',finished_at=$2
-        WHERE device_id=$1 AND (status='claimed' OR ($3 AND status='queued')) RETURNING *`,[device.id,now(),includeQueued]);
+        WHERE device_id=$1 AND (status='claimed' OR ($3 AND status='queued' AND id=$4)) RETURNING *`,[device.id,now(),includeQueued,queuedId]);
       for (const row of result.rows) {
         if (row.form_token_hash) await connection.query(`UPDATE consultation_form_assignments SET access_expires_at=$3
           WHERE id=$1 AND access_token_hash=$2`,[row.assignment_id,row.form_token_hash,now()]);
@@ -535,7 +553,7 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
   }
 
   return { canActivate, activate, createSetupCode, redeemSetupCode, startPair, pairFor, pairDetails, approvePair, revoke, listDevices, listFormAssignments, queueForm,
-    readyForm, formDetails, confirmHandover, cancelHandover, beginForm, formAccess, finishForm, cancelDeviceForm,
+    readyForm, formDetails, handoverCurrent, confirmHandover, cancelHandover, beginForm, formAccess, finishForm, cancelDeviceForm,
     deviceFor, begin, active, finish, register };
 }
 

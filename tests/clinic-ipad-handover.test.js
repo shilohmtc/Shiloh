@@ -59,7 +59,7 @@ test('expired, revoked, cancelled, reassigned and completed forms fail closed',a
       const details=await handover(f);
       if(change==='expired')f.setClock(new Date(Date.now()+16*60*1000));
       if(change==='revoked')await f.service.revoke(2,1);
-      if(change==='cancelled')await f.service.cancelDeviceForm(f.deviceToken,{includeQueued:true});
+      if(change==='cancelled')await f.service.cancelDeviceForm(f.deviceToken,{includeQueued:true,confirmationToken:details.confirmationToken});
       if(change==='reassigned')await f.db.query('UPDATE appointments SET crm_v2_client_id=11 WHERE id=42');
       if(change==='completed')await f.db.query("UPDATE consultation_form_assignments SET status='completed' WHERE id=7");
       await assert.rejects(f.service.beginForm(f.deviceToken,confirmation(details,'1985-05-14')));
@@ -137,5 +137,17 @@ test('finishing the bound visit atomically expires access and audits once',async
     assert.equal(await f.service.finishForm(visit.formToken,visit.visitToken),false);
     assert.equal((await f.service.formAccess(visit.formToken,visit.visitToken)).allowed,false);
     assert.equal((await f.db.query("SELECT count(*)::int AS n FROM staff_auth_security_events WHERE event_type='clinic_ipad_handover_finished'")).rows[0].n,1);
+  }finally{await f.close();}
+});
+
+test('handover heartbeat and cancellation stay bound to the displayed preparation',async()=>{
+  const f=await fixture(options);try{
+    const old=await handover(f);assert.equal(await f.service.handoverCurrent(f.deviceToken,old.confirmationToken),true);
+    await f.service.cancelDeviceForm(f.deviceToken,{includeQueued:true,confirmationToken:old.confirmationToken});
+    const current=await handover(f);
+    assert.equal(await f.service.handoverCurrent(f.deviceToken,old.confirmationToken),false);
+    await f.service.cancelDeviceForm(f.deviceToken,{includeQueued:true,confirmationToken:old.confirmationToken});
+    assert.equal(await f.service.handoverCurrent(f.deviceToken,current.confirmationToken),true);
+    await f.service.revoke(2,1);assert.equal(await f.service.handoverCurrent(f.deviceToken,current.confirmationToken),false);
   }finally{await f.close();}
 });
