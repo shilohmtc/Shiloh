@@ -1,6 +1,5 @@
 const express = require('express');
 const workspaceReports = require('../services/workspaceReportsProfileView');
-const workspaceWelcomeVoucherCampaign = require('../services/workspaceWelcomeVoucherCampaign');
 const staffEarnings = require('../services/workspaceStaffEarnings');
 const financialReports = require('../services/workspaceFinancialReports');
 const financialRecords = require('../services/workspaceFinancialRecords');
@@ -42,9 +41,6 @@ function safeError(error) {
 function createWorkspaceReportsHandler({
   env = process.env,
   service = workspaceReports,
-  welcomeVoucherCampaignService = service === workspaceReports
-    ? workspaceWelcomeVoucherCampaign
-    : { async buildCampaign() { return null; } },
   earningsService = service === workspaceReports ? staffEarnings : { async requireOwner() { throw Object.assign(new Error('Forbidden'), { httpStatus: 403 }); } },
   financialService = service === workspaceReports ? financialReports : null,
   recordsService = service === workspaceReports ? financialRecords : null,
@@ -65,14 +61,6 @@ function createWorkspaceReportsHandler({
         to: req.query?.to,
         staff: req.query?.staff,
       });
-      try {
-        model.welcomeVoucherCampaign = await welcomeVoucherCampaignService.buildCampaign({
-          adminId: req.staffBrowserSession?.adminId,
-          recentLimit: 12,
-        });
-      } catch (_error) {
-        model.welcomeVoucherCampaign = null;
-      }
       if (await earningsService.requireOwner(req.staffBrowserSession?.adminId).then(() => true, error => {
         if (error?.httpStatus === 403) return false;
         throw error;

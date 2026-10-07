@@ -141,7 +141,7 @@ function ownerPrincipal() {
   };
 }
 
-test('Dashboard composes canonical all-permitted current/carry-over Calendar days and bounded Messages projections', async () => {
+test('Dashboard composes permitted Calendar days without loading retired display-only Messages or campaign projections', async () => {
   const calls = [];
   const service = createWorkspaceDashboardService({
     resolvePrincipal: async () => ownerPrincipal(),
@@ -150,6 +150,7 @@ test('Dashboard composes canonical all-permitted current/carry-over Calendar day
       if (input.date === '2026-09-04') return { ...calendarFixture(), dateKey: '2026-09-04', timeline: { ...calendarFixture().timeline, appointments: [] } };
       return calendarFixture();
     } },
+    welcomeVoucherCampaignService: { async buildCampaign() { calls.push({campaign:true}); throw Error('Retired campaign must not load'); } },
     messagesService: {
       async resolveAccess() { return { capability: 'client:lookup' }; },
       async buildModel(input) { calls.push({ messages: input }); return { attention: [], activity: [], attentionUnavailable: false, activityUnavailable: false }; },
@@ -165,7 +166,10 @@ test('Dashboard composes canonical all-permitted current/carry-over Calendar day
   assert.ok(calendarCalls.every(call => call.viewer.calendarScope === 'all_business'));
   assert.equal(model.appointments.length, 1);
   assert.equal(model.carryOver.length, 0);
-  assert.equal(messageCall.activityLimit, 4);
+  assert.equal(messageCall, undefined);
+  assert.equal(calls.some(call => call.campaign), false);
+  assert.equal(Object.hasOwn(model, 'communications'), false);
+  assert.equal(Object.hasOwn(model, 'welcomeVoucherCampaign'), false);
   await assert.rejects(service.buildModel({ adminId: 7, viewer: null }), error => error instanceof WorkspaceDashboardError && error.httpStatus === 403);
 });
 

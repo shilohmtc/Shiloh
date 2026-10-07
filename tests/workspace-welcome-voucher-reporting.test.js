@@ -11,10 +11,10 @@ const {
   createWorkspaceWelcomeVoucherCampaignService,
 } = require('../src/services/workspaceWelcomeVoucherCampaign');
 const {
-  welcomeVoucherDashboardPanel,
+  renderDashboardPage,
 } = require('../src/presentation/workspaceDashboardUx');
 const {
-  welcomeVoucherCampaignSection,
+  renderReportsPage,
 } = require('../src/presentation/workspaceReportsUx');
 
 function owner(overrides = {}) {
@@ -127,22 +127,23 @@ test('authorized reporting uses ledger truth and returns privacy-minimized activ
   assert.doesNotMatch(activitySql, /normalized_mobile|date_of_birth|gender/);
 });
 
-test('private campaign UI presents the agreed metrics and escapes activity', () => {
-  const dashboard = welcomeVoucherDashboardPanel(campaign());
-  assert.match(dashboard, /R100 Welcome Voucher/);
-  assert.match(dashboard, /Christel and JP only/);
-  assert.match(dashboard, /40%/);
-
-  const report = welcomeVoucherCampaignSection({
-    ...campaign(),
-    recentActivity: [{ ...campaign().recentActivity[0], clientFirstName: '<Dinah>', treatment: '<Massage>' }],
+test('retired campaign metrics and duplicated notifications stay off Dashboard and Reports even in legacy models', () => {
+  const legacyCampaign = campaign();
+  const dashboard = renderDashboardPage({
+    displayName: 'Synthetic owner', mode: 'owner_overview', requestedDateKey: '2026-10-06', operationalDateKey: '2026-10-06',
+    calendar: { timeline: { staff: [] } }, appointments: [], teamGroups: [], carryOver: [], recentActivity: [],
+    welcomeVoucherCampaign: legacyCampaign, communications: { attention: [{ client: { name: 'Synthetic client' }, appointment: { id: 901 } }] },
   });
-  assert.match(report, /Completed registrations/);
-  assert.match(report, /Booking revenue received/);
-  assert.match(report, /R2[\s,\u00a0]100/);
-  assert.doesNotMatch(report, /<Dinah>|<Massage>/);
-  assert.match(report, /&lt;Dinah&gt;/);
-  assert.equal(welcomeVoucherCampaignSection(null), '');
+  assert.doesNotMatch(dashboard, /R100 Welcome Voucher|Private campaign|data-dashboard-voucher-panel|data-dashboard-communications-panel|Client notification needs attention/);
+  assert.match(dashboard, /Open calendar|Recent activity|Unfinished visits/);
+  const report = renderReportsPage({
+    authority: { reportScope: 'all_business' }, period: { preset: 'today', startKey: '2026-10-06', endInclusiveKey: '2026-10-06', dayCount: 1 },
+    permittedStaff: [], capacity: [], services: [], appointments: {}, clients: {}, totals: {}, trend: {},
+    welcomeVoucherCampaign: legacyCampaign,
+  });
+  assert.doesNotMatch(report, /R100 campaign|R100 Welcome Voucher|data-welcome-voucher-campaign|href="#welcome-voucher"/);
+  assert.match(report, /href="#team-time"|href="#treatments"|href="#clients"/);
+  assert.deepEqual(legacyCampaign, campaign());
 });
 
 test('migration grants the new capability to exactly canonical Christel and JP authority', () => {

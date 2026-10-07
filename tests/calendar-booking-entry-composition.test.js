@@ -62,7 +62,7 @@ test('ordinary Create booking no longer duplicates Couples and Group entry point
     options: { staff: [], services: [] },
     prefill: { date: '2026-09-16' },
   });
-  assert.doesNotMatch(html, /data-couples-booking-entry|data-group-booking-entry/);
+  assert.doesNotMatch(html, /<a\b[^>]*\b(?:data-couples-booking-entry|data-group-booking-entry)\b/);
   assert.doesNotMatch(html, /\/calendar\/book\/couples|\/calendar\/book\/group/);
   assert.match(html, /data-back-calendar/);
   assert.match(html, /Create booking/);

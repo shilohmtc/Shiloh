@@ -539,7 +539,7 @@ async function main() {
         assert.ok(metrics.dashboardAppointments > 0, `${name} has no operational appointments`);
         assert.ok(metrics.dashboardGreeting.startsWith('Welcome, '), `${name} has no canonical greeting`);
         assert.equal(metrics.dashboardEyebrow, 'Today', `${name} does not prove the clinic-today state`);
-        assert.match(metrics.dashboardCommunicationText, /Client notification needs attention/);
+        assert.equal(metrics.dashboardCommunicationText, '');
         if (metrics.dashboardActions) assert.ok(metrics.minDashboardActionHeight >= (phone ? 44 : 36), `${name} has undersized outcome actions`);
         assert.equal(metrics.bookingRequests, 2, `${name} does not project both unresolved booking-request states`);
         assert.match(metrics.bookingRequestText, /Requested · Awaiting confirmation/);

@@ -4,6 +4,10 @@
 
 **Status:** canonical orientation map, updated 2026-09-24. This document does not replace application code, migrations, approved policies, Figma files, workflow definitions or production evidence. Those remain the authorities linked below.
 
+## Accepted Workspace visual polish — 6 October 2026
+
+Equivalent Workspace booking actions reuse Calendar's soft action palette: green New, rose/plum Couples, blue Group, sand Past, grey-green Block and teal Leave. Keep labels, icons, keyboard focus and selected states; these are action meanings, separate from treatment-family colours. Only the Refresh Workspace confirmation uses compact spacing, no “Please confirm” eyebrow and buttons beside each other when they fit. Keep the unsaved-changes warning, comfortable tap targets and existing cancel/Escape/offline behavior. Destructive confirmations retain their existing presentation. Owner also approved removing the retired R100 campaign card from Dashboard, its dedicated Reports panel/jump link and Dashboard’s duplicated Communication card. Keep issued voucher entitlements, redemption, allocations and independent financial credit/history reporting. Messages/history, notification processes and permission boundaries stay unchanged; add no replacement counter or repair workflow. Release evidence belongs on #611/#879.
+
 ## Client Home clarity — accepted 5 October 2026
 
 Home focuses on upcoming visits and required actions. Remove Discover from Home and put treatment-choice help in the Shiloh tab. Show canonical outstanding deposits for all displayed upcoming appointments, including later visits, independently of the next visit's forms or pending requests. Shared payment accounts appear once on Home; each booking retains its payment action. No new deposit calculation, payment request creation or approval bypass. Use a compact mobile booking heading without the client's name. Release verification pending.

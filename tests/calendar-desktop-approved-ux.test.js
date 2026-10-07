@@ -104,7 +104,7 @@ test('Bookings menu polish removes launcher pluses and gives every action a soft
   assert.match(polish, /summary\.innerHTML='<span>Bookings<\/span>'/);
   assert.match(polish, /setAttribute\('aria-label','Bookings'\)/);
   for (const tone of ['new', 'couples', 'group', 'past', 'block', 'leave']) {
-    assert.match(polish, new RegExp(`data-calendar-action-tone=\\"${tone}\\"`));
+    assert.match(JSON.parse(polish.match(/style\.textContent=("[^\n]+?");document\.head/)[1]), new RegExp(`data-calendar-action-tone=\\"${tone}\\"`));
   }
   assert.match(bundle, /<span>Bookings<\/span>/);
   assert.doesNotThrow(() => new Function(polish));

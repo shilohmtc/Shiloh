@@ -1,3 +1,4 @@
+import confirmationPresentation from '../src/presentation/workspaceConfirmation.js';
 import operationalPresentation from '../src/presentation/calendarOperationalMutationsUx.js';
 import dashboardPresentation from '../src/presentation/workspaceDashboardUx.js';
 import clientPresentation from '../src/presentation/workspaceCommunicationEvidenceUx.js';
@@ -665,3 +666,32 @@ export const DashboardDepositsEmpty = { render: () => depositStory({ items: [] }
 export const DashboardDepositsLoading = { render: () => depositStory({ loading: true }) };
 export const DashboardDepositsUnavailable = { render: () => depositStory({ unavailable: true }) };
 export const DashboardDepositsRestricted = { render: () => depositStory(null) };
+
+// Synthetic, production-backed refresh confirmation for Phone/Desktop review.
+export const CompactRefreshConfirmation = {
+  render: () => {
+    const { confirmationMarkup, confirmationStyles } = confirmationPresentation;
+    const root = document.createElement('div');
+    root.innerHTML = `<style>body{font-family:Inter,system-ui,sans-serif;background:#f4f3ed}${confirmationStyles()}</style><main><h1>Workspace</h1><button type="button" data-refresh-preview>Refresh Workspace</button></main>${confirmationMarkup()}`;
+    const dialog = root.querySelector('dialog');
+    dialog.classList.add('shiloh-confirm--refresh');
+    root.querySelector('[data-shiloh-confirm-title]').textContent = 'Refresh Workspace?';
+    root.querySelector('[data-shiloh-confirm-copy]').textContent = 'This reloads the current page. Unsaved changes will be lost.';
+    const cancel = root.querySelector('[data-shiloh-confirm-cancel]');
+    cancel.textContent = 'Keep working';
+    const action = root.querySelector('[data-shiloh-confirm-action]');
+    action.textContent = 'Refresh';
+    action.className = 'button primary';
+    root.querySelector('[data-refresh-preview]').onclick = () => { dialog.showModal(); cancel.focus(); };
+    cancel.onclick = action.onclick = () => dialog.close();
+    setTimeout(() => { if (dialog.isConnected) { dialog.showModal(); cancel.focus(); } }, 0);
+    return root;
+  },
+};
+
+export const FocusedWorkspaceDashboard = {
+  render: () => productionSurface(renderDashboardPage({ ...dashboardModel(), displayName: 'Synthetic owner', appointments: [], teamGroups: [], carryOver: [], awaitingFinalization: [], recentActivity: [],
+    communications: { attention: [{ client: { name: 'Synthetic legacy client' }, appointment: { id: 901 } }] },
+    welcomeVoucherCampaign: { vouchersUnlocked: 10, vouchersRedeemed: 4, discountsGiven: 400 }, depositQueue: { items: depositReviewItems },
+  })),
+};

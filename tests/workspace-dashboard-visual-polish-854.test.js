@@ -97,16 +97,16 @@ test('#854 renders bounded Desktop backlog and stable Phone order without changi
   assert.match(html, /data-operational-date-key="2026-09-09"/);
   assert.match(html, /date=2026-09-09/);
 
-  assert.match(html, /\.dashboard-grid>\[data-dashboard-today\]\{grid-column:1\/5;grid-row:1\/4\}/);
+  assert.match(html, /\.dashboard-grid>\[data-dashboard-today\]\{grid-column:1\/5;grid-row:1\/3\}/);
   assert.match(html, /\.dashboard-grid>\[data-dashboard-carryover-panel\]\{grid-column:5\/7;grid-row:1\}/);
   assert.doesNotMatch(html, /\.carryover-panel\{position:sticky/);
   assert.match(html, /@media\(min-width:1180px\)\{\.team-groups\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}\}/);
   assert.match(html, /@media\(min-width:1051px\)\{\.workspace-main \.shell\{display:flex;min-height:100vh;flex-direction:column\}/);
-  assert.match(html, /\.dashboard-grid\{flex:1;grid-template-rows:auto auto minmax\(0,1fr\);align-items:stretch\}/);
+  assert.match(html, /\.dashboard-grid\{flex:1;grid-template-rows:auto minmax\(0,1fr\);align-items:stretch\}/);
   assert.match(html, /\.dashboard-grid>\[data-dashboard-today\]\{grid-row:1\}/);
-  assert.match(html, /\.dashboard-grid>\[data-dashboard-activity-panel\]\{grid-row:2\/4\}/);
+  assert.match(html, /\.dashboard-grid>\[data-dashboard-activity-panel\]\{grid-row:2\}/);
   assert.match(html, /\.dashboard-grid:not\(:has\(\[data-dashboard-attention-panel\]\)\)\{grid-template-rows:auto minmax\(0,1fr\)\}/);
-  assert.match(html, /\.dashboard-grid:not\(:has\(\[data-dashboard-attention-panel\]\)\)>\[data-dashboard-communications-panel\],\.dashboard-grid:not\(:has\(\[data-dashboard-attention-panel\]\)\)>\[data-dashboard-activity-panel\]\{grid-row:2\}/);
+  assert.match(html, /\.dashboard-grid:not\(:has\(\[data-dashboard-attention-panel\]\)\)>\[data-dashboard-activity-panel\]\{grid-row:2\}/);
   assert.match(html, /@media\(max-width:850px\)[\s\S]*\[data-dashboard-attention-panel\]\{grid-column:1;grid-row:1\}[\s\S]*\[data-dashboard-today\]\{grid-column:1;grid-row:2\}/);
   assert.match(html, /@media\(max-width:850px\)[\s\S]*\.dashboard-grid:not\(:has\(\[data-dashboard-attention-panel\]\)\)>\[data-dashboard-today\]\{grid-row:1\}/);
   assert.match(html, /\.carryover-group \.appointment-actions \.action-button,\.carryover-group \.appointment-actions \.button\{min-height:44px\}/);
