@@ -142,7 +142,10 @@ test('retired campaign metrics and duplicated notifications stay off Dashboard a
     welcomeVoucherCampaign: legacyCampaign,
   });
   assert.doesNotMatch(report, /R100 campaign|R100 Welcome Voucher|data-welcome-voucher-campaign|href="#welcome-voucher"/);
-  assert.match(report, /href="#team-time"|href="#treatments"|href="#clients"/);
+  assert.match(report, /href="#team"/);
+  assert.match(report, /href="#activity"/);
+  assert.match(report, /id="treatments"/);
+  assert.match(report, /id="clients"/);
   assert.deepEqual(legacyCampaign, campaign());
 });
 

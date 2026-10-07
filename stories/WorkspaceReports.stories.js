@@ -103,3 +103,43 @@ export const FocusedWorkspaceReports = {
     welcomeVoucherCampaign: { vouchersUnlocked: 10, vouchersRedeemed: 4, discountsGiven: 400 },
   })),
 };
+
+export const SelectedTeamMember = {
+  render: () => {
+    const model = reportModel();
+    return productionSurface(renderReportsPage({ ...model, selectedStaffId: 11,
+      capacity: model.capacity.filter(row => row.staffId === 11),
+      staffEarnings: { ...model.staffEarnings, staff: model.staffEarnings.staff.filter(row => row.staffId === 11) },
+      totals: { bookedMinutes: 1380, remainingMinutes: 1320, utilisationPct: 51 },
+      appointments: { operational: 21, allRecorded: 23, statusCounts: { scheduled: 7, completed: 14, cancelled: 2 } },
+      clients: { uniqueClients: 18, newClients: 5, returningClients: 13 },
+      services: model.services.slice(0, 2),
+      trend: { delta: 2, currentOperationalAppointments: 21, previousOperationalAppointments: 19 },
+    }));
+  },
+};
+
+export const OwnAppointments = {
+  render: () => {
+    const model = reportModel();
+    return productionSurface(renderReportsPage({ ...model,
+      authority: { displayName: 'Synthetic practitioner', reportScope: 'own_staff' },
+      selectedStaffId: 11, permittedStaff: [{ id: 11, displayName: 'Synthetic practitioner' }],
+      capacity: [{ ...model.capacity[0], name: 'Synthetic practitioner' }],
+      financial: null, staffEarnings: null,
+    }));
+  },
+};
+
+export const EmptyPeriod = {
+  render: () => {
+    const model = reportModel();
+    return productionSurface(renderReportsPage({ ...model,
+      financial: { ...financialReports.summarizeFinancials({ period: model.period }), period: model.period,
+        records: { ...financialRecords.summarizeExpenses([]), today: '2026-10-09', closes: [] } },
+      staffEarnings: { ...model.staffEarnings, staff: [], rules: [] },
+      capacity: [], services: [], appointments: { operational: 0, allRecorded: 0, statusCounts: {} },
+      totals: {}, clients: {}, trend: {},
+    }));
+  },
+};
