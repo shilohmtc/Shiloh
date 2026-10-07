@@ -18,7 +18,9 @@ function bookingActionStyles() {
     leave: '[data-availability-form="leave"] .availability-submit',
   };
   return Object.entries(BOOKING_ACTION_PALETTE).map(([tone, colour]) => {
-    const selectors = `[data-calendar-action-tone="${tone}"],${actions[tone]}`;
+    // Match the compact menu's existing important rules, including Couples.
+    const menu = `.phone-plus-popover>a[data-calendar-action-tone="${tone}"],.phone-plus-popover button[data-calendar-action-tone="${tone}"]`;
+    const selectors = `[data-calendar-action-tone="${tone}"],${menu},${actions[tone]}`;
     const hover = selectors.split(',').map(selector => `${selector}:not(:disabled):hover`).join(',');
     return `${selectors}{background:${colour.background}!important;color:${colour.ink}!important}${hover}{background:${colour.hover}!important}`;
   }).join('');

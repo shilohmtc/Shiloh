@@ -6,6 +6,46 @@ const fs = require('node:fs');
 const path = require('node:path');
 const evidence = path.resolve('artifacts/workspace-polish');
 
+for (const viewport of [{name:'phone',width:390,height:844},{name:'compact-tablet',width:700,height:960},{name:'narrow-phone',width:320,height:640},{name:'large-text',width:320,height:740,large:true}]) {
+  test(`Calendar Bookings menu keeps action colours with production compact styles on ${viewport.name}`,async({page})=>{
+    const {phoneCalendarV2Styles,renderPhoneCalendarUtilityBar}=require('../src/presentation/calendarPhoneCompactV2');
+    const model={view:'week',dateKey:'2026-10-07',activeStaffId:12,permittedStaff:[{id:12,displayName:'Synthetic Practitioner'}],timeline:{staff:[{id:12,displayName:'Synthetic Practitioner'}]},mutationCapability:{enabled:true,operations:['calendar_block:manage','operational_leave:manage'],calendarScope:'all_business'}};
+    const bar=renderPhoneCalendarUtilityBar(model,{basePath:'/calendar',bookingAllowed:true,retrospectiveAllowed:true,todayDate:'2026-10-07'});
+    expect(fs.readFileSync(path.resolve('stories/fixtures/calendarBookingsMenu.html'),'utf8')).toBe(`<!-- Synthetic production renderPhoneCalendarUtilityBar and phoneCalendarV2Styles. -->\n<style>${phoneCalendarV2Styles()}</style>\n${bar}\n`);
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=calendar-reference-implementation--compact-bookings-menu&viewMode=story',{waitUntil:'networkidle'});
+    if(viewport.large)await page.addStyleTag({content:'html{font-size:200%}'});
+    const menu=page.locator('.phone-plus-menu'),summary=menu.locator('summary');
+    await expect(summary).toHaveAttribute('aria-label','Bookings');
+    await summary.focus();await page.keyboard.press('Enter');
+    const controls=menu.locator('.phone-plus-popover>a,.phone-plus-popover button');
+    await expect(controls).toHaveCount(7);
+    const before=await controls.evaluateAll(nodes=>nodes.map(n=>({html:n.innerHTML,href:n.getAttribute('href'),staff:n.dataset.staffId,operation:n.dataset.calendarOperation})));
+    for(let i=0;i<7;i++){
+      const control=controls.nth(i),tone=['new','new','couples','group','past','block','leave'][i],colour=BOOKING_ACTION_PALETTE[tone];
+      await expect(control).toHaveAttribute('data-calendar-action-tone',tone);
+      expect(await control.evaluate(n=>getComputedStyle(n).backgroundColor)).toBe(rgb(colour.background));
+      expect(await control.evaluate(n=>getComputedStyle(n).color)).toBe(rgb(colour.ink));
+      await control.hover();expect(await control.evaluate(n=>getComputedStyle(n).backgroundColor)).toBe(rgb(colour.hover));
+      await control.focus();await expect(control).toBeFocused();
+      const bounds=await control.boundingBox();expect(bounds.height).toBeGreaterThanOrEqual(44);expect(bounds.x).toBeGreaterThanOrEqual(0);expect(bounds.x+bounds.width).toBeLessThanOrEqual(viewport.width);
+      expect(await control.evaluate(n=>n.scrollWidth<=n.clientWidth)).toBe(true);
+    }
+    await page.mouse.move(0,0);
+    const axe=await new AxeBuilder({page}).include('.phone-plus-menu').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();expect(axe.violations).toEqual([]);
+    fs.mkdirSync(evidence,{recursive:true});await page.screenshot({path:path.join(evidence,`calendar-bookings-menu-${viewport.name}.png`)});
+    await page.addScriptTag({content:calendarBookingsMenuPolishClientScript()});
+    expect(await controls.evaluateAll(nodes=>nodes.map(n=>({html:n.innerHTML,href:n.getAttribute('href'),staff:n.dataset.staffId,operation:n.dataset.calendarOperation})))).toEqual(before);
+    // Calendar can replace availability controls when staff selection changes.
+    await controls.last().evaluate(n=>{const replacement=n.cloneNode(true);replacement.removeAttribute('data-calendar-action-tone');n.replaceWith(replacement);});
+    await expect(controls.last()).toHaveAttribute('data-calendar-action-tone','leave');
+    expect(await controls.last().evaluate(n=>getComputedStyle(n).backgroundColor)).toBe(rgb(BOOKING_ACTION_PALETTE.leave.background));
+    await summary.focus();await page.keyboard.press('Enter');await expect(menu).not.toHaveAttribute('open','');
+    const restricted=renderPhoneCalendarUtilityBar({...model,mutationCapability:{enabled:false,operations:[]}},{bookingAllowed:false,retrospectiveAllowed:false,todayDate:'2026-10-07'});
+    expect(restricted).not.toContain('phone-plus-menu');
+  });
+}
+
 for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1440,height:960 },{ name:'narrow-large-text',width:320,height:640,large:true }]) {
   test(`Refresh retains drafts, keyboard, interruption and offline behavior on ${viewport.name}`, async ({page,context}) => {
     await page.setViewportSize(viewport);
