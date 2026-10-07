@@ -592,7 +592,7 @@ test('My Shiloh personal details stay contained and accessible on Phone and Desk
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-profile&viewMode=story',{waitUntil:'networkidle'});
     await expect(page.getByRole('heading',{name:'Keep your details up to date.'})).toBeVisible();
-    await expect(page.getByLabel('Date of birth')).toHaveValue('1985-06-14');
+    await expect(page.locator('[data-client-profile-form]').getByLabel('Date of birth')).toHaveValue('1985-06-14');
     const help = page.locator('[data-profile-help]');
     await expect(help.locator('#client-problem-description')).toBeHidden();
     await help.locator('summary').click();

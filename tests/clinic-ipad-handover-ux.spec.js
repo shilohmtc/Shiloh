@@ -124,11 +124,11 @@ test('booking note indicator opens the existing authorized panel without card co
   await f.db.query("UPDATE appointments SET notes='Synthetic booking note for review' WHERE id=42");
   const item={kind:'appointment',id:42,canonical:true,status:'confirmed',clientName:'Synthetic Client',clientMobile:'27821234567',serviceName:'Swedish Massage',staffIds:[12],serviceContexts:[{serviceId:7,serviceName:'Swedish Massage'}],startsAt:'2026-10-07T08:00:00Z',endsAt:'2026-10-07T09:00:00Z'};
   const timeline={meta:{},staff:[{id:12,displayName:'Synthetic Practitioner',schedulingType:'regular'}],appointments:[item],events:[item],blocks:[],leave:[],closures:[],externalBusy:[],workingWindows:[],scheduleExceptions:[],recurringClosures:[]};
-  const projection=createCalendarReadOnlyUxService({listTimeline:async()=>timeline,query:async()=>({rows:[]})});
+  const projection=createCalendarReadOnlyUxService({listTimeline:async()=>timeline,query:async()=>({rows:[{appointment_id:'42',client_mobile:'27821234567'}]})});
   const model=await projection.buildModel({view:'day',date:'2026-10-07',viewer:{staffId:2,calendarScope:'all_business'},now:new Date('2026-10-07T06:00:00Z')});
   model.mutationCapability={enabled:true,operations:['appointment:reschedule'],calendarScope:'all_business',serviceScope:'all_services'};
   await attachBookingNotePresence(model,2,notes);
-  const app=express();app.get('/calendar',(_req,res)=>res.send(renderCalendarPage(model).replace(/<script[\s\S]*?<\/script>/g,'')));
+  const app=express();app.get('/calendar/pwa/icon-192.png',(_req,res)=>res.sendFile(path.join(__dirname,'../public/assets/brand/shiloh-mark-192.png')));app.get('/calendar',(_req,res)=>res.send(renderCalendarPage(model).replace(/<script[\s\S]*?<\/script>/g,'')));
   let reads=0;app.get('/calendar/operations/appointments/42/notes',async(_req,res)=>{reads++;res.json(await notes.get({adminId:2,appointmentId:42}));});
   app.get('/calendar/operations/appointments/42/my-shiloh-availability',(_req,res)=>res.json({label:'Synthetic availability'}));
   const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
