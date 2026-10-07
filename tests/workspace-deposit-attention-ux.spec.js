@@ -43,6 +43,8 @@ for(const [name,viewport] of [['phone',{width:390,height:844}],['desktop',{width
     const response=await page.goto(base+'/calendar/workspace');expect(response.headers()['cache-control']).toContain('no-store');
     const section=page.locator('[data-dashboard-deposits]');
     await expect(section.locator('[data-deposit-account]')).toHaveCount(1);
+    await expect(section.locator('[data-deposit-account]')).toHaveAttribute('data-workspace-card','deposit-pending');
+    await expect(section.locator('.booking-notes-indicator')).toHaveCount(0);
     await expect(section).toContainText('R350 deposit outstanding');await expect(section).toContainText('Synthetic Fynbos');
     await expect(section.getByRole('link',{name:'Review payment'})).toHaveAttribute('href','/calendar/payments/appointments/1');
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);

@@ -1,3 +1,4 @@
+const { workspaceCardStyles } = require('./workspaceCardStyles');
 const { workspaceActionStyles } = require('./workspaceActionStyles');
 const { workspaceErrorRecoveryClientScript } = require('./workspaceErrorRecovery');
 const { confirmationClientScript } = require('./workspaceConfirmation');
@@ -5,7 +6,7 @@ const { shilohUiPrimitiveStyles } = require('./shilohUiPrimitives');
 const { securePaymentUrl } = require('../services/paymentWhatsAppNotifications');
 
 function escapeHtml(value = '') { return String(value).replace(/[&<>"']/g, char => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[char]); }
-function baseStyles() { return `${workspaceActionStyles()}${shilohUiPrimitiveStyles()}:root{--ink:#20322b;--muted:#56685f;--panel:#fffdf9;--line:#dce3dd;--line-strong:#c8d3cb;--leaf-soft:#e7eee9;--leaf-deep:#294c3c}*{box-sizing:border-box}body{font-family:Inter,system-ui,-apple-system,sans-serif}.eyebrow{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;font-weight:850;color:var(--muted)}h2{font-size:1.05rem;margin:0 0 12px}h3{font-size:.9rem;margin:0}.back{display:inline-flex;align-items:center;min-height:44px}`; }
+function baseStyles() { return `${workspaceActionStyles()}${workspaceCardStyles()}${shilohUiPrimitiveStyles()}:root{--ink:#20322b;--muted:#56685f;--panel:#fffdf9;--line:#dce3dd;--line-strong:#c8d3cb;--leaf-soft:#e7eee9;--leaf-deep:#294c3c}*{box-sizing:border-box}body{font-family:Inter,system-ui,-apple-system,sans-serif}.eyebrow{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;font-weight:850;color:var(--muted)}h2{font-size:1.05rem;margin:0 0 12px}h3{font-size:.9rem;margin:0}.back{display:inline-flex;align-items:center;min-height:44px}`; }
 
 function rand(value) { return new Intl.NumberFormat('en-ZA', { style:'currency', currency:'ZAR' }).format(Number(value || 0)); }
 
@@ -65,7 +66,7 @@ function renderCalendarPaymentPage({ model, csrfToken = '', clientScriptPath = '
   const depositEvents = Array.isArray(deposit?.events) ? deposit.events : [];
   const latestDepositEvent = depositEvents[0] || null;
   const depositRate = Number(deposit?.policy?.rateBasisPoints || requirement?.rate_basis_points || 0) / 100;
-  const depositPolicyCard = depositApplicable ? `<section class="payment-card deposit-policy" data-deposit-policy>
+  const depositPolicyCard = depositApplicable ? `<section class="payment-card deposit-policy" data-deposit-policy${depositAwaiting && !bookingCancelled && !paymentReview && depositDue > 0 ? ' data-workspace-card="deposit-pending"' : ''}>
     <div class="deposit-policy__head"><div><span class="eyebrow">Booking deposit</span><h2>${escapeHtml(depositRate)}% booking deposit</h2></div><span class="state">${escapeHtml(bookingCancelled ? 'Cancelled booking' : depositExempt ? 'Exempt' : depositPaid ? 'Deposit paid' : 'Awaiting deposit')}</span></div>
     ${bookingCancelled
       ? '<p class="hint"><strong>No further deposit should be collected.</strong> This booking is cancelled. The policy record below is preserved for review and does not reopen payment collection.</p>'

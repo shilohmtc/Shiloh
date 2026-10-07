@@ -155,7 +155,7 @@ test('booking note indicator opens the existing authorized panel without card co
   const {createWorkspaceAppointmentNotesService,attachBookingNotePresence}=require('../src/services/workspaceAppointmentNotes');
   const f=await fixture(),notes=createWorkspaceAppointmentNotesService({db:f.db});
   await f.db.query("UPDATE appointments SET notes='Synthetic booking note for review' WHERE id=42");
-  const item={kind:'appointment',id:42,canonical:true,status:'confirmed',clientName:'Synthetic Client',clientMobile:'27821234567',serviceName:'Swedish Massage',staffIds:[12],serviceContexts:[{serviceId:7,serviceName:'Swedish Massage'}],startsAt:'2026-10-07T08:00:00Z',endsAt:'2026-10-07T09:00:00Z'};
+  const item={kind:'appointment',id:42,canonical:true,status:'confirmed',clientName:'Synthetic Client',clientMobile:'27821234567',serviceName:'Swedish Massage',staffIds:[12],serviceContexts:[{serviceId:7,serviceName:'Swedish Massage'}],startsAt:'2026-10-07T08:00:00Z',endsAt:'2026-10-07T08:30:00Z'};
   const timeline={meta:{},staff:[{id:12,displayName:'Synthetic Practitioner',schedulingType:'regular'}],appointments:[item],events:[item],blocks:[],leave:[],closures:[],externalBusy:[],workingWindows:[],scheduleExceptions:[],recurringClosures:[]};
   const projection=createCalendarReadOnlyUxService({listTimeline:async()=>timeline,query:async()=>({rows:[{appointment_id:'42',client_mobile:'27821234567'}]})});
   const model=await projection.buildModel({view:'day',date:'2026-10-07',viewer:{staffId:2,calendarScope:'all_business'},now:new Date('2026-10-07T06:00:00Z')});
@@ -172,7 +172,16 @@ test('booking note indicator opens the existing authorized panel without card co
       await page.addScriptTag({content:calendarManageAppointmentNotesClientScript()});
       await page.addScriptTag({content:calendarAppointmentCompactEditorClientScript()});
       await expect(page.locator('.event-card')).not.toContainText('Synthetic booking note for review');
-      await page.getByRole('button',{name:'View booking notes for appointment 42'}).click();
+      const indicator=page.getByRole('button',{name:'View booking notes for appointment 42'});
+      const target=await indicator.boundingBox();expect(target.width).toBeGreaterThanOrEqual(44);expect(target.height).toBeGreaterThanOrEqual(44);
+      const card=await page.locator('.event-card').boundingBox();
+      expect(target.y).toBeGreaterThanOrEqual(card.y);expect(target.y+target.height).toBeLessThanOrEqual(card.y+card.height+1);
+      expect(target.x+target.width).toBeLessThanOrEqual(card.x+card.width+1);
+      await indicator.focus();await expect(indicator).toBeFocused();
+      expect(await indicator.evaluate(n=>getComputedStyle(n).outlineWidth)).toBe('3px');
+      expect((await new AxeBuilder({page}).include('.booking-notes-indicator').withRules(['color-contrast','button-name']).analyze()).violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+      await page.screenshot({path:testInfo.outputPath(`${viewport.name}-booking-notes-card.png`),fullPage:true});
+      await indicator.click();
       await expect(page.locator('[data-calendar-management-panel]')).toBeVisible();
       await expect(page.locator('[data-appointment-notes-form] textarea')).toHaveValue('Synthetic booking note for review');
       await expect(page.locator('[data-appointment-notes-form] textarea')).toBeVisible();

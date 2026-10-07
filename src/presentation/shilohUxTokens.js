@@ -15,6 +15,12 @@ const WORKSPACE_ACTION_PALETTE = Object.freeze({
   danger: { background: '#f7e9e6', ink: '#7d3934', hover: '#f5ebe6' },
 });
 
+// Card accents reuse existing amber and sage; they do not define payment/notes eligibility.
+const WORKSPACE_CARD_PALETTE = Object.freeze({
+  depositPending: { background: '#fffdf9', edge: '#b99972' },
+  notes: { background: '#e7eee9', ink: '#294c3c', edge: '#c9d4cc', hover: '#dce5df' },
+});
+
 const SHILOH_UX_TOKENS = Object.freeze({
   breakpoint: Object.freeze({
     phoneMax: '700px',
@@ -109,6 +115,7 @@ function shilohUxTokenCss() {
 module.exports = {
   BOOKING_ACTION_PALETTE,
   WORKSPACE_ACTION_PALETTE,
+  WORKSPACE_CARD_PALETTE,
   SHILOH_UX_TOKENS,
   shilohUxTokenCss,
 };
