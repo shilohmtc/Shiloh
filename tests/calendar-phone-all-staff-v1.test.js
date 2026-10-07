@@ -66,12 +66,12 @@ test('#895 server-owned Today links remain part of persisted multi-staff navigat
   assert.doesNotMatch(script, /function todayWeekHref\(\)|createElement\('a'\)/);
 });
 
-test('#895 Week fits 08:00 to 17:00 into the dynamic phone viewport without vertical panning', () => {
+test('#895 Week fits 07:00 to 17:00 into the dynamic phone viewport without vertical panning', () => {
   const script = calendarPhoneAllStaffClientScript();
   assert.match(script, /function fitCalendarViewport\(\)/);
   assert.match(script, /window\.visualViewport\?\.height\|\|innerHeight/);
   assert.match(script, /function fitWeekGrid\(\)/);
-  assert.match(script, /gridStart=480,gridEnd=1020/);
+  assert.match(script, /gridStart=420,gridEnd=1020/);
   assert.match(script, /--phone-week-grid-height/);
   assert.match(script, /week-time-grid\{overflow:hidden!important/);
   assert.match(script, /phoneAfterClose=String\(minute<start\|\|minute>end\)/);
@@ -87,7 +87,7 @@ test('#895 Phone Week polish keeps opening time visible with subtle hourly struc
   assert.match(script, /phone-staff-column-name\{[^}]*color:var\(--leaf-deep\)[^}]*font-weight:900/);
   assert.match(script, /phone-staff-column-name\[data-phone-staff-toned="true"\]\{[^}]*background:var\(--phone-staff-soft\)[^}]*box-shadow:inset 0 3px 0 var\(--phone-staff-accent\)/);
   assert.match(script, /time-column\{[^}]*background:var\(--phone-staff-column-tints,#fff\)!important[^}]*border-right:1px solid var\(--line-strong\)!important/);
-  assert.match(script, /time-column:before\{[^}]*repeating-linear-gradient\(to bottom[^}]*var\(--line\)[^}]*calc\(100% \/ 9\)[^}]*!important/);
+  assert.match(script, /time-column:before\{[^}]*repeating-linear-gradient\(to bottom[^}]*var\(--line\)[^}]*calc\(100% \/ 10\)[^}]*!important/);
   assert.doesNotMatch(script, /time-column:before\{[^}]*background:none!important/);
   assert.match(script, /phone-staff-column-dividers/);
   assert.match(script, /phone-staff-column-header\{[^}]*border-top:1px solid var\(--line-strong\)[^}]*border-bottom:1px solid var\(--line-strong\)/);

@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const {phoneStaffDefaultIncluded,PHONE_SELECTED_DAY_START,PHONE_SELECTED_DAY_END}=require('../src/presentation/calendarPhoneDisplayRange');
 const {renderPhoneCalendarUtilityBar}=require('../src/presentation/calendarPhoneCompactV2');
 test('phone display defaults use exact canonical identities without excluding similar names',()=>{
-  assert.equal(PHONE_SELECTED_DAY_START,480);assert.equal(PHONE_SELECTED_DAY_END,1020);
+  assert.equal(PHONE_SELECTED_DAY_START,420);assert.equal(PHONE_SELECTED_DAY_END,1020);
   for(const displayName of ['Pieter','Savanna'])assert.equal(phoneStaffDefaultIncluded({displayName}),false);
   for(const displayName of ['Pieter Example','Savannah','Abigail',null])assert.equal(phoneStaffDefaultIncluded({displayName}),true);
 });
