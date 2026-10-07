@@ -112,7 +112,7 @@ async function verifyViewport(cdp, origin, viewport) {
   await cdp.send('Emulation.setDeviceMetricsOverride', { width: viewport.width, height: viewport.height, deviceScaleFactor: 1, mobile: true, screenWidth: viewport.width, screenHeight: viewport.height });
   await cdp.send('Page.navigate', { url: `${origin}/?view=week&date=2026-09-11` });
   await poll(() => evaluate(cdp, 'document.readyState'), value => value === 'complete');
-  await poll(() => evaluate(cdp, `document.querySelectorAll('[data-phone-staff-column-id]').length`), value => value === 7);
+  await poll(() => evaluate(cdp, `document.querySelectorAll('[data-phone-staff-column-id]').length`), value => value === 5);
   const initial = await evaluate(cdp, `(() => {
     const visible=node=>{if(!node)return false;const s=getComputedStyle(node),r=node.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;};
     const grid=document.querySelector('.week-time-grid');
@@ -123,15 +123,15 @@ async function verifyViewport(cdp, origin, viewport) {
       allPressed:document.querySelector('[data-phone-week-staff-all]')?.getAttribute('aria-pressed')||'',
       gridClientWidth:grid.clientWidth,gridScrollWidth:grid.scrollWidth,rootScrollWidth:document.documentElement.scrollWidth,
       late:Array.from(document.querySelectorAll('.time-rail span')).filter(n=>['19:00','20:00'].includes(n.textContent.trim())&&visible(n)).map(n=>n.textContent.trim()),
-      eighteen:Array.from(document.querySelectorAll('.time-rail span')).some(n=>n.textContent.trim()==='18:00'&&visible(n)),
+      eighteen:Array.from(document.querySelectorAll('.time-rail span')).some(n=>n.textContent.trim()==='17:00'&&visible(n)),
       dayContext:!!document.querySelector('.phone-calendar-day-context'),
     };
   })()`);
   assert.ok(['sep','sept'].includes(initial.month.toLowerCase()), `Unexpected month label: ${initial.month}`);
-  assert.equal(initial.headers.length, 7);
+  assert.equal(initial.headers.length, 5);
   assert.ok(initial.headers.every(header => header.width > 20), JSON.stringify(initial.headers));
-  assert.ok(initial.staffPressed.every(value => value === 'true'));
-  assert.equal(initial.allPressed, 'true');
+  assert.deepEqual(initial.staffPressed,['true','true','true','true','true','false','false']);
+  assert.equal(initial.allPressed, 'false');
   assert.ok(initial.gridScrollWidth <= initial.gridClientWidth + 1, JSON.stringify(initial));
   assert.ok(initial.rootScrollWidth <= viewport.width + 1, JSON.stringify(initial));
   assert.deepEqual(initial.late, []);
@@ -139,7 +139,7 @@ async function verifyViewport(cdp, origin, viewport) {
   assert.equal(initial.dayContext, false);
 
   await evaluate(cdp, `document.querySelector('[data-phone-week-staff-id="52"]').click()`);
-  await poll(() => evaluate(cdp, `document.querySelectorAll('[data-phone-staff-column-id]').length`), value => value === 6);
+  await poll(() => evaluate(cdp, `document.querySelectorAll('[data-phone-staff-column-id]').length`), value => value === 4);
   const toggled = await evaluate(cdp, `(() => ({
     headers:Array.from(document.querySelectorAll('[data-phone-staff-column-id]')).map(n=>n.textContent.trim()),
     christelPressed:document.querySelector('[data-phone-week-staff-id="52"]')?.getAttribute('aria-pressed'),

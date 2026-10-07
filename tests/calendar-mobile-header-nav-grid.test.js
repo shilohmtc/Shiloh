@@ -59,7 +59,7 @@ test('approved Phone toolbar and staff dropdown are emitted directly by the serv
   assert.match(html, /data-phone-week-staff-all="true"/);
   assert.match(html, /data-phone-week-staff-id="51"/);
   assert.doesNotMatch(script, /function buildUtilityBar|function addMonthNavigation|function addWeekNavigation/);
-  assert.doesNotMatch(script, /document\.createElement\('details'\)/);
+  assert.doesNotMatch(script, /function buildUtilityBar/);
   assert.match(script, /function installStaffMenu\(\)/);
   assert.match(script, /querySelector\('\[data-phone-staff-menu\]'\)/);
 });
@@ -75,7 +75,7 @@ test('Phone toolbar geometry is present before enhancement and behavior remains 
   assert.match(css, /phone-week-nav\{[^}]*min-height:36px/);
   assert.match(css, /phone-week-date\{[^}]*min-height:36px/);
   assert.match(script, /phone-staff-column-name\{[^}]*min-height:30px/);
-  assert.match(script, /Math\.max\(30,eventHeight\*ratio\)/);
+  assert.match(script, /\(interval\.end-interval\.start\)\/gridMinutes\*height/);
 });
 
 test('Phone Week keeps staff identity tints and column geometry as bounded client behavior', () => {

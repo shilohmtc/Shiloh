@@ -6,13 +6,13 @@ const vm = require('node:vm');
 
 const { calendarPhoneAllStaffClientScript } = require('../src/presentation/calendarPhoneAllStaffUx');
 
-test('#895 Phone Week defaults to all permitted staff columns', () => {
+test('#895 Phone Week defaults to eligible permitted staff columns while preserving explicit all', () => {
   const script = calendarPhoneAllStaffClientScript();
   assert.doesNotThrow(() => new vm.Script(script));
   assert.match(script, /data-phone-week-staff-id/);
   assert.match(script, /phoneWeekStaffRendered/);
   assert.match(script, /selectedIds=parseMode\(\)/);
-  assert.match(script, /if\(!raw\|\|raw==='all'\)return \[\.\.\.permittedIds\]/);
+  assert.match(script, /if\(raw==='all'\)return \[\.\.\.permittedIds\]/);
   assert.match(script, /permittedIds\.forEach\(id=>url\.searchParams\.append\('staff',id\)\)/);
   assert.doesNotMatch(script, /permittedStaff|calendarScope|all_business/);
 });
@@ -66,28 +66,28 @@ test('#895 server-owned Today links remain part of persisted multi-staff navigat
   assert.doesNotMatch(script, /function todayWeekHref\(\)|createElement\('a'\)/);
 });
 
-test('#895 Week fits 07:00 to 18:00 into the dynamic phone viewport without vertical panning', () => {
+test('#895 Week fits 08:00 to 17:00 into the dynamic phone viewport without vertical panning', () => {
   const script = calendarPhoneAllStaffClientScript();
   assert.match(script, /function fitCalendarViewport\(\)/);
   assert.match(script, /window\.visualViewport\?\.height\|\|innerHeight/);
   assert.match(script, /function fitWeekGrid\(\)/);
-  assert.match(script, /const baseHeight=660/);
+  assert.match(script, /gridStart=480,gridEnd=1020/);
   assert.match(script, /--phone-week-grid-height/);
   assert.match(script, /week-time-grid\{overflow:hidden!important/);
-  assert.match(script, /phoneAfterClose=String\(hour>18\)/);
-  assert.match(script, /if\(hour===18\)node\.style\.transform='translateY\(-100%\)'/);
-  assert.match(script, /Math\.max\(30,eventHeight\*ratio\)/);
+  assert.match(script, /phoneAfterClose=String\(minute<start\|\|minute>end\)/);
+  assert.match(script, /if\(minute===end\)node\.style\.transform='translateY\(-100%\)'/);
+  assert.match(script, /\(interval\.end-interval\.start\)\/gridMinutes\*height/);
 });
 
 test('#895 Phone Week polish keeps opening time visible with subtle hourly structure', () => {
   const script = calendarPhoneAllStaffClientScript();
-  assert.match(script, /phoneOpenLabel=String\(hour===7\)/);
+  assert.match(script, /phoneOpenLabel=String\(minute===start\)/);
   assert.match(script, /data-phone-open-label="true"\]\{transform:translateY\(3px\)!important\}/);
   assert.match(script, /time-rail span\{color:var\(--ink\)!important;font-size:clamp\(\.5rem,2vw,\.62rem\)!important;font-weight:850!important/);
   assert.match(script, /phone-staff-column-name\{[^}]*color:var\(--leaf-deep\)[^}]*font-weight:900/);
   assert.match(script, /phone-staff-column-name\[data-phone-staff-toned="true"\]\{[^}]*background:var\(--phone-staff-soft\)[^}]*box-shadow:inset 0 3px 0 var\(--phone-staff-accent\)/);
   assert.match(script, /time-column\{[^}]*background:var\(--phone-staff-column-tints,#fff\)!important[^}]*border-right:1px solid var\(--line-strong\)!important/);
-  assert.match(script, /time-column:before\{[^}]*repeating-linear-gradient\(to bottom[^}]*var\(--line\)[^}]*calc\(100% \/ 11\)[^}]*!important/);
+  assert.match(script, /time-column:before\{[^}]*repeating-linear-gradient\(to bottom[^}]*var\(--line\)[^}]*calc\(100% \/ 9\)[^}]*!important/);
   assert.doesNotMatch(script, /time-column:before\{[^}]*background:none!important/);
   assert.match(script, /phone-staff-column-dividers/);
   assert.match(script, /phone-staff-column-header\{[^}]*border-top:1px solid var\(--line-strong\)[^}]*border-bottom:1px solid var\(--line-strong\)/);
@@ -96,18 +96,18 @@ test('#895 Phone Week polish keeps opening time visible with subtle hourly struc
 test('#895 fitted Week preserves empty-slot booking time and practitioner semantics', () => {
   const script = calendarPhoneAllStaffClientScript();
   assert.match(script, /function installFittedBookingTap\(\)/);
-  assert.match(script, /rawMinutes=7\*60\+\(y\/rect\.height\)\*\(11\*60\)/);
-  assert.match(script, /Math\.min\(18\*60-30/);
+  assert.match(script, /rawMinutes=gridStart\+\(y\/rect\.height\)\*gridMinutes/);
+  assert.match(script, /Math\.min\(gridEnd-30/);
   assert.match(script, /Math\.floor\(\(x\/rect\.width\)\*selectedIds\.length\)/);
   assert.match(script, /location\.assign\(bookingPath\+'\?'\+params\.toString\(\)\)/);
 });
 
-test('#895 full-height Month and 18:00 operating boundary remain', () => {
+test('#895 full-height Month and selected-day 17:00 display boundary remain', () => {
   const script = calendarPhoneAllStaffClientScript();
   assert.match(script, /--phone-calendar-surface-height/);
   assert.match(script, /calendar-view\.month-view\{display:flex!important;flex-direction:column!important/);
   assert.match(script, /month-days\{min-height:0!important;height:100%!important;grid-auto-rows:1fr!important/);
-  assert.match(script, /phoneAfterClose=String\(hour>18\)/);
+  assert.match(script, /phoneAfterClose=String\(minute<start\|\|minute>end\)/);
   assert.match(script, /data-phone-after-close/);
 });
 

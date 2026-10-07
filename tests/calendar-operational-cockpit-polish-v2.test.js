@@ -101,7 +101,7 @@ test('cockpit exposes labelled controls, scan summary and lane state', () => {
   assert.match(html, /Shiloh <small>Workspace<\/small>/);
   assert.match(html, /class="workspace-link active"[^>]*aria-current="page">Calendar/);
   assert.match(html, /class="time-grid day-time-grid"/);
-  assert.match(html, /class="positioned-event" style="--event-top:72px;--event-height:69px"/);
+  assert.match(html, /class="positioned-event"[^>]* style="--event-top:72px;--event-height:69px"/);
 });
 
 test('Week uses one shared vertical time rail and six readable Monday-Saturday date lanes', () => {

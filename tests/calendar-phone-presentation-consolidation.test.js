@@ -62,7 +62,7 @@ test('approved Phone HTML excludes superseded first-generation Phone CSS', () =>
 test('bounded client enhancement no longer creates or relocates Calendar navigation', () => {
   const script = calendarPhoneAllStaffClientScript();
   assert.doesNotMatch(script, /function buildUtilityBar|function addMonthNavigation|function addWeekNavigation|function addMonthContext/);
-  assert.doesNotMatch(script, /insertBefore\(bar|appendChild\(plus\)|document\.createElement\('details'\)/);
+  assert.doesNotMatch(script, /insertBefore\(bar|appendChild\(plus\)/);
   assert.match(script, /function renderColumns\(\)/);
   assert.match(script, /function fitCalendarViewport\(\)/);
 });

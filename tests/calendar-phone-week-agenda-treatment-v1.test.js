@@ -119,7 +119,7 @@ test('Phone Week preserves all permitted appointments from the canonical filtere
   assert.match(html, /Helen/);
   assert.match(html, /Melindi/);
   assert.match(html, /Elani Greyling F/);
-  assert.match(html, /class="positioned-event" style="--event-top:144px;--event-height:105px"/);
+  assert.match(html, /class="positioned-event"[^>]* style="--event-top:144px;--event-height:105px"/);
 });
 
 test('selected-practitioner Week scope remains constrained before Phone presentation', () => {

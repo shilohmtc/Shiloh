@@ -135,16 +135,16 @@ async function main() {
     await cdp.send('Page.navigate', { url: `${origin}/workspace` });
     await poll(() => evaluate(cdp, 'document.readyState'), value => value === 'complete');
     const href = await evaluate(cdp, `document.querySelector('[data-workspace-destination="calendar"]')?.getAttribute('href')||''`);
-    assert.equal(href, '/calendar/read-only?view=week&staff=all');
+    assert.equal(href, '/calendar/read-only?view=week&staff=all&phoneStaff=default');
     await evaluate(cdp, `document.querySelector('[data-workspace-destination="calendar"]').click();true`);
     await poll(() => evaluate(cdp, 'location.pathname'), value => value === '/calendar/read-only');
     const query = await evaluate(cdp, `({view:new URL(location.href).searchParams.get('view'),staff:new URL(location.href).searchParams.get('staff')})`);
     assert.deepEqual(query, { view: 'week', staff: 'all' });
-    await poll(() => evaluate(cdp, `document.querySelectorAll('[data-phone-staff-column-id]').length`), value => value === 7);
+    await poll(() => evaluate(cdp, `document.querySelectorAll('[data-phone-staff-column-id]').length`), value => value === 5);
     const state = await evaluate(cdp, `({headers:Array.from(document.querySelectorAll('[data-phone-staff-column-id]')).map(n=>n.textContent.trim()),allPressed:document.querySelector('[data-phone-week-staff-all]')?.getAttribute('aria-pressed')||''})`);
-    assert.deepEqual(state.headers, ['Abigail','Christel','Ilince','Marietjie','Naomi','Pieter','Savanna']);
-    assert.equal(state.allPressed, 'true');
-    console.log('Workspace → Calendar browser entry proof passed: Week + All staff + seven named columns.');
+    assert.deepEqual(state.headers, ['Abigail','Christel','Ilince','Marietjie','Naomi']);
+    assert.equal(state.allPressed, 'false');
+    console.log('Workspace → Calendar browser entry proof passed: Week + five default columns, optional overflow staff.');
   } finally {
     try { cdp?.close(); } catch (_error) {}
     try { chrome?.kill('SIGKILL'); } catch (_error) {}

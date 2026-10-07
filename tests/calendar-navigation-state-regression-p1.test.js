@@ -22,19 +22,19 @@ test('#895 ordinary Workspace Calendar navigation opens Week with canonical All 
     clientsHref: '/calendar/clients',
     calendarHref: DESTINATIONS.calendar,
   });
-  assert.equal(DESTINATIONS.calendar, '/calendar/read-only?view=week&staff=all');
-  assert.match(html, /data-workspace-destination="calendar" href="\/calendar\/read-only\?view=week&amp;staff=all"/);
+  assert.equal(DESTINATIONS.calendar, '/calendar/read-only?view=week&staff=all&phoneStaff=default');
+  assert.match(html, /data-workspace-destination="calendar" href="\/calendar\/read-only\?view=week&amp;staff=all&amp;phoneStaff=default"/);
   assert.doesNotMatch(html, /data-workspace-destination="calendar"[^>]*href="[^"]*date=/);
 });
 
 test('#895 Dashboard Calendar entry binds the exact operational date into Week All staff', () => {
   assert.equal(
     dashboardCalendarHref({ operationalDateKey: '2026-09-11', mode: 'business_overview' }),
-    '/calendar/read-only?view=week&date=2026-09-11&staff=all',
+    '/calendar/read-only?view=week&date=2026-09-11&staff=all&phoneStaff=default',
   );
   assert.equal(
     dashboardCalendarHref({ operationalDateKey: '2026-09-11', mode: 'personal' }),
-    '/calendar/read-only?view=week&date=2026-09-11&staff=all',
+    '/calendar/read-only?view=week&date=2026-09-11&staff=all&phoneStaff=default',
   );
   assert.notEqual(dashboardCalendarHref({ operationalDateKey: '2026-09-11', mode: 'business_overview' }), '/calendar/read-only');
 });

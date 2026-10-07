@@ -153,12 +153,12 @@ async function verifyWeek(cdp, origin, viewport) {
   await cdp.send('Emulation.setDeviceMetricsOverride', { width: viewport.width, height: viewport.height, deviceScaleFactor: 1, mobile: true, screenWidth: viewport.width, screenHeight: viewport.height });
   await navigate(cdp, `${origin}/?view=week&date=${TODAY}`);
   await poll(() => evaluate(cdp, `document.body.dataset.phoneWeekGridFitted`), value => value === 'true');
-  await poll(() => evaluate(cdp, `document.querySelectorAll('[data-phone-staff-column-id]').length`), value => value === 7);
+  await poll(() => evaluate(cdp, `document.querySelectorAll('[data-phone-staff-column-id]').length`), value => value === 5);
   const metrics = await evaluate(cdp, `(() => {
     const visible=node=>{if(!node)return false;const s=getComputedStyle(node),r=node.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0;};
     const calendar=document.querySelector('.calendar-view');
     const grid=document.querySelector('.week-time-grid');
-    const eighteen=Array.from(document.querySelectorAll('.time-rail span')).find(n=>n.textContent.trim()==='18:00');
+    const eighteen=Array.from(document.querySelectorAll('.time-rail span')).find(n=>n.textContent.trim()==='17:00');
     return {
       viewport:{width:innerWidth,height:innerHeight},
       todayVisible:visible(document.querySelector('[data-phone-calendar-today]')),
@@ -177,12 +177,12 @@ async function verifyWeek(cdp, origin, viewport) {
   })()`);
   assert.equal(metrics.todayVisible, false, `${viewport.name}: Today should be absent on current Week`);
   assert.deepEqual(metrics.utilityLabels, ['Week', 'Month']);
-  assert.equal(metrics.headers, 7);
-  assert.equal(metrics.allPressed, 'true');
+  assert.equal(metrics.headers, 5);
+  assert.equal(metrics.allPressed, 'false');
   assert.equal(metrics.gridOverflowY, 'hidden');
   assert.ok(metrics.gridScrollHeight <= metrics.gridClientHeight + 2, `${viewport.name}: Week still scrolls vertically ${JSON.stringify(metrics)}`);
   assert.equal(metrics.eighteenVisible, true);
-  assert.ok(metrics.eighteenBottom <= metrics.gridBottom + 2, `${viewport.name}: 18:00 is outside fitted grid`);
+  assert.ok(metrics.eighteenBottom <= metrics.gridBottom + 2, `${viewport.name}: 17:00 is outside fitted grid`);
   assert.ok(metrics.calendarBottom <= viewport.height + 1, `${viewport.name}: Calendar exceeds viewport`);
   assert.ok(metrics.rootScrollHeight <= viewport.height + 2, `${viewport.name}: page still requires vertical scrolling ${JSON.stringify(metrics)}`);
   await screenshot(cdp, `week-${viewport.name}.png`);
@@ -201,14 +201,15 @@ async function verifyFittedBooking(cdp, origin) {
   await evaluate(cdp, `(() => {
     const column=document.querySelector('.week-view .time-column');
     const rect=column.getBoundingClientRect();
-    const x=rect.left+rect.width*(2.5/7);
+    // Marietjie's synthetic lane is empty; Ilince has an event ending here.
+    const x=rect.left+rect.width*(3.5/5);
     const y=rect.top+rect.height*.5;
     column.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:x,clientY:y,button:0}));
     return true;
   })()`);
   await poll(() => evaluate(cdp, 'location.pathname'), value => value === '/book');
   const target = await evaluate(cdp, `({date:new URL(location.href).searchParams.get('date'),time:new URL(location.href).searchParams.get('time'),staff:new URL(location.href).searchParams.get('staff')})`);
-  assert.deepEqual(target, { date: TODAY, time: '12:30', staff: '53' });
+  assert.deepEqual(target, { date: TODAY, time: '12:30', staff: '54' });
 }
 
 async function verifyMonth(cdp, origin) {

@@ -75,7 +75,7 @@ function stabilizeDashboardShell(html) {
 
 function dashboardCalendarHref(model = {}) {
   const dateKey = String(model.operationalDateKey || '').trim();
-  return `/calendar/read-only?view=week${dateKey ? `&date=${encodeURIComponent(dateKey)}` : ''}&staff=all`;
+  return `/calendar/read-only?view=week${dateKey ? `&date=${encodeURIComponent(dateKey)}` : ''}&staff=all&phoneStaff=default`;
 }
 
 function dashboardSafeError(error) {
