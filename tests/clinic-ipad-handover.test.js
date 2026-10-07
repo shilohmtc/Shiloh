@@ -23,7 +23,7 @@ test('explicit authorized handover binds one device, client and assignment befor
     await assert.rejects(f.service.formDetails(f.otherDeviceToken),{httpStatus:409});
     const rows=(await f.db.query('SELECT event_type,metadata FROM staff_auth_security_events')).rows;
     assert.deepEqual(rows.map(r=>r.event_type),['clinic_ipad_handover_prepared','clinic_ipad_handover_confirmed']);
-    assert.equal(rows[1].metadata.clientId,10);assert.doesNotMatch(JSON.stringify(rows),/27821234567|dateOfBirth|confirmationToken/);
+    assert.equal(String(rows[1].metadata.clientId),'10');assert.doesNotMatch(JSON.stringify(rows),/27821234567|dateOfBirth|confirmationToken/);
   }finally{await f.close();}
 });
 test('missing DOB is validated and atomically saved to only the bound CRM record with one-use claim',async()=>{
