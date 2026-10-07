@@ -1,3 +1,4 @@
+const { phoneStaffDefaultIncluded } = require('./calendarPhoneDisplayRange');
 const { allowsStaffTarget } = require('../services/calendarAuthorization');
 const { normalizeOperationalDateKey } = require('../services/calendarReadOnlyUx');
 const { renderLucideIcon } = require('./lucideIcons');
@@ -5,6 +6,7 @@ const { renderLucideIcon } = require('./lucideIcons');
 const BUSINESS_TIMEZONE = 'Africa/Johannesburg';
 const PHONE_GRID_PIXELS_PER_HOUR = 60;
 const DESKTOP_GRID_PIXELS_PER_HOUR = 72;
+// Legacy Day geometry and Month capacity; selected-day Week uses calendarPhoneDisplayRange.
 const GRID_START_MINUTES = 7 * 60;
 const GRID_END_MINUTES = 18 * 60;
 
@@ -138,13 +140,13 @@ function renderPhoneStaffMenu(model) {
   const rendered = new Set(visibleIds);
   const active = positiveId(model?.activeStaffId) || visibleIds[0] || null;
   const permitted = Array.isArray(model?.permittedStaff) ? model.permittedStaff : (model?.timeline?.staff || []);
-  if (permitted.length < 2) return '';
+  if (!permitted.length) return '';
   const staffButtons = permitted.map(person => {
     const id = positiveId(person.id);
     if (!id) return '';
     const isRendered = rendered.has(id);
     const isActive = id === active;
-    return `<button type="button" class="phone-week-staff-toggle${isActive ? ' active' : ''}" data-phone-week-staff-id="${id}" data-phone-week-staff-rendered="${isRendered ? 'true' : 'false'}" aria-pressed="${isActive ? 'true' : 'false'}">${escapeHtml(person.displayName || `Staff ${id}`)}</button>`;
+    return `<button type="button" class="phone-week-staff-toggle${isActive ? ' active' : ''}" data-phone-week-staff-id="${id}" data-phone-week-staff-default="${phoneStaffDefaultIncluded(person)}" data-phone-week-staff-rendered="${isRendered ? 'true' : 'false'}" aria-pressed="${isActive ? 'true' : 'false'}">${escapeHtml(person.displayName || `Staff ${id}`)}</button>`;
   }).join('');
   return `<span class="phone-staff-menu-mount" data-phone-staff-menu-mount><details class="phone-staff-menu" data-phone-staff-menu data-phone-calendar-menu><summary class="phone-staff-menu-summary" data-phone-staff-menu-summary aria-label="Staff menu, all staff selected">Staff</summary><div class="phone-staff-menu-panel phone-week-staff-strip" data-phone-staff-menu-panel aria-label="Visible staff"><button type="button" class="phone-week-staff-toggle phone-week-all-staff-toggle active" data-phone-week-staff-all="true" aria-pressed="true">All staff</button>${staffButtons}</div></details></span>`;
 }
@@ -441,6 +443,7 @@ function calendarPhoneCompactV2ClientScript() {
   const scale = PHONE_GRID_PIXELS_PER_HOUR / DESKTOP_GRID_PIXELS_PER_HOUR;
   return `(()=>{'use strict';
 const body=document.body;
+body.dataset.phoneInitialStaff=JSON.stringify(new URL(location.href).searchParams.getAll('staff'));
 if(innerWidth>700){body.removeAttribute('data-calendar-phone-pending');return;}
 const active=String(body.dataset.phoneActiveStaffId||'');
 const bookingPath=String(body.dataset.phoneBookingPath||'');

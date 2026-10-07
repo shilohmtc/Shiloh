@@ -412,7 +412,7 @@ function renderPositionedEvent(item, model) {
   const end = Math.min(GRID_END_MINUTES, Math.max(start + 15, localMinutes(item.endsAt)));
   const top = ((start - GRID_START_MINUTES) / 60) * GRID_PIXELS_PER_HOUR;
   const height = Math.max(34, ((end - start) / 60) * GRID_PIXELS_PER_HOUR - 3);
-  return `<div class="positioned-event" style="--event-top:${top}px;--event-height:${height}px">${renderEventCard(item, model)}</div>`;
+  return `<div class="positioned-event" data-display-start="${localMinutes(item.startsAt)}" data-display-end="${localMinutes(item.endsAt)}" style="--event-top:${top}px;--event-height:${height}px">${renderEventCard(item, model)}</div>`;
 }
 
 function renderDay(model, booking = {}) {

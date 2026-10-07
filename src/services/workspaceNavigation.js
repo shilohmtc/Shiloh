@@ -10,7 +10,7 @@ const problemReports = require('./problemReports');
 
 const DESTINATIONS = Object.freeze({
   dashboard: '/calendar/workspace',
-  calendar: '/calendar/read-only?view=week&staff=all',
+  calendar: '/calendar/read-only?view=week&staff=all&phoneStaff=default',
   clients: '/calendar/clients',
   messages: '/calendar/messages',
   staff: '/calendar/team/staff-access',
