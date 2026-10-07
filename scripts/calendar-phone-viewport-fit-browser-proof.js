@@ -203,7 +203,8 @@ async function verifyFittedBooking(cdp, origin) {
     const rect=column.getBoundingClientRect();
     // Marietjie's synthetic lane is empty; Ilince has an event ending here.
     const x=rect.left+rect.width*(3.5/5);
-    const y=rect.top+rect.height*.5;
+    // 12:30 is 330 minutes into the restored 600-minute display range.
+    const y=rect.top+rect.height*.55;
     column.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:x,clientY:y,button:0}));
     return true;
   })()`);
