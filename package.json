@@ -29,7 +29,9 @@
     "build-storybook": "storybook build",
     "system:check": "node scripts/system-maintenance-check.js",
     "system:snapshot": "node scripts/verify-code-snapshot.js",
-    "system:backup:code": "node scripts/independent-code-backup.js"
+    "system:backup:code": "node scripts/independent-code-backup.js",
+    "system:backup:database": "node scripts/independent-database-backup.js",
+    "system:backup:database:proof": "node scripts/synthetic-database-backup-proof.js"
   },
   "keywords": [
     "shiloh",

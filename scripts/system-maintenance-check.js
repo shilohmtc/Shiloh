@@ -120,6 +120,7 @@ function markdown(report) {
     `- Application/database health: ${report.health.status}`,
     `- Code snapshot: ${report.backups.codeSnapshot.status}`,
     `- Independent code backup: ${report.backups.independentCode?.status || 'unverified'}`,
+    `- Independent database ciphertext: ${report.backups.database?.status || 'disabled'}; isolated database recovery: ${report.backups.database?.databaseRecoveryVerified === true ? 'verified' : 'unverified'}`,
     '- Database recovery: unverified',
     '- Uploaded-file recovery: unverified',
     '',
@@ -204,7 +205,7 @@ async function main() {
     backups: {
       codeSnapshot: { status: 'unverified' },
       independentCode: { status: 'unverified' },
-      database: { status: 'unverified' },
+      database: { status: 'disabled', reason: 'authenticated-evidence-provider-unconfigured', databaseRecoveryVerified: false },
       uploadedFiles: { status: 'unverified' },
     },
   };
@@ -309,6 +310,7 @@ async function main() {
       report.backups.independentCode = { status: 'unverified' };
     }
   }
+  // No database receipt files are read. A reviewed authenticated evidence provider is not configured.
   fs.writeFileSync(path.join(outdir, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
   const summary = markdown(report);
   fs.writeFileSync(path.join(outdir, 'report.md'), summary);

@@ -356,3 +356,27 @@ jobs:
         env:
           TEST_IPAD_DATABASE_URL: postgres://postgres:synthetic-test-only@localhost:5432/package_proof
         run: node --test tests/clinic-ipad-handover.test.js
+
+  synthetic_database_backup_proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.14.1
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Prove encrypted synthetic recovery in isolated PostgreSQL 18
+        # No production credentials, services, archives or artifact upload.
+        run: |
+          docker run --rm --entrypoint bash \
+            -v "$PWD:/proof:ro" \
+            -v "$(dirname "$(command -v node)"):/node:ro" \
+            postgres:18 -lc '
+              apt-get update -qq && apt-get install -y --no-install-recommends gnupg >/dev/null &&
+              cd /proof && runuser -u postgres -- env SHILOH_SYNTHETIC_PG_BIN=/usr/lib/postgresql/18/bin /node/node scripts/synthetic-database-backup-proof.js
+            '

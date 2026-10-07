@@ -45,9 +45,9 @@ function validUploadUrl(value) {
   return url.href;
 }
 
-async function sha256(file) {
+async function sha256(file, { signal } = {}) {
   const hash = crypto.createHash('sha256');
-  for await (const chunk of fs.createReadStream(file)) hash.update(chunk);
+  for await (const chunk of fs.createReadStream(file, { signal })) hash.update(chunk);
   return hash.digest('hex');
 }
 
