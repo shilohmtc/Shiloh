@@ -34,6 +34,21 @@ test('staff form preparation points clients to My Shiloh without retired WhatsAp
   assert.doesNotMatch(html,/WhatsApp|data-whatsapp-ready/);
 });
 
+test('appointment form preparation omits device revocation while active device choices remain independent',()=>{
+  const items=[{id:1,created_at:'2026-10-07T08:00:00Z',revoked_at:null},{id:2,created_at:'2026-10-07T08:00:00Z',revoked_at:'2026-10-07T09:00:00Z'}];
+  const prepared=ux.devices(items,42),settings=ux.devices(items);
+  assert.doesNotMatch(prepared,/data-revoke|Disable iPad|Disable a lost|Staff devices|Activate another|Prepare a client form|created_at/);
+  assert.match(prepared,/<h1>Prepare on iPad<\/h1>/);
+  assert.match(prepared,/<div hidden data-device-options>/);
+  assert.doesNotMatch(prepared,/07\/10\/2026|2026-10-07/);
+  assert.match(prepared,/data-device-choice="1"/);
+  assert.doesNotMatch(prepared,/data-device-choice="2"/);
+  assert.match(prepared,/\/calendar\/forms\?appointmentId=42#appointment-42/);
+  assert.match(settings,/data-device-choice="1"/);
+  assert.match(settings,/data-revoke="1">Disable iPad/);
+  assert.doesNotMatch(settings,/data-revoke="2"/);
+});
+
 test('Workspace shows iPad controls only for authorised clinic client management while enabled',() => {
   const html='<html><head><style></style></head><body><main data-clients-list-view></main></body></html>';
   const clinic={ manageAllowed:true,authority:{clientScope:{kind:'clinic'}} };

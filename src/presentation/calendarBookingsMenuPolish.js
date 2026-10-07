@@ -1,12 +1,5 @@
 // Booking actions share Calendar's palette; treatment-family colours remain separate.
-const BOOKING_ACTION_PALETTE = Object.freeze({
-  new: { background: '#eef5ef', ink: '#244f3a', hover: '#e1eee4' },
-  couples: { background: '#fbf5f8', ink: '#633f55', hover: '#f4e8ee' },
-  group: { background: '#eef4fb', ink: '#405b75', hover: '#e1ebf6' },
-  past: { background: '#faf4e8', ink: '#6a5335', hover: '#f3e9d7' },
-  block: { background: '#f0f3f2', ink: '#41564f', hover: '#e4eae7' },
-  leave: { background: '#edf7f4', ink: '#2d5d53', hover: '#deefe9' },
-});
+const { BOOKING_ACTION_PALETTE } = require('./shilohUxTokens');
 
 function bookingActionStyles() {
   const actions = {

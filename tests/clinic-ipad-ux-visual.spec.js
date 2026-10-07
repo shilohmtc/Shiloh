@@ -34,10 +34,20 @@ test('clinic iPad check-in screens fit phone, tablet and desktop with accessible
 test('Christel and Reception form handoff screen fits phone and desktop',async ({page},testInfo)=>{
   for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
     await page.setViewportSize({width:viewport.width,height:viewport.height});
+    await page.goto('/iframe.html?id=client-clinic-ipad-check-in--staff-preparation-start&viewMode=story',{waitUntil:'networkidle'});
+    await expect(page.getByRole('heading',{name:'Prepare on iPad',exact:true})).toBeVisible();
+    await expect(page.getByLabel('Appointment number')).toHaveValue('42');
+    await expect(page.getByRole('button',{name:'Find forms'})).toBeVisible();
+    await expect(page.locator('[data-form-options]')).toBeEmpty();
+    await expect(page.locator('[data-revoke],[data-setup-code]')).toHaveCount(0);
+    await expect(page.getByText('Staff devices',{exact:true})).toHaveCount(0);
+    const startAccessibility=await new AxeBuilder({page}).include('[data-checkin-story]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    expect(startAccessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`clinic-ipad-preparation-start-${viewport.name}.png`),fullPage:true,animations:'disabled'});
     await page.goto('/iframe.html?id=client-clinic-ipad-check-in--staff-form-preparation&viewMode=story',{waitUntil:'networkidle'});
     await expect(page.locator('[data-checkin-story]')).toBeVisible();
     await expect(page.getByRole('button',{name:'Prepare on iPad'})).toBeVisible();
-    await expect(page.getByText('Clients can also complete assigned forms in My Shiloh.',{exact:false})).toBeVisible();
+    await expect(page.getByText('Choose a form and iPad.',{exact:true})).toBeVisible();
     expect(await page.locator('[data-checkin-story]').innerText()).not.toMatch(/WhatsApp/);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
     const accessibility=await new AxeBuilder({page}).include('[data-checkin-story]')

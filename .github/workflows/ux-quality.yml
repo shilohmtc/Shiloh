@@ -98,7 +98,9 @@ jobs:
           name: workspace-polish-visual-review
           path: |
             artifacts/workspace-polish
-            artifacts/ux-playwright-results/**/dashboard-*-actual.png
+            artifacts/workspace-action-standard
+            artifacts/ux-playwright-results/**/dashboard-*.png
+            artifacts/ux-playwright-results/**/client-history-*.png
           if-no-files-found: error
           retention-days: 14
 

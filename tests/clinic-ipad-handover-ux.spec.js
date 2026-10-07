@@ -36,9 +36,17 @@ for(const viewport of [{name:'phone',width:390,height:844},{name:'tablet',width:
       await clientPage.goto(base+'/check-in/');
       await staffPage.goto(base+'/calendar/check-in/devices?appointmentId=42');
       await expect(staffPage.getByRole('button',{name:'Create setup code'})).toHaveCount(0);
+      await expect(staffPage.getByRole('button',{name:'Disable iPad'})).toHaveCount(0);
+      await expect(staffPage.getByRole('heading',{name:'Prepare on iPad',exact:true})).toBeVisible();
+      await expect(staffPage.getByText('Staff devices',{exact:true})).toHaveCount(0);
+      await expect(staffPage.getByRole('heading',{name:'Prepare a client form',exact:true})).toHaveCount(0);
+      await expect(staffPage.getByLabel('Appointment number')).toHaveValue('42');
+      await expect(staffPage.locator('[data-form-options]')).toBeEmpty();
       await expect(staffPage.getByRole('link',{name:'Back to Forms'})).toHaveAttribute('href','/calendar/forms?appointmentId=42#appointment-42');
+      await evidence(staffPage,'preparation-start');
       await staffPage.getByRole('button',{name:'Find forms'}).click();
       await expect(staffPage.getByRole('combobox')).toHaveCount(1);
+      await expect(staffPage.getByRole('combobox').locator('option[value="1"]')).toHaveText('iPad 1');
       await staffPage.getByRole('combobox').selectOption('1');
       await staffPage.getByRole('button',{name:'Prepare on iPad',exact:true}).click();
       await expect(staffPage.getByRole('button',{name:/I confirm this person/})).toBeVisible();
@@ -75,6 +83,31 @@ for(const viewport of [{name:'phone',width:390,height:844},{name:'tablet',width:
     }finally{await Promise.all([staff.close(),ipad.close(),other.close()]);await new Promise(resolve=>server.close(resolve));await f.close();}
   });
 }
+
+test('preparation Back preserves the appointment while general device settings retain revocation',async({page})=>{
+  const f=await fixture(),app=express();app.use(express.json());
+  app.post('/calendar/staff-auth/csrf',(_req,res)=>res.json({csrfToken:'synthetic-proof'}));
+  const sessionService={validateSessionToken:async value=>value==='synthetic-staff'?{ok:true,adminId:3,sessionId:33}:{ok:false},validateCsrfToken:async()=>true};
+  app.use('/calendar/check-in',createClinicIpadSetupRouter({env:{SHILOH_CLINIC_IPAD_CHECKIN_ENABLED:'true'},sessionService,service:f.service}));
+  app.get('/calendar/forms',(_req,res)=>res.send('<html lang="en"><title>Synthetic forms</title><main><h1>Appointment 42 forms</h1></main></html>'));
+  const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));const base=`http://127.0.0.1:${server.address().port}`;
+  try{
+    await page.context().addCookies([{name:'shiloh_staff_session',value:'synthetic-staff',url:base}]);
+    await page.goto(base+'/calendar/check-in/devices?appointmentId=42');
+    await expect(page.locator('[data-revoke]')).toHaveCount(0);
+    await page.getByRole('link',{name:'Back to Forms'}).click();
+    await expect(page).toHaveURL(base+'/calendar/forms?appointmentId=42#appointment-42');
+    await expect(page.getByRole('heading',{name:'Appointment 42 forms'})).toBeVisible();
+    await page.goto(base+'/calendar/check-in/devices');
+    await expect(page.getByRole('button',{name:'Create setup code'})).toBeVisible();
+    await expect(page.locator('[data-revoke="1"]')).toBeVisible();
+    await Promise.all([page.waitForEvent('load'),page.locator('[data-revoke="1"]').click()]);
+    await expect(page.locator('[data-revoke="1"],[data-device-choice="1"]')).toHaveCount(0);
+    await expect(page.locator('[data-revoke="2"]')).toBeVisible();
+    expect((await f.db.query('SELECT revoked_at IS NOT NULL AS disabled FROM clinic_checkin_devices WHERE id=1')).rows[0].disabled).toBe(true);
+    expect((await f.db.query('SELECT revoked_at IS NULL AS active FROM clinic_checkin_devices WHERE id=2')).rows[0].active).toBe(true);
+  }finally{await new Promise(resolve=>server.close(resolve));await f.close();}
+});
 
 const {calendarAppointmentDetailsClientScript}=require('../src/presentation/calendarAppointmentDetailsUx');
 const {calendarPaymentLinkClientScript}=require('../src/presentation/calendarPaymentsUx');

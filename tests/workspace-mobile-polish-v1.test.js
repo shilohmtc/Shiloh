@@ -180,7 +180,7 @@ test('operational primary actions are discoverable before long Staff and Service
     hasMore: false, offset: 0, pageSize: 30, query: '', status: 'active', manageAllowed: true,
   }, { manageAllowed: true });
   assert.ok(staff.indexOf('id="add-staff-panel"') < staff.indexOf('class="staff-list"'));
-  assert.match(staff, /<summary data-staff-primary-action>Add staff<\/summary>/);
+  assert.match(staff, /<summary data-workspace-action="create" data-staff-primary-action>Add staff<\/summary>/);
   assert.doesNotMatch(staff, /<details[^>]*id="add-staff-panel"[^>]* open/);
 
   const services = injectWorkspaceServiceCreateAction(renderServicesListPage({

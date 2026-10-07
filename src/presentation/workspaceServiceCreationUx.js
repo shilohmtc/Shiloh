@@ -1,3 +1,4 @@
+const { workspaceActionStyles } = require('./workspaceActionStyles');
 const { workspaceErrorRecoveryClientScript } = require('./workspaceErrorRecovery');
 function escapeHtml(value = '') {
   return String(value)
@@ -21,7 +22,7 @@ function createFormMarkup({ calendar = false } = {}) {
     </div>
     <label class="service-create-check"><input data-create-variable type="checkbox"> Variable / from-price service</label>
     <fieldset class="service-create-practitioners"><legend>Practitioner assignment</legend><div data-create-practitioners>Loading eligible practitioners…</div></fieldset>
-    <div class="service-create-actions"><button type="submit" data-create-submit>Create service</button>${calendar ? '<button type="button" data-create-cancel>Cancel</button>' : ''}</div>
+    <div class="service-create-actions"><button data-workspace-action="create" type="submit" data-create-submit>Create service</button>${calendar ? '<button type="button" data-create-cancel>Cancel</button>' : ''}</div>
     <div data-create-status role="status" aria-live="polite">${escapeHtml(prefix === 'calendar-' ? 'Create a canonical service and use it for this booking.' : 'Create one canonical service and assign its practitioners.')}</div>
   </form>`;
 }
@@ -31,21 +32,21 @@ function sharedStyles() {
 }
 
 function renderWorkspaceServiceCreationPage() {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Create service · Shiloh Workspace</title><style>:root{color-scheme:light}*{box-sizing:border-box}body{margin:0;background:#f4f3ed;color:#20322b;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.shell{max-width:820px;margin:0 auto;padding:22px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:16px}.top h1{margin:0;font-size:1.5rem}.top a{color:#496b5a;font-weight:800;text-decoration:none}.panel{background:#fffdf9;border:1px solid #dfe5df;border-radius:17px;padding:18px;box-shadow:0 8px 28px rgba(32,50,43,.06)}${sharedStyles()}</style><script src="/calendar/services/create.js" defer></script></head><body><main class="shell"><div class="top"><div><h1>Create service</h1><p>Create one canonical Shiloh treatment.</p></div><a href="/calendar/services">← Services</a></div><section class="panel">${createFormMarkup()}</section></main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Create service · Shiloh Workspace</title><style>${workspaceActionStyles()}:root{color-scheme:light}*{box-sizing:border-box}body{margin:0;background:#f4f3ed;color:#20322b;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.shell{max-width:820px;margin:0 auto;padding:22px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:16px}.top h1{margin:0;font-size:1.5rem}.top a{color:#496b5a;font-weight:800;text-decoration:none}.panel{background:#fffdf9;border:1px solid #dfe5df;border-radius:17px;padding:18px;box-shadow:0 8px 28px rgba(32,50,43,.06)}${sharedStyles()}</style><script src="/calendar/services/create.js" defer></script></head><body><main class="shell workspace-main"><div class="top"><div><h1>Create service</h1><p>Create one canonical Shiloh treatment.</p></div><a data-workspace-action="secondary" href="/calendar/services">← Services</a></div><section class="panel">${createFormMarkup()}</section></main></body></html>`;
 }
 
 function injectWorkspaceServiceCreateAction(html) {
   const source = String(html || '');
   const anchor = '<main data-services-list-view>';
   if (!source.includes(anchor)) return source;
-  return source.replace(anchor, `${anchor}<div data-service-primary-action style="display:flex;justify-content:flex-start;margin:0 0 12px"><a class="button primary" href="/calendar/services/new">+ Add service</a></div>`);
+  return source.replace(anchor, `${anchor}<div data-service-primary-action style="display:flex;justify-content:flex-start;margin:0 0 12px"><a data-workspace-action="create" class="button primary" href="/calendar/services/new">+ Add service</a></div>`);
 }
 
 function injectCalendarInlineServiceCreation(html) {
   const source = String(html || '');
   const anchor = '<div class="field"><label for="staff-select">Eligible practitioner</label>';
   if (!source.includes(anchor)) return source;
-  const block = `<div class="field wide" data-inline-service-create><button class="button secondary" type="button" data-create-toggle>+ Create a new / custom service</button><div data-create-panel hidden style="margin-top:10px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fff"><style>${sharedStyles()}</style>${createFormMarkup({ calendar: true })}</div></div>`;
+  const block = `<div class="field wide" data-inline-service-create><button data-workspace-action="create" class="button secondary" type="button" data-create-toggle>+ Create a new / custom service</button><div data-create-panel hidden style="margin-top:10px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fff"><style>${sharedStyles()}</style>${createFormMarkup({ calendar: true })}</div></div>`;
   return source.replace(anchor, `${block}${anchor}`);
 }
 

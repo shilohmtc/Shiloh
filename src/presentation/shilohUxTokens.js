@@ -1,3 +1,20 @@
+// Booking action meanings are separate from event, payment and treatment statuses.
+const BOOKING_ACTION_PALETTE = Object.freeze({
+  new: { background: '#eef5ef', ink: '#244f3a', hover: '#e1eee4' },
+  couples: { background: '#fbf5f8', ink: '#633f55', hover: '#f4e8ee' },
+  group: { background: '#eef4fb', ink: '#405b75', hover: '#e1ebf6' },
+  past: { background: '#faf4e8', ink: '#6a5335', hover: '#f3e9d7' },
+  block: { background: '#f0f3f2', ink: '#41564f', hover: '#e4eae7' },
+  leave: { background: '#edf7f4', ink: '#2d5d53', hover: '#deefe9' },
+});
+
+const WORKSPACE_ACTION_PALETTE = Object.freeze({
+  create: BOOKING_ACTION_PALETTE.new,
+  primary: { background: '#294c3c', ink: '#ffffff', hover: '#17382d' },
+  secondary: { background: '#ffffff', ink: '#20322b', hover: '#e7eee9' },
+  danger: { background: '#f7e9e6', ink: '#7d3934', hover: '#f5ebe6' },
+});
+
 const SHILOH_UX_TOKENS = Object.freeze({
   breakpoint: Object.freeze({
     phoneMax: '700px',
@@ -90,6 +107,8 @@ function shilohUxTokenCss() {
 }
 
 module.exports = {
+  BOOKING_ACTION_PALETTE,
+  WORKSPACE_ACTION_PALETTE,
   SHILOH_UX_TOKENS,
   shilohUxTokenCss,
 };

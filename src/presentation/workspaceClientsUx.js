@@ -84,10 +84,10 @@ function renderClientListPage(model, {
   const statusOptions = [['active', 'Active'], ['archived', 'Archived'], ['all', 'All']]
     .map(([value, label]) => `<option value="${value}"${selectedStatus === value || (!model.status && value === 'all') ? ' selected' : ''}>${label}</option>`).join('');
   const previousOffset = Math.max(0, model.offset - model.pageSize);
-  const previous = model.offset > 0 ? `<a class="pager-link" href="${escapeHtml(listHref({ query: model.query, status: selectedStatus, offset: previousOffset }))}">Previous</a>` : '<span class="pager-spacer"></span>';
-  const next = model.hasMore ? `<a class="pager-link" href="${escapeHtml(listHref({ query: model.query, status: selectedStatus, offset: model.offset + model.pageSize }))}">Next</a>` : '<span class="pager-spacer"></span>';
+  const previous = model.offset > 0 ? `<a data-workspace-action="secondary" class="pager-link" href="${escapeHtml(listHref({ query: model.query, status: selectedStatus, offset: previousOffset }))}">Previous</a>` : '<span class="pager-spacer"></span>';
+  const next = model.hasMore ? `<a data-workspace-action="secondary" class="pager-link" href="${escapeHtml(listHref({ query: model.query, status: selectedStatus, offset: model.offset + model.pageSize }))}">Next</a>` : '<span class="pager-spacer"></span>';
   return `${shellStart({ title: 'Clients', subtitle: 'Find and view client records.', displayName: model.authority?.displayName, calendarNavigationAllowed, staffAccessScriptPath })}<main data-clients-list-view>
-    <section class="search-panel"><form class="search-form" method="get" action="/calendar/clients"><div class="field"><label for="client-search">Search clients</label><input id="client-search" name="q" type="search" value="${escapeHtml(model.query || '')}" placeholder="Name or mobile" maxlength="120"></div><div class="field"><label for="client-status">Status</label><select id="client-status" name="status">${statusOptions}</select></div><button class="button primary" type="submit">Search</button></form></section>
+    <section class="search-panel"><form class="search-form" method="get" action="/calendar/clients"><div class="field"><label for="client-search">Search clients</label><input id="client-search" name="q" type="search" value="${escapeHtml(model.query || '')}" placeholder="Name or mobile" maxlength="120"></div><div class="field"><label for="client-status">Status</label><select id="client-status" name="status">${statusOptions}</select></div><button data-workspace-action="secondary" class="button primary" type="submit">Search</button></form></section>
     <div class="result-summary"><span>${model.clients.length} client${model.clients.length === 1 ? '' : 's'} on this page</span></div>
     <section class="client-list" aria-label="Clients">${rows || '<div class="empty">No clients found.</div>'}</section>
     <nav class="pager" aria-label="Client result pages">${previous}${next}</nav>
@@ -138,8 +138,8 @@ function renderClientDetailPage(model, {
   }).join('');
   const previousOffset = Math.max(0, model.historyOffset - model.pageSize);
   const historyBase = `/calendar/clients/${encodeURIComponent(String(client.id))}`;
-  const previous = model.historyOffset > 0 ? `<a class="pager-link" href="${historyBase}?historyOffset=${previousOffset}">Previous history</a>` : '<span class="pager-spacer"></span>';
-  const next = model.hasMore ? `<a class="pager-link" href="${historyBase}?historyOffset=${model.historyOffset + model.pageSize}">Older history</a>` : '<span class="pager-spacer"></span>';
+  const previous = model.historyOffset > 0 ? `<a data-workspace-action="secondary" class="pager-link" href="${historyBase}?historyOffset=${previousOffset}">Previous history</a>` : '<span class="pager-spacer"></span>';
+  const next = model.hasMore ? `<a data-workspace-action="secondary" class="pager-link" href="${historyBase}?historyOffset=${model.historyOffset + model.pageSize}">Older history</a>` : '<span class="pager-spacer"></span>';
   const verified = client.mobile_verified_at ? 'Verified WhatsApp/mobile contact' : 'Contact not yet verified';
   const policyRows = (model.policyAcceptances || []).map(item => {
     const accepted = formatDateTime(item.accepted_at);
@@ -157,7 +157,7 @@ function renderClientDetailPage(model, {
     ? 'Booking readiness and historical treatment details'
     : 'Historical service and practitioner snapshots';
   return `${shellStart({ title: 'Client detail', subtitle: 'Client profile and appointment history.', displayName: model.authority?.displayName, calendarNavigationAllowed, staffAccessScriptPath })}<main data-client-detail-view>
-    <nav class="detail-actions" aria-label="Client navigation"><a class="button" href="/calendar/clients">← Back to Clients</a></nav>
+    <nav class="detail-actions" aria-label="Client navigation"><a data-workspace-action="secondary" class="button" href="/calendar/clients" data-workspace-back-context="/calendar/clients">← Back to Clients</a></nav>
     <section class="profile-panel"><header class="profile-heading"><div><span class="eyebrow">Client record</span><h2>${escapeHtml(client.name || 'Unnamed client')}</h2></div>${statusPill(client.status)}</header><div class="profile-grid"><div class="profile-field"><span>Profile</span><strong>${escapeHtml(String(client.profile_status || 'unknown').replace(/_/g, ' '))}</strong></div><div class="profile-field"><span>Date of birth</span><strong>${escapeHtml(formatDateOnly(client.date_of_birth))}</strong></div><div class="profile-field"><span>Gender</span><strong>${escapeHtml(String(client.gender || 'Not recorded').replace(/_/g, ' '))}</strong></div><div class="profile-field"><span>Appointment history</span><strong>${model.appointments.length} shown</strong></div></div><div class="contact-card"><div><span class="eyebrow">Primary mobile</span><strong>${escapeHtml(formatMobile(client.normalized_mobile))}</strong></div><small>${escapeHtml(verified)}</small></div></section>
     ${policySection}
     <section class="history-panel"><header class="section-heading"><div><span class="eyebrow">History</span><h2>Appointments</h2></div><span class="truth-note">${escapeHtml(historyTruth)}</span></header><div class="history-list">${historyRows || '<div class="empty">No appointments are recorded for this client.</div>'}</div><nav class="pager" aria-label="Appointment history pages">${previous}${next}</nav></section>
