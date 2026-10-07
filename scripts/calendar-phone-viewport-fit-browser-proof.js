@@ -201,14 +201,15 @@ async function verifyFittedBooking(cdp, origin) {
   await evaluate(cdp, `(() => {
     const column=document.querySelector('.week-view .time-column');
     const rect=column.getBoundingClientRect();
-    const x=rect.left+rect.width*(2.5/5);
+    // Marietjie's synthetic lane is empty; Ilince has an event ending here.
+    const x=rect.left+rect.width*(3.5/5);
     const y=rect.top+rect.height*.5;
     column.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:x,clientY:y,button:0}));
     return true;
   })()`);
   await poll(() => evaluate(cdp, 'location.pathname'), value => value === '/book');
   const target = await evaluate(cdp, `({date:new URL(location.href).searchParams.get('date'),time:new URL(location.href).searchParams.get('time'),staff:new URL(location.href).searchParams.get('staff')})`);
-  assert.deepEqual(target, { date: TODAY, time: '12:30', staff: '53' });
+  assert.deepEqual(target, { date: TODAY, time: '12:30', staff: '54' });
 }
 
 async function verifyMonth(cdp, origin) {
