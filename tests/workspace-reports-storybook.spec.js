@@ -26,6 +26,13 @@ for (const viewport of [
     await expect(page.locator('.financial-card')).toHaveCount(3);
     await expect(page.getByRole('navigation', {name:'Report sections'}).getByRole('link')).toHaveCount(3);
     await expect(page.getByRole('link', {name:'This month',exact:true})).toBeVisible();
+    await expect(page.getByLabel('From',exact:true)).toBeHidden();
+    await page.locator('.custom-period > summary').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByLabel('From',exact:true)).toBeVisible();
+    await expect(page.getByLabel('To',exact:true)).toBeVisible();
+    await page.keyboard.press('Enter');
+    await expect(page.getByLabel('From',exact:true)).toBeHidden();
     await expect(page.locator('details[data-report-section][open]')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Commission structure' })).toBeHidden();
     expect(await page.locator('#team .metrics').evaluate(node=>Boolean(node.compareDocumentPosition(document.querySelector('#staff-earnings')) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
@@ -78,6 +85,7 @@ for (const viewport of [
     const geometry = await page.evaluate(() => ({
       viewportWidth: window.innerWidth,
       documentWidth: document.documentElement.scrollWidth,
+      overflowing: [...document.querySelectorAll('.workspace-report-story *')].filter(node=>node.getClientRects().length && node.getBoundingClientRect().right > innerWidth + 1 && !node.closest('.financial-table-scroll')).map(node=>({tag:node.tagName,classes:node.className,text:node.textContent.slice(0,100)})).slice(0,12),
       targets: [...document.querySelectorAll('.workspace-report-story button,.workspace-report-story input,.workspace-report-story select,.workspace-report-story a,.workspace-report-story summary')]
         .filter(node => node.getClientRects().length > 0)
         .map(node => ({
@@ -86,7 +94,7 @@ for (const viewport of [
           height: node.getBoundingClientRect().height,
         })),
     }));
-    expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth + 1);
+    expect(geometry.documentWidth,JSON.stringify(geometry.overflowing)).toBeLessThanOrEqual(geometry.viewportWidth + 1);
     if (viewport.width <= 700) {
       expect(geometry.targets.filter(target => target.height < 43 || target.width < 43), 'Phone controls must retain 44px touch targets').toEqual([]);
     }
