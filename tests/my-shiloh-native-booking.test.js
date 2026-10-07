@@ -292,3 +292,14 @@ test('My Shiloh catalogue and practitioner step exclude tenant-practitioner serv
   assert.deepEqual(practitioners.practitioners.map(row=>row.name), ['Christel']);
   assert.equal(practitioners.practitioners.some(row=>row.depositExempt), false);
 });
+
+test('first booking DOB gate applies only to genuinely new My Shiloh profiles',async()=>{
+  for(const [actor,hasAppointment,expected] of [['my_shiloh_sms',false,'BOOKING_DATE_OF_BIRTH_REQUIRED'],['my_shiloh_sms',true,'NEXT_AUTHORITY'],['staff_service',false,'NEXT_AUTHORITY']]) {
+    const db={query:async sql=>{
+      if(sql.includes('FROM crm_v2_clients'))return {rows:[{id:55,name:'Synthetic Client',normalized_mobile:'27821234567',status:'active',date_of_birth:null,provenance:{actorReference:actor},has_appointment:hasAppointment}]};
+      const error=new Error('Reached ordinary booking authority');error.code='NEXT_AUTHORITY';throw error;
+    }};
+    const service=createMyShilohBookingService({db,ensureIntentTable:async()=>{},ensurePolicy:async()=>{}});
+    await assert.rejects(service.createRequest({crmV2ClientId:55,serviceId:7,staffId:11,startsAt:'2030-01-01T08:00:00Z',policyAccepted:true,specialOccasion:false}),{code:expected});
+  }
+});

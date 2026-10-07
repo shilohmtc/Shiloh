@@ -119,8 +119,9 @@ function createMyShilohBookingService({
   async function clientIdentity(crmV2ClientId) {
     const clientId = positiveId(crmV2ClientId, 'BOOKING_CLIENT_INVALID');
     const result = await db.query(
-      `SELECT id,name,normalized_mobile,status,profile_status,date_of_birth,gender
-         FROM crm_v2_clients
+      `SELECT id,name,normalized_mobile,status,profile_status,date_of_birth,gender,provenance,
+              EXISTS (SELECT 1 FROM appointments ap WHERE ap.crm_v2_client_id=c.id) AS has_appointment
+         FROM crm_v2_clients c
         WHERE id=$1 AND status='active'
         LIMIT 1`,
       [clientId],
@@ -133,6 +134,10 @@ function createMyShilohBookingService({
         409,
         ['Open Profile in My Shiloh.', 'Ask Shiloh for help if your mobile number needs updating.'],
       );
+    }
+    if (!client.date_of_birth && client.provenance?.actorReference==='my_shiloh_sms' && client.has_appointment===false) {
+      throw new MyShilohBookingError('BOOKING_DATE_OF_BIRTH_REQUIRED','Add your date of birth in Profile before your first booking.',409,
+        ['Open Profile in My Shiloh.', 'Save your personal details, then return to booking.']);
     }
     const phone = normalizePhone(client.normalized_mobile);
     if (!phone || !String(client.name || '').trim()) {

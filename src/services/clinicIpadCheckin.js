@@ -143,19 +143,24 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
     const authority = await clientMutations.resolveManageAccess(adminId);
     if (!authority || authority.clientScope.kind !== 'clinic') throw new CheckinError('Clinic client management access is required.', 403);
     if (!/^\d+$/.test(String(deviceId || ''))) throw new CheckinError('Invalid device reference');
-    const result = await db.query(
-      `UPDATE clinic_checkin_devices SET revoked_at=NOW()
-       WHERE id=$1 AND revoked_at IS NULL RETURNING id`, [deviceId]);
-    if (result.rowCount) {
-      const claimed = await db.query(
-        `UPDATE clinic_checkin_form_handoffs SET status='cancelled',finished_at=$2
-         WHERE device_id=$1 AND status IN ('queued','claimed')
-         RETURNING assignment_id,form_token_hash`,[deviceId,now()]);
-      for (const row of claimed.rows) if (row.form_token_hash) await db.query(
-        `UPDATE consultation_form_assignments SET access_expires_at=$3
-         WHERE id=$1 AND access_token_hash=$2`,[row.assignment_id,row.form_token_hash,now()]);
-    }
-    return result.rowCount === 1;
+    const connection=await db.connect();
+    try {
+      await connection.query('BEGIN');
+      const result=await connection.query(`UPDATE clinic_checkin_devices SET revoked_at=$2
+        WHERE id=$1 AND revoked_at IS NULL RETURNING id`,[deviceId,now()]);
+      if (result.rowCount) {
+        const cancelled=await connection.query(`UPDATE clinic_checkin_form_handoffs SET status='cancelled',finished_at=$2
+          WHERE device_id=$1 AND status IN ('queued','claimed') RETURNING *`,[deviceId,now()]);
+        for (const row of cancelled.rows) {
+          if (row.form_token_hash) await connection.query(`UPDATE consultation_form_assignments SET access_expires_at=$3
+            WHERE id=$1 AND access_token_hash=$2`,[row.assignment_id,row.form_token_hash,now()]);
+          await handoverAudit(connection,'clinic_ipad_handover_revoked',authority.operatorAdminId,row);
+        }
+      }
+      await connection.query('COMMIT');
+      return result.rowCount===1;
+    } catch(error) {await connection.query('ROLLBACK');throw error;}
+    finally {connection.release();}
   }
 
   async function listDevices(adminId) {
@@ -166,7 +171,7 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
     return result.rows;
   }
 
-  async function listFormAssignments(adminId, appointmentId) {
+  async function requireFormPreparationAccess(adminId) {
     if (!await canActivate(adminId)) throw new CheckinError('Clinic client management access is required.', 403);
     const formsAccess = await formsAuthority.resolveAccess(adminId);
     if (formsAccess?.formScope !== 'all_business') throw new CheckinError('Forms access is required.', 403);
@@ -176,10 +181,14 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
       || !hasCapability(bookingAccess.calendarAuthority,CALENDAR_CAPABILITIES.CLIENT_LOOKUP)) {
       throw new CheckinError('Reception booking access is required.',403);
     }
+  }
+
+  async function listFormAssignments(adminId, appointmentId) {
+    await requireFormPreparationAccess(adminId);
     if (!/^\d+$/.test(String(appointmentId || ''))) throw new CheckinError('Invalid appointment reference.');
     const result = await db.query(
       `SELECT a.id,a.status,t.title,c.name AS client_name,
-              right(c.normalized_mobile,4) AS mobile_last4,ap.starts_at
+              right(c.normalized_mobile,4) AS mobile_last4,ap.starts_at,h.id AS handoff_id,h.device_id AS handoff_device_id,h.status AS handoff_status
          FROM consultation_form_assignments a
        JOIN appointments ap ON ap.id=a.appointment_id
        JOIN crm_v2_clients c ON c.id=ap.crm_v2_client_id AND c.status='active'
@@ -187,114 +196,208 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
          AND rel.relationship_type='clinic' AND rel.status='active'
        JOIN consultation_form_template_versions v ON v.id=a.template_version_id
        JOIN consultation_form_templates t ON t.id=v.template_id AND t.status='active'
+       LEFT JOIN LATERAL (SELECT id,device_id,status FROM clinic_checkin_form_handoffs existing
+         WHERE existing.assignment_id=a.id AND existing.status IN ('queued','claimed') AND existing.expires_at>NOW()
+         ORDER BY existing.id DESC LIMIT 1) h ON TRUE
          WHERE ap.id=$1 AND ap.client_id IS NULL AND ap.status IN ('scheduled','confirmed')
          AND a.crm_v2_client_id=ap.crm_v2_client_id AND a.client_id IS NULL
          AND a.status IN ('not_sent','sent','opened')
-         AND NOT EXISTS (SELECT 1 FROM clinic_checkin_form_handoffs h
-           WHERE h.assignment_id=a.id AND h.status IN ('queued','claimed') AND h.expires_at>NOW())
          ORDER BY a.id`, [appointmentId]);
     return result.rows;
   }
 
+  function identityRevision(row) {
+    return digest(JSON.stringify([String(row.crm_v2_client_id),String(row.appointment_id),
+      String(row.template_version_id),row.normalized_mobile,row.date_of_birth,row.name,
+      String(row.client_updated_at),String(row.starts_at),String(row.appointment_updated_at),row.appointment_status]));
+  }
+  async function boundIdentity(connection, assignmentId) {
+    const result = await connection.query(
+      `SELECT a.crm_v2_client_id,a.appointment_id,a.template_version_id,
+              c.normalized_mobile,c.date_of_birth::text AS date_of_birth,c.name,
+              c.updated_at AS client_updated_at,ap.starts_at,ap.updated_at AS appointment_updated_at,ap.status AS appointment_status
+       FROM consultation_form_assignments a
+       JOIN appointments ap ON ap.id=a.appointment_id AND ap.crm_v2_client_id=a.crm_v2_client_id
+       JOIN crm_v2_clients c ON c.id=a.crm_v2_client_id AND c.status='active'
+       JOIN consultation_form_template_versions v ON v.id=a.template_version_id
+       JOIN consultation_form_templates t ON t.id=v.template_id AND t.status='active'
+       WHERE a.id=$1 AND a.client_id IS NULL AND ap.client_id IS NULL
+         AND a.status IN ('not_sent','sent','opened') AND ap.status IN ('scheduled','confirmed')
+         AND EXISTS (SELECT 1 FROM crm_v2_client_relationships rel WHERE rel.client_id=c.id
+           AND rel.relationship_type='clinic' AND rel.status='active')
+       FOR UPDATE OF a,ap,c`,[assignmentId]);
+    return result.rows[0];
+  }
+  async function handoverAudit(connection,event,actor,handoff,extra={}) {
+    await connection.query(
+      `INSERT INTO staff_auth_security_events(event_type,operator_admin_id,metadata)
+       VALUES($1,$2,$3::jsonb)`,[event,actor,JSON.stringify({handoffId:handoff.id,
+        deviceId:handoff.device_id,assignmentId:handoff.assignment_id,
+        clientId:handoff.crm_v2_client_id,appointmentId:handoff.appointment_id,...extra})]);
+  }
   async function queueForm(adminId, deviceId, appointmentId, assignmentId) {
     const assignments = await listFormAssignments(adminId,appointmentId);
     const selected = assignments.find(row => String(row.id) === String(assignmentId));
-    if (!selected) throw new CheckinError('This form is not available for that appointment.', 409);
-    if (!['not_sent','sent','opened'].includes(selected.status)) throw new CheckinError('This form is no longer waiting for completion.',409);
+    if (!selected) throw new CheckinError('This form is not available for that appointment.',409);
     if (!/^\d+$/.test(String(deviceId || ''))) throw new CheckinError('Invalid iPad reference.');
     const connection = await db.connect();
     try {
       await connection.query('BEGIN');
-      await connection.query('SELECT pg_advisory_xact_lock(-$1::bigint)',[selected.id]);
-      const assignment=await connection.query(
-        `SELECT status FROM consultation_form_assignments WHERE id=$1 FOR UPDATE`,[selected.id]);
-      if (!['not_sent','sent','opened'].includes(assignment.rows[0]?.status)) throw new CheckinError('This form changed. Please refresh the appointment.',409);
-      const prepared=await connection.query(
-        `SELECT id FROM clinic_checkin_form_handoffs
-         WHERE assignment_id=$1 AND status IN ('queued','claimed') AND expires_at>$2 LIMIT 1`,
-        [selected.id,now()]);
-      if (prepared.rowCount) throw new CheckinError('This form is already prepared for another visit.',409);
       const device = await connection.query(
         `SELECT id FROM clinic_checkin_devices WHERE id=$1 AND revoked_at IS NULL FOR UPDATE`,[deviceId]);
       if (!device.rowCount) throw new CheckinError('This iPad is not active.',404);
+      await connection.query('SELECT pg_advisory_xact_lock(-$1::bigint)',[selected.id]);
+      const identity = await boundIdentity(connection,selected.id);
+      if (!identity || String(identity.appointment_id)!==String(appointmentId)) throw new CheckinError('This form changed. Please refresh the appointment.',409);
+      const prepared=await connection.query(
+        `SELECT id FROM clinic_checkin_form_handoffs
+         WHERE assignment_id=$1 AND status IN ('queued','claimed') AND expires_at>$2 LIMIT 1`,[selected.id,now()]);
+      if (prepared.rowCount) throw new CheckinError('This form is already prepared.',409);
       const inUse = await connection.query(
         `SELECT id FROM clinic_checkin_form_handoffs
          WHERE device_id=$1 AND status='claimed' AND expires_at>$2 LIMIT 1`,[deviceId,now()]);
-      if (inUse.rowCount) throw new CheckinError('Finish the current client’s form before queuing another.',409);
-      await connection.query(
+      if (inUse.rowCount) throw new CheckinError('Finish the current client’s form before preparing another.',409);
+      const cancelled = await connection.query(
         `UPDATE clinic_checkin_form_handoffs SET status='cancelled',finished_at=$2
-         WHERE device_id=$1 AND status='queued'`,[deviceId,now()]);
-      await connection.query(
+         WHERE device_id=$1 AND status IN ('queued','claimed') RETURNING *`,[deviceId,now()]);
+      for (const row of cancelled.rows) await handoverAudit(connection,'clinic_ipad_handover_cancelled',adminId,row);
+      const result=await connection.query(
         `INSERT INTO clinic_checkin_form_handoffs
-         (device_id,assignment_id,queued_by_admin_id,expires_at)
-         VALUES($1,$2,$3,$4)`,[deviceId,selected.id,adminId,new Date(now().getTime()+15*60*1000)]);
+         (device_id,assignment_id,queued_by_admin_id,expires_at,crm_v2_client_id,appointment_id,identity_revision)
+         VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [deviceId,selected.id,adminId,new Date(now().getTime()+15*60*1000),identity.crm_v2_client_id,appointmentId,identityRevision(identity)]);
+      await handoverAudit(connection,'clinic_ipad_handover_prepared',adminId,result.rows[0]);
       await connection.query('COMMIT');
-      return { queued:true };
+      return { queued:true,handoffId:result.rows[0].id };
     } catch(error) { await connection.query('ROLLBACK'); throw error; }
     finally { connection.release(); }
   }
-
-  async function readyForm(rawDeviceToken) {
-    const device = await deviceFor(rawDeviceToken);
-    if (!device) return false;
-    const result = await db.query(
-      `SELECT id FROM clinic_checkin_form_handoffs
-       WHERE device_id=$1 AND status='queued' AND expires_at>$2 LIMIT 1`,[device.id,now()]);
-    return result.rowCount === 1;
+  async function lockedHandoff(connection,deviceId,handoffId=null) {
+    // Same lock order as preparation and revocation: device, handoff, assignment/client.
+    const device=await connection.query(
+      `SELECT id FROM clinic_checkin_devices WHERE id=$1 AND revoked_at IS NULL FOR UPDATE`,[deviceId]);
+    if (!device.rowCount) throw new CheckinError('This iPad is not active.',401);
+    const pending=await connection.query(
+      `SELECT * FROM clinic_checkin_form_handoffs WHERE device_id=$1 AND status='queued'
+       AND expires_at>$2 AND ($3::bigint IS NULL OR id=$3) ORDER BY id DESC LIMIT 1 FOR UPDATE`,[deviceId,now(),handoffId]);
+    const row=pending.rows[0];
+    if (!row?.identity_revision) throw new CheckinError('Please ask reception to prepare your form again.',409);
+    const identity=await boundIdentity(connection,row.assignment_id);
+    if (!identity || String(identity.crm_v2_client_id)!==String(row.crm_v2_client_id)
+      || String(identity.appointment_id)!==String(row.appointment_id)
+      || identityRevision(identity)!==row.identity_revision) {
+      throw new CheckinError('The client or appointment details changed. Reception must check and prepare the form again.',409);
+    }
+    if(new Date(row.expires_at)<=now())throw new CheckinError('This handover has expired. Reception must prepare it again.',410);
+    return {row,identity};
   }
-
-  async function beginForm(rawDeviceToken,{ mobile,dateOfBirth } = {}) {
-    const device = await deviceFor(rawDeviceToken);
-    if (!device) throw new CheckinError('Please ask reception to set up this iPad.',401);
-    const connection = await db.connect();
+  async function confirmHandover(adminId,deviceId,handoffId,confirmed) {
+    if (confirmed!==true) throw new CheckinError('Confirm the person and physical iPad before handover.',422);
+    if (!/^\d+$/.test(String(deviceId||'')) || !/^\d+$/.test(String(handoffId||''))) throw new CheckinError('Invalid handover reference.');
+    // Reuse every preparation authority, even when posting directly.
+    await requireFormPreparationAccess(adminId);
+    const connection=await db.connect();
     try {
       await connection.query('BEGIN');
-      const pending = await connection.query(
-        `SELECT id,assignment_id,attempts FROM clinic_checkin_form_handoffs
-         WHERE device_id=$1 AND status='queued' AND expires_at>$2
-         ORDER BY id DESC LIMIT 1 FOR UPDATE`,[device.id,now()]);
-      if (!pending.rowCount) throw new CheckinError('Please ask reception to prepare your form.',409);
-      const identity = await connection.query(
-        `SELECT c.normalized_mobile,c.date_of_birth::text AS date_of_birth
-         FROM consultation_form_assignments a
-         JOIN appointments ap ON ap.id=a.appointment_id
-           AND ap.crm_v2_client_id=a.crm_v2_client_id AND ap.client_id IS NULL
-         JOIN crm_v2_clients c ON c.id=a.crm_v2_client_id AND c.status='active'
-         WHERE a.id=$1 AND a.client_id IS NULL
-           AND a.status IN ('not_sent','sent','opened')
-           AND ap.status IN ('scheduled','confirmed') LIMIT 1`,[pending.rows[0].assignment_id]);
-      let dob=null;
-      try { dob=normalizeDateOfBirth(dateOfBirth,{required:true}); } catch (_error) { /* Count invalid values as attempts. */ }
-      const client=identity.rows[0];
-      if (!client || !dob || !normalizeMobile(mobile)
-        || client.normalized_mobile!==normalizeMobile(mobile)
-        || String(client.date_of_birth||'')!==dob) {
-        await connection.query(
-          `UPDATE clinic_checkin_form_handoffs
-           SET attempts=attempts+1,
-               status=CASE WHEN attempts>=4 THEN 'cancelled' ELSE status END,
-               finished_at=CASE WHEN attempts>=4 THEN $2 ELSE finished_at END
-           WHERE id=$1`,[pending.rows[0].id,now()]);
-        await connection.query('COMMIT');
-        return { verified:false };
-      }
-      const form = await formService.issueAccessToken({ assignmentId:pending.rows[0].assignment_id });
-      const visit = randomToken();
-      if (!validToken(visit)) throw new Error('Invalid generated form session');
-      const expiresAt = new Date(now().getTime()+40*60*1000);
-      const bounded = await connection.query(
-        `UPDATE consultation_form_assignments SET access_expires_at=$3
-         WHERE id=$1 AND access_token_hash=$2`,
-        [pending.rows[0].assignment_id,clientForms.hashAccessToken(form.token),expiresAt]);
-      if (bounded.rowCount !== 1) throw new CheckinError('This form changed. Ask reception to prepare it again.',409);
-      await connection.query(
-        `UPDATE clinic_checkin_form_handoffs
-         SET status='claimed',form_token_hash=$2,visit_token_hash=$3,expires_at=$4
-         WHERE id=$1`,[pending.rows[0].id,clientForms.hashAccessToken(form.token),digest(visit),expiresAt]);
+      const {row}=await lockedHandoff(connection,deviceId,handoffId);
+      if (row.handed_over_at) throw new CheckinError('This handover was already confirmed.',409);
+      await connection.query(`UPDATE clinic_checkin_form_handoffs SET handed_over_at=$2,handed_over_by_admin_id=$3 WHERE id=$1`,[row.id,now(),adminId]);
+      await handoverAudit(connection,'clinic_ipad_handover_confirmed',adminId,row);
       await connection.query('COMMIT');
-      return { formToken:form.token,visitToken:visit };
-    } catch(error) { await connection.query('ROLLBACK'); throw error; }
-    finally { connection.release(); }
+      return {handedOver:true};
+    } catch(error) {await connection.query('ROLLBACK');throw error;}
+    finally {connection.release();}
+  }
+  async function cancelHandover(adminId,deviceId,handoffId) {
+    await requireFormPreparationAccess(adminId);
+    if (!/^\d+$/.test(String(deviceId||'')) || !/^\d+$/.test(String(handoffId||''))) throw new CheckinError('Invalid handover reference.');
+    const connection=await db.connect();
+    try {
+      await connection.query('BEGIN');
+      await connection.query('SELECT id FROM clinic_checkin_devices WHERE id=$1 FOR UPDATE',[deviceId]);
+      const result=await connection.query(`UPDATE clinic_checkin_form_handoffs SET status='cancelled',finished_at=$3
+        WHERE id=$1 AND device_id=$2 AND status IN ('queued','claimed') RETURNING *`,[handoffId,deviceId,now()]);
+      if(!result.rowCount)throw new CheckinError('This prepared form has already ended. Refresh the appointment.',409);
+      const row=result.rows[0];
+      if(row.form_token_hash)await connection.query(`UPDATE consultation_form_assignments SET access_expires_at=$3
+        WHERE id=$1 AND access_token_hash=$2`,[row.assignment_id,row.form_token_hash,now()]);
+      await handoverAudit(connection,'clinic_ipad_handover_cancelled',adminId,row);
+      await connection.query('COMMIT');return {cancelled:true};
+    } catch(error) {await connection.query('ROLLBACK');throw error;}
+    finally {connection.release();}
+  }
+  async function readyForm(rawDeviceToken) {
+    const device=await deviceFor(rawDeviceToken);
+    if (!device) return false;
+    const result=await db.query(`SELECT id FROM clinic_checkin_form_handoffs
+      WHERE device_id=$1 AND status='queued' AND handed_over_at IS NOT NULL AND expires_at>$2 LIMIT 1`,[device.id,now()]);
+    return result.rowCount===1;
+  }
+  function confirmationToken(deviceToken,row) {
+    return crypto.createHmac('sha256',deviceToken).update(`handover:${row.id}:${row.identity_revision}`).digest('base64url');
+  }
+  async function formDetails(rawDeviceToken) {
+    const device=await deviceFor(rawDeviceToken);
+    if (!device) throw new CheckinError('Please ask reception to set up this iPad.',401);
+    const connection=await db.connect();
+    try {
+      await connection.query('BEGIN');
+      const {row,identity}=await lockedHandoff(connection,device.id);
+      if (!row.handed_over_at) throw new CheckinError('Reception must confirm the handover first.',409);
+      await connection.query('COMMIT');
+      return {mobile:clientForms.displayMobile(identity.normalized_mobile),dateOfBirth:identity.date_of_birth,
+        confirmationToken:confirmationToken(rawDeviceToken,row),expiresAt:new Date(row.expires_at).toISOString()};
+    } catch(error) {await connection.query('ROLLBACK');throw error;}
+    finally {connection.release();}
+  }
+  async function handoverCurrent(rawDeviceToken,proof) {
+    if(typeof proof!=='string'||!validToken(proof))return false;
+    try {
+      const current=await formDetails(rawDeviceToken);
+      return crypto.timingSafeEqual(Buffer.from(proof),Buffer.from(current.confirmationToken));
+    } catch(error) {
+      if(error instanceof CheckinError)return false;
+      throw error;
+    }
+  }
+  async function beginForm(rawDeviceToken,{ dateOfBirth,confirmationToken:provided,detailsCorrect,mobile,clientId } = {}) {
+    const device=await deviceFor(rawDeviceToken);
+    if (!device) throw new CheckinError('Please ask reception to set up this iPad.',401);
+    const connection=await db.connect();
+    try {
+      await connection.query('BEGIN');
+      const {row,identity}=await lockedHandoff(connection,device.id);
+      const expected=confirmationToken(rawDeviceToken,row);
+      if (!row.handed_over_at || detailsCorrect!=='yes' || typeof provided!=='string' || !validToken(provided)
+        || !crypto.timingSafeEqual(Buffer.from(provided),Buffer.from(expected))) throw new CheckinError('Please review the details on this iPad first.',409);
+      if (mobile!==undefined || clientId!==undefined) throw new CheckinError('Reception must correct client details.',422);
+      if (identity.date_of_birth) {
+        if (dateOfBirth!==undefined && dateOfBirth!==identity.date_of_birth) throw new CheckinError('Reception must correct your date of birth.',422);
+      } else {
+        let dob;
+        try {dob=normalizeDateOfBirth(dateOfBirth,{required:true});}
+        catch(_error) {throw new CheckinError('Please enter a valid date of birth.',422);}
+        const crm=createCrmV2ClientService({repository:new PostgresCrmV2ClientRepository(connection)});
+        const updated=await crm.updateClient({clientId:row.crm_v2_client_id,dateOfBirth:dob,
+          actorReference:`clinic_ipad_handover:${row.id}`});
+        if (updated.status!=='updated') throw new CheckinError('Reception must help save your details.',409);
+        await handoverAudit(connection,'clinic_ipad_handover_dob_saved',row.handed_over_by_admin_id,row);
+      }
+      // Canonical issuance participates in this transaction: no token escapes a rolled-back claim.
+      const form=await formService.issueAccessToken({assignmentId:row.assignment_id,transaction:connection});
+      const visit=randomToken();
+      if (!validToken(visit)) throw new Error('Invalid generated form session');
+      const expiresAt=new Date(now().getTime()+40*60*1000);
+      const bounded=await connection.query(`UPDATE consultation_form_assignments SET access_expires_at=$3
+        WHERE id=$1 AND access_token_hash=$2`,[row.assignment_id,clientForms.hashAccessToken(form.token),expiresAt]);
+      if (bounded.rowCount!==1) throw new CheckinError('This form changed. Ask reception to prepare it again.',409);
+      await connection.query(`UPDATE clinic_checkin_form_handoffs SET status='claimed',form_token_hash=$2,
+        visit_token_hash=$3,expires_at=$4 WHERE id=$1`,[row.id,clientForms.hashAccessToken(form.token),digest(visit),expiresAt]);
+      await handoverAudit(connection,'clinic_ipad_handover_claimed',row.handed_over_by_admin_id,row);
+      await connection.query('COMMIT');
+      return {formToken:form.token,visitToken:visit};
+    } catch(error) {await connection.query('ROLLBACK');throw error;}
+    finally {connection.release();}
   }
 
   async function formAccess(rawFormToken,rawVisitToken) {
@@ -312,27 +415,50 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
   }
 
   async function finishForm(rawFormToken,rawVisitToken) {
-    const access = await formAccess(rawFormToken,rawVisitToken);
-    if (!access.kiosk || !access.allowed) return false;
-    const result = await db.query(
-      `UPDATE clinic_checkin_form_handoffs SET status='finished',finished_at=$3
-       WHERE form_token_hash=$1 AND visit_token_hash=$2 AND status='claimed'
-       RETURNING assignment_id`,[digest(rawFormToken),digest(rawVisitToken),now()]);
-    if (result.rowCount) await db.query(
-      `UPDATE consultation_form_assignments SET access_expires_at=$3
-       WHERE id=$1 AND access_token_hash=$2`,[result.rows[0].assignment_id,digest(rawFormToken),now()]);
-    return result.rowCount===1;
+    if(!validToken(rawFormToken)||!validToken(rawVisitToken))return false;
+    const connection=await db.connect();
+    try {
+      await connection.query('BEGIN');
+      const reference=await connection.query('SELECT device_id FROM clinic_checkin_form_handoffs WHERE form_token_hash=$1 LIMIT 1',[digest(rawFormToken)]);
+      if(!reference.rowCount){await connection.query('ROLLBACK');return false;}
+      await connection.query('SELECT id FROM clinic_checkin_devices WHERE id=$1 FOR UPDATE',[reference.rows[0].device_id]);
+      const result=await connection.query(`UPDATE clinic_checkin_form_handoffs SET status='finished',finished_at=$3
+        WHERE form_token_hash=$1 AND visit_token_hash=$2 AND status='claimed' RETURNING *`,[digest(rawFormToken),digest(rawVisitToken),now()]);
+      if(result.rowCount){
+        const row=result.rows[0];
+        await connection.query(`UPDATE consultation_form_assignments SET access_expires_at=$3
+          WHERE id=$1 AND access_token_hash=$2`,[row.assignment_id,row.form_token_hash,now()]);
+        await handoverAudit(connection,'clinic_ipad_handover_finished',row.handed_over_by_admin_id||row.queued_by_admin_id,row);
+      }
+      await connection.query('COMMIT');return result.rowCount===1;
+    } catch(error){await connection.query('ROLLBACK');throw error;}
+    finally{connection.release();}
   }
 
-  async function cancelDeviceForm(rawDeviceToken) {
-    const device = await deviceFor(rawDeviceToken);
+  async function cancelDeviceForm(rawDeviceToken,{includeQueued=false,confirmationToken:proof}={}) {
+    const device=await deviceFor(rawDeviceToken);
     if (!device) return;
-    const result = await db.query(
-      `UPDATE clinic_checkin_form_handoffs SET status='cancelled',finished_at=$2
-       WHERE device_id=$1 AND status='claimed' RETURNING assignment_id,form_token_hash`,[device.id,now()]);
-    for (const row of result.rows) await db.query(
-      `UPDATE consultation_form_assignments SET access_expires_at=$3
-       WHERE id=$1 AND access_token_hash=$2`,[row.assignment_id,row.form_token_hash,now()]);
+    const connection=await db.connect();
+    try {
+      await connection.query('BEGIN');
+      await connection.query('SELECT id FROM clinic_checkin_devices WHERE id=$1 FOR UPDATE',[device.id]);
+      let queuedId=null;
+      if(includeQueued && typeof proof==='string' && validToken(proof)) {
+        const queued=await connection.query(`SELECT * FROM clinic_checkin_form_handoffs
+          WHERE device_id=$1 AND status='queued' ORDER BY id DESC LIMIT 1 FOR UPDATE`,[device.id]);
+        const row=queued.rows[0];
+        if(row?.identity_revision && crypto.timingSafeEqual(Buffer.from(proof),Buffer.from(confirmationToken(rawDeviceToken,row))))queuedId=row.id;
+      }
+      const result=await connection.query(`UPDATE clinic_checkin_form_handoffs SET status='cancelled',finished_at=$2
+        WHERE device_id=$1 AND (status='claimed' OR ($3 AND status='queued' AND id=$4)) RETURNING *`,[device.id,now(),includeQueued,queuedId]);
+      for (const row of result.rows) {
+        if (row.form_token_hash) await connection.query(`UPDATE consultation_form_assignments SET access_expires_at=$3
+          WHERE id=$1 AND access_token_hash=$2`,[row.assignment_id,row.form_token_hash,now()]);
+        await handoverAudit(connection,'clinic_ipad_handover_cancelled',row.handed_over_by_admin_id||row.queued_by_admin_id,row);
+      }
+      await connection.query('COMMIT');
+    } catch(error) {await connection.query('ROLLBACK');throw error;}
+    finally {connection.release();}
   }
 
   async function begin(rawDeviceToken) {
@@ -427,7 +553,7 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
   }
 
   return { canActivate, activate, createSetupCode, redeemSetupCode, startPair, pairFor, pairDetails, approvePair, revoke, listDevices, listFormAssignments, queueForm,
-    readyForm, beginForm, formAccess, finishForm, cancelDeviceForm,
+    readyForm, formDetails, handoverCurrent, confirmHandover, cancelHandover, beginForm, formAccess, finishForm, cancelDeviceForm,
     deviceFor, begin, active, finish, register };
 }
 

@@ -86,13 +86,17 @@ function createWorkspaceFormSubmissionsService({
     ]);
   }
 
-  async function listRealSubmissions(authority, { search = '', page = 0, history = false } = {}) {
+  async function listRealSubmissions(authority, { search = '', page = 0, history = false, appointmentId=null } = {}) {
     const scope = scopeSql(authority, 1);
     const values = [...scope.values];
     let searchSql = '';
     if (search) {
       values.push(search);
       searchSql = ` AND strpos(lower(COALESCE(v2.name,c.display_name,ap.source_client_name,'Client')),lower($${values.length}))>0`;
+    }
+    if(appointmentId!==null) {
+      const id=normalizeSubmissionId(appointmentId);values.push(id);
+      searchSql+=` AND ap.id=$${values.length}`;
     }
     const pagingSql = history ? `LIMIT 51 OFFSET $${values.push(page * 50)}` : 'LIMIT 50';
     const result = await db.query(`/* workspaceFormSubmissions:list-real */
@@ -176,11 +180,11 @@ function createWorkspaceFormSubmissionsService({
     }));
   }
 
-  async function listSubmissions({ adminId } = {}) {
+  async function listSubmissions({ adminId,appointmentId=null } = {}) {
     const authority = await formsService.requireAccess(adminId);
     const [real, trials] = await Promise.all([
-      listRealSubmissions(authority),
-      listTrialSubmissions(authority),
+      listRealSubmissions(authority,{appointmentId}),
+      appointmentId===null ? listTrialSubmissions(authority) : [],
     ]);
     const items = [...real, ...trials].sort((a, b) => {
       const left = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;

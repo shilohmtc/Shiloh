@@ -695,3 +695,5 @@ export const FocusedWorkspaceDashboard = {
     welcomeVoucherCampaign: { vouchersUnlocked: 10, vouchersRedeemed: 4, discountsGiven: 400 }, depositQueue: { items: depositReviewItems },
   })),
 };
+
+export const BookingNotesUpcoming = {render:()=>{const model=dashboardModel();model.appointments[0].bookingNotesPresent=true;model.appointments.forEach((item,index)=>{item.clientName="Synthetic Client "+(index+1);});return productionSurface(renderDashboardPage(model));}};

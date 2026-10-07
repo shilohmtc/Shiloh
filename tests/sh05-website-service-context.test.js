@@ -14,6 +14,7 @@ test('website service selection survives sign-in and resolves against the curren
   const app = express();
   app.use(createMyShilohRouter({
     sessionService,
+    profileService:{loadProfile:async()=>({requiresDobBeforeBooking:false})},
     catalogueProvider: async () => [{ id:101, name:'Deep Tissue <Massage>', category:'Massage' }],
     bookingService: {
       async catalogue() { return [{ id:101, name:'Deep Tissue <Massage>', category:'Massage', price:'R500' }]; },

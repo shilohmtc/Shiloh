@@ -43,6 +43,12 @@ test('required mappings, signed submission evidence and staff/client identity de
       INSERT INTO consultation_form_submissions VALUES (302,204,8,NOW(),NOW());
     `);
     const forms = createWorkspaceFormsService({db});
+    const scoped=await forms.listTreatmentQueue({adminId:3,appointmentId:103});
+    assert.deepEqual(scoped.appointments.map(a=>a.id),[103]);
+    assert.equal((await forms.listTreatmentQueue({adminId:1,appointmentId:103})).appointments.length,0);
+    await db.query("UPDATE appointments SET status='completed',ends_at=NOW()-interval '1 day' WHERE id=103");
+    assert.deepEqual((await forms.listTreatmentQueue({adminId:3,appointmentId:103})).appointments.map(a=>a.id),[103]);
+    await db.query("UPDATE appointments SET status='confirmed',ends_at=NOW()+interval '2 days' WHERE id=103");
     const own = await forms.listTreatmentQueue({adminId:1});
     assert.deepEqual(own.appointments.map(a=>a.id),[101,102,104]);
     assert.ok(own.appointments.every(a=>!a.readiness.ready));

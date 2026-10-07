@@ -108,6 +108,21 @@ function createWorkspaceAppointmentNotesService({ db = pool } = {}) {
     }
   }
 
+  async function presence({adminId,appointmentIds=[]}={}) {
+    const operator=await resolveOperator(db,adminId);
+    const ids=[...new Set(appointmentIds.map(id=>positiveId(id)))];
+    if(!ids.length)return new Set();
+    // Only booking notes; no form answers, clinical records or note text in this projection.
+    const result=await db.query(`SELECT a.id,
+      ARRAY(SELECT staff_id FROM appointment_staff WHERE appointment_id=a.id ORDER BY position,id) AS staff_ids,
+      ARRAY(SELECT service_id FROM appointment_services WHERE appointment_id=a.id ORDER BY position,id) AS service_ids
+      FROM appointments a WHERE a.id=ANY($1::bigint[]) AND length(btrim(COALESCE(a.notes,'')))>0`,[ids]);
+    return new Set(result.rows.filter(row=>row.staff_ids?.length && row.service_ids?.length
+      && row.staff_ids.every(Boolean) && row.service_ids.every(Boolean)
+      && allowsAppointmentTarget(operator.calendarAuthority,{staffIds:row.staff_ids.map(Number),serviceIds:row.service_ids.map(Number)}))
+      .map(row=>String(row.id)));
+  }
+
   async function get({ adminId, appointmentId }) {
     const operator = await resolveOperator(db, adminId);
     const context = await appointmentContext(db, appointmentId);
@@ -219,10 +234,21 @@ function createWorkspaceAppointmentNotesService({ db = pool } = {}) {
     }
   }
 
-  return { resolveOperator, get, getMyShilohAvailability, update };
+  return { resolveOperator, get, presence, getMyShilohAvailability, update };
+}
+
+async function attachBookingNotePresence(model,adminId,service=createWorkspaceAppointmentNotesService()) {
+  const appointments=model.timeline?.appointments || model.appointments || [];
+  let present=new Set();
+  try {present=await service.presence({adminId,appointmentIds:appointments.filter(item=>item.canonical!==false).map(item=>item.id)});}
+  catch(_error) { /* Existence is private: unavailable or unauthorized fails closed. */ }
+  for(const item of appointments)item.bookingNotesPresent=present.has(String(item.id));
+  if(model.timeline?.events)for(const item of model.timeline.events)if(item.kind==='appointment')item.bookingNotesPresent=present.has(String(item.id));
+  return model;
 }
 
 module.exports = {
+  attachBookingNotePresence,
   createWorkspaceAppointmentNotesService,
   notesError,
   exactRevision,

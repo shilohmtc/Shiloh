@@ -320,6 +320,8 @@ function createMyShilohRouter({
     return next();
   }, requireSession, async (req, res, next) => {
     try {
+      const profile=await profileService.loadProfile({crmV2ClientId:req.myShilohClientSession.crmV2ClientId});
+      if (profile?.requiresDobBeforeBooking) return res.redirect(303,'/my-shiloh/#profile');
       const packageServiceId = normalizePublicServiceId(req.query?.packageService);
       const welcomeVoucherMode = !packageServiceId && String(req.query?.welcomeVoucher || '') === '1';
       let voucher = null;
@@ -837,6 +839,18 @@ function createMyShilohRouter({
         return res.status(error.httpStatus).json({ error:error.message, code:error.code, resolution:error.resolution, requestId:req.id });
       }
       return next(error);
+    }
+  });
+
+  router.post('/my-shiloh/api/profile/dob-request/acknowledge',sameOrigin,requireSession,requireCsrf,async(req,res,next)=>{
+    try {
+      setNoStoreJson(res);
+      if (Object.keys(req.body||{}).length) return res.status(422).json({error:'Please try again.'});
+      return res.json(await profileService.acknowledgeDobRequest({sessionId:req.myShilohClientSession.sessionId,
+        crmV2ClientId:req.myShilohClientSession.crmV2ClientId}));
+    } catch(error) {
+      if(error instanceof MyShilohProfileError)return res.status(error.httpStatus).json({error:error.message,code:error.code});
+      next(error);
     }
   });
 

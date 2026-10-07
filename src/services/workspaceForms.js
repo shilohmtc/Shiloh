@@ -254,9 +254,13 @@ function createWorkspaceFormsService({ db = pool } = {}) {
     };
   }
 
-  async function listTreatmentQueue({ adminId } = {}) {
+  async function listTreatmentQueue({ adminId, appointmentId=null } = {}) {
     const authority = await requireAccess(adminId);
     const own = authority.formScope === 'own_staff';
+    const selected=appointmentId===null?null:Number(appointmentId);
+    if(selected!==null && (!Number.isSafeInteger(selected)||selected<1))throw new WorkspaceFormsError('WORKSPACE_FORMS_APPOINTMENT_INVALID','Invalid appointment reference.',404);
+    const values=own?[authority.linkedStaffId]:[];
+    if(selected!==null)values.push(selected);
     const result = await db.query(`/* workspaceForms:treatment-queue */
       SELECT ap.id,ap.starts_at,ap.status,
         COALESCE(v2.name,c.display_name,ap.source_client_name,'Client') AS client_name,
@@ -273,9 +277,9 @@ function createWorkspaceFormsService({ db = pool } = {}) {
       LEFT JOIN consultation_form_assignments fa ON fa.appointment_id=ap.id AND fa.template_version_id=tv.id
         AND fa.crm_v2_client_id IS NOT DISTINCT FROM ap.crm_v2_client_id AND fa.client_id IS NOT DISTINCT FROM ap.client_id
       LEFT JOIN consultation_form_submissions sub ON sub.assignment_id=fa.id AND sub.template_version_id=tv.id
-      WHERE ap.status IN ('scheduled','confirmed') AND ap.ends_at>NOW()
+      WHERE ${selected===null ? "ap.status IN ('scheduled','confirmed') AND ap.ends_at>NOW()" : `ap.id=$${values.length}`}
         ${own ? 'AND EXISTS (SELECT 1 FROM appointment_staff scoped WHERE scoped.appointment_id=ap.id AND scoped.staff_id=$1)' : ''}
-      GROUP BY ap.id,v2.name,c.display_name ORDER BY ap.starts_at,ap.id LIMIT 100`, own ? [authority.linkedStaffId] : []);
+      GROUP BY ap.id,v2.name,c.display_name ORDER BY ap.starts_at,ap.id LIMIT 100`, values);
     return {
       authority,
       appointments: result.rows.map(row => {

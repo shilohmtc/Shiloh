@@ -1,3 +1,4 @@
+const {attachBookingNotePresence}=require('../services/workspaceAppointmentNotes');
 'use strict';
 
 const express = require('express');
@@ -160,6 +161,7 @@ function createWorkspaceOperationalRouter({
           ? { sessionPrincipal: req.staffBrowserSession.accountPrincipal }
           : {}),
       });
+      await attachBookingNotePresence(model,req.staffBrowserSession?.adminId);
       const dashboardHtml = renderDashboard(model, {
         staffAccessScriptPath: `${staffAccessPath}/client.js`,
         navigation: { calendarHref: dashboardCalendarHref(model) },

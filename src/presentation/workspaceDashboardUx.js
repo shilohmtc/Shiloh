@@ -1,3 +1,4 @@
+const {renderLucideIcon}=require('./lucideIcons');
 const { workspaceErrorRecoveryClientScript } = require('./workspaceErrorRecovery');
 const { confirmationClientScript } = require('./workspaceConfirmation');
 const { escapeHtml, workspaceShellStyles, renderWorkspaceNavigation } = require('./workspaceShell');
@@ -92,7 +93,9 @@ function appointmentItem(item, model, { manageLabel = 'Open / manage', idPrefix 
   const appointmentAttribute = attention ? 'data-dashboard-attention-appointment' : 'data-dashboard-appointment';
   const canMarkNoShow = item.canMarkNoShow === true || (item.canMarkNoShow == null && item.canFinalize === true);
   const outcomeActions = `${item.canFinalize ? `<button type="button" class="action-button complete" ${finalizeAttribute}="completed">Completed</button>` : ''}${canMarkNoShow ? `<button type="button" class="action-button no-show" ${finalizeAttribute}="no_show">No-show</button>` : ''}`;
-  const actions = outcomeActions ? `<div class="appointment-actions" data-dashboard-finalization-actions>${outcomeActions}${manageAction}</div>` : `<div class="appointment-actions">${manageAction}</div>`;
+  const notesAction=item.bookingNotesPresent===true && !['couples_massage','group_booking','multi_service_booking'].includes(item.appointmentGroupType) && !attention && !carryOver && ['scheduled','confirmed'].includes(item.status)
+    ? `<a class="button booking-notes-indicator" href="${escapeHtml('/calendar/read-only?'+new URLSearchParams({view:'week',date:itemDateKey,staff:'all',notesAppointment:String(item.id)}).toString())}" aria-label="View booking notes for appointment ${escapeHtml(item.id)}">${renderLucideIcon('notes',{size:16})} Notes</a>` : '';
+  const actions = outcomeActions ? `<div class="appointment-actions" data-dashboard-finalization-actions>${outcomeActions}${notesAction}${manageAction}</div>` : `<div class="appointment-actions">${notesAction}${manageAction}</div>`;
   const detail = `${item.serviceName || 'Shiloh appointment'} · ${practitionerNames(item, model.calendar)}`;
   return `<article class="appointment${carryOver ? ' carryover-card' : ''}" id="${escapeHtml(idPrefix)}-${escapeHtml(item.id)}" ${appointmentAttribute}="${escapeHtml(item.id)}" data-revision="${escapeHtml(item.revision || '')}" data-operational-date-key="${escapeHtml(itemDateKey)}"><div class="appointment-main"><span class="appointment-time">${escapeHtml(timeOnly(item.startsAt))}</span><div class="appointment-copy"><strong>${escapeHtml(item.clientName || 'Client')}</strong><span>${escapeHtml(detail)}</span></div><span class="status-pill${status.className}">${escapeHtml(status.label)}</span></div>${actions}</article>`;
 }

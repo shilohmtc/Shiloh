@@ -766,3 +766,10 @@ export const BookingHistoryExpanded = { render: () => bookingHistorySurface({ ex
 export const BookingHistoryRestored = { render: () => bookingHistorySurface({ hidden: false }) };
 export const BookingHistorySaving = { render: () => bookingHistorySurface({ expanded: true, busy: true }) };
 export const BookingHistoryError = { render: () => bookingHistorySurface({ expanded: true, error: 'We could not confirm this change. Reload Bookings and try again.' }) };
+
+export const MissingDobRequest = {render:()=>{
+  const root=productionSurface({id:55,name:'Synthetic Client',firstName:'Synthetic'});
+  const request=root.querySelector('[data-dob-request]');request.hidden=false;
+  request.querySelector('[data-dob-request-copy]').textContent='Please add your date of birth in Profile when you have a moment. Your existing bookings stay as they are.';
+  return root;
+}};

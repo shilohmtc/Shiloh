@@ -79,12 +79,19 @@ function createWorkspaceFormsRouter({
 
   router.get('/', async (req, res) => {
     try {
+      const appointmentId=req.query.appointmentId===undefined?null:String(req.query.appointmentId);
+      if(appointmentId!==null && !/^[1-9][0-9]*$/.test(appointmentId))return res.sendStatus(404);
+      const returnParams=new URLSearchParams();
+      if(['week','month','day'].includes(String(req.query.returnView||'')))returnParams.set('view',req.query.returnView);
+      if(/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.returnDate||'')))returnParams.set('date',req.query.returnDate);
+      if(appointmentId!==null)returnParams.set('appointment',appointmentId);
+      const returnHref='/calendar'+(returnParams.size?'?'+returnParams.toString():'');
       const [model, submissions, treatmentQueue] = await Promise.all([
         service.listForms({ adminId: req.staffBrowserSession?.adminId }),
-        submissionService.listSubmissions({ adminId: req.staffBrowserSession?.adminId }),
-        service.listTreatmentQueue({ adminId: req.staffBrowserSession?.adminId }),
+        submissionService.listSubmissions({ adminId: req.staffBrowserSession?.adminId,appointmentId }),
+        service.listTreatmentQueue({ adminId: req.staffBrowserSession?.adminId,appointmentId }),
       ]);
-      return res.status(200).type('html').send(renderPage({ ...model, submissions, treatmentQueue }));
+      return res.status(200).type('html').send(renderPage({ ...model, submissions, treatmentQueue,appointmentId,returnHref }));
     } catch (error) {
       const safe = safeError(error);
       return res.status(safe.status).type('html').send(renderUnavailable({ message: safe.message }));

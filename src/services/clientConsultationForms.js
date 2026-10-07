@@ -459,10 +459,10 @@ function createClientConsultationFormsService({
     return model;
   }
 
-  async function issueAccessToken({ assignmentId } = {}) {
+  async function issueAccessToken({ assignmentId, transaction } = {}) {
     const id = positiveId(assignmentId);
     if (!id) throw new ClientConsultationFormError('CONSULTATION_FORM_ASSIGNMENT_INVALID', 'Consultation form assignment is invalid.', 400);
-    return withTransaction(db, async client => {
+    const issue = async client => {
       const result = await client.query(
         `/* clientConsultationForms:issue-token */
          SELECT a.id AS assignment_id,a.appointment_id,a.template_version_id,a.client_id,a.crm_v2_client_id,
@@ -499,7 +499,8 @@ function createClientConsultationFormsService({
         [id, tokenHash, expiresAt, issuedAt]
       );
       return { assignmentId: id, token, expiresAt };
-    });
+    };
+    return transaction ? issue(transaction) : withTransaction(db, issue);
   }
 
   async function submitForm(accessToken, body = {}) {

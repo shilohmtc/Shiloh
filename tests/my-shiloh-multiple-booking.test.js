@@ -16,7 +16,7 @@ function fixture() {
     async query(sql, values = []) {
       calls.push({ sql, values });
       if (/^(BEGIN|COMMIT|ROLLBACK)$/.test(sql) || sql.includes('pg_advisory_xact_lock')) return { rows:[],rowCount:0 };
-      if (sql.includes('FROM crm_v2_clients WHERE id=$1 FOR UPDATE')) return { rows:[{ id:55,name:'Naledi',normalized_mobile:'27821234567',status:'active' }],rowCount:1 };
+      if (sql.includes('FROM crm_v2_clients c WHERE id=$1 FOR UPDATE')) return { rows:[{ id:55,name:'Naledi',normalized_mobile:'27821234567',status:'active' }],rowCount:1 };
       if (sql.includes("action='client.multiple_booking_created'")) return { rows:control.replay ? [{ metadata:control.replay }] : [],rowCount:control.replay ? 1 : 0 };
       if (sql.includes('FROM services s JOIN staff_services')) {
         assert.match(sql, /client_bookable=TRUE/);

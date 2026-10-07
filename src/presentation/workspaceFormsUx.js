@@ -62,7 +62,7 @@ function renderSubmissionList(submissions = {}) {
 
 function renderTreatmentQueue(queue = {}) {
   const appointments = queue.appointments || [];
-  return `<section aria-label="Forms required before treatment" class="submission-list">${appointments.map(item => `<article class="submission-card treatment-form-card" data-forms-ready="${item.readiness.ready}">
+  return `<section aria-label="Forms required before treatment" class="submission-list">${appointments.map(item => `<article class="submission-card treatment-form-card" id="appointment-${escapeHtml(item.id)}" data-forms-ready="${item.readiness.ready}">
     <div class="submission-main"><strong>${escapeHtml(item.clientName)}</strong><span>${escapeHtml(item.services)}</span><span>${escapeHtml(formatDateTime(item.startsAt))} · ${escapeHtml(item.practitioners)}</span>
       <p class="form-readiness ${item.readiness.ready ? '' : 'required'}">${escapeHtml(item.readiness.label)}</p>
       <p>${item.readiness.ready ? 'Review the submitted forms before treatment.' : 'Required before treatment. The client must complete and sign every required form.'}</p>
@@ -76,6 +76,7 @@ function historyHref(page, search) {
 }
 
 function renderFormsPage(model = {}) {
+  const appointmentId=/^[1-9][0-9]*$/.test(String(model.appointmentId||''))?String(model.appointmentId):null;
   const history = model.history;
   const activity = model.activity || {};
   const statusCards = ['not_sent', 'sent', 'opened', 'completed', 'needs_review']
@@ -115,6 +116,7 @@ function renderFormsPage(model = {}) {
     ${history ? `<a class="preview-back" href="/calendar/forms">Back to Forms</a><form class="form-history-search" method="get" action="/calendar/forms/history"><label for="form-history-search">Client name</label><input id="form-history-search" name="search" maxlength="100" value="${escapeHtml(history.search)}"><button type="submit">Search history</button></form>${renderSubmissionList(history)}<nav class="form-history-paging" aria-label="Form history pages">${history.page>0 ? `<a class="submission-action" href="${escapeHtml(historyHref(history.page-1,history.search))}">Newer forms</a>` : ''}${history.hasMore ? `<a class="submission-action" href="${escapeHtml(historyHref(history.page+1,history.search))}">Older forms</a>` : ''}</nav>` : `
     <div class="section-title-row"><div><h2>Before treatment</h2><p>Required forms must be submitted and signed. Readiness updates from the saved forms.</p></div><a class="submission-action" href="/calendar/forms/history">Search form history</a></div>
     ${renderTreatmentQueue(model.treatmentQueue)}
+    ${appointmentId ? `<p>Appointment #${escapeHtml(appointmentId)} · <a class="submission-action" href="${escapeHtml(model.returnHref || '/calendar')}">Back to Calendar</a> · <a class="submission-action" href="/calendar/forms">All Forms</a></p>` : ''}
     <section class="status-grid" aria-label="Form completion status">${statusCards}</section>
     <section class="notice" aria-label="Forms setup status"><div><strong>Consultation forms are protected.</strong><p>Form templates can be previewed below. Completed submissions appear here without placing health answers in WhatsApp, Calendar cards or ordinary client lists.</p></div></section>
     <div class="section-title-row"><div><h2>Recent submissions</h2><p>Completed client forms and isolated private tests.</p></div></div>
@@ -257,7 +259,7 @@ function renderSubmissionPage(model = {}) {
     reportsHref: '/calendar/reports',
     clinicHoursHref: '/calendar/clinic-hours',
   })}<main class="workspace-main"><div class="shell preview-shell">
-    <a class="preview-back" href="/calendar/forms">← Back to Forms</a>
+    <a class="preview-back" href="${Number.isSafeInteger(Number(appointment.id)) && Number(appointment.id)>0 ? `/calendar/forms?appointmentId=${Number(appointment.id)}#appointment-${Number(appointment.id)}` : "/calendar/forms"}">← Back to Forms</a>
     ${model.isTest ? '<div class="test-banner"><strong>TEST SUBMISSION.</strong> This isolated submission is not attached to a client or appointment.</div>' : '<div class="sensitive-banner"><strong>Private health information.</strong> View only when needed for treatment preparation and do not copy it into WhatsApp or ordinary Calendar notes.</div>'}
     <article class="submission-panel">
       <header class="preview-hero">

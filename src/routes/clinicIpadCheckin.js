@@ -138,6 +138,8 @@ function createClinicIpadPublicRouter({ env = process.env, service = createClini
       next();
     } catch (error) { next(error); }
   });
+  router.get('/form-ready',async(req,res,next)=>{try{return res.json({ready:await service.readyForm(req.checkinDeviceToken)});}catch(error){next(error);}});
+  router.get('/welcome.js',(_req,res)=>res.type('application/javascript').send(`(()=>{if(document.querySelector('[data-form-ready]'))return;setInterval(async()=>{try{const r=await fetch('/check-in/form-ready',{cache:'no-store'});if(r.ok&&(await r.json()).ready)location.reload();}catch(_error){}},3000);})();`));
   router.get('/client.js',(_req,res) => res.type('application/javascript').sendFile(path.join(__dirname,'..','..','public','check-in','client.js')));
   router.get('/', async (req,res,next) => {
     try {
@@ -153,7 +155,7 @@ function createClinicIpadPublicRouter({ env = process.env, service = createClini
   router.get('/verify',async (req,res,next) => {
     try {
       if (!await service.readyForm(req.checkinDeviceToken)) return res.redirect(303,'/check-in/');
-      return res.type('html').send(ux.verify({csrfToken:formToken(req.checkinDeviceToken)}));
+      return res.type('html').send(ux.verify({...await service.formDetails(req.checkinDeviceToken),csrfToken:formToken(req.checkinDeviceToken)}));
     } catch(error) { next(error); }
   });
   router.get('/details', async (req,res,next) => {
@@ -180,13 +182,22 @@ function createClinicIpadPublicRouter({ env = process.env, service = createClini
       return res.redirect(303,'/check-in/details');
     } catch (error) { next(error); }
   });
+  router.post('/handover-current',async(req,res,next)=>{
+    try{return res.json({current:await service.handoverCurrent(req.checkinDeviceToken,req.body?.confirmationToken)});}
+    catch(error){next(error);}
+  });
   router.post('/start-form', async (req,res,next) => {
     try {
       const form = await service.beginForm(req.checkinDeviceToken,req.body);
-      if (!form.verified && !form.formToken) return res.status(422).type('html').send(ux.verify({error:'Those details did not match. Please check them or ask reception for help.',csrfToken:formToken(req.checkinDeviceToken)}));
       res.append('Set-Cookie',cookie(FORM_COOKIE,form.visitToken,{ env,seconds:40*60 }));
       return res.redirect(303,`/forms/f/${form.formToken}`);
-    } catch (error) { next(error); }
+    } catch (error) {
+      if (error instanceof CheckinError && error.httpStatus===422) {
+        try { return res.status(422).type('html').send(ux.verify({...await service.formDetails(req.checkinDeviceToken),error:error.message,csrfToken:formToken(req.checkinDeviceToken)})); }
+        catch (changed) { return next(changed); }
+      }
+      next(error);
+    }
   });
   router.post('/details', async (req,res,next) => {
     try {
@@ -206,7 +217,7 @@ function createClinicIpadPublicRouter({ env = process.env, service = createClini
   router.post('/finish', async (req,res,next) => {
     try {
       await service.finish(req.checkinDeviceToken,parseCookieValue(req.headers.cookie,VISIT_COOKIE));
-      await service.cancelDeviceForm(req.checkinDeviceToken);
+      await service.cancelDeviceForm(req.checkinDeviceToken,{includeQueued:true,confirmationToken:req.body?.confirmationToken});
       res.append('Set-Cookie',cookie(VISIT_COOKIE,'',{ env,seconds:0 }));
       res.append('Set-Cookie',cookie(FORM_COOKIE,'',{ env,seconds:0 }));
       return res.redirect(303,'/check-in/');
@@ -249,7 +260,7 @@ function createClinicIpadSetupRouter({ env = process.env, sessionService, servic
   router.get('/devices.js',staff,(_req,res) => res.type('application/javascript').send(`(function(){
 const status=document.querySelector('[data-status]'),options=document.querySelector('[data-form-options]');
 async function send(path,payload){const c=await fetch('/calendar/staff-auth/csrf',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(!c.ok)throw Error('Please sign in again.');const csrf=await c.json();const r=await fetch('/calendar/check-in/'+path,{method:'POST',headers:{'Content-Type':'application/json','X-Shiloh-Csrf-Token':csrf.csrfToken},body:JSON.stringify(payload)});if(!r.ok)throw Error('The action could not be completed. Please check the appointment and iPad.');return r.json();}
-document.querySelector('[data-setup-code]').addEventListener('click',async event=>{const button=event.currentTarget,code=document.querySelector('[data-setup-code-result]'),message=document.querySelector('[data-code-status]');button.disabled=true;code.hidden=true;message.textContent='Creating a code…';try{const result=await send('setup-code',{});code.textContent=result.code.slice(0,5)+' '+result.code.slice(5);code.hidden=false;message.textContent='Enter this code on the iPad within five minutes. It works once.';}catch(error){message.textContent='Could not create a code. Please try again.';}finally{button.disabled=false;}});
+document.querySelector('[data-setup-code]')?.addEventListener('click',async event=>{const button=event.currentTarget,code=document.querySelector('[data-setup-code-result]'),message=document.querySelector('[data-code-status]');button.disabled=true;code.hidden=true;message.textContent='Creating a code…';try{const result=await send('setup-code',{});code.textContent=result.code.slice(0,5)+' '+result.code.slice(5);code.hidden=false;message.textContent='Enter this code on the iPad within five minutes. It works once.';}catch(error){message.textContent='Could not create a code. Please try again.';}finally{button.disabled=false;}});
 document.querySelectorAll('[data-revoke]').forEach(button=>button.addEventListener('click',async()=>{button.disabled=true;try{await send('revoke',{deviceId:button.dataset.revoke});location.reload();}catch(e){status.textContent=e.message;button.disabled=false;}}));
 document.querySelector('[data-find-forms]').addEventListener('submit',async event=>{
 event.preventDefault();options.replaceChildren();status.textContent='Finding the appointment forms…';
@@ -263,7 +274,16 @@ const row=document.createElement('div'),label=document.createElement('label'),se
 label.textContent=item.client_name+' · mobile ending '+item.mobile_last4+' · '+new Date(item.starts_at).toLocaleString('en-ZA',{timeZone:'Africa/Johannesburg'})+' · '+item.title+' · iPad ';
 for(const device of document.querySelectorAll('[data-revoke]')){const option=document.createElement('option');option.value=device.dataset.revoke;option.textContent='iPad '+device.dataset.revoke;select.append(option);}
 button.type='button';button.className='button secondary';button.textContent='Prepare on iPad';
-button.addEventListener('click',async()=>{button.disabled=true;try{await send('queue-form',{appointmentId,assignmentId:item.id,deviceId:select.value});status.textContent='The form is ready on the selected iPad.';}catch(e){status.textContent=e.message;button.disabled=false;}});
+if(item.handoff_id){const cancel=document.createElement('button');cancel.type='button';cancel.className='button secondary';cancel.textContent='Cancel prepared form on iPad '+item.handoff_device_id;cancel.addEventListener('click',async()=>{cancel.disabled=true;try{await send('cancel-handover',{deviceId:item.handoff_device_id,handoffId:item.handoff_id});document.querySelector('[data-find-forms]').requestSubmit();}catch(e){status.textContent=e.message;cancel.disabled=false;}});label.append(select);select.value=String(item.handoff_device_id);select.disabled=true;row.append(label,cancel);options.append(row);continue;}
+button.addEventListener('click',async()=>{button.disabled=true;select.disabled=true;try{const deviceId=select.value;
+const prepared=await send('queue-form',{appointmentId,assignmentId:item.id,deviceId});
+const confirmation=document.createElement('button');confirmation.type='button';confirmation.className='button';
+confirmation.textContent='I confirm this person and iPad '+deviceId+' — Hand over';
+const guidance=document.createElement('p');guidance.textContent='Check the actual person matches '+item.client_name+' and you are handing over iPad '+deviceId+'. No details are shown until you confirm.';
+const cancel=document.createElement('button');cancel.type='button';cancel.className='button secondary';cancel.textContent='Cancel prepared form';cancel.addEventListener('click',async()=>{cancel.disabled=true;try{await send('cancel-handover',{deviceId,handoffId:prepared.handoffId});document.querySelector('[data-find-forms]').requestSubmit();}catch(e){status.textContent=e.message;cancel.disabled=false;}});
+row.append(guidance,confirmation,cancel);status.textContent='Prepared. Confirm the person and physical iPad at handover.';
+confirmation.addEventListener('click',async()=>{confirmation.disabled=true;try{await send('handover',{deviceId,handoffId:prepared.handoffId,confirmed:true});status.textContent='Handover confirmed. On the iPad tap Complete my form to check the details.';}catch(e){status.textContent=e.message;confirmation.disabled=false;}});
+}catch(e){status.textContent=e.message;button.disabled=false;select.disabled=false;}});
 label.append(select);row.append(label);
 if(['not_sent','sent','opened'].includes(item.status))row.append(button);
 options.append(row);
@@ -285,6 +305,13 @@ options.append(row);
         req.body?.deviceId,req.body?.appointmentId,req.body?.assignmentId);
       return res.status(200).json(queued);
     } catch (error) { next(error); }
+  });
+  router.post('/cancel-handover',sameOriginGuard({env}),staff,csrfGuard({service:sessionService}),async(req,res,next)=>{
+    try{return res.json(await service.cancelHandover(req.staffBrowserSession.adminId,req.body?.deviceId,req.body?.handoffId));}catch(error){next(error);}
+  });
+  router.post('/handover',sameOriginGuard({env}),staff,csrfGuard({service:sessionService}),async(req,res,next)=>{
+    try {return res.json(await service.confirmHandover(req.staffBrowserSession.adminId,req.body?.deviceId,req.body?.handoffId,req.body?.confirmed));}
+    catch(error) {next(error);}
   });
   // Retired delivery links fail closed, including when old clients post directly.
   router.post('/send-form',sameOriginGuard({ env }),staff,csrfGuard({ service:sessionService }),(_req,res) =>

@@ -164,9 +164,12 @@ function createMyShilohMultipleBookingService({
         await connection.query('SELECT pg_advisory_xact_lock($1::bigint)', [staffId]);
       }
       await connection.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`crm-v2-client:${clientId}`]);
-      const client = (await connection.query(`SELECT id,name,normalized_mobile,status FROM crm_v2_clients WHERE id=$1 FOR UPDATE`, [clientId])).rows[0];
+      const client = (await connection.query(`SELECT id,name,normalized_mobile,status,date_of_birth,provenance,EXISTS(SELECT 1 FROM appointments ap WHERE ap.crm_v2_client_id=c.id) AS has_appointment FROM crm_v2_clients c WHERE id=$1 FOR UPDATE`, [clientId])).rows[0];
       if (!client || client.status !== 'active' || !String(client.name || '').trim() || !/^27[678][0-9]{8}$/.test(client.normalized_mobile)) {
         fail('BOOKING_CLIENT_NOT_READY', 'Your profile needs a verified mobile number before you can book.');
+      }
+      if(!client.date_of_birth && client.provenance?.actorReference==='my_shiloh_sms' && client.has_appointment===false) {
+        fail('BOOKING_DATE_OF_BIRTH_REQUIRED','Add your date of birth in Profile before your first booking.');
       }
       const replay = (await connection.query(`SELECT metadata FROM crm_audit_events
         WHERE action='${auditAction}' AND entity_type='appointment_group'
