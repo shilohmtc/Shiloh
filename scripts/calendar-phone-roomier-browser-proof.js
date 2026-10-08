@@ -41,6 +41,11 @@ async function main(){
       await page.reload();await page.waitForTimeout(150);assert.equal(await page.locator('body').getAttribute('data-phone-layout'),'roomier');assert.equal(await page.locator('[data-phone-staff-column-id]').count(),6);
       const next=await page.locator('[data-phone-week-nav="next"]').getAttribute('href');assert.ok(next.includes('phoneLayout=roomier'));assert.ok(next.includes('phoneStaff=all'));await page.locator('[data-phone-week-nav="next"]').click();await page.waitForTimeout(150);assert.equal(await page.locator('body').getAttribute('data-phone-layout'),'roomier');
       await page.goto(origin+'/?view=week&phoneLayout=roomier');await page.waitForTimeout(150);
+      // All-day leave text/actions stay in view while wider staff lanes scroll horizontally.
+      await page.locator('.phone-day-scroll').evaluate(n=>n.scrollLeft=n.scrollWidth);
+      const notice=await page.locator('.phone-day-notices h4').first().boundingBox();assert.ok(notice.x>=0&&notice.x+notice.width<=width+1,JSON.stringify(notice));assert.match(await page.locator('.phone-day-notices h4').first().textContent(),/Naomi/);
+      const leaveAction=await page.locator('.phone-day-notices [data-calendar-operation]').first().boundingBox();assert.ok(leaveAction.x>=0&&leaveAction.x+leaveAction.width<=width+1,JSON.stringify(leaveAction));
+      await page.screenshot({path:path.join(OUT,`all-day-horizontal-${width}.png`)});
       // Real horizontal and vertical scroll, visible header and proportional cards.
       await page.locator('[data-event-id="appointment-5"]').scrollIntoViewIfNeeded();
       const scroll=await page.locator('.phone-day-scroll').evaluate(n=>({left:n.scrollLeft,top:n.scrollTop}));assert.ok(scroll.top>0);

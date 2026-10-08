@@ -6,6 +6,7 @@ function calendarPhoneRoomierStyles() {
   const rules = [
     ['.phone-day-scroll', 'display:block;flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain'],
     ['.phone-day-scroll-content', 'display:block;width:var(--phone-roomier-content-width);min-width:100%;position:relative'],
+    ['.phone-day-notices', 'position:sticky;left:var(--phone-time-rail-width,32px);width:calc(var(--phone-roomier-viewport-width) - var(--phone-time-rail-width,32px));z-index:3;background:var(--panel,#fff)'],
     ['.phone-staff-column-header', 'position:sticky;top:0;z-index:5'],
     ['.phone-staff-column-name', 'font-size:.8rem;min-height:40px;white-space:normal;overflow-wrap:anywhere;text-align:center'],
     ['.workspace-main .calendar-view.week-view', 'overflow:hidden!important'],
