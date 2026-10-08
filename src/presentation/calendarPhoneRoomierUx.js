@@ -4,7 +4,7 @@
 function calendarPhoneRoomierStyles() {
   const scope = 'body[data-phone-column-mode="true"][data-phone-layout="roomier"]';
   const rules = [
-    ['.phone-day-scroll', 'display:block;flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain'],
+    ['.phone-day-scroll', 'display:block;flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;scroll-padding:calc(var(--phone-roomier-header-height,40px) + 4px) 4px 4px calc(var(--phone-time-rail-width,32px) + 4px)'],
     ['.phone-day-scroll-content', 'display:block;width:var(--phone-roomier-content-width);min-width:100%;position:relative'],
     ['.phone-day-notices', 'position:sticky;left:var(--phone-time-rail-width,32px);width:calc(var(--phone-roomier-viewport-width) - var(--phone-time-rail-width,32px));z-index:3;background:var(--panel,#fff)'],
     ['.phone-staff-column-header', 'position:sticky;top:0;z-index:5'],
@@ -13,6 +13,8 @@ function calendarPhoneRoomierStyles() {
     ['.workspace-main .calendar-view.week-view .week-time-grid', 'flex:none!important;height:var(--phone-roomier-grid-height)!important;min-height:var(--phone-roomier-grid-height)!important;max-height:none!important;overflow:visible!important'],
     ['.workspace-main .week-time-grid .time-rail', 'position:sticky!important;left:0;z-index:4;background:var(--panel,#fff)'],
     ['.workspace-main .week-time-grid .time-rail span', 'font-size:.75rem!important'],
+    ['.workspace-main .week-view .positioned-event .event-card', 'scroll-margin:4px'],
+    ['.workspace-main .week-view .positioned-event .booking-notes-indicator', 'top:var(--phone-roomier-notes-top,24px)!important;inset-block-start:var(--phone-roomier-notes-top,24px)!important;bottom:auto!important'],
     ['.workspace-main .week-view .positioned-event .event-card h4', 'font-size:.85rem!important;line-height:1.2!important'],
     ['.workspace-main .week-view .positioned-event[data-phone-roomy="true"] .event-card h4', '-webkit-line-clamp:3'],
     ['.workspace-main .week-view .positioned-event .event-time', 'font-size:.75rem!important;line-height:1.2!important'],
