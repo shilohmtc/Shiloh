@@ -32,15 +32,35 @@ async function run() {
     const repeat = apply({ amount: '10' });
     const repeatedUse = await Promise.all([service.apply(repeat), service.apply(repeat)]);
     assert.deepEqual(repeatedUse.map(r => r.status).sort(), ['applied', 'idempotent_replay']);
-    await service.issue(issue({ amount: '1000' }));
+    const largeIssue = (await service.issue(issue({ amount: '1000' }))).entry;
     await admin.query("INSERT INTO appointments VALUES(205,NULL,101,'completed',100,'ZAR',NOW(),'2026-10-08T10:00Z','Synthetic contention treatment')");
     const bookingUses = await Promise.allSettled([service.apply(apply({ amount: '80', appointmentId: 205 })), service.apply(apply({ amount: '80', appointmentId: 205 }))]);
     assert.equal(bookingUses.filter(r => r.status === 'fulfilled').length, 1);
     assert.equal(bookingUses.find(r => r.status === 'rejected').reason.code, 'CREDIT_EXCEEDS_TREATMENT');
+    const applied = bookingUses.find(r => r.status === 'fulfilled').value.entry;
+    const correction = overrides => ({ adminId: 2, clientId: 101, sourceEntryId: applied.id, amount: '60', reason: 'Synthetic reviewed correction', reviewed: true, operationId: randomUUID(), ...overrides });
+    const returns = await Promise.allSettled([service.undo(correction()), service.undo(correction({ adminId: 1 }))]);
+    assert.equal(returns.filter(r => r.status === 'fulfilled').length, 1);
+    assert.equal(returns.find(r => r.status === 'rejected').reason.code, 'CREDIT_CORRECTION_CAP');
+    const repeatCorrection = correction({ amount: '10' });
+    const repeatedReturn = await Promise.all([service.undo(repeatCorrection), service.undo(repeatCorrection)]);
+    assert.deepEqual(repeatedReturn.map(r => r.status).sort(), ['idempotent_replay', 'returned']);
+    await admin.query("INSERT INTO appointments VALUES(206,NULL,101,'completed',2000,'ZAR',NOW(),'2026-10-08T10:00Z','Synthetic credit correction contention')");
+    const reduction = correction({ sourceEntryId: largeIssue.id, amount: '600' });
+    const contention = await Promise.allSettled([service.reduce(reduction), service.apply(apply({ amount: '600', appointmentId: 206 }))]);
+    assert.equal(contention.filter(r => r.status === 'fulfilled').length, 1);
+    assert.ok(['CREDIT_CORRECTION_CAP','CREDIT_EXCEEDS_BALANCE'].includes(contention.find(r => r.status === 'rejected').reason.code));
+    const concurrentReturnUse = await Promise.all([service.undo(correction({ amount: '10' })), service.apply(apply({ amount: '10', appointmentId: 205 }))]);
+    assert.deepEqual(concurrentReturnUse.map(r => r.status).sort(), ['applied','returned']);
+    const model = await service.getClientModel({ adminId: 1, clientId: 101 });
+    assert.equal(model.balance, 400);
+    assert.equal(Number(model.entries.find(e => e.id === applied.id).correctable_amount), 0);
+    await assert.rejects(service.undo(correction({ amount: '0.01' })), { code: 'CREDIT_CORRECTION_CAP' });
     const audit = (await admin.query('SELECT COUNT(*)::int AS n FROM crm_audit_events')).rows[0].n;
-    assert.equal(audit, 5);
+    assert.equal(audit, 10);
     assert.equal((await admin.query('SELECT COUNT(*)::int AS n FROM payment_ledger_entries')).rows[0].n, 0);
-    console.log('PostgreSQL concurrent proof passed: duplicate issuance/use, wallet contention across treatments, account contention, five atomic audits, zero cash entries.');
+    console.log('PostgreSQL concurrent proof passed: duplicate issuance/use/return, wallet/account contention, return caps, reduction/use contention and atomic return/use; ten audits, zero cash entries.');
+
   } finally {
     await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
     admin.release(); await pool.end();

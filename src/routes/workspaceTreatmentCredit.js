@@ -18,7 +18,7 @@ function createWorkspaceTreatmentCreditRouter({ env = process.env, sessionServic
       return res.type('html').send(renderTreatmentCreditPage({ model, csrfToken: token.csrfToken }));
     } catch (error) { if (error instanceof TreatmentCreditError) return res.status(error.httpStatus).type('text/plain').send(error.message); return next(error); }
   });
-  for (const action of ['issue', 'apply']) router.post(`/${action}`, sameOriginGuard({ env }), csrfGuard({ service: sessionService }), async (req, res, next) => {
+  for (const action of ['issue', 'apply', 'reduce', 'undo']) router.post(`/${action}`, sameOriginGuard({ env }), csrfGuard({ service: sessionService }), async (req, res, next) => {
     try { return res.status(200).json(await service[action]({ ...req.body, adminId: req.staffBrowserSession.adminId })); }
     catch (error) { if (error instanceof TreatmentCreditError) return res.status(error.httpStatus).json({ error: error.message, code: error.code }); return next(error); }
   });

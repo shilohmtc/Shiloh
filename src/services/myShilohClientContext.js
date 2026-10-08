@@ -330,7 +330,7 @@ function createMyShilohClientContextService({
               COALESCE(SUM(ple.amount) FILTER (WHERE ple.entry_type='refund'),0) AS refunded,
               (SELECT COALESCE(SUM(bla.amount),0) FROM booking_loyalty_allocations bla WHERE bla.booking_payment_account_id=bpa.id AND bla.state='applied') AS rewards_applied,
               (SELECT COALESCE(SUM(wva.amount),0) FROM booking_welcome_voucher_allocations wva WHERE wva.booking_payment_account_id=bpa.id AND wva.state='applied') AS welcome_voucher_applied,
-              (SELECT COALESCE(-SUM(tc.signed_amount),0) FROM treatment_credit_entries tc WHERE tc.booking_payment_account_id=bpa.id AND tc.entry_type='apply') AS treatment_credit_applied
+              (SELECT COALESCE(-SUM(tc.signed_amount),0) FROM treatment_credit_entries tc WHERE tc.booking_payment_account_id=bpa.id AND tc.entry_type IN ('apply','undo')) AS treatment_credit_applied
          FROM booking_payment_accounts bpa
          LEFT JOIN appointment_group_members gm
            ON gm.group_id=bpa.appointment_group_id

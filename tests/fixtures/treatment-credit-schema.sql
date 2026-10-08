@@ -12,8 +12,8 @@ CREATE TABLE booking_loyalty_allocations(booking_payment_account_id BIGINT,state
 CREATE TABLE booking_welcome_voucher_allocations(booking_payment_account_id BIGINT,state TEXT,amount NUMERIC(12,2));
 CREATE TABLE crm_audit_events(actor_admin_id BIGINT,action TEXT,entity_type TEXT,entity_id BIGINT,metadata JSONB);
 INSERT INTO staff_admin_accounts VALUES
- (1,NULL,'Synthetic Owner','owner','owner','all_business','all_services','{"client:lookup":true,"treatment_credit:view":true,"treatment_credit:issue":true,"treatment_credit:apply":true}',TRUE),
- (2,NULL,'Synthetic Reception','staff','booking_operator','all_business','all_services','{"client:lookup":true,"treatment_credit:view":true,"treatment_credit:issue":true,"treatment_credit:apply":true}',TRUE),
+ (1,NULL,'Synthetic Owner','owner','owner','all_business','all_services','{"client:lookup":true,"treatment_credit:view":true,"treatment_credit:issue":true,"treatment_credit:apply":true,"treatment_credit:correct":true}',TRUE),
+ (2,NULL,'Synthetic Reception','staff','booking_operator','all_business','all_services','{"client:lookup":true,"treatment_credit:view":true,"treatment_credit:issue":true,"treatment_credit:apply":true,"treatment_credit:correct":true}',TRUE),
  (3,NULL,'Synthetic Unauthorised','owner','owner','all_business','all_services','{"client:lookup":true,"loyalty:manage":true,"payment:collect":true}',TRUE);
 INSERT INTO crm_v2_clients VALUES(101,'Synthetic Client','active'),(102,'Synthetic Other','active'),(103,'Synthetic Archived','archived');
 INSERT INTO appointments VALUES

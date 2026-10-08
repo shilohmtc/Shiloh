@@ -108,7 +108,7 @@ test('route guards reject unauthenticated/cross-origin/CSRF requests and ignore 
   app.use('/calendar/treatment-credit', createWorkspaceTreatmentCreditRouter({ env: {}, sessionService: {
     async validateSessionToken(token) { return token === 'test' ? { ok: true, adminId: 2 } : { ok: false }; },
     validateCsrfToken: (_session, token) => token === 'valid',
-  }, service: { async issue(input) { assert.equal(input.adminId, 2); writes++; return { status: 'issued' }; }, async apply() { throw new TreatmentCreditError('CREDIT_FORBIDDEN', 'Denied', 403); } } }));
+  }, service: { async issue(input) { assert.equal(input.adminId, 2); writes++; return { status: 'issued' }; }, async reduce(input) { assert.equal(input.adminId, 2); writes++; return { status: 'reduced' }; }, async undo(input) { assert.equal(input.adminId, 2); writes++; return { status: 'returned' }; }, async apply() { throw new TreatmentCreditError('CREDIT_FORBIDDEN', 'Denied', 403); } } }));
   const server = app.listen(0, '127.0.0.1'); await once(server, 'listening'); t.after(() => new Promise(resolve => server.close(resolve)));
   const origin = `http://127.0.0.1:${server.address().port}`, headers = { Cookie: 'shiloh_staff_session=test', Origin: origin, 'Content-Type': 'application/json', 'X-Shiloh-CSRF-Token': 'valid' };
   const post = (custom, action = 'issue') => fetch(`${origin}/calendar/treatment-credit/${action}`, { method: 'POST', headers: custom, body: JSON.stringify({ adminId: 1 }) });
@@ -118,9 +118,115 @@ test('route guards reject unauthenticated/cross-origin/CSRF requests and ignore 
   assert.equal(writes, 0);
   const response = await post(headers); assert.equal(response.status, 200); assert.match(response.headers.get('cache-control'), /no-store/);
   assert.equal((await post(headers, 'apply')).status, 403); assert.equal(writes, 1);
+  for (const action of ['reduce','undo']) {
+    assert.equal((await post({ ...headers, Cookie: '' }, action)).status, 401);
+    assert.equal((await post({ ...headers, Origin: 'https://other.test' }, action)).status, 403);
+    assert.equal((await post({ ...headers, 'X-Shiloh-CSRF-Token': 'wrong' }, action)).status, 403);
+    assert.equal((await post(headers, action)).status, 200);
+  }
+  assert.equal(writes, 3);
 });
 test('credit surface escapes private evidence and renders read-only authority without actions', () => {
   const html = renderTreatmentCreditPage({ model: { client: { id: 101, name: '<script>bad</script>' }, balance: 1, entries: [], appointments: [], authority: {} } });
   assert.doesNotMatch(html, /<script>bad/); assert.doesNotMatch(html, /data-credit-form/); assert.match(html, /Remaining treatment credit/);
   new (require('node:vm').Script)(treatmentCreditClientScript());
+});
+const correction = overrides => ({ adminId: 2, clientId: 101, sourceEntryId: 1, amount: '10', reason: 'Synthetic reviewed correction', reviewed: true, operationId: randomUUID(), ...overrides });
+test('manual correction requires an exact amount, original target, reason and explicit review', () => {
+  for (const overrides of [{ amount: '0' }, { amount: '1.001' }, { sourceEntryId: 0 }, { reason: '' }, { reviewed: false }]) assert.throws(() => normalized(correction(overrides), 'undo'), { httpStatus: 400 });
+  assert.equal(normalized(correction(), 'reduce').reviewed, true);
+});
+test('unused reduction and partial return preserve original source allocations and reopen only noncash balance', async t => {
+  const { pg, service } = await setup(t);
+  const goodwill = (await service.issue(issuance({ amount: '100', creditType: 'goodwill', reference: '' }))).entry;
+  const exchange = (await service.issue(issuance({ amount: '400' }))).entry;
+  const applied = (await service.apply(usage())).entry;
+  await assert.rejects(service.reduce(correction({ sourceEntryId: goodwill.id, amount: '1' })), { code: 'CREDIT_CORRECTION_CAP' });
+  await assert.rejects(service.reduce(correction({ sourceEntryId: exchange.id, amount: '351' })), { code: 'CREDIT_CORRECTION_CAP' });
+  const reduce = correction({ sourceEntryId: exchange.id, amount: '300' });
+  await service.reduce(reduce); assert.equal((await service.reduce(reduce)).status, 'idempotent_replay');
+  await assert.rejects(service.reduce({ ...reduce, amount: '299' }), { code: 'CREDIT_RETRY_MISMATCH' });
+  assert.equal((await service.getClientModel({ adminId: 1, clientId: 101 })).balance, 50);
+  const undo = correction({ sourceEntryId: applied.id, amount: '120' });
+  await service.undo(undo); assert.equal((await service.undo(undo)).status, 'idempotent_replay');
+  await assert.rejects(service.undo({ ...undo, adminId: 1 }), { code: 'CREDIT_RETRY_MISMATCH' });
+  let model = await service.getClientModel({ adminId: 1, clientId: 101 });
+  assert.equal(model.balance, 170); assert.equal(Number(model.entries.find(e => e.id === applied.id).correctable_amount), 30);
+  await assert.rejects(service.undo(correction({ sourceEntryId: applied.id, amount: '31' })), { code: 'CREDIT_CORRECTION_CAP' });
+  await service.undo(correction({ adminId: 1, sourceEntryId: applied.id, amount: '30' }));
+  const remaining = await service.apply(usage({ amount: '200' })); assert.equal(remaining.outstanding, 450); assert.equal(remaining.balance, 0);
+  const original = (await pg.query('SELECT * FROM treatment_credit_entries WHERE id=$1', [exchange.id])).rows[0];
+  assert.equal(original.signed_amount, '400.00'); assert.equal(original.reason, 'Synthetic supplier work'); assert.equal(original.reference, 'SYNTHETIC-INVOICE-101');
+  const credits = (await pg.query(CREDITS_SQL, ['2000-01-01', '2100-01-01'])).rows;
+  const returned = credits.filter(e => e.entry_type === 'undo');
+  assert.equal(returned.reduce((sum, e) => sum + Number(e.amount), 0), 150);
+  assert.equal(Number(credits.find(e => e.entry_type === 'reduce').amount), -300);
+  assert.equal(credits.find(e => e.entry_type === 'reduce').source_reason, 'Synthetic supplier work');
+  assert.equal(credits.filter(e => e.entry_type === 'apply').reduce((sum, e) => sum + Number(e.amount), 0), -350);
+  assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM crm_audit_events')).rows[0].n, 7);
+  assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM payment_ledger_entries')).rows[0].n, 0);
+  const finance = { ...summarizeFinancials({ period: resolvePeriod({ preset: 'today', now: new Date('2026-10-08T12:00Z') }), treatments: [{ id: 201, starts_at: '2026-10-08T08:00Z', value: '650' }], balances: [{ appointment_id: 201, amount_due: '650', net_paid: '0', credits: '200', starts_at: '2026-10-08T08:00Z' }] }), treatmentCredits: credits, period: resolvePeriod({ preset: 'today', now: new Date('2026-10-08T12:00Z') }) };
+  assert.equal(finance.current.received, 0); assert.equal(finance.current.treatmentValue, 650); assert.equal(finance.outstanding, 450);
+  assert.match(financialCsv(finance), /Correction target entry/); assert.match(financialCsv(finance), /Synthetic reviewed correction/);
+});
+test('both approved staff authorities need explicit correction permission, including retries and archived clients', async t => {
+  const { pg, service } = await setup(t);
+  const source = (await service.issue(issuance())).entry;
+  const input = correction({ sourceEntryId: source.id });
+  await assert.rejects(service.reduce({ ...input, adminId: 3 }), { code: 'CREDIT_FORBIDDEN' });
+  await service.reduce(input);
+  await pg.query("UPDATE staff_admin_accounts SET permissions=permissions-'treatment_credit:correct' WHERE id=2");
+  await assert.rejects(service.reduce(input), { code: 'CREDIT_FORBIDDEN' });
+  assert.equal((await service.getClientModel({ adminId: 2, clientId: 101 })).authority.canCorrect, false);
+  await assert.rejects(service.reduce(correction({ clientId: 102, sourceEntryId: source.id, adminId: 1 })), { code: 'CREDIT_CORRECTION_TARGET' });
+  await assert.rejects(service.undo(correction({ sourceEntryId: source.id, adminId: 1 })), { code: 'CREDIT_CORRECTION_TARGET' });
+  await pg.query("UPDATE crm_v2_clients SET status='archived' WHERE id=101");
+  const archived = await service.getClientModel({ adminId: 1, clientId: 101 }); assert.equal(archived.authority.canCorrect, true); assert.equal(archived.authority.canIssue, false);
+  await service.reduce(correction({ sourceEntryId: source.id, adminId: 1 }));
+});
+test('cancellation and refunds do not restore credit; explicit reviewed return preserves money and rejects active links', async t => {
+  const { pg, service } = await setup(t); await service.issue(issuance());
+  const applied = (await service.apply(usage())).entry;
+  await pg.query("UPDATE appointments SET status='cancelled' WHERE id=201");
+  await pg.query("INSERT INTO payment_ledger_entries(payment_account_id,entry_type,amount) VALUES($1,'payment',200),($1,'refund',200)", [applied.booking_payment_account_id]);
+  assert.equal((await service.getClientModel({ adminId: 2, clientId: 101 })).balance, 350);
+  await pg.query("INSERT INTO payment_requests(payment_account_id,state) VALUES($1,'pending')", [applied.booking_payment_account_id]);
+  await assert.rejects(service.undo(correction({ sourceEntryId: applied.id, amount: '100' })), { code: 'CREDIT_OPEN_PAYMENT' });
+  await pg.query("UPDATE payment_requests SET state='cancelled'");
+  await service.undo(correction({ sourceEntryId: applied.id, amount: '100' }));
+  assert.equal((await service.getClientModel({ adminId: 2, clientId: 101 })).balance, 450);
+  assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM payment_ledger_entries')).rows[0].n, 2);
+  assert.equal(Number((await pg.query("SELECT COALESCE(-SUM(signed_amount),0) AS amount FROM treatment_credit_entries WHERE booking_payment_account_id=$1 AND entry_type IN ('apply','undo')", [applied.booking_payment_account_id])).rows[0].amount), 50);
+  await assert.rejects(service.apply(usage({ amount: '50' })), { code: 'CREDIT_TREATMENT_INCOMPLETE' });
+});
+test('linked completed treatment return reopens its original group account and keeps deposit state', async t => {
+  const { pg, service } = await setup(t);
+  await pg.exec("INSERT INTO appointment_groups VALUES(50,'completed',1300,1300,NOW()); INSERT INTO appointment_group_members VALUES(50,201),(50,202)");
+  await service.issue(issuance()); const applied = (await service.apply(usage())).entry;
+  const account = (await pg.query('SELECT * FROM booking_payment_accounts WHERE id=$1', [applied.booking_payment_account_id])).rows[0]; assert.equal(account.appointment_group_id, 50);
+  await pg.query("INSERT INTO booking_deposit_requirements(payment_account_id,state) VALUES($1,'satisfied')", [account.id]);
+  await service.undo(correction({ sourceEntryId: applied.id, amount: '50' }));
+  const used = await service.apply(usage({ appointmentId: 202, amount: '100' })); assert.equal(used.outstanding, 1100);
+  assert.equal((await pg.query('SELECT state FROM booking_deposit_requirements')).rows[0].state, 'satisfied');
+});
+test('deferred SQL constraints reject source reduction beyond unused and fabricated/oversized return allocations', async t => {
+  const { pg, service } = await setup(t);
+  const first = (await service.issue(issuance({ amount: '100' }))).entry;
+  const second = (await service.issue(issuance({ amount: '500' }))).entry;
+  const applied = (await service.apply(usage({ amount: '80' }))).entry;
+  async function rawCorrection(kind, source, amount, allocationSource) {
+    await pg.query('BEGIN');
+    try {
+      const entry = (await pg.query(`INSERT INTO treatment_credit_entries(wallet_id,entry_type,signed_amount,reason,operation_id,request_fingerprint,actor_admin_id,source_entry_id,booking_payment_account_id,appointment_id)
+        VALUES($1,$2,$3,'Synthetic invalid constraint proof',$4,$5,1,$6,$7,$8) RETURNING id`,
+      [first.wallet_id,kind,kind === 'undo' ? amount : `-${amount}`,randomUUID(),'a'.repeat(64),source,kind === 'undo' ? applied.booking_payment_account_id : null,kind === 'undo' ? 201 : null])).rows[0];
+      await pg.query('INSERT INTO treatment_credit_allocations VALUES($1,$2,$3)', [entry.id,allocationSource,amount]);
+      await pg.query('COMMIT');
+    } catch (error) { await pg.query('ROLLBACK'); throw error; }
+  }
+  await assert.rejects(rawCorrection('reduce', first.id, '30', first.id), /Invalid treatment credit/);
+  await assert.rejects(rawCorrection('undo', applied.id, '81', first.id), /Invalid treatment credit/);
+  await assert.rejects(rawCorrection('undo', applied.id, '1', second.id), /Invalid treatment credit/);
+  assert.equal((await service.getClientModel({ adminId: 1, clientId: 101 })).balance, 520);
+  assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM treatment_credit_entries')).rows[0].n, 3);
 });
