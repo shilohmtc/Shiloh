@@ -69,7 +69,7 @@ function createClientPasskeyRecoveryService({ db = pool, env = process.env,
     });
   }
 
-  async function redeem({ code, requestFingerprintHash = null } = {}) {
+  async function redeem({ code, requestFingerprintHash = null, keepSignedIn = false } = {}) {
     if (!enrollmentPolicy(env).operational || typeof sessionService?.issueVerifiedRecoverySession !== 'function') return unavailable();
     const fingerprint = normalizedFingerprint(requestFingerprintHash);
     if (!fingerprint) return unavailable();
@@ -96,7 +96,7 @@ function createClientPasskeyRecoveryService({ db = pool, env = process.env,
       if (!found.rowCount) return { ok: false, code: 'CLIENT_RECOVERY_INVALID' };
       const row = found.rows[0];
       const issued = await sessionService.issueVerifiedRecoverySession({
-        transaction: client, crmV2ClientId: row.crm_v2_client_id, requestFingerprintHash: fingerprint,
+        transaction: client, crmV2ClientId: row.crm_v2_client_id, requestFingerprintHash: fingerprint, keepSignedIn,
       });
       if (!issued.ok) return { ok: false, code: 'CLIENT_RECOVERY_INVALID' };
       await client.query('UPDATE client_auth_passkey_recovery_codes SET consumed_at = $2 WHERE id = $1', [row.id, current]);

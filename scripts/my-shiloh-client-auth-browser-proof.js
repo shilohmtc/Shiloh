@@ -463,7 +463,7 @@ async function runViewport(browser, name, viewport) {
   await page.screenshot({ path: path.join(out, `${name}-chat.png`), fullPage: true });
 
   await page.locator('[data-view-target="profile"]').click();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await page.locator('[data-view="home"] .hero-copy').getByText('Sign-in is temporarily unavailable. Please contact Reception for help.').waitFor({ state: 'visible' });
   if (await page.locator('[data-view="home"] [data-client-auth-start]').count()) {
     throw new Error('legacy WhatsApp sign-in must not reappear after logout');
@@ -472,7 +472,10 @@ async function runViewport(browser, name, viewport) {
   if (!revokedActionSessions.some((call) => call.sessionId === 55 && call.crmV2ClientId === 912)) {
     throw new Error('outstanding client actions were not revoked on logout');
   }
-  await page.screenshot({ path: path.join(out, `${name}.png`), fullPage: true });
+  // Visibility alone allows the viewIn fade to be nearly transparent.
+  await page.waitForFunction(() => Number(getComputedStyle(document.querySelector('[data-view="home"]')).opacity) >= 0.99);
+  await page.evaluate(() => document.fonts.ready);
+  await page.screenshot({ path: path.join(out, `${name}.png`), fullPage: true, animations: 'disabled' });
   await context.close();
 }
 

@@ -60,6 +60,8 @@ jobs:
             echo 'Candidate baselines generated. Review the PNGs and commit only approved .png.b64.part* fixtures deliberately.'
             exit 1
           fi
+      - name: Package small My Shiloh sign-in review
+        run: node scripts/package-my-shiloh-signin-evidence.js
       - name: Prove Phone Calendar first paint in Chromium
         run: npx playwright test tests/calendar-phone-first-paint.spec.js --config=.
       - name: Upload UX evidence
@@ -73,6 +75,14 @@ jobs:
             artifacts/workspace-deposits
             artifacts/ux-baseline-candidate
           if-no-files-found: ignore
+          retention-days: 14
+      - name: Upload small My Shiloh sign-in review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: my-shiloh-signin-focused-review
+          path: artifacts/my-shiloh-signin-review
+          if-no-files-found: error
           retention-days: 14
       - name: Upload booking-for-two visual review
         if: always()
