@@ -288,6 +288,7 @@ function createBookingPaymentService({
       clientName: String(row.client_name || ''), clientMobile: String(row.client_mobile || ''),
       serviceName: String(row.service_name || 'Shiloh appointment'),
       staffIds: row.staff_ids.map(Number), serviceIds: row.service_ids.map(Number),
+      status: String(row.group_id ? row.group_status : row.appointment_status),
       final: ['cancelled'].includes(String(row.group_id ? row.group_status : row.appointment_status)),
     };
   }
@@ -311,7 +312,7 @@ function createBookingPaymentService({
     }
     const account = result.rows[0] || null;
     if (account && Number(account.canonical_amount_due) !== Number(subject.amountDue)) {
-      const settled = await queryable.query(`SELECT 1 FROM payment_ledger_entries WHERE payment_account_id=$1 UNION ALL SELECT 1 FROM treatment_credit_entries WHERE booking_payment_account_id=$1 LIMIT 1`, [account.id]);
+      const settled = await queryable.query(`SELECT 1 FROM payment_ledger_entries WHERE payment_account_id=$1 UNION ALL SELECT 1 FROM treatment_credit_entries WHERE booking_payment_account_id=$1 UNION ALL SELECT 1 FROM booking_gift_voucher_allocations WHERE booking_payment_account_id=$1 LIMIT 1`, [account.id]);
       if (settled.rowCount) throw new BookingPaymentError('PAYMENT_PRICE_CHANGED_AFTER_SETTLEMENT', 'This booking price changed after payment activity. Review the payment history before continuing.', 409);
       if (!create) return { ...account, canonical_amount_due:subject.amountDue, pricing_revision:subject.pricingRevision };
       const refreshed = await queryable.query(`UPDATE booking_payment_accounts SET canonical_amount_due=$2,pricing_revision=$3,updated_at=NOW() WHERE id=$1 RETURNING *`, [account.id, subject.amountDue, subject.pricingRevision]); return refreshed.rows[0];
@@ -320,19 +321,27 @@ function createBookingPaymentService({
   }
 
   async function position(queryable, account, subject) {
-    if (!account) return { amountDue: subject.amountDue, paid: '0.00', refunded: '0.00', netPaid: '0.00', rewardsApplied: '0.00', welcomeVoucherApplied: '0.00', treatmentCreditApplied: '0.00', outstanding: subject.amountDue, state: 'unpaid', requests: [], entries: [] };
+    if (!account) return { amountDue: subject.amountDue, paid: '0.00', refunded: '0.00', netPaid: '0.00', rewardsApplied: '0.00', welcomeVoucherApplied: '0.00', treatmentCreditApplied: '0.00', giftVoucherApplied: '0.00', noncashEntries: [], outstanding: subject.amountDue, state: 'unpaid', requests: [], entries: [] };
     const [totals, rewardsApplied, welcomeVoucherApplied, requests, entries] = await Promise.all([
       queryable.query(`SELECT COALESCE(SUM(amount) FILTER (WHERE entry_type='payment'),0) paid,COALESCE(SUM(amount) FILTER (WHERE entry_type='refund'),0) refunded FROM payment_ledger_entries WHERE payment_account_id=$1`, [account.id]),
       queryable.query(`SELECT COALESCE(SUM(amount),0) AS amount FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1 AND state='applied'`, [account.id]),
-      queryable.query(`SELECT COALESCE(SUM(amount),0) AS amount,COALESCE((SELECT -SUM(signed_amount) FROM treatment_credit_entries WHERE booking_payment_account_id=$1 AND entry_type IN ('apply','undo')),0) AS treatment_amount FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 AND state='applied'`, [account.id]),
+      queryable.query(`SELECT COALESCE(SUM(amount),0) AS amount,COALESCE((SELECT -SUM(signed_amount) FROM treatment_credit_entries WHERE booking_payment_account_id=$1 AND entry_type IN ('apply','undo')),0) AS treatment_amount,
+        COALESCE((SELECT SUM(amount) FROM booking_gift_voucher_allocations WHERE booking_payment_account_id=$1),0) AS gift_amount,
+        COALESCE((SELECT jsonb_agg(history ORDER BY history->>'created_at' DESC) FROM (
+          SELECT jsonb_build_object('kind','treatment_credit','id',e.id,'action',e.entry_type,'amount',-e.signed_amount,'reason',e.reason,'actor',a.display_name,'created_at',e.created_at,'sourceEntryId',e.source_entry_id) AS history
+            FROM treatment_credit_entries e JOIN staff_admin_accounts a ON a.id=e.actor_admin_id WHERE e.booking_payment_account_id=$1
+          UNION ALL SELECT jsonb_build_object('kind','gift_voucher','id',allocation.id,'action','apply','amount',allocation.amount,'reason','Gift voucher ending '||RIGHT(v.voucher_code,4),'actor',a.display_name,'created_at',allocation.created_at)
+            FROM booking_gift_voucher_allocations allocation JOIN gift_voucher_ledger_entries ledger ON ledger.id=allocation.voucher_ledger_entry_id
+            JOIN gift_vouchers v ON v.id=ledger.voucher_id JOIN staff_admin_accounts a ON a.id=allocation.actor_admin_id WHERE allocation.booking_payment_account_id=$1
+        ) noncash_history),'[]'::jsonb) AS noncash_entries FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 AND state='applied'`, [account.id]),
       queryable.query(`SELECT id,request_key,provider,provider_request_id,provider_payment_url,amount,state,purpose,deposit_requirement_id,deposit_member_appointment_id,payer_name,payer_mobile,expires_at,created_at FROM payment_requests WHERE payment_account_id=$1 ORDER BY id DESC`, [account.id]),
       queryable.query(`SELECT id,entry_type,amount,method,evidence_kind,external_reference,notes,created_at FROM payment_ledger_entries WHERE payment_account_id=$1 ORDER BY id DESC`, [account.id]),
     ]);
-    const paid = Number(totals.rows[0].paid), refunded = Number(totals.rows[0].refunded), net = paid - refunded, loyalty = Number(rewardsApplied.rows[0].amount || 0), welcome = Number(welcomeVoucherApplied.rows[0].amount || 0), treatment = Number(welcomeVoucherApplied.rows[0].treatment_amount || 0);
-    const due = Number(account.canonical_amount_due), outstanding = Math.max(0, due - net - loyalty - welcome - treatment);
+    const paid = Number(totals.rows[0].paid), refunded = Number(totals.rows[0].refunded), net = paid - refunded, loyalty = Number(rewardsApplied.rows[0].amount || 0), welcome = Number(welcomeVoucherApplied.rows[0].amount || 0), treatment = Number(welcomeVoucherApplied.rows[0].treatment_amount || 0), gift = Number(welcomeVoucherApplied.rows[0].gift_amount || 0);
+    const due = Number(account.canonical_amount_due), outstanding = Math.max(0, due - net - loyalty - welcome - treatment - gift);
     return {
-      amountDue: due.toFixed(2), paid: paid.toFixed(2), refunded: refunded.toFixed(2), netPaid: net.toFixed(2), rewardsApplied: loyalty.toFixed(2), welcomeVoucherApplied: welcome.toFixed(2), treatmentCreditApplied: treatment.toFixed(2), outstanding: outstanding.toFixed(2),
-      state: net + loyalty + welcome + treatment > due ? 'overpaid' : outstanding === 0 ? (refunded > 0 ? 'partially_refunded' : 'paid') : net + loyalty + welcome + treatment > 0 ? 'partially_paid' : 'unpaid',
+      amountDue: due.toFixed(2), paid: paid.toFixed(2), refunded: refunded.toFixed(2), netPaid: net.toFixed(2), rewardsApplied: loyalty.toFixed(2), welcomeVoucherApplied: welcome.toFixed(2), treatmentCreditApplied: treatment.toFixed(2), giftVoucherApplied: gift.toFixed(2), noncashEntries: welcomeVoucherApplied.rows[0].noncash_entries || [], outstanding: outstanding.toFixed(2),
+      state: net + loyalty + welcome + treatment + gift > due ? 'overpaid' : outstanding === 0 ? (refunded > 0 ? 'partially_refunded' : 'paid') : net + loyalty + welcome + treatment + gift > 0 ? 'partially_paid' : 'unpaid',
       requests: requests.rows, entries: entries.rows,
     };
   }

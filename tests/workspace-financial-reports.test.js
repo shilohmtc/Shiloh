@@ -147,3 +147,9 @@ test('financial export requires a signed-in session and rechecks finance access 
     assert.equal((await fetch(url, { headers: { Cookie: 'shiloh_staff_session=proof' } })).status, 403);
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
+
+test('booking gift use has separate noncash provenance in report and CSV while receipt totals stay unchanged',()=>{
+ const finance=example(),withGift={...finance,giftVoucherApplications:[{id:90,created_at:period.from,appointment_id:201,voucher_code:'=SYNTHETIC-GIFT',voucher_ledger_entry_id:91,actor_name:'Synthetic Reception',amount:'100'}]};
+ assert.equal(withGift.current.received,300);assert.equal(withGift.current.netReceived,275);assert.equal(withGift.current.treatmentValue,590);
+ const html=financialSections(withGift),csv=financialCsv(withGift);assert.match(html,/Synthetic Reception/);assert.match(html,/Redemption entry #91/);assert.match(csv,/excluded from cash receipts/);assert.match(csv,/"'=SYNTHETIC-GIFT"/);assert.match(csv,/"100.00"/);
+});

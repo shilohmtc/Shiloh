@@ -30,7 +30,7 @@ jobs:
       - name: Run focused controlled release migration tests
         run: npm run test:controlled-release-migration
       - name: Run treatment credit ledger and permission tests
-        run: node --test tests/client-treatment-credit.test.js
+        run: node --test tests/client-treatment-credit.test.js tests/booking-noncash-settlement.test.js
       - name: Run focused Clean Change hygiene test
         run: node --test tests/shiloh-clean-change-gate.test.js
       - name: Run focused SchedulingTimeline parity tests
@@ -357,6 +357,7 @@ jobs:
         run: |
           createdb -h localhost -U postgres shiloh_credit_test
           node scripts/client-treatment-credit-postgres-proof.js
+          node scripts/booking-noncash-postgres-proof.js
       - name: Prove atomic My Shiloh couples booking in PostgreSQL
         env:
           TEST_COUPLES_DATABASE_URL: postgres://postgres:synthetic-test-only@localhost:5432/package_proof

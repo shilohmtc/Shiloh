@@ -35,6 +35,44 @@ const APPLIED_SQL = `SELECT COALESCE(-SUM(signed_amount),0) AS amount FROM treat
 const SOURCE_REMAINING_SQL = `e.signed_amount-COALESCE((SELECT SUM(CASE WHEN debit.entry_type='undo' THEN -alloc.amount ELSE alloc.amount END)
   FROM treatment_credit_allocations alloc JOIN treatment_credit_entries debit ON debit.id=alloc.debit_entry_id WHERE alloc.issue_entry_id=e.id),0)`;
 
+async function lockCompletedTreatmentAccount(queryable, data) {
+  // Same order as canonical payments: appointment, group, account, wallet.
+  const appointment = (await queryable.query('SELECT * FROM appointments WHERE id=$1 FOR UPDATE', [data.appointmentId])).rows[0];
+  if (!appointment || Number(appointment.crm_v2_client_id) !== data.clientId || appointment.client_id != null) fail('CREDIT_BOOKING_FORBIDDEN', 'Choose a completed treatment for this client.', 403);
+  if (appointment.status !== 'completed') fail('CREDIT_TREATMENT_INCOMPLETE', 'Use vouchers or client credit only after treatment is completed. Booking deposits need payment.');
+  const member = (await queryable.query('SELECT group_id FROM appointment_group_members WHERE appointment_id=$1', [data.appointmentId])).rows[0];
+  let group = null;
+  if (member) {
+    group = (await queryable.query('SELECT * FROM appointment_groups WHERE id=$1 FOR UPDATE', [member.group_id])).rows[0];
+    const unsafe = await queryable.query(`SELECT 1 FROM appointment_group_members gm JOIN appointments a ON a.id=gm.appointment_id
+      WHERE gm.group_id=$1 AND (a.status<>'completed' OR a.crm_v2_client_id IS DISTINCT FROM $2::bigint OR a.client_id IS NOT NULL) LIMIT 1`, [member.group_id, data.clientId]);
+    if (!group || group.status !== 'completed' || unsafe.rowCount) fail('CREDIT_GROUP_REVIEW', 'Linked treatments must all be completed for this same client before credit can be applied.');
+  }
+  const due = group ? group.final_total ?? group.total_price : appointment.total_price;
+  if (due == null || String(appointment.currency || 'ZAR') !== 'ZAR') fail('CREDIT_PRICE_UNAVAILABLE', 'Confirm the Rand treatment price before applying credit.');
+  const column = group ? 'appointment_group_id' : 'appointment_id', target = group?.id || appointment.id;
+  let account = (await queryable.query(`SELECT * FROM booking_payment_accounts WHERE ${column}=$1 FOR UPDATE`, [target])).rows[0];
+  if (!account) account = (await queryable.query(`INSERT INTO booking_payment_accounts(${column},canonical_amount_due,currency,pricing_revision)
+    VALUES($1,$2,'ZAR',$3) RETURNING *`, [target, due, group?.updated_at || appointment.updated_at])).rows[0];
+  if (Number(account.canonical_amount_due) !== Number(due) || account.currency !== 'ZAR') fail('CREDIT_PRICE_CHANGED', 'Review the payment account and changed treatment price before applying credit.');
+  const pendingDeposit = await queryable.query("SELECT id FROM booking_deposit_requirements WHERE payment_account_id=$1 AND state='awaiting' FOR UPDATE", [account.id]);
+  if (pendingDeposit.rowCount) fail('CREDIT_DEPOSIT_REQUIRED', 'The booking deposit remains due. Vouchers and client credit cannot pay a booking deposit.');
+  const openRequest = await queryable.query("SELECT id FROM payment_requests WHERE payment_account_id=$1 AND state IN ('created','link_issued','pending') LIMIT 1", [account.id]);
+  if (openRequest.rowCount) fail('CREDIT_OPEN_PAYMENT', 'Review the active payment link before using vouchers or client credit, so the client is not charged twice.');
+  return account;
+}
+
+async function remainingTreatmentCents(queryable, account) {
+  const totals = (await queryable.query(`SELECT
+    COALESCE((SELECT SUM(CASE WHEN entry_type='payment' THEN amount ELSE -amount END) FROM payment_ledger_entries WHERE payment_account_id=$1),0) AS net_paid,
+    COALESCE((SELECT SUM(amount) FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0)
+    + COALESCE((SELECT SUM(amount) FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0)
+    + COALESCE((SELECT -SUM(signed_amount) FROM treatment_credit_entries WHERE booking_payment_account_id=$1 AND entry_type IN ('apply','undo')),0)
+    + COALESCE((SELECT SUM(amount) FROM booking_gift_voucher_allocations WHERE booking_payment_account_id=$1),0) AS credits`, [account.id])).rows[0];
+  const outstanding = Math.max(0, moneyCents(account.canonical_amount_due) - Math.round(Number(totals.net_paid) * 100) - moneyCents(totals.credits));
+  return outstanding;
+}
+
 function createClientTreatmentCreditService({ db = pool, authorityResolver = resolveCalendarAuthority } = {}) {
   async function requireAccess(queryable, adminId, capability, lock = false) {
     if (lock) await queryable.query('SELECT id FROM staff_admin_accounts WHERE id=$1 AND active=TRUE FOR SHARE', [id(adminId)]);
@@ -90,40 +128,13 @@ function createClientTreatmentCreditService({ db = pool, authorityResolver = res
   }
   async function apply(input) {
     return transaction(input, 'apply', async (queryable, data) => {
-      // Same order as canonical payments: appointment, group, account, wallet.
-      const appointment = (await queryable.query('SELECT * FROM appointments WHERE id=$1 FOR UPDATE', [data.appointmentId])).rows[0];
-      if (!appointment || Number(appointment.crm_v2_client_id) !== data.clientId || appointment.client_id != null) fail('CREDIT_BOOKING_FORBIDDEN', 'Choose a completed treatment for this client.', 403);
-      if (appointment.status !== 'completed') fail('CREDIT_TREATMENT_INCOMPLETE', 'Credit can only be applied after treatment is completed. Booking deposits need payment.');
-      const member = (await queryable.query('SELECT group_id FROM appointment_group_members WHERE appointment_id=$1', [data.appointmentId])).rows[0];
-      let group = null;
-      if (member) {
-        group = (await queryable.query('SELECT * FROM appointment_groups WHERE id=$1 FOR UPDATE', [member.group_id])).rows[0];
-        const unsafe = await queryable.query(`SELECT 1 FROM appointment_group_members gm JOIN appointments a ON a.id=gm.appointment_id
-          WHERE gm.group_id=$1 AND (a.status<>'completed' OR a.crm_v2_client_id IS DISTINCT FROM $2::bigint OR a.client_id IS NOT NULL) LIMIT 1`, [member.group_id, data.clientId]);
-        if (!group || group.status !== 'completed' || unsafe.rowCount) fail('CREDIT_GROUP_REVIEW', 'Linked treatments must all be completed for this same client before credit can be applied.');
-      }
-      const due = group ? group.final_total ?? group.total_price : appointment.total_price;
-      if (due == null || String(appointment.currency || 'ZAR') !== 'ZAR') fail('CREDIT_PRICE_UNAVAILABLE', 'Confirm the Rand treatment price before applying credit.');
-      const column = group ? 'appointment_group_id' : 'appointment_id', target = group?.id || appointment.id;
-      let account = (await queryable.query(`SELECT * FROM booking_payment_accounts WHERE ${column}=$1 FOR UPDATE`, [target])).rows[0];
-      if (!account) account = (await queryable.query(`INSERT INTO booking_payment_accounts(${column},canonical_amount_due,currency,pricing_revision)
-        VALUES($1,$2,'ZAR',$3) RETURNING *`, [target, due, group?.updated_at || appointment.updated_at])).rows[0];
-      if (Number(account.canonical_amount_due) !== Number(due) || account.currency !== 'ZAR') fail('CREDIT_PRICE_CHANGED', 'Review the payment account and changed treatment price before applying credit.');
-      const pendingDeposit = await queryable.query("SELECT id FROM booking_deposit_requirements WHERE payment_account_id=$1 AND state='awaiting' FOR UPDATE", [account.id]);
-      if (pendingDeposit.rowCount) fail('CREDIT_DEPOSIT_REQUIRED', 'The booking deposit remains due. Treatment credit cannot pay a deposit.');
-      const openRequest = await queryable.query("SELECT id FROM payment_requests WHERE payment_account_id=$1 AND state IN ('created','link_issued','pending') LIMIT 1", [account.id]);
-      if (openRequest.rowCount) fail('CREDIT_OPEN_PAYMENT', 'Review the active payment link before applying credit, so the client is not charged twice.');
+      const account = await lockCompletedTreatmentAccount(queryable, data);
       const lockedWallet = await wallet(queryable, data.clientId);
       const available = (await queryable.query(`SELECT e.id,${SOURCE_REMAINING_SQL} AS remaining
         FROM treatment_credit_entries e WHERE e.wallet_id=$1 AND e.entry_type='issue' ORDER BY e.id`, [lockedWallet.id])).rows;
       const balance = available.reduce((sum, row) => sum + moneyCents(row.remaining), 0), requested = moneyCents(data.amount);
       if (requested > balance) fail('CREDIT_EXCEEDS_BALANCE', 'This amount is greater than the remaining treatment credit.');
-      const totals = (await queryable.query(`SELECT
-        COALESCE((SELECT SUM(CASE WHEN entry_type='payment' THEN amount ELSE -amount END) FROM payment_ledger_entries WHERE payment_account_id=$1),0) AS net_paid,
-        COALESCE((SELECT SUM(amount) FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0)
-        + COALESCE((SELECT SUM(amount) FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0)
-        + COALESCE((SELECT -SUM(signed_amount) FROM treatment_credit_entries WHERE booking_payment_account_id=$1 AND entry_type IN ('apply','undo')),0) AS credits`, [account.id])).rows[0];
-      const outstanding = Math.max(0, moneyCents(account.canonical_amount_due) - Math.round(Number(totals.net_paid) * 100) - moneyCents(totals.credits));
+      const outstanding = await remainingTreatmentCents(queryable, account);
       if (requested > outstanding) fail('CREDIT_EXCEEDS_TREATMENT', 'This amount is greater than the remaining treatment balance.');
       const entry = await save(queryable, data, lockedWallet.id, account.id);
       let remaining = requested;
@@ -192,4 +203,4 @@ function createClientTreatmentCreditService({ db = pool, authorityResolver = res
   async function canView(adminId) { await requireAccess(db, adminId, CAPABILITIES.VIEW); return true; }
   return { issue, apply, reduce, undo, getClientModel, requireAccess, canView };
 }
-module.exports = { CAPABILITIES, APPLIED_SQL, TreatmentCreditError, normalized, createClientTreatmentCreditService };
+module.exports = { CAPABILITIES, APPLIED_SQL, TreatmentCreditError, normalized, createClientTreatmentCreditService, lockCompletedTreatmentAccount, remainingTreatmentCents };

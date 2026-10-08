@@ -92,3 +92,37 @@ CREATE CONSTRAINT TRIGGER treatment_credit_entry_position AFTER INSERT ON treatm
 CREATE CONSTRAINT TRIGGER treatment_credit_allocation_position AFTER INSERT ON treatment_credit_allocations
   DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION treatment_credit_check_position();
 COMMENT ON TABLE treatment_credit_entries IS 'Noncash treatment credit. Manual append-only corrections preserve source evidence. No expiry, automatic return, cash receipt, invoice-payment or Rewards semantics. Preserve evidence in forward fixes.';
+
+-- Additive fourth allocation table approved by owner on 8 October 2026, 17:26 UTC.
+-- Execution remains held behind recovery, exact account/grant and final verification gates.
+-- No existing records, voucher balances, grants or policies are changed by this migration.
+CREATE TABLE booking_gift_voucher_allocations (
+  id BIGSERIAL PRIMARY KEY,
+  voucher_ledger_entry_id BIGINT NOT NULL UNIQUE REFERENCES gift_voucher_ledger_entries(id) ON DELETE RESTRICT,
+  booking_payment_account_id BIGINT NOT NULL REFERENCES booking_payment_accounts(id) ON DELETE RESTRICT,
+  appointment_id BIGINT NOT NULL REFERENCES appointments(id) ON DELETE RESTRICT,
+  crm_v2_client_id BIGINT NOT NULL REFERENCES crm_v2_clients(id) ON DELETE RESTRICT,
+  actor_admin_id BIGINT NOT NULL REFERENCES staff_admin_accounts(id) ON DELETE RESTRICT,
+  amount NUMERIC(12,2) NOT NULL CHECK (amount>0),
+  operation_id UUID NOT NULL UNIQUE,
+  request_fingerprint TEXT NOT NULL CHECK (request_fingerprint ~ '^[a-f0-9]{64}$'),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX booking_gift_voucher_allocations_account ON booking_gift_voucher_allocations(booking_payment_account_id);
+CREATE INDEX booking_gift_voucher_allocations_client ON booking_gift_voucher_allocations(crm_v2_client_id,created_at);
+CREATE FUNCTION booking_gift_voucher_allocation_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN RAISE EXCEPTION 'Booking gift voucher allocation evidence is immutable'; END $$;
+CREATE TRIGGER booking_gift_voucher_allocation_immutable BEFORE UPDATE OR DELETE ON booking_gift_voucher_allocations
+  FOR EACH ROW EXECUTE FUNCTION booking_gift_voucher_allocation_immutable();
+CREATE FUNCTION booking_gift_voucher_allocation_source() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM gift_voucher_ledger_entries e JOIN gift_vouchers v ON v.id=e.voucher_id
+      JOIN gift_voucher_orders o ON o.id=v.order_id
+      WHERE e.id=NEW.voucher_ledger_entry_id AND e.entry_type='redemption' AND e.amount=NEW.amount
+        AND e.actor_admin_id=NEW.actor_admin_id AND v.recipient_crm_v2_client_id=NEW.crm_v2_client_id AND o.state='paid')
+  THEN RAISE EXCEPTION 'Invalid booking gift voucher redemption evidence'; END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER booking_gift_voucher_allocation_source BEFORE INSERT ON booking_gift_voucher_allocations
+  FOR EACH ROW EXECUTE FUNCTION booking_gift_voucher_allocation_source();
+COMMENT ON TABLE booking_gift_voucher_allocations IS 'Immutable noncash booking settlement linked to existing purchased gift voucher redemption. Does not create cash, expiry/transfer policy or automatic cancellation/refund restoration.';

@@ -147,7 +147,7 @@ function createShilohRewardsService({db=pool,notifyClient=null}={}) {
 
   async function accountOutstanding(queryable,account,due) {
     if(!account)return due;
-    const row=(await queryable.query(`SELECT COALESCE((SELECT SUM(CASE WHEN entry_type='payment' THEN amount ELSE -amount END) FROM payment_ledger_entries WHERE payment_account_id=$1),0) AS net_paid,COALESCE((SELECT SUM(amount) FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0) AS rewards,COALESCE((SELECT SUM(amount) FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0) AS welcome,COALESCE((SELECT -SUM(signed_amount) FROM treatment_credit_entries WHERE booking_payment_account_id=$1 AND entry_type IN ('apply','undo')),0) AS treatment`,[account.id])).rows[0];
+    const row=(await queryable.query(`SELECT COALESCE((SELECT SUM(CASE WHEN entry_type='payment' THEN amount ELSE -amount END) FROM payment_ledger_entries WHERE payment_account_id=$1),0) AS net_paid,COALESCE((SELECT SUM(amount) FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0) AS rewards,COALESCE((SELECT SUM(amount) FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0) AS welcome,COALESCE((SELECT -SUM(signed_amount) FROM treatment_credit_entries WHERE booking_payment_account_id=$1 AND entry_type IN ('apply','undo')),0)+COALESCE((SELECT SUM(amount) FROM booking_gift_voucher_allocations WHERE booking_payment_account_id=$1),0) AS treatment`,[account.id])).rows[0];
     return Math.max(0,Number(due)-Number(row.net_paid||0)-Number(row.rewards||0)-Number(row.welcome||0)-Number(row.treatment||0));
   }
 
