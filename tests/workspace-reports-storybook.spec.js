@@ -48,6 +48,16 @@ for (const viewport of [
     await expect(page.getByText('Gift-voucher order #10', {exact:true})).toBeVisible();
     await page.locator('.financial-card[href="#financial-balances"]').click();
     await expect(page.getByRole('link',{name:'Linked booking #14',exact:true})).toHaveAttribute('href', '/calendar/payments/appointments/738');
+    await page.locator('#financial-treatment-credit > summary').click();
+    await page.locator('#financial-gift-voucher-use > summary').click();
+    await expect(page.locator('#financial-treatment-credit')).toContainText('SYNTHETIC-INVOICE-101');
+    await expect(page.locator('#financial-treatment-credit')).toContainText('Synthetic Reception');
+    await expect(page.locator('#financial-gift-voucher-use')).toContainText('Redemption entry #42');
+    await expect(page.locator('#financial-gift-voucher-use')).toContainText('Redemption does not create another cash receipt');
+    await expect(page.locator('#financial-gift-voucher-use').getByRole('link',{name:'Appointment #732',exact:true})).toHaveAttribute('href','/calendar/payments/appointments/732');
+    const noncashAxe=await new AxeBuilder({page}).analyze();expect(noncashAxe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await page.screenshot({path:testInfo.outputPath(`reports-noncash-provenance-${viewport.name}.png`),fullPage:true});
     await page.getByRole('link', {name:'Record expense',exact:true}).click();
     await expect(page.getByLabel('Amount paid (R)',{exact:true})).toBeVisible();
     await expect(page.getByText('Massage oils · R125,50',{exact:true})).toBeVisible();

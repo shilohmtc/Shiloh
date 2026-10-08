@@ -33,6 +33,8 @@ function reportModel() {
         balances: [{appointment_id:732,starts_at:'2026-10-05T08:00:00Z',amount_due:'590',net_paid:'195',credits:'100'},
           {appointment_id:738,group_id:14,starts_at:'2026-10-09T08:00:00Z',amount_due:'1360',net_paid:'680',credits:'0',mixed_status:true}],
       }), period, vouchers: {issued_count:1,redeemed_value:500,available_balance:2500,expired_balance:100},
+      treatmentCredits: [{id:31,created_at:'2026-10-06T08:00:00Z',entry_type:'apply',credit_type:'service_exchange',amount:'50',reason:'Applied to completed treatment',reference:'SYNTHETIC-INVOICE-101',source_entry_id:30,appointment_id:732,actor_name:'Synthetic Reception'}],
+      giftVoucherApplications: [{id:41,created_at:'2026-10-06T09:00:00Z',appointment_id:732,voucher_code:'SV-AAAAAAAAAAAA',voucher_ledger_entry_id:42,actor_name:'Synthetic Reception',amount:'50'}],
       records: { ...financialRecords.summarizeExpenses([
         {id:1,paid_on:'2026-10-05',category:'supplies',description:'Massage oils',reference:'Receipt 104',amount:'125.50',method:'cash',created_by:'Christel'},
         {id:2,paid_on:'2026-10-06',category:'laundry',description:'Laundry service',reference:'Invoice 17',amount:'250',method:'manual_eft',created_by:'Jean-Pierre'},
