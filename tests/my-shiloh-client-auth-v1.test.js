@@ -91,7 +91,7 @@ test('every normal browser is an installation doorway while standalone mode keep
 
   assert.match(presentation, /data-install-gate/);
   assert.match(presentation, /Add My Shiloh to your phone/);
-  assert.match(presentation, /Register if you’re new, or sign in if you already have a profile/);
+  assert.match(presentation, /Sign in with an SMS code, or use your saved passkey/);
   assert.match(presentation, /data-install-gate-status aria-live="polite"><\/p>/);
   assert.doesNotMatch(presentation, /data-install-verification-gate/);
   assert.match(presentation, /data-client-sms-start/);

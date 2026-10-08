@@ -38,6 +38,7 @@ function makeHarness({ owner = { status: 'found', client: { id: '17' } }, sendFa
     },
   };
   let issued = 0;
+  let remembered;
   let verified = 0;
   const crmService = {
     normalizeMobile, normalizeName,
@@ -51,8 +52,9 @@ function makeHarness({ owner = { status: 'found', client: { id: '17' } }, sendFa
     if (sendFails) throw new Error('provider down');
     return 'provider-123';
   } };
-  const sessionService = { async issueVerifiedSmsSession({ normalizedMobile, crmV2ClientId }) {
+  const sessionService = { async issueVerifiedSmsSession({ normalizedMobile, crmV2ClientId, keepSignedIn }) {
     issued += 1;
+    remembered = keepSignedIn;
     assert.equal(normalizedMobile, '27821234567');
     assert.equal(crmV2ClientId, '17');
     return { ok: true, client: { id: '17' }, sessionToken: 'session', expiresAt: new Date(at.getTime() + 10000) };
@@ -62,7 +64,7 @@ function makeHarness({ owner = { status: 'found', client: { id: '17' } }, sendFa
     now: () => at, randomBytes: (size) => Buffer.alloc(size, 7),
     logger: { warn(message) { warnings.push(message); } },
   });
-  return { service, queries, warnings, get challenge() { return challenge; }, get sent() { return sent; }, issued: () => issued, verified: () => verified };
+  return { service, queries, warnings, get challenge() { return challenge; }, get sent() { return sent; }, remembered: () => remembered, issued: () => issued, verified: () => verified };
 }
 
 test('SMS gateway uses POST with private headers, requires accepted message id and sends one short code', async () => {
@@ -176,4 +178,13 @@ test('daily SMS budgets reject repeated requests before gateway delivery and ser
   assert.deepEqual(JSON.parse(h.warnings[0]), {
     event: 'my_shiloh_sms_daily_budget_near_limit', sends: 40, limit: 50,
   });
+});
+
+test('verified SMS forwards explicit remembered choice after exact identity proof', async () => {
+  for (const keepSignedIn of [true, false]) {
+    const h = makeHarness();
+    const start = await h.service.start({ mobile: '0821234567', name: 'Synthetic Client' });
+    assert.equal((await h.service.finish({ browserToken: start.browserToken, code: h.sent.code, keepSignedIn })).ok, true);
+    assert.equal(h.remembered(), keepSignedIn);
+  }
 });

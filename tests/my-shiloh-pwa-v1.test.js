@@ -225,8 +225,8 @@ test('SMS enrollment appears in the installed guest app only when enabled', () =
   assert.match(page, /data-client-sms-start/);
   assert.match(page, /data-client-sms-open="register"/);
   assert.match(page, /data-client-sms-choice aria-labelledby="home-sms-title" hidden/);
-  assert.match(page, /Already registered, but using a new phone\?/);
-  assert.match(page, /Verify your number with an SMS code, then save a passkey for future sign-ins/);
+  assert.match(page, /New to My Shiloh\? Start here too\./);
+  assert.match(page, /Verify your mobile number/);
   assert.match(page, /data-client-sms-complete hidden/);
   assert.match(page, /6-digit code/);
   assert.doesNotMatch(page, /Use WhatsApp temporarily|Open WhatsApp to verify|use WhatsApp|Verified with WhatsApp|data-client-auth-code-disclosure/);
@@ -236,7 +236,7 @@ test('SMS enrollment appears in the installed guest app only when enabled', () =
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v54/);
+  assert.match(worker, /my-shiloh-shell-v55/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /booking\.js/);

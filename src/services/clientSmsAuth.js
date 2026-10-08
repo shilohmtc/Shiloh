@@ -212,7 +212,7 @@ function createClientSmsAuthService({
     }
   }
 
-  async function finish({ browserToken, code, requestFingerprintHash = null } = {}) {
+  async function finish({ browserToken, code, requestFingerprintHash = null, keepSignedIn = false } = {}) {
     if (!/^[A-Za-z0-9_-]{43}$/.test(String(browserToken || '')) || !/^\d{6}$/.test(String(code || ''))) {
       return { ok: false, code: 'SMS_INVALID_CODE' };
     }
@@ -258,7 +258,7 @@ function createClientSmsAuthService({
       }
       const session = await sessionService.issueVerifiedSmsSession({
         transaction: client, crmV2ClientId: verified.client.id,
-        normalizedMobile: challenge.normalized_mobile, requestFingerprintHash,
+        normalizedMobile: challenge.normalized_mobile, requestFingerprintHash, keepSignedIn,
       });
       if (!session.ok) {
         await client.query('ROLLBACK');

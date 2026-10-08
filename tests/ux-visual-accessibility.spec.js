@@ -119,7 +119,7 @@ test('redeemed welcome offer does not appear on the signed-out Home', async ({ p
   await page.evaluate(() => { Object.defineProperty(navigator, 'standalone', { value:true, configurable:true }); });
   await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
   const home = page.locator('[data-view="home"]');
-  await home.getByRole('button', { name:'Register', exact:true }).click();
+  await home.getByRole('button', { name:'Sign in with an SMS code', exact:true }).click();
   await expect(home.getByRole('button', { name:'Send my SMS code' })).toBeVisible();
   await expect(home.locator('.welcome-voucher')).toHaveCount(0);
 });
@@ -186,7 +186,7 @@ test('SMS and passkey sign-in fits one phone column', async ({ page }, testInfo)
   const help = home.locator('#home-recovery-help');
   await expect(home.getByRole('button', { name:'Sign in with a passkey' })).toBeVisible();
   await expect(smsChoice).toBeHidden();
-  await home.getByRole('button', { name:'Register', exact:true }).click();
+  await home.getByRole('button', { name:'Sign in with an SMS code', exact:true }).click();
   await expect(form.getByRole('button', { name:'Send my SMS code' })).toBeVisible();
   const formBox = await form.boundingBox();
   const helpBox = await help.boundingBox();
@@ -267,7 +267,7 @@ test('My Shiloh guest booking stays behind secure sign-in on phone and desktop',
     expect(signInOrder).toEqual(['passkey', 'sms', 'recovery']);
     await expect(frame.locator('[data-view="home"] .service-scroll-hint')).toHaveCount(0);
     await frame.locator('[data-view="home"] .passkey-recovery summary').click();
-    await expect(frame.locator('[data-view="home"] .passkey-recovery')).toContainText('choose the new-phone option above');
+    await expect(frame.locator('[data-view="home"] .passkey-recovery')).toContainText('sign in with an SMS code above');
     await frame.locator('[data-view="home"] [data-client-sms-open="recover"]').click();
     await expect(frame.locator('[data-view="home"] [data-client-sms-start]')).toBeVisible();
     await page.screenshot({ path:testInfo.outputPath(`my-shiloh-recovery-expanded-${viewport.name}.png`), fullPage:true, animations:'disabled' });
@@ -2106,7 +2106,7 @@ test('My Shiloh install doorway is clear, contained and accessible on Phone and 
     await expect(gate).toBeVisible();
     await expect(page.locator('[data-app-frame]')).toBeHidden();
     await expect(page.getByRole('heading', { name: 'Add My Shiloh to your phone.' })).toBeVisible();
-    await expect(gate.locator('.install-gate__sequence')).toHaveText('After installing, open My Shiloh from your Home Screen. Register if you’re new, or sign in if you already have a profile.');
+    await expect(gate.locator('.install-gate__sequence')).toHaveText('After installing, open My Shiloh from your Home Screen. Sign in with an SMS code, or use your saved passkey.');
     await expect(gate.locator('[data-install-gate-status]')).toBeEmpty();
     await expect(page.getByRole('button', { name: 'Show install steps' })).toBeVisible();
     await expect(gate.locator('[data-client-sms-start], [data-passkey-sign-in]')).toHaveCount(0);
@@ -2195,8 +2195,8 @@ test('My Shiloh guest sign-in shows SMS and passkey choices without legacy code 
     const home = appFrame.locator('[data-view="home"]');
     await expect(home.getByRole('button', { name:'Sign in with a passkey' })).toBeVisible();
     await expect(home.locator('[data-client-sms-choice]')).toBeHidden();
-    await expect(home.getByRole('button', { name:'Register', exact:true })).toBeVisible();
-    await expect(home.getByText('Already registered, but using a new phone?')).toBeVisible();
+    await expect(home.getByRole('button', { name:'Sign in with an SMS code', exact:true })).toBeVisible();
+    await expect(home.getByText('New to My Shiloh? Start here too.')).toBeVisible();
     await expect(home.locator('[data-client-auth-code-disclosure]')).toHaveCount(0);
     await page.screenshot({ path:testInfo.outputPath(`my-shiloh-guest-sign-in-${viewport.name}.png`), fullPage:true });
     const accessibility = await new AxeBuilder({ page }).include('[data-view="home"] .hero').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
@@ -2485,8 +2485,8 @@ test('My Shiloh client sign-in has no legacy WhatsApp control on phone', async (
   await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
   const home = page.locator('[data-view="home"]');
   await expect(home.locator('[data-client-sms-choice]')).toBeHidden();
-    await expect(home.getByRole('button', { name:'Register', exact:true })).toBeVisible();
-  await home.getByRole('button', { name:'Register', exact:true }).click();
+    await expect(home.getByRole('button', { name:'Sign in with an SMS code', exact:true })).toBeVisible();
+  await home.getByRole('button', { name:'Sign in with an SMS code', exact:true }).click();
   await expect(home.locator('[data-client-sms-start]')).toBeVisible();
   await expect(home.locator('[data-passkey-sign-in]')).toBeVisible();
   await expect(home.locator('[data-client-auth-start], [data-client-auth-code-disclosure]')).toHaveCount(0);
@@ -3312,7 +3312,7 @@ test('actionable Workspace errors retain accessible Phone/Desktop recovery contr
 });
 
 
-test('My Shiloh Register and new-phone recovery share verified SMS with retained inputs', async ({ page }, testInfo) => {
+test('My Shiloh SMS entry reconnects profiles with retained inputs', async ({ page }, testInfo) => {
   await page.addInitScript(() => { Object.defineProperty(navigator, 'standalone', { value:true, configurable:true }); });
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
     await page.setViewportSize(viewport);
@@ -3327,11 +3327,11 @@ test('My Shiloh Register and new-phone recovery share verified SMS with retained
     await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
     const home = page.locator('[data-view="home"]');
     const panel = home.locator('[data-client-sms-choice]');
-    const register = home.getByRole('button', { name:'Register', exact:true });
+    const register = home.getByRole('button', { name:'Sign in with an SMS code', exact:true });
     await register.focus();
     await page.keyboard.press('Enter');
     await expect(panel).toBeVisible();
-    await expect(panel.getByRole('heading', { name:'Register for My Shiloh' })).toBeVisible();
+    await expect(panel.getByRole('heading', { name:'Sign in to My Shiloh' })).toBeVisible();
     await expect(panel.getByLabel('Full name')).toBeFocused();
     await panel.getByLabel('Full name').fill('Synthetic Client');
     await panel.getByLabel('Mobile number').fill('082 123 4567');
@@ -3346,8 +3346,8 @@ test('My Shiloh Register and new-phone recovery share verified SMS with retained
     await expect(register).toHaveAttribute('aria-expanded', 'true');
     await expect(panel.getByLabel('Full name')).toHaveValue('Synthetic Client');
     await expect(panel.getByLabel('Mobile number')).toHaveValue('082 123 4567');
-    await home.getByRole('button', { name:'Already registered, but using a new phone?' }).click();
-    await expect(panel.getByRole('heading', { name:'Open My Shiloh on your new phone' })).toBeVisible();
+    await home.getByRole('button', { name:'New to My Shiloh? Start here too.' }).click();
+    await expect(panel.getByRole('heading', { name:'Sign in to My Shiloh' })).toBeVisible();
     await expect(panel.getByLabel('Mobile number')).toBeFocused();
     await expect(panel.getByLabel('Full name')).toHaveValue('Synthetic Client');
     expect(sends).toHaveLength(0);
@@ -3356,20 +3356,20 @@ test('My Shiloh Register and new-phone recovery share verified SMS with retained
     await expect(panel.getByLabel('Mobile number')).toHaveValue('082 123 4567');
     expect(sends).toEqual([{ name:'Synthetic Client', mobile:'082 123 4567' }]);
     await register.click();
-    await expect(panel.getByRole('heading', { name:'Register for My Shiloh' })).toBeVisible();
+    await expect(panel.getByRole('heading', { name:'Sign in to My Shiloh' })).toBeVisible();
     const axe = await new AxeBuilder({ page }).include('[data-view="home"] .hero')
       .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(axe.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path:testInfo.outputPath(`my-shiloh-register-${viewport.name}.png`), fullPage:true, animations:'disabled' });
-    await home.getByRole('button', { name:'Already registered, but using a new phone?' }).click();
+    await home.getByRole('button', { name:'New to My Shiloh? Start here too.' }).click();
     await page.screenshot({ path:testInfo.outputPath(`my-shiloh-new-phone-${viewport.name}.png`), fullPage:true, animations:'disabled' });
     rejectSend = false;
     await panel.getByRole('button', { name:'Send my SMS code' }).click();
     await expect(panel.getByLabel('6-digit code')).toBeVisible();
     await expect(panel.getByLabel('6-digit code')).toBeFocused();
     await panel.getByLabel('6-digit code').fill('123456');
-    const recover = home.getByRole('button', { name:'Already registered, but using a new phone?' });
+    const recover = home.getByRole('button', { name:'New to My Shiloh? Start here too.' });
     await recover.click();
     await expect(panel).toBeHidden();
     await expect(recover).toHaveAttribute('aria-expanded', 'false');

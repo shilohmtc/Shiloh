@@ -126,8 +126,8 @@ export const NewPhoneRecovery = {
     const surface = productionSurface(null, { passkeysAvailable: true, smsAvailable: true });
     const home = surface.querySelector('[data-view="home"]');
     home.querySelector('[data-client-sms-choice]').hidden = false;
-    home.querySelector('[data-client-sms-title]').textContent = 'Open My Shiloh on your new phone';
-    home.querySelector('[data-client-sms-copy]').textContent = 'Verify the mobile number on your existing Shiloh profile with an SMS code, then save a passkey on this phone.';
+    home.querySelector('[data-client-sms-title]').textContent = 'Sign in to My Shiloh';
+    home.querySelector('[data-client-sms-copy]').textContent = 'Verify your mobile number. We’ll reconnect your existing profile, or help you complete your details. A passkey is optional.';
     home.querySelector('[data-client-sms-open="recover"]').setAttribute('aria-expanded', 'true');
     return surface;
   },

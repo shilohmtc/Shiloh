@@ -7,7 +7,7 @@ const { pool } = require('../db/pool');
 const { getPublicServiceCatalogue } = require('../services/publicServiceCatalogue');
 const { normalizePublicServiceId } = require('../services/publicPresentation');
 const { resolveWhatsAppNumber } = require('../services/publicWhatsApp');
-const { createClientBrowserSessionService, SESSION_TTL_MS, CHALLENGE_TTL_MS } = require('../services/clientBrowserSession');
+const { createClientBrowserSessionService, REMEMBERED_SESSION_TTL_MS, CHALLENGE_TTL_MS } = require('../services/clientBrowserSession');
 const { createClientPasskeyEnrollmentService } = require('../services/clientPasskeyEnrollment');
 const { createClientPasskeyAuthenticationService } = require('../services/clientPasskeyAuthentication');
 const { createClientPasskeyRecoveryService } = require('../services/clientPasskeyRecovery');
@@ -136,7 +136,7 @@ function createMyShilohRouter({
     res.setHeader('Set-Cookie', [
       serializeClientSessionCookie(result.sessionToken, {
         env,
-        maxAgeSeconds: Math.min(sessionSeconds, Math.floor(SESSION_TTL_MS / 1000)),
+        maxAgeSeconds: Math.min(sessionSeconds, Math.floor(REMEMBERED_SESSION_TTL_MS / 1000)),
       }),
       serializeExpiredClientAuthCookie({ env }),
       serializeExpiredClientSmsAuthCookie({ env }),
@@ -602,6 +602,7 @@ function createMyShilohRouter({
         browserToken: clientPasskeyAuthTokenFromRequest(req, env),
         response: req.body?.response,
         requestFingerprintHash: requestFingerprintHash(req),
+        keepSignedIn: req.body?.keepSignedIn === true,
       });
       if (!result.ok) {
         return res.status(result.code === 'CLIENT_PASSKEY_DISABLED' ? 404 : 401).json({
@@ -634,6 +635,7 @@ function createMyShilohRouter({
       setNoStoreJson(res);
       const result = await passkeyRecoveryService.redeem({
         code: req.body?.code, requestFingerprintHash: requestFingerprintHash(req),
+        keepSignedIn: req.body?.keepSignedIn === true,
       });
       if (!result.ok) return res.status(result.code === 'CLIENT_RECOVERY_RATE_LIMITED' ? 429 : 401).json({
         error: result.code === 'CLIENT_RECOVERY_RATE_LIMITED' ? 'Too many tries. Please wait ten minutes.' :
@@ -671,6 +673,7 @@ function createMyShilohRouter({
       const result = await smsAuthService.finish({
         browserToken: clientSmsAuthTokenFromRequest(req, env), code: String(req.body?.code || '').replace(/\s/g, ''),
         requestFingerprintHash: requestFingerprintHash(req),
+        keepSignedIn: req.body?.keepSignedIn === true,
       });
       if (!result.ok) return res.status(result.code === 'SMS_PROFILE_UNAVAILABLE' ? 409 : 401).json({
         error: result.code === 'SMS_PROFILE_UNAVAILABLE' ?
@@ -711,6 +714,15 @@ function createMyShilohRouter({
     }
   });
 
+  router.post('/my-shiloh/auth/sessions/revoke-others', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const result = await sessionService.revokeOtherSessions(req.myShilohClientSession);
+      if (!result.ok) return res.status(428).json({ error: 'Sign in again before signing out other sessions.' });
+      return res.json({ revoked: true });
+    } catch (error) { return next(error); }
+  });
+
   router.post('/my-shiloh/auth/logout', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
     try {
       await sessionService.revokeSession(req.myShilohClientSession.sessionId, 'logout');
@@ -729,6 +741,7 @@ function createMyShilohRouter({
       res.setHeader('Set-Cookie', [
         serializeExpiredClientSessionCookie({ env }),
         serializeExpiredClientAuthCookie({ env }),
+        serializeExpiredClientSmsAuthCookie({ env }),
         serializeExpiredClientPasskeyAuthCookie({ env }),
       ]);
       return res.status(204).send();
