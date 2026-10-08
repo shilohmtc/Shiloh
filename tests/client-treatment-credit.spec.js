@@ -34,6 +34,7 @@ for (const [name, viewport] of [['phone', { width: 390, height: 844 }], ['deskto
       const result = await new AxeBuilder({ page }).analyze(); expect(result.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
       fs.mkdirSync('artifacts/treatment-credit', { recursive: true });
       await page.screenshot({ path: `artifacts/treatment-credit/${name}-${state}.png`, fullPage: true });
+      if(state==='credit-history'&&name!=='desktop'){await page.evaluate(()=>document.documentElement.style.fontSize='200%');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);expect(await page.locator('.credit-history li>div>span').evaluateAll(nodes=>nodes.every(node=>{const range=document.createRange();range.selectNodeContents(node);return range.getClientRects().length===1;}))).toBe(true);await page.screenshot({path:`artifacts/treatment-credit/${name}-enlarged-history.png`,fullPage:true});}
     }
   });
   test(`treatment credit ${name}: secure interface, confirmations, duplicate taps and stable retry`, async ({ page, context }) => {
