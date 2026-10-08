@@ -14,6 +14,7 @@ for (const viewport of [
     if (viewport.largeText) await page.addStyleTag({content:'html{font-size:200%}'});
     const surface = page.locator('.workspace-report-story');
     await expect(surface).toBeVisible();
+    expect(await page.locator('img').evaluateAll(images=>images.every(img=>img.complete&&img.naturalWidth>0))).toBe(true);
     await expect(page.getByRole('heading', { name: 'Clinic reports', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Clinic summary', exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Today', exact: true })).toHaveAttribute('href', /range=today/);

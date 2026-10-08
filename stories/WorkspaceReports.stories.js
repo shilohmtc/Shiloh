@@ -5,6 +5,7 @@ import financialReports from '../src/domain/workspaceFinancialReports.js';
 const { renderReportsPage } = reportsPresentation;
 
 function productionSurface(pageHtml) {
+  pageHtml = String(pageHtml).replaceAll('/calendar/pwa/icon-192.png', '/assets/pwa/shiloh-pwa-192.png');
   const styles = [...String(pageHtml).matchAll(/<style>([\s\S]*?)<\/style>/g)]
     .map(match => match[1])
     .join('\n');
