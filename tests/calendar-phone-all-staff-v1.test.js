@@ -40,7 +40,9 @@ test('#895 visible events are laid out inside their selected practitioner column
   assert.match(script, /--phone-staff-column-tints/);
   assert.match(script, /applyStaffTone\(node,id\)/);
   assert.match(script, /week-time-grid\{overflow:hidden!important/);
-  assert.doesNotMatch(script, /scrollLeft/);
+  // Compact still clips the grid; optional Roomier now scrolls a uniformly scaled surface.
+  assert.match(script, /body\.dataset\.phoneLayout=roomier\?'roomier':'compact'/);
+  assert.match(script, /roomierSurface\.scrollLeft=0/);
 });
 
 test('#895 client behavior consumes the server-rendered week strip without rebuilding navigation', () => {

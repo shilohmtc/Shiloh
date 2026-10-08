@@ -2,6 +2,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {phoneStaffDefaultIncluded,PHONE_SELECTED_DAY_START,PHONE_SELECTED_DAY_END}=require('../src/presentation/calendarPhoneDisplayRange');
 const {renderPhoneCalendarUtilityBar}=require('../src/presentation/calendarPhoneCompactV2');
+const {calendarPhoneRoomierStyles}=require('../src/presentation/calendarPhoneRoomierUx');
 const vm=require('node:vm');
 const postcss=require('postcss');
 const {calendarPhoneAllStaffClientScript}=require('../src/presentation/calendarPhoneAllStaffUx');
@@ -10,6 +11,7 @@ test('phone enhancement CSS fragments close their media and rule blocks independ
   const fragments=[...script.matchAll(/style\.textContent(?:\+)?=('(?:\\.|[^'\\])*');/g)].map(match=>vm.runInNewContext(match[1]));
   assert.ok(fragments.length>0,'generated styles must be inspected');
   assert.ok(fragments.some(css=>css.includes('.booking-notes-indicator{background:')),'include the separate Notes media rule');
+  fragments.push(calendarPhoneRoomierStyles());
   for(const css of fragments)assert.doesNotThrow(()=>postcss.parse(css),css.slice(0,120));
 });
 test('phone display defaults use exact canonical identities without excluding similar names',()=>{
