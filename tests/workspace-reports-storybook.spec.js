@@ -85,7 +85,8 @@ for (const viewport of [
     const geometry = await page.evaluate(() => ({
       viewportWidth: window.innerWidth,
       documentWidth: document.documentElement.scrollWidth,
-      overflowing: [...document.querySelectorAll('.workspace-report-story *')].filter(node=>node.getClientRects().length && node.getBoundingClientRect().right > innerWidth + 1 && !node.closest('.financial-table-scroll')).map(node=>({tag:node.tagName,classes:node.className,text:node.textContent.slice(0,100)})).slice(0,12),
+      scrollX: window.scrollX,
+      overflowing: [...document.querySelectorAll('.workspace-report-story *')].filter(node=>node.getClientRects().length && node.getBoundingClientRect().right + scrollX > innerWidth + 1 && !node.closest('.financial-table-scroll')).map(node=>({tag:node.tagName,classes:node.className,right:node.getBoundingClientRect().right + scrollX,text:node.textContent.slice(0,100)})).slice(0,12),
       targets: [...document.querySelectorAll('.workspace-report-story button,.workspace-report-story input,.workspace-report-story select,.workspace-report-story a,.workspace-report-story summary')]
         .filter(node => node.getClientRects().length > 0)
         .map(node => ({
@@ -94,7 +95,7 @@ for (const viewport of [
           height: node.getBoundingClientRect().height,
         })),
     }));
-    expect(geometry.documentWidth,JSON.stringify(geometry.overflowing)).toBeLessThanOrEqual(geometry.viewportWidth + 1);
+    expect(geometry.documentWidth,JSON.stringify({scrollX:geometry.scrollX,overflowing:geometry.overflowing})).toBeLessThanOrEqual(geometry.viewportWidth + 1);
     if (viewport.width <= 700) {
       expect(geometry.targets.filter(target => target.height < 43 || target.width < 43), 'Phone controls must retain 44px touch targets').toEqual([]);
     }
