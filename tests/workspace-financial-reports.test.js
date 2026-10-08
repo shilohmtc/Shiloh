@@ -4,7 +4,7 @@ const express = require('express');
 const { once } = require('node:events');
 const { resolvePeriod } = require('../src/services/workspaceReports');
 const { summarizeFinancials, createWorkspaceFinancialReportsService } = require('../src/services/workspaceFinancialReports');
-const { financialOverview, financialSections, financialCsv } = require('../src/presentation/workspaceFinancialReportsUx');
+const { financialOverview, financialContext, financialSections, financialCsv } = require('../src/presentation/workspaceFinancialReportsUx');
 const { createWorkspaceReportsRouter } = require('../src/routes/workspaceReports');
 
 const now = new Date('2026-10-05T16:00:00Z');
@@ -112,8 +112,13 @@ test('financial markup escapes source labels, links to existing payment authorit
   finance.treatments[0].treatment = '=HYPERLINK("bad")';
   finance.services[0].name = '<script>bad</script>';
   const overview = financialOverview({ financial: finance, period, staffEarnings: { staff: [{ commission: 118, reviewCount: 0 }] } });
-  assert.match(overview, /Expenses and saved cash-up closes are not recorded/);
-  assert.match(overview, /Payment of commission is not tracked/);
+  assert.match(financialContext(finance), /Expenses and saved cash-up closes are not recorded/);
+  assert.match(financialContext(finance), /Payment of commission is not tracked/);
+  assert.equal((overview.match(/class="financial-card jump-link"/g) || []).length, 3);
+  assert.match(overview, /Refunds R25,00 · net R275,00/);
+  assert.match(overview, /Missing amounts are excluded from totals/);
+  assert.match(overview, /Whole clinic/);
+  assert.doesNotMatch(overview, /Calculated commission|Saved cash-up days|Recorded expenses/);
   assert.match(financialSections(finance), /\/calendar\/payments\/appointments\/1/);
   assert.doesNotMatch(financialSections(finance), /<script>bad/);
   assert.match(financialCsv(finance), /"'=HYPERLINK/);

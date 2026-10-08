@@ -193,32 +193,36 @@ async function main() {
       await page.locator('[data-workspace-reports="true"]').waitFor();
       assert.equal(await page.getByRole('heading', { name: 'Clinic reports', exact: true }).isVisible(), true);
       assert.equal(await page.getByRole('button', { name: 'View report' }).isVisible(), true);
-      assert.equal(await page.getByRole('heading', { name: 'Team booking time' }).isVisible(), true);
+      assert.equal(await page.getByRole('heading', { name: 'Team', exact: true }).isVisible(), true);
+      assert.equal(await page.getByRole('heading', { name: 'Team booking time' }).isVisible(), false);
       const hasEarnings = adminId !== 51;
-      assert.equal(await page.getByRole('heading',{name:'Financial overview',exact:true}).count(),hasEarnings ? 1 : 0);
+      assert.equal(await page.getByRole('heading',{name:'Clinic summary',exact:true}).count(),hasEarnings ? 1 : 0);
       assert.equal((await context.request.get(`${origin}/calendar/reports/financial.csv?from=2026-08-17&to=2026-09-15`)).status(),hasEarnings ? 200 : 403);
-      assert.equal(await page.getByRole('heading', { name: 'Team treatment value & commission' }).count(), hasEarnings ? 1 : 0);
+      assert.equal(await page.locator('#staff-earnings').count(), hasEarnings ? 1 : 0);
       assert.equal(await page.locator('details[data-report-section][open]').count(), 0);
       await page.screenshot({path:path.join(OUT_DIR, `${viewport.name}-${adminId}-reports-compact.png`),fullPage:true});
-      if (hasEarnings) await page.getByRole('link', {name:'Earnings',exact:true}).click();
+      await page.getByRole('navigation',{name:'Report sections'}).getByRole('link', {name:'Team',exact:true}).click();
+      if (hasEarnings) await page.locator('#staff-earnings > summary').click();
       if (hasEarnings) assert.match(await page.locator('#staff-earnings').getByRole('link', { name: 'Appointment #732', exact: true }).getAttribute('href'), /appointment=732/);
       assert.equal((await context.request.get(`${origin}/calendar/reports/sections.js`)).status(),200);
       const scriptResponse = await context.request.get(`${origin}/calendar/reports/commission.js`);
       assert.equal(scriptResponse.status(), hasEarnings ? 200 : 403);
+      await page.getByRole('navigation',{name:'Report sections'}).getByRole('link', {name:'Activity',exact:true}).click();
       assert.equal(await page.getByRole('heading', { name: 'Treatments booked' }).isVisible(), true);
       assert.equal(await page.getByRole('heading', { name: 'New and returning clients' }).isVisible(), true);
 
       assert.equal((await context.request.get(`${origin}/calendar/reports/finance-records.js`)).status(),hasEarnings ? 200 : 403);
       assert.equal((await context.request.get(`${origin}/calendar/reports/cashup-preview?date=2026-09-15`)).status(),hasEarnings ? 200 : 403);
       if (hasEarnings) {
-        await page.getByRole('link',{name:'Expenses',exact:true}).click();
+        await page.getByRole('navigation',{name:'Report sections'}).getByRole('link', {name:'Money',exact:true}).click();
+        await page.getByRole('link',{name:'Record expense',exact:true}).click();
         await page.getByLabel('Description',{exact:true}).fill('Browser proof oils');
         await page.getByLabel('Category',{exact:true}).selectOption('supplies');
         await page.getByLabel('Paid from',{exact:true}).selectOption('cash');
         await page.getByLabel('Amount paid (R)',{exact:true}).fill('25');
         await page.getByRole('button',{name:'Save expense',exact:true}).click();
         await page.getByRole('heading',{name:'Browser proof oils · R25,00',exact:true}).waitFor();
-        await page.getByRole('link',{name:'Cash-up',exact:true}).click();
+        await page.getByRole('link',{name:'Review / close cash-up',exact:true}).click();
         if (viewport.name==='phone') assert.equal(await page.evaluate(()=>document.querySelector('#financial-cashup > summary').getBoundingClientRect().top >= document.querySelector('.jump-row').getBoundingClientRect().bottom + 2),true,'Cash-up heading must clear the sticky section menu');
         await page.getByRole('button',{name:'Review this day',exact:true}).click();
         await page.getByText('Day reviewed. Enter your cash count and save.',{exact:true}).waitFor();
@@ -230,12 +234,12 @@ async function main() {
         await page.getByRole('button',{name:'Save daily close',exact:true}).click();
         await page.getByRole('heading',{name:'2026-09-15 · Close 1',exact:true}).waitFor();
         await page.screenshot({path:path.join(OUT_DIR, `${viewport.name}-${adminId}-cashup-saved.png`),fullPage:true});
-        await page.getByRole('link',{name:'Expenses',exact:true}).click();
+        await page.getByRole('link',{name:'Record expense',exact:true}).click();
         await page.getByText('Correct this expense',{exact:true}).click();
         await page.getByLabel('Reason for correction',{exact:true}).fill('Duplicate expense');
         await page.getByRole('button',{name:'Void expense',exact:true}).click();
         await page.getByText('Voided by '+principals[adminId].display_name+': Duplicate expense',{exact:true}).waitFor();
-        await page.getByRole('link',{name:'Cash-up',exact:true}).click();
+        await page.getByRole('link',{name:'Review / close cash-up',exact:true}).click();
         await page.getByRole('button',{name:'Review this day',exact:true}).click();
         await page.getByText('Day reviewed. Enter your cash count and save.',{exact:true}).waitFor();
         assert.match(await page.locator('[data-cashup-source]').innerText(),/Entries changed since this close/);
@@ -246,12 +250,14 @@ async function main() {
         assert.equal(denied.status(),403);
       }
 
-      if (hasEarnings) { await page.getByRole('link',{name:'Expenses',exact:true}).click(); }
+      if (hasEarnings) { await page.getByRole('navigation',{name:'Report sections'}).getByRole('link',{name:'Money',exact:true}).click(); await page.getByRole('link',{name:'Record expense',exact:true}).click(); }
       await page.getByRole('link', {name:'Team',exact:true}).click();
+      await page.locator('#team-time > summary').click();
       assert.equal(await page.locator('#team-time').getAttribute('open'), '');
-      await page.getByRole('link', {name:'Treatments',exact:true}).click();
+      await page.getByRole('navigation',{name:'Report sections'}).getByRole('link', {name:'Activity',exact:true}).click();
+      await page.locator('#treatments > summary').click();
       assert.equal(await page.locator('#treatments .service-list').isVisible(), true);
-      await page.getByRole('navigation',{name:'Report sections'}).getByRole('link', {name:'Clients',exact:true}).click();
+      await page.locator('#clients > summary').click();
       assert.equal(await page.locator('#clients .client-grid').isVisible(), true);
 
       const bodyText = await page.locator('body').innerText();
@@ -293,6 +299,7 @@ async function main() {
         accessibilitySeriousOrCritical: 0,
       });
       await page.goto(`${origin}/calendar/reports?range=30d#treatments`, {waitUntil:'networkidle'});
+      assert.equal(await page.locator('#activity').getAttribute('open'), '');
       assert.equal(await page.locator('#treatments').getAttribute('open'), '');
       assert.equal(await page.locator('#treatments .service-list').isVisible(), true);
       await context.close();

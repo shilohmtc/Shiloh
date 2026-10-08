@@ -14,7 +14,7 @@ function financialStyles() {
 }
 
 function panel(id, heading, copy, contents) {
-  return `<details class="panel" id="${id}" data-report-section><summary class="panel-heading"><div><span class="eyebrow">Finances</span><h2>${heading}</h2><p>${copy}</p></div></summary><div class="panel-body">${contents}</div></details>`;
+  return `<details class="panel" id="${id}" data-report-section><summary class="panel-heading"><div><span class="eyebrow">Finances</span><h3>${heading}</h3><p>${copy}</p></div></summary><div class="panel-body">${contents}</div></details>`;
 }
 function table(headings, rows) {
   return `<div class="financial-table-scroll" tabindex="0" role="region" aria-label="${escapeHtml(headings.join(', '))}"><table class="financial-table"><thead><tr>${headings.map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${rows || `<tr><td colspan="${headings.length}">No records for this period.</td></tr>`}</tbody></table></div>`;
@@ -24,29 +24,32 @@ function financialOverview(model) {
   const finance = model.financial;
   if (!finance) return '';
   const current = finance.current;
-  const commission = (model.staffEarnings?.staff || []).reduce((sum, row) => sum + row.commission, 0);
-  const review = (model.staffEarnings?.staff || []).reduce((sum, row) => sum + row.reviewCount, 0);
   const params = new URLSearchParams({ from: model.period.startKey, to: model.period.endInclusiveKey });
   const cards = [
     ['Completed treatment value', money(current.treatmentValue), `${current.completedCount} completed visits · before Rewards and welcome-voucher credits.`, '#financial-treatments'],
-    ['Money received', money(current.received), `Includes ${money(current.voucherReceipts)} gift-voucher sales. Refunds ${money(current.refunded)} · net ${money(current.netReceived)}.`, '#financial-receipts'],
-    ['Booking balances to collect', money(finance.outstanding), 'Current balances on bookings with completed visits in this period. Linked bookings counted once.', '#financial-balances'],
-    ...(finance.records ? [['Recorded expenses', money(finance.records.total), `${finance.records.count} paid entries captured. Expense completeness has not been confirmed.`, '#financial-expenses']] : []),
-    ...(finance.records ? [['Saved cash-up days', String(new Set(finance.records.closes.map(row => row.business_date)).size), 'Days with a saved close in this period. Review each day for later entries.', '#financial-cashup']] : []),
-    ['Calculated commission', money(commission), `${model.selectedStaffId ? 'Selected practitioner' : 'Whole team'} · ${review ? `${review} entries need review. ` : ''}Payment of commission is not tracked yet.`, '#staff-earnings'],
+    ['Recorded money received', money(current.received), `Includes ${money(current.voucherReceipts)} gift-voucher sales. Refunds ${money(current.refunded)} · net ${money(current.netReceived)}.`, '#financial-receipts'],
+    ['Balances needing collection review', money(finance.outstanding), 'Current balances on bookings with completed visits in this period. Linked bookings counted once; review credits and voucher redemptions before collection.', '#financial-balances'],
   ];
+  return `<section class="financial-overview" aria-label="Financial overview" data-financial-reports>
+    <div class="financial-heading"><div><h2>Clinic summary</h2><p>Whole clinic · South African dates and Rand. The team filter does not change these totals.</p></div><a class="button" href="/calendar/reports/financial.csv?${escapeHtml(params.toString())}">Export finances</a></div>
+    <div class="financial-cards">${cards.map(([label, value, copy, href]) => `<a class="financial-card jump-link" href="${href}"><span>${label}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(copy)}</small></a>`).join('')}</div>
+    ${current.unpricedCount || finance.balanceReviewCount ? `<p class="financial-alert">${current.unpricedCount} completed treatment prices and ${finance.balanceReviewCount} booking balances need review. Missing amounts are excluded from totals.</p>` : ''}
+    <p class="financial-note">Treatment value follows the appointment date. Receipts and refunds follow when they were recorded, including deposits for future visits. These figures are separate; adding them together would count money twice.</p>
+  </section>`;
+}
+
+function financialContext(finance) {
+  if (!finance) return '';
+  const current = finance.current;
   const comparison = finance.comparison;
   const comparisonCopy = comparison.incomplete ? 'Some treatment prices need review in one or both periods.'
     : comparison.percent == null ? 'No percentage comparison: the earlier period has no recorded treatment value.'
       : `${comparison.percent > 0 ? '+' : ''}${comparison.percent}% compared with the earlier period.`;
-  return `<section class="financial-overview" aria-label="Financial overview" data-financial-reports>
-    <div class="financial-heading"><div><h2>Financial overview</h2><p>Clinic totals · ${model.selectedStaffId ? 'The team filter applies to commission and operational reports below. ' : ''}South African dates and Rand.</p></div><a class="button" href="/calendar/reports/financial.csv?${escapeHtml(params.toString())}">Export finances</a></div>
-    <div class="financial-cards">${cards.map(([label, value, copy, href]) => `<a class="financial-card jump-link" href="${href}"><span>${label}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(copy)}</small></a>`).join('')}</div>
+  return `<details class="panel" id="financial-comparison" data-report-section><summary class="panel-heading"><div><h3>Treatment value compared with the previous period</h3><p>Completed treatments, not money received or profit.</p></div></summary><div class="panel-body">
     <div class="financial-comparison"><strong>${escapeHtml(money(finance.previous.treatmentValue))} → ${escapeHtml(money(current.treatmentValue))}</strong><span>${escapeHtml(comparisonCopy)}<br>${escapeHtml(dateLabel(finance.period.previousStartKey))}–${escapeHtml(dateLabel(new Date(new Date(finance.period.previousTo).getTime() - 1).toLocaleDateString('en-CA', { timeZone: 'Africa/Johannesburg' })))} versus the selected period.</span></div>
-    ${current.unpricedCount || finance.balanceReviewCount ? `<p class="financial-alert">${current.unpricedCount} completed treatment prices and ${finance.balanceReviewCount} booking balances need review. Missing amounts are excluded from totals.</p>` : ''}
-    <p class="financial-note">Treatment value follows the appointment date. Receipts and refunds follow when they were recorded, including deposits for future visits. These figures are separate; adding them together would count money twice.</p>
+  </div></details>
     <div class="financial-unavailable">${finance.records ? 'Paid expenses and daily cash-up closes can be recorded below. Profit and commission still payable are not calculated; commission expense entries do not allocate payments to individual practitioners.' : 'Expenses and saved cash-up closes are not recorded here yet. Profit, commission paid, and commission still payable will appear once those records are available.'}</div>
-  </section>`;
+  <p class="financial-note">Payment of commission is not tracked yet. Calculated commission is in Team.</p>`;
 }
 
 function financialSections(finance) {
@@ -56,7 +59,7 @@ function financialSections(finance) {
   const daily = panel('financial-daily', 'Daily financial trend', 'Completed treatment value and recorded receipts side by side.', table(['Day', 'Treatment value', 'Received', 'Refunds', 'Net received'], dailyRows));
   const methods = finance.methods.map(row => `<tr><th scope="row">${escapeHtml(row.name)}</th><td>${escapeHtml(money(row.received))}</td><td>${escapeHtml(money(row.refunded))}</td><td>${escapeHtml(money(row.netReceived))}</td></tr>`).join('');
   const receipts = finance.receipts.map(row => `<tr><td>${escapeHtml(dateLabel(row.date))}<small>${row.source === 'package' ? 'Prepaid treatment package' : row.source === 'voucher' ? `Gift-voucher order #${escapeHtml(row.voucherOrderId)}` : appointmentLink(row.appointmentId)}${row.groupId ? ` · Linked booking #${escapeHtml(row.groupId)}` : ''}</small></td><td>${escapeHtml(row.method)}</td><td>${row.type === 'refund' ? 'Refund' : 'Payment'}</td><td>${escapeHtml(money(row.amount))}</td></tr>`).join('');
-  const cash = panel('financial-receipts', 'Receipts & cash-up summary', 'Booking payments, prepaid packages and gift-voucher sales by method. Cash is recorded movement, not the drawer balance. Refunds cover the booking ledger.', table(['Method', 'Received', 'Refunds', 'Net received'], methods) + '<h3>Payment history</h3>' + table(['Recorded date / booking', 'Method', 'Type', 'Amount'], receipts));
+  const cash = panel('financial-receipts', 'Recorded receipts & refunds', 'Booking payments, prepaid packages and gift-voucher sales by method. Cash is recorded movement, not the drawer balance. Refunds cover the booking ledger.', table(['Method', 'Received', 'Refunds', 'Net received'], methods) + '<h3>Payment history</h3>' + table(['Recorded date / booking', 'Method', 'Type', 'Amount'], receipts));
   const balanceRows = finance.unpaid.map(row => `<tr><td>${appointmentLink(row.appointmentId, row.groupId ? `Linked booking #${row.groupId}` : `Appointment #${row.appointmentId}`)}<small>${row.mixedStatus ? 'Includes other visits with a different status; review the whole booking.' : 'Completed booking'} · ${escapeHtml(dateLabel(row.date))}</small></td><td>${escapeHtml(money(row.amountDue))}</td><td>${escapeHtml(money(row.netPaid))}</td><td>${escapeHtml(money(row.credits))}</td><td>${escapeHtml(money(row.outstanding))}</td></tr>`).join('');
   const balance = panel('financial-balances', 'Balances to collect', 'Current unpaid booking balances, after refunds and applied Rewards or welcome-voucher credits. Linked booking payments are not split across visits. Gift-voucher redemptions are recorded separately and have no booking allocation yet; review those balances before collection.', table(['Booking', 'Booking value', 'Net received', 'Credits applied', 'Outstanding'], balanceRows));
   const serviceRows = finance.services.map(row => `<tr><td>${escapeHtml(row.name)}${row.reviewCount ? `<small>${row.reviewCount} prices need review</small>` : ''}</td><td>${row.count}</td><td>${escapeHtml(money(row.value))}</td></tr>`).join('');
@@ -98,4 +101,4 @@ function financialCsv(finance) {
   }
   return '\uFEFF' + rows.map(row => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
 }
-module.exports = { financialStyles, financialOverview, financialSections, financialCsv, csvCell };
+module.exports = { financialStyles, financialOverview, financialContext, financialSections, financialCsv, csvCell };

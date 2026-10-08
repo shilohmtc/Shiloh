@@ -25,8 +25,32 @@ jobs:
         run: npm ci
       - name: Run focused authority regressions
         run: node --test tests/calendar-appointment-authority-v1.test.js tests/calendar-appointment-treatment-price-v1.test.js
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Verify installed Chrome for authority proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The unchanged authority proof prefers these installed browsers.
+          chrome_binary="${CHROME_BIN:-}"
+          if [ -z "$chrome_binary" ]; then
+            for candidate in /usr/bin/google-chrome /usr/bin/google-chrome-stable /usr/bin/chromium; do
+              if [ -x "$candidate" ]; then
+                chrome_binary="$candidate"
+                break
+              fi
+            done
+          fi
+          if [ -z "$chrome_binary" ] || [ ! -x "$chrome_binary" ]; then
+            echo "::error::An executable installed Chrome or Chromium is required for the authority proof."
+            exit 1
+          fi
+          browser_version="$("$chrome_binary" --version)"
+          case "$browser_version" in
+            *Chrome*|*Chromium*) ;;
+            *) echo "::error::The installed browser did not identify itself as Chrome or Chromium."; exit 1 ;;
+          esac
+          mkdir -p artifacts/calendar-appointment-authority-v1
+          printf 'Executable: %s\nVersion: %s\n' "$chrome_binary" "$browser_version" | tee artifacts/calendar-appointment-authority-v1/browser-environment.txt
+          printf 'CHROME_BIN=%s\n' "$chrome_binary" >> "$GITHUB_ENV"
       - name: Prove Phone and Desktop appointment authority UX
         run: npm run test:browser:appointment-authority
       - name: Upload Phone and Desktop evidence

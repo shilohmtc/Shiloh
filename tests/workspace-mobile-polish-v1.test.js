@@ -213,7 +213,7 @@ test('Reports and Clinic hours inherit the one direct eight-category Workspace s
   assert.match(reportHtml, /data-workspace-drawer-toggle/);
   assert.match(reportHtml, /data-workspace-destination="reports" aria-current="page">Clinic reports/);
   assert.match(reportHtml, /src="\/calendar\/workspace\/nav\.js" defer/);
-  assert.match(reportHtml, /data-label="Available"/);
+  assert.match(reportHtml, /data-label="Unbooked staff-hours"/);
   assert.match(reportHtml, /\.capacity-table\{display:block;min-width:0\}/);
   assert.match(reportHtml, /content:attr\(data-label\)/);
 

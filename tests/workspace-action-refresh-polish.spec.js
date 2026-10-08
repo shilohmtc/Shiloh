@@ -134,7 +134,14 @@ for (const viewport of [{name:'phone',width:390,height:844},{name:'desktop',widt
         await expect(page.locator('[data-dashboard-deposits]')).toContainText('Synthetic Aloe');
         await expect(page.locator('[data-dashboard-today]')).toContainText('Open calendar');
       }else{
-        await expect(page.locator('a[href="#financial-daily"]')).toHaveCount(1);
+        const sections=page.getByRole('navigation',{name:'Report sections'});
+        await expect(sections.getByRole('link')).toHaveCount(3);
+        await expect(sections.getByRole('link',{name:'Money',exact:true})).toHaveAttribute('href','#money');
+        await page.addScriptTag({content:require('../src/presentation/workspaceReportsUx').reportSectionsClientScript()});
+        await sections.getByRole('link',{name:'Money',exact:true}).click();
+        await expect(page.locator('#money')).toHaveAttribute('open','');
+        await page.locator('#financial-daily > summary').click();
+        await expect(page.locator('#financial-daily .financial-table')).toBeVisible();
         await expect(page.locator('#financial-daily')).toHaveCount(1);
         await expect(page.locator('#financial-receipts')).toHaveCount(1);
         await expect(page.locator('#financial-balances')).toHaveCount(1);
