@@ -11,3 +11,12 @@ export const FourStaff = {
     return frame;
   },
 };
+
+export const Roomier = {
+  render: () => {
+    const frame = FourStaff.render();
+    frame.title = 'Synthetic phone Calendar — optional Roomier';
+    frame.srcdoc = frame.srcdoc.replace('view=week&phoneStaff=default', 'view=week&phoneStaff=default&phoneLayout=roomier');
+    return frame;
+  },
+};
