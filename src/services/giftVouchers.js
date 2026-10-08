@@ -40,6 +40,20 @@ function requestKey(randomBytes = crypto.randomBytes) { return randomBytes(24).t
 function voucherCode(key) { return `SV-${crypto.createHash('sha256').update(String(key)).digest('hex').slice(0, 12).toUpperCase()}`; }
 function publicVoucherPath(key) { return `/gift-vouchers/${key}`; }
 
+function assertGiftVoucherUsable(voucher, amount) {
+  if (voucher.state !== 'active') throw new GiftVoucherError('VOUCHER_NOT_ACTIVE', 'This voucher is not active.', 409);
+  const expiresAt = voucherExpiryTimestamp(voucher.valid_until);
+  if (expiresAt != null && expiresAt < Date.now()) throw new GiftVoucherError('VOUCHER_EXPIRED', 'This voucher has expired.', 409);
+  if (Number(amount) > Number(voucher.balance)) throw new GiftVoucherError('VOUCHER_EXCEEDS_BALANCE', 'The redemption is greater than the voucher balance.', 409);
+}
+// Both standalone and booking-linked redemption use the same value authority under the voucher row lock.
+async function consumeGiftVoucherValue(queryable,{voucher,amount,operationKey,adminId,notes=null}) {
+  assertGiftVoucherUsable(voucher,amount);
+  const entry=(await queryable.query(`INSERT INTO gift_voucher_ledger_entries(voucher_id,entry_type,amount,operation_key,actor_admin_id,notes) VALUES($1,'redemption',$2,$3,$4,$5) RETURNING id`,[voucher.id,amount,operationKey,adminId,notes])).rows[0];
+  await queryable.query(`UPDATE gift_vouchers SET balance=balance-$2,state=CASE WHEN balance-$2=0 THEN 'redeemed' ELSE 'active' END,updated_at=NOW() WHERE id=$1`,[voucher.id,amount]);
+  return entry;
+}
+
 function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(), randomBytes = crypto.randomBytes } = {}) {
   async function policy(queryable = db) {
     const row = (await queryable.query(`SELECT validity_mode,validity_months FROM gift_voucher_settings WHERE singleton=TRUE`)).rows[0] || {};
@@ -453,12 +467,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
       if (!voucher) throw new GiftVoucherError('VOUCHER_NOT_FOUND', 'Voucher not found.', 404);
       const replay = (await client.query(`SELECT id FROM gift_voucher_ledger_entries WHERE operation_key=$1`, [`redeem:${operation}`])).rows[0];
       if (!replay) {
-        if (voucher.state !== 'active') throw new GiftVoucherError('VOUCHER_NOT_ACTIVE', 'This voucher is not active.', 409);
-        const expiresAt = voucherExpiryTimestamp(voucher.valid_until);
-        if (expiresAt != null && expiresAt < Date.now()) throw new GiftVoucherError('VOUCHER_EXPIRED', 'This voucher has expired.', 409);
-        if (Number(normalizedAmount) > Number(voucher.balance)) throw new GiftVoucherError('VOUCHER_EXCEEDS_BALANCE', 'The redemption is greater than the voucher balance.', 409);
-        await client.query(`INSERT INTO gift_voucher_ledger_entries(voucher_id,entry_type,amount,operation_key,actor_admin_id,notes) VALUES($1,'redemption',$2,$3,$4,$5)`, [voucher.id, normalizedAmount, `redeem:${operation}`, operator.id, cleanText(notes, 240, 'Notes', { optional: true })]);
-        await client.query(`UPDATE gift_vouchers SET balance=balance-$2,state=CASE WHEN balance-$2=0 THEN 'redeemed' ELSE 'active' END,updated_at=NOW() WHERE id=$1`, [voucher.id, normalizedAmount]);
+        await consumeGiftVoucherValue(client,{voucher,amount:normalizedAmount,operationKey:`redeem:${operation}`,adminId:operator.id,notes:cleanText(notes,240,'Notes',{optional:true})});
       }
       const current = (await client.query(`SELECT voucher_code,balance,state FROM gift_vouchers WHERE id=$1`, [voucher.id])).rows[0];
       await client.query('COMMIT'); return { status: replay ? 'idempotent_replay' : 'redeemed', voucher: current };
@@ -517,4 +526,4 @@ async function issueVerifiedVoucher(client, request, providerTransactionId) {
   return { order, voucher: issued };
 }
 
-module.exports = { CAPABILITIES, WALK_IN_PAYMENT_METHODS, GiftVoucherError, voucherAmount, walkInPaymentMethod, voucherCode, publicVoucherPath, createGiftVoucherService, issueVerifiedVoucher };
+module.exports = { assertGiftVoucherUsable, consumeGiftVoucherValue, CAPABILITIES, WALK_IN_PAYMENT_METHODS, GiftVoucherError, voucherAmount, walkInPaymentMethod, voucherCode, publicVoucherPath, createGiftVoucherService, issueVerifiedVoucher };

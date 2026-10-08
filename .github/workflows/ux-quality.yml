@@ -70,6 +70,7 @@ jobs:
         with:
           name: ux-visual-accessibility-evidence
           path: |
+            artifacts/treatment-credit/*.png
             artifacts/ux-playwright-results
             artifacts/ux-playwright-report
             artifacts/workspace-deposits
@@ -124,5 +125,25 @@ jobs:
             artifacts/ux-playwright-results/**/tablet-*.png
             artifacts/ux-playwright-results/**/desktop-*.png
             artifacts/ux-playwright-results/**/clinic-ipad-*.png
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Bind focused credit and booking-payment screenshots to exact source
+        if: success()
+        env:
+          EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          EVIDENCE_PROVENANCE: github-actions-synthetic
+        run: node scripts/treatment-credit-evidence-manifest.js
+      - name: Upload focused credit and booking-payment review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: treatment-credit-booking-payment-review
+          path: |
+            artifacts/treatment-credit/*.png
+            artifacts/treatment-credit/manifest.json
+            artifacts/ux-playwright-results/client-treatment-credit-*/test-failed-*.png
+            artifacts/ux-playwright-results/client-treatment-credit-*/trace.zip
+            artifacts/ux-playwright-results/client-treatment-credit-*/error-context.md
           if-no-files-found: error
           retention-days: 14

@@ -1,0 +1,13 @@
+'use strict';
+const fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process'),{createHash}=require('node:crypto');
+const root=path.resolve(__dirname,'..'),directory=path.join(root,'artifacts/treatment-credit');
+const git=(...args)=>execFileSync('git',args,{cwd:root,encoding:'utf8'}).trim();
+const head=git('rev-parse','HEAD'),tree=git('rev-parse','HEAD^{tree}');
+if(process.env.EVIDENCE_EXPECTED_HEAD&&process.env.EVIDENCE_EXPECTED_HEAD!==head)throw Error('Evidence source is not the expected exact PR head.');
+if(git('status','--porcelain','--untracked-files=no'))throw Error('Evidence requires a clean committed source tree.');
+const files=fs.readdirSync(directory).filter(name=>name.endsWith('.png')).sort().map(name=>{const bytes=fs.readFileSync(path.join(directory,name));if(bytes.subarray(0,8).toString('hex')!=='89504e470d0a1a0a')throw Error('Invalid PNG evidence.');return {file:name,bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex'),width:bytes.readUInt32BE(16),height:bytes.readUInt32BE(20)};});
+for(const viewport of ['phone','desktop','narrow'])for(const state of ['credit-history','view-only','corrected-history','correction-open','booking-payment','booking-deposit','booking-cancelled','gift-partial-preview','gift-confirmation','credit-partial-preview','credit-retry','actual-money-remainder'])if(!files.some(f=>f.file===`${viewport}-${state}.png`))throw Error(`Missing ${viewport}-${state} evidence.`);
+for(const viewport of ['phone','narrow'])for(const state of ['enlarged-history','booking-enlarged'])if(!files.some(f=>f.file===`${viewport}-${state}.png`))throw Error(`Missing large-text ${viewport}-${state} evidence.`);
+const size=files.reduce((sum,f)=>sum+f.bytes,0);if(size>=30*1024*1024)throw Error('Focused evidence exceeds the review size limit.');
+const manifest={schema:1,createdAt:new Date().toISOString(),source:{commit:head,tree,expectedHead:process.env.EVIDENCE_EXPECTED_HEAD||null},provenance:process.env.EVIDENCE_PROVENANCE||'local-synthetic-installed-chrome',syntheticOnly:true,productionRenderers:true,fullResolution:true,runId:process.env.GITHUB_RUN_ID||null,files,totalPngBytes:size};
+fs.writeFileSync(path.join(directory,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');console.log(JSON.stringify({head,tree,files:files.length,totalPngBytes:size,provenance:manifest.provenance}));

@@ -116,6 +116,8 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
               GREATEST(0,a.total_price
                 - COALESCE((SELECT SUM(CASE WHEN ple.entry_type='payment' THEN ple.amount ELSE -ple.amount END) FROM payment_ledger_entries ple WHERE ple.payment_account_id=bpa.id),0)
                 - COALESCE((SELECT SUM(bla.amount) FROM booking_loyalty_allocations bla WHERE bla.booking_payment_account_id=bpa.id AND bla.state='applied'),0)
+                - COALESCE((SELECT -SUM(tc.signed_amount) FROM treatment_credit_entries tc WHERE tc.booking_payment_account_id=bpa.id AND tc.entry_type IN ('apply','undo')),0)
+                - COALESCE((SELECT SUM(amount) FROM booking_gift_voucher_allocations WHERE booking_payment_account_id=bpa.id),0)
                 - COALESCE((SELECT SUM(wva.amount) FROM booking_welcome_voucher_allocations wva WHERE wva.booking_payment_account_id=bpa.id AND wva.state='applied'),0)) AS outstanding
          FROM appointments a
          LEFT JOIN booking_payment_accounts bpa ON bpa.appointment_id=a.id
@@ -243,10 +245,11 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
       const totals = (await client.query(
         `SELECT COALESCE((SELECT SUM(CASE WHEN entry_type='payment' THEN amount ELSE -amount END) FROM payment_ledger_entries WHERE payment_account_id=$1),0) AS net_paid,
                 COALESCE((SELECT SUM(amount) FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0) AS rewards,
-                COALESCE((SELECT SUM(amount) FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0) AS welcome`,
+                COALESCE((SELECT SUM(amount) FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0) AS welcome,
+                COALESCE((SELECT -SUM(signed_amount) FROM treatment_credit_entries WHERE booking_payment_account_id=$1 AND entry_type IN ('apply','undo')),0)+COALESCE((SELECT SUM(amount) FROM booking_gift_voucher_allocations WHERE booking_payment_account_id=$1),0) AS treatment`,
         [account.id],
       )).rows[0];
-      const outstanding = Number(account.canonical_amount_due) - Number(totals.net_paid) - Number(totals.rewards) - Number(totals.welcome);
+      const outstanding = Number(account.canonical_amount_due) - Number(totals.net_paid) - Number(totals.rewards) - Number(totals.welcome) - Number(totals.treatment || 0);
       if (outstanding < Number(voucher.amount)) throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_BALANCE_TOO_LOW', 'Less than R100 remains on this booking.', 409, ['Choose another qualifying booking.', 'Or keep this voucher for a later treatment.']);
       await client.query(
         `INSERT INTO booking_welcome_voucher_allocations(welcome_voucher_id,booking_payment_account_id,amount,applied_by_client_session_id,operation_key)

@@ -2,9 +2,9 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
-const os = require('node:os');
 const path = require('node:path');
-const { spawn, spawnSync } = require('node:child_process');
+const { spawnSync } = require('node:child_process');
+const { chromium } = require('@playwright/test');
 const { once } = require('node:events');
 const express = require('express');
 const { createWorkspaceClinicHoursRouter } = require('../src/routes/workspaceClinicHours');
@@ -30,34 +30,18 @@ async function poll(load, accept, timeoutMs = 15000) {
   if (lastError) throw lastError;
   throw new Error('Timed out waiting for Clinic hours proof');
 }
-async function connectCdp(webSocketUrl) {
-  const socket = new WebSocket(webSocketUrl);
-  await new Promise((resolve, reject) => {
-    socket.addEventListener('open', resolve, { once: true });
-    socket.addEventListener('error', reject, { once: true });
-  });
-  let nextId = 1;
-  const pending = new Map();
-  socket.addEventListener('message', event => {
-    const message = JSON.parse(String(event.data));
-    if (!message.id) return;
-    const waiter = pending.get(message.id);
-    if (!waiter) return;
-    pending.delete(message.id);
-    clearTimeout(waiter.timeout);
-    if (message.error) waiter.reject(new Error(`${message.error.code}: ${message.error.message}`));
-    else waiter.resolve(message.result || {});
-  });
+function timedCdp(session) {
   return {
-    send(method, params = {}, timeoutMs = 15000) {
-      const id = nextId++;
-      return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => { pending.delete(id); reject(new Error(`Chrome DevTools command timed out: ${method}`)); }, timeoutMs);
-        pending.set(id, { resolve, reject, timeout });
-        socket.send(JSON.stringify({ id, method, params }));
-      });
+    async send(method, params = {}, timeoutMs = 15000) {
+      let timer;
+      try {
+        return await Promise.race([
+          session.send(method, params),
+          new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`Chrome DevTools command timed out: ${method}`)), timeoutMs); }),
+        ]);
+      } finally { clearTimeout(timer); }
     },
-    close() { socket.close(); },
+    close() { return session.detach(); },
   };
 }
 async function evaluate(cdp, expression) {
@@ -91,7 +75,6 @@ async function main() {
   const executable = chromeExecutable();
   if (!executable) throw new Error('Chrome is required for authenticated Clinic hours proof');
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'shiloh-clinic-hours-proof-'));
   let buildCalls = 0;
   let mutationCalls = 0;
   const sessionService = {
@@ -114,27 +97,13 @@ async function main() {
     server.listen(0, '127.0.0.1');
     await once(server, 'listening');
     const origin = `http://127.0.0.1:${server.address().port}`;
-    const profileDirectory = path.join(directory, 'profile');
-    fs.mkdirSync(profileDirectory, { recursive: true });
-    chrome = spawn(executable, [
-      '--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--hide-scrollbars',
-      '--remote-allow-origins=*', '--remote-debugging-port=0', `--user-data-dir=${profileDirectory}`, 'about:blank',
-    ], { stdio: ['ignore', 'ignore', 'pipe'] });
-    let browserErrors = '';
-    chrome.stderr.on('data', chunk => { browserErrors = `${browserErrors}${String(chunk)}`.slice(-8000); });
-    const devToolsActivePort = path.join(profileDirectory, 'DevToolsActivePort');
-    const debuggingPort = await poll(() => {
-      if (chrome.exitCode != null) throw new Error(`Chrome exited before DevTools became ready (code ${chrome.exitCode}).\n${browserErrors}`);
-      if (!fs.existsSync(devToolsActivePort)) return null;
-      const [portLine] = fs.readFileSync(devToolsActivePort, 'utf8').trim().split(/\r?\n/);
-      const port = Number(portLine);
-      return Number.isSafeInteger(port) && port > 0 ? port : null;
-    }, Boolean);
-    const targets = await poll(
-      async () => (await fetch(`http://127.0.0.1:${debuggingPort}/json/list`)).json(),
-      value => Array.isArray(value) && value.some(target => target.type === 'page' && target.webSocketDebuggerUrl)
-    );
-    cdp = await connectCdp(targets.find(target => target.type === 'page').webSocketDebuggerUrl);
+    // Keep the approved preinstalled executable and the existing 15-second startup bound.
+    // Playwright uses its pipe transport; no downloaded browser or DevToolsActivePort file.
+    chrome = await chromium.launch({ executablePath: executable, headless: true, timeout: 15000,
+      args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--hide-scrollbars'], });
+    const context = await chrome.newContext({ viewport: null });
+    const page = await context.newPage();
+    cdp = timedCdp(await context.newCDPSession(page));
     await cdp.send('Page.enable');
     await cdp.send('Runtime.enable');
     await cdp.send('Network.enable');
@@ -200,10 +169,9 @@ async function main() {
     }, null, 2));
     console.log(`Authenticated Clinic hours proof passed at ${exactHead}: Desktop + Phone; no mutations.`);
   } finally {
-    cdp?.close();
-    chrome?.kill('SIGTERM');
+    await cdp?.close();
+    await chrome?.close();
     await new Promise(resolve => server.close(resolve));
-    fs.rmSync(directory, { recursive: true, force: true });
   }
 }
 
