@@ -68,7 +68,9 @@ function financialSections(finance) {
   const vouchers = finance.vouchers || {};
   const voucherSection = panel('financial-vouchers', 'Gift-voucher value', 'Voucher sales are included in receipts. Redemptions use prepaid value and never create another cash receipt.', table(['Measure', 'Value'],
     `<tr><th scope="row">Vouchers issued in period</th><td>${escapeHtml(vouchers.issued_count || 0)}</td></tr><tr><th scope="row">Value redeemed in period</th><td>${escapeHtml(money(vouchers.redeemed_value))}</td></tr><tr><th scope="row">Current available value</th><td>${escapeHtml(money(vouchers.available_balance))}</td></tr><tr><th scope="row">Expired unused value</th><td>${escapeHtml(money(vouchers.expired_balance))}</td></tr>`));
-  return daily + cash + balance + treatments + voucherSection;
+  const creditRows = (finance.treatmentCredits || []).map(row => `<tr><td>${escapeHtml(new Date(row.created_at).toLocaleDateString('en-ZA', { timeZone: 'Africa/Johannesburg' }))}<small>Entry #${escapeHtml(row.id)} · ${escapeHtml(row.actor_name)}${row.appointment_id ? ` · ${appointmentLink(row.appointment_id)}` : ''}</small></td><td>${row.credit_type === 'service_exchange' ? 'Service exchange' : 'Goodwill'}<small>${row.entry_type === 'issue' ? 'Issued' : 'Applied'}${row.source_entry_id ? ` · Source #${escapeHtml(row.source_entry_id)}` : ''}</small></td><td>${escapeHtml(row.reason)}<small>${escapeHtml(row.reference)}</small></td><td>${escapeHtml(money(row.amount))}</td></tr>`).join('');
+  const creditSection = panel('financial-treatment-credit', 'Noncash treatment credit', 'Goodwill and service exchanges remain separate from receipts, cash-up and paid expenses. Supplier invoice references preserve exchange evidence; they do not certify invoice payment.', table(['Recorded / actor', 'Type', 'Reason / reference', 'Credit'], creditRows));
+  return daily + cash + balance + treatments + voucherSection + creditSection;
 }
 
 function csvCell(value) {
@@ -92,6 +94,9 @@ function financialCsv(finance) {
     ['Appointment ID', 'Linked booking ID', 'Booking value', 'Net received', 'Credits', 'Outstanding', 'Other visit statuses'],
     ...finance.unpaid.map(row => [row.appointmentId, row.groupId, row.amountDue.toFixed(2), row.netPaid.toFixed(2), row.credits.toFixed(2), row.outstanding.toFixed(2), row.mixedStatus ? 'Review whole booking' : 'Completed']),
   ];
+  rows.push([], ['Noncash treatment credit — excluded from cash receipts and paid expenses'],
+    ['Entry ID','Recorded at','Action','Type','Amount','Reason','Reference / supplier invoice','Appointment ID','Source credit entry','Saved by'],
+    ...(finance.treatmentCredits || []).map(row => [row.id,new Date(row.created_at).toISOString(),row.entry_type,row.credit_type,Number(row.amount).toFixed(2),row.reason,row.reference,row.appointment_id,row.source_entry_id,row.actor_name]));
   if (finance.records) {
     rows.push([], ['Recorded expenses', finance.records.total.toFixed(2), 'Recorded paid entries only; completeness unconfirmed'],
       ['Expense ID','Paid on','Category','Description','Reference','Amount','Method','Saved by','Voided at','Voided by','Void reason'],

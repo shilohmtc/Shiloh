@@ -68,6 +68,7 @@ jobs:
         with:
           name: ux-visual-accessibility-evidence
           path: |
+            artifacts/treatment-credit/*.png
             artifacts/ux-playwright-results
             artifacts/ux-playwright-report
             artifacts/workspace-deposits

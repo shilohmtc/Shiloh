@@ -29,6 +29,7 @@ const { createWorkspaceReportsRouter } = require('./workspaceReports');
 const { createWorkspaceClinicHoursRouter } = require('./workspaceClinicHours');
 const { createWorkspaceGiftVoucherRouter } = require('./workspaceGiftVouchers');
 const { createWorkspaceRewardsRouter } = require('./workspaceRewards');
+const { createWorkspaceTreatmentCreditRouter } = require('./workspaceTreatmentCredit');
 const { createWorkspaceOperationalRouter } = require('./workspaceOperational');
 const { createWorkspaceMessagesRouter } = require('./workspaceMessages');
 const { createWorkspaceProblemReportsRouter } = require('./workspaceProblemReports');
@@ -112,6 +113,7 @@ router.use('/reports', createWorkspaceReportsRouter({ sessionService: staffBrows
 router.use('/clinic-hours', createWorkspaceClinicHoursRouter({ sessionService: staffBrowserSessionService }));
 router.use('/vouchers', createWorkspaceGiftVoucherRouter({ sessionService: staffBrowserSessionService }));
 router.use('/rewards', createWorkspaceRewardsRouter({ sessionService: staffBrowserSessionService }));
+router.use('/treatment-credit', createWorkspaceTreatmentCreditRouter({ sessionService: staffBrowserSessionService }));
 router.use('/problem-reports', createWorkspaceProblemReportsRouter({ sessionService: staffBrowserSessionService }));
 router.use('/workspace', createWorkspaceOperationalRouter({ sessionService: staffBrowserSessionService }));
 router.use('/messages', createWorkspaceMessagesRouter({ sessionService: staffBrowserSessionService }));

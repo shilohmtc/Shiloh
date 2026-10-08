@@ -77,11 +77,25 @@ const BALANCES_SQL = `/* FinancialReports:balances */
        COALESCE((SELECT SUM(l.amount) FROM booking_loyalty_allocations l
          WHERE l.booking_payment_account_id=p.id AND l.state='applied'),0)
        + COALESCE((SELECT SUM(v.amount) FROM booking_welcome_voucher_allocations v
-         WHERE v.booking_payment_account_id=p.id AND v.state='applied'),0) AS credits
+         WHERE v.booking_payment_account_id=p.id AND v.state='applied'),0)
+       + COALESCE((SELECT -SUM(tc.signed_amount) FROM treatment_credit_entries tc
+         WHERE tc.booking_payment_account_id=p.id AND tc.entry_type='apply'),0) AS credits
     FROM subjects s LEFT JOIN booking_payment_accounts p
       ON (s.group_id IS NULL AND p.appointment_id=s.appointment_id)
       OR (s.group_id IS NOT NULL AND p.appointment_group_id=s.group_id)
    ORDER BY s.starts_at,s.subject_key`;
+
+const CREDITS_SQL = `/* FinancialReports:treatment_credit */
+  SELECT e.id,e.created_at,e.entry_type,e.credit_type,e.signed_amount AS amount,e.reason,e.reference,
+         e.appointment_id,a.display_name AS actor_name,NULL::bigint AS source_entry_id
+    FROM treatment_credit_entries e JOIN staff_admin_accounts a ON a.id=e.actor_admin_id
+   WHERE e.entry_type='issue' AND e.created_at >= $1::timestamptz AND e.created_at < $2::timestamptz
+   UNION ALL
+  SELECT e.id,e.created_at,e.entry_type,i.credit_type,-alloc.amount,i.reason,i.reference,
+         e.appointment_id,a.display_name,i.id
+    FROM treatment_credit_entries e JOIN treatment_credit_allocations alloc ON alloc.debit_entry_id=e.id
+    JOIN treatment_credit_entries i ON i.id=alloc.issue_entry_id JOIN staff_admin_accounts a ON a.id=e.actor_admin_id
+   WHERE e.created_at >= $1::timestamptz AND e.created_at < $2::timestamptz ORDER BY created_at,id`;
 
 function createWorkspaceFinancialReportsService({ db = pool,
   earningsService = createWorkspaceStaffEarningsService({ db }) } = {}) {
@@ -105,15 +119,16 @@ function createWorkspaceFinancialReportsService({ db = pool,
       throw Object.assign(new Error('Report dates changed. Refresh the report.'), { httpStatus: 409 });
     }
     const params = [effective.from, effective.to, effective.previousFrom, effective.previousTo];
-    const [visits, ledger, balances, vouchers] = await Promise.all([
+    const [visits, ledger, balances, vouchers, credits] = await Promise.all([
       db.query(TREATMENTS_SQL, params), db.query(RECEIPTS_SQL, params), db.query(BALANCES_SQL, params.slice(0, 2)),
       db.query(VOUCHERS_SQL, [effective.from, effective.to, clinicDate(now)]),
+      db.query(CREDITS_SQL, params.slice(0, 2)),
     ]);
     return { ...summarizeFinancials({ period: effective, treatments: visits.rows, receipts: ledger.rows, balances: balances.rows }),
-      vouchers: vouchers.rows[0] || {}, period: effective, scope: 'all_business' };
+      vouchers: vouchers.rows[0] || {}, treatmentCredits: credits.rows, period: effective, scope: 'all_business' };
   }
   return { requireAccess, build };
 }
 
-module.exports = { METHODS, RECEIPTS_SQL, TREATMENTS_SQL, BALANCES_SQL, VOUCHERS_SQL, summarizeFinancials,
+module.exports = { METHODS, RECEIPTS_SQL, TREATMENTS_SQL, BALANCES_SQL, VOUCHERS_SQL, CREDITS_SQL, summarizeFinancials,
   createWorkspaceFinancialReportsService, ...createWorkspaceFinancialReportsService() };

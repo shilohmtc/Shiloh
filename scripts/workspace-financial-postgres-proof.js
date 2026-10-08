@@ -20,6 +20,7 @@ const {resolvePeriod}=require(path+'/src/services/workspaceReports');
  CREATE TEMPORARY TABLE payment_ledger_entries(id bigint,payment_account_id bigint,created_at timestamptz,entry_type text,amount numeric,method text);
  CREATE TEMPORARY TABLE booking_loyalty_allocations(booking_payment_account_id bigint,amount numeric,state text);
  CREATE TEMPORARY TABLE booking_welcome_voucher_allocations(booking_payment_account_id bigint,amount numeric,state text);
+ CREATE TEMPORARY TABLE treatment_credit_entries(booking_payment_account_id bigint,entry_type text,signed_amount numeric);
  CREATE TEMPORARY TABLE gift_voucher_payment_entries(id bigint,order_id bigint,created_at timestamptz,amount numeric,method text);
  CREATE TEMPORARY TABLE gift_vouchers(id bigint,order_id bigint,balance numeric,state text,valid_until date);
  CREATE TEMPORARY TABLE gift_voucher_ledger_entries(id bigint,voucher_id bigint,created_at timestamptz,entry_type text,amount numeric,operation_key text);

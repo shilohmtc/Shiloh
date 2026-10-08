@@ -13,6 +13,7 @@ const {
   workspaceClientsManageClientScript,
 } = require('../presentation/workspaceClientsManageUx');
 const { requireStaffSession } = require('../middleware/staffBrowserSession');
+const { createClientTreatmentCreditService } = require('../services/clientTreatmentCredit');
 
 function isWorkspaceClientsEnabled(env = process.env) {
   return String(env.SHILOH_CALENDAR_READONLY_UX_ENABLED || '').trim().toLowerCase() === 'true'
@@ -81,6 +82,7 @@ function createWorkspaceClientDetailHandler({
   renderUnavailable = renderClientsUnavailablePage,
   injectManagement = injectClientDetailManagement,
   staffAccessPath = '/calendar/staff',
+  creditService = createClientTreatmentCreditService(),
 } = {}) {
   return async function workspaceClientDetailHandler(req, res) {
     setWorkspaceClientsSecurityHeaders(res);
@@ -97,8 +99,13 @@ function createWorkspaceClientDetailHandler({
       } catch (_error) {
         notificationActionAllowed = false;
       }
+      let creditLink = '';
+      try {
+        await creditService.canView(req.staffBrowserSession.adminId);
+        creditLink = `<a class="back" style="min-height:44px;display:inline-flex;align-items:center" href="/calendar/treatment-credit/clients/${Number(req.params.id)}">Treatment credit</a>`;
+      } catch (_error) { /* No link without explicit credit authority. */ }
       const html = renderPage(model, pageOptions(req, staffAccessPath, { notificationActionAllowed }));
-      return res.status(200).type('html').send(injectManagement(html, model));
+      return res.status(200).type('html').send(injectManagement(html, model).replace('</main>', `${creditLink}</main>`));
     } catch (error) {
       const safe = safeError(error);
       return res.status(safe.status).type('html').send(renderUnavailable({ code: error?.code, message: safe.message }));
