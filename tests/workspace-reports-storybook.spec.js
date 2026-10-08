@@ -67,6 +67,18 @@ for (const viewport of [
     await expect(page.getByRole('heading', { name: 'Commission structure' })).toBeVisible();
     await page.locator('#team-time > summary').click();
     await expect(page.locator('#team-time')).toHaveAttribute('open','');
+    if (viewport.width <= 380) {
+      const labels=await page.locator('.capacity-table td[data-label]').evaluateAll(cells=>cells.map(cell=>{
+        const style=getComputedStyle(cell,'::before');
+        const canvas=document.createElement('canvas');const context=canvas.getContext('2d');
+        context.font=`${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        const longest=Math.max(...cell.dataset.label.toUpperCase().split(/\s+/).map(word=>context.measureText(word).width + Math.max(0,word.length-1)*(parseFloat(style.letterSpacing)||0)));
+        const available=cell.clientWidth-parseFloat(getComputedStyle(cell).paddingLeft)-parseFloat(getComputedStyle(cell).paddingRight);
+        return {label:cell.dataset.label,longest,available};
+      }));
+      expect(labels.filter(label=>label.longest>label.available+1),'Team time labels must fit without fragmented words on narrow phones').toEqual([]);
+      await page.locator('.capacity-table').screenshot({path:testInfo.outputPath(`reports-team-time-${viewport.name}.png`)});
+    }
     await page.getByRole('navigation',{name:'Report sections'}).getByRole('link', {name:'Activity',exact:true}).click();
     await page.locator('#treatments > summary').focus();
     await page.keyboard.press('Enter');
