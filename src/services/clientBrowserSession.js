@@ -5,6 +5,7 @@ const { pool } = require('../db/pool');
 
 const CHALLENGE_TTL_MS = 10 * 60 * 1000;
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const REMEMBERED_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const TOKEN_BYTES = 32;
 
 function sha256(value) {
@@ -75,11 +76,11 @@ function createClientBrowserSessionService({
 
   // Called inside the caller's transaction only after its independent
   // WebAuthn, recovery code, or SMS verification and active CRM ownership check.
-  async function insertVerifiedSession(client, owner, current, authMethod, fingerprint, passkeyCredentialId = null) {
+  async function insertVerifiedSession(client, owner, current, authMethod, fingerprint, passkeyCredentialId = null, keepSignedIn = false) {
     if (!['passkey', 'passkey_recovery', 'sms_code'].includes(authMethod)) throw new Error('invalid client session method');
     const sessionToken = randomOpaqueToken(randomBytes);
     const csrfToken = randomOpaqueToken(randomBytes);
-    const expiresAt = new Date(current.getTime() + sessionTtlMs);
+    const expiresAt = new Date(current.getTime() + (keepSignedIn === true ? REMEMBERED_SESSION_TTL_MS : Math.min(sessionTtlMs, SESSION_TTL_MS)));
     const inserted = await client.query(
       `INSERT INTO client_browser_sessions
          (crm_v2_client_id, token_hash, csrf_hash, issued_at, expires_at, reauthenticated_at,
@@ -94,7 +95,7 @@ function createClientBrowserSessionService({
     };
   }
 
-  async function issueVerifiedPasskeySession({ transaction, crmV2ClientId, passkeyCredentialId, requestFingerprintHash = null } = {}) {
+  async function issueVerifiedPasskeySession({ transaction, crmV2ClientId, passkeyCredentialId, requestFingerprintHash = null, keepSignedIn = false } = {}) {
     if (!transaction || typeof transaction.query !== 'function' ||
         !Number.isSafeInteger(Number(crmV2ClientId)) || Number(crmV2ClientId) <= 0 ||
         !Number.isSafeInteger(Number(passkeyCredentialId)) || Number(passkeyCredentialId) <= 0) {
@@ -106,7 +107,7 @@ function createClientBrowserSessionService({
     );
     if (owner.rowCount !== 1) return { ok: false, code: 'CLIENT_AUTH_PROFILE_UNAVAILABLE' };
     const fingerprint = normalizedFingerprint(requestFingerprintHash);
-    const result = await insertVerifiedSession(transaction, owner.rows[0], now(), 'passkey', fingerprint, passkeyCredentialId);
+    const result = await insertVerifiedSession(transaction, owner.rows[0], now(), 'passkey', fingerprint, passkeyCredentialId, keepSignedIn);
     await audit(transaction, 'session_issued', {
       clientId: owner.rows[0].id, sessionId: result.sessionId,
       requestFingerprintHash: fingerprint, metadata: { authMethod: 'passkey' },
@@ -115,7 +116,7 @@ function createClientBrowserSessionService({
   }
 
   // Called only after a recovery code is consumed in the caller's transaction.
-  async function issueVerifiedRecoverySession({ transaction, crmV2ClientId, requestFingerprintHash = null } = {}) {
+  async function issueVerifiedRecoverySession({ transaction, crmV2ClientId, requestFingerprintHash = null, keepSignedIn = false } = {}) {
     if (!transaction || typeof transaction.query !== 'function' ||
         !Number.isSafeInteger(Number(crmV2ClientId)) || Number(crmV2ClientId) <= 0) {
       return { ok: false, code: 'CLIENT_AUTH_PROFILE_UNAVAILABLE' };
@@ -126,7 +127,7 @@ function createClientBrowserSessionService({
     );
     if (owner.rowCount !== 1) return { ok: false, code: 'CLIENT_AUTH_PROFILE_UNAVAILABLE' };
     const fingerprint = normalizedFingerprint(requestFingerprintHash);
-    const result = await insertVerifiedSession(transaction, owner.rows[0], now(), 'passkey_recovery', fingerprint);
+    const result = await insertVerifiedSession(transaction, owner.rows[0], now(), 'passkey_recovery', fingerprint, null, keepSignedIn);
     await audit(transaction, 'session_issued', {
       clientId: owner.rows[0].id, sessionId: result.sessionId,
       requestFingerprintHash: fingerprint, metadata: { authMethod: 'passkey_recovery' },
@@ -136,7 +137,7 @@ function createClientBrowserSessionService({
 
   // The caller must have consumed a valid SMS challenge for the exact mobile
   // matching this CRM owner inside its transaction before calling this method.
-  async function issueVerifiedSmsSession({ transaction, crmV2ClientId, normalizedMobile, requestFingerprintHash = null } = {}) {
+  async function issueVerifiedSmsSession({ transaction, crmV2ClientId, normalizedMobile, requestFingerprintHash = null, keepSignedIn = false } = {}) {
     if (!transaction || typeof transaction.query !== 'function' || !Number.isSafeInteger(Number(crmV2ClientId)) ||
         Number(crmV2ClientId) <= 0 || !/^27[678]\d{8}$/.test(String(normalizedMobile || ''))) {
       return { ok: false, code: 'CLIENT_AUTH_PROFILE_UNAVAILABLE' };
@@ -147,7 +148,7 @@ function createClientBrowserSessionService({
     );
     if (owner.rowCount !== 1) return { ok: false, code: 'CLIENT_AUTH_PROFILE_UNAVAILABLE' };
     const fingerprint = normalizedFingerprint(requestFingerprintHash);
-    const result = await insertVerifiedSession(transaction, owner.rows[0], now(), 'sms_code', fingerprint);
+    const result = await insertVerifiedSession(transaction, owner.rows[0], now(), 'sms_code', fingerprint, null, keepSignedIn);
     await audit(transaction, 'session_issued', {
       clientId: owner.rows[0].id, sessionId: result.sessionId,
       requestFingerprintHash: fingerprint, metadata: { authMethod: 'sms_code' },
@@ -169,7 +170,7 @@ function createClientBrowserSessionService({
       [sha256(token)],
     );
     const row = result.rows[0];
-    if (!row || row.revoked_at || row.status !== 'active' || new Date(row.expires_at).getTime() <= current.getTime()) {
+    if (!row || row.revoked_at || row.status !== 'active' || !Number.isFinite(new Date(row.expires_at).getTime()) || new Date(row.expires_at).getTime() <= current.getTime()) {
       return { ok: false, code: 'CLIENT_SESSION_INVALID' };
     }
     await db.query(
@@ -233,6 +234,38 @@ function createClientBrowserSessionService({
     return { ok: true };
   }
 
+  async function revokeOtherSessions(session) {
+    const current = now();
+    const { recentClientSession } = require('./clientPasskeyEnrollment');
+    if (!recentClientSession(session, current)) return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
+    // Recheck the authorizing session in the same statement as revocation.
+    // Include every authentication method; removing a passkey alone misses SMS sessions.
+    const result = await db.query(
+      `WITH authorizing AS (
+         SELECT id FROM client_browser_sessions
+          WHERE id = $1 AND crm_v2_client_id = $2 AND revoked_at IS NULL
+            AND expires_at > $3 AND COALESCE(reauthenticated_at, issued_at) <= $3
+            AND COALESCE(reauthenticated_at, issued_at) >= $3 - INTERVAL '10 minutes'
+          FOR UPDATE
+       ), revoked AS (
+         UPDATE client_browser_sessions SET revoked_at = $3, revoke_reason = 'other_sessions_logout'
+          WHERE crm_v2_client_id = $2 AND id <> $1 AND revoked_at IS NULL
+            AND EXISTS (SELECT 1 FROM authorizing)
+          RETURNING id
+       ) SELECT EXISTS (SELECT 1 FROM authorizing) AS authorized,
+                (SELECT COUNT(*)::int FROM revoked) AS count`,
+      [session.sessionId, session.crmV2ClientId, current],
+    );
+    if (!result.rows[0]?.authorized) return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
+    try {
+      await audit(db, 'other_sessions_revoked', { clientId: session.crmV2ClientId,
+        sessionId: session.sessionId, metadata: { count: result.rows[0].count } });
+    } catch (_) {
+      // Revocation remains authoritative if audit persistence is unavailable.
+    }
+    return { ok: true };
+  }
+
   function validateCsrfToken(session, suppliedToken) {
     if (!session?.ok || !isValidOpaqueToken(suppliedToken)) return false;
     return safeHashEqual(sha256(suppliedToken), session.csrfHash);
@@ -245,6 +278,7 @@ function createClientBrowserSessionService({
     validateSessionToken,
     rotateCsrfToken,
     revokeSession,
+    revokeOtherSessions,
     validateCsrfToken,
   };
 }
@@ -252,6 +286,7 @@ function createClientBrowserSessionService({
 module.exports = {
   CHALLENGE_TTL_MS,
   SESSION_TTL_MS,
+  REMEMBERED_SESSION_TTL_MS,
   sha256,
   safeHashEqual,
   randomOpaqueToken,

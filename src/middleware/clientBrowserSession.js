@@ -51,7 +51,7 @@ function serializeClientSessionCookie(token, {
   env = process.env,
   maxAgeSeconds = 7 * 24 * 60 * 60,
 } = {}) {
-  return cookieParts(clientSessionCookieName(env), token, { env, maxAgeSeconds }).join('; ');
+  return cookieParts(clientSessionCookieName(env), token, { env, maxAgeSeconds: Math.min(Math.max(0, Number(maxAgeSeconds) || 0), 30 * 24 * 60 * 60) }).join('; ');
 }
 
 function serializeExpiredClientSessionCookie({ env = process.env } = {}) {

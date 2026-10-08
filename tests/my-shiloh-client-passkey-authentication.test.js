@@ -147,3 +147,16 @@ test('guest routes require same origin and use a separate HttpOnly challenge coo
   assert.match(cookies, /'HttpOnly'/);
   assert.match(cookies, /'Secure'/);
 });
+
+test('verified passkey forwards remembered choice without changing WebAuthn verification', async () => {
+  for (const keepSignedIn of [true, false]) {
+    const db = makeDb();
+    let remembered;
+    const auth = makeService(db, { session: { async issueVerifiedPasskeySession(input) {
+      remembered = input.keepSignedIn;
+      return { ok: true };
+    } } });
+    assert.equal((await auth.service.finish({ browserToken, response, requestFingerprintHash: fingerprint, keepSignedIn })).ok, true);
+    assert.equal(remembered, keepSignedIn);
+  }
+});

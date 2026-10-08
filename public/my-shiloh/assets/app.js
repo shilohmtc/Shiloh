@@ -107,6 +107,7 @@
   let shilohMessageInFlight = false;
   let welcomeVoucherRedeemedThisView = false;
   let clientProfileRevision = null;
+  let initialProfileChecked = false;
   let clientRefreshInFlight = false;
   let serviceWorkerRegistration = null;
   let updateReloadPending = false;
@@ -117,19 +118,20 @@
   let clientSetupPushReady = false;
   let clientSetupPushEnabled = false;
   let clientSetupProblem = '';
+  let passkeySetupDeferred = false;
   let notificationSetupDeferred = false;
   try { notificationSetupDeferred = Boolean(notificationSetupKey && localStorage.getItem(notificationSetupKey)); } catch (_) {}
 
   function renderClientSetup() {
     if (!clientSetup) return;
-    const passkeyStep = !clientHasPasskey;
+    const passkeyStep = !clientHasPasskey && !passkeySetupDeferred;
     const notificationStep = !passkeyStep && clientSetupPushReady && !clientSetupPushEnabled
       && !notificationSetupDeferred;
     clientSetup.hidden = clientSetupChecking || (!passkeyStep && !notificationStep);
     if (clientSetup.hidden) return;
     clientSetup.dataset.step = clientSetupCheckFailed && passkeyStep ? 'check'
       : passkeyStep ? 'passkey' : 'notifications';
-    clientSetupStep.textContent = passkeyStep ? 'First, secure your sign-in' : 'Next, stay in the know';
+    clientSetupStep.textContent = passkeyStep ? 'Optional: save a passkey' : 'Next, stay in the know';
     clientSetupTitle.textContent = passkeyStep ? 'Save your Shiloh passkey.' : 'Stay ready for every visit.';
     clientSetupCopy.textContent = passkeyStep
       ? 'Use your phone’s screen lock to open My Shiloh next time, without waiting for an SMS code.'
@@ -137,7 +139,7 @@
     clientSetupAction.textContent = clientSetupCheckFailed && passkeyStep ? 'Try again'
       : passkeyStep ? 'Save my passkey' : 'Turn on notifications';
     clientSetupAction.disabled = passkeyStep ? passkeyEnrollBusy || (!clientSetupCheckFailed && !passkeySupported()) : pushBusy;
-    clientSetupLater.hidden = passkeyStep;
+    clientSetupLater.hidden = false;
     clientSetupStatus.textContent = passkeyStep
       ? (clientSetupCheckFailed || passkeySupported() ? clientSetupProblem : 'Passkeys are unavailable on this device. You can keep using My Shiloh and try another supported device.')
       : clientSetupProblem;
@@ -960,6 +962,8 @@
       if (!response.ok || !renderClientProfile(data.profile)) {
         throw new Error(data.error || 'Your personal details could not be loaded.');
       }
+      if (!initialProfileChecked && !window.location.hash && !data.profile.dobRequestNeeded && (!data.profile.name || !data.profile.dateOfBirth || !data.profile.gender)) activateView('profile');
+      initialProfileChecked = true;
     } catch (error) {
       setClientProfileStatus(error.message || 'Your personal details could not be loaded.', 'error');
     }
@@ -1270,7 +1274,8 @@
     }
   }
 
-  async function signInWithPasskey() {
+  async function signInWithPasskey(event) {
+    const remember = keepSignedIn(event?.currentTarget);
     if (!passkeySupported() || authActionInFlight) return;
     authActionInFlight = true;
     setAuthControlsDisabled(true);
@@ -1282,7 +1287,7 @@
       const credential = await navigator.credentials.get({ publicKey: publicKeyOptions(startData.options) });
       if (!credential) throw new Error('Passkey sign-in was cancelled.');
       const finish = await postJson('/my-shiloh/auth/passkeys/sign-in/finish',
-        { response: serializePasskey(credential) });
+        { response: serializePasskey(credential), keepSignedIn: remember });
       const result = await finish.json().catch(() => ({}));
       if (!finish.ok || result.authenticated !== true) {
         const guidance = finish.status === 401
@@ -1330,7 +1335,7 @@
     const status = form.parentElement.querySelector('[data-passkey-recovery-status]');
     if (status) status.textContent = 'Checking your recovery code…';
     try {
-      const response = await postJson('/my-shiloh/auth/passkeys/recovery/use', { code });
+      const response = await postJson('/my-shiloh/auth/passkeys/recovery/use', { code, keepSignedIn: keepSignedIn(form) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data.authenticated !== true) throw new Error(data.error || 'That recovery code could not be used.');
       form.reset();
@@ -1521,6 +1526,12 @@
     else if (clientSetup.dataset.step === 'notifications') changePushNotifications();
   });
   clientSetupLater?.addEventListener('click', () => {
+    if (['passkey', 'check'].includes(clientSetup.dataset.step)) {
+      passkeySetupDeferred = true;
+      clientSetupProblem = '';
+      renderClientSetup();
+      return;
+    }
     notificationSetupDeferred = true;
     try { if (notificationSetupKey) localStorage.setItem(notificationSetupKey, '1'); } catch (_) {}
     renderClientSetup();
@@ -2115,11 +2126,8 @@
       return;
     }
     const recovering = button.dataset.clientSmsOpen === 'recover';
-    panel.querySelector('[data-client-sms-title]').textContent = recovering
-      ? 'Open My Shiloh on your new phone' : 'Register for My Shiloh';
-    panel.querySelector('[data-client-sms-copy]').textContent = recovering
-      ? 'Verify the mobile number on your existing Shiloh profile with an SMS code, then save a passkey on this phone.'
-      : 'Verify your number with an SMS code, then save a passkey for future sign-ins. If you already have a Shiloh profile, we’ll reconnect you to it.';
+    panel.querySelector('[data-client-sms-title]').textContent = 'Sign in to My Shiloh';
+    panel.querySelector('[data-client-sms-copy]').textContent = 'Verify your mobile number. We’ll reconnect your existing profile, or help you complete your details. A passkey is optional.';
     panel.hidden = false;
     smsOpenButtons.filter((item) => item.getAttribute('aria-controls') === panel.id)
       .forEach((item) => item.setAttribute('aria-expanded', String(item === button)));
@@ -2156,6 +2164,10 @@
     }
   }
 
+  function keepSignedIn(control) {
+    return control?.closest('[data-view]')?.querySelector('[data-keep-signed-in]')?.checked === true;
+  }
+
   async function completeSmsAuth(event) {
     event.preventDefault();
     if (authActionInFlight) return;
@@ -2165,7 +2177,7 @@
     setAuthControlsDisabled(true);
     setAuthStatus('Checking your code…', 'working');
     try {
-      const response = await postJson('/my-shiloh/auth/sms/complete', { code });
+      const response = await postJson('/my-shiloh/auth/sms/complete', { code, keepSignedIn: keepSignedIn(event.currentTarget) });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.authenticated) throw new Error(result.error || 'Could not verify your code.');
       setAuthStatus('Verified. Opening My Shiloh…', 'success');
@@ -2176,6 +2188,21 @@
       setAuthControlsDisabled(false);
     }
   }
+
+  document.querySelector('[data-sign-out-others]')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    const status = document.querySelector('[data-sign-out-others-status]');
+    if (!(await window.ShilohConfirm({ title: 'Sign out other sessions?', copy: 'Other phones and browsers will need to sign in again. This phone stays signed in.', cancel: 'Keep sessions', action: 'Sign out other sessions' }))) return;
+    button.disabled = true;
+    try {
+      const token = await freshCsrfToken();
+      const response = await postJson('/my-shiloh/auth/sessions/revoke-others', {}, { 'x-shiloh-csrf-token': token });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Could not close other sessions. Please try again.');
+      status.textContent = 'Other sessions are signed out.';
+    } catch (error) { status.textContent = error.message; }
+    finally { button.disabled = false; }
+  });
 
   async function logoutClient() {
     if (!standalone() || authActionInFlight) return;

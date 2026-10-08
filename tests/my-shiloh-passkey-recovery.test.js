@@ -15,6 +15,7 @@ function fixture({ activePasskey = true, attempts = 0 } = {}) {
   const queries = [];
   let activeCode = null;
   let issued = 0;
+  let remembered;
   const db = { async query(sql, params = []) {
     queries.push({ sql, params });
     if (/FROM client_auth_passkey_credentials/.test(sql)) return { rowCount: activePasskey ? 1 : 0, rows: activePasskey ? [{ id: 3 }] : [] };
@@ -28,14 +29,15 @@ function fixture({ activePasskey = true, attempts = 0 } = {}) {
   } };
   const service = createClientPasskeyRecoveryService({ db, now: () => time,
     randomBytes: () => Buffer.alloc(20, 0xab), env: { SHILOH_CLIENT_PASSKEY_AUTH_ENABLED: 'true' },
-    sessionService: { async issueVerifiedRecoverySession({ transaction, crmV2ClientId }) {
+    sessionService: { async issueVerifiedRecoverySession({ transaction, crmV2ClientId, keepSignedIn }) {
       assert.equal(transaction, db);
       assert.equal(crmV2ClientId, 17);
       issued += 1;
+      remembered = keepSignedIn;
       return { ok: true, sessionId: 40, client: { id: '17' } };
     } },
   });
-  return { service, queries, issued: () => issued };
+  return { service, queries, remembered: () => remembered, issued: () => issued };
 }
 
 test('a code requires a recently authenticated account with a saved passkey and is stored only as a hash', async () => {
@@ -80,4 +82,13 @@ test('passkey entry offers recovery and a recovered client is prompted to replac
   assert.match(profile, /Signed in with a recovery code/);
   assert.match(profile, /Save a new passkey and create a new recovery code now/);
   assert.match(profile, /data-passkey-recovery-create/);
+});
+
+test('single-use recovery forwards explicit remembered choice only after proof', async () => {
+  for (const keepSignedIn of [true, false]) {
+    const h = fixture();
+    const { code } = await h.service.create({ session });
+    assert.equal((await h.service.redeem({ code, requestFingerprintHash: fingerprint, keepSignedIn })).ok, true);
+    assert.equal(h.remembered(), keepSignedIn);
+  }
 });
