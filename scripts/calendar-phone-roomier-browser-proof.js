@@ -6,7 +6,6 @@ const http=require('node:http');
 const {chromium}=require('@playwright/test');
 const AxeBuilder=require('@axe-core/playwright').default;
 const {PNG}=require('pngjs');
-const pixelmatch=require('pixelmatch').default;
 const {fixtureHtml,STAFF}=require('./calendar-phone-working-day-fixture');
 const OUT=path.join(process.cwd(),'artifacts/calendar-phone-roomier');
 const executablePath=[process.env.CHROME_BIN,'/usr/bin/google-chrome','/usr/bin/google-chrome-stable','/usr/bin/chromium','/usr/bin/chromium-browser'].find(p=>p&&fs.existsSync(p));
@@ -37,7 +36,7 @@ async function main(){
       verifyGeometry(metrics);assert.equal(metrics.events.find(e=>e.id==='appointment-3').lanes,'2');assert.equal(metrics.events.find(e=>e.id==='appointment-1').lanes,'1');
       assert.equal(await page.locator('[data-phone-layout-choice="roomier"]').getAttribute('aria-pressed'),'true');assert.ok(page.url().includes('phoneLayout=roomier'));assert.equal(await page.locator('[data-phone-staff-column-id]').count(),4);
       await page.screenshot({path:path.join(OUT,`roomier-${width}.png`)});
-      if(width===390){const expected=PNG.sync.read(fs.readFileSync(path.join(OUT,'compact-390.png'))),candidate=PNG.sync.read(fs.readFileSync(path.join(OUT,'roomier-390.png'))),diff=new PNG({width,height});const changed=pixelmatch(expected.data,candidate.data,diff.data,width,height,{threshold:.1});fs.writeFileSync(path.join(OUT,'expected.png'),PNG.sync.write(expected));fs.writeFileSync(path.join(OUT,'candidate.png'),PNG.sync.write(candidate));fs.writeFileSync(path.join(OUT,'diff.png'),PNG.sync.write(diff));results.push({comparison:'same-head compact versus optional roomier',changedPixels:changed});}
+      if(width===390){const expected=PNG.sync.read(fs.readFileSync(path.join(OUT,'compact-390.png'))),candidate=PNG.sync.read(fs.readFileSync(path.join(OUT,'roomier-390.png'))),diff=new PNG({width,height});const changed=comparePixels(expected,candidate,diff);fs.writeFileSync(path.join(OUT,'expected.png'),PNG.sync.write(expected));fs.writeFileSync(path.join(OUT,'candidate.png'),PNG.sync.write(candidate));fs.writeFileSync(path.join(OUT,'diff.png'),PNG.sync.write(diff));results.push({comparison:'same-head compact versus optional roomier',changedPixels:changed});}
       await page.locator('[data-phone-staff-menu-summary]').click();for(const id of [55,56])await page.locator(`[data-phone-week-staff-id="${id}"]`).click();await page.locator('[data-phone-staff-menu-summary]').click();await page.waitForTimeout(150);assert.equal(await page.locator('[data-phone-staff-column-id]').count(),6);assert.ok((await geometry(page)).laneWidth>=179);
       await page.reload();await page.waitForTimeout(150);assert.equal(await page.locator('body').getAttribute('data-phone-layout'),'roomier');assert.equal(await page.locator('[data-phone-staff-column-id]').count(),6);
       const next=await page.locator('[data-phone-week-nav="next"]').getAttribute('href');assert.ok(next.includes('phoneLayout=roomier'));assert.ok(next.includes('phoneStaff=all'));await page.locator('[data-phone-week-nav="next"]').click();await page.waitForTimeout(150);assert.equal(await page.locator('body').getAttribute('data-phone-layout'),'roomier');
@@ -70,5 +69,9 @@ async function main(){
   }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
 }
 async function geometry(page){return page.evaluate(()=>{const column=document.querySelector('[data-phone-active-day="true"] .time-column'),rect=column.getBoundingClientRect(),surface=document.querySelector('.phone-day-scroll'),count=document.querySelectorAll('[data-phone-staff-column-id]').length;return{height:rect.height,laneWidth:rect.width/Math.max(1,count),scrollWidth:surface.scrollWidth,clientWidth:surface.clientWidth,scrollHeight:surface.scrollHeight,clientHeight:surface.clientHeight,events:[...document.querySelectorAll('.week-time-grid .positioned-event[data-phone-column-visible="true"]')].map(n=>({id:n.querySelector('.event-card').dataset.eventId,start:Math.max(420,Number(n.dataset.displayStart)),end:Math.min(1020,Number(n.dataset.displayEnd)),top:n.getBoundingClientRect().top-rect.top,height:n.getBoundingClientRect().height,lanes:n.dataset.phoneOverlapLanes}))};});}
+function comparePixels(expected,candidate,diff){
+  assert.equal(expected.width,candidate.width);assert.equal(expected.height,candidate.height);let changed=0;
+  for(let index=0;index<expected.data.length;index+=4){const different=[0,1,2,3].some(channel=>expected.data[index+channel]!==candidate.data[index+channel]);if(different){changed++;diff.data.set([255,0,0,255],index);}else{const grey=Math.round(225+(expected.data[index]+expected.data[index+1]+expected.data[index+2])/3*30/255);diff.data.set([grey,grey,grey,255],index);}}return changed;
+}
 function verifyGeometry(metrics){for(const event of metrics.events){assert.ok(Math.abs(event.top-(event.start-420)/600*metrics.height)<2,JSON.stringify(event));assert.ok(Math.abs(event.height-(event.end-event.start)/600*metrics.height)<2,JSON.stringify(event));}}
 main().catch(error=>{console.error(error);process.exitCode=1;});
