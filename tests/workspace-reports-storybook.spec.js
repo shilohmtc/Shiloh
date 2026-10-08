@@ -26,13 +26,13 @@ for (const viewport of [
     await expect(page.locator('.financial-card')).toHaveCount(3);
     await expect(page.getByRole('navigation', {name:'Report sections'}).getByRole('link')).toHaveCount(3);
     await expect(page.getByRole('link', {name:'This month',exact:true})).toBeVisible();
-    await expect(page.getByLabel('From',exact:true)).toBeHidden();
+    await expect(page.getByLabel('From',{exact:true})).toBeHidden();
     await page.locator('.custom-period > summary').focus();
     await page.keyboard.press('Enter');
-    await expect(page.getByLabel('From',exact:true)).toBeVisible();
-    await expect(page.getByLabel('To',exact:true)).toBeVisible();
+    await expect(page.getByLabel('From',{exact:true})).toBeVisible();
+    await expect(page.getByLabel('To',{exact:true})).toBeVisible();
     await page.keyboard.press('Enter');
-    await expect(page.getByLabel('From',exact:true)).toBeHidden();
+    await expect(page.getByLabel('From',{exact:true})).toBeHidden();
     await expect(page.locator('details[data-report-section][open]')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Commission structure' })).toBeHidden();
     expect(await page.locator('#team .metrics').evaluate(node=>Boolean(node.compareDocumentPosition(document.querySelector('#staff-earnings')) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
