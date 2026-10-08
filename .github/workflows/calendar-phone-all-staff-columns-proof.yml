@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'src/presentation/calendarPhoneAllStaffUx.js'
+      - 'src/presentation/calendarPhoneRoomierUx.js'
+      - 'scripts/calendar-phone-roomier-browser-proof.js'
       - 'src/presentation/calendarPhoneDisplayRange.js'
       - 'src/presentation/calendarPhoneCompactV2.js'
       - 'src/presentation/calendarAppointmentDetailsUx.js'
@@ -44,6 +46,8 @@ jobs:
         run: node scripts/calendar-phone-viewport-fit-browser-proof.js
       - name: Prove agreed working-day geometry, filters, details, Notes and accessibility
         run: node scripts/calendar-phone-working-day-browser-proof.js
+      - name: Prove optional Roomier geometry, scroll offsets, keyboard, Notes and accessibility
+        run: node scripts/calendar-phone-roomier-browser-proof.js
       - name: Upload Phone multi-staff column proof
         uses: actions/upload-artifact@v7
         with:
@@ -52,5 +56,6 @@ jobs:
             artifacts/calendar-phone-column-toggle-v1
             artifacts/calendar-phone-viewport-fit-v1
             artifacts/calendar-phone-working-day
+            artifacts/calendar-phone-roomier
           if-no-files-found: error
           retention-days: 14
