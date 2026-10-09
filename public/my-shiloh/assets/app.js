@@ -116,6 +116,10 @@
   try { notificationSetupDeferred = Boolean(notificationSetupKey && localStorage.getItem(notificationSetupKey)); } catch (_) {}
 
   function renderClientSetup() {
+    if (passkeyEnrollButton) {
+      passkeyEnrollButton.hidden = !passkeySupported() || clientSetupChecking ||
+        clientSetupCheckFailed || clientHasPasskey;
+    }
     if (!clientSetup) return;
     const passkeyStep = !clientHasPasskey && !passkeySetupDeferred;
     const notificationStep = !passkeyStep && clientSetupPushReady && !clientSetupPushEnabled

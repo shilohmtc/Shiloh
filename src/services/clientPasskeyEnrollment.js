@@ -43,6 +43,38 @@ async function recentStoredClientSession(db, session, now) {
   return result.rowCount === 1;
 }
 
+// Only first-ever enrollment may use a remembered session. Revocation and
+// additional/replacement keys continue to use the existing recent-auth policy.
+function enrollmentClientSession(session) {
+  return session?.ok === true &&
+    ['sms_code', 'passkey', 'passkey_recovery', 'whatsapp_challenge', 'crm_details'].includes(session.authMethod) &&
+    Number.isSafeInteger(Number(session.crmV2ClientId)) && Number(session.crmV2ClientId) > 0 &&
+    Number.isSafeInteger(Number(session.sessionId)) && Number(session.sessionId) > 0;
+}
+
+async function registrationStoredClientSession(db, session, readNow) {
+  const live = (current) => db.query(`SELECT id FROM client_browser_sessions
+    WHERE id=$1 AND crm_v2_client_id=$2 AND revoked_at IS NULL
+      AND issued_at <= $3 AND expires_at > $3
+      AND auth_method IN ('sms_code','passkey','passkey_recovery','whatsapp_challenge','crm_details')
+    FOR SHARE`, [session.sessionId, session.crmV2ClientId, current]);
+  let current = readNow();
+  if ((await live(current)).rowCount !== 1) return { ok: false, current };
+  await db.query(
+    "SELECT pg_advisory_xact_lock(hashtextextended('client-first-passkey:' || $1::text, 0))",
+    [session.crmV2ClientId],
+  );
+  // A lock wait must not turn an expired session into enrollment authority.
+  current = readNow();
+  if ((await live(current)).rowCount !== 1) return { ok: false, current };
+  const history = await db.query(
+    'SELECT id FROM client_auth_passkey_credentials WHERE crm_v2_client_id=$1 LIMIT 1',
+    [session.crmV2ClientId],
+  );
+  return { current, ok: history.rowCount === 0 ||
+    (recentClientSession(session, current) && await recentStoredClientSession(db, session, current)) };
+}
+
 function responseChallenge(response, origin, expectedType = 'webauthn.create') {
   const encoded = String(response?.response?.clientDataJSON || '');
   if (!/^[A-Za-z0-9_-]{20,22000}$/.test(encoded)) return null;
@@ -77,12 +109,14 @@ function createClientPasskeyEnrollmentService({
   async function begin({ session, requestFingerprintHash = null } = {}) {
     const p = policy();
     if (!p.operational) return unavailable(p);
-    const current = now();
-    if (!recentClientSession(session, current)) return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
+    let current = now();
+    if (!enrollmentClientSession(session)) return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
     const client = typeof db.connect === 'function' ? await db.connect() : db;
     try {
       await client.query('BEGIN');
-      if (!(await recentStoredClientSession(client, session, current))) {
+      const authority = await registrationStoredClientSession(client, session, now);
+      current = authority.current;
+      if (!authority.ok) {
         await client.query('ROLLBACK'); return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
       }
       // Serialize challenge issuance for one signed-in session before counting.
@@ -95,6 +129,9 @@ function createClientPasskeyEnrollmentService({
         [session.crmV2ClientId],
       );
       if (owner.rowCount !== 1) { await client.query('ROLLBACK'); return { ok: false, code: 'CLIENT_PROFILE_UNAVAILABLE' }; }
+      const latestAuthority = await registrationStoredClientSession(client, session, now);
+      current = latestAuthority.current;
+      if (!latestAuthority.ok) { await client.query('ROLLBACK'); return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' }; }
       const recent = await client.query(
         `SELECT COUNT(*)::int AS count FROM client_auth_passkey_challenges
           WHERE session_id = $1 AND created_at >= $2`,
@@ -154,14 +191,16 @@ function createClientPasskeyEnrollmentService({
   async function finish({ session, response, userAgent = '', requestFingerprintHash = null } = {}) {
     const p = policy();
     if (!p.operational) return unavailable(p);
-    const current = now();
-    if (!recentClientSession(session, current)) return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
+    let current = now();
+    if (!enrollmentClientSession(session)) return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
     const challenge = responseChallenge(response, p.origin);
     if (!challenge) return { ok: false, code: 'CLIENT_PASSKEY_INVALID' };
     const client = typeof db.connect === 'function' ? await db.connect() : db;
     try {
       await client.query('BEGIN');
-      if (!(await recentStoredClientSession(client, session, current))) {
+      const authority = await registrationStoredClientSession(client, session, now);
+      current = authority.current;
+      if (!authority.ok) {
         await client.query('ROLLBACK'); return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
       }
       const found = await client.query(
@@ -188,6 +227,12 @@ function createClientPasskeyEnrollmentService({
       let verified;
       try { verified = verifyRegistrationResponse(response, { expectedChallenge: challenge, origin: p.origin, rpId: p.rpId }); }
       catch (_) {
+        await client.query('COMMIT');
+        return { ok: false, code: 'CLIENT_PASSKEY_INVALID' };
+      }
+      const finalAuthority = await registrationStoredClientSession(client, session, now);
+      current = finalAuthority.current;
+      if (!finalAuthority.ok || new Date(row.expires_at).getTime() <= current.getTime()) {
         await client.query('COMMIT');
         return { ok: false, code: 'CLIENT_PASSKEY_INVALID' };
       }
