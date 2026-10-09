@@ -10,7 +10,8 @@ permissions:
 jobs:
   ux_quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Preserve the full UX suite and evidence packaging on slower runners.
+    timeout-minutes: 20
     steps:
       - name: Checkout exact PR head
         uses: actions/checkout@v7
@@ -64,12 +65,23 @@ jobs:
         run: node scripts/package-my-shiloh-signin-evidence.js
       - name: Prove Phone Calendar first paint in Chromium
         run: npx playwright test tests/calendar-phone-first-paint.spec.js --config=.
+      - name: Package focused paid-booking payment review
+        run: node scripts/package-paid-booking-payment-evidence.js
+      - name: Upload focused paid-booking payment review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: paid-booking-payment-review
+          path: artifacts/paid-booking-payment
+          if-no-files-found: error
+          retention-days: 14
       - name: Upload UX evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: ux-visual-accessibility-evidence
           path: |
+            artifacts/paid-booking-payment/*.png
             artifacts/treatment-credit/*.png
             artifacts/ux-playwright-results
             artifacts/ux-playwright-report
@@ -140,6 +152,7 @@ jobs:
         with:
           name: treatment-credit-booking-payment-review
           path: |
+            artifacts/paid-booking-payment/*.png
             artifacts/treatment-credit/*.png
             artifacts/treatment-credit/manifest.json
             artifacts/ux-playwright-results/client-treatment-credit-*/test-failed-*.png

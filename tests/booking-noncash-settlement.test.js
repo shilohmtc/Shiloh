@@ -56,7 +56,7 @@ test('cash and other noncash cap gift use; credit return reopens only its applie
 });
 test('payment surface shows distinct noncash choices/preview/history and keeps cash methods and deposit restrictions',()=>{
  const model={subject:{appointmentId:201,crmV2ClientId:101,status:'completed'},authority:{canCollect:true,ozowConfigured:false},payment:{amountDue:'650',netPaid:'50',rewardsApplied:0,treatmentCreditApplied:'100',giftVoucherApplied:'200',outstanding:'300',state:'partially_paid',requests:[],entries:[],noncashEntries:[{kind:'gift_voucher',id:1,action:'apply',amount:200,reason:'Voucher ending <AAAA>',actor:'Synthetic Reception',created_at:'2026-10-08T08:00Z'}]},noncash:{eligible:true,credit:{canApply:true,balance:350},gift:{canApply:true,vouchers:[{voucher_code:'SV-AAAAAAAAAAAA',balance:300,valid_until:null}]}}};
- const html=renderCalendarPaymentPage({model});assert.match(html,/Use gift voucher/);assert.match(html,/Use client credit/);assert.match(html,/data-noncash-preview/);assert.match(html,/Gift voucher used \(noncash\)/);assert.match(html,/Voucher ending &lt;AAAA&gt;/);
+ const html=renderCalendarPaymentPage({model});assert.match(html,/Use voucher/);assert.match(html,/Use credit/);assert.match(html,/data-noncash-preview/);assert.match(html,/Gift voucher used \(noncash\)/);assert.match(html,/Voucher ending &lt;AAAA&gt;/);
  const method=html.match(/<select name="method">([\s\S]*?)<\/select>/)[1];assert.doesNotMatch(method,/voucher|credit/);assert.match(method,/Card machine/);
  assert.doesNotMatch(renderCalendarPaymentPage({model:{...model,noncash:{eligible:false}}}),/data-booking-noncash=/);
  new(require('node:vm').Script)(calendarPaymentsClientScript());

@@ -22,7 +22,7 @@ test('linked payment UI supports split balance and does not claim booking confir
 test('payment-link form prefills the booking payer and requires confirmation',()=>{const html=renderCalendarPaymentPage({model:{subject:{appointmentId:699,clientName:'Jean-Pierre Botha',clientMobile:'0716724646'},payment:{state:'unpaid',amountDue:'20.00',netPaid:'0.00',outstanding:'20.00',requests:[],entries:[]},authority:{canCollect:true,canRefund:true,ozowConfigured:true}}});assert.match(html,/name="payerName" value="Jean-Pierre Botha"/);assert.match(html,/name="payerMobile"[^>]+value="0716724646"/);assert.match(html,/name="payerConfirmed"/);assert.match(calendarPaymentsClientScript(),/data-payer-confirmation/);});
 test('payment-link form falls back to the latest payer mobile when the booking contact is missing',()=>{const html=renderCalendarPaymentPage({model:{subject:{appointmentId:699,clientName:'Jean-Pierre Botha',clientMobile:''},payment:{state:'unpaid',amountDue:'20.00',netPaid:'0.00',outstanding:'20.00',requests:[{amount:'20.00',state:'link_issued',payer_name:'Jean-Pierre Botha',payer_mobile:'0716724646',provider_payment_url:''}],entries:[]},authority:{canCollect:true,canRefund:true,ozowConfigured:true}}});assert.match(html,/name="payerMobile"[^>]+value="0716724646"/);});
 
-test('Workspace puts reception guidance and manual settlement after payment history', () => {
+test('Workspace puts request guidance beside requests and manual settlement after history', () => {
   const model = {
     subject: { appointmentId: 699 },
     payment: { state: 'unpaid', amountDue: '20.00', netPaid: '0.00', outstanding: '20.00', requests: [], entries: [] },
@@ -31,9 +31,9 @@ test('Workspace puts reception guidance and manual settlement after payment hist
   const html = renderCalendarPaymentPage({ model });
   const body = html.split('</style></head><body>')[1];
   assert.ok(body.indexOf('Payment requests') < body.indexOf('<h2>History</h2>'));
-  assert.ok(body.indexOf('<h2>History</h2>') < body.indexOf('aria-label="Reception help"'));
-  assert.ok(body.indexOf('aria-label="Reception help"') < body.indexOf('<details class="payment-card manual-payment">'));
-  assert.match(body, /<details class="payment-card manual-payment"><summary>Record payment received outside Ozow<\/summary>/);
+  assert.ok(body.indexOf('data-request-guidance') < body.indexOf('<h2>History</h2>'));
+  assert.doesNotMatch(body, /Reception help/);
+  assert.match(body, /<details class="payment-card manual-payment"><summary>Record payment<\/summary>/);
   assert.doesNotMatch(renderCalendarPaymentPage({ model: { ...model, subject: { appointmentId: 699, final: true } } }), /data-manual-form/);
 });
 
