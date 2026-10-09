@@ -48,7 +48,7 @@ function row(overrides = {}) {
 test('profile projection masks the identity mobile and exposes an opaque revision', () => {
   const profile = publicProfile(row());
   assert.equal(profile.name, 'Christel Botha');
-  assert.equal(profile.mobile, '+27 •• ••• 4567');
+  assert.equal(profile.mobile, '0•• ••• 4567');
   assert.equal(profile.mobileEditable, false);
   assert.match(profile.revision, /^[a-f0-9]{64}$/);
   assert.doesNotMatch(JSON.stringify(profile), /27821234567/);

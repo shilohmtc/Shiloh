@@ -104,6 +104,6 @@ test('Desktop density leaves whole-card detail mutation semantics unchanged', ()
   assert.doesNotMatch(html, /data-calendar-operation="manage-appointment">Manage<\/button>/);
   assert.match(html, /10:00–11:30/);
   assert.match(html, /Desktop Client/);
-  assert.match(html, /\+27 82 123 4567/);
+  assert.match(html, /082 123 4567/);
   assert.match(html, /Full Body Swedish/);
 });

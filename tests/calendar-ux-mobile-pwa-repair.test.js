@@ -123,7 +123,7 @@ test('#823 appointment card is the sole management target and panel owns permitt
   assert.match(html, /data-appointment-management-target="true"/);
   assert.match(html, /role="button" tabindex="0"/);
   assert.doesNotMatch(html, />Manage<\/button>|Adjust end time/);
-  assert.match(html, /data-client-mobile="\+27 82 123 4567"/);
+  assert.match(html, /data-client-mobile="082 123 4567"/);
   assert.match(html, /data-practitioner-names="Practitioner 1"/);
 
   const page = renderCalendarPage(model);

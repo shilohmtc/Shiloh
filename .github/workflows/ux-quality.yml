@@ -83,6 +83,7 @@ jobs:
           path: |
             artifacts/paid-booking-payment/*.png
             artifacts/treatment-credit/*.png
+            artifacts/south-african-phone/*.png
             artifacts/ux-playwright-results
             artifacts/ux-playwright-report
             artifacts/workspace-deposits
