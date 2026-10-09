@@ -10,7 +10,7 @@ export const Welcome = { render:() => frame(welcome()) };
 export const SetupNeeded = { render:() => frame(welcome({setup:true})) };
 export const NewClient = { render:() => frame(details()) };
 export const FormReady = { render:() => frame(welcome({formReady:true})) };
-export const VerifyForForm = { render:() => frame(verify({mobile:'082 000 0010',dateOfBirth:'2000-01-01'})) };
+export const VerifyForForm = { render:() => frame(verify({mobile:'+27820000010',dateOfBirth:'2000-01-01'})) };
 export const ValidationError = { render:() => frame(details({ error:'Please check your name and mobile number.', values:{ name:'Synthetic Client AK',mobile:'082 000 0010' } })) };
 export const Saved = { render:() => frame(done()) };
 export const ExistingClient = { render:() => frame(done({ needsStaff:true })) };

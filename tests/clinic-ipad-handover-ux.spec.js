@@ -58,15 +58,15 @@ for(const viewport of [{name:'phone',width:390,height:844},{name:'tablet',width:
       await expect(staffPage.getByRole('button',{name:/I confirm this person/})).toBeVisible();
       await evidence(staffPage,'staff-handover');
       await clientPage.goto(base+'/check-in/verify');
-      await expect(clientPage.getByText('+27820000010')).toHaveCount(0);
+      await expect(clientPage.getByText('082 000 0010')).toHaveCount(0);
       await staffPage.getByRole('button',{name:/I confirm this person/}).click();
       await expect(staffPage.locator('[data-status]')).toContainText('Handover confirmed');
       await expect(clientPage.getByRole('link',{name:'Complete my form'})).toBeVisible({timeout:10000});
       await clientPage.getByRole('link',{name:'Complete my form'}).click();
-      await expect(clientPage.getByText('+27820000010',{exact:true})).toBeVisible();
+      await expect(clientPage.getByText('082 000 0010',{exact:true})).toBeVisible();
       await expect(clientPage.locator('input[name="mobile"]')).toHaveCount(0);
       await evidence(clientPage,'missing-dob');
-      await otherPage.goto(base+'/check-in/verify');await expect(otherPage.getByText('+27820000010')).toHaveCount(0);
+      await otherPage.goto(base+'/check-in/verify');await expect(otherPage.getByText('082 000 0010')).toHaveCount(0);
       await clientPage.getByLabel('Date of birth').fill('2035-01-01');
       await clientPage.getByRole('button',{name:'These details are correct'}).click();
       await expect(clientPage.getByRole('alert')).toContainText('valid date of birth');
@@ -74,7 +74,7 @@ for(const viewport of [{name:'phone',width:390,height:844},{name:'tablet',width:
       await clientPage.getByRole('button',{name:'These details are correct'}).click();
       await expect(clientPage.getByRole('heading',{name:'Your consultation form is open'})).toBeVisible();
       expect((await f.db.query('SELECT date_of_birth::text FROM crm_v2_clients WHERE id=10')).rows[0].date_of_birth).toBe('2000-01-01');
-      await clientPage.goto(base+'/check-in/verify');await expect(clientPage.getByText('+27820000010')).toHaveCount(0);
+      await clientPage.goto(base+'/check-in/verify');await expect(clientPage.getByText('082 000 0010')).toHaveCount(0);
       await clientPage.goto(base+'/check-in/');
       const prepared=await f.service.queueForm(3,1,42,7);
       await f.service.confirmHandover(3,1,prepared.handoffId,true);
@@ -82,9 +82,9 @@ for(const viewport of [{name:'phone',width:390,height:844},{name:'tablet',width:
       await expect(clientPage.locator('input[name="dateOfBirth"]')).toHaveCount(0);
       await evidence(clientPage,'existing-dob');
       await clientPage.getByRole('button',{name:'Details incorrect / Cancel'}).click();
-      await expect(clientPage.getByText('+27820000010')).toHaveCount(0);
+      await expect(clientPage.getByText('082 000 0010')).toHaveCount(0);
       await clientPage.goBack();
-      await expect(clientPage.getByText('+27820000010')).toHaveCount(0);
+      await expect(clientPage.getByText('082 000 0010')).toHaveCount(0);
       expect(errors).toEqual([]);
     }finally{await Promise.all([staff.close(),ipad.close(),other.close()]);await new Promise(resolve=>server.close(resolve));await f.close();}
   });
@@ -207,17 +207,17 @@ for(const change of ['revoked','stale','expired','replaced']){
     try{
       const prepared=await f.service.queueForm(2,1,42,7);await f.service.confirmHandover(3,1,prepared.handoffId,true);
       await page.context().addCookies([{name:'shiloh_checkin_device',value:f.deviceToken,domain:'127.0.0.1',path:'/check-in'}]);
-      await page.goto(base+'/check-in/verify');await expect(page.getByText('+27820000010',{exact:true})).toBeVisible();
+      await page.goto(base+'/check-in/verify');await expect(page.getByText('082 000 0010',{exact:true})).toBeVisible();
       let replacement;
       if(change==='revoked')await f.service.revoke(2,1);
       if(change==='stale')await f.db.query("UPDATE crm_v2_clients SET date_of_birth='1990-01-01',updated_at=NOW() WHERE id=10");
       if(change==='expired')f.setClock(new Date(Date.now()+16*60*1000));
       if(change==='replaced')replacement=await f.service.queueForm(2,1,43,8);
-      await expect(page.getByText('+27820000010',{exact:true})).toHaveCount(0,{timeout:10000});
+      await expect(page.getByText('082 000 0010',{exact:true})).toHaveCount(0,{timeout:10000});
       if(replacement){
         const row=(await f.db.query('SELECT status,handed_over_at FROM clinic_checkin_form_handoffs WHERE id=$1',[replacement.handoffId])).rows[0];
         expect(row.status).toBe('queued');expect(row.handed_over_at).toBe(null);
-        await expect(page.getByText('+27829876543',{exact:true})).toHaveCount(0);
+        await expect(page.getByText('082 987 6543',{exact:true})).toHaveCount(0);
       }
     }finally{await new Promise(resolve=>server.close(resolve));await f.close();}
   });
