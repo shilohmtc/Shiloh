@@ -47,7 +47,7 @@ jobs:
         run: node scripts/workspace-marietjie-clients-authenticated-playwright.js
       - name: Upload Marietjie Clients UX evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: workspace-marietjie-clients-proof
           path: |

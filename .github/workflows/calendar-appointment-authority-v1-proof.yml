@@ -55,7 +55,7 @@ jobs:
         run: npm run test:browser:appointment-authority
       - name: Upload Phone and Desktop evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: calendar-appointment-authority-v1-evidence
           path: artifacts/calendar-appointment-authority-v1

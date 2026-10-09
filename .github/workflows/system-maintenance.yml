@@ -60,7 +60,7 @@ jobs:
         run: npm run system:check
       - name: Retain report and code checkpoint
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: shiloh-maintenance-${{ github.run_id }}
           path: artifacts/system-maintenance/

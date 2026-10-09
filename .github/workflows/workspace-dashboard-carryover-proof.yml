@@ -32,7 +32,7 @@ jobs:
         run: node --test tests/workspace-dashboard-carryover-849.test.js tests/workspace-dashboard-visual-polish-854.test.js tests/workspace-dashboard-messages-consolidation-p1.test.js
       - name: Authenticated Desktop + Phone unresolved-backlog proof
         run: node scripts/workspace-dashboard-carryover-browser-proof.js
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v6
         with:
           name: workspace-dashboard-carryover-854
           path: artifacts/workspace-dashboard-carryover-849

@@ -67,7 +67,7 @@ jobs:
         run: node scripts/workspace-reports-authenticated-playwright.js
       - name: Upload Reports UX evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: workspace-reports-ui-proof
           path: |

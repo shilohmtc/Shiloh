@@ -47,7 +47,7 @@ jobs:
         run: node scripts/workspace-staff-access-authenticated-playwright.js
       - name: Upload Staff access UX evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: workspace-staff-access-proof
           path: |

@@ -120,7 +120,7 @@ jobs:
       - name: Run authenticated Calendar mutation browser proof
         run: node --require ./scripts/calendar-operational-mutations-notification-proof-stub.js scripts/calendar-operational-mutations-browser-proof.js
       - name: Upload authenticated Calendar mutation browser proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: calendar-operational-mutations-browser-proof
           path: artifacts/calendar-operational-mutations-browser-proof
@@ -130,7 +130,7 @@ jobs:
         run: node scripts/workspace-error-recovery-browser-proof.js
       - name: Upload Workspace error recovery proof
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: workspace-error-recovery-proof
           path: artifacts/workspace-error-recovery
@@ -139,7 +139,7 @@ jobs:
       - name: Run Calendar Clean CRM V2 browser proof
         run: node scripts/calendar-clean-crm-v2-browser-proof.js
       - name: Upload Calendar Clean CRM V2 browser proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: calendar-clean-crm-v2-browser-proof
           path: artifacts/calendar-clean-crm-v2-browser-proof
@@ -148,7 +148,7 @@ jobs:
       - name: Run Calendar mobile staff overview browser proof
         run: node scripts/calendar-mobile-staff-overview-browser-proof.js
       - name: Upload Calendar mobile staff overview browser proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: calendar-mobile-staff-overview-v1
           path: artifacts/calendar-mobile-staff-overview-v1
@@ -157,7 +157,7 @@ jobs:
       - name: Run Calendar Desktop spatial lane browser proof
         run: node scripts/calendar-desktop-spatial-lanes-browser-proof.js
       - name: Upload Calendar Desktop spatial lane browser proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: calendar-desktop-spatial-lanes-v1
           path: artifacts/calendar-desktop-spatial-lanes-v1
@@ -166,7 +166,7 @@ jobs:
       - name: Run authenticated Desktop Calendar visual simplification proof
         run: node scripts/calendar-web-desktop-visual-browser-proof.js
       - name: Upload authenticated Desktop Calendar visual simplification proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: calendar-web-desktop-visual-v1
           path: artifacts/calendar-web-desktop-visual-v1
@@ -175,7 +175,7 @@ jobs:
       - name: Run Calendar view parity and Month browser proof
         run: node scripts/calendar-view-parity-month-browser-proof.js
       - name: Upload Calendar view parity and Month browser proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: calendar-view-parity-month-v1
           path: artifacts/calendar-view-parity-month-v1
@@ -184,7 +184,7 @@ jobs:
       - name: Run authenticated Phone Week Planner V3 browser proof
         run: node scripts/calendar-spatial-phone-week-browser-proof.js
       - name: Upload authenticated Phone Week Planner V3 browser proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: calendar-phone-week-planner-v3
           path: artifacts/calendar-phone-week-planner-v3
@@ -193,7 +193,7 @@ jobs:
       - name: Generate Calendar cockpit visual proof
         run: node scripts/calendar-cockpit-visual-proof.js
       - name: Upload Calendar cockpit visual proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: calendar-cockpit-visual-proof
           path: artifacts/calendar-cockpit-visual-proof
@@ -202,7 +202,7 @@ jobs:
       - name: Prove authenticated retrospective appointment capture
         run: node scripts/calendar-retrospective-booking-browser-proof.js
       - name: Upload authenticated retrospective appointment proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: calendar-retrospective-booking
           path: artifacts/calendar-retrospective-booking
@@ -211,7 +211,7 @@ jobs:
       - name: Prove authenticated appointment end-time adjustment
         run: node scripts/calendar-appointment-end-time-browser-proof.js
       - name: Upload authenticated appointment end-time proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: calendar-appointment-end-time
           path: artifacts/calendar-appointment-end-time
@@ -236,7 +236,7 @@ jobs:
       - name: Run My Shiloh client authentication browser proof
         run: node scripts/my-shiloh-client-auth-browser-proof.js
       - name: Upload My Shiloh client authentication browser proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: my-shiloh-client-auth-v1
           path: artifacts/my-shiloh-client-auth-v1
@@ -245,7 +245,7 @@ jobs:
       - name: Run authenticated Workspace client notification browser proof
         run: node scripts/workspace-client-notifications-browser-proof.js
       - name: Upload authenticated Workspace client notification browser proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: workspace-client-notifications-browser-proof
           path: artifacts/workspace-client-notifications-browser-proof
@@ -254,7 +254,7 @@ jobs:
       - name: Run authenticated Workspace Dashboard and Messages browser proof
         run: node scripts/workspace-dashboard-messages-browser-proof.js
       - name: Upload authenticated Workspace Dashboard and Messages browser proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: workspace-dashboard-v2-p1
           path: artifacts/workspace-dashboard-v2-p1
@@ -265,7 +265,7 @@ jobs:
       - name: Verify true Workspace mobile CSS viewports
         run: node scripts/workspace-mobile-viewport-proof.js
       - name: Upload Workspace Mobile Polish visual proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: workspace-mobile-polish-v1
           path: artifacts/workspace-mobile-polish-v1
@@ -274,7 +274,7 @@ jobs:
       - name: Generate Workspace Clients visual proof
         run: node scripts/workspace-clients-visual-proof.js
       - name: Upload Workspace Clients visual proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: workspace-clients-v1-visual-proof
           path: artifacts/workspace-clients-v1-visual-proof
@@ -285,14 +285,14 @@ jobs:
       - name: Prove authenticated Staff Access capability editor
         run: node scripts/workspace-staff-access-readonly-browser-proof.js
       - name: Upload authenticated Staff Access editor proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: workspace-staff-access-editor-v1
           path: artifacts/workspace-staff-access-editor-v1
           if-no-files-found: error
           retention-days: 14
       - name: Upload Workspace Staff visual proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: workspace-staff-v1-visual-proof
           path: artifacts/workspace-staff-v1-visual-proof
@@ -306,7 +306,7 @@ jobs:
         run: node scripts/workspace-packages-browser-proof.js
       - name: Upload package lifecycle and accessibility evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: workspace-packages-proof
           path: artifacts/workspace-packages
@@ -315,7 +315,7 @@ jobs:
       - name: Generate Workspace Services visual proof
         run: node scripts/workspace-services-visual-proof.js
       - name: Upload Workspace Services visual proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: workspace-services-v1-visual-proof
           path: artifacts/workspace-services-v1-visual-proof

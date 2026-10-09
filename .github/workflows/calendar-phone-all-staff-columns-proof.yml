@@ -49,7 +49,7 @@ jobs:
       - name: Prove optional Roomier geometry, scroll offsets, keyboard, Notes and accessibility
         run: node scripts/calendar-phone-roomier-browser-proof.js
       - name: Upload Phone multi-staff column proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: calendar-phone-multi-staff-columns-v1
           path: |
