@@ -13,6 +13,7 @@ const {
   workspaceClientsManageClientScript,
 } = require('../presentation/workspaceClientsManageUx');
 const { requireStaffSession } = require('../middleware/staffBrowserSession');
+const { injectClientCreditSummary } = require('../presentation/clientCreditSummaryUx');
 const { createClientTreatmentCreditService } = require('../services/clientTreatmentCredit');
 
 function isWorkspaceClientsEnabled(env = process.env) {
@@ -99,13 +100,16 @@ function createWorkspaceClientDetailHandler({
       } catch (_error) {
         notificationActionAllowed = false;
       }
-      let creditLink = '';
+      let credit = null, creditUnavailable = false;
       try {
         await creditService.canView(req.staffBrowserSession.adminId);
-        creditLink = `<a class="back" style="min-height:44px;display:inline-flex;align-items:center" href="/calendar/treatment-credit/clients/${Number(req.params.id)}">Treatment credit</a>`;
-      } catch (_error) { /* No link without explicit credit authority. */ }
+        try {
+          credit = await creditService.getClientModel({ adminId: req.staffBrowserSession.adminId, clientId: model.client.id });
+          if (!Number.isFinite(Number(credit.balance))) { credit = null; creditUnavailable = true; }
+        } catch (error) { if (error.httpStatus !== 403) creditUnavailable = true; }
+      } catch (_error) { /* No balance or action without explicit credit authority. */ }
       const html = renderPage(model, pageOptions(req, staffAccessPath, { notificationActionAllowed }));
-      return res.status(200).type('html').send(injectManagement(html, model).replace('</main>', `${creditLink}</main>`));
+      return res.status(200).type('html').send(injectClientCreditSummary(injectManagement(html, model), { clientId: model.client.id, credit, unavailable: creditUnavailable }));
     } catch (error) {
       const safe = safeError(error);
       return res.status(safe.status).type('html').send(renderUnavailable({ code: error?.code, message: safe.message }));

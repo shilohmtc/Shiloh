@@ -14,7 +14,7 @@ function sendError(error, req, res, next) {
   return res.status(status).json({ error:error.message, code:error.code, requestId:req.id });
 }
 
-function createCalendarPaymentsRouter({ env=process.env, sessionService, service=createBookingPaymentService({db:pool}), rewardsService=createShilohRewardsService({db:pool}), creditService=createClientTreatmentCreditService({db:pool}), giftSettlementService=createBookingNoncashSettlementService({db:pool}), renderPage=renderCalendarPaymentPage, renderClient=calendarPaymentsClientScript }={}) {
+function createCalendarPaymentsRouter({ env=process.env, sessionService, service=createBookingPaymentService({db:pool}), rewardsService=createShilohRewardsService({db:pool}), creditService=createClientTreatmentCreditService({db:pool}), giftSettlementService=createBookingNoncashSettlementService({db:pool}), renderPage=renderCalendarPaymentPage, renderClient=calendarPaymentsClientScript, groupReadDb=pool }={}) {
   if (!sessionService) throw new Error('Payment routes require the staff session service.');
   const router=express.Router(), requireSession=requireStaffSession({service:sessionService,env}), sameOrigin=sameOriginGuard({env}), requireCsrf=csrfGuard({service:sessionService});
   router.use((_req,res,next)=>{res.setHeader('Cache-Control','private, no-store, max-age=0');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Content-Type-Options','nosniff');next();});
@@ -23,6 +23,12 @@ function createCalendarPaymentsRouter({ env=process.env, sessionService, service
     const eligible=model.subject.status==='completed'&&!model.subject.final&&model.deposit?.requirement?.state!=='awaiting';
     model.noncash={eligible,message:'Available for completed treatment balances. Linked treatments must belong to this same client and all be completed. Booking deposits still need payment.'};
     if(!eligible)return model;
+    if(model.subject.groupId) {
+      // Match the existing settlement guard using a read only; no account/wallet is created.
+      const unsafe = await groupReadDb.query(`SELECT 1 FROM appointment_group_members gm JOIN appointments a ON a.id=gm.appointment_id
+        WHERE gm.group_id=$1 AND (a.status<>'completed' OR a.crm_v2_client_id IS DISTINCT FROM $2::bigint OR a.client_id IS NOT NULL) LIMIT 1`, [model.subject.groupId, model.subject.crmV2ClientId]);
+      if(unsafe.rowCount) { model.noncash.eligible=false; model.noncash.message='Linked treatments must all be completed for this same client.'; return model; }
+    }
     for(const [name,load] of [['credit',()=>creditService.getClientModel({adminId,clientId:model.subject.crmV2ClientId})],['gift',()=>giftSettlementService.getAvailable({adminId,clientId:model.subject.crmV2ClientId})]]) {
       try {const value=await load();model.noncash[name]=name==='credit'?{balance:value.balance,canApply:value.authority.canApply}:value;}
       catch(error){if(error.httpStatus!==403)throw error;}
