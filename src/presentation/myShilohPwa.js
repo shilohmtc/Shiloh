@@ -9,7 +9,7 @@ const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 const { renderCouplesBookingChoice } = require('./myShilohBookingActions');
 
-const MY_SHILOH_ASSET_VERSION = '20261008-remembered-sign-in-v1';
+const MY_SHILOH_ASSET_VERSION = '20261009-client-sign-in-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -48,7 +48,7 @@ function smsRegisterButton(scope) {
 }
 
 function smsSignInForm(scope) {
-  return `<button class="auth-choice-summary sms-recovery-choice" type="button" data-client-sms-open="recover" aria-controls="${scope}-sms-setup" aria-expanded="false">${renderShilohIcon('phone', { size: 24, className: 'auth-choice-summary__icon' })}<span>New to My Shiloh? Start here too.</span>${renderShilohIcon('next', { size: 18, className: 'auth-choice-summary__chevron' })}</button>
+  return `${scope === 'verify' ? '' : `<button class="auth-choice-summary sms-recovery-choice" type="button" data-client-sms-open="recover" aria-controls="${scope}-sms-setup" aria-expanded="false">${renderShilohIcon('phone', { size: 24, className: 'auth-choice-summary__icon' })}<span>New to My Shiloh? Start here too.</span>${renderShilohIcon('next', { size: 18, className: 'auth-choice-summary__chevron' })}</button>`}
   <section class="sms-setup-choice" id="${scope}-sms-setup" data-client-sms-choice aria-labelledby="${scope}-sms-title" hidden>
     <h2 id="${scope}-sms-title" data-client-sms-title>Sign in to My Shiloh</h2>
     <p data-client-sms-copy>Verify your mobile number. We’ll reconnect your existing profile, or help you complete your details. A passkey is optional.</p>
@@ -61,6 +61,27 @@ function smsSignInForm(scope) {
     <label>6-digit code<input name="code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7" required placeholder="123 456"></label>
     <button class="button button--primary button--wide" type="submit">Open My Shiloh</button>
     <p>Sent to your phone. The code works for 10 minutes.</p>
+    </form>
+  </section>`;
+}
+
+function crmSignIn(scope) {
+  return `<section class="sms-setup-choice" aria-labelledby="${scope}-crm-title">
+    <h2 id="${scope}-crm-title">Sign in with your details</h2>
+    <p>Enter your details as recorded by Shiloh. No SMS code is needed.</p>
+    <form class="sms-auth-form" data-client-crm-form data-mode="sign-in">
+      <label>First name<input name="firstName" autocomplete="given-name" maxlength="100" required></label>
+      <label>Surname<input name="surname" autocomplete="family-name" maxlength="100" required></label>
+      <label>Date of birth<input name="dateOfBirth" type="date" min="1900-01-01" autocomplete="bday" required></label>
+      <label>Mobile number<input name="mobile" type="tel" autocomplete="tel-national" inputmode="tel" maxlength="30" placeholder="082 000 0000" required></label>
+      <label data-crm-gender hidden>Gender<select name="gender" aria-label="Gender" disabled>
+        <option value="">Choose an option</option><option value="female">Female</option><option value="male">Male</option>
+        <option value="non_binary">Non-binary</option><option value="prefer_not_to_say">Prefer not to say</option><option value="other">Other</option>
+      </select></label>
+      <p>My Shiloh stays signed in for up to 30 days. Sign out when using a shared phone.</p>
+      <button class="button button--primary button--wide" type="submit" data-crm-submit>Open My Shiloh</button>
+      <button class="button button--soft button--wide" type="button" data-crm-mode>New to Shiloh? Register</button>
+      <p role="status" aria-live="polite" data-crm-status></p>
     </form>
   </section>`;
 }
@@ -84,6 +105,7 @@ function renderMyShilohPage({
   client = null,
   passkeysAvailable = false,
   smsAvailable = false,
+  crmAvailable = false,
   signInMethod = null,
   now = new Date(),
 } = {}) {
@@ -105,9 +127,8 @@ function renderMyShilohPage({
   const greeting = authenticated ? johannesburgGreeting(now) : null;
   const clientName = authenticated ? escapeHtml(client.name || client.firstName) : '';
   const firstName = authenticated ? escapeHtml(client.firstName) : '';
-  const rememberedChoice = `<label class="remembered-choice"><input type="checkbox" data-keep-signed-in> Keep me signed in for 30 days on this private phone</label><p class="remembered-choice-copy">Leave unchecked on a shared device. Sign out to close access sooner.</p>`;
   const passkeySignInButton = passkeysAvailable
-    ? `<button class="button button--soft button--wide passkey-choice" type="button" data-passkey-sign-in>${renderShilohIcon('key', { size: 24 })}<span>Sign in with a passkey</span></button>`
+    ? `<button class="button button--soft button--wide passkey-choice" type="button" data-passkey-sign-in>${renderShilohIcon('key', { size: 24 })}<span>${crmAvailable ? 'Use a saved passkey' : 'Sign in with a passkey'}</span></button>`
     : '';
   const passkeyRecovery = passkeysAvailable
     ? `<details class="passkey-recovery"><summary class="auth-choice-summary">${renderShilohIcon('key', { size: 24, className: 'auth-choice-summary__icon' })}<span>Can’t use your passkey?</span>${renderShilohIcon('next', { size: 18, className: 'auth-choice-summary__chevron' })}</summary>
@@ -138,13 +159,12 @@ function renderMyShilohPage({
         <p class="hero-copy">Your appointments, payments and forms.</p>
       </div>`
     : `<div class="hero">
-        <p class="eyebrow">Welcome to My Shiloh</p>
-        <h1 id="home-title">Your Shiloh, all in one place.</h1>
-        <p class="hero-copy">${smsAvailable ? (passkeysAvailable ? 'Sign in with an SMS code, or use your saved passkey. New clients start with an SMS code too.' : 'Sign in with an SMS code. New clients start here too.') : passkeysAvailable ? 'Sign in with your saved passkey to open your personal Shiloh space.' : 'Sign-in is temporarily unavailable. Please contact Reception for help.'}</p>
+        ${crmAvailable ? '<h1 id="home-title">Welcome to My Shiloh</h1>' : '<p class="eyebrow">Welcome to My Shiloh</p><h1 id="home-title">Your Shiloh, all in one place.</h1>'}
+        <p class="hero-copy">${crmAvailable ? 'Sign in with your Shiloh details, or use a saved passkey.' : smsAvailable ? 'Sign in or register with your mobile number.' : passkeysAvailable ? 'Use your saved passkey to sign in.' : 'Sign-in is temporarily unavailable. Please contact Reception for help.'}</p>
         <div class="hero-actions${smsAvailable ? ' hero-actions--sms' : ''}">
-          ${smsAvailable ? smsRegisterButton('home') : ''}
-          ${smsAvailable || passkeysAvailable ? rememberedChoice : ''}${passkeySignInButton}
-          ${smsAvailable ? smsSignInForm('home') : ''}
+          ${crmAvailable ? crmSignIn('home') : smsAvailable ? smsRegisterButton('home') : ''}
+          ${passkeySignInButton}
+          ${!crmAvailable && smsAvailable ? smsSignInForm('home') : ''}
           ${passkeyRecovery}
         </div>
         ${recoveryHelp('home-recovery-help')}
@@ -176,7 +196,7 @@ function renderMyShilohPage({
         </div>
         <ol class="booking-steps">
           <li><strong>Explore treatments</strong><span>See what feels right for you.</span></li>
-          <li><strong>Confirm it’s you</strong><span>${passkeysAvailable ? 'Sign in with an SMS code or your saved passkey.' : smsAvailable ? 'Verify your number by SMS to get started.' : 'Sign in securely.'}</span></li>
+          <li><strong>${crmAvailable ? 'Open My Shiloh' : 'Confirm it’s you'}</strong><span>${crmAvailable ? 'Enter your Shiloh details or use a saved passkey.' : passkeysAvailable ? 'Sign in with an SMS code or your saved passkey.' : smsAvailable ? 'Verify your number by SMS to get started.' : 'Sign in securely.'}</span></li>
           <li><strong>Request a time</strong><span>Reception reviews your request. Pay any required deposit to confirm.</span></li>
         </ol>
       </section>`;
@@ -220,8 +240,9 @@ function renderMyShilohPage({
       </div>
       <div class="profile-auth-card">
         <div class="profile-avatar" aria-hidden="true">${firstName.charAt(0).toUpperCase()}</div>
-        <div class="profile-auth-card__identity"><span>Signed in as</span><strong>${clientName}</strong><small>${signInMethod === 'passkey' ? 'Signed in with a passkey' : signInMethod === 'passkey_recovery' ? 'Signed in with a recovery code' : signInMethod === 'sms_code' ? 'Verified by SMS' : 'Signed in securely'}</small></div>
+        <div class="profile-auth-card__identity"><span>Signed in as</span><strong>${clientName}</strong><small>${signInMethod === 'crm_details' ? 'Signed in with CRM details; phone ownership unverified' : signInMethod === 'passkey' ? 'Signed in with a passkey' : signInMethod === 'passkey_recovery' ? 'Signed in with a recovery code' : signInMethod === 'sms_code' ? 'Verified by SMS' : 'Signed in securely'}</small></div>
       </div>
+      ${signInMethod === 'crm_details' ? `<section class="profile-editor"><h2>Protect your account settings</h2><p>To change personal details, manage passkeys or recovery codes, or sign out other sessions, first sign in with a saved passkey or verify your phone by SMS. A passkey remains optional; your CRM details still work for ordinary sign-in.</p>${passkeySignInButton}${smsAvailable ? smsRegisterButton('verify') + smsSignInForm('verify') : '<p>Contact Reception if you cannot verify your phone.</p>'}</section>` : ''}
       ${passkeysAvailable ? `<section class="profile-editor" aria-labelledby="passkey-title">
         <div class="profile-editor__heading"><div><p class="eyebrow">Sign-in</p><h2 id="passkey-title">Make next time easier.</h2></div></div>
         <p>A passkey is optional. If you save one, keep a one-time recovery code somewhere private in case you lose access to your device.</p>
@@ -265,7 +286,7 @@ function renderMyShilohPage({
             </label>
           </div>
           <div class="profile-mobile">
-            <div><span>Verified mobile number</span><strong data-client-profile-mobile>Checking…</strong></div>
+            <div><span>${signInMethod === 'crm_details' ? 'Mobile number' : 'Verified mobile number'}</span><strong data-client-profile-mobile>Checking…</strong></div>
             <p>Your sign-in number cannot be changed here. Please ask the clinic team if it needs to be updated.</p>
           </div>
           <p class="profile-editor__status" data-client-profile-status role="status" aria-live="polite">Loading your details…</p>
@@ -311,16 +332,16 @@ function renderMyShilohPage({
       </div>
       <button class="button button--soft button--wide profile-signout" type="button" data-client-auth-logout>Sign out</button>
       <button class="button button--soft button--wide" type="button" data-sign-out-others>Sign out other sessions</button>
-      <p>Lost a phone? Sign in again, then close its sessions here. Remove its saved passkey separately.</p><p role="status" data-sign-out-others-status></p>
+      <p>Lost a phone? Verify by SMS or use a saved passkey, then close its sessions here. Remove its saved passkey separately.</p><p role="status" data-sign-out-others-status></p>
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>`
     : `<div class="page-intro">
         <p class="eyebrow">Profile</p>
         <h1 id="profile-title">Your Shiloh, remembered.</h1>
-        <p>${passkeysAvailable ? 'Sign in with your passkey.' : smsAvailable ? 'Verify your number to set up My Shiloh.' : 'Sign-in is temporarily unavailable. Please contact Reception for help.'}</p>
+        <p>${crmAvailable ? 'Sign in with your Shiloh details, or use a saved passkey.' : smsAvailable ? 'Sign in or register with your mobile number.' : passkeysAvailable ? 'Use your saved passkey to sign in.' : 'Sign-in is temporarily unavailable. Please contact Reception for help.'}</p>
       </div>
-      ${smsAvailable ? smsRegisterButton('profile') : ''}
-      ${smsAvailable || passkeysAvailable ? rememberedChoice : ''}${passkeySignInButton}
-      ${smsAvailable ? smsSignInForm('profile') : ''}
+      ${crmAvailable ? crmSignIn('profile') : smsAvailable ? smsRegisterButton('profile') : ''}
+      ${passkeySignInButton}
+      ${!crmAvailable && smsAvailable ? smsSignInForm('profile') : ''}
       ${passkeyRecovery}
       ${recoveryHelp('profile-recovery-help')}
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
@@ -351,9 +372,9 @@ function renderMyShilohPage({
         <h1 id="wallet-title">Your Shiloh value, together.</h1>
         <p>Sign in to see your vouchers, rewards and payment shortcuts.</p>
       </div>
-      ${smsAvailable ? smsRegisterButton('wallet') : ''}
-      ${smsAvailable || passkeysAvailable ? rememberedChoice : ''}${passkeySignInButton}
-      ${smsAvailable ? smsSignInForm('wallet') : ''}
+      ${crmAvailable ? crmSignIn('wallet') : smsAvailable ? smsRegisterButton('wallet') : ''}
+      ${passkeySignInButton}
+      ${!crmAvailable && smsAvailable ? smsSignInForm('wallet') : ''}
       ${passkeyRecovery}
       ${recoveryHelp('wallet-recovery-help')}
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
@@ -396,12 +417,12 @@ function renderMyShilohPage({
         <p role="status" data-copy-treatment-status></p>
       </div>` : ''}
       <button class="button button--primary button--wide" type="button" data-install-gate-action>Install My Shiloh</button>
-      <p class="install-gate__sequence">After installing, open My Shiloh from your Home Screen. Sign in with an SMS code, or use your saved passkey.</p>
+      <p class="install-gate__sequence">After installing, open My Shiloh from your Home Screen. ${crmAvailable ? 'Sign in with your Shiloh details, or use your saved passkey.' : 'Sign in with an SMS code, or use your saved passkey.'}</p>
       <p class="install-gate__status" data-install-gate-status aria-live="polite"></p>
     </section>
   </main>
 
-  <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}" data-notification-client-id="${authenticated ? Number(client.id) : ''}" data-client-payment-whatsapp="${escapeHtml(String(whatsappNumber || '').replace(/\D/g, ''))}" hidden>
+  <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}" data-client-auth-method="${escapeHtml(signInMethod || '')}" data-notification-client-id="${authenticated ? Number(client.id) : ''}" data-client-payment-whatsapp="${escapeHtml(String(whatsappNumber || '').replace(/\D/g, ''))}" hidden>
     <div class="network-banner" data-offline-banner hidden role="status">You are offline. My Shiloh will reconnect automatically.</div>
     <div class="app-update-banner" data-app-update hidden role="status" aria-live="polite">
       <div><strong>A new My Shiloh update is ready.</strong><span>Update now to use the latest version.</span></div>
@@ -410,10 +431,10 @@ function renderMyShilohPage({
 
     <main id="main-content" class="app-main">
       <section class="view is-active" id="home" data-view="home" aria-labelledby="home-title">
-        ${authenticated && passkeysAvailable ? `<section class="client-setup" data-client-setup hidden aria-labelledby="client-setup-title">
+        ${authenticated && passkeysAvailable && signInMethod !== 'crm_details' ? `<section class="client-setup" data-client-setup hidden aria-labelledby="client-setup-title">
           <p class="eyebrow" data-client-setup-step>Optional: save a passkey</p>
           <h2 id="client-setup-title" data-client-setup-title>Save your Shiloh passkey.</h2>
-          <p data-client-setup-copy>Use your phone’s screen lock to open My Shiloh next time, without waiting for an SMS code.</p>
+          <p data-client-setup-copy>Use a saved passkey as an optional way to sign in next time.</p>
           <button class="button button--primary button--wide" type="button" data-client-setup-action>Save my passkey</button>
           <button class="client-setup__later" type="button" data-client-setup-later>Not now</button>
           <p class="client-setup__status" role="status" aria-live="polite" data-client-setup-status></p>

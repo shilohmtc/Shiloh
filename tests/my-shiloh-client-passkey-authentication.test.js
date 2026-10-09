@@ -1,3 +1,4 @@
+// Fabricated auth review fixtures; no real client/provider/credential access.
 'use strict';
 
 const test = require('node:test');
@@ -148,7 +149,7 @@ test('guest routes require same origin and use a separate HttpOnly challenge coo
   assert.match(cookies, /'Secure'/);
 });
 
-test('verified passkey forwards remembered choice without changing WebAuthn verification', async () => {
+test('verified passkey ignores legacy remembered choices without changing WebAuthn verification', async () => {
   for (const keepSignedIn of [true, false]) {
     const db = makeDb();
     let remembered;
@@ -157,6 +158,6 @@ test('verified passkey forwards remembered choice without changing WebAuthn veri
       return { ok: true };
     } } });
     assert.equal((await auth.service.finish({ browserToken, response, requestFingerprintHash: fingerprint, keepSignedIn })).ok, true);
-    assert.equal(remembered, keepSignedIn);
+    assert.equal(remembered, undefined);
   }
 });

@@ -134,7 +134,7 @@
     clientSetupStep.textContent = passkeyStep ? 'Optional: save a passkey' : 'Next, stay in the know';
     clientSetupTitle.textContent = passkeyStep ? 'Save your Shiloh passkey.' : 'Stay ready for every visit.';
     clientSetupCopy.textContent = passkeyStep
-      ? 'Use your phone’s screen lock to open My Shiloh next time, without waiting for an SMS code.'
+      ? 'Use a saved passkey as an optional way to sign in next time.'
       : 'Get appointment reminders and updates about your bookings, forms, payments, vouchers and Rewards on this phone. You can turn these off any time in Profile.';
     clientSetupAction.textContent = clientSetupCheckFailed && passkeyStep ? 'Try again'
       : passkeyStep ? 'Save my passkey' : 'Turn on notifications';
@@ -900,7 +900,7 @@
   function setClientProfileBusy(busy) {
     if (!clientProfileForm) return;
     clientProfileForm.querySelectorAll('button,input,select').forEach((control) => {
-      control.disabled = Boolean(busy);
+      control.disabled = Boolean(busy) || appFrame?.dataset.clientAuthMethod === 'crm_details';
     });
   }
 
@@ -1274,8 +1274,7 @@
     }
   }
 
-  async function signInWithPasskey(event) {
-    const remember = keepSignedIn(event?.currentTarget);
+  async function signInWithPasskey() {
     if (!passkeySupported() || authActionInFlight) return;
     authActionInFlight = true;
     setAuthControlsDisabled(true);
@@ -1287,11 +1286,11 @@
       const credential = await navigator.credentials.get({ publicKey: publicKeyOptions(startData.options) });
       if (!credential) throw new Error('Passkey sign-in was cancelled.');
       const finish = await postJson('/my-shiloh/auth/passkeys/sign-in/finish',
-        { response: serializePasskey(credential), keepSignedIn: remember });
+        { response: serializePasskey(credential) });
       const result = await finish.json().catch(() => ({}));
       if (!finish.ok || result.authenticated !== true) {
         const guidance = finish.status === 401
-          ? ' If you have not saved a My Shiloh passkey yet, request a mobile code first, then save one under Profile.'
+          ? ' You can use your CRM details for ordinary sign-in. To save a new passkey, verify your phone by SMS under Profile.'
           : '';
         throw new Error(`${result.error || 'We could not verify this passkey.'}${guidance}`);
       }
@@ -1335,7 +1334,7 @@
     const status = form.parentElement.querySelector('[data-passkey-recovery-status]');
     if (status) status.textContent = 'Checking your recovery code…';
     try {
-      const response = await postJson('/my-shiloh/auth/passkeys/recovery/use', { code, keepSignedIn: keepSignedIn(form) });
+      const response = await postJson('/my-shiloh/auth/passkeys/recovery/use', { code });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data.authenticated !== true) throw new Error(data.error || 'That recovery code could not be used.');
       form.reset();
@@ -1574,7 +1573,7 @@
 
   clientProfileForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (!clientProfileRevision) return;
+    if (!clientProfileRevision || appFrame?.dataset.clientAuthMethod === 'crm_details') return;
     // Disabled controls are omitted by FormData; read values before locking the form.
     const form = new FormData(clientProfileForm);
     setClientProfileBusy(true);
@@ -2115,6 +2114,47 @@
     });
   });
 
+  const crmForms = [...document.querySelectorAll('[data-client-crm-form]')];
+  crmForms.forEach(form => {
+    form.querySelector('[data-crm-mode]').addEventListener('click', () => {
+      if (authActionInFlight) return;
+      const register = form.dataset.mode !== 'register';
+      form.dataset.mode = register ? 'register' : 'sign-in';
+      form.querySelector('[data-crm-gender]').hidden = !register;
+      form.elements.namedItem('gender').disabled = !register;
+      form.elements.namedItem('gender').required = register;
+      form.querySelector('[data-crm-submit]').textContent = register ? 'Register and open My Shiloh' : 'Open My Shiloh';
+      form.querySelector('[data-crm-mode]').textContent = register ? 'Already a client? Sign in' : 'New to Shiloh? Register';
+      form.querySelector('[data-crm-status]').textContent = '';
+      form.elements.namedItem('firstName').focus();
+    });
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (authActionInFlight || !standalone()) return;
+      authActionInFlight = true;
+      const status = form.querySelector('[data-crm-status]');
+      const payload = Object.fromEntries(new FormData(form));
+      crmForms.forEach(item => item.querySelectorAll('button,input,select').forEach(control => { control.disabled = true; }));
+      setAuthControlsDisabled(true);
+      status.textContent = 'Checking your details…';
+      try {
+        const response = await postJson(`/my-shiloh/auth/crm/${form.dataset.mode}`, payload);
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.authenticated) throw new Error(result.error || 'We could not continue with these details. Please try again.');
+        status.textContent = 'Opening My Shiloh…';
+        window.location.replace(signedInLanding());
+      } catch (error) {
+        status.textContent = error.message || 'Sign-in could not be completed. Please try again.';
+        authActionInFlight = false;
+        crmForms.forEach(item => {
+          item.querySelectorAll('button,input,select').forEach(control => { control.disabled = false; });
+          item.elements.namedItem('gender').disabled = item.dataset.mode !== 'register';
+        });
+        setAuthControlsDisabled(false);
+      }
+    });
+  });
+
   smsOpenButtons.forEach((button) => button.addEventListener('click', () => {
     if (authActionInFlight) return;
     const panel = document.getElementById(button.getAttribute('aria-controls'));
@@ -2164,10 +2204,6 @@
     }
   }
 
-  function keepSignedIn(control) {
-    return control?.closest('[data-view]')?.querySelector('[data-keep-signed-in]')?.checked === true;
-  }
-
   async function completeSmsAuth(event) {
     event.preventDefault();
     if (authActionInFlight) return;
@@ -2177,7 +2213,7 @@
     setAuthControlsDisabled(true);
     setAuthStatus('Checking your code…', 'working');
     try {
-      const response = await postJson('/my-shiloh/auth/sms/complete', { code, keepSignedIn: keepSignedIn(event.currentTarget) });
+      const response = await postJson('/my-shiloh/auth/sms/complete', { code });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !result.authenticated) throw new Error(result.error || 'Could not verify your code.');
       setAuthStatus('Verified. Opening My Shiloh…', 'success');

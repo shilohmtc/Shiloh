@@ -56,7 +56,7 @@ export const PractitionerChips = {
   render: () => frame([
     renderChip({ label: 'All staff', icon: 'people', selected: false, density: 'compact' }),
     renderChip({ label: 'Abigail', icon: 'person', selected: true, density: 'compact' }),
-    renderChip({ label: 'Christel', icon: 'person', selected: false, density: 'compact' }),
+    renderChip({ label: 'Synthetic Client AN', icon: 'person', selected: false, density: 'compact' }),
     renderChip({ label: 'Unavailable', icon: 'person', disabled: true, density: 'compact' }),
   ].join(''), '700px'),
 };

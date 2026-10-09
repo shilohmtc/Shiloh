@@ -1,3 +1,4 @@
+// Fabricated auth review fixtures; no real client/provider/credential access.
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 
@@ -74,7 +75,7 @@ test('first sign-in setup leads with a passkey, then offers notifications on pho
 });
 
 for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
-  test(`SMS explicit remembered choice, repeated and interrupted verification on ${viewport.name}`, async ({ page }, testInfo) => {
+  test(`SMS automatic session, repeated and interrupted verification on ${viewport.name}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
     const starts = [], finishes = [];
     let release;
@@ -92,12 +93,13 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
     await page.evaluate(() => Object.defineProperty(navigator, 'standalone', { value: true, configurable: true }));
     await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
     const home = page.locator('[data-view="home"]');
-    const remember = home.locator('[data-keep-signed-in]');
-    await expect(remember).not.toBeChecked();
+    await expect(home.locator('[data-keep-signed-in]')).toHaveCount(0);
+    await expect(home.getByRole('heading', { name: 'Your Shiloh, all in one place.' })).toBeVisible();
+    await captureStable(page, testInfo, `signin-entry-${viewport.name}.png`, home.getByRole('button', { name: 'Sign in with an SMS code' }));
     await home.getByRole('button', { name: 'Sign in with an SMS code' }).click();
     await expect(home.locator('[data-client-sms-choice]')).toBeVisible();
     await home.locator('input[name="name"]').fill('Synthetic Client');
-    await home.locator('input[name="mobile"]').fill('0821234567');
+    await home.locator('input[name="mobile"]').fill('0820000001');
     pending = new Promise(resolve => { release = resolve; });
     await home.getByRole('button', { name: 'Send my SMS code' }).evaluate(button => { button.click(); button.click(); });
     await expect(home.getByRole('button', { name: 'Send my SMS code' })).toBeDisabled();
@@ -107,12 +109,11 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
     await home.locator('[data-client-sms-complete] input[name="code"]').fill('123456');
     await home.getByRole('button', { name: 'Open My Shiloh', exact: true }).click();
     await expect(home.locator('[data-auth-status]')).toContainText('Synthetic expired code');
-    expect(finishes).toEqual([{ code: '123456', keepSignedIn: false }]);
+    expect(finishes).toEqual([{ code: '123456' }]);
     await captureStable(page, testInfo, `sms-failure-${viewport.name}.png`, home.locator('[data-auth-status]'));
-    await remember.check();
     await home.getByRole('button', { name: 'Open My Shiloh', exact: true }).click();
     await expect.poll(() => finishes.length).toBe(2);
-    expect(finishes[1]).toEqual({ code: '123456', keepSignedIn: true });
+    expect(finishes[1]).toEqual({ code: '123456' });
     await expect(home.getByRole('button', { name: 'Open My Shiloh', exact: true })).toBeEnabled();
     const axe = await new AxeBuilder({ page }).include('[data-view="home"]')
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
@@ -120,9 +121,9 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
     await captureStable(page, testInfo, `sms-remembered-${viewport.name}.png`, home.locator('[data-auth-status]'));
     await home.getByRole('button', { name: 'Sign in with an SMS code' }).click();
     await expect(home.locator('[data-client-sms-choice]')).toBeHidden();
-    // A reload starts with an unchecked choice, never a saved/inferred consent.
+    // Reloading neither starts authentication nor reintroduces a session choice.
     await page.reload({ waitUntil: 'networkidle' });
-    await expect(page.locator('[data-view="home"] [data-keep-signed-in]')).not.toBeChecked();
+    await expect(page.locator('[data-view="home"] [data-keep-signed-in]')).toHaveCount(0);
     expect(starts).toHaveLength(1);
   });
 }
@@ -131,7 +132,7 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
   test(`verified profile confirmation, stale save and optional setup on ${viewport.name}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
     const writes = [];
-    const profile = { revision: 'a'.repeat(64), name: 'Synthetic Existing Client', dateOfBirth: '1990-05-14',
+    const profile = { revision: 'a'.repeat(64), name: 'Synthetic Existing Client', dateOfBirth: '2000-01-01',
       gender: null, mobile: '+27 •• ••• 4567', registrationComplete: false };
     await page.route('**/my-shiloh/api/profile', route => route.fulfill({ json: { profile } }));
     await page.route('**/my-shiloh/auth/passkeys/devices', route => route.fulfill({ json: { devices: [] } }));
@@ -203,14 +204,15 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
   });
 }
 
-test('remembered sign-in choice stays readable at narrow phone width and enlarged text', async ({ page }, testInfo) => {
+test('shared SMS entry stays readable at narrow phone width and enlarged text', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 320, height: 844 });
   await page.goto('/iframe.html?id=client-my-shiloh-pwa--register-entry&viewMode=story', { waitUntil: 'networkidle' });
   await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
-  await expect(page.locator('[data-view="home"] [data-keep-signed-in]')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Sign in with an SMS code' }).first()).toBeVisible();
+  await expect(page.locator('[data-keep-signed-in]')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const axe = await new AxeBuilder({ page }).include('[data-view="home"]')
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
   expect(axe.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
-  await captureStable(page, testInfo, 'sms-remembered-narrow-enlarged.png', page.locator('[data-view="home"] [data-keep-signed-in]'));
+  await captureStable(page, testInfo, 'sms-remembered-narrow-enlarged.png', page.locator('[data-view="home"] [data-client-sms-open="register"]'));
 });

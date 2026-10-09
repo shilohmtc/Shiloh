@@ -131,27 +131,27 @@ export const PhoneTouchToolbar = {
 
 const languageItems = [
   {
-    label: 'Scheduled', id: 9201, kind: 'appointment', status: 'confirmed', clientName: 'Tanya',
+    label: 'Scheduled', id: 9201, kind: 'appointment', status: 'confirmed', clientName: 'Synthetic Client AB',
     serviceName: 'Full Body Swedish', serviceContexts: [{ categoryName: 'Massage' }],
     startsAt: '2026-09-12T07:00:00.000Z', endsAt: '2026-09-12T08:00:00.000Z', staffIds: [1],
   },
   {
-    label: 'Needs attention', id: 9202, kind: 'appointment', status: 'scheduled', bookingRequestState: 'pending', clientName: 'Lerato',
+    label: 'Needs attention', id: 9202, kind: 'appointment', status: 'scheduled', bookingRequestState: 'pending', clientName: 'Synthetic Client AC',
     serviceName: 'Hydrate & Plump Facial', serviceContexts: [{ categoryName: 'Facials' }],
     startsAt: '2026-09-12T08:30:00.000Z', endsAt: '2026-09-12T09:30:00.000Z', staffIds: [2],
   },
   {
-    label: 'Completed', id: 9203, kind: 'appointment', status: 'completed', clientName: 'Melissa',
+    label: 'Completed', id: 9203, kind: 'appointment', status: 'completed', clientName: 'Synthetic Client AD',
     serviceName: 'Medi-Heel Pedicure', serviceContexts: [{ categoryName: 'Pedicures & Foot Care' }],
     startsAt: '2026-09-12T10:00:00.000Z', endsAt: '2026-09-12T11:00:00.000Z', staffIds: [1],
   },
   {
-    label: 'No-show', id: 9204, kind: 'appointment', status: 'no_show', clientName: 'Sophie',
+    label: 'No-show', id: 9204, kind: 'appointment', status: 'no_show', clientName: 'Synthetic Client AE',
     serviceName: 'Ozone & Far Infrared Therapy', serviceContexts: [{ categoryName: 'Ozone & Far Infrared' }],
     startsAt: '2026-09-12T11:30:00.000Z', endsAt: '2026-09-12T12:30:00.000Z', staffIds: [2],
   },
   {
-    label: 'Beauty treatment icon', id: 9205, kind: 'appointment', status: 'scheduled', clientName: 'Clare',
+    label: 'Beauty treatment icon', id: 9205, kind: 'appointment', status: 'scheduled', clientName: 'Synthetic Client AF',
     serviceName: 'Permanent Makeup - Brows', serviceContexts: [{ categoryName: 'Permanent Makeup' }],
     startsAt: '2026-09-12T13:00:00.000Z', endsAt: '2026-09-12T14:00:00.000Z', staffIds: [1],
   },
@@ -165,7 +165,7 @@ const languageItems = [
   },
 ];
 
-const practitionerNames = new Map([[1, 'Abigail'], [2, 'Christel']]);
+const practitionerNames = new Map([[1, 'Abigail'], [2, 'Synthetic Client AN']]);
 
 const languageCard = (item) => {
   const statusLabel = calendarEventStatusLabel(item);
@@ -209,12 +209,12 @@ export const ColourAndTreatmentLanguagePhone = {
 
 const couplesCalendarItems = [
   {
-    id: 9198, kind: 'appointment', status: 'scheduled', clientName: 'Alex', serviceName: 'Couples Massage',
+    id: 9198, kind: 'appointment', status: 'scheduled', clientName: 'Synthetic Client AG', serviceName: 'Couples Massage',
     serviceContexts: [{ categoryName: 'Massage' }], appointmentGroupType: 'couples_massage',
     startsAt: '2026-09-12T07:00:00.000Z', endsAt: '2026-09-12T08:30:00.000Z', staffIds: [1],
   },
   {
-    id: 9199, kind: 'appointment', status: 'scheduled', clientName: 'Sam', serviceName: 'Couples Massage',
+    id: 9199, kind: 'appointment', status: 'scheduled', clientName: 'Synthetic Client AH', serviceName: 'Couples Massage',
     serviceContexts: [{ categoryName: 'Massage' }], appointmentGroupType: 'couples_massage',
     startsAt: '2026-09-12T07:00:00.000Z', endsAt: '2026-09-12T08:30:00.000Z', staffIds: [2],
   },

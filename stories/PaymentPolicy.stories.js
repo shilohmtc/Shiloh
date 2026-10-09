@@ -22,7 +22,7 @@ export const DepositPolicyBeforeOzow = {
     requestKey: 'dep_storybook_760',
     request: {
       amount: '125.00',
-      payer_name: 'Jean-Pierre Botha',
+      payer_name: 'Synthetic Client AO',
       appointment_id: 760,
     },
     policyText: BOOKING_POLICY_TEXT,
@@ -34,7 +34,7 @@ export const DepositPolicyAlreadyAccepted = {
     requestKey: 'dep_storybook_760',
     request: {
       amount: '125.00',
-      payer_name: 'Jean-Pierre Botha',
+      payer_name: 'Synthetic Client AO',
       appointment_id: 760,
     },
     policyText: BOOKING_POLICY_TEXT,

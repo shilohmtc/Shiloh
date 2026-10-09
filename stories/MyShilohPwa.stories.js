@@ -73,7 +73,7 @@ function bookingSurface() {
       { id: 101, name: 'Hot Stone Massage', category: 'Massage', duration: '75 min', price: 'R850' },
       { id: 103, name: 'Signature Pedicure', category: 'Pedicures & Foot Care', duration: '75 min', price: 'R620' },
     ],
-    clientFirstName: 'Jean-Pierre',
+    clientFirstName: 'Synthetic Client AI',
     csrfToken: 'storybook-csrf',
     bookingPolicyText: BOOKING_POLICY_TEXT,
     depositPolicy: {
@@ -157,15 +157,15 @@ export const PasskeyRecovery = {
 
 export const AuthenticatedHome = {
   render: () => productionSurface({
-    id: '912',
-    name: 'Christel Botha',
-    firstName: 'Christel',
+    id: '9012',
+    name: 'Synthetic Client AM',
+    firstName: 'Synthetic Client AN',
   }),
 };
 
 export const FirstSignInPasskeySetup = {
   render: () => {
-    const surface = productionSurface({ id: '912', name: 'Jean-Pierre Botha', firstName: 'Jean-Pierre' },
+    const surface = productionSurface({ id: '9012', name: 'Synthetic Client AO', firstName: 'Synthetic Client AI' },
       { passkeysAvailable: true, signInMethod: 'sms_code' });
     const setup = surface.querySelector('[data-client-setup]');
     setup.hidden = false;
@@ -192,8 +192,8 @@ export const LongNameNotificationInvite = {
   render: () => {
     const surface = productionSurface({
       id: '914',
-      name: 'Alexandra-Marguerite van der Merwe',
-      firstName: 'Alexandra-Marguerite',
+      name: 'Synthetic Client AP',
+      firstName: 'Synthetic Client AQ',
     });
     const invite = surface.querySelector('[data-push-invite]');
     if (invite) invite.hidden = false;
@@ -288,8 +288,8 @@ export const AuthenticatedProfile = {
   render: () => {
     const surface = productionSurface({
       id: '913',
-      name: 'Jean-Pierre Botha',
-      firstName: 'Jean-Pierre',
+      name: 'Synthetic Client AO',
+      firstName: 'Synthetic Client AI',
     });
     surface.querySelectorAll('[data-view]').forEach((view) => {
       const active = view.dataset.view === 'profile';
@@ -302,8 +302,8 @@ export const AuthenticatedProfile = {
     });
     const form = surface.querySelector('[data-client-profile-form]');
     if (form) {
-      form.elements.name.value = 'Jean-Pierre Botha';
-      form.elements.dateOfBirth.value = '1985-06-14';
+      form.elements.name.value = 'Synthetic Client AO';
+      form.elements.dateOfBirth.value = '2000-01-01';
       form.elements.gender.value = 'male';
       form.querySelectorAll('input,select,button').forEach((control) => { control.disabled = false; });
     }
@@ -321,7 +321,7 @@ export const AuthenticatedProfile = {
 export const PasskeyProfile = {
   render: () => {
     const surface = productionSurface({
-      id: '913', name: 'Jean-Pierre Botha', firstName: 'Jean-Pierre',
+      id: '913', name: 'Synthetic Client AO', firstName: 'Synthetic Client AI',
     }, { passkeysAvailable: true, signInMethod: 'passkey' });
     surface.querySelectorAll('[data-view]').forEach((view) => {
       const active = view.dataset.view === 'profile';
@@ -484,9 +484,9 @@ export const StandaloneGuestSignIn = {
 export const AuthenticatedBrowserInstallDoorway = {
   render: () => {
     const surface = productionSurface({
-      id: '912',
-      name: 'Christel Botha',
-      firstName: 'Christel',
+      id: '9012',
+      name: 'Synthetic Client AM',
+      firstName: 'Synthetic Client AN',
     });
     const gate = surface.querySelector('[data-install-gate]');
     const frame = surface.querySelector('[data-app-frame]');
@@ -512,8 +512,8 @@ export const FirstLaunchAuthenticatedSession = {
   render: () => {
     const surface = productionSurface({
       id: '913',
-      name: 'Jean-Pierre Botha',
-      firstName: 'Jean-Pierre',
+      name: 'Synthetic Client AO',
+      firstName: 'Synthetic Client AI',
     });
     const installGate = surface.querySelector('[data-install-gate]');
     const frame = surface.querySelector('[data-app-frame]');
@@ -526,7 +526,7 @@ export const FirstLaunchAuthenticatedSession = {
 
 export const AuthenticatedDepositRequired = {
   render: () => {
-    const surface = productionSurface({ id: '912', name: 'Christel Botha', firstName: 'Christel' });
+    const surface = productionSurface({ id: '9012', name: 'Synthetic Client AM', firstName: 'Synthetic Client AN' });
     const payments = surface.querySelector('[data-client-home-payments]');
     payments.hidden = false;
     payments.innerHTML = '<article class="action-card action-card--accent"><h2>R340 deposit required</h2><p>Hot Stone Massage · Wed, 30 Sep · 10:00</p><p data-story-payment-message>Pay your deposit to confirm your booking.</p><a class="button button--primary" href="/pay/dep_storybook123">Pay R340 deposit</a></article>';
@@ -559,9 +559,9 @@ export const AuthenticatedDepositLinkUnavailable = {
 export const AuthenticatedHomeSummaryActions = {
   render: () => {
     const surface = productionSurface({
-      id: '912',
-      name: 'Christel Botha',
-      firstName: 'Christel',
+      id: '9012',
+      name: 'Synthetic Client AM',
+      firstName: 'Synthetic Client AN',
     });
     const home = surface.querySelector('[data-client-experience-home]');
     if (home) {
@@ -594,8 +594,8 @@ export const AuthenticatedWallet = {
   render: () => {
     const surface = productionSurface({
       id: '913',
-      name: 'Jean-Pierre Botha',
-      firstName: 'Jean-Pierre',
+      name: 'Synthetic Client AO',
+      firstName: 'Synthetic Client AI',
     });
     surface.querySelectorAll('[data-view]').forEach((view) => {
       const active = view.dataset.view === 'wallet';
@@ -617,8 +617,8 @@ export const UpdateAvailable = {
   render: () => {
     const surface = productionSurface({
       id: '913',
-      name: 'Jean-Pierre Botha',
-      firstName: 'Jean-Pierre',
+      name: 'Synthetic Client AO',
+      firstName: 'Synthetic Client AI',
     });
     const banner = surface.querySelector('[data-app-update]');
     if (banner) banner.hidden = false;
@@ -700,7 +700,7 @@ export const ArchivedUpdates = {
 
 export const BookForTwo = {
   render: () => {
-    const source = couplesBookingPresentation.renderMyShilohCouplesBookingPage({ catalogue,clientFirstName:'Jean-Pierre',csrfToken:'storybook-csrf',bookingPolicyText:BOOKING_POLICY_TEXT });
+    const source = couplesBookingPresentation.renderMyShilohCouplesBookingPage({ catalogue,clientFirstName:'Synthetic Client AI',csrfToken:'storybook-csrf',bookingPolicyText:BOOKING_POLICY_TEXT });
     const styles = [...source.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map(match => match[1]).join('\n');
     const body = source.match(/<body[^>]*>([\s\S]*?)<\/body>/)?.[1] || '';
     const root = document.createElement('div');
@@ -711,7 +711,7 @@ export const BookForTwo = {
 
 export const LaterAppointmentDeposit = {
   render: () => {
-    const surface = productionSurface({ id: '912', name: 'Jean-Pierre Botha', firstName: 'Jean-Pierre' });
+    const surface = productionSurface({ id: '9012', name: 'Synthetic Client AO', firstName: 'Synthetic Client AI' });
     const payments = surface.querySelector('[data-client-home-payments]');
     payments.hidden = false;
     payments.innerHTML = '<article class="action-card action-card--accent"><h2>R295 deposit required</h2><p>Full Body Swedish · Tue, 6 Oct · 10:45</p><p>Pay your deposit to confirm your booking.</p><a class="button button--primary" href="/pay/story_deposit">Pay R295 deposit</a></article>';
@@ -724,7 +724,7 @@ export const LaterAppointmentDeposit = {
 
 export const CouplesBookingChoices = {
   render: () => {
-    const surface = productionSurface({ id:'912',name:'Jean-Pierre Botha',firstName:'Jean-Pierre' });
+    const surface = productionSurface({ id:'9012',name:'Synthetic Client AO',firstName:'Synthetic Client AI' });
     const home = surface.querySelector('[data-client-experience-home]');
     home.querySelector('h2').textContent = 'Ready when you are, Jean-Pierre.';
     home.querySelector(':scope > p').textContent = 'Choose a treatment for yourself or book together.';

@@ -112,7 +112,7 @@ function detailHtml() {
 function uncategorisedDetailHtml() {
   return renderServiceDetailPage({
     authority: {
-      displayName: 'Christel',
+      displayName: 'Synthetic Client AN',
       businessRole: 'owner',
       serviceScope: 'all_services',
       linkedStaffId: 12,
@@ -137,10 +137,10 @@ function uncategorisedDetailHtml() {
     },
     categories,
     assignedStaff: [
-      { id: 12, display_name: 'Christel', resource_type: 'practitioner', status: 'active', client_bookable: true },
+      { id: 12, display_name: 'Synthetic Client AN', resource_type: 'practitioner', status: 'active', client_bookable: true },
     ],
     practitioners: [
-      { id: 12, display_name: 'Christel', status: 'active', client_bookable: true, assigned: true },
+      { id: 12, display_name: 'Synthetic Client AN', status: 'active', client_bookable: true, assigned: true },
     ],
     bookingEligibility: { eligible: false, categoryConfigured: false, clientBookableStaffCount: 1, authority: 'read_projection_only' },
   }, { ...options, staffNavigationAllowed: true });
@@ -168,7 +168,7 @@ export const UncategorisedServiceManagement = {
 
 export const ChristelCategoryManagement = {
   render: () => productionSurface(renderServicesListPage({
-    authority: { displayName: 'Christel', businessRole: 'owner', serviceScope: 'all_services' },
+    authority: { displayName: 'Synthetic Client AN', businessRole: 'owner', serviceScope: 'all_services' },
     services: [], hasMore: false, offset: 0, pageSize: 30, status: 'active',
     categories: [
       { id: 3, name: 'Massage', displayOrder: 3, status: 'active', serviceCount: 14 },

@@ -5,8 +5,8 @@ const stories = [
   { id: 'workspace-staff-access--access-overview', heading: 'Staff access' },
   { id: 'workspace-staff-access--clinic-team', heading: 'Naomi' },
   { id: 'workspace-staff-access--own-workspace', heading: 'Synthetic practitioner' },
-  { id: 'workspace-staff-access--protected-administrator', heading: 'Jean-Pierre' },
-  { id: 'workspace-staff-access--administrator-access', heading: 'Jean-Pierre' },
+  { id: 'workspace-staff-access--protected-administrator', heading: 'Synthetic Client AI' },
+  { id: 'workspace-staff-access--administrator-access', heading: 'Synthetic Client AI' },
   { id: 'workspace-staff-access--reception-access', heading: 'Shiloh Reception' },
   { id: 'workspace-staff-access--access-off', heading: 'Naomi' },
   { id: 'workspace-staff-access--empty-access', heading: 'Staff access' },
@@ -36,8 +36,8 @@ for (const viewport of [
         await expect(page.getByText('Clinic team', { exact: true })).toBeVisible();
       }
       if (story.id.endsWith('access-overview')) {
-        await expect(page.getByRole('link', { name: /Jean-Pierre/ })).toBeVisible();
-        await expect(page.getByRole('link', { name: /Jean-Pierre/ })).toHaveAttribute('href', /\/calendar\/team\/staff-access\/42$/);
+        await expect(page.getByRole('link', { name: /Synthetic Client AI/ })).toBeVisible();
+        await expect(page.getByRole('link', { name: /Synthetic Client AI/ })).toHaveAttribute('href', /\/calendar\/team\/staff-access\/42$/);
       }
 
       if (story.id.endsWith('administrator-access') || story.id.endsWith('reception-access')) {

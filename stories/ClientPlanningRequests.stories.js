@@ -14,13 +14,13 @@ function surface(html) {
 export default { title:'Client/Planning requests', parameters:{ layout:'fullscreen', a11y:{ test:'error' } } };
 
 export const FlexibleRequest = {
-  render:()=>surface(planning.renderPlanningRequestPage({ clientFirstName:'Jean-Pierre', csrfToken:'storybook',
+  render:()=>surface(planning.renderPlanningRequestPage({ clientFirstName:'Synthetic Client AI', csrfToken:'storybook',
     practitioners:[{ id:7,name:'Abigail' }], requests:[] })),
 };
 
 export const GroupOccasion = {
   render:()=>{
-    const root=surface(planning.renderPlanningRequestPage({ clientFirstName:'Jean-Pierre', csrfToken:'storybook',
+    const root=surface(planning.renderPlanningRequestPage({ clientFirstName:'Synthetic Client AI', csrfToken:'storybook',
       practitioners:[{ id:7,name:'Abigail' }], requests:[{ id:81,request_kind:'group',status:'planning',service_detail:'Spa afternoon for friends' }] }));
     root.querySelector('[name="kind"][value="group"]').checked=true;
     root.querySelector('[data-group-guests]').hidden=false;
@@ -32,9 +32,9 @@ export const GroupOccasion = {
 
 export const ReceptionAttention = {
   render:()=>surface(dashboard.renderDashboardPage({ requestedDateKey:'2026-09-27',operationalDateKey:'2026-09-27',
-    displayName:'Christel',mode:'owner_overview',appointments:[],carryOver:[],teamGroups:[],awaitingFinalization:[],
+    displayName:'Synthetic Client AN',mode:'owner_overview',appointments:[],carryOver:[],teamGroups:[],awaitingFinalization:[],
     bookingRequests:[],rescheduleRequests:[],holidayDecisions:[],calendar:{ timeline:{ staff:[] } },
-    planningRequests:[{ id:81,request_kind:'group',status:'requested',client_name:'Jean-Pierre',
+    planningRequests:[{ id:81,request_kind:'group',status:'requested',client_name:'Synthetic Client AI',
       service_detail:'Spa afternoon for friends',guest_count:4,special_occasion:true,occasion_note:'Birthday',
       preferred_date:'2026-10-02',preferred_daypart:'afternoon' }],
   })),
@@ -43,7 +43,7 @@ export const ReceptionAttention = {
 export const DirectReceptionContact = {
   render:()=>{
     const root=surface(myShiloh.renderMyShilohPage({
-      client:{ id:22,firstName:'Jane' }, whatsappNumber:'27836835433',
+      client:{ id:22,firstName:'Synthetic Client AJ' }, whatsappNumber:'27836835433',
       humanWhatsAppNumber:'27662399138', humanHandoffActive:true,
     }));
     root.insertAdjacentHTML('afterbegin','<link rel="stylesheet" href="/my-shiloh/assets/app.css">');
@@ -55,8 +55,8 @@ export const DirectReceptionContact = {
 
 export const RetiredHandoffIgnored = {
   render:()=>surface(dashboard.renderDashboardPage({ requestedDateKey:'2026-09-27',operationalDateKey:'2026-09-27',
-    displayName:'Christel',mode:'owner_overview',appointments:[],carryOver:[],teamGroups:[],awaitingFinalization:[],
+    displayName:'Synthetic Client AN',mode:'owner_overview',appointments:[],carryOver:[],teamGroups:[],awaitingFinalization:[],
     bookingRequests:[],rescheduleRequests:[],holidayDecisions:[],calendar:{ timeline:{ staff:[] } },
-    humanHandoffs:[{ id:92,client_name:'Jane',client_mobile:'27662399138' }],
+    humanHandoffs:[{ id:92,client_name:'Synthetic Client AJ',client_mobile:'27662399138' }],
   })),
 };

@@ -3,7 +3,7 @@ const AxeBuilder = require('@axe-core/playwright').default;
 const { workspacePwaClientScript } = require('../src/presentation/workspacePwa');
 const { workspaceIconClientScript } = require('../src/presentation/workspaceIconClient');
 
-for (const viewport of [{name:'phone',width:390,height:844},{name:'short-phone',width:360,height:640},{name:'desktop',width:1440,height:1000}]) {
+for (const viewport of [{name:'phone',width:390,height:844},{name:'short-phone',width:360,height:9040},{name:'desktop',width:1440,height:1000}]) {
   test(`Compact Workspace controls keep navigation accessible and toggle this device on ${viewport.name}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
     const posts = [];

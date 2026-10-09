@@ -16,7 +16,7 @@ function productionSurface(pageHtml) {
 function reportModel() {
   const period = { preset: 'week', startKey: '2026-10-05', endInclusiveKey: '2026-10-09', dayCount: 5, previousStartKey: '2026-09-28', previousEndKey: '2026-10-03', from: '2026-10-04T22:00:00Z', to: '2026-10-09T22:00:00Z', previousFrom: '2026-09-27T22:00:00Z', previousTo: '2026-10-02T22:00:00Z' };
   return {
-    authority: { displayName: 'Christel', reportScope: 'all_business' },
+    authority: { displayName: 'Synthetic Client AN', reportScope: 'all_business' },
     period,
     financial: {
       ...financialReports.summarizeFinancials({ period,
@@ -35,17 +35,17 @@ function reportModel() {
           {appointment_id:738,group_id:14,starts_at:'2026-10-09T08:00:00Z',amount_due:'1360',net_paid:'680',credits:'0',mixed_status:true}],
       }), period, vouchers: {issued_count:1,redeemed_value:500,available_balance:2500,expired_balance:100},
       treatmentCredits: [{id:31,created_at:'2026-10-06T08:00:00Z',entry_type:'apply',credit_type:'service_exchange',amount:'50',reason:'Applied to completed treatment',reference:'SYNTHETIC-INVOICE-101',source_entry_id:30,appointment_id:732,actor_name:'Synthetic Reception'}],
-      giftVoucherApplications: [{id:41,created_at:'2026-10-06T09:00:00Z',appointment_id:732,voucher_code:'SV-AAAAAAAAAAAA',voucher_ledger_entry_id:42,actor_name:'Synthetic Reception',amount:'50'}],
+      giftVoucherApplications: [{id:41,created_at:'2026-10-06T09:00:00Z',appointment_id:732,voucher_code:'SV-SYNTHETIC001',voucher_ledger_entry_id:42,actor_name:'Synthetic Reception',amount:'50'}],
       records: { ...financialRecords.summarizeExpenses([
-        {id:1,paid_on:'2026-10-05',category:'supplies',description:'Massage oils',reference:'Receipt 104',amount:'125.50',method:'cash',created_by:'Christel'},
-        {id:2,paid_on:'2026-10-06',category:'laundry',description:'Laundry service',reference:'Invoice 17',amount:'250',method:'manual_eft',created_by:'Jean-Pierre'},
-        {id:3,paid_on:'2026-10-06',category:'supplies',description:'Incorrect amount',reference:'',amount:'200',method:'cash',created_by:'Christel',voided_at:'2026-10-06T08:00Z',voided_by:'Jean-Pierre',void_reason:'Duplicate receipt'},
-      ]), today:'2026-10-09', closes:[{id:1,business_date:'2026-10-05',revision:1,opening_float:'200',cash_added:'0',cash_removed:'0',expected_cash:'369.50',counted_cash:'365',difference:'-4.50',created_by:'Christel',created_at:'2026-10-05T16:00Z',note:'Drawer short by R4.50; receipts checked.',snapshot:{cashExpenses:125.50}}] },
+        {id:1,paid_on:'2026-10-05',category:'supplies',description:'Massage oils',reference:'Receipt 104',amount:'125.50',method:'cash',created_by:'Synthetic Client AN'},
+        {id:2,paid_on:'2026-10-06',category:'laundry',description:'Laundry service',reference:'Invoice 17',amount:'250',method:'manual_eft',created_by:'Synthetic Client AI'},
+        {id:3,paid_on:'2026-10-06',category:'supplies',description:'Incorrect amount',reference:'',amount:'200',method:'cash',created_by:'Synthetic Client AN',voided_at:'2026-10-06T08:00Z',voided_by:'Synthetic Client AI',void_reason:'Duplicate receipt'},
+      ]), today:'2026-10-09', closes:[{id:1,business_date:'2026-10-05',revision:1,opening_float:'200',cash_added:'0',cash_removed:'0',expected_cash:'369.50',counted_cash:'365',difference:'-4.50',created_by:'Synthetic Client AN',created_at:'2026-10-05T16:00Z',note:'Drawer short by R4.50; receipts checked.',snapshot:{cashExpenses:125.50}}] },
     },
     selectedStaffId: null,
     permittedStaff: [
       { id: 11, displayName: 'Abigail' },
-      { id: 12, displayName: 'Christel' },
+      { id: 12, displayName: 'Synthetic Client AN' },
       { id: 13, displayName: 'Marietjie' },
     ],
     appointments: {
@@ -56,7 +56,7 @@ function reportModel() {
     totals: { bookedMinutes: 3420, remainingMinutes: 4980, utilisationPct: 41 },
     capacity: [
       { staffId: 11, name: 'Abigail', scheduledMinutes: 3120, bookedMinutes: 1380, blockedMinutes: 180, leaveMinutes: 240, remainingMinutes: 1320, utilisationPct: 51 },
-      { staffId: 12, name: 'Christel', scheduledMinutes: 3300, bookedMinutes: 1260, blockedMinutes: 120, leaveMinutes: 0, remainingMinutes: 1920, utilisationPct: 40 },
+      { staffId: 12, name: 'Synthetic Client AN', scheduledMinutes: 3300, bookedMinutes: 1260, blockedMinutes: 120, leaveMinutes: 0, remainingMinutes: 1920, utilisationPct: 40 },
       { staffId: 13, name: 'Marietjie', scheduledMinutes: 2940, bookedMinutes: 780, blockedMinutes: 120, leaveMinutes: 360, remainingMinutes: 1680, utilisationPct: 32 },
     ],
     services: [
@@ -75,7 +75,7 @@ function reportModel() {
           { id: 732, startsAt: '2026-09-14T08:00:00Z', serviceNames: ['Swedish Massage'], price: 590, ratePercent: 20, commission: 118 },
           { id: 734, startsAt: '2026-09-15T08:00:00Z', serviceNames: ['Couples Massage'], price: 1080, reason: 'Shared appointment — review allocation' },
         ] },
-        { staffId: 12, name: 'Christel', completedCount: 1, completedValue: 680, commission: 680, reviewCount: 0, appointments: [
+        { staffId: 12, name: 'Synthetic Client AN', completedCount: 1, completedValue: 680, commission: 680, reviewCount: 0, appointments: [
           { id: 735, startsAt: '2026-09-15T10:00:00Z', serviceNames: ['Hot Stone Massage'], price: 680, ratePercent: 100, commission: 680 },
         ] },
       ],
@@ -96,7 +96,7 @@ export const ClinicOverview = {
 };
 
 export const BusinessAdminOverview = {
-  render: () => productionSurface(renderReportsPage({ ...reportModel(), authority: { displayName: 'Jean-Pierre', reportScope: 'all_business' } })),
+  render: () => productionSurface(renderReportsPage({ ...reportModel(), authority: { displayName: 'Synthetic Client AI', reportScope: 'all_business' } })),
 };
 
 export const FocusedWorkspaceReports = {

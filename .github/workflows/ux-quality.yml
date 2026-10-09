@@ -44,6 +44,20 @@ jobs:
         run: npx playwright test tests/my-shiloh-couples-ux.spec.js --config=playwright.ux.config.js
       - name: Prove ordinary booking entry accessibility
         run: npx playwright test tests/ux-visual-accessibility.spec.js --config=playwright.ux.config.js --grep 'My Shiloh multiple bookings review'
+      - name: Prove CRM sign-in on Phone and Desktop
+        run: npx playwright test tests/my-shiloh-crm-sign-in-ux.spec.js --config=playwright.ux.config.js
+      - name: Bind focused CRM authentication screenshots to exact head
+        env:
+          EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/package-my-shiloh-crm-auth-evidence.js
+      - name: Upload focused synthetic CRM authentication review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: my-shiloh-crm-auth-review
+          path: artifacts/my-shiloh-crm-auth-review
+          if-no-files-found: error
+          retention-days: 14
       - name: Compare reviewed baselines and run accessibility checks
         id: ux_check
         shell: bash
@@ -73,6 +87,14 @@ jobs:
         with:
           name: paid-booking-payment-review
           path: artifacts/paid-booking-payment
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload focused South African phone review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: south-african-phone-review
+          path: artifacts/south-african-phone/*.png
           if-no-files-found: error
           retention-days: 14
       - name: Upload UX evidence

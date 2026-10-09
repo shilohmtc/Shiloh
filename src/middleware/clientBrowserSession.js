@@ -49,7 +49,7 @@ function cookieParts(name, value, {
 
 function serializeClientSessionCookie(token, {
   env = process.env,
-  maxAgeSeconds = 7 * 24 * 60 * 60,
+  maxAgeSeconds = 30 * 24 * 60 * 60,
 } = {}) {
   return cookieParts(clientSessionCookieName(env), token, { env, maxAgeSeconds: Math.min(Math.max(0, Number(maxAgeSeconds) || 0), 30 * 24 * 60 * 60) }).join('; ');
 }

@@ -71,7 +71,7 @@ function createClientPasskeyAuthenticationService({
     }
   }
 
-  async function finish({ browserToken, response, requestFingerprintHash = null, keepSignedIn = false } = {}) {
+  async function finish({ browserToken, response, requestFingerprintHash = null } = {}) {
     const p = enrollmentPolicy(env);
     if (!p.operational) return unavailable(p);
     if (typeof sessionService?.issueVerifiedPasskeySession !== 'function') return unavailable(p);
@@ -129,7 +129,7 @@ function createClientPasskeyAuthenticationService({
       const session = await sessionService.issueVerifiedPasskeySession({
         transaction: client, crmV2ClientId: credential.crm_v2_client_id,
         passkeyCredentialId: credential.id,
-        requestFingerprintHash: fingerprint, keepSignedIn,
+        requestFingerprintHash: fingerprint,
       });
       if (!session.ok) {
         await client.query('COMMIT');

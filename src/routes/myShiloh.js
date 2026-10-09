@@ -7,11 +7,14 @@ const { pool } = require('../db/pool');
 const { getPublicServiceCatalogue } = require('../services/publicServiceCatalogue');
 const { normalizePublicServiceId } = require('../services/publicPresentation');
 const { resolveWhatsAppNumber } = require('../services/publicWhatsApp');
-const { createClientBrowserSessionService, REMEMBERED_SESSION_TTL_MS, CHALLENGE_TTL_MS } = require('../services/clientBrowserSession');
+const { createClientBrowserSessionService, SESSION_TTL_MS, CHALLENGE_TTL_MS } = require('../services/clientBrowserSession');
 const { createClientPasskeyEnrollmentService } = require('../services/clientPasskeyEnrollment');
 const { createClientPasskeyAuthenticationService } = require('../services/clientPasskeyAuthentication');
 const { createClientPasskeyRecoveryService } = require('../services/clientPasskeyRecovery');
 const { createClientSmsAuthService, TTL_MS: SMS_CODE_TTL_MS } = require('../services/clientSmsAuth');
+const { createClientCrmDetailAuthService } = require('../services/clientCrmDetailAuth');
+const { randomOpaqueToken, isValidOpaqueToken } = require('../services/clientBrowserSession');
+const { parseCookieValue } = require('../middleware/staffBrowserSession');
 const { createMyShilohExperienceOrchestrator } = require('../services/myShilohExperienceOrchestrator');
 const { createMyShilohAssistantService, MyShilohAssistantError } = require('../services/myShilohAssistant');
 const { createMyShilohClientActionService } = require('../services/myShilohClientActions');
@@ -100,6 +103,7 @@ function createMyShilohRouter({
   passkeyAuthenticationService = createClientPasskeyAuthenticationService({ db: pool, env, sessionService }),
   passkeyRecoveryService = createClientPasskeyRecoveryService({ db: pool, env, sessionService }),
   smsAuthService = createClientSmsAuthService({ db: pool, env, sessionService }),
+  crmAuthService = createClientCrmDetailAuthService({ db: pool, env, sessionService }),
   whatsappResolver = resolveWhatsAppNumber,
   catalogueProvider = getPublicServiceCatalogue,
   experienceService = createMyShilohExperienceOrchestrator(),
@@ -128,7 +132,7 @@ function createMyShilohRouter({
   const optionalSession = optionalClientSession({ service: sessionService, env });
   const requireCsrf = clientCsrfGuard({ service: sessionService });
 
-  function sendAuthenticatedClient(res, result) {
+  function sendAuthenticatedClient(res, result, extraCookies = []) {
     const sessionSeconds = Math.max(
       1,
       Math.floor((new Date(result.expiresAt).getTime() - Date.now()) / 1000),
@@ -136,11 +140,12 @@ function createMyShilohRouter({
     res.setHeader('Set-Cookie', [
       serializeClientSessionCookie(result.sessionToken, {
         env,
-        maxAgeSeconds: Math.min(sessionSeconds, Math.floor(REMEMBERED_SESSION_TTL_MS / 1000)),
+        maxAgeSeconds: Math.min(sessionSeconds, Math.floor(SESSION_TTL_MS / 1000)),
       }),
       serializeExpiredClientAuthCookie({ env }),
       serializeExpiredClientSmsAuthCookie({ env }),
       serializeExpiredClientPasskeyAuthCookie({ env }),
+      ...extraCookies,
     ]);
     return res.status(200).json({
       authenticated: true,
@@ -519,7 +524,7 @@ function createMyShilohRouter({
         const status = result.code === 'CLIENT_PASSKEY_DISABLED' ? 404 :
           result.code === 'CLIENT_PASSKEY_UNAVAILABLE' ? 503 :
             result.code === 'CLIENT_RECENT_AUTH_REQUIRED' ? 428 : 403;
-        return res.status(status).json({ error: 'Passkey setup is unavailable. Please sign in again and try later.', requestId: req.id });
+        return res.status(status).json({ error: status === 428 ? 'Verify your phone by SMS or use a saved passkey before saving a passkey.' : 'Passkey setup is unavailable. Please try later.', requestId: req.id });
       }
       return res.status(200).json({ options: result.options, expiresAt: result.expiresAt });
     } catch (error) { return next(error); }
@@ -538,7 +543,7 @@ function createMyShilohRouter({
         const status = result.code === 'CLIENT_PASSKEY_DISABLED' ? 404 :
           result.code === 'CLIENT_PASSKEY_UNAVAILABLE' ? 503 :
             result.code === 'CLIENT_RECENT_AUTH_REQUIRED' ? 428 : 401;
-        return res.status(status).json({ error: 'Passkey setup could not be completed. Please try again.', requestId: req.id });
+        return res.status(status).json({ error: status === 428 ? 'Verify your phone by SMS or use a saved passkey before saving a passkey.' : 'Passkey setup could not be completed. Please try again.', requestId: req.id });
       }
       return res.status(200).json({ registered: true });
     } catch (error) { return next(error); }
@@ -565,7 +570,7 @@ function createMyShilohRouter({
         const status = result.code === 'CLIENT_RECENT_AUTH_REQUIRED' ? 428 :
           result.code === 'CLIENT_PASSKEY_INVALID' ? 404 : 503;
         return res.status(status).json({
-          error: status === 428 ? 'Sign in again before removing a passkey.' : 'Could not remove this passkey.',
+          error: status === 428 ? 'Verify your phone by SMS or use a saved passkey before removing a passkey.' : 'Could not remove this passkey.',
           requestId: req.id,
         });
       }
@@ -586,7 +591,7 @@ function createMyShilohRouter({
       if (!result.ok) {
         const status = result.code === 'CLIENT_PASSKEY_DISABLED' ? 404 :
           result.code === 'CLIENT_PASSKEY_RATE_LIMITED' ? 429 : 503;
-        return res.status(status).json({ error: 'Passkey sign-in is unavailable. Please request an SMS code.', requestId: req.id });
+        return res.status(status).json({ error: crmAuthService.enabled() ? 'Passkey sign-in is unavailable. You can sign in with your CRM details.' : 'Passkey sign-in is unavailable. Please request an SMS code.', requestId: req.id });
       }
       res.setHeader('Set-Cookie', serializeClientPasskeyAuthCookie(result.browserToken, {
         env, maxAgeSeconds: Math.max(1, Math.floor(CHALLENGE_TTL_MS / 1000)),
@@ -602,11 +607,10 @@ function createMyShilohRouter({
         browserToken: clientPasskeyAuthTokenFromRequest(req, env),
         response: req.body?.response,
         requestFingerprintHash: requestFingerprintHash(req),
-        keepSignedIn: req.body?.keepSignedIn === true,
       });
       if (!result.ok) {
         return res.status(result.code === 'CLIENT_PASSKEY_DISABLED' ? 404 : 401).json({
-          error: 'We could not verify this passkey. Try again or request an SMS code.', requestId: req.id,
+          error: crmAuthService.enabled() ? 'We could not verify this passkey. Try again or sign in with your CRM details.' : 'We could not verify this passkey. Try again or request an SMS code.', requestId: req.id,
         });
       }
       try { await voucherService.syncRecipientLinks({ crmV2ClientId: result.client.id }); } catch (_) {}
@@ -623,7 +627,7 @@ function createMyShilohRouter({
       });
       if (!result.ok) return res.status(result.code === 'CLIENT_RECENT_AUTH_REQUIRED' ? 428 : 403).json({
         error: result.code === 'CLIENT_PASSKEY_REQUIRED' ? 'Save a passkey first.' :
-          result.code === 'CLIENT_RECENT_AUTH_REQUIRED' ? 'Sign in again before creating a recovery code.' :
+          result.code === 'CLIENT_RECENT_AUTH_REQUIRED' ? 'Verify your phone by SMS or use a saved passkey before creating a recovery code.' :
             'Recovery code is unavailable. Please try later.', requestId: req.id,
       });
       return res.status(200).json({ code: result.code });
@@ -635,7 +639,6 @@ function createMyShilohRouter({
       setNoStoreJson(res);
       const result = await passkeyRecoveryService.redeem({
         code: req.body?.code, requestFingerprintHash: requestFingerprintHash(req),
-        keepSignedIn: req.body?.keepSignedIn === true,
       });
       if (!result.ok) return res.status(result.code === 'CLIENT_RECOVERY_RATE_LIMITED' ? 429 : 401).json({
         error: result.code === 'CLIENT_RECOVERY_RATE_LIMITED' ? 'Too many tries. Please wait ten minutes.' :
@@ -645,6 +648,42 @@ function createMyShilohRouter({
       return sendAuthenticatedClient(res, result);
     } catch (error) { return next(error); }
   });
+
+  for (const mode of ['sign-in', 'register']) {
+    router.post(`/my-shiloh/auth/crm/${mode}`, sameOrigin, async (req, res, next) => {
+      try {
+        setNoStoreJson(res);
+        const started = Date.now();
+        const cookieName = env.NODE_ENV === 'production' ? '__Host-shiloh_client_crm_device' : 'shiloh_client_crm_device';
+        const previous = parseCookieValue(req.headers?.cookie, cookieName);
+        const deviceToken = isValidOpaqueToken(previous) ? previous : randomOpaqueToken();
+        const deviceCookie = `${cookieName}=${deviceToken}; Path=/; Max-Age=2592000; HttpOnly; SameSite=Strict${env.NODE_ENV === 'production' ? '; Secure' : ''}`;
+        const payload = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+        const allowed = new Set(['firstName','surname','dateOfBirth','mobile', ...(mode === 'register' ? ['gender'] : [])]);
+        let result;
+        try {
+          result = await crmAuthService.attempt({
+            input: Object.keys(payload).some(key => !allowed.has(key)) ? {} : payload,
+            register: mode === 'register', address: req.ip || req.socket?.remoteAddress,
+            deviceToken, requestFingerprintHash: requestFingerprintHash(req),
+          });
+        } catch (_) {
+          // Never expose driver/service diagnostics, including pool acquisition failures.
+          result = { ok: false, code: 'CRM_AUTH_UNAVAILABLE' };
+        }
+        // Equal minimum response time for missing records, malformed inputs and conflicting details.
+        await new Promise(resolve => setTimeout(resolve, Math.max(0, 300 - (Date.now()-started))));
+        if (!result.ok) {
+          res.setHeader('Set-Cookie', deviceCookie);
+          const status = result.code === 'CRM_AUTH_RATE_LIMITED' ? 429 : result.code === 'CRM_AUTH_UNAVAILABLE' ? 503 : 401;
+          return res.status(status).json({ error: status === 429 ? 'Please wait before trying again.' :
+            status === 503 ? 'Sign-in is temporarily unavailable. Please try again later.' :
+            'We could not continue with these details. Check them and try again, or contact Reception.' });
+        }
+        return sendAuthenticatedClient(res, result, [deviceCookie]);
+      } catch (error) { return next(error); }
+    });
+  }
 
   router.post('/my-shiloh/auth/sms/start', sameOrigin, async (req, res, next) => {
     try {
@@ -673,7 +712,6 @@ function createMyShilohRouter({
       const result = await smsAuthService.finish({
         browserToken: clientSmsAuthTokenFromRequest(req, env), code: String(req.body?.code || '').replace(/\s/g, ''),
         requestFingerprintHash: requestFingerprintHash(req),
-        keepSignedIn: req.body?.keepSignedIn === true,
       });
       if (!result.ok) return res.status(result.code === 'SMS_PROFILE_UNAVAILABLE' ? 409 : 401).json({
         error: result.code === 'SMS_PROFILE_UNAVAILABLE' ?
@@ -718,7 +756,7 @@ function createMyShilohRouter({
     try {
       setNoStoreJson(res);
       const result = await sessionService.revokeOtherSessions(req.myShilohClientSession);
-      if (!result.ok) return res.status(428).json({ error: 'Sign in again before signing out other sessions.' });
+      if (!result.ok) return res.status(428).json({ error: 'Verify your phone by SMS or use a saved passkey before signing out other sessions.' });
       return res.json({ revoked: true });
     } catch (error) { return next(error); }
   });
@@ -1112,6 +1150,7 @@ function createMyShilohRouter({
       client: req.myShilohClientSession?.client || null,
       passkeysAvailable: passkeyEnrollmentService.policy().operational,
       smsAvailable: smsAuthService.enabled(),
+      crmAvailable: crmAuthService.enabled(),
       signInMethod: req.myShilohClientSession?.authMethod,
     }));
   });

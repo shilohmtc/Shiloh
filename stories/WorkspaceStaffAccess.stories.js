@@ -27,7 +27,7 @@ const ownWorkspace = {
   ...clinicTeam, id: 31, staffId: 51, displayName: 'Synthetic practitioner', profileKey: 'own_workspace_v1', profileLabel: 'Own workspace', revision: 'b'.repeat(64),
   toggles: toggles(['appointment:view', 'appointment:create', 'appointment:adjust_end', 'booking:update', 'calendar:booking:reschedule', 'calendar:booking:cancel', 'client:lookup', 'client:manage', 'services:view', 'services:manage', 'service:pricing', 'staff:services:view', 'schedule:view', 'schedule:availability_manage']),
 };
-const administrator = { ...clinicTeam, id: 42, staffId: null, profileKey: null, businessRole: 'business_admin', displayName: 'Jean-Pierre', toggles: toggles(Object.keys(metadata).filter(key => !metadata[key].legacy)), protectedRestrictions: ['Record and practitioner boundaries remain unchanged.'] };
+const administrator = { ...clinicTeam, id: 42, staffId: null, profileKey: null, businessRole: 'business_admin', displayName: 'Synthetic Client AI', toggles: toggles(Object.keys(metadata).filter(key => !metadata[key].legacy)), protectedRestrictions: ['Record and practitioner boundaries remain unchanged.'] };
 
 export default {
   title: 'Workspace/Staff access',

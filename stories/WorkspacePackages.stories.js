@@ -16,10 +16,10 @@ const pkg = {
 const model = {
   packages: [pkg],
   purchases: [
-    { client_name: 'Example client', name: pkg.name, sessions_total: 4, booked: 1, used: 1 },
+    { client_name: 'Synthetic Client AV', name: pkg.name, sessions_total: 4, booked: 1, used: 1 },
   ],
   authority: {
-    displayName: 'Jean-Pierre',
+    displayName: 'Synthetic Client AI',
     permissions: { 'payment:collect': true, 'client:lookup': true },
   },
   options: {

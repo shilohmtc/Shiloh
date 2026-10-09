@@ -311,7 +311,7 @@ async function main() {
       family:document.querySelector('[data-review] [data-service-family]')?.getAttribute('data-service-family')
     })`);
     assert.match(existingReview.review, /Synthetic Existing Client/);
-    assert.match(existingReview.review, /\+27821234567/);
+    assert.match(existingReview.review, /082 123 4567/);
     assert.match(existingReview.review, /Cupping Area Specific/);
     assert.equal(existingReview.createEnabled, true);
     assert.equal(existingReview.family, 'targeted_therapeutic');
@@ -351,7 +351,7 @@ async function main() {
     const newReview = await evaluate(cdp, `document.querySelector('[data-review]').innerText`);
     assert.match(newReview, /Synthetic New Client/);
     assert.match(newReview, /New client created/);
-    assert.match(newReview, /\+27820004321/);
+    assert.match(newReview, /082 000 4321/);
     screenshots.push({ state: 'new-client-direct-review', ...(await screenshot('new-client-direct-review')) });
 
     await cdp.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });

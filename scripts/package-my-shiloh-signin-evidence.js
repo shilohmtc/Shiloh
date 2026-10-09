@@ -9,7 +9,7 @@ const source = path.resolve('artifacts/ux-playwright-results');
 const destination = path.resolve('artifacts/my-shiloh-signin-review');
 const expected = ['sms-remembered-narrow-enlarged.png'];
 for (const device of ['phone', 'desktop']) {
-  for (const state of ['sms-remembered', 'sms-failure', 'optional-passkey-not-now',
+  for (const state of ['signin-entry', 'sms-remembered', 'sms-failure', 'optional-passkey-not-now',
     'profile-confirmation-conflict', 'session-revocation-fresh-auth-required', 'session-revocation-result']) {
     expected.push(`${state}-${device}.png`);
   }

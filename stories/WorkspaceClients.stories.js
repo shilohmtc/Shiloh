@@ -24,9 +24,9 @@ const authority = {
 const clients = [
   {
     id: 801,
-    name: 'Marietjie Client One',
-    normalized_mobile: '27821234001',
-    date_of_birth: '1988-05-14',
+    name: 'Synthetic Client AR',
+    normalized_mobile: '27820000011',
+    date_of_birth: '2000-01-01',
     gender: 'female',
     profile_status: 'registered',
     mobile_verified_at: '2026-09-10T08:00:00.000Z',
@@ -35,9 +35,9 @@ const clients = [
   },
   {
     id: 802,
-    name: 'Shared Shiloh Client',
-    normalized_mobile: '27821234002',
-    date_of_birth: '1992-03-09',
+    name: 'Synthetic Client AS',
+    normalized_mobile: '27820000012',
+    date_of_birth: '2000-01-01',
     gender: 'female',
     profile_status: 'registered',
     mobile_verified_at: '2026-09-12T09:00:00.000Z',
