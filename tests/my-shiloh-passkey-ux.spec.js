@@ -32,7 +32,7 @@ test('passkey guest and profile paths remain usable on phone and desktop', async
       fullPage: true, animations: 'disabled' });
 
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--passkey-profile&viewMode=story', { waitUntil: 'networkidle' });
-    await expect(page.locator('[data-view="profile"] [data-passkey-enroll]')).toBeVisible();
+    await expect(page.locator('[data-view="profile"] [data-passkey-enroll]')).toBeHidden();
     await expect(page.locator('[data-view="profile"] [data-passkey-devices] .passkey-device')).toHaveCount(2);
     await expect(page.getByRole('button', { name: 'Remove iPhone passkey' })).toBeVisible();
     await expect(page.locator('[data-view="profile"]')).toContainText('Signed in with a passkey');
@@ -81,7 +81,8 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
     const profile = { revision: 'a'.repeat(64), name: 'Synthetic Existing Client', dateOfBirth: '2000-01-01',
       gender: null, mobile: '+27 •• ••• 4567', registrationComplete: false };
     await page.route('**/my-shiloh/api/profile', route => route.fulfill({ json: { profile } }));
-    await page.route('**/my-shiloh/auth/passkeys/devices', route => route.fulfill({ json: { devices: [] } }));
+    let savedDevices = [];
+    await page.route('**/my-shiloh/auth/passkeys/devices', route => route.fulfill({ json: { devices: savedDevices } }));
     await page.route('**/my-shiloh/auth/csrf', route => route.fulfill({ json: { csrfToken: 'synthetic-csrf' } }));
     await page.route('**/my-shiloh/api/profile/update', route => {
       writes.push(route.request().postDataJSON());
@@ -117,13 +118,29 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
       challenge: 'c3ludGhldGlj', user: { id: 'c3ludGhldGlj', name: 'Synthetic' },
     } } }));
     await page.route('**/my-shiloh/auth/passkeys/registration/finish', route => {
-      registrations += 1; return route.fulfill({ json: { registered: true } });
+      registrations += 1;
+      savedDevices = [{ id: 42, label: 'Synthetic saved device' }];
+      return route.fulfill({ json: { registered: true } });
     });
     await page.evaluate(() => { navigator.credentials.create = async () => { throw new DOMException('Cancelled', 'NotAllowedError'); }; });
     await page.locator('[data-passkey-enroll]').click();
     await expect(page.locator('[data-passkey-enroll-status]')).toContainText(/cancelled|not approved/i);
     await expect(page.locator('[data-passkey-enroll]')).toBeEnabled();
     expect(registrations).toBe(0);
+    let confirmations = 0;
+    await page.route('**/my-shiloh/auth/crm/reauthenticate', route => {
+      confirmations += 1; return route.fulfill({ status: 401, json: {} });
+    });
+    await page.evaluate(() => { navigator.credentials.create = async () => ({
+      id: 'synthetic-key', rawId: new Uint8Array([1]), type: 'public-key',
+      response: {clientDataJSON:new Uint8Array([2]), attestationObject:new Uint8Array([3]), getTransports:()=>['internal']},
+    }); });
+    await page.locator('[data-passkey-enroll]').click();
+    await expect(page.locator('[data-passkey-enroll-status]')).toContainText('Your passkey is ready');
+    await expect(page.locator('[data-passkey-enroll]')).toBeHidden();
+    expect(registrations).toBe(1); expect(confirmations).toBe(0);
+    await captureStable(page, testInfo, `first-passkey-saved-${viewport.name}.png`, page.locator('[data-passkey-enroll-status]'));
+
     let revocations = 0;
     let requireFresh = true;
     await page.route('**/my-shiloh/auth/sessions/revoke-others', route => {

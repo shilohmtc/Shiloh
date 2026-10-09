@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const crypto = require('node:crypto');
 const { PGlite } = require('@electric-sql/pglite');
 const {
   createClientCrmDetailAuthService,
@@ -43,7 +44,10 @@ async function harness(t) {
   await pg.exec('CREATE TABLE appointments (id BIGINT PRIMARY KEY, status TEXT);');
   await pg.exec(fs.readFileSync('migrations/084_clean_crm_v2_foundation.sql', 'utf8'));
   await pg.exec(fs.readFileSync('migrations/136_my_shiloh_client_browser_sessions.sql', 'utf8'));
-  await pg.exec('ALTER TABLE client_browser_sessions ADD COLUMN passkey_credential_id BIGINT');
+  await pg.exec(fs.readFileSync('migrations/173_my_shiloh_client_passkeys.sql', 'utf8'));
+  await pg.exec(fs.readFileSync('migrations/174_my_shiloh_passkey_devices.sql', 'utf8'));
+  await pg.exec(fs.readFileSync('migrations/177_my_shiloh_passkey_credential_id_check.sql', 'utf8'));
+  await pg.exec("ALTER TABLE client_auth_passkey_challenges ALTER COLUMN created_at SET DEFAULT TIMESTAMPTZ '2026-10-09T06:00:00Z'");
   await pg.exec(fs.readFileSync('migrations/189_client_crm_detail_auth.sql', 'utf8'));
   let current = new Date('2026-10-09T06:00:00Z');
   const queries = [];
@@ -117,7 +121,7 @@ test('strict tuple, Unicode/spacing and SA input normalization; no fuzzy, foreig
   assert.notEqual(networkGroup('2001:db8:1:3::1'), networkGroup('2001:db8:1:2::1'));
 });
 
-test('CRM match has fixed 30 days, never verifies phone or changes CRM; all sensitive gates deny even fresh auth', async (t) => {
+test('CRM match has fixed 30 days, never verifies phone or changes CRM; first-key setup is available while other sensitive gates deny even fresh auth', async (t) => {
   const h = await harness(t);
   const owner = await h.insert();
   const result = await h.attempt();
@@ -129,11 +133,9 @@ test('CRM match has fixed 30 days, never verifies phone or changes CRM; all sens
   assert.equal(recentClientSession(session, h.now()), false);
   assert.equal((await h.sessions.revokeOtherSessions(session)).code, 'CLIENT_RECENT_AUTH_REQUIRED');
   const enroll = createClientPasskeyEnrollmentService({ db: h.db, env, now: h.now });
-  for (const action of ['begin', 'finish', 'revoke'])
-    assert.equal(
-      (await enroll[action]({ session, credentialId: 1 })).code,
-      'CLIENT_RECENT_AUTH_REQUIRED',
-    );
+  assert.equal((await enroll.begin({ session })).ok, true);
+  assert.equal((await enroll.finish({ session })).code, 'CLIENT_PASSKEY_INVALID');
+  assert.equal((await enroll.revoke({ session, credentialId: 1 })).code, 'CLIENT_RECENT_AUTH_REQUIRED');
   const recovery = createClientPasskeyRecoveryService({ db: h.db, env, now: h.now });
   assert.equal((await recovery.create({ session })).code, 'CLIENT_RECENT_AUTH_REQUIRED');
   const profiles = createMyShilohProfileService({ db: h.db, now: h.now });
@@ -308,7 +310,7 @@ test('stored assurance/revocation is rechecked: pretending a CRM timestamp is ve
   const actual = await h.sessions.validateSessionToken(result.sessionToken);
   const forged = { ...actual, authMethod: 'sms_code' };
   const enroll = createClientPasskeyEnrollmentService({ db: h.db, env, now: h.now });
-  assert.equal((await enroll.begin({ session: forged })).code, 'CLIENT_RECENT_AUTH_REQUIRED');
+  assert.equal((await enroll.begin({ session: forged })).ok, true); // First key needs no fresh assurance.
   assert.equal(
     (await enroll.revoke({ session: forged, credentialId: 1 })).code,
     'CLIENT_RECENT_AUTH_REQUIRED',
@@ -628,4 +630,79 @@ test('Shiloh detail re-entry is scoped, bounded and never renews the session dea
   assert.equal(recentClientSession(await h.sessions.validateSessionToken(first.sessionToken), h.now()), false);
   await h.sessions.revokeSession(fresh.sessionId, 'logout');
   assert.equal((await h.attempt(synthetic, false, { reauthenticateSession: fresh })).ok, false);
+});
+
+const CLIENT_ORIGIN = 'https://app.shilohmtc.co.za';
+const CLIENT_RP_ID = 'app.shilohmtc.co.za';
+const b64url = v => Buffer.from(v).toString('base64url');
+function encLen(major, n) { if (n < 24) return Buffer.from([(major << 5) | n]); if (n < 256) return Buffer.from([(major << 5) | 24, n]); if (n < 65536) { const b = Buffer.alloc(3); b[0] = (major << 5) | 25; b.writeUInt16BE(n, 1); return b; } throw new Error('test cbor length'); }
+function cbor(v) {
+  if (typeof v === 'number') return v >= 0 ? encLen(0, v) : encLen(1, -1 - v);
+  if (Buffer.isBuffer(v)) return Buffer.concat([encLen(2, v.length), v]);
+  if (typeof v === 'string') { const b = Buffer.from(v); return Buffer.concat([encLen(3, b.length), b]); }
+  if (v instanceof Map) { const parts = [encLen(5, v.size)]; for (const [k, val] of v) parts.push(cbor(k), cbor(val)); return Buffer.concat(parts); }
+  throw new Error('unsupported test cbor');
+}
+function clientData(type, challenge, origin = CLIENT_ORIGIN) { return Buffer.from(JSON.stringify({ type, challenge, origin, crossOrigin: false })); }
+function authData({ credentialId = null, cose = null, signCount = 0, flags = 0x05, rpId = CLIENT_RP_ID } = {}) {
+  const head = Buffer.alloc(37); crypto.createHash('sha256').update(rpId).digest().copy(head, 0); head[32] = flags; head.writeUInt32BE(signCount, 33);
+  if (!credentialId) return head;
+  const aaguid = Buffer.alloc(16); const len = Buffer.alloc(2); len.writeUInt16BE(credentialId.length);
+  return Buffer.concat([head, aaguid, len, credentialId, cbor(cose)]);
+}
+function fixture() {
+  const { publicKey, privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  const jwk = publicKey.export({ format: 'jwk' });
+  const cose = new Map([[1, 2], [3, -7], [-1, 1], [-2, Buffer.from(jwk.x, 'base64url')], [-3, Buffer.from(jwk.y, 'base64url')]]);
+  const credentialId = crypto.randomBytes(32); const challenge = crypto.randomBytes(32).toString('base64url');
+  return { publicKey, privateKey, cose, credentialId, challenge };
+}
+function registrationResponse(f, { origin = CLIENT_ORIGIN, challenge = f.challenge, rpId = CLIENT_RP_ID, flags = 0x45 } = {}) {
+  const cd = clientData('webauthn.create', challenge, origin);
+  const ad = authData({ credentialId: f.credentialId, cose: f.cose, signCount: 0, flags, rpId });
+  const att = cbor(new Map([['fmt', 'none'], ['attStmt', new Map()], ['authData', ad]]));
+  return { id: b64url(f.credentialId), rawId: b64url(f.credentialId), type: 'public-key', response: { clientDataJSON: b64url(cd), attestationObject: b64url(att), transports: ['internal'] } };
+}
+
+test('first-ever passkey can be saved near the remembered deadline, without extending or changing assurance', async (t) => {
+  const h = await harness(t); await h.insert(); const signed = await h.attempt();
+  h.advance(SESSION_TTL_MS - 60_000);
+  const session = await h.sessions.validateSessionToken(signed.sessionToken);
+  const before = (await h.db.query('SELECT * FROM client_browser_sessions')).rows[0];
+  const service = createClientPasskeyEnrollmentService({ db:h.db, env, now:h.now });
+  const start = await service.begin({ session }); assert.equal(start.ok,true);
+  const f = fixture(); f.challenge = start.options.challenge;
+  assert.equal((await service.finish({ session, response:registrationResponse(f) })).ok,true);
+  assert.deepEqual((await h.db.query('SELECT * FROM client_browser_sessions')).rows[0], before);
+  assert.equal((await service.begin({ session })).code, 'CLIENT_RECENT_AUTH_REQUIRED');
+  h.advance(60_000);
+  assert.equal((await service.begin({ session })).code, 'CLIENT_RECENT_AUTH_REQUIRED');
+});
+test('first-key exception excludes historical revoked keys and rejects cross-client/revoked sessions', async (t) => {
+  const h = await harness(t); const owner=await h.insert(); const signed=await h.attempt();
+  h.advance(86400000); const session=await h.sessions.validateSessionToken(signed.sessionToken);
+  const service=createClientPasskeyEnrollmentService({db:h.db,env,now:h.now});
+  assert.equal((await service.begin({session:{...session,crmV2ClientId:owner.id+1}})).ok,false);
+  await h.db.query("INSERT INTO client_auth_passkey_credentials(crm_v2_client_id,credential_id,public_key_spki,algorithm,revoked_at) VALUES($1,$2,$3,-7,$4)",[owner.id,'A'.repeat(24),Buffer.from('synthetic-public-key'),h.now()]);
+  assert.equal((await service.begin({session})).code,'CLIENT_RECENT_AUTH_REQUIRED');
+  await h.db.query('DELETE FROM client_auth_passkey_credentials');
+  await h.sessions.revokeSession(session.sessionId,'logout');
+  assert.equal((await service.begin({session})).ok,false);
+});
+test('finish repeats historical-key absence, preventing another remembered session adding a second key', async (t) => {
+  const h=await harness(t);const owner=await h.insert();const signed=await h.attempt();h.advance(86400000);
+  const session=await h.sessions.validateSessionToken(signed.sessionToken);
+  const service=createClientPasskeyEnrollmentService({db:h.db,env,now:h.now});const start=await service.begin({session});
+  await h.db.query("INSERT INTO client_auth_passkey_credentials(crm_v2_client_id,credential_id,public_key_spki,algorithm) VALUES($1,$2,$3,-7)",[owner.id,'B'.repeat(24),Buffer.from('synthetic-public-key')]);
+  const f=fixture();f.challenge=start.options.challenge;
+  assert.equal((await service.finish({session,response:registrationResponse(f)})).code,'CLIENT_RECENT_AUTH_REQUIRED');
+  assert.equal((await h.db.query('SELECT * FROM client_auth_passkey_credentials')).rowCount,1);
+});
+test('expiry during an enrollment lock wait fails closed', async (t) => {
+  const h=await harness(t);await h.insert();const signed=await h.attempt();
+  const session=await h.sessions.validateSessionToken(signed.sessionToken);h.advance(SESSION_TTL_MS-1);
+  const db={async query(sql,p){if(sql.includes('client-first-passkey:'))h.advance(1);return h.db.query(sql,p);}};
+  const service=createClientPasskeyEnrollmentService({db,env,now:h.now});
+  assert.equal((await service.begin({session})).ok,false);
+  assert.equal((await h.db.query('SELECT * FROM client_auth_passkey_challenges')).rowCount,0);
 });
