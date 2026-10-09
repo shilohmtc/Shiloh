@@ -54,7 +54,8 @@ function createMyShilohBookingHistoryVisibilityService({ db = pool, now = () => 
            JOIN client_browser_sessions s ON s.crm_v2_client_id=c.id
           WHERE s.id=$1 AND s.crm_v2_client_id=$2
             AND s.revoked_at IS NULL AND s.expires_at>$5::timestamptz
-            AND c.status='active' AND c.mobile_verified_at IS NOT NULL
+            AND c.status='active' AND s.issued_at<=$5::timestamptz
+            AND s.auth_method IN ('sms_code','passkey','passkey_recovery','whatsapp_challenge','crm_details')
             AND a.id=$3 AND a.crm_v2_client_id=$2 AND a.client_id IS NULL
             AND a.status='cancelled' AND aba.status='declined'
             AND aba.decision_note='workspace_cannot_accommodate'

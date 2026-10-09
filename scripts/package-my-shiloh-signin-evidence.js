@@ -10,7 +10,7 @@ const destination = path.resolve('artifacts/my-shiloh-signin-review');
 const expected = ['details-narrow-enlarged.png'];
 for (const device of ['phone', 'desktop']) {
   for (const state of ['crm-entry', 'crm-registration', 'crm-generic-error', 'crm-protected-settings', 'optional-passkey-not-now',
-    'profile-confirmation-conflict', 'session-revocation-fresh-auth-required', 'session-revocation-result']) {
+    'profile-confirmation-conflict', 'session-revocation-expired-sign-in', 'session-revocation-result', 'first-passkey-saved', 'mobile-update-retry']) {
     expected.push(`${state}-${device}.png`);
   }
 }

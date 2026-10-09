@@ -248,37 +248,51 @@ function createClientBrowserSessionService({
   }
 
   async function revokeOtherSessions(session) {
-    const current = now();
-    const { recentClientSession } = require('./clientPasskeyEnrollment');
-    if (!recentClientSession(session, current)) return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
-    // Recheck the authorizing session in the same statement as revocation.
-    // Include every authentication method; removing a passkey alone misses SMS sessions.
-    const result = await db.query(
-      `WITH authorizing AS (
-         SELECT id FROM client_browser_sessions
-          WHERE id = $1 AND crm_v2_client_id = $2 AND revoked_at IS NULL
-            AND auth_method IN ('sms_code','passkey','passkey_recovery','whatsapp_challenge','crm_details')
-            AND (auth_method <> 'crm_details' OR reauthenticated_at > issued_at)
-            AND expires_at > $3 AND COALESCE(reauthenticated_at, issued_at) <= $3
-            AND COALESCE(reauthenticated_at, issued_at) >= $3 - INTERVAL '10 minutes'
-          FOR UPDATE
-       ), revoked AS (
-         UPDATE client_browser_sessions SET revoked_at = $3, revoke_reason = 'other_sessions_logout'
-          WHERE crm_v2_client_id = $2 AND id <> $1 AND revoked_at IS NULL
-            AND EXISTS (SELECT 1 FROM authorizing)
-          RETURNING id
-       ) SELECT EXISTS (SELECT 1 FROM authorizing) AS authorized,
-                (SELECT COUNT(*)::int FROM revoked) AS count`,
-      [session.sessionId, session.crmV2ClientId, current],
-    );
-    if (!result.rows[0]?.authorized) return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
+    const { enrollmentClientSession } = require('./clientPasskeyEnrollment');
+    if (!enrollmentClientSession(session)) return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
+    const client = typeof db.connect === 'function' ? await db.connect() : db;
     try {
-      await audit(db, 'other_sessions_revoked', { clientId: session.crmV2ClientId,
-        sessionId: session.sessionId, metadata: { count: result.rows[0].count } });
-    } catch (_) {
-      // Revocation remains authoritative if audit persistence is unavailable.
+      await client.query('BEGIN');
+      // Lock first, then read time again: a wait cannot outlive the deadline.
+      await client.query(`SELECT s.id FROM client_browser_sessions s
+        JOIN crm_v2_clients c ON c.id=s.crm_v2_client_id
+        WHERE s.id=$1 AND s.crm_v2_client_id=$2 FOR UPDATE OF s FOR SHARE OF c`,
+      [session.sessionId, session.crmV2ClientId]);
+      await client.query('SELECT id FROM client_browser_sessions WHERE crm_v2_client_id=$1 AND id<>$2 AND revoked_at IS NULL FOR UPDATE',
+        [session.crmV2ClientId,session.sessionId]);
+      const current = now();
+      const result = await client.query(
+        `WITH authorizing AS (
+           SELECT id FROM client_browser_sessions
+            WHERE id=$1 AND crm_v2_client_id=$2 AND revoked_at IS NULL
+              AND auth_method IN ('sms_code','passkey','passkey_recovery','whatsapp_challenge','crm_details')
+              AND issued_at <= $3 AND expires_at > $3
+              AND EXISTS (SELECT 1 FROM crm_v2_clients c WHERE c.id=$2 AND c.status='active')
+         ), revoked AS (
+           UPDATE client_browser_sessions SET revoked_at=$3,revoke_reason='other_sessions_logout'
+            WHERE crm_v2_client_id=$2 AND id<>$1 AND revoked_at IS NULL
+              AND EXISTS (SELECT 1 FROM authorizing) RETURNING id
+         ) SELECT EXISTS (SELECT 1 FROM authorizing) AS authorized,
+                  (SELECT COUNT(*)::int FROM revoked) AS count`,
+        [session.sessionId, session.crmV2ClientId, current],
+      );
+      if (!result.rows[0]?.authorized) {
+        await client.query('ROLLBACK'); return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
+      }
+      await client.query('COMMIT');
+      try {
+        await audit(client, 'other_sessions_revoked', { clientId: session.crmV2ClientId,
+          sessionId: session.sessionId, metadata: { count: result.rows[0].count } });
+      } catch (_) {
+        // Revocation remains authoritative if audit persistence is unavailable.
+      }
+      return { ok: true };
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+      throw error;
+    } finally {
+      if (client !== db && typeof client.release === 'function') client.release();
     }
-    return { ok: true };
   }
 
   function validateCsrfToken(session, suppliedToken) {

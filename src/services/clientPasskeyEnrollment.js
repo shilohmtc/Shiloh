@@ -43,8 +43,8 @@ async function recentStoredClientSession(db, session, now) {
   return result.rowCount === 1;
 }
 
-// Only first-ever enrollment may use a remembered session. Revocation and
-// additional/replacement keys continue to use the existing recent-auth policy.
+// Account changes use the owner's accepted remembered-session policy.
+// The legacy recent-auth helper remains isolated for disabled recovery paths.
 function enrollmentClientSession(session) {
   return session?.ok === true &&
     ['sms_code', 'passkey', 'passkey_recovery', 'whatsapp_challenge', 'crm_details'].includes(session.authMethod) &&
@@ -52,27 +52,25 @@ function enrollmentClientSession(session) {
     Number.isSafeInteger(Number(session.sessionId)) && Number(session.sessionId) > 0;
 }
 
+async function liveStoredClientSession(db, session, current) {
+  const result = await db.query(`SELECT s.id FROM client_browser_sessions s
+    JOIN crm_v2_clients c ON c.id=s.crm_v2_client_id
+    WHERE s.id=$1 AND s.crm_v2_client_id=$2 AND s.revoked_at IS NULL
+      AND s.issued_at <= $3 AND s.expires_at > $3 AND c.status='active'
+      AND s.auth_method IN ('sms_code','passkey','passkey_recovery','whatsapp_challenge','crm_details')
+    FOR SHARE OF s,c`, [session.sessionId, session.crmV2ClientId, current]);
+  return result.rowCount === 1;
+}
+
 async function registrationStoredClientSession(db, session, readNow) {
-  const live = (current) => db.query(`SELECT id FROM client_browser_sessions
-    WHERE id=$1 AND crm_v2_client_id=$2 AND revoked_at IS NULL
-      AND issued_at <= $3 AND expires_at > $3
-      AND auth_method IN ('sms_code','passkey','passkey_recovery','whatsapp_challenge','crm_details')
-    FOR SHARE`, [session.sessionId, session.crmV2ClientId, current]);
   let current = readNow();
-  if ((await live(current)).rowCount !== 1) return { ok: false, current };
+  if (!(await liveStoredClientSession(db, session, current))) return { ok: false, current };
   await db.query(
     "SELECT pg_advisory_xact_lock(hashtextextended('client-first-passkey:' || $1::text, 0))",
     [session.crmV2ClientId],
   );
-  // A lock wait must not turn an expired session into enrollment authority.
   current = readNow();
-  if ((await live(current)).rowCount !== 1) return { ok: false, current };
-  const history = await db.query(
-    'SELECT id FROM client_auth_passkey_credentials WHERE crm_v2_client_id=$1 LIMIT 1',
-    [session.crmV2ClientId],
-  );
-  return { current, ok: history.rowCount === 0 ||
-    (recentClientSession(session, current) && await recentStoredClientSession(db, session, current)) };
+  return { current, ok: await liveStoredClientSession(db, session, current) };
 }
 
 function responseChallenge(response, origin, expectedType = 'webauthn.create') {
@@ -290,14 +288,14 @@ function createClientPasskeyEnrollmentService({
     const p = policy();
     if (!p.operational) return unavailable(p);
     const current = now();
-    if (!recentClientSession(session, current)) return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
+    if (!enrollmentClientSession(session)) return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
     if (!Number.isSafeInteger(credentialId) || credentialId <= 0) {
       return { ok: false, code: 'CLIENT_PASSKEY_INVALID' };
     }
     const client = typeof db.connect === 'function' ? await db.connect() : db;
     try {
       await client.query('BEGIN');
-      if (!(await recentStoredClientSession(client, session, current))) {
+      if (!(await liveStoredClientSession(client, session, now()))) {
         await client.query('ROLLBACK'); return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
       }
       const found = await client.query(
@@ -308,6 +306,9 @@ function createClientPasskeyEnrollmentService({
       if (found.rowCount !== 1) {
         await client.query('ROLLBACK');
         return { ok: false, code: 'CLIENT_PASSKEY_INVALID' };
+      }
+      if (!(await liveStoredClientSession(client, session, now()))) {
+        await client.query('ROLLBACK'); return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
       }
       await client.query('UPDATE client_auth_passkey_credentials SET revoked_at = $2 WHERE id = $1', [credentialId, current]);
       // Legacy passkey sessions have no credential link. Revoke those for this
@@ -339,4 +340,4 @@ function createClientPasskeyEnrollmentService({
 }
 
 module.exports = { FEATURE_FLAG, CHALLENGE_TTL_MS, RECENT_SESSION_MS,
-  enrollmentPolicy, recentClientSession, recentStoredClientSession, responseChallenge, deviceLabel, createClientPasskeyEnrollmentService };
+  enrollmentPolicy, enrollmentClientSession, liveStoredClientSession, recentClientSession, recentStoredClientSession, responseChallenge, deviceLabel, createClientPasskeyEnrollmentService };
