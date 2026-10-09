@@ -390,7 +390,7 @@ test('Workspace vouchers stay contained and selectable on Phone and Desktop', as
     await expect(page.getByLabel('Amount to redeem')).toHaveAttribute('max', '400.00');
     await expect(page.getByText('SV-4A7F31B920CC selected. Enter the amount to redeem below.')).toBeVisible();
 
-    await expect(page.getByText('This links the voucher to the recipient’s My Shiloh profile. Use 082…; +27 is converted automatically.')).toBeVisible();
+    await expect(page.getByText('This links the voucher to the recipient’s My Shiloh profile. Use the recipient’s local number, starting with 0.')).toBeVisible();
     await page.getByLabel('Purchaser’s name').fill('Tinkie');
     await page.getByLabel('Recipient’s name and surname', { exact:true }).fill('Evelyn Example');
     await page.getByLabel('Recipient’s mobile number', { exact:true }).fill('082 123 4567');

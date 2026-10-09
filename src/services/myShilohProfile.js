@@ -58,7 +58,7 @@ function profileRevision(row) {
 
 function maskMobile(value = '') {
   const digits = String(value || '').replace(/[^0-9]/g, '');
-  return /^27[678][0-9]{8}$/.test(digits) ? `+27 •• ••• ${digits.slice(-4)}` : 'Mobile number unavailable';
+  return /^27[678][0-9]{8}$/.test(digits) ? `0•• ••• ${digits.slice(-4)}` : 'Mobile number unavailable';
 }
 
 function publicProfile(row) {

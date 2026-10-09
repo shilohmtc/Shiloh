@@ -1,3 +1,4 @@
+const { displayPhone } = require('./southAfricanPhone');
 const {
   escapeHtml,
   workspaceShellStyles,
@@ -43,9 +44,7 @@ function formatDateTime(value) {
 }
 
 function formatMobile(value) {
-  const digits = String(value || '').replace(/[^0-9]/g, '');
-  if (/^27\d{9}$/.test(digits)) return `+27 ${digits.slice(2, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
-  return 'Contact unavailable';
+  return displayPhone(value);
 }
 
 function maskMobile(value) {
