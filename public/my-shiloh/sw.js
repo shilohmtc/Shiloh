@@ -1,8 +1,8 @@
 'use strict';
 
-const ASSET_VERSION = '20261009-account-simple-v1';
-const SHELL_CACHE = 'my-shiloh-shell-v59';
-const STATIC_CACHE = 'my-shiloh-static-v59';
+const ASSET_VERSION = '20261009-bookings-focused-v1';
+const SHELL_CACHE = 'my-shiloh-shell-v60';
+const STATIC_CACHE = 'my-shiloh-static-v60';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',

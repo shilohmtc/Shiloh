@@ -47,11 +47,6 @@
   const experienceFactButtons = [...document.querySelectorAll('[data-client-experience-fact]')];
   const experienceFactStatus = document.querySelector('[data-client-experience-fact-status]');
   const experienceBookings = document.querySelector('[data-client-experience-bookings]');
-  const bookingHistoryHost = document.querySelector('[data-booking-history]');
-  const bookingHistoryStatus = document.querySelector('[data-booking-history-status]');
-  let latestBookingHistory = [];
-  let showHiddenBookings = false;
-  let bookingHistoryBusy = false;
   let clientExperienceRequestId = 0;
   const experiencePrompts = document.querySelector('[data-client-experience-prompts]');
   const shilohMessages = document.querySelector('[data-shiloh-messages]');
@@ -721,8 +716,6 @@
             action.href = '/my-shiloh/book';
           }
         }
-        latestBookingHistory = Array.isArray(experience.bookings?.history) ? experience.bookings.history : [];
-        renderBookingHistory();
       }
     }
 
@@ -731,89 +724,6 @@
       experiencePrompts.querySelectorAll('article strong').forEach((node, index) => {
         if (prompts[index]) node.textContent = String(prompts[index]);
       });
-    }
-  }
-
-  function renderBookingHistory() {
-    if (!bookingHistoryHost) return;
-    bookingHistoryHost.hidden = latestBookingHistory.length === 0;
-    const visibleList = bookingHistoryHost.querySelector('[data-booking-history-visible]');
-    const hiddenList = bookingHistoryHost.querySelector('[data-booking-history-hidden]');
-    const toggle = bookingHistoryHost.querySelector('[data-booking-history-toggle]');
-    const hidden = latestBookingHistory.filter(booking => booking.hidden !== false);
-    const visible = latestBookingHistory.filter(booking => booking.hidden === false);
-    visibleList.replaceChildren();
-    hiddenList.replaceChildren();
-    visibleList.hidden = visible.length === 0;
-    toggle.hidden = hidden.length === 0;
-    toggle.textContent = `${showHiddenBookings ? 'Close hidden requests' : 'Show hidden requests'} (${hidden.length})`;
-    toggle.setAttribute('aria-expanded', String(showHiddenBookings && hidden.length > 0));
-    hiddenList.hidden = !showHiddenBookings || hidden.length === 0;
-    toggle.disabled = bookingHistoryBusy;
-
-    function appendBooking(list, booking, isHidden) {
-      const card = document.createElement('article');
-      card.className = 'action-card booking-history-card';
-      card.dataset.bookingHistoryCard = String(booking.id || '');
-      const details = document.createElement('div');
-      const heading = document.createElement('h3');
-      heading.textContent = String(booking.service || 'Past request');
-      const copy = document.createElement('p');
-      copy.textContent = [booking.date, booking.time, booking.practitioner].filter(Boolean).join(' · ');
-      const state = document.createElement('p');
-      state.textContent = String(booking.status || 'Past request');
-      details.append(heading, copy, state);
-      card.append(details);
-      if (booking.canChangeVisibility === true && Number.isSafeInteger(Number(booking.id)) && Number(booking.id) > 0) {
-        const action = document.createElement('button');
-        action.type = 'button';
-        action.className = 'button button--soft';
-        action.textContent = isHidden ? 'Restore to my bookings' : 'Hide from my bookings';
-        action.dataset.bookingHistoryAction = isHidden ? 'restore' : 'hide';
-        action.disabled = bookingHistoryBusy;
-        action.addEventListener('click', () => setBookingHistoryVisibility(booking, !isHidden));
-        card.append(action);
-      }
-      list.append(card);
-    }
-    visible.forEach(booking => appendBooking(visibleList, booking, false));
-    hidden.forEach(booking => appendBooking(hiddenList, booking, true));
-  }
-
-  bookingHistoryHost?.querySelector('[data-booking-history-toggle]')?.addEventListener('click', () => {
-    showHiddenBookings = !showHiddenBookings;
-    renderBookingHistory();
-  });
-
-  async function setBookingHistoryVisibility(booking, hidden) {
-    if (bookingHistoryBusy || booking.canChangeVisibility !== true) return;
-    bookingHistoryBusy = true;
-    // Ignore an older background refresh that started before this change.
-    clientExperienceRequestId += 1;
-    renderBookingHistory();
-    if (bookingHistoryStatus) bookingHistoryStatus.textContent = hidden ? 'Hiding this request…' : 'Restoring this request…';
-    try {
-      const token = await freshCsrfToken();
-      const response = await postJson('/my-shiloh/api/booking-history/visibility', {
-        appointmentId: Number(booking.id), hidden,
-      }, { 'x-shiloh-csrf-token': token });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || result.appointmentId !== Number(booking.id) || result.hidden !== hidden) {
-        throw new Error(response.status === 401
-          ? 'Please sign in again to organise your bookings.'
-          : result.error || 'We could not confirm this change. Reload Bookings and try again.');
-      }
-      latestBookingHistory = latestBookingHistory.map(item => Number(item.id) === Number(booking.id) ? { ...item, hidden } : item);
-      if (bookingHistoryStatus) bookingHistoryStatus.textContent = hidden
-        ? 'Hidden from your bookings. You can restore it in hidden requests.'
-        : 'Restored to your bookings. This does not reopen the request.';
-    } catch (error) {
-      if (bookingHistoryStatus) bookingHistoryStatus.textContent = error.message || 'We could not confirm this change. Reload Bookings and try again.';
-    } finally {
-      await loadClientExperience();
-      bookingHistoryBusy = false;
-      renderBookingHistory();
-      if (window.location.hash === '#bookings') bookingHistoryStatus?.focus();
     }
   }
 

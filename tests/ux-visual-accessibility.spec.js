@@ -637,14 +637,14 @@ test('My Shiloh presents a client request as awaiting approval on phone and desk
     await expect(page.locator('[data-client-experience-bookings] .action-card').first().locator('a')).toContainText('request');
     await expect(page.locator('[data-experience-extra-booking]').first()).toContainText('Awaiting your response');
     await expect(page.locator('[data-client-experience-bookings]')).not.toContainText('Could not accommodate');
-    await expect(page.locator('[data-booking-history-hidden]')).toBeHidden();
+    await expect(page.locator('[data-booking-history]')).toHaveCount(0);
     await expect(page.locator('[data-client-experience-bookings] .action-card').first()).not.toContainText('Upcoming appointment');
     await page.locator('[data-view-target="bookings"]').click();
     await expect(page.locator('[data-view="bookings"]')).toBeVisible();
     await expect(page.locator('[data-view="bookings"]').getByRole('link', { name: 'Book another appointment' })).toHaveAttribute('href', '/my-shiloh/book');
     await expect(page.getByText('Could not accommodate')).toBeHidden();
-    await page.getByRole('button', { name: 'Show hidden requests (1)' }).click();
-    await expect(page.getByText('Could not accommodate')).toBeVisible();
+    await expect(page.getByRole('button', { name: /hidden requests/i })).toHaveCount(0);
+    await expect(page.getByText('Past requests', { exact: true })).toHaveCount(0);
     const bounds = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }));
     expect(bounds.document).toBeLessThanOrEqual(bounds.viewport);
     const accessibility = await new AxeBuilder({ page })
