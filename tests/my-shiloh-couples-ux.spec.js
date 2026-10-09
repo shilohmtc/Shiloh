@@ -11,13 +11,13 @@ for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',w
     let availabilityCalls=0,reviewCalls=0;
     const confirms=[];
     const slot={ startsAt:'2026-11-02T08:00:00.000Z',time:'10:00',endTime:'11:00',guestEndTime:'11:15' };
-    await page.route('**/my-shiloh/api/booking/practitioners?*',route => route.fulfill({ json:{ practitioners:[{ id:11,name:'Christel' },{ id:12,name:'Abigail' }] } }));
+    await page.route('**/my-shiloh/api/booking/practitioners?*',route => route.fulfill({ json:{ practitioners:[{ id:11,name:'Synthetic Client AN' },{ id:12,name:'Abigail' }] } }));
     await page.route('**/my-shiloh/api/booking/couples/**',async route => {
       const action=route.request().url().split('/').pop(); const body=route.request().postDataJSON();
       expect(route.request().headers()['x-shiloh-csrf-token']).toBe('storybook-csrf');
       expect(body.crmV2ClientId).toBeUndefined();
       if(action==='availability') { availabilityCalls++; expect(body.staffIds).toEqual([11,12]); return route.fulfill({ json:{ slots:availabilityCalls===1 ? [] : [slot] } }); }
-      if(action==='review') { reviewCalls++; expect(body.guest).toEqual({ name:'Guest Person',mobile:'0822345678',consent:true });
+      if(action==='review') { reviewCalls++; expect(body.guest).toEqual({ name:'Synthetic Client BG',mobile:'0822345678',consent:true });
         expect(body.treatments.map(item=>item.serviceId)).toEqual([101,102]); expect(body.treatments.map(item=>item.startsAt)).toEqual([slot.startsAt,slot.startsAt]);
         return reviewCalls===1 ? route.fulfill({ status:409,json:{ code:'BOOKING_SLOT_UNAVAILABLE',error:'This time changed. Check again or choose another time.' } }) : route.fulfill({ json:{ total:'1570.00',deposit:'785.00',quoteHash:'a'.repeat(64) } }); }
       if(action==='confirm') { confirms.push(body); if(confirms.length===1) return route.abort('failed'); expect(body).toEqual(confirms[0]); return route.fulfill({ status:201,json:{ message:'Both times are held. One combined deposit is due after both appointments are approved.' } }); }
@@ -35,7 +35,7 @@ for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',w
       await page.screenshot({ path:testInfo.outputPath(`couples-${viewport.name}-${step}.png`),fullPage:true,animations:'disabled' });
     }
     await evidence('guest');
-    await page.getByLabel('Guest’s first name and surname').fill('Guest Person'); await page.getByLabel('Guest’s mobile number').fill('0822345678');
+    await page.getByLabel('Guest’s first name and surname').fill('Synthetic Client BG'); await page.getByLabel('Guest’s mobile number').fill('0822345678');
     await page.getByRole('button',{ name:'Choose our treatments' }).click(); await expect(root.locator('[data-couples-step="1"]')).toBeVisible();
     await root.locator('[name="consent"]').check(); await page.getByRole('button',{ name:'Choose our treatments' }).click();
     for(const index of [0,1]) { await root.locator(`[data-couples-service="${index}"]`).selectOption(index ? '102' : '101'); await expect(root.locator(`[data-couples-staff="${index}"]`)).toBeEnabled(); await root.locator(`[data-couples-staff="${index}"]`).selectOption('11'); }
@@ -46,7 +46,7 @@ for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',w
     await page.getByRole('button',{ name:'Show shared times' }).click(); await page.getByRole('button',{ name:'10:00 · Both therapists available' }).click();
     await expect(root.locator('[data-couples-total]')).toHaveText('Not available yet'); await expect(root.locator('[data-couples-submit]')).toBeDisabled(); await evidence('review-error');
     await page.getByRole('button',{ name:'Check our appointments again' }).click(); await expect(root.locator('[data-couples-total]')).toHaveText('R1570.00'); await expect(root.locator('[data-couples-deposit]')).toHaveText('R785.00');
-    await expect(root.locator('[data-couples-review-items]')).toContainText('Guest Person'); await expect(root.locator('[data-couples-review-items]')).toContainText('Hot Stone Massage'); await evidence('review');
+    await expect(root.locator('[data-couples-review-items]')).toContainText('Synthetic Client BG'); await expect(root.locator('[data-couples-review-items]')).toContainText('Hot Stone Massage'); await evidence('review');
     await root.locator('[data-couples-submit]').click(); await expect(root.locator('[data-couples-confirm-status]')).toContainText('occasion');
     await root.locator('[name="couples-occasion"][value="no"]').check(); await root.locator('[data-couples-submit]').click(); await expect(root.locator('[data-couples-confirm-status]')).toContainText('accept');
     await root.locator('[data-couples-policy]').check(); await root.locator('[data-couples-submit]').click(); await expect(root.locator('[data-couples-confirm-status]')).toContainText('retry this same request safely');
@@ -60,14 +60,14 @@ for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',w
     await page.setViewportSize({ width:viewport.width,height:viewport.height });
     let paymentDue = false;
     await page.route('**/my-shiloh/api/experience',route => {
-      const experience = buildClientExperience({ generatedAt:'2026-10-06T06:00:00.000Z',client:{ id:55,name:'Jean-Pierre Botha' },nextAppointment:null,forms:[],payment:null });
+      const experience = buildClientExperience({ generatedAt:'2026-10-06T06:00:00.000Z',client:{ id:55,name:'Synthetic Client AO' },nextAppointment:null,forms:[],payment:null });
       if (paymentDue) experience.home.primaryAction = { kind:'payment',label:'Pay deposit',href:'/pay/test_deposit' };
       return route.fulfill({ json:experience });
     });
-    await page.route('**/my-shiloh/api/profile',route => route.fulfill({ json:{ profile:{ revision:'a'.repeat(64),name:'Test Client',dateOfBirth:'1985-06-14',gender:'male',registrationComplete:true } } }));
+    await page.route('**/my-shiloh/api/profile',route => route.fulfill({ json:{ profile:{ revision:'a'.repeat(64),name:'Synthetic Client AA',dateOfBirth:'2000-01-01',gender:'male',registrationComplete:true } } }));
     await page.route('**/my-shiloh/api/notifications',route => route.fulfill({ json:{ notifications:[] } }));
     await page.route('**/my-shiloh/api/welcome-voucher',route => route.fulfill({ json:{ eligibility:{ complete:true,steps:[] },voucher:{ state:'redeemed' },eligibleBookings:[],terms:[] } }));
-    await page.route('**/my-shiloh/book?for=two',route => route.fulfill({ contentType:'text/html',body:renderMyShilohCouplesBookingPage({ clientFirstName:'Jean-Pierre',csrfToken:'storybook-csrf' }) }));
+    await page.route('**/my-shiloh/book?for=two',route => route.fulfill({ contentType:'text/html',body:renderMyShilohCouplesBookingPage({ clientFirstName:'Synthetic Client AI',csrfToken:'storybook-csrf' }) }));
     async function openHome() {
       await page.goto('/iframe.html?id=client-my-shiloh-pwa--couples-booking-choices&viewMode=story#home',{ waitUntil:'networkidle' });
       await page.evaluate(() => { localStorage.setItem('my-shiloh-install-whatsapp-verified-v1','1'); Object.defineProperty(navigator,'standalone',{ value:true,configurable:true }); });

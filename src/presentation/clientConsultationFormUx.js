@@ -1,3 +1,4 @@
+const { localPhoneInput } = require('./southAfricanPhone');
 function escapeHtml(value) {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -28,9 +29,10 @@ function ariaError(errors, key) {
 function renderTextInput(item, values, prefill, errors) {
   const key = String(item.key || '');
   const type = String(item.type || 'text');
-  const value = inputValue(values, prefill, key);
+  const rawValue = inputValue(values, prefill, key);
+  const value = key === 'mobile' ? localPhoneInput(rawValue) : rawValue;
   const required = item.required === true ? ' required' : '';
-  const inputType = type === 'prefill_date' || type === 'date' ? 'date' : item.key === 'email' ? 'email' : 'text';
+  const inputType = type === 'prefill_date' || type === 'date' ? 'date' : item.key === 'email' ? 'email' : item.key === 'mobile' ? 'tel' : 'text';
   const autocomplete = item.key === 'first_name' ? 'given-name'
     : item.key === 'surname' ? 'family-name'
       : item.key === 'email' ? 'email'

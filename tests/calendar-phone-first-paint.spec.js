@@ -7,7 +7,7 @@ const {
 } = require('../src/presentation/calendarPhoneCompactV2');
 
 function phoneModel() {
-  const staff = [{ id: 51, displayName: 'Jean-Pierre', schedulingType: 'regular' }];
+  const staff = [{ id: 51, displayName: 'Synthetic Client AI', schedulingType: 'regular' }];
   return {
     view: 'week',
     dateKey: '2026-09-21',

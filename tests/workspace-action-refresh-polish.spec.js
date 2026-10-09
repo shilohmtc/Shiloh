@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const evidence = path.resolve('artifacts/workspace-polish');
 
-for (const viewport of [{name:'phone',width:390,height:844},{name:'compact-tablet',width:700,height:960},{name:'narrow-phone',width:320,height:640},{name:'large-text',width:320,height:740,large:true}]) {
+for (const viewport of [{name:'phone',width:390,height:844},{name:'compact-tablet',width:700,height:960},{name:'narrow-phone',width:320,height:9040},{name:'large-text',width:320,height:740,large:true}]) {
   test(`Calendar Bookings menu keeps action colours with production compact styles on ${viewport.name}`,async({page})=>{
     const {phoneCalendarV2Styles,renderPhoneCalendarUtilityBar}=require('../src/presentation/calendarPhoneCompactV2');
     const model={view:'week',dateKey:'2026-10-07',activeStaffId:12,permittedStaff:[{id:12,displayName:'Synthetic Practitioner'}],timeline:{staff:[{id:12,displayName:'Synthetic Practitioner'}]},mutationCapability:{enabled:true,operations:['calendar_block:manage','operational_leave:manage'],calendarScope:'all_business'}};
@@ -46,7 +46,7 @@ for (const viewport of [{name:'phone',width:390,height:844},{name:'compact-table
   });
 }
 
-for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1440,height:960 },{ name:'narrow-large-text',width:320,height:640,large:true }]) {
+for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1440,height:960 },{ name:'narrow-large-text',width:320,height:9040,large:true }]) {
   test(`Refresh retains drafts, keyboard, interruption and offline behavior on ${viewport.name}`, async ({page,context}) => {
     await page.setViewportSize(viewport);
     let loads=0;

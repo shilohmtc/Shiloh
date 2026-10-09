@@ -120,6 +120,6 @@ test('Week visibility layout keeps the card-bound management data contract', () 
   assert.match(html, /data-appointment-management-target="true"/);
   assert.doesNotMatch(html, /data-calendar-operation="manage-appointment">Manage<\/button>/);
   assert.match(html, /Week Client/);
-  assert.match(html, /\+27 82 123 4567/);
+  assert.match(html, /082 123 4567/);
   assert.match(html, /Full Body Swedish/);
 });

@@ -7,8 +7,8 @@ const stories = [
     name: 'client base',
     assertSurface: async (page) => {
       await expect(page.getByRole('heading', { name: 'Clients', exact: true })).toBeVisible();
-      await expect(page.getByText('Marietjie Client One', { exact: true })).toBeVisible();
-      await expect(page.getByText('Shared Shiloh Client', { exact: true })).toBeVisible();
+      await expect(page.getByText('Synthetic Client AR', { exact: true })).toBeVisible();
+      await expect(page.getByText('Synthetic Client AS', { exact: true })).toBeVisible();
       await expect(page.getByRole('heading', { name: 'Add client', exact: true })).toBeVisible();
       await expect(page.getByText('This list contains only your clients.', { exact: false })).toBeVisible();
     },
@@ -17,7 +17,7 @@ const stories = [
     id: 'workspace-clients--marietjie-client-management',
     name: 'client management',
     assertSurface: async (page) => {
-      await expect(page.getByRole('heading', { name: 'Marietjie Client One', exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Synthetic Client AR', exact: true })).toBeVisible();
       await expect(page.getByRole('heading', { name: 'Edit profile', exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Save client', exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Remove from my clients', exact: true })).toBeVisible();

@@ -96,6 +96,7 @@ class PostgresCrmV2ClientRepository {
       const cast = field === 'dateOfBirth' ? '::date' : field === 'mobileVerifiedAt' ? '::timestamptz' : field === 'provenance' ? '::jsonb' : '';
       return `${column}=$${index + 2}${cast}`;
     });
+    if (entries.some(([field]) => field === 'name')) assignments.push('first_name=NULL', 'surname=NULL');
     const values = entries.map(([field, value]) => field === 'provenance' ? JSON.stringify(value) : value);
     const result = await this.queryable.query(
       `UPDATE crm_v2_clients

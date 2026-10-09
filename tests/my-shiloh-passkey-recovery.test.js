@@ -1,3 +1,4 @@
+// Fabricated auth review fixtures; no real client/provider/credential access.
 'use strict';
 
 const test = require('node:test');
@@ -8,7 +9,7 @@ const { renderMyShilohPage } = require('../src/presentation/myShilohPwa');
 
 const time = new Date('2026-09-27T21:00:00Z');
 const fingerprint = 'a'.repeat(64);
-const session = { ok: true, crmV2ClientId: 17, sessionId: 22, authenticatedAt: time };
+const session = { ok: true, authMethod: 'sms_code', crmV2ClientId: 17, sessionId: 22, authenticatedAt: time };
 const hash = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
 function fixture({ activePasskey = true, attempts = 0 } = {}) {
@@ -77,18 +78,18 @@ test('passkey entry offers recovery and a recovered client is prompted to replac
   assert.match(guest, /Can’t use your passkey\?/);
   assert.match(guest, /data-passkey-recovery-form/);
   const profile = renderMyShilohPage({ passkeysAvailable: true, catalogue: [],
-    client: { id: '17', firstName: 'Jean-Pierre', name: 'Jean-Pierre Botha' },
+    client: { id: '17', firstName: 'Synthetic', name: 'Synthetic Example' },
     signInMethod: 'passkey_recovery' });
   assert.match(profile, /Signed in with a recovery code/);
   assert.match(profile, /Save a new passkey and create a new recovery code now/);
   assert.match(profile, /data-passkey-recovery-create/);
 });
 
-test('single-use recovery forwards explicit remembered choice only after proof', async () => {
+test('single-use recovery ignores legacy remembered choices only after proof', async () => {
   for (const keepSignedIn of [true, false]) {
     const h = fixture();
     const { code } = await h.service.create({ session });
     assert.equal((await h.service.redeem({ code, requestFingerprintHash: fingerprint, keepSignedIn })).ok, true);
-    assert.equal(h.remembered(), keepSignedIn);
+    assert.equal(h.remembered(), undefined);
   }
 });

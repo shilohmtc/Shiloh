@@ -1,11 +1,11 @@
 import ux from '../src/presentation/workspaceFormsUx.js';
 
-const authority = { displayName:'Christel', formScope:'all_business', businessRole:'owner' };
+const authority = { displayName:'Synthetic Client AN', formScope:'all_business', businessRole:'owner' };
 const appointments = [
-  {id:901,clientName:'Example Client',services:'Hot Stone Massage',startsAt:'2026-10-07T08:00:00Z',practitioners:'Abigail',canOpen:true,canPrepareIpad:true,readiness:{ready:false,label:'Required forms outstanding'},forms:[{title:'Massage consultation',status:'opened',canComplete:true}]},
-  {id:902,clientName:'Another Client',services:'Swedish Massage',startsAt:'2026-10-07T09:00:00Z',practitioners:'Christel',canOpen:true,canPrepareIpad:true,readiness:{ready:true,label:'Required forms complete'},forms:[{title:'Massage consultation',status:'completed',submissionId:701}]},
+  {id:901,clientName:'Synthetic Client AT',services:'Hot Stone Massage',startsAt:'2026-10-07T08:00:00Z',practitioners:'Abigail',canOpen:true,canPrepareIpad:true,readiness:{ready:false,label:'Required forms outstanding'},forms:[{title:'Massage consultation',status:'opened',canComplete:true}]},
+  {id:902,clientName:'Synthetic Client AU',services:'Swedish Massage',startsAt:'2026-10-07T09:00:00Z',practitioners:'Synthetic Client AN',canOpen:true,canPrepareIpad:true,readiness:{ready:true,label:'Required forms complete'},forms:[{title:'Massage consultation',status:'completed',submissionId:701}]},
 ];
-const historyItems = [{kind:'client',reference:'701',clientName:'Another Client',formTitle:'Massage consultation',services:['Swedish Massage'],practitioners:['Christel'],appointmentStartsAt:'2026-10-07T09:00:00Z',submittedAt:'2026-10-06T08:00:00Z',signedAt:'2026-10-06T08:00:00Z',status:'completed',canOpen:true}];
+const historyItems = [{kind:'client',reference:'701',clientName:'Synthetic Client AU',formTitle:'Massage consultation',services:['Swedish Massage'],practitioners:['Synthetic Client AN'],appointmentStartsAt:'2026-10-07T09:00:00Z',submittedAt:'2026-10-06T08:00:00Z',signedAt:'2026-10-06T08:00:00Z',status:'completed',canOpen:true}];
 function surface(model) {
   // Express serves this official mark at /calendar/pwa/icon-192.png in production.
   const page = ux.renderFormsPage(model).replaceAll('/calendar/pwa/icon-192.png?v=official-brand-v4','/assets/brand/shiloh-mark-192.png');

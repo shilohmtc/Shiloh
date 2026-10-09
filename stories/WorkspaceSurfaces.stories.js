@@ -1,3 +1,4 @@
+// Client-history review fixture is fabricated; no CRM export or client record is used.
 import confirmationPresentation from '../src/presentation/workspaceConfirmation.js';
 import operationalPresentation from '../src/presentation/calendarOperationalMutationsUx.js';
 import dashboardPresentation from '../src/presentation/workspaceDashboardUx.js';
@@ -84,7 +85,7 @@ function workspaceNavigationOpenStory(notificationState = null) {
 
 const staff = [
   { id: 11, displayName: 'Abigail' },
-  { id: 12, displayName: 'Christel' },
+  { id: 12, displayName: 'Synthetic Client AN' },
   { id: 13, displayName: 'Marietjie' },
 ];
 
@@ -107,14 +108,14 @@ function appointment({ id, clientName, serviceName, staffId, startsAt, endsAt, s
 
 function dashboardModel() {
   const appointments = [
-    appointment({ id: 667, clientName: 'Rozel Janse van Rensburg', serviceName: 'Sports Massage Full Body', staffId: 11, startsAt: '2026-09-12T06:00:00.000Z', endsAt: '2026-09-12T07:00:00.000Z' }),
-    appointment({ id: 668, clientName: 'Michelle Sardinha', serviceName: 'Full Body Swedish', staffId: 12, startsAt: '2026-09-12T08:00:00.000Z', endsAt: '2026-09-12T09:00:00.000Z', canFinalize: true }),
-    appointment({ id: 669, clientName: 'Naomi Jacobs', serviceName: 'Deep Tissue Massage', staffId: 13, startsAt: '2026-09-12T09:30:00.000Z', endsAt: '2026-09-12T10:30:00.000Z' }),
+    appointment({ id: 9067, clientName: 'Fabricated Review Client', serviceName: 'Sports Massage Full Body', staffId: 11, startsAt: '2026-09-12T06:00:00.000Z', endsAt: '2026-09-12T07:00:00.000Z' }),
+    appointment({ id: 668, clientName: 'Synthetic Client AW', serviceName: 'Full Body Swedish', staffId: 12, startsAt: '2026-09-12T08:00:00.000Z', endsAt: '2026-09-12T09:00:00.000Z', canFinalize: true }),
+    appointment({ id: 669, clientName: 'Synthetic Client AX', serviceName: 'Deep Tissue Massage', staffId: 13, startsAt: '2026-09-12T09:30:00.000Z', endsAt: '2026-09-12T10:30:00.000Z' }),
   ];
   return {
     requestedDateKey: '2026-09-12',
     operationalDateKey: '2026-09-12',
-    displayName: 'Jean-Pierre',
+    displayName: 'Synthetic Client AI',
     mode: 'owner_overview',
     canFinalizeAllBusiness: true,
     calendar: { timeline: { staff, appointments: [], closures: [] } },
@@ -125,15 +126,15 @@ function dashboardModel() {
       label: person.displayName,
       appointments: appointments.filter((item) => item.staffIds.includes(person.id)),
     })),
-    carryOver: [appointment({ id: 650, clientName: 'Previous-day client', serviceName: 'Quick Relief: Back & Neck', staffId: 12, startsAt: '2026-09-11T13:00:00.000Z', endsAt: '2026-09-11T13:45:00.000Z', canFinalize: true, operationalDateKey: '2026-09-11' })],
+    carryOver: [appointment({ id: 650, clientName: 'Synthetic Client AY', serviceName: 'Quick Relief: Back & Neck', staffId: 12, startsAt: '2026-09-11T13:00:00.000Z', endsAt: '2026-09-11T13:45:00.000Z', canFinalize: true, operationalDateKey: '2026-09-11' })],
     awaitingFinalization: [appointments[1]],
     bookingRequests: [],
     communications: {
       attentionUnavailable: false,
-      attention: [{ client: { name: 'Michelle Sardinha' }, appointment: { id: 668 } }],
+      attention: [{ client: { name: 'Synthetic Client AW' }, appointment: { id: 668 } }],
     },
     communicationsUnavailable: false,
-    recentActivity: [appointment({ id: 645, clientName: 'Completed client', serviceName: 'Full Body Swedish', staffId: 11, startsAt: '2026-09-12T05:00:00.000Z', endsAt: '2026-09-12T06:00:00.000Z', status: 'completed' })],
+    recentActivity: [appointment({ id: 645, clientName: 'Synthetic Client AZ', serviceName: 'Full Body Swedish', staffId: 11, startsAt: '2026-09-12T05:00:00.000Z', endsAt: '2026-09-12T06:00:00.000Z', status: 'completed' })],
   };
 }
 
@@ -152,23 +153,23 @@ function activeNoShowDashboardModel() {
 
 function clientModel() {
   return {
-    authority: { displayName: 'Jean-Pierre' },
+    authority: { displayName: 'Synthetic Client AI' },
     client: {
-      id: 912,
-      name: 'Rozel Janse van Rensburg',
-      normalized_mobile: '27823042241',
-      date_of_birth: '1991-05-14',
+      id: 9012,
+      name: 'Fabricated Review Client',
+      normalized_mobile: '27820000013',
+      date_of_birth: '2000-01-01',
       gender: 'female',
       profile_status: 'registered',
-      mobile_verified_at: '2026-09-10T10:00:00.000Z',
+      mobile_verified_at: '2026-10-02T10:00:00.000Z',
       status: 'active',
     },
     appointments: [
-      { id: 667, starts_at: '2026-10-24T08:00:00.000Z', ends_at: '2026-10-24T09:30:00.000Z', status: 'scheduled', services: [{ name: 'Full Body Swedish' }], staff: [{ name: 'Christel' }] },
-      { id: 640, starts_at: '2026-09-12T08:00:00.000Z', ends_at: '2026-09-12T08:45:00.000Z', status: 'completed', services: [{ name: 'Quick Relief: Back & Neck (45 min)' }], staff: [{ name: 'Christel' }] },
-      { id: 620, starts_at: '2026-09-05T07:00:00.000Z', ends_at: '2026-09-05T07:45:00.000Z', status: 'cancelled', services: [{ name: 'Quick Relief: Back & Neck (45 min)' }], staff: [{ name: 'Christel' }] },
+      { id: 9067, starts_at: '2026-10-04T08:00:00.000Z', ends_at: '2026-10-04T09:30:00.000Z', status: 'scheduled', services: [{ name: 'Full Body Swedish' }], staff: [{ name: 'Synthetic Client AN' }] },
+      { id: 9040, starts_at: '2026-10-03T08:00:00.000Z', ends_at: '2026-10-03T08:45:00.000Z', status: 'completed', services: [{ name: 'Quick Relief: Back & Neck (45 min)' }], staff: [{ name: 'Synthetic Client AN' }] },
+      { id: 9020, starts_at: '2026-10-01T07:00:00.000Z', ends_at: '2026-10-01T07:45:00.000Z', status: 'cancelled', services: [{ name: 'Quick Relief: Back & Neck (45 min)' }], staff: [{ name: 'Synthetic Client AN' }] },
     ],
-    communications: [{ intent: 'booking_confirmation', label: 'Booking confirmation', statusLabel: 'Available in My Shiloh', occurredAt: '2026-09-10T11:56:00.000Z', appointmentId: 667, templateName: null }],
+    communications: [{ intent: 'booking_confirmation', label: 'Booking confirmation', statusLabel: 'Available in My Shiloh', occurredAt: '2026-10-02T11:56:00.000Z', appointmentId: 9067, templateName: null }],
     communicationsUnavailable: false,
     hasMore: false,
     historyOffset: 0,
@@ -178,7 +179,7 @@ function clientModel() {
 
 function messagesModel() {
   return {
-    authority: { displayName: 'Jean-Pierre' },
+    authority: { displayName: 'Synthetic Client AI' },
     selectedView: 'all',
     notificationAuthority: { allowed: true },
     attentionUnavailable: false,
@@ -187,7 +188,7 @@ function messagesModel() {
       canRecover: false,
       actionLabel: 'Re-send confirmation',
       appointment: { id: 668, serviceName: 'Full Body Swedish', startsAt: '2026-09-12T08:00:00.000Z' },
-      client: { id: 912, name: 'Michelle Sardinha', mobileLast4: '4567' },
+      client: { id: 9012, name: 'Synthetic Client AW', mobileLast4: '0017' },
       confirmation: {
         statusLabel: 'App update unavailable',
         deliveryExplanation: 'No current confirmation update is available in My Shiloh. The booking remains available in Bookings.',
@@ -195,8 +196,8 @@ function messagesModel() {
       recoveryExplanation: 'Review the booking and contact the client directly if timely notice matters.',
     }],
     activity: [
-      { clientName: 'Rozel Janse van Rensburg', mobileLast4: '2241', label: 'Booking confirmation', appointmentId: 667, occurredAt: '2026-09-10T11:56:00.000Z', status: 'available', statusLabel: 'Available in My Shiloh' },
-      { clientName: 'Naomi Jacobs', mobileLast4: '8172', label: 'Appointment reminder', appointmentId: 669, occurredAt: '2026-09-11T07:15:00.000Z', status: 'available', statusLabel: 'Available in My Shiloh' },
+      { clientName: 'Fabricated Review Client', mobileLast4: '0017', label: 'Booking confirmation', appointmentId: 9067, occurredAt: '2026-09-10T11:56:00.000Z', status: 'available', statusLabel: 'Available in My Shiloh' },
+      { clientName: 'Synthetic Client AX', mobileLast4: '0017', label: 'Appointment reminder', appointmentId: 669, occurredAt: '2026-09-11T07:15:00.000Z', status: 'available', statusLabel: 'Available in My Shiloh' },
     ],
   };
 }
@@ -205,7 +206,7 @@ function editorStory(interactive = false) {
   const root = document.createElement('div');
   root.className = 'appointment-editor-story';
   root.innerHTML = `<style>:root{--ink:#20322b;--muted:#56685f;--panel:#fffdf9;--line:#dce3dd;--line-strong:#c8d3cb;--leaf-soft:#e7eee9;--leaf-deep:#294c3c}*{box-sizing:border-box}body{margin:0;background:#f4f3ed;color:var(--ink);font-family:Inter,system-ui,sans-serif}.appointment-editor-story{min-height:100vh}.management-panel{display:block;border:0;padding:0;background:transparent;width:100%;height:100vh}.management-card{height:100%;width:min(520px,100%);margin-left:auto;overflow:auto;background:var(--panel);padding:22px;box-shadow:-12px 0 40px rgba(20,45,35,.2)}.panel-head{display:flex;justify-content:space-between;gap:12px;align-items:start;border-bottom:1px solid var(--line);padding-bottom:14px}.panel-head h2{margin:3px 0;font-size:1.25rem}.panel-close{border:1px solid var(--line);background:#fff;border-radius:999px;width:44px;height:44px}.panel-summary{margin:16px 0;padding:12px;border-radius:12px;background:var(--leaf-soft);display:grid;gap:4px}.panel-actions{display:grid;gap:14px}.panel-action{display:none}.panel-action.visible{display:grid;gap:9px}.panel-action label{display:grid;gap:5px;font-size:.76rem;font-weight:750}.panel-action input,.panel-action select,.panel-action textarea{width:100%;min-height:44px;border:1px solid var(--line-strong);border-radius:9px;padding:9px;font:inherit;background:#fff}.panel-action button{min-height:44px;border:0;border-radius:9px;padding:10px 13px;background:var(--leaf-deep);color:#fff;font:inherit;font-weight:800}.panel-action.danger button{background:#843f35}.eyebrow{font-size:.66rem;text-transform:uppercase;letter-spacing:.11em;font-weight:850;color:var(--muted)}h3,p{margin:0}.end-time-state,.treatment-price-current{padding:11px;border-radius:10px;background:var(--leaf-soft);display:grid;gap:4px}@media(max-width:700px){.management-card{height:min(92vh,780px);margin-top:8vh;border-radius:18px 18px 0 0}}</style>
-    <div class="management-panel" data-calendar-management-panel><section class="management-card"><header class="panel-head"><div><span class="eyebrow">Appointment</span><h2>Rozel Janse van Rensburg</h2></div><button class="panel-close" type="button" aria-label="Close">×</button></header><div class="panel-summary"><strong data-panel-client>Appointment #667</strong><span data-panel-service>Sports Massage Full Body</span><span data-panel-practitioners>Abigail</span><span data-panel-time>Sat, 12 Sept 2026 · 08:00</span><span>Completed</span></div><section class="panel-summary app-availability" data-panel-confirmation><span class="eyebrow">My Shiloh</span><strong>Not currently shown in My Shiloh</strong><span>My Shiloh shows upcoming scheduled and confirmed bookings.</span></section><form class="panel-action visible appointment-notes-manage" data-appointment-notes-form><span class="eyebrow">Internal notes</span><textarea aria-label="Internal notes" placeholder="Internal context for staff only"></textarea><span class="panel-hint">Internal only — not included in client confirmations or reminders.</span><button type="button">Save notes</button></form><div class="panel-actions"><form class="panel-action visible" data-treatment-price-form><span class="eyebrow">Treatment &amp; price</span><h3>Correct this appointment</h3><div class="treatment-price-current"><strong>Sports Massage Full Body</strong><span>Charged: R750.00</span></div><label>Treatment<select><option>Sports Massage Full Body</option></select></label><label>Charged price (R)<input value="750.00"></label><button type="button">Save treatment &amp; price</button></form><form class="panel-action visible" data-end-time-form><span class="eyebrow">Appointment timing</span><h3>Adjust end time</h3><div class="end-time-state"><strong>Appointment #667</strong><span>Current end: 10:00</span></div><label>Effective end time<input type="datetime-local" value="2026-09-12T10:00"></label><button type="button">Save end time</button></form><form class="panel-action visible" data-panel-action="appointment:reschedule"><label>Date<input type="date" value="2026-09-12"></label><label>Start time<input type="time" value="08:00"></label><button type="button">Save new time</button></form><form class="panel-action visible" data-panel-action="appointment:reassign"><label>Practitioner<select><option>Abigail</option></select></label><button type="button">Reassign</button></form><form class="panel-action visible danger" data-panel-action="appointment:cancel"><label><input type="checkbox"> I confirm this exact appointment should be cancelled.</label><button type="button">Cancel appointment</button></form></div></section></div>`;
+    <div class="management-panel" data-calendar-management-panel><section class="management-card"><header class="panel-head"><div><span class="eyebrow">Appointment</span><h2>Fabricated Review Client</h2></div><button class="panel-close" type="button" aria-label="Close">×</button></header><div class="panel-summary"><strong data-panel-client>Appointment #9067</strong><span data-panel-service>Sports Massage Full Body</span><span data-panel-practitioners>Abigail</span><span data-panel-time>Sat, 12 Sept 2026 · 08:00</span><span>Completed</span></div><section class="panel-summary app-availability" data-panel-confirmation><span class="eyebrow">My Shiloh</span><strong>Not currently shown in My Shiloh</strong><span>My Shiloh shows upcoming scheduled and confirmed bookings.</span></section><form class="panel-action visible appointment-notes-manage" data-appointment-notes-form><span class="eyebrow">Internal notes</span><textarea aria-label="Internal notes" placeholder="Internal context for staff only"></textarea><span class="panel-hint">Internal only — not included in client confirmations or reminders.</span><button type="button">Save notes</button></form><div class="panel-actions"><form class="panel-action visible" data-treatment-price-form><span class="eyebrow">Treatment &amp; price</span><h3>Correct this appointment</h3><div class="treatment-price-current"><strong>Sports Massage Full Body</strong><span>Charged: R750.00</span></div><label>Treatment<select><option>Sports Massage Full Body</option></select></label><label>Charged price (R)<input value="750.00"></label><button type="button">Save treatment &amp; price</button></form><form class="panel-action visible" data-end-time-form><span class="eyebrow">Appointment timing</span><h3>Adjust end time</h3><div class="end-time-state"><strong>Appointment #9067</strong><span>Current end: 10:00</span></div><label>Effective end time<input type="datetime-local" value="2026-09-12T10:00"></label><button type="button">Save end time</button></form><form class="panel-action visible" data-panel-action="appointment:reschedule"><label>Date<input type="date" value="2026-09-12"></label><label>Start time<input type="time" value="08:00"></label><button type="button">Save new time</button></form><form class="panel-action visible" data-panel-action="appointment:reassign"><label>Practitioner<select><option>Abigail</option></select></label><button type="button">Reassign</button></form><form class="panel-action visible danger" data-panel-action="appointment:cancel"><label><input type="checkbox"> I confirm this exact appointment should be cancelled.</label><button type="button">Cancel appointment</button></form></div></section></div>`;
   if (interactive) {
     const existing = root.querySelector('[data-calendar-management-panel]');
     const dialog = document.createElement('dialog');
@@ -225,7 +226,7 @@ function editorStory(interactive = false) {
     dialog.querySelector('[data-panel-action="appointment:reassign"] select').name = 'destinationStaffId';
     dialog.querySelector('[data-panel-action="appointment:cancel"] input').name = 'confirmed';
     existing.replaceWith(dialog);
-    root.insertAdjacentHTML('beforeend', '<style>.management-panel:not([open]){display:none}.management-panel[open]{position:fixed;inset:0;margin:0;max-width:100%;max-height:100%;height:100dvh}</style><button type="button" data-appointment-id="667" data-revision="2026-09-30T10:00:00.000Z" data-starts-at="2099-10-01T10:00:00.000Z" data-staff-ids="1" data-client-name="Synthetic client" data-client-mobile="082 123 4567" data-service-name="Sports Massage Full Body" data-practitioner-names="Synthetic practitioner" data-appointment-status="scheduled" data-allowed-operations="appointment:reschedule,appointment:cancel,appointment:reassign" data-calendar-operation="manage-appointment">Open appointment</button>');
+    root.insertAdjacentHTML('beforeend', '<style>.management-panel:not([open]){display:none}.management-panel[open]{position:fixed;inset:0;margin:0;max-width:100%;max-height:100%;height:100dvh}</style><button type="button" data-appointment-id="9067" data-revision="2026-09-30T10:00:00.000Z" data-starts-at="2099-10-01T10:00:00.000Z" data-staff-ids="1" data-client-name="Synthetic client" data-client-mobile="082 000 0010" data-service-name="Sports Massage Full Body" data-practitioner-names="Synthetic practitioner" data-appointment-status="scheduled" data-allowed-operations="appointment:reschedule,appointment:cancel,appointment:reassign" data-calendar-operation="manage-appointment">Open appointment</button>');
   }
   window.setTimeout(() => {
     if (interactive) new Function(operationalPresentation.calendarOperationalMutationsClientScript())();
@@ -307,27 +308,27 @@ export const ReceptionPlanningQueue = {
     ...dashboardModel(),
     displayName: 'Shiloh Reception',
     bookingRequests: [
-      { appointmentId: 801, currentStaffId:11, canChangePractitioner:true, eligiblePractitioners:[staff[0],staff[1]], status: 'pending', clientName: 'Client A', serviceName: 'Massage', staffName: 'Abigail', occasionNote: 'Birthday treat for two', requestedStartsAt: '2026-09-28T08:00:00.000Z', requestedRevision: '2026-09-26T09:00:00.000Z' },
-      { appointmentId: 802, currentStaffId:12, canChangePractitioner:true, eligiblePractitioners:[staff[1]], status: 'pending', planningStartedAt: '2026-09-26T10:00:00.000Z', clientName: 'Client B', serviceName: 'Facial', staffName: 'Christel', requestedStartsAt: '2026-09-28T10:00:00.000Z', requestedRevision: '2026-09-26T09:30:00.000Z' },
+      { appointmentId: 801, currentStaffId:11, canChangePractitioner:true, eligiblePractitioners:[staff[0],staff[1]], status: 'pending', clientName: 'Synthetic Client BA', serviceName: 'Massage', staffName: 'Abigail', occasionNote: 'Birthday treat for two', requestedStartsAt: '2026-09-28T08:00:00.000Z', requestedRevision: '2026-09-26T09:00:00.000Z' },
+      { appointmentId: 802, currentStaffId:12, canChangePractitioner:true, eligiblePractitioners:[staff[1]], status: 'pending', planningStartedAt: '2026-09-26T10:00:00.000Z', clientName: 'Synthetic Client BB', serviceName: 'Facial', staffName: 'Synthetic Client AN', requestedStartsAt: '2026-09-28T10:00:00.000Z', requestedRevision: '2026-09-26T09:30:00.000Z' },
     ],
   }), dashboardClientScript()),
 };
 export const ReceptionPractitionerAssignments = {
   render: () => interactiveProductionSurface(renderDashboardPage({
     ...dashboardModel(), displayName:'Shiloh Reception', bookingRequests:[
-      { appointmentId:803,currentStaffId:11,canChangePractitioner:true,eligiblePractitioners:[],status:'pending',clientName:'Client C',serviceName:'Toe Gel Only',staffName:'Abigail',requestedStartsAt:'2026-10-06T06:00:00.000Z',requestedRevision:'2026-10-05T09:00:00.000Z' },
-      { appointmentId:804,currentStaffId:11,canChangePractitioner:true,eligiblePractitioners:[staff[1]],status:'pending',clientName:'Client D',serviceName:'Toe Gel Only',staffName:'Abigail',requestedStartsAt:'2026-10-06T06:30:00.000Z',requestedRevision:'2026-10-05T09:00:00.000Z' },
-      { appointmentId:805,canChangePractitioner:false,eligiblePractitioners:[],status:'pending',clientName:'Client E',serviceName:'Couples Massage',staffName:'Shiloh team',requestedStartsAt:'2026-10-06T07:00:00.000Z',requestedRevision:'2026-10-05T09:00:00.000Z' },
+      { appointmentId:803,currentStaffId:11,canChangePractitioner:true,eligiblePractitioners:[],status:'pending',clientName:'Synthetic Client BC',serviceName:'Toe Gel Only',staffName:'Abigail',requestedStartsAt:'2026-10-06T06:00:00.000Z',requestedRevision:'2026-10-05T09:00:00.000Z' },
+      { appointmentId:804,currentStaffId:11,canChangePractitioner:true,eligiblePractitioners:[staff[1]],status:'pending',clientName:'Synthetic Client BD',serviceName:'Toe Gel Only',staffName:'Abigail',requestedStartsAt:'2026-10-06T06:30:00.000Z',requestedRevision:'2026-10-05T09:00:00.000Z' },
+      { appointmentId:805,canChangePractitioner:false,eligiblePractitioners:[],status:'pending',clientName:'Synthetic Client BE',serviceName:'Couples Massage',staffName:'Shiloh team',requestedStartsAt:'2026-10-06T07:00:00.000Z',requestedRevision:'2026-10-05T09:00:00.000Z' },
     ],
   }), dashboardClientScript()),
 };
 export const ReceptionTimeChangeAttention = {
   render: () => interactiveProductionSurface(renderDashboardPage({
     ...dashboardModel(),
-    displayName: 'Christel',
+    displayName: 'Synthetic Client AN',
     bookingRequests: [],
     rescheduleRequests: [
-      { requestId: 901, appointmentId: 801, decisionOwner: 'reception', clientName: 'Client A', serviceName: 'Hot Stone Massage', staffName: 'Abigail', originalStartsAt: '2026-09-27T08:00:00.000Z', proposedStartsAt: '2026-09-30T08:00:00.000Z' },
+      { requestId: 901, appointmentId: 801, decisionOwner: 'reception', clientName: 'Synthetic Client BA', serviceName: 'Hot Stone Massage', staffName: 'Abigail', originalStartsAt: '2026-09-27T08:00:00.000Z', proposedStartsAt: '2026-09-30T08:00:00.000Z' },
     ],
   }), dashboardClientScript()),
 };
@@ -341,7 +342,7 @@ export const MessagesAttention = { render: () => productionSurface(renderMessage
 export const MessagesChangeDeliveryAttention = {
   render: () => productionSurface(renderMessagesPage({
     ...messagesModel(), selectedView:'attention', attention:[],
-    changeAttention:[{ id:701,appointmentId:668,clientId:912,clientName:'Michelle Sardinha',
+    changeAttention:[{ id:701,appointmentId:668,clientId:9012,clientName:'Synthetic Client AW',
       label:'Appointment update',status:'uncertain',statusLabel:'Send status uncertain',
       updatedAt:'2026-09-27T07:00:00.000Z',
       nextAction:'Review the booking in My Shiloh. The phone-alert outcome is uncertain; app availability does not confirm that the client has read it.' }],
@@ -557,7 +558,7 @@ export const LinkedBookingPayment = {
 
 export const BookingDepositAwaiting = {
   render: () => productionSurface(renderCalendarPaymentPage({ model: {
-    subject: { appointmentId: 812, groupId: null, clientName:'Synthetic Aloe', clientMobile:'27821234567', crmV2ClientId:91 },
+    subject: { appointmentId: 812, groupId: null, clientName:'Synthetic Aloe', clientMobile:'27820000010', crmV2ClientId:91 },
     payment: {
       state:'unpaid', amountDue:'650.00', paid:'0.00', refunded:'0.00', netPaid:'0.00', rewardsApplied:'0.00', outstanding:'650.00',
       requests:[{ amount:'325.00', state:'link_issued', purpose:'deposit', provider_payment_url:'https://pay.example.test/deposit', created_at:'2026-09-23T17:00:00.000Z' }],
@@ -576,7 +577,7 @@ export const BookingDepositAwaiting = {
 
 export const MarietjieDepositExempt = {
   render: () => productionSurface(renderCalendarPaymentPage({ model: {
-    subject: { appointmentId: 813, groupId: null, clientName:'Synthetic Protea', clientMobile:'27831234567', crmV2ClientId:92 },
+    subject: { appointmentId: 813, groupId: null, clientName:'Synthetic Protea', clientMobile:'27820000014', crmV2ClientId:92 },
     payment: {
       state:'unpaid', amountDue:'490.00', paid:'0.00', refunded:'0.00', netPaid:'0.00', rewardsApplied:'0.00', outstanding:'490.00',
       requests:[],
@@ -594,7 +595,7 @@ export const MarietjieDepositExempt = {
 
 export const CancelledBookingPaymentReview = {
   render: () => productionSurface(renderCalendarPaymentPage({ model: {
-    subject: { appointmentId: 759, groupId: null, clientName:'Synthetic Fynbos', clientMobile:'27821234567', crmV2ClientId:49, final:true },
+    subject: { appointmentId: 759, groupId: null, clientName:'Synthetic Fynbos', clientMobile:'27820000010', crmV2ClientId:49, final:true },
     payment: {
       state:'partially_paid', amountDue:'250.00', paid:'125.00', refunded:'0.00', netPaid:'125.00', rewardsApplied:'0.00', outstanding:'125.00',
       requests:[{ id:8, amount:'125.00', state:'paid', purpose:'deposit', provider_payment_url:'https://pay.ozow.com/old', created_at:'2026-09-24T18:52:00.000Z' }],
@@ -631,7 +632,7 @@ export const PhonePasskeyDevices = {
 };
 export const ClinicAndAssistantHours = {
   render: () => productionSurface(renderClinicHoursPage({
-    authority: { displayName: 'Christel' },
+    authority: { displayName: 'Synthetic Client AN' },
     location: { id: 1, name: 'Shiloh', timezone: 'Africa/Johannesburg' },
     revision: 'a'.repeat(64),
     assistantRevision: 'b'.repeat(64),

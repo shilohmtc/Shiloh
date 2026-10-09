@@ -3,7 +3,13 @@ const {test,expect}=require('@playwright/test');
 const AxeBuilder=require('@axe-core/playwright').default;
 const express=require('express');
 const path=require('path');
-const {fixture}=require('./support/clinicIpadHandoverFixture');
+const {fixture:baseFixture}=require('./support/clinicIpadHandoverFixture');
+// Override only this isolated synthetic fixture; the unit-test authority stays unchanged.
+const fixture=async options=>{
+  const value=await baseFixture(options);
+  await value.db.query('UPDATE crm_v2_clients SET normalized_mobile=$1 WHERE id=10',['27820000010']);
+  return value;
+};
 const {createClinicIpadPublicRouter,createClinicIpadSetupRouter}=require('../src/routes/clinicIpadCheckin');
 for(const viewport of [{name:'phone',width:390,height:844},{name:'tablet',width:820,height:1180},{name:'desktop',width:1280,height:900}]) {
   test(`staff-confirmed handover and missing DOB on ${viewport.name}`,async({browser},testInfo)=>{
@@ -52,23 +58,23 @@ for(const viewport of [{name:'phone',width:390,height:844},{name:'tablet',width:
       await expect(staffPage.getByRole('button',{name:/I confirm this person/})).toBeVisible();
       await evidence(staffPage,'staff-handover');
       await clientPage.goto(base+'/check-in/verify');
-      await expect(clientPage.getByText('+27821234567')).toHaveCount(0);
+      await expect(clientPage.getByText('+27820000010')).toHaveCount(0);
       await staffPage.getByRole('button',{name:/I confirm this person/}).click();
       await expect(staffPage.locator('[data-status]')).toContainText('Handover confirmed');
       await expect(clientPage.getByRole('link',{name:'Complete my form'})).toBeVisible({timeout:10000});
       await clientPage.getByRole('link',{name:'Complete my form'}).click();
-      await expect(clientPage.getByText('+27821234567',{exact:true})).toBeVisible();
+      await expect(clientPage.getByText('+27820000010',{exact:true})).toBeVisible();
       await expect(clientPage.locator('input[name="mobile"]')).toHaveCount(0);
       await evidence(clientPage,'missing-dob');
-      await otherPage.goto(base+'/check-in/verify');await expect(otherPage.getByText('+27821234567')).toHaveCount(0);
+      await otherPage.goto(base+'/check-in/verify');await expect(otherPage.getByText('+27820000010')).toHaveCount(0);
       await clientPage.getByLabel('Date of birth').fill('2035-01-01');
       await clientPage.getByRole('button',{name:'These details are correct'}).click();
       await expect(clientPage.getByRole('alert')).toContainText('valid date of birth');
-      await clientPage.getByLabel('Date of birth').fill('1985-05-14');
+      await clientPage.getByLabel('Date of birth').fill('2000-01-01');
       await clientPage.getByRole('button',{name:'These details are correct'}).click();
       await expect(clientPage.getByRole('heading',{name:'Your consultation form is open'})).toBeVisible();
-      expect((await f.db.query('SELECT date_of_birth::text FROM crm_v2_clients WHERE id=10')).rows[0].date_of_birth).toBe('1985-05-14');
-      await clientPage.goto(base+'/check-in/verify');await expect(clientPage.getByText('+27821234567')).toHaveCount(0);
+      expect((await f.db.query('SELECT date_of_birth::text FROM crm_v2_clients WHERE id=10')).rows[0].date_of_birth).toBe('2000-01-01');
+      await clientPage.goto(base+'/check-in/verify');await expect(clientPage.getByText('+27820000010')).toHaveCount(0);
       await clientPage.goto(base+'/check-in/');
       const prepared=await f.service.queueForm(3,1,42,7);
       await f.service.confirmHandover(3,1,prepared.handoffId,true);
@@ -76,9 +82,9 @@ for(const viewport of [{name:'phone',width:390,height:844},{name:'tablet',width:
       await expect(clientPage.locator('input[name="dateOfBirth"]')).toHaveCount(0);
       await evidence(clientPage,'existing-dob');
       await clientPage.getByRole('button',{name:'Details incorrect / Cancel'}).click();
-      await expect(clientPage.getByText('+27821234567')).toHaveCount(0);
+      await expect(clientPage.getByText('+27820000010')).toHaveCount(0);
       await clientPage.goBack();
-      await expect(clientPage.getByText('+27821234567')).toHaveCount(0);
+      await expect(clientPage.getByText('+27820000010')).toHaveCount(0);
       expect(errors).toEqual([]);
     }finally{await Promise.all([staff.close(),ipad.close(),other.close()]);await new Promise(resolve=>server.close(resolve));await f.close();}
   });
@@ -155,9 +161,9 @@ test('booking note indicator opens the existing authorized panel without card co
   const {createWorkspaceAppointmentNotesService,attachBookingNotePresence}=require('../src/services/workspaceAppointmentNotes');
   const f=await fixture(),notes=createWorkspaceAppointmentNotesService({db:f.db});
   await f.db.query("UPDATE appointments SET notes='Synthetic booking note for review' WHERE id=42");
-  const item={kind:'appointment',id:42,canonical:true,status:'confirmed',clientName:'Synthetic Client',clientMobile:'27821234567',serviceName:'Swedish Massage',staffIds:[12],serviceContexts:[{serviceId:7,serviceName:'Swedish Massage'}],startsAt:'2026-10-07T08:00:00Z',endsAt:'2026-10-07T08:30:00Z'};
+  const item={kind:'appointment',id:42,canonical:true,status:'confirmed',clientName:'Synthetic Client',clientMobile:'27820000010',serviceName:'Swedish Massage',staffIds:[12],serviceContexts:[{serviceId:7,serviceName:'Swedish Massage'}],startsAt:'2026-10-07T08:00:00Z',endsAt:'2026-10-07T08:30:00Z'};
   const timeline={meta:{},staff:[{id:12,displayName:'Synthetic Practitioner',schedulingType:'regular'}],appointments:[item],events:[item],blocks:[],leave:[],closures:[],externalBusy:[],workingWindows:[],scheduleExceptions:[],recurringClosures:[]};
-  const projection=createCalendarReadOnlyUxService({listTimeline:async()=>timeline,query:async()=>({rows:[{appointment_id:'42',client_mobile:'27821234567'}]})});
+  const projection=createCalendarReadOnlyUxService({listTimeline:async()=>timeline,query:async()=>({rows:[{appointment_id:'42',client_mobile:'27820000010'}]})});
   const model=await projection.buildModel({view:'day',date:'2026-10-07',viewer:{staffId:2,calendarScope:'all_business'},now:new Date('2026-10-07T06:00:00Z')});
   model.mutationCapability={enabled:true,operations:['appointment:reschedule'],calendarScope:'all_business',serviceScope:'all_services'};
   await attachBookingNotePresence(model,2,notes);
@@ -201,13 +207,13 @@ for(const change of ['revoked','stale','expired','replaced']){
     try{
       const prepared=await f.service.queueForm(2,1,42,7);await f.service.confirmHandover(3,1,prepared.handoffId,true);
       await page.context().addCookies([{name:'shiloh_checkin_device',value:f.deviceToken,domain:'127.0.0.1',path:'/check-in'}]);
-      await page.goto(base+'/check-in/verify');await expect(page.getByText('+27821234567',{exact:true})).toBeVisible();
+      await page.goto(base+'/check-in/verify');await expect(page.getByText('+27820000010',{exact:true})).toBeVisible();
       let replacement;
       if(change==='revoked')await f.service.revoke(2,1);
       if(change==='stale')await f.db.query("UPDATE crm_v2_clients SET date_of_birth='1990-01-01',updated_at=NOW() WHERE id=10");
       if(change==='expired')f.setClock(new Date(Date.now()+16*60*1000));
       if(change==='replaced')replacement=await f.service.queueForm(2,1,43,8);
-      await expect(page.getByText('+27821234567',{exact:true})).toHaveCount(0,{timeout:10000});
+      await expect(page.getByText('+27820000010',{exact:true})).toHaveCount(0,{timeout:10000});
       if(replacement){
         const row=(await f.db.query('SELECT status,handed_over_at FROM clinic_checkin_form_handoffs WHERE id=$1',[replacement.handoffId])).rows[0];
         expect(row.status).toBe('queued');expect(row.handed_over_at).toBe(null);

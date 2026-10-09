@@ -3,7 +3,7 @@
 const crypto = require('node:crypto');
 const { pool } = require('../db/pool');
 const { sha256, normalizedFingerprint } = require('./clientBrowserSession');
-const { enrollmentPolicy, recentClientSession } = require('./clientPasskeyEnrollment');
+const { enrollmentPolicy, recentClientSession, recentStoredClientSession } = require('./clientPasskeyEnrollment');
 
 // 160 random bits, shown once as eight short groups for copying by hand.
 const CODE_FORMAT = /^[A-F0-9]{5}(?:-[A-F0-9]{5}){7}$/;
@@ -37,6 +37,7 @@ function createClientPasskeyRecoveryService({ db = pool, env = process.env,
     const current = now();
     if (!recentClientSession(session, current)) return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
     return withClient(async (client) => {
+      if (!(await recentStoredClientSession(client, session, current))) return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
       await client.query("SELECT pg_advisory_xact_lock(hashtextextended('client-recovery-create:' || $1::text, 0))", [session.crmV2ClientId]);
       const active = await client.query(
         `SELECT id FROM client_auth_passkey_credentials
@@ -69,7 +70,7 @@ function createClientPasskeyRecoveryService({ db = pool, env = process.env,
     });
   }
 
-  async function redeem({ code, requestFingerprintHash = null, keepSignedIn = false } = {}) {
+  async function redeem({ code, requestFingerprintHash = null } = {}) {
     if (!enrollmentPolicy(env).operational || typeof sessionService?.issueVerifiedRecoverySession !== 'function') return unavailable();
     const fingerprint = normalizedFingerprint(requestFingerprintHash);
     if (!fingerprint) return unavailable();
@@ -96,7 +97,7 @@ function createClientPasskeyRecoveryService({ db = pool, env = process.env,
       if (!found.rowCount) return { ok: false, code: 'CLIENT_RECOVERY_INVALID' };
       const row = found.rows[0];
       const issued = await sessionService.issueVerifiedRecoverySession({
-        transaction: client, crmV2ClientId: row.crm_v2_client_id, requestFingerprintHash: fingerprint, keepSignedIn,
+        transaction: client, crmV2ClientId: row.crm_v2_client_id, requestFingerprintHash: fingerprint,
       });
       if (!issued.ok) return { ok: false, code: 'CLIENT_RECOVERY_INVALID' };
       await client.query('UPDATE client_auth_passkey_recovery_codes SET consumed_at = $2 WHERE id = $1', [row.id, current]);

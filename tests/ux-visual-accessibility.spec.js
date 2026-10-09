@@ -71,7 +71,7 @@ test('Reception sees uncertain booking-change delivery without a blind resend on
     const card=page.locator('[data-change-delivery-attention="701"]');
     await expect(card).toContainText('Send status uncertain');
     await expect(card).toContainText('phone-alert outcome is uncertain');
-    await expect(card.getByRole('link',{name:'Review client'})).toHaveAttribute('href','/calendar/clients/912');
+    await expect(card.getByRole('link',{name:'Review client'})).toHaveAttribute('href','/calendar/clients/9012');
     await expect(card.getByRole('button',{name:/send|retry/i})).toHaveCount(0);
     const axe=await new AxeBuilder({page}).include('[data-messages-attention]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
@@ -380,21 +380,21 @@ test('Workspace vouchers stay contained and selectable on Phone and Desktop', as
     const redeem = page.getByRole('heading', { name:'Redeem a voucher' });
     await expect(issued).toBeVisible();
     await expect(redeem).toBeVisible();
-    await expect(page.getByText(/Naledi · Online · Linked to My Shiloh/)).toBeVisible();
-    await expect(page.getByText(/Chenique Botha · Walk-in · Card · Stock BOOK-0042 · Waiting for recipient/)).toBeVisible();
+    await expect(page.getByText(/Synthetic Gift Person I · Online · Linked to My Shiloh/)).toBeVisible();
+    await expect(page.getByText(/Synthetic Gift Person N · Walk-in · Card · Stock BOOK-0042 · Waiting for recipient/)).toBeVisible();
     expect(await issued.evaluate((node) => node.getBoundingClientRect().top)).toBeLessThan(await redeem.evaluate((node) => node.getBoundingClientRect().top));
 
-    await page.getByRole('button', { name:/SV-4A7F31B920CC.*Naledi.*Use this voucher/ }).click();
-    await expect(page.locator('[data-redeem-form]').getByLabel('Voucher code')).toHaveValue('SV-4A7F31B920CC');
+    await page.getByRole('button', { name:/SV-SYNTHETIC010.*Synthetic Gift Person I.*Use this voucher/ }).click();
+    await expect(page.locator('[data-redeem-form]').getByLabel('Voucher code')).toHaveValue('SV-SYNTHETIC010');
     await expect(page.getByLabel('Amount to redeem')).toBeFocused();
     await expect(page.getByLabel('Amount to redeem')).toHaveAttribute('max', '400.00');
-    await expect(page.getByText('SV-4A7F31B920CC selected. Enter the amount to redeem below.')).toBeVisible();
+    await expect(page.getByText('SV-SYNTHETIC010 selected. Enter the amount to redeem below.')).toBeVisible();
 
-    await expect(page.getByText('This links the voucher to the recipient’s My Shiloh profile. Use 082…; +27 is converted automatically.')).toBeVisible();
-    await page.getByLabel('Purchaser’s name').fill('Tinkie');
+    await expect(page.getByText('This links the voucher to the recipient’s My Shiloh profile. Use the recipient’s local number, starting with 0.')).toBeVisible();
+    await page.getByLabel('Purchaser’s name').fill('Synthetic Gift Person E');
     await page.getByLabel('Recipient’s name and surname', { exact:true }).fill('Evelyn Example');
-    await page.getByLabel('Recipient’s mobile number', { exact:true }).fill('082 123 4567');
-    await page.getByLabel('From').fill('Tinkie');
+    await page.getByLabel('Recipient’s mobile number', { exact:true }).fill('082 000 0010');
+    await page.getByLabel('From').fill('Synthetic Gift Person E');
     await page.getByLabel('Voucher value').fill('900');
     await page.getByLabel('Payment received by').selectOption('card_machine');
     await page.getByLabel('I confirm that Shiloh has received the full in-person payment shown above.').check();
@@ -427,7 +427,7 @@ test('Voucher recipient recovery is explicit and accessible on Phone and Desktop
   await page.route('**/calendar/vouchers/recipient', async (route) => route.fulfill({
     status:200,
     contentType:'application/json',
-    body:JSON.stringify({ status:'recipient_changed', voucherCode:'SV-A2F8CBC24FCA', linkStatus:'waiting' }),
+    body:JSON.stringify({ status:'recipient_changed', voucherCode:'SV-SYNTHETIC012', linkStatus:'waiting' }),
   }));
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
     await page.setViewportSize({ width:viewport.width, height:viewport.height });
@@ -436,11 +436,11 @@ test('Voucher recipient recovery is explicit and accessible on Phone and Desktop
     await page.getByRole('button', { name:'Change recipient' }).nth(1).click();
     const form = page.locator('[data-recipient-form]');
     await expect(form).toBeVisible();
-    await expect(form.getByLabel('Voucher code', { exact:true })).toHaveValue('SV-A2F8CBC24FCA');
-    await expect(form.getByLabel('New recipient’s name and surname')).toHaveValue('Chenique Botha');
-    await expect(form.getByLabel('New recipient’s mobile number')).toHaveValue('0837654321');
+    await expect(form.getByLabel('Voucher code', { exact:true })).toHaveValue('SV-SYNTHETIC012');
+    await expect(form.getByLabel('New recipient’s name and surname')).toHaveValue('Synthetic Gift Person N');
+    await expect(form.getByLabel('New recipient’s mobile number')).toHaveValue('0820000014');
     await form.getByLabel('New recipient’s name and surname').fill('Evelyn Example');
-    await form.getByLabel('New recipient’s mobile number').fill('082 123 4567');
+    await form.getByLabel('New recipient’s mobile number').fill('082 000 0010');
     await page.getByLabel('I confirm that I want to change who this voucher is linked to.').check();
     const accessibility = await new AxeBuilder({ page }).include('.recipient-card').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter((violation) => ['serious','critical'].includes(violation.impact))).toEqual([]);
@@ -452,9 +452,9 @@ test('Voucher recipient recovery is explicit and accessible on Phone and Desktop
     await page.getByRole('button', { name:'Update recipient' }).click();
     const request = await requestPromise;
     expect(request.postDataJSON()).toEqual({
-      voucherCode:'SV-A2F8CBC24FCA',
+      voucherCode:'SV-SYNTHETIC012',
       recipientName:'Evelyn Example',
-      recipientMobile:'082 123 4567',
+      recipientMobile:'082 000 0010',
       confirmed:true,
     });
     await reloadPromise;
@@ -470,9 +470,9 @@ test('My Shiloh voucher wallet is clear and accessible on Phone and Desktop', as
     await expect(page.getByRole('heading', { name:'Your voucher wallet', exact:true })).toBeVisible();
     await expect(page.getByText('Total available')).toBeVisible();
     await expect(page.getByText(/R\s*690[,.]00/).first()).toBeVisible();
-    await expect(page.getByText('SV-A1B2C3D4E5F6')).toBeVisible();
+    await expect(page.getByText('SV-SYNTHETIC003')).toBeVisible();
     await expect(page.getByText('22 November 2026')).toBeVisible();
-    await expect(page.getByText('From Tinkie')).toBeVisible();
+    await expect(page.getByText('From Synthetic Gift Person E')).toBeVisible();
     const walletCards = page.locator('.wallet-card');
     await expect(walletCards.first().getByText('Ready to use', { exact:true })).toBeVisible();
     await expect(walletCards.last().getByText('Used', { exact:true })).toBeVisible();
@@ -592,7 +592,7 @@ test('My Shiloh personal details stay contained and accessible on Phone and Desk
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-profile&viewMode=story',{waitUntil:'networkidle'});
     await expect(page.getByRole('heading',{name:'Keep your details up to date.'})).toBeVisible();
-    await expect(page.locator('[data-client-profile-form]').getByLabel('Date of birth')).toHaveValue('1985-06-14');
+    await expect(page.locator('[data-client-profile-form]').getByLabel('Date of birth')).toHaveValue('2000-01-01');
     const help = page.locator('[data-profile-help]');
     await expect(help.locator('#client-problem-description')).toBeHidden();
     await help.locator('summary').click();
@@ -611,7 +611,7 @@ test('My Shiloh personal details stay contained and accessible on Phone and Desk
 test('My Shiloh presents a client request as awaiting approval on phone and desktop', async ({ page }, testInfo) => {
   await page.route('**/my-shiloh/api/experience', route => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({
-      version: 'my_shiloh_client_experience_v1', generatedAt: '2026-09-26T10:00:00.000Z', client: { firstName: 'Christel' },
+      version: 'my_shiloh_client_experience_v1', generatedAt: '2026-09-26T10:00:00.000Z', client: { firstName: 'Synthetic Client AN' },
       home: {
         eyebrow: 'Your booking request', headline: 'Shiloh is planning your request.',
         summary: 'You requested Hot Stone Massage for Fri, 2 Oct at 10:00. Reception will review the arrangement before confirming it. This appointment is not confirmed yet.',
@@ -623,10 +623,10 @@ test('My Shiloh presents a client request as awaiting approval on phone and desk
         ],
       },
       bookings: { upcoming: [
-        { service: 'Hot Stone Massage', date: 'Fri, 2 Oct', time: '10:00', practitioner: 'Christel', status: 'Planning', nextAction: 'Reception is reviewing your request. The appointment has not been confirmed.' },
+        { service: 'Hot Stone Massage', date: 'Fri, 2 Oct', time: '10:00', practitioner: 'Synthetic Client AN', status: 'Planning', nextAction: 'Reception is reviewing your request. The appointment has not been confirmed.' },
         { service: 'Facial', date: 'Sat, 3 Oct', time: '11:00', practitioner: 'Abigail', status: 'Awaiting your response', nextAction: 'Reply to the Shiloh message about the proposed time.' },
       ], history: [
-        { id: 904, hidden: true, canChangeVisibility: true, service: 'Sports Massage', date: 'Thu, 1 Oct', time: '09:00', practitioner: 'Christel', status: 'Could not accommodate', nextAction: 'This request was not booked. Ask Shiloh if you would like to find another time.' },
+        { id: 904, hidden: true, canChangeVisibility: true, service: 'Sports Massage', date: 'Thu, 1 Oct', time: '09:00', practitioner: 'Synthetic Client AN', status: 'Could not accommodate', nextAction: 'This request was not booked. Ask Shiloh if you would like to find another time.' },
       ] },
       assistant: { prompts: ['What is the status of my request?'], contextReady: true },
     }),
@@ -669,7 +669,7 @@ test('My Shiloh shows a pending time change while preserving the current appoint
     status: 'confirmed', services: ['Hot Stone Massage'], practitioners: ['Abigail'],
   };
   const experience = buildClientExperience({
-    generatedAt: '2026-09-26T10:00:00.000Z', client: { id: 55, name: 'Naledi Mokoena' },
+    generatedAt: '2026-09-26T10:00:00.000Z', client: { id: 55, name: 'Synthetic Client AL' },
     nextAppointment: appointment,
     pendingRescheduleRequests: [{ ...appointment, proposedStartsAt: '2026-09-30T08:00:00.000Z' }],
     forms: [], payment: { state: 'paid' },
@@ -734,7 +734,7 @@ test('My Shiloh Home keeps quiet details hidden and redeemed welcome voucher cle
     body: JSON.stringify({
       version: 'my_shiloh_client_experience_v1',
       generatedAt: '2026-09-22T20:00:00.000Z',
-      client: { firstName: 'Christel' },
+      client: { firstName: 'Synthetic Client AN' },
       home: {
         eyebrow: 'Your Shiloh',
         headline: 'Ready when you are, Christel.',
@@ -757,8 +757,8 @@ test('My Shiloh Home keeps quiet details hidden and redeemed welcome voucher cle
     body: JSON.stringify({
       profile: {
         revision: 'a'.repeat(64),
-        name: 'Test Client',
-        dateOfBirth: '1985-06-14',
+        name: 'Synthetic Client AA',
+        dateOfBirth: '2000-01-01',
         gender: 'female',
         mobile: '+27 •• ••• 0000',
         registrationComplete: true,
@@ -835,7 +835,7 @@ test('My Shiloh Home keeps quiet details hidden and redeemed welcome voucher cle
 });
 
 test('My Shiloh shows current updates and restores archives from Profile on phone and desktop', async ({ page }, testInfo) => {
-  await page.route('**/my-shiloh/api/profile', route => route.fulfill({ json:{profile:{name:'Synthetic Client',dateOfBirth:'1988-05-12',gender:'female',mobile:'+27 •• ••• 0000',revision:'a'.repeat(64),registrationComplete:true}} }));
+  await page.route('**/my-shiloh/api/profile', route => route.fulfill({ json:{profile:{name:'Synthetic Client',dateOfBirth:'2000-01-01',gender:'female',mobile:'+27 •• ••• 0000',revision:'a'.repeat(64),registrationComplete:true}} }));
   await page.route('**/my-shiloh/api/problem-reports', route => route.fulfill({ json:{reports:[{reference:'SH-SYNTHETIC',status:'fixed',resolutionNote:'Your personal details now save correctly.'}]} }));
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
     await page.setViewportSize(viewport);
@@ -1069,18 +1069,18 @@ test('Couples booking supports separate canonical treatments and discretionary d
   await page.route('**/calendar/book/couples/client-search', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
-    body: JSON.stringify({ clients: [{ id: '91', displayName: 'Alex Adams', name: 'Alex Adams', mobile: '+27821234567', dateOfBirth: '1990-01-02', gender: 'female', profileStatus: 'registered', contactHint: 'ending in 4567' }] }),
+    body: JSON.stringify({ clients: [{ id: '91', displayName: 'Synthetic Client BH', name: 'Synthetic Client BH', mobile: '+27820000010', dateOfBirth: '2000-01-01', gender: 'female', profileStatus: 'registered', contactHint: 'ending in 4567' }] }),
   }));
-  await page.locator('#guest-1-search').fill('Alex');
+  await page.locator('#guest-1-search').fill('Synthetic Client AG');
   await page.locator('[data-search-guest="1"]').click();
   await page.locator('[data-client-results="1"] .client-result').click();
   await expect(page.locator('[data-client-id="1"]')).toHaveValue('91');
-  await expect(page.locator('[data-dob="1"]')).toHaveValue('1990-01-02');
+  await expect(page.locator('[data-dob="1"]')).toHaveValue('2000-01-01');
   await expect(page.locator('[data-dob="2"]')).not.toHaveAttribute('required', '');
   await expect(page.locator('[data-gender="2"]')).not.toHaveAttribute('required', '');
 
   const values = [
-    ['Alex Adams', '082 123 4567'],
+    ['Synthetic Client BH', '082 000 0010'],
     ['Sam Adams', '082 987 6543'],
   ];
   for (let index = 1; index <= 2; index += 1) {
@@ -1090,10 +1090,10 @@ test('Couples booking supports separate canonical treatments and discretionary d
   await expect(page.locator('[data-dob="2"]')).toHaveValue('');
   await expect(page.locator('[data-gender="2"]')).toHaveValue('');
   await page.locator('[data-service="1"]').selectOption('81');
-  await expect(page.locator('[data-staff="1"] option')).toHaveText(['Choose', 'Abigail', 'Christel']);
+  await expect(page.locator('[data-staff="1"] option')).toHaveText(['Choose', 'Abigail', 'Synthetic Client AN']);
   await page.locator('[data-staff="1"]').selectOption('11');
   await page.locator('[data-service="2"]').selectOption('82');
-  await expect(page.locator('[data-staff="2"] option')).toHaveText(['Choose', 'Christel', 'Marietjie']);
+  await expect(page.locator('[data-staff="2"] option')).toHaveText(['Choose', 'Synthetic Client AN', 'Marietjie']);
   await page.locator('[data-staff="2"]').selectOption('13');
 
   await page.locator('[data-discount-type]').selectOption('percent');
@@ -1103,7 +1103,7 @@ test('Couples booking supports separate canonical treatments and discretionary d
   await expect(page.locator('[data-discount-preview]')).toContainText('Canonical subtotal');
   await expect(page.locator('[data-discount-preview]')).toContainText('Estimated total');
 
-  await page.locator('[data-mobile="2"]').fill('082 123 4567');
+  await page.locator('[data-mobile="2"]').fill('082 000 0010');
   await page.locator('[data-review-couples]').click();
   await expect(page.locator('[data-couples-status]')).toContainText('different mobile numbers');
   await page.locator('[data-mobile="2"]').fill('082 987 6543');
@@ -1117,7 +1117,7 @@ test('Couples booking supports separate canonical treatments and discretionary d
     contentType: 'application/json',
     body: JSON.stringify({
       review: {
-        guests: [{ name: 'Alex Adams' }, { name: 'Sam Adams' }],
+        guests: [{ name: 'Synthetic Client BH' }, { name: 'Sam Adams' }],
         assignments: [
           { service: { name: 'Quick Relief: Back & Neck', price: 520 }, practitioner: { displayName: 'Abigail' } },
           { service: { name: 'Full Body Swedish', price: 720 }, practitioner: { displayName: 'Marietjie' } },
@@ -1174,7 +1174,7 @@ test('Couples booking remains scannable with separate treatments on Desktop', as
 
 test('Group booking adds multiple guests and exposes an optional-note discount on Phone', async ({ page }, testInfo) => {
   const guests = [
-    ['Alex Adams', '082 111 1111', '81', '11'],
+    ['Synthetic Client BH', '082 111 1111', '81', '11'],
     ['Sam Adams', '082 222 2222', '84', '12'],
     ['Taylor Adams', '082 333 3333', '82', '13'],
   ];
@@ -1315,12 +1315,12 @@ test('phone Create booking restores canonical Week context and fits the viewport
     body: JSON.stringify({
       ambiguous: true,
       clients: [
-        { id: 1, displayName: 'Alex Adams', contactHint: '••41', profileStatus: 'registered' },
+        { id: 1, displayName: 'Synthetic Client BH', contactHint: '••41', profileStatus: 'registered' },
         { id: 2, displayName: 'Alex Andrews', contactHint: '••92', profileStatus: 'registered' },
       ],
     }),
   }));
-  await page.locator('#client-search').fill('Alex');
+  await page.locator('#client-search').fill('Synthetic Client AG');
   await page.locator('[data-client-search]').click();
   await expect(page.locator('.client-result')).toHaveCount(2);
   await expect(page.locator('[data-booking-status]')).toBeHidden();
@@ -1351,7 +1351,7 @@ test('receptionist chooses practitioner first and sees only mapped treatments on
   await expect(treatment.locator('option', { hasText: 'Quick Relief' })).toHaveCount(0);
 
   await treatment.selectOption('82');
-  await picker.getByRole('button', { name: /Christel/ }).click();
+  await picker.getByRole('button', { name: /Synthetic Client AN/ }).click();
   await expect(treatment).toHaveValue('82');
 
   await picker.getByRole('button', { name: /Marietjie/ }).click();
@@ -1364,7 +1364,7 @@ test('receptionist chooses practitioner first and sees only mapped treatments on
   await expect(treatment.locator('option')).toHaveCount(5);
   await treatment.selectOption('81');
   await expect(page.locator('[data-eligible-practitioner-field]')).toBeVisible();
-  await expect(page.locator('#staff-select').locator('option')).toHaveText(['Choose practitioner', 'Abigail', 'Christel']);
+  await expect(page.locator('#staff-select').locator('option')).toHaveText(['Choose practitioner', 'Abigail', 'Synthetic Client AN']);
 
   const metrics = await page.evaluate(() => ({
     viewportWidth: window.innerWidth,
@@ -1600,7 +1600,7 @@ test('Dashboard visit outcomes use a polished accessible confirmation on Desktop
     const dialog = page.locator('[data-dashboard-outcome-dialog]');
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('heading', { name: 'Mark this visit as completed?' })).toBeVisible();
-    await expect(dialog).toContainText('Previous-day client’s appointment');
+    await expect(dialog).toContainText('Synthetic Client AY’s appointment');
     await expect(dialog.getByRole('button', { name: 'Not yet' })).toBeFocused();
     await expect(dialog.getByRole('button', { name: 'Mark completed' })).toBeVisible();
 
@@ -1629,12 +1629,12 @@ test('Dashboard allows No-show from visit start while keeping Completed unavaila
     await page.setViewportSize(viewport);
     await page.goto('/iframe.html?id=workspace-production-surfaces--dashboard-active-no-show&viewMode=story', { waitUntil: 'networkidle' });
 
-    const activeVisit = page.locator('[data-dashboard-appointment="667"]');
+    const activeVisit = page.locator('[data-dashboard-appointment="9067"]');
     await expect(activeVisit.getByRole('button', { name: 'No-show' })).toBeVisible();
     await expect(activeVisit.getByRole('button', { name: 'Completed' })).toHaveCount(0);
 
     const accessibility = await new AxeBuilder({ page })
-      .include('[data-dashboard-appointment="667"]')
+      .include('[data-dashboard-appointment="9067"]')
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
@@ -1842,7 +1842,7 @@ test('Month exposes full-cell navigation, appointment details and South African 
   }
 });
 
-for (const viewport of [{ width: 390, height: 640 }, { width: 1440, height: 1000 }]) {
+for (const viewport of [{ width: 390, height: 9040 }, { width: 1440, height: 1000 }]) {
   test(`appointment sections expose complete forms at ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto('/iframe.html?id=workspace-production-surfaces--compact-appointment-editor&viewMode=story');
@@ -1900,7 +1900,7 @@ for (const state of states) {
   test(`${state.name} visual and accessibility baseline`, async ({ page }) => {
     // Static Storybook has no production PWA router. Reproduce that router's
     // original asset for these changed Workspace references before comparing pixels.
-    const workspaceReference = ['dashboard-desktop', 'dashboard-phone', 'client-history-desktop'].includes(state.name);
+    const workspaceReference = Boolean(state.selector);
     if (workspaceReference) await page.route('**/calendar/pwa/icon-192.png*', route => route.fulfill({
       path: require('node:path').resolve(__dirname, '../public/assets/pwa/shiloh-pwa-192.png'),
     }));
@@ -1912,7 +1912,7 @@ for (const state of states) {
 
     const reference = page.locator(state.selector || '.calendar-reference');
     await expect(reference).toBeVisible();
-    if (workspaceReference) {
+    if (state.selector === '.workspace-surface-story') {
       const logo = page.locator(state.name.endsWith('-phone') ? '.workspace-menu-brand-icon' : '.workspace-desktop-mark .workspace-brand-icon');
       await expect(logo).toBeVisible();
       await expect.poll(() => logo.evaluate(node => node.complete && node.naturalWidth > 0)).toBe(true);
@@ -2433,7 +2433,7 @@ test('My Shiloh refreshes an authenticated greeting from current Johannesburg ti
     window.Date = FixedDate;
   });
   await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
-  await expect(page.getByRole('heading', { name: 'Good morning, Christel.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Good morning, Synthetic Client AN.' })).toBeVisible();
 });
 
 
@@ -2448,7 +2448,7 @@ test('My Shiloh first installed launch respects an authenticated server session 
     const frame = page.locator('[data-app-frame]');
     await expect(frame).toBeVisible();
     await expect(page.locator('[data-install-gate]')).toBeHidden();
-    await expect(page.getByText('Good evening, Jean-Pierre.')).toBeVisible();
+    await expect(page.getByText('Good evening, Synthetic Client AI.')).toBeVisible();
 
     const metrics = await frame.evaluate((node) => ({
       viewportWidth: window.innerWidth,
@@ -2591,7 +2591,7 @@ test('My Shiloh long names and appointment notification invitation fit Phone and
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--long-name-notification-invite&viewMode=story', { waitUntil:'networkidle' });
     const greeting = page.locator('[data-client-greeting]');
     const invite = page.locator('[data-push-invite]');
-    await expect(greeting).toContainText('Alexandra-Marguerite');
+    await expect(greeting).toContainText('Synthetic Client AQ');
     await expect(greeting).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path:testInfo.outputPath(`my-shiloh-long-name-home-${viewport.name}.png`), fullPage:true, animations:'disabled' });
@@ -2666,7 +2666,7 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
     body: JSON.stringify({
       service: { id:101, name:'Hot Stone Massage', category:'Massage', durationMinutes:75, price:850, variablePrice:false },
       practitioners: [
-        { id:11, name:'Christel', depositExempt:false },
+        { id:11, name:'Synthetic Client AN', depositExempt:false },
         { id:13, name:'Marietjie', depositExempt:true },
       ],
       deposit: { ratePercent:50, exemptStaffId:13 },
@@ -2678,10 +2678,10 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
     body: JSON.stringify({
       status:'available',
       service:{ id:101, name:'Hot Stone Massage' },
-      practitioner:{ id:11, name:'Christel' },
+      practitioner:{ id:11, name:'Synthetic Client AN' },
       date:'2026-09-30',
       slots:[
-        { startsAt:'2026-09-30T08:00:00.000Z', endsAt:'2026-09-30T09:15:00.000Z', date:'2026-09-30', time:'10:00', endTime:'11:15', practitionerId:11, practitionerName:'Christel' },
+        { startsAt:'2026-09-30T08:00:00.000Z', endsAt:'2026-09-30T09:15:00.000Z', date:'2026-09-30', time:'10:00', endTime:'11:15', practitionerId:11, practitionerName:'Synthetic Client AN' },
       ],
     }),
   }));
@@ -2697,7 +2697,7 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
         status:'pending_resolution',
         appointmentId:812,
         service:'Hot Stone Massage',
-        practitioner:'Christel',
+        practitioner:'Synthetic Client AN',
         startsAt:'2026-09-30T08:00:00.000Z',
         message:'Your booking request is in. Your selected time is being held while the Shiloh team confirms it. You’ll see the deposit step in My Shiloh after approval.',
       }),
@@ -2733,7 +2733,7 @@ test('My Shiloh native booking stays in-app and is usable on Phone and Desktop',
       expect(reviewPosition).toBeLessThan(120);
     }
     await expect(page.locator('[data-review-service]')).toContainText('Hot Stone Massage');
-    await expect(page.locator('[data-review-practitioner]')).toHaveText('Christel');
+    await expect(page.locator('[data-review-practitioner]')).toHaveText('Synthetic Client AN');
     await expect(page.locator('[data-review-deposit]')).toHaveText('50% after approval');
     const policy = page.locator('.terms');
     const policyControl = policy.locator('summary');
@@ -2816,9 +2816,9 @@ test('Reception planning card shows a client occasion on Phone and Desktop', asy
     await expect(card.getByRole('button', { name: 'Propose alternative' })).toBeVisible();
     await expect(card).not.toContainText('Start planning');
     await expect(card).not.toContainText('Cannot accommodate');
-    await expect(card.locator('[data-proposal-staff] option:not([disabled])')).toHaveText(['Abigail (current)','Christel']);
+    await expect(card.locator('[data-proposal-staff] option:not([disabled])')).toHaveText(['Abigail (current)','Synthetic Client AN']);
     await expect(card.locator('[data-proposal-staff]')).toHaveValue('11');
-    await expect(page.locator('[data-booking-request="802"] [data-proposal-staff] option:not([disabled])')).toHaveText(['Christel (current)']);
+    await expect(page.locator('[data-booking-request="802"] [data-proposal-staff] option:not([disabled])')).toHaveText(['Synthetic Client AN (current)']);
     if (viewport.name === 'desktop') {
       const copyWidth = await card.locator('.appointment-copy').evaluate(node => node.getBoundingClientRect().width);
       expect(copyWidth).toBeGreaterThan(120);
@@ -3056,7 +3056,7 @@ test('in-clinic future-booking terms review is clear and accessible on Phone and
     const surface = page.locator('[data-in-person-policy-story]');
     await expect(surface).toBeVisible();
     await expect(surface.getByRole('heading', { name:'Booking Policy & Terms' })).toBeVisible();
-    await expect(surface.getByText('Naledi Mokoena')).toBeVisible();
+    await expect(surface.getByText('Synthetic Client AL')).toBeVisible();
     await expect(surface.getByText(/client must read and tap the acknowledgement themselves/i)).toBeVisible();
     await expect(surface.getByText(/staff must not accept on their behalf/i)).toBeVisible();
     await expect(surface.getByText(/Our therapists set aside this time especially for you/)).toBeVisible();
@@ -3131,16 +3131,16 @@ test('future booking completion offers clinic-device review and the secure clien
   }));
   await page.route('**/calendar/book/client-search', async route => route.fulfill({
     status:200,contentType:'application/json',body:JSON.stringify({
-      clients:[{ id:91, displayName:'Naledi Mokoena', contactHint:'••67', profileStatus:'registered' }],
+      clients:[{ id:91, displayName:'Synthetic Client AL', contactHint:'••67', profileStatus:'registered' }],
     }),
   }));
   await page.route('**/calendar/book/prepare', async route => route.fulfill({
     status:200,contentType:'application/json',body:JSON.stringify({
       status:'pending_confirmation',
       review:{
-        client:{ id:91, displayName:'Naledi Mokoena', contactHint:'••67', mobile:'082 123 4567' },
+        client:{ id:91, displayName:'Synthetic Client AL', contactHint:'••67', mobile:'082 000 0010' },
         service:{ id:81, name:'Quick Relief: Back & Neck (45 min)' },
-        practitioner:{ id:11, displayName:'Christel' },
+        practitioner:{ id:11, displayName:'Synthetic Client AN' },
         startsAt:'2026-09-14T08:30:00.000Z',
         durationMinutes:45,
         price:'R520.00',
@@ -3169,7 +3169,7 @@ test('future booking completion offers clinic-device review and the secure clien
   ]) {
     await page.setViewportSize({ width:viewport.width, height:viewport.height });
     await page.goto('/iframe.html?id=workspace-production-surfaces--create-booking&viewMode=story', { waitUntil:'networkidle' });
-    await page.locator('#client-search').fill('Naledi');
+    await page.locator('#client-search').fill('Synthetic Gift Person I');
     await page.locator('[data-client-search]').click();
     await page.locator('.client-result').click();
     await page.locator('#service-select').selectOption('81');
@@ -3260,7 +3260,7 @@ test('staff deactivation uses Shiloh confirmation, safe cancellation and inline 
 
 test('appointment app availability replaces retired transport evidence with clear dates on Phone and Desktop', async ({ page }, testInfo) => {
   let response = { label:'Available in My Shiloh', explanation:'The client can view this booking when they open My Shiloh.' };
-  await page.route('**/calendar/operations/appointments/667/my-shiloh-availability', route => route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify(response) }));
+  await page.route('**/calendar/operations/appointments/9067/my-shiloh-availability', route => route.fulfill({ status:200, contentType:'application/json', body:JSON.stringify(response) }));
   for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1280,height:900 }]) {
     await page.setViewportSize(viewport);
     await page.goto('/iframe.html?id=workspace-production-surfaces--appointment-app-availability&viewMode=story', { waitUntil:'networkidle' });
@@ -3269,7 +3269,7 @@ test('appointment app availability replaces retired transport evidence with clea
     const panel = page.getByRole('dialog', { name:'Synthetic client' });
     await expect(panel).toBeVisible();
     await expect(panel.locator('[data-panel-confirmation]')).toContainText(response.label);
-    await expect(panel.locator('[data-panel-client]')).toHaveText('Appointment #667');
+    await expect(panel.locator('[data-panel-client]')).toHaveText('Appointment #9067');
     await expect(panel.locator('[data-panel-time]')).toContainText('12:00');
     await expect(panel.locator('[data-panel-time]')).not.toContainText('2099-10-01');
     await expect(panel).not.toContainText('WhatsApp');
@@ -3333,7 +3333,7 @@ test('My Shiloh SMS entry reconnects profiles with retained inputs', async ({ pa
     await expect(panel.getByRole('heading', { name:'Sign in to My Shiloh' })).toBeVisible();
     await expect(panel.getByLabel('Full name')).toBeFocused();
     await panel.getByLabel('Full name').fill('Synthetic Client');
-    await panel.getByLabel('Mobile number').fill('082 123 4567');
+    await panel.getByLabel('Mobile number').fill('082 000 0010');
     await register.focus();
     await page.keyboard.press('Enter');
     await expect(panel).toBeHidden();
@@ -3344,7 +3344,7 @@ test('My Shiloh SMS entry reconnects profiles with retained inputs', async ({ pa
     await expect(panel).toBeVisible();
     await expect(register).toHaveAttribute('aria-expanded', 'true');
     await expect(panel.getByLabel('Full name')).toHaveValue('Synthetic Client');
-    await expect(panel.getByLabel('Mobile number')).toHaveValue('082 123 4567');
+    await expect(panel.getByLabel('Mobile number')).toHaveValue('082 000 0010');
     await home.getByRole('button', { name:'New to My Shiloh? Start here too.' }).click();
     await expect(panel.getByRole('heading', { name:'Sign in to My Shiloh' })).toBeVisible();
     await expect(panel.getByLabel('Mobile number')).toBeFocused();
@@ -3352,8 +3352,8 @@ test('My Shiloh SMS entry reconnects profiles with retained inputs', async ({ pa
     expect(sends).toHaveLength(0);
     await panel.getByRole('button', { name:'Send my SMS code' }).click();
     await expect(home.locator('[data-auth-status]')).toContainText('SMS is temporarily unavailable');
-    await expect(panel.getByLabel('Mobile number')).toHaveValue('082 123 4567');
-    expect(sends).toEqual([{ name:'Synthetic Client', mobile:'082 123 4567' }]);
+    await expect(panel.getByLabel('Mobile number')).toHaveValue('082 000 0010');
+    expect(sends).toEqual([{ name:'Synthetic Client', mobile:'082 000 0010' }]);
     await register.click();
     await expect(panel.getByRole('heading', { name:'Sign in to My Shiloh' })).toBeVisible();
     const axe = await new AxeBuilder({ page }).include('[data-view="home"] .hero')
@@ -3391,12 +3391,12 @@ test('My Shiloh SMS entry reconnects profiles with retained inputs', async ({ pa
 test('My Shiloh multiple bookings review, remove and safely retry one combined request on Phone and Desktop', async ({ page }, testInfo) => {
   const confirmations = [];
   let failResponse = true;
-  await page.route('**/my-shiloh/api/booking/practitioners?**', route => route.fulfill({ status:200,contentType:'application/json',body:JSON.stringify({ practitioners:[{ id:11,name:'Christel',depositExempt:false }] }) }));
+  await page.route('**/my-shiloh/api/booking/practitioners?**', route => route.fulfill({ status:200,contentType:'application/json',body:JSON.stringify({ practitioners:[{ id:11,name:'Synthetic Client AN',depositExempt:false }] }) }));
   await page.route('**/my-shiloh/api/booking/availability?**', route => {
     const date = new URL(route.request().url()).searchParams.get('date');
     return route.fulfill({ status:200,contentType:'application/json',body:JSON.stringify({ slots:[{ startsAt:date+'T08:00:00.000Z',endsAt:date+'T09:15:00.000Z',date,time:'10:00',endTime:'11:15' }] }) });
   });
-  await page.route('**/my-shiloh/api/booking/multiple/review', route => route.fulfill({ status:200,contentType:'application/json',body:JSON.stringify({ total:'1470.00',deposit:'735.00',quoteHash:'a'.repeat(64),treatments:[{ price:'850.00' },{ price:'620.00' }] }) }));
+  await page.route('**/my-shiloh/api/booking/multiple/review', route => route.fulfill({ status:200,contentType:'application/json',body:JSON.stringify({ total:'1470.00',deposit:'735.00',quoteHash:'a'.repeat(64),treatments:[{ price:'850.00' },{ price:'9020.00' }] }) }));
   await page.route('**/my-shiloh/api/booking/multiple/confirm', route => {
     confirmations.push(route.request().postDataJSON());
     if (failResponse) { failResponse = false; return route.abort('failed'); }
@@ -3468,7 +3468,7 @@ test('My Shiloh refused and timed-out cart reviews recover visibly on Phone and 
   let mode = 'overlap';
   let heldReview;
   let submissions = 0;
-  await page.route('**/my-shiloh/api/booking/practitioners?**', route => route.fulfill({ json:{ practitioners:[{ id:11,name:'Christel',depositExempt:false }] } }));
+  await page.route('**/my-shiloh/api/booking/practitioners?**', route => route.fulfill({ json:{ practitioners:[{ id:11,name:'Synthetic Client AN',depositExempt:false }] } }));
   await page.route('**/my-shiloh/api/booking/availability?**', route => {
     const date = new URL(route.request().url()).searchParams.get('date');
     return route.fulfill({ json:{ slots:[{ startsAt:date+'T08:00:00.000Z',date,time:'10:00',endTime:'11:15' }] } });
@@ -3476,7 +3476,7 @@ test('My Shiloh refused and timed-out cart reviews recover visibly on Phone and 
   await page.route('**/my-shiloh/api/booking/multiple/review', route => {
     if (mode === 'timeout') { heldReview = route; return; }
     if (mode === 'overlap') return route.fulfill({ status:409,json:{ code:'BOOKING_CART_OVERLAP',error:'Your appointments overlap.' } });
-    return route.fulfill({ json:{ total:'1470.00',deposit:'735.00',quoteHash:'a'.repeat(64),treatments:[{ price:'850.00' },{ price:'620.00' }] } });
+    return route.fulfill({ json:{ total:'1470.00',deposit:'735.00',quoteHash:'a'.repeat(64),treatments:[{ price:'850.00' },{ price:'9020.00' }] } });
   });
   await page.route('**/my-shiloh/api/booking/multiple/confirm', route => { submissions += 1; return route.abort(); });
   for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',width:1365,height:950 }]) {
@@ -3530,7 +3530,7 @@ test('My Shiloh refused and timed-out cart reviews recover visibly on Phone and 
 });
 
 test('My Shiloh saves entered profile details and preserves them after a refused save on Phone and Desktop', async ({ page }, testInfo) => {
-  const profile = { name: 'Test Client', dateOfBirth: '1985-06-14', gender: 'female', mobile: '+27 •• ••• 0000', revision: 'a'.repeat(64), registrationComplete: false };
+  const profile = { name: 'Synthetic Client AA', dateOfBirth: '2000-01-01', gender: 'female', mobile: '+27 •• ••• 0000', revision: 'a'.repeat(64), registrationComplete: false };
   await page.route('**/my-shiloh/api/profile', route => route.fulfill({ json: { profile } }));
   await page.route('**/my-shiloh/auth/csrf', route => route.fulfill({ json: { csrfToken: 'synthetic-csrf' } }));
   for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
@@ -3542,15 +3542,15 @@ test('My Shiloh saves entered profile details and preserves them after a refused
     await page.evaluate(() => { Object.defineProperty(navigator, 'standalone', { value: true, configurable: true }); });
     await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
     const form = page.locator('[data-client-profile-form]');
-    await expect(form.getByLabel('Full name')).toHaveValue('Test Client');
+    await expect(form.getByLabel('Full name')).toHaveValue('Synthetic Client AA');
     await form.getByLabel('Full name').fill('Synthetic Updated Client');
-    await form.getByLabel('Date of birth').fill('1988-05-12');
+    await form.getByLabel('Date of birth').fill('2000-01-01');
     await form.getByLabel('Gender').selectOption('female');
     await page.route('**/my-shiloh/api/profile/update', route => route.fulfill({ status: 422, json: { error: 'Please review your details.' } }));
     const refused = page.waitForRequest('**/my-shiloh/api/profile/update');
     await form.getByRole('button', { name: 'Save personal details' }).click();
     const payload = (await refused).postDataJSON();
-    expect(payload).toEqual({ expectedRevision: profile.revision, name: 'Synthetic Updated Client', dateOfBirth: '1988-05-12', gender: 'female' });
+    expect(payload).toEqual({ expectedRevision: profile.revision, name: 'Synthetic Updated Client', dateOfBirth: '2000-01-01', gender: 'female' });
     await expect(page.locator('[data-client-profile-status]')).toHaveText('Please review your details.');
     await expect(form.getByLabel('Full name')).toHaveValue(payload.name);
     await expect(form.getByRole('button', { name: 'Save personal details' })).toBeEnabled();
@@ -3570,7 +3570,7 @@ test('My Shiloh displays both same-day bookings on Phone and Desktop', async ({ 
     { id: 901, startsAt: '2026-10-10T07:00:00.000Z', status: 'confirmed', services: ['Massage'], practitioners: ['Abigail'] },
     { id: 902, startsAt: '2026-10-10T09:00:00.000Z', status: 'confirmed', services: ['Pedicure'], practitioners: ['Ilince'] },
   ];
-  const experience = buildClientExperience({ client: { id: 55, name: 'Test Client' }, nextAppointment: appointments[0], upcomingAppointments: appointments, forms: [], payment: null });
+  const experience = buildClientExperience({ client: { id: 55, name: 'Synthetic Client AA' }, nextAppointment: appointments[0], upcomingAppointments: appointments, forms: [], payment: null });
   await page.route('**/my-shiloh/api/experience', route => route.fulfill({ json: experience }));
   await page.route('**/my-shiloh/api/notifications', route => route.fulfill({ json: { notifications: [] } }));
   for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {
@@ -3652,7 +3652,7 @@ test('My Shiloh automatically acknowledges a submitted report in Current updates
   await page.route('**/my-shiloh/api/experience',route=>route.fulfill({json:{version:'my_shiloh_client_experience_v1',client:{firstName:'Client'},home:{eyebrow:'Your Shiloh',headline:'Ready when you are.',summary:'Book your next Shiloh visit.',status:'Ready',primaryAction:{kind:'navigate',label:'Book an appointment',href:'/my-shiloh/book'},facts:[{key:'appointment',label:'Appointment',value:'None upcoming',href:'#bookings'},{key:'forms',label:'Forms',value:'Nothing waiting'},{key:'payment',label:'Payment',value:'No active booking'}]},bookings:{upcoming:[]},assistant:{prompts:[],contextReady:true}}}));
   await page.route('**/my-shiloh/api/welcome-voucher',route=>route.fulfill({json:{welcomeVoucher:{eligible:false,state:'redeemed'}}}));
   await page.route('**/my-shiloh/auth/csrf',route=>route.fulfill({json:{csrfToken:'synthetic-csrf'}}));
-  await page.route('**/my-shiloh/api/profile',route=>route.fulfill({json:{profile:{name:'Synthetic Client',dateOfBirth:'1988-05-12',gender:'female',revision:'a'.repeat(64),registrationComplete:true}}}));
+  await page.route('**/my-shiloh/api/profile',route=>route.fulfill({json:{profile:{name:'Synthetic Client',dateOfBirth:'2000-01-01',gender:'female',revision:'a'.repeat(64),registrationComplete:true}}}));
   for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]) {
     let submitted=false;
     await page.setViewportSize(viewport);
@@ -3740,13 +3740,13 @@ test('Workspace sign-out revokes the session from reports and menus on Phone and
   app.get('/calendar/staff/client.js', (_req, res) => res.type('js').send(staffCalendarAccessClientScript()));
   app.get('/calendar/workspace/navigation', requireStaffSession({ service, env }), (_req, res) => res.json({}));
   app.use('/calendar/problem-reports', createWorkspaceProblemReportsRouter({ env, sessionService: service, service: {
-    resolveWorkspaceAccess: async () => ({ displayName: 'Jean-Pierre', canManage: true }),
+    resolveWorkspaceAccess: async () => ({ displayName: 'Synthetic Client AI', canManage: true }),
     listForManager: async () => ({ reports: [] }),
   } }));
   app.get('/calendar/workspace', requireStaffSession({ service, env, humanNavigationSigninPath: '/calendar/staff' }), (req, res) => {
     const first = req.query.order === 'staff-first' ? '<script src="/calendar/staff/client.js" defer></script>' : '';
     const last = req.query.order === 'nav-first' ? '<script src="/calendar/staff/client.js" defer></script>' : '';
-    res.type('html').send('<!doctype html><html lang="en"><head><title>Synthetic Workspace</title><style>' + workspaceShellStyles() + 'body{margin:0;font-family:system-ui}</style>' + first + '</head><body><div class="workspace-frame">' + renderWorkspaceNavigation({displayName:'Jean-Pierre'}) + '<main class="workspace-main"><h1>Workspace</h1></main></div>' + last + '</body></html>');
+    res.type('html').send('<!doctype html><html lang="en"><head><title>Synthetic Workspace</title><style>' + workspaceShellStyles() + 'body{margin:0;font-family:system-ui}</style>' + first + '</head><body><div class="workspace-frame">' + renderWorkspaceNavigation({displayName:'Synthetic Client AI'}) + '<main class="workspace-main"><h1>Workspace</h1></main></div>' + last + '</body></html>');
   });
   app.get('/calendar/staff', (_req, res) => res.type('html').send(renderStaffCalendarAccessPage({reason:'logout'}).replace(/<section class="section" data-shiloh-whatsapp-handoff-guidance>[\s\S]*?<\/section>/, signinPanel())));
   app.get('/calendar/pwa/icon-192.png', (_req, res) => res.sendFile(require('path').resolve('public/assets/pwa/shiloh-pwa-192.png')));
@@ -3859,7 +3859,7 @@ test('Reception alternatives only allow service practitioners and preserve team-
     await expect(missing).toContainText('Review the practitioner assignments in Services');
     const changed = page.locator('[data-booking-request="804"]');
     const picker = changed.getByLabel('Alternative practitioner');
-    await expect(picker.locator('option:not([disabled])')).toHaveText(['Christel']);
+    await expect(picker.locator('option:not([disabled])')).toHaveText(['Synthetic Client AN']);
     await expect(picker).toHaveValue('');
     await changed.getByLabel('Alternative date').fill('2026-10-06');
     await changed.getByLabel('Alternative time').fill('09:00');
@@ -3891,10 +3891,10 @@ test('Reception alternatives only allow service practitioners and preserve team-
 
 test('Home shows the later Swedish deposit and keeps choosing help inside Shiloh', async ({ page }, testInfo) => {
   const appointments = [
-    { id: 901, startsAt: '2026-10-06T06:30:00Z', status: 'confirmed', services: ['Toe Gel Only'], practitioners: ['Christel'] },
-    { id: 902, startsAt: '2026-10-06T08:45:00Z', status: 'confirmed', services: ['Full Body Swedish'], practitioners: ['Christel'] },
+    { id: 901, startsAt: '2026-10-06T06:30:00Z', status: 'confirmed', services: ['Toe Gel Only'], practitioners: ['Synthetic Client AN'] },
+    { id: 902, startsAt: '2026-10-06T08:45:00Z', status: 'confirmed', services: ['Full Body Swedish'], practitioners: ['Synthetic Client AN'] },
   ];
-  const experience = buildClientExperience({ client: { name: 'Jean-Pierre Botha' }, nextAppointment: appointments[0], upcomingAppointments: appointments, forms: [], payment: { state: 'paid' }, appointmentForms: [{ appointmentId: 901, forms: [] }, { appointmentId: 902, forms: [{ id: 81, title: 'Massage consultation', status: 'sent', actionRequired: true }] }], appointmentPayments: [
+  const experience = buildClientExperience({ client: { name: 'Synthetic Client AO' }, nextAppointment: appointments[0], upcomingAppointments: appointments, forms: [], payment: { state: 'paid' }, appointmentForms: [{ appointmentId: 901, forms: [] }, { appointmentId: 902, forms: [{ id: 81, title: 'Massage consultation', status: 'sent', actionRequired: true }] }], appointmentPayments: [
     { appointmentId: 901, payment: { state: 'paid' } },
     { appointmentId: 902, payment: { accountId: 71, state: 'unpaid', depositState: 'awaiting', depositOutstanding: '295', activePaymentPath: '/pay/SWEDISH123' } },
   ] });
@@ -3945,8 +3945,8 @@ test('Home shows the later Swedish deposit and keeps choosing help inside Shiloh
 
 
 test('verified deposit and completed forms clear Home actions and keep the remaining balance in Bookings', async ({ page }) => {
-  const appointment = { id: 902, startsAt: '2026-10-06T08:45:00Z', status: 'confirmed', services: ['Full Body Swedish'], practitioners: ['Christel'] };
-  const settled = buildClientExperience({ client: { name: 'Jean-Pierre Botha' }, nextAppointment: appointment, upcomingAppointments: [appointment],
+  const appointment = { id: 902, startsAt: '2026-10-06T08:45:00Z', status: 'confirmed', services: ['Full Body Swedish'], practitioners: ['Synthetic Client AN'] };
+  const settled = buildClientExperience({ client: { name: 'Synthetic Client AO' }, nextAppointment: appointment, upcomingAppointments: [appointment],
     forms: [{ id: 81, title: 'Massage consultation', status: 'completed', actionRequired: false }],
     payment: { accountId: 71, state: 'partially_paid', depositState: 'satisfied', outstanding: '295', activePaymentPath: null },
   });
@@ -3967,7 +3967,7 @@ test('verified deposit and completed forms clear Home actions and keep the remai
     await card.getByText('Appointment details', { exact: true }).click();
     await expect(card).toContainText('Deposit paid · R295 remaining');
     await expect(card.getByRole('link', { name: /Pay .*deposit|Complete form/ })).toHaveCount(0);
-    experience = buildClientExperience({ client: { name: 'Jean-Pierre Botha' }, forms: [], payment: null, upcomingAppointments: [] });
+    experience = buildClientExperience({ client: { name: 'Synthetic Client AO' }, forms: [], payment: null, upcomingAppointments: [] });
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(card.getByRole('link', { name: 'Start booking' })).toBeVisible();
     await expect(card.locator('[data-booking-details], [data-booking-status]')).toHaveCount(0);
@@ -4050,7 +4050,7 @@ test('retired welcome offer stays absent on public pages and My Shiloh registrat
   await page.route('**/my-shiloh/api/**', route => {
     const endpoint = new URL(route.request().url()).pathname;
     if (endpoint.endsWith('/welcome-voucher')) return route.fulfill({ json: voucherModel() });
-    if (endpoint.endsWith('/profile')) return route.fulfill({ json: { profile: { revision: 'a'.repeat(64), name: 'Test Client', dateOfBirth: complete ? '1980-01-02' : '', gender: complete ? 'female' : '', registrationComplete: complete } } });
+    if (endpoint.endsWith('/profile')) return route.fulfill({ json: { profile: { revision: 'a'.repeat(64), name: 'Synthetic Client AA', dateOfBirth: complete ? '1980-01-02' : '', gender: complete ? 'female' : '', registrationComplete: complete } } });
     return route.fulfill({ json: {} });
   });
   for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'desktop', width: 1280, height: 900 }]) {

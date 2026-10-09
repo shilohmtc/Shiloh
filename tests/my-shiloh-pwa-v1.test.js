@@ -1,3 +1,4 @@
+// Fabricated auth review fixtures; no real client/provider/credential access.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -32,7 +33,7 @@ const catalogue = [
 ];
 
 test('My Shiloh renders the approved five-tab PWA shell with public-safe service data', () => {
-  const html = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue });
+  const html = renderMyShilohPage({ whatsappNumber: '27000000000', catalogue });
   assert.match(html, /<title>My Shiloh<\/title>/);
   assert.match(html, /rel="manifest" href="\/my-shiloh\/manifest\.webmanifest"/);
   assert.match(html, /rel="apple-touch-icon" sizes="180x180" href="\/my-shiloh\/assets\/apple-touch-icon-180\.png/);
@@ -60,7 +61,7 @@ test('My Shiloh renders the approved five-tab PWA shell with public-safe service
 
 test('authenticated My Shiloh Home exposes tappable summary cards without duplicating authority', () => {
   const html = renderMyShilohPage({
-    whatsappNumber: '27830000000',
+    whatsappNumber: '27000000000',
     catalogue: [],
     client: { id: '912', name: 'Test Client', firstName: 'Test' },
   });
@@ -77,11 +78,11 @@ test('authenticated My Shiloh Home exposes tappable summary cards without duplic
 });
 
 test('Shiloh choosing help opens in-app Shiloh for clients and keeps guest and Reception paths honest', () => {
-  const guest = renderMyShilohPage({ whatsappNumber:'27830000000' });
-  const client = { id:'912', name:'Christel Botha', firstName:'Christel' };
-  const signed = renderMyShilohPage({ whatsappNumber:'27830000000', client });
+  const guest = renderMyShilohPage({ whatsappNumber:'27000000000' });
+  const client = { id:'912', name:'Synthetic Client', firstName:'Synthetic' };
+  const signed = renderMyShilohPage({ whatsappNumber:'27000000000', client });
   const reception = renderMyShilohPage({
-    whatsappNumber:'27830000000', humanWhatsAppNumber:'0662399138',
+    whatsappNumber:'27000000000', humanWhatsAppNumber:'0662399138',
     humanHandoffActive:true, client,
   });
   const card = (html) => html.match(/<div class="quiet-card">[\s\S]*?Need help choosing[\s\S]*?<\/div>/)?.[0] || '';
@@ -95,14 +96,14 @@ test('Shiloh choosing help opens in-app Shiloh for clients and keeps guest and R
 
 test('guest recovery help calls Reception for assisted identity review without offering an account reset', () => {
   const guest = renderMyShilohPage({ passkeysAvailable: true, smsAvailable: true,
-    whatsappNumber: '27830000000', humanWhatsAppNumber: '0662399138' });
+    whatsappNumber: '27000000000', humanWhatsAppNumber: '0662399138' });
   assert.doesNotMatch(guest, /data-booking-steps-link|Need help signing in\?/);
   assert.match(guest, /id="home-recovery-help"/);
   assert.match(guest, /Lost access to your phone and recovery code\?/);
   assert.match(guest, /href="tel:\+27662399138"/);
   assert.match(guest, /href="https:\/\/wa\.me\/27662399138\?text=[^"]+" rel="noopener noreferrer"/);
   assert.match(guest, /WhatsApp Reception/);
-  assert.doesNotMatch(guest.match(/id="home-recovery-help"[\s\S]*?<\/details>/)?.[0] || '', /wa\.me\/27830000000/);
+  assert.doesNotMatch(guest.match(/id="home-recovery-help"[\s\S]*?<\/details>/)?.[0] || '', /wa\.me\/27000000000/);
   assert.match(guest, /Reception will verify your identity before helping\./);
   assert.doesNotMatch(guest, /Call or message/);
   assert.doesNotMatch(guest, /automatic account reset/);
@@ -111,11 +112,11 @@ test('guest recovery help calls Reception for assisted identity review without o
 });
 
 test('Bookings help stays in My Shiloh for clients and names the guest and Reception boundaries', () => {
-  const client = { id:'912', name:'Christel Botha', firstName:'Christel' };
-  const signed = renderMyShilohPage({ whatsappNumber:'27830000000', client });
-  const guest = renderMyShilohPage({ whatsappNumber:'27830000000' });
+  const client = { id:'912', name:'Synthetic Client', firstName:'Synthetic' };
+  const signed = renderMyShilohPage({ whatsappNumber:'27000000000', client });
+  const guest = renderMyShilohPage({ whatsappNumber:'27000000000' });
   const reception = renderMyShilohPage({
-    whatsappNumber:'27830000000', humanWhatsAppNumber:'0662399138',
+    whatsappNumber:'27000000000', humanWhatsAppNumber:'0662399138',
     humanHandoffActive:true, client,
   });
   const bookings = (html) => html.match(/<section class="view" id="bookings"[\s\S]*?<\/section>/)?.[0] || '';
@@ -127,12 +128,12 @@ test('Bookings help stays in My Shiloh for clients and names the guest and Recep
 });
 
 test('My Shiloh offers human Reception WhatsApp in the guest shell', () => {
-  const url = whatsappUrl('+27 83 000 0000', 'Hello Shiloh');
-  assert.equal(url, 'https://wa.me/27830000000?text=Hello%20Shiloh');
+  const url = whatsappUrl('+27 00 000 0000', 'Hello Shiloh');
+  assert.equal(url, 'https://wa.me/27000000000?text=Hello%20Shiloh');
   assert.equal(whatsappUrl(null), '/contact');
-  const html = renderMyShilohPage({ whatsappNumber: '27830000000', catalogue: [] });
+  const html = renderMyShilohPage({ whatsappNumber: '27000000000', catalogue: [] });
   assert.match(html, /https:\/\/wa\.me\/27662399138\?text=/);
-  assert.doesNotMatch(html, /https:\/\/wa\.me\/27830000000\?text=/);
+  assert.doesNotMatch(html, /https:\/\/wa\.me\/27000000000\?text=/);
   assert.match(html, /Sign in to book/);
 });
 
@@ -167,14 +168,14 @@ test('My Shiloh greeting uses Johannesburg time boundaries', () => {
   assert.equal(johannesburgGreeting(new Date('2026-09-26T17:30:00.000Z')), 'Good evening');
 
   const html = renderMyShilohPage({
-    whatsappNumber: '27830000000',
+    whatsappNumber: '27000000000',
     catalogue: [],
-    client: { id:'912', name:'Jean-Pierre Botha', firstName:'Jean-Pierre' },
+    client: { id:'912', name:'Synthetic Hyphen-Client', firstName:'Hyphen-Client' },
     now: new Date('2026-09-26T04:41:00.000Z'),
   });
   assert.match(html, /data-client-greeting/);
-  assert.match(html, /data-first-name="Jean-Pierre"/);
-  assert.match(html, /Good morning, <span>Jean-Pierre\.<\/span>/);
+  assert.match(html, /data-first-name="Hyphen-Client"/);
+  assert.match(html, /Good morning, <span>Hyphen-Client\.<\/span>/);
   assert.match(html, /data-push-invite hidden/);
   assert.match(html, /profile-auth-card__identity/);
   assert.match(read('public/my-shiloh/assets/app.css'), /\.hero-greeting span\{[^}]*overflow-wrap:anywhere/);
@@ -197,12 +198,12 @@ test('My Shiloh install client distinguishes iPhone Safari, iPhone Chrome and An
 });
 
 test('an authenticated installation uses its server session without another verification gate', () => {
-  const html = renderMyShilohPage({ whatsappNumber: '27830000000', passkeysAvailable: true });
+  const html = renderMyShilohPage({ whatsappNumber: '27000000000', passkeysAvailable: true });
   const client = read('public/my-shiloh/assets/app.js');
   assert.doesNotMatch(html, /data-install-verification-gate/);
   assert.match(client, /appFrame\.hidden = browserGated/);
   assert.doesNotMatch(client, /INSTALL_VERIFIED_KEY|installationVerificationRequired/);
-  assert.match(client, /finish\.status === 401[\s\S]*request a mobile code first, then save one under Profile/);
+  assert.match(client, /finish\.status === 401[\s\S]*To save a new passkey, verify your phone by SMS under Profile/);
 });
 
 test('the browser install doorway leaves sign-in inside the installed app', () => {
@@ -211,7 +212,7 @@ test('the browser install doorway leaves sign-in inside the installed app', () =
   assert.doesNotMatch(installDoorway, /data-passkey-sign-in|data-passkey-recovery-form|data-client-sms-start/);
   assert.match(installDoorway, /After installing, open My Shiloh from your Home Screen/);
   assert.match(html, /data-passkey-sign-in/);
-  const signedIn = renderMyShilohPage({ passkeysAvailable: true, client: { id: 1, name:'Christel', firstName:'Christel' } });
+  const signedIn = renderMyShilohPage({ passkeysAvailable: true, client: { id: 1, name:'Synthetic', firstName:'Synthetic' } });
   const signedInDoorway = signedIn.match(/<main class="install-gate" data-install-gate[\s\S]*?<\/main>/)?.[0] || '';
   assert.doesNotMatch(signedInDoorway, /data-passkey-sign-in/);
 });
@@ -225,18 +226,19 @@ test('SMS enrollment appears in the installed guest app only when enabled', () =
   assert.match(page, /data-client-sms-start/);
   assert.match(page, /data-client-sms-open="register"/);
   assert.match(page, /data-client-sms-choice aria-labelledby="home-sms-title" hidden/);
-  assert.match(page, /New to My Shiloh\? Start here too\./);
+  assert.match(page, /data-client-sms-open="recover"/);
+  assert.match(page, /Sign in or register with your mobile number/);
   assert.match(page, /Verify your mobile number/);
   assert.match(page, /data-client-sms-complete hidden/);
   assert.match(page, /6-digit code/);
   assert.doesNotMatch(page, /Use WhatsApp temporarily|Open WhatsApp to verify|use WhatsApp|Verified with WhatsApp|data-client-auth-code-disclosure/);
-  const signedIn = renderMyShilohPage({ smsAvailable: true, client: { id: 1, name: 'Christel', firstName: 'Christel' } });
+  const signedIn = renderMyShilohPage({ smsAvailable: true, client: { id: 1, name: 'Synthetic', firstName: 'Synthetic' } });
   assert.doesNotMatch(signedIn, /data-client-sms-start/);
 });
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v55/);
+  assert.match(worker, /my-shiloh-shell-v56/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /booking\.js/);
@@ -312,7 +314,7 @@ test('a My Shiloh notification reuses only a client app window and never navigat
 
 test('Wallet navigation keeps Shiloh in the exact centre and preserves welcome-voucher deep links', () => {
   const html = renderMyShilohPage({
-    whatsappNumber: '27830000000',
+    whatsappNumber: '27000000000',
     catalogue: [],
     client: { id:'912', name:'Test Client', firstName:'Test' },
   });

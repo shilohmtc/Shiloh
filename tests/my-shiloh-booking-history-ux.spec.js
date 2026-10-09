@@ -6,11 +6,11 @@ const story = '/iframe.html?id=client-my-shiloh-pwa--booking-history-hidden&view
 function experience(hidden = true) {
   const result = buildClientExperience({
     generatedAt: '2026-10-06T10:00:00.000Z', client: { id: 55, name: 'Synthetic Client' },
-    nextAppointment: { id: 901, startsAt: '2026-10-09T08:00:00.000Z', endsAt: '2026-10-09T09:00:00.000Z', services: ['Hot Stone Massage'], practitioners: ['Christel'], status: 'confirmed' },
+    nextAppointment: { id: 901, startsAt: '2026-10-09T08:00:00.000Z', endsAt: '2026-10-09T09:00:00.000Z', services: ['Hot Stone Massage'], practitioners: ['Synthetic Client AN'], status: 'confirmed' },
     forms: [{ id: 88, title: 'Consultation form', actionRequired: true }],
     payment: { state: 'unpaid', depositState: 'awaiting', depositRequired: '400.00', depositOutstanding: '400.00', activePaymentPath: '/pay/synthetic_booking_901' },
   });
-  result.bookings.history = [{ id: 904, hidden, canChangeVisibility: true, service: 'Quick Relief Back & Neck', date: 'Mon, 14 Sep', time: '10:00', practitioner: 'Christel', status: 'Could not accommodate' }];
+  result.bookings.history = [{ id: 904, hidden, canChangeVisibility: true, service: 'Quick Relief Back & Neck', date: 'Mon, 14 Sep', time: '10:00', practitioner: 'Synthetic Client AN', status: 'Could not accommodate' }];
   return result;
 }
 

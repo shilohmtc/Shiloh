@@ -34,7 +34,7 @@ for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop
     const returned = page.getByRole('link', { name:'Back to My Shiloh', exact:true });
     await returned.focus();
     await returned.press('Enter');
-    await expect(page).toHaveURL('http://127.0.0.1:6006/my-shiloh/');
+    await expect(page).toHaveURL(new URL('/my-shiloh/', testInfo.project.use.baseURL).toString());
     await expect(page.getByRole('heading', { name:'My Shiloh' })).toBeVisible();
     expect(page.context().pages()).toHaveLength(1);
   });

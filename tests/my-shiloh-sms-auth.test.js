@@ -1,3 +1,4 @@
+// Fabricated auth review fixtures; no real client/provider/credential access.
 'use strict';
 
 const test = require('node:test');
@@ -55,7 +56,7 @@ function makeHarness({ owner = { status: 'found', client: { id: '17' } }, sendFa
   const sessionService = { async issueVerifiedSmsSession({ normalizedMobile, crmV2ClientId, keepSignedIn }) {
     issued += 1;
     remembered = keepSignedIn;
-    assert.equal(normalizedMobile, '27821234567');
+    assert.equal(normalizedMobile, '27820000001');
     assert.equal(crmV2ClientId, '17');
     return { ok: true, client: { id: '17' }, sessionToken: 'session', expiresAt: new Date(at.getTime() + 10000) };
   } };
@@ -75,7 +76,7 @@ test('SMS gateway uses POST with private headers, requires accepted message id a
     request = { url, options };
     return { ok: true, async json() { return { messageId: '42', error: null }; } };
   } });
-  assert.equal(await gateway.send({ mobile: '27821234567', code: '123456' }), '42');
+  assert.equal(await gateway.send({ mobile: '27820000001', code: '123456' }), '42');
   assert.equal(request.options.method, 'POST');
   assert.equal(new URL(request.url).search, '');
   assert.equal(request.options.headers.token, 'private-token');
@@ -83,12 +84,12 @@ test('SMS gateway uses POST with private headers, requires accepted message id a
   const broken = createSmsMessengerGateway({ env: {
     SMSMESSENGER_ACCOUNT_EMAIL: 'clinic@example.test', SMSMESSENGER_API_TOKEN: 'private-token',
   }, fetchImpl: async () => ({ ok: true, async json() { return { error: 'no credits' }; } }) });
-  await assert.rejects(broken.send({ mobile: '27821234567', code: '123456' }));
+  await assert.rejects(broken.send({ mobile: '27820000001', code: '123456' }));
   await assert.rejects(createSmsMessengerGateway({ env: {
     SMSMESSENGER_ACCOUNT_EMAIL: 'clinic@example.test', SMSMESSENGER_API_TOKEN: 'private-token',
   }, fetchImpl: async () => ({ ok: false, status: 403,
-    async json() { return { error: 'API key rejected: 27821234567 private-token' }; } })
-  }).send({ mobile: '27821234567', code: '123456' }), error => {
+    async json() { return { error: 'API key rejected: 27820000001 private-token' }; } })
+  }).send({ mobile: '27820000001', code: '123456' }), error => {
     assert.deepEqual(safeGatewayFailure(error), { category: 'authentication', providerStatus: 403 });
     return true;
   });
@@ -101,13 +102,13 @@ test('provider rejection checks account without logging response text or private
   }, fetchImpl: async (url, options) => {
     requests.push({ url, options });
     return requests.length === 1
-      ? { ok: false, status: 400, async text() { return 'Invalid recipient 27821234567 with code 123456'; } }
+      ? { ok: false, status: 400, async text() { return 'Invalid recipient 27820000001 with code 123456'; } }
       : { ok: true, status: 200, async json() { return { creditBalance: 5 }; } };
   } });
-  await assert.rejects(gateway.send({ mobile: '27821234567', code: '123456' }), error => {
+  await assert.rejects(gateway.send({ mobile: '27820000001', code: '123456' }), error => {
     const logged = JSON.stringify(safeGatewayFailure(error));
     assert.deepEqual(JSON.parse(logged), { category: 'recipient', providerStatus: 400, balanceCheck: 'account_ok' });
-    assert.doesNotMatch(logged, /27821234567|123456|private-token/);
+    assert.doesNotMatch(logged, /27820000001|123456|private-token/);
     return true;
   });
   assert.equal(requests[1].url.endsWith('/account/balance.json'), true);
@@ -119,16 +120,16 @@ test('SMS remains gated when only the Render secrets exist', async () => {
   const service = createClientSmsAuthService({ db: { async connect() { throw new Error('must not connect'); } },
     sessionService: { issueVerifiedSmsSession() {} }, env: { SMSMESSENGER_ACCOUNT_EMAIL: 'x', SMSMESSENGER_API_TOKEN: 'y' },
     gateway: { enabled: () => true } });
-  assert.deepEqual(await service.start({ mobile: '0821234567', name: 'Jane Client' }), { ok: false, code: 'SMS_DISABLED' });
+  assert.deepEqual(await service.start({ mobile: '0820000001', name: 'Synthetic Client' }), { ok: false, code: 'SMS_DISABLED' });
   assert.equal(h.issued(), 0);
 });
 
 test('SMS requires exact mobile proof, single use and at most five guesses', async () => {
   const h = makeHarness();
-  const started = await h.service.start({ mobile: '082 123 4567', name: 'Jane Client', requestFingerprintHash: fingerprint });
+  const started = await h.service.start({ mobile: '082 000 0001', name: 'Synthetic Client', requestFingerprintHash: fingerprint });
   assert.equal(started.ok, true);
-  assert.equal(h.sent.mobile, '27821234567');
-  assert.equal(h.challenge.normalized_mobile, '27821234567');
+  assert.equal(h.sent.mobile, '27820000001');
+  assert.equal(h.challenge.normalized_mobile, '27820000001');
   assert.equal(h.challenge.code_hash, crypto.createHash('sha256').update(`${started.browserToken}:${h.sent.code}`).digest('hex'));
   assert.equal(JSON.stringify(h.queries).includes(h.sent.code), false);
   assert.deepEqual(await h.service.finish({ browserToken: started.browserToken, code: '000000' }),
@@ -142,7 +143,7 @@ test('SMS requires exact mobile proof, single use and at most five guesses', asy
     { ok: false, code: 'SMS_INVALID_CODE' });
 
   const wrong = makeHarness();
-  const start = await wrong.service.start({ mobile: '0821234567', name: 'Jane Client' });
+  const start = await wrong.service.start({ mobile: '0820000001', name: 'Synthetic Client' });
   for (let i = 0; i < 5; i += 1) await wrong.service.finish({ browserToken: start.browserToken, code: '000000' });
   assert.equal(wrong.challenge.revoked_at instanceof Date, true);
   assert.equal(wrong.issued(), 0);
@@ -150,15 +151,15 @@ test('SMS requires exact mobile proof, single use and at most five guesses', asy
 
 test('SMS provider failure revokes the challenge and ambiguous CRM ownership never issues a session', async () => {
   const unavailable = makeHarness({ sendFails: true });
-  assert.deepEqual(await unavailable.service.start({ mobile: '0821234567', name: 'Jane Client' }),
+  assert.deepEqual(await unavailable.service.start({ mobile: '0820000001', name: 'Synthetic Client' }),
     { ok: false, code: 'SMS_UNAVAILABLE' });
   assert.equal(unavailable.challenge.revoked_at instanceof Date, true);
   assert.deepEqual(JSON.parse(unavailable.warnings[0]), {
     event: 'my_shiloh_sms_send_failed', category: 'provider_response', providerStatus: null,
   });
-  assert.doesNotMatch(unavailable.warnings[0], /0821234567|123456|provider down/);
+  assert.doesNotMatch(unavailable.warnings[0], /0820000001|123456|provider down/);
   const ambiguous = makeHarness({ owner: { status: 'conflict' } });
-  const start = await ambiguous.service.start({ mobile: '0821234567', name: 'Jane Client' });
+  const start = await ambiguous.service.start({ mobile: '0820000001', name: 'Synthetic Client' });
   assert.deepEqual(await ambiguous.service.finish({ browserToken: start.browserToken, code: ambiguous.sent.code }),
     { ok: false, code: 'SMS_PROFILE_UNAVAILABLE' });
   assert.equal(ambiguous.issued(), 0);
@@ -167,24 +168,24 @@ test('SMS provider failure revokes the challenge and ambiguous CRM ownership nev
 test('daily SMS budgets reject repeated requests before gateway delivery and serialize concurrent sends', async () => {
   for (const limits of [{ mobileDayCount: 6 }, { clinicDayCount: 50 }]) {
     const h = makeHarness(limits);
-    assert.deepEqual(await h.service.start({ mobile: '0821234567', name: 'Jane Client' }),
+    assert.deepEqual(await h.service.start({ mobile: '0820000001', name: 'Synthetic Client' }),
       { ok: false, code: 'SMS_RATE_LIMITED' });
     assert.equal(h.sent, undefined);
     assert.equal(h.queries.some(({ sql }) => sql.includes('my-shiloh-sms-daily-budget')), true);
     assert.equal(h.queries.some(({ sql }) => sql.includes('INSERT INTO client_sms_auth_challenges')), false);
   }
   const h = makeHarness({ clinicDayCount: 39 });
-  assert.equal((await h.service.start({ mobile: '0821234567', name: 'Jane Client' })).ok, true);
+  assert.equal((await h.service.start({ mobile: '0820000001', name: 'Synthetic Client' })).ok, true);
   assert.deepEqual(JSON.parse(h.warnings[0]), {
     event: 'my_shiloh_sms_daily_budget_near_limit', sends: 40, limit: 50,
   });
 });
 
-test('verified SMS forwards explicit remembered choice after exact identity proof', async () => {
+test('verified SMS ignores legacy remembered choices after exact identity proof', async () => {
   for (const keepSignedIn of [true, false]) {
     const h = makeHarness();
-    const start = await h.service.start({ mobile: '0821234567', name: 'Synthetic Client' });
+    const start = await h.service.start({ mobile: '0820000001', name: 'Synthetic Client' });
     assert.equal((await h.service.finish({ browserToken: start.browserToken, code: h.sent.code, keepSignedIn })).ok, true);
-    assert.equal(h.remembered(), keepSignedIn);
+    assert.equal(h.remembered(), undefined);
   }
 });

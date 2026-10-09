@@ -75,9 +75,9 @@ test('a completed iPad visit cannot reopen personal details through navigation',
     await page.context().addCookies([{name:'shiloh_checkin_device',value:device,domain:'127.0.0.1',path:'/check-in'}]);
     await page.goto(`${base}/check-in/`);
     await page.getByRole('button',{name:'Enter my details'}).click();
-    await page.getByLabel('Full name').fill('Sarah Jacobs');
-    await page.getByLabel('Mobile number').fill('0821234567');
-    await page.getByLabel('Date of birth').fill('1985-05-14');
+    await page.getByLabel('Full name').fill('Synthetic Client AK');
+    await page.getByLabel('Mobile number').fill('27820000011');
+    await page.getByLabel('Date of birth').fill('2000-01-01');
     await page.getByRole('button',{name:'Continue'}).click();
     await expect(page.getByRole('heading',{name:'Your details are saved.'})).toBeVisible();
     await page.getByRole('link',{name:'Finish'}).click();

@@ -58,7 +58,7 @@ function profileRevision(row) {
 
 function maskMobile(value = '') {
   const digits = String(value || '').replace(/[^0-9]/g, '');
-  return /^27[678][0-9]{8}$/.test(digits) ? `+27 •• ••• ${digits.slice(-4)}` : 'Mobile number unavailable';
+  return /^27[678][0-9]{8}$/.test(digits) ? `0•• ••• ${digits.slice(-4)}` : 'Mobile number unavailable';
 }
 
 function publicProfile(row) {
@@ -126,7 +126,6 @@ function createMyShilohProfileService({ db = pool, now = () => new Date() } = {}
          FROM crm_v2_clients c
         WHERE id=$1
           AND status='active'
-          AND mobile_verified_at IS NOT NULL
         LIMIT 1`,
       [clientId],
     );
@@ -158,6 +157,8 @@ function createMyShilohProfileService({ db = pool, now = () => new Date() } = {}
             AND s.expires_at>$3
             AND c.status='active'
             AND c.mobile_verified_at IS NOT NULL
+            AND s.auth_method IN ('sms_code','passkey','passkey_recovery','whatsapp_challenge')
+            AND COALESCE(s.reauthenticated_at,s.issued_at) BETWEEN $3 - INTERVAL '10 minutes' AND $3
           LIMIT 1
           FOR UPDATE OF c`,
         [session, clientId, now()],
@@ -187,6 +188,7 @@ function createMyShilohProfileService({ db = pool, now = () => new Date() } = {}
       const updated = await client.query(
         `UPDATE crm_v2_clients
             SET name=$2,
+                first_name=NULL, surname=NULL,
                 date_of_birth=$3::date,
                 gender=$4,
                 profile_status=$5,

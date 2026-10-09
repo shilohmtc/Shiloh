@@ -263,7 +263,7 @@ test('list presentation is compact, bounded and masks mobile contact', () => {
   }, { calendarNavigationAllowed: true });
   assert.match(html, /data-clients-list-view/);
   assert.match(html, /Mobile ending 4567/);
-  assert.doesNotMatch(html, /27821234567|\+27 82 123 4567/);
+  assert.doesNotMatch(html, /27821234567|082 123 4567/);
   assert.doesNotMatch(html, /Results are bounded/);
   assert.match(html, /href="\/calendar\/read-only">Calendar/);
   assert.match(html, /aria-current="page">Clients/);
@@ -277,7 +277,7 @@ test('detail shows authorized profile/contact and immutable historical snapshots
   }, { calendarNavigationAllowed: true });
   assert.match(html, /Synthetic Client/);
   assert.match(html, /18 Feb 1994/);
-  assert.match(html, /\+27 82 123 4567/);
+  assert.match(html, /082 123 4567/);
   assert.match(html, /Therapeutic Massage/);
   assert.match(html, /Synthetic Practitioner/);
   assert.match(html, /cancelled/);

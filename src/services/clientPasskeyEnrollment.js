@@ -22,6 +22,7 @@ function enrollmentPolicy(env = process.env) {
 function recentClientSession(session, now) {
   const authenticatedAt = new Date(session?.authenticatedAt).getTime();
   return session?.ok === true &&
+    ['sms_code', 'passkey', 'passkey_recovery', 'whatsapp_challenge'].includes(session.authMethod) &&
     Number.isSafeInteger(Number(session.crmV2ClientId)) &&
     Number(session.crmV2ClientId) > 0 &&
     Number.isSafeInteger(Number(session.sessionId)) &&
@@ -29,6 +30,15 @@ function recentClientSession(session, now) {
     Number.isFinite(authenticatedAt) &&
     now.getTime() >= authenticatedAt &&
     now.getTime() - authenticatedAt <= RECENT_SESSION_MS;
+}
+
+async function recentStoredClientSession(db, session, now) {
+  const result = await db.query(`SELECT id FROM client_browser_sessions
+    WHERE id=$1 AND crm_v2_client_id=$2 AND revoked_at IS NULL AND expires_at>$3
+      AND auth_method IN ('sms_code','passkey','passkey_recovery','whatsapp_challenge')
+      AND COALESCE(reauthenticated_at,issued_at) BETWEEN $3 - INTERVAL '10 minutes' AND $3
+    FOR SHARE`, [session.sessionId, session.crmV2ClientId, now]);
+  return result.rowCount === 1;
 }
 
 function responseChallenge(response, origin, expectedType = 'webauthn.create') {
@@ -70,6 +80,9 @@ function createClientPasskeyEnrollmentService({
     const client = typeof db.connect === 'function' ? await db.connect() : db;
     try {
       await client.query('BEGIN');
+      if (!(await recentStoredClientSession(client, session, current))) {
+        await client.query('ROLLBACK'); return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
+      }
       // Serialize challenge issuance for one signed-in session before counting.
       await client.query(
         "SELECT pg_advisory_xact_lock(hashtextextended('client-passkey-enrollment:' || $1::text, 0))",
@@ -146,6 +159,9 @@ function createClientPasskeyEnrollmentService({
     const client = typeof db.connect === 'function' ? await db.connect() : db;
     try {
       await client.query('BEGIN');
+      if (!(await recentStoredClientSession(client, session, current))) {
+        await client.query('ROLLBACK'); return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
+      }
       const found = await client.query(
         `SELECT id, expires_at FROM client_auth_passkey_challenges
           WHERE challenge_hash = $1 AND crm_v2_client_id = $2 AND session_id = $3
@@ -234,6 +250,9 @@ function createClientPasskeyEnrollmentService({
     const client = typeof db.connect === 'function' ? await db.connect() : db;
     try {
       await client.query('BEGIN');
+      if (!(await recentStoredClientSession(client, session, current))) {
+        await client.query('ROLLBACK'); return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
+      }
       const found = await client.query(
         `SELECT id FROM client_auth_passkey_credentials
           WHERE id = $1 AND crm_v2_client_id = $2 AND revoked_at IS NULL FOR UPDATE`,
@@ -273,4 +292,4 @@ function createClientPasskeyEnrollmentService({
 }
 
 module.exports = { FEATURE_FLAG, CHALLENGE_TTL_MS, RECENT_SESSION_MS,
-  enrollmentPolicy, recentClientSession, responseChallenge, deviceLabel, createClientPasskeyEnrollmentService };
+  enrollmentPolicy, recentClientSession, recentStoredClientSession, responseChallenge, deviceLabel, createClientPasskeyEnrollmentService };

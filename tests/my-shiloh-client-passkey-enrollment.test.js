@@ -1,3 +1,4 @@
+// Fabricated auth review fixtures; no real client/provider/credential access.
 'use strict';
 
 const test = require('node:test');
@@ -38,7 +39,7 @@ function makeService(db, { now = new Date('2026-09-27T16:45:00Z'), enabled = tru
   };
 }
 const session = {
-  ok: true, crmV2ClientId: 17, sessionId: 22,
+  ok: true, authMethod: 'sms_code', crmV2ClientId: 17, sessionId: 22,
   authenticatedAt: new Date('2026-09-27T16:42:00Z'),
 };
 function dbForBegin({ owner = true, recent = 0, existing = [] } = {}) {

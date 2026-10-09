@@ -88,8 +88,8 @@ test('Contextual Back keeps filters and history pages, and rejects foreign or wr
   await row.click();await page.addScriptTag({content:workspaceNavigationClientScript()});
   const back=page.locator('[data-workspace-back-context]');await expect(back).toHaveAttribute('href',context);
   await back.focus();await page.keyboard.press('Enter');await expect(page).toHaveURL(/q=synthetic&status=active&offset=24$/);
-  for(const rejected of ['https://evil.example/calendar/clients','//evil.example/calendar/clients','/calendar/services?q=other','/calendar/clients/912','javascript:alert(1)']){
-    await page.goto(`/calendar/clients/912?returnTo=${encodeURIComponent(rejected)}`);await page.addScriptTag({content:workspaceNavigationClientScript()});
+  for(const rejected of ['https://evil.example/calendar/clients','//evil.example/calendar/clients','/calendar/services?q=other','/calendar/clients/9012','javascript:alert(1)']){
+    await page.goto(`/calendar/clients/9012?returnTo=${encodeURIComponent(rejected)}`);await page.addScriptTag({content:workspaceNavigationClientScript()});
     await expect(page.locator('[data-workspace-back-context]')).toHaveAttribute('href','/calendar/clients');
   }
 });

@@ -98,7 +98,7 @@ test('Calendar appointment card hierarchy is time, client, canonical mobile, the
   const positions = [
     html.indexOf('08:00–09:00'),
     html.indexOf('Demo Client'),
-    html.indexOf('+27 82 123 4567'),
+    html.indexOf('082 123 4567'),
     html.indexOf('Bamboo Sports Massage - Area Specific'),
   ];
 
@@ -109,7 +109,7 @@ test('Calendar appointment card hierarchy is time, client, canonical mobile, the
 });
 
 test('Calendar appointment card uses the Workspace no-mobile convention', () => {
-  assert.equal(formatClientMobile('27821234567'), '+27 82 123 4567');
+  assert.equal(formatClientMobile('27821234567'), '082 123 4567');
   assert.equal(formatClientMobile(null), 'Contact unavailable');
   assert.equal(formatClientMobile('not-a-canonical-mobile'), 'Contact unavailable');
 
@@ -133,13 +133,13 @@ test('whole appointment card preserves the canonical management contract', () =>
   assert.match(html, /data-service-name="Bamboo Sports Massage - Area Specific"/);
   assert.match(html, /data-allowed-operations="appointment:reschedule"/);
   assert.match(html, /data-appointment-management-target="true" role="button" tabindex="0"/);
-  assert.match(html, /data-client-mobile="\+27 82 123 4567"/);
+  assert.match(html, /data-client-mobile="082 123 4567"/);
   assert.doesNotMatch(html, /data-calendar-operation="manage-appointment">Manage<\/button>/);
 });
 
 test('mobile hierarchy remains present inside existing narrow-screen Calendar contract', () => {
   const html = renderCalendarPage(baseModel());
-  assert.match(html, /class="event-client-mobile">\+27 82 123 4567<\/p>/);
+  assert.match(html, /class="event-client-mobile">082 123 4567<\/p>/);
   assert.match(html, /@media\(max-width:700px\)/);
   assert.match(html, /\.event-card\{padding:10px;min-height:44px\}/);
   assert.match(html, /\.positioned-event \.event-card p\{font-size:\.68rem;padding-right:48px\}/);
