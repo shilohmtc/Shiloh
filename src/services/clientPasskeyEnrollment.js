@@ -22,7 +22,8 @@ function enrollmentPolicy(env = process.env) {
 function recentClientSession(session, now) {
   const authenticatedAt = new Date(session?.authenticatedAt).getTime();
   return session?.ok === true &&
-    ['sms_code', 'passkey', 'passkey_recovery', 'whatsapp_challenge'].includes(session.authMethod) &&
+    ['sms_code', 'passkey', 'passkey_recovery', 'whatsapp_challenge', 'crm_details'].includes(session.authMethod) &&
+    (session.authMethod !== 'crm_details' || new Date(session.reauthenticatedAt).getTime() > new Date(session.issuedAt).getTime()) &&
     Number.isSafeInteger(Number(session.crmV2ClientId)) &&
     Number(session.crmV2ClientId) > 0 &&
     Number.isSafeInteger(Number(session.sessionId)) &&
@@ -35,7 +36,8 @@ function recentClientSession(session, now) {
 async function recentStoredClientSession(db, session, now) {
   const result = await db.query(`SELECT id FROM client_browser_sessions
     WHERE id=$1 AND crm_v2_client_id=$2 AND revoked_at IS NULL AND expires_at>$3
-      AND auth_method IN ('sms_code','passkey','passkey_recovery','whatsapp_challenge')
+      AND auth_method IN ('sms_code','passkey','passkey_recovery','whatsapp_challenge','crm_details')
+      AND (auth_method <> 'crm_details' OR reauthenticated_at > issued_at)
       AND COALESCE(reauthenticated_at,issued_at) BETWEEN $3 - INTERVAL '10 minutes' AND $3
     FOR SHARE`, [session.sessionId, session.crmV2ClientId, now]);
   return result.rowCount === 1;

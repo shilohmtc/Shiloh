@@ -344,12 +344,12 @@ h3{font-size:20px;line-height:1.12}
 .sms-setup-choice>summary{color:var(--leaf-dark)}
 .sms-setup-choice>p{max-width:440px;margin:10px 0 0;color:var(--muted);font-size:14px;line-height:1.5}
 .sms-setup-choice>.sms-auth-form{margin:12px 0}
-.hero-actions--sms{grid-template-columns:minmax(0,1fr);max-width:460px}
+.hero-actions--details{grid-template-columns:minmax(0,1fr);max-width:460px}
 .sms-auth-heading{font-family:Georgia,serif;font-size:21px;font-weight:500;line-height:1.2}
 .sms-auth-form[hidden]{display:none}
 .sms-auth-form label{display:grid;gap:6px;color:var(--leaf-dark);font-weight:700;font-size:14px}
 .sms-auth-form input{width:100%;min-width:0;min-height:46px;border:1px solid rgba(70,87,70,.25);border-radius:12px;padding:10px 12px;background:#fff;color:var(--ink);font:inherit;font-size:16px}
-@media(max-width:600px){.hero-actions--sms{grid-template-columns:minmax(0,1fr)}.hero-actions--sms .sms-auth-form{max-width:none;margin:8px 0}.hero-actions--sms>.button{width:100%}}
+@media(max-width:600px){.hero-actions--details{grid-template-columns:minmax(0,1fr)}.hero-actions--details .sms-auth-form{max-width:none;margin:8px 0}.hero-actions--details>.button{width:100%}}
 .sms-auth-form p{margin:0;color:var(--muted);font-size:13px}
 .auth-code-heading{margin-bottom:12px}
 .auth-code-heading strong{display:block;font-family:Georgia,serif;font-size:20px;font-weight:500}
@@ -428,3 +428,7 @@ h3{font-size:20px;line-height:1.12}
 .remembered-choice{display:flex;align-items:center;gap:.75rem;min-height:44px;margin:.75rem 0;color:var(--leaf-dark)}
 .remembered-choice input{width:24px;height:24px;flex-shrink:0;accent-color:var(--leaf-dark)}
 .remembered-choice-copy{font-size:.9rem;color:var(--muted);margin:0 0 1rem}
+
+/* Keep native date controls inside the sign-in card on narrow Safari screens. */
+.sms-auth-form input[type="date"] { -webkit-appearance: none; appearance: none; width: 100%; max-width: 100%; min-width: 0; overflow: hidden; text-align: left; }
+.sms-auth-form input[type="date"]::-webkit-date-and-time-value { text-align: left; }

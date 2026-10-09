@@ -1,8 +1,8 @@
 'use strict';
 
-const ASSET_VERSION = '20261009-client-sign-in-v1';
-const SHELL_CACHE = 'my-shiloh-shell-v56';
-const STATIC_CACHE = 'my-shiloh-static-v56';
+const ASSET_VERSION = '20261009-details-only-v1';
+const SHELL_CACHE = 'my-shiloh-shell-v57';
+const STATIC_CACHE = 'my-shiloh-static-v57';
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',

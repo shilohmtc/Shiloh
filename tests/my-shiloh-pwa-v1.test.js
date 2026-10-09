@@ -99,7 +99,7 @@ test('guest recovery help calls Reception for assisted identity review without o
     whatsappNumber: '27000000000', humanWhatsAppNumber: '0662399138' });
   assert.doesNotMatch(guest, /data-booking-steps-link|Need help signing in\?/);
   assert.match(guest, /id="home-recovery-help"/);
-  assert.match(guest, /Lost access to your phone and recovery code\?/);
+  assert.match(guest, /Need help with your Shiloh details\?/);
   assert.match(guest, /href="tel:\+27662399138"/);
   assert.match(guest, /href="https:\/\/wa\.me\/27662399138\?text=[^"]+" rel="noopener noreferrer"/);
   assert.match(guest, /WhatsApp Reception/);
@@ -203,7 +203,7 @@ test('an authenticated installation uses its server session without another veri
   assert.doesNotMatch(html, /data-install-verification-gate/);
   assert.match(client, /appFrame\.hidden = browserGated/);
   assert.doesNotMatch(client, /INSTALL_VERIFIED_KEY|installationVerificationRequired/);
-  assert.match(client, /finish\.status === 401[\s\S]*To save a new passkey, verify your phone by SMS under Profile/);
+  assert.match(client, /finish\.status === 401[\s\S]*Sign in with your Shiloh details instead/);
 });
 
 test('the browser install doorway leaves sign-in inside the installed app', () => {
@@ -217,28 +217,18 @@ test('the browser install doorway leaves sign-in inside the installed app', () =
   assert.doesNotMatch(signedInDoorway, /data-passkey-sign-in/);
 });
 
-test('SMS enrollment appears in the installed guest app only when enabled', () => {
-  const inactive = renderMyShilohPage({ passkeysAvailable: true, smsAvailable: false });
-  assert.doesNotMatch(inactive, /data-client-sms-start/);
-  const page = renderMyShilohPage({ passkeysAvailable: true, smsAvailable: true });
-  const doorway = page.match(/<main class="install-gate" data-install-gate[\s\S]*?<\/main>/)?.[0] || '';
-  assert.doesNotMatch(doorway, /data-passkey-sign-in|data-client-sms-start|data-client-sms-complete/);
-  assert.match(page, /data-client-sms-start/);
-  assert.match(page, /data-client-sms-open="register"/);
-  assert.match(page, /data-client-sms-choice aria-labelledby="home-sms-title" hidden/);
-  assert.match(page, /data-client-sms-open="recover"/);
-  assert.match(page, /Sign in or register with your mobile number/);
-  assert.match(page, /Verify your mobile number/);
-  assert.match(page, /data-client-sms-complete hidden/);
-  assert.match(page, /6-digit code/);
-  assert.doesNotMatch(page, /Use WhatsApp temporarily|Open WhatsApp to verify|use WhatsApp|Verified with WhatsApp|data-client-auth-code-disclosure/);
-  const signedIn = renderMyShilohPage({ smsAvailable: true, client: { id: 1, name: 'Synthetic', firstName: 'Synthetic' } });
-  assert.doesNotMatch(signedIn, /data-client-sms-start/);
+test('retired SMS never renders, while Shiloh details remain the primary installed-app entry', () => {
+  const page = renderMyShilohPage({ crmAvailable: true, passkeysAvailable: true, smsAvailable: true });
+  const doorway = page.match(/<main class="install-gate"[\s\S]*?<\/main>/)?.[0] || '';
+  assert.doesNotMatch(doorway, /data-client-crm-form|data-passkey-sign-in/);
+  assert.doesNotMatch(page, /data-client-sms|data-passkey-recovery/);
+  assert.match(page, /data-client-crm-form/);
+  assert.match(page, /Use a saved passkey/);
 });
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v56/);
+  assert.match(worker, /my-shiloh-shell-v57/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /booking\.js/);

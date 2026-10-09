@@ -1,3 +1,7 @@
+<!-- Current My Shiloh sign-in decision supersedes historical SMS/passkey-first standards below. -->
+
+**Accepted 9 October 2026 — My Shiloh details-first sign-in:** Clients use their Shiloh details to register/sign in and as the fallback when an optional passkey fails. Retire client SMS and recovery-code routes and UI; keep staff and operational messaging separate. Before editing personal details, enrolling/removing passkeys or closing other sessions, require fresh re-entry of the current account's Shiloh details (ten-minute window). Owner explicitly accepts the risk that someone who knows these biographical details can change the account. Preserve truthful biographical assurance and unverified phone provenance, exact client matching, conflict protection, anti-abuse, CSRF, revocation and the fixed thirty-day deadline; re-entry never renews it. This is an accepted draft direction, not production release evidence. Canonical decision: #879; implementation/release evidence: #611.
+
 # Shiloh Platform Handbook
 
 **Purpose:** the quickest reliable orientation point for Shiloh's structure, tools, integrations and operating boundaries.
