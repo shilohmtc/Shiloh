@@ -173,6 +173,7 @@ jobs:
             artifacts/ux-playwright-results/**/tablet-*.png
             artifacts/ux-playwright-results/**/desktop-*.png
             artifacts/ux-playwright-results/**/clinic-ipad-*.png
+            artifacts/ux-playwright-results/**/consultation-*.png
           if-no-files-found: error
           retention-days: 14
 
