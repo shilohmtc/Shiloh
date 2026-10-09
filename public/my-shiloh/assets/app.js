@@ -906,6 +906,7 @@
     clientProfileForm.elements.name.value = String(profile.name || '');
     clientProfileForm.elements.dateOfBirth.value = String(profile.dateOfBirth || '');
     clientProfileForm.elements.gender.value = String(profile.gender || '');
+    if (clientProfileForm.elements.mobile) clientProfileForm.elements.mobile.value = '';
     if (clientProfileMobile) clientProfileMobile.textContent = String(profile.mobile || 'Verified mobile number');
     const dobRequest=document.querySelector('[data-dob-request]');
     if(dobRequest) {
@@ -1532,6 +1533,7 @@
     try {
       const csrfToken = await freshCsrfToken();
       const response = await postJson('/my-shiloh/api/profile/update', {
+        ...(String(form.get('mobile') || '').trim() ? { mobile: String(form.get('mobile')).trim() } : {}),
         expectedRevision: clientProfileRevision,
         name: form.get('name'),
         dateOfBirth: form.get('dateOfBirth') || null,

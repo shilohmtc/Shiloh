@@ -57,13 +57,12 @@ function dbForBegin({ owner = true, recent = 0, existing = [] } = {}) {
   return db;
 }
 
-test('enrollment is disabled by default and requires a live client session; additional keys require fresh authentication', async () => {
+test('enrollment is disabled by default and requires a live client session; remembered sessions can add keys', async () => {
   const db = dbForBegin({ existing: ['B'.repeat(24)] });
   const disabled = makeService(db, { enabled: false }).service;
   assert.deepEqual(await disabled.begin({ session }), { ok: false, code: 'CLIENT_PASSKEY_DISABLED' });
   const enabled = makeService(db).service;
-  assert.deepEqual(await enabled.begin({ session: { ...session, authenticatedAt: new Date('2026-09-27T16:30:00Z') } }),
-    { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' });
+  assert.equal((await enabled.begin({ session: { ...session, authenticatedAt: new Date('2026-09-27T16:30:00Z') } })).ok, true);
   assert.ok(db.queries.length > 0);
 });
 
@@ -176,7 +175,7 @@ test('device list exposes only owned active credential metadata', async () => {
   assert.doesNotMatch(queries[0].sql, /credential_id|public_key_spki/);
 });
 
-test('device revocation requires recent authentication and closes linked and older sessions atomically', async () => {
+test('device revocation uses live remembered-session authority and closes linked and older sessions atomically', async () => {
   const queries = [];
   const db = { async query(sql, params) {
     queries.push({ sql, params });
@@ -184,12 +183,11 @@ test('device revocation requires recent authentication and closes linked and old
     return { rowCount: 1, rows: [] };
   } };
   const { service } = makeService(db);
-  assert.equal((await service.revoke({ session: { ...session, authenticatedAt: '2026-09-27T16:00:00Z' }, credentialId: 9 })).code,
-    'CLIENT_RECENT_AUTH_REQUIRED');
+  assert.equal((await service.revoke({ session: { ...session, ok: false }, credentialId: 9 })).ok, false);
   assert.equal(queries.length, 0);
   assert.equal((await service.revoke({ session, credentialId: 9 })).ok, true);
   assert.deepEqual(queries.map(({ sql }) => sql.trim().split(/\s+/).slice(0, 3).join(' ')).slice(0, 2),
-    ['BEGIN', 'SELECT id FROM']);
+    ['BEGIN', 'SELECT s.id FROM']);
   const ownership = queries.find(({ sql }) => /SELECT id FROM client_auth_passkey_credentials/.test(sql));
   assert.deepEqual(ownership.params, [9, 17]);
   const sessionUpdate = queries.find(({ sql }) => /UPDATE client_browser_sessions/.test(sql));

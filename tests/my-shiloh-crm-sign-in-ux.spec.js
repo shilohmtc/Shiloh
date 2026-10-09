@@ -121,7 +121,7 @@ for (const viewport of [
     await start(page);
     await expect(page.locator('[data-view="home"] input[name="firstName"]')).toHaveValue('');
   });
-  test(`Shiloh profile permits fresh detail re-entry and keeps ordinary logout on ${viewport.name}`, async ({
+  test(`Shiloh profile allows remembered account changes without detail re-entry and keeps ordinary logout on ${viewport.name}`, async ({
     page,
   }, testInfo) => {
     await page.setViewportSize(viewport);
@@ -150,11 +150,8 @@ for (const viewport of [
     );
     await page.route('**/my-shiloh/auth/sessions/revoke-others', (route) =>
       route.fulfill({
-        status: 428,
-        json: {
-          error:
-            'Re-enter your Shiloh details before changing account security.',
-        },
+        status: 200,
+        json: {revoked:true},
       }),
     );
     const reentries = [];
@@ -170,23 +167,15 @@ for (const viewport of [
     await expect(profile.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible();
     await expect(profile.locator('[data-client-profile-form] input[name="name"]')).toBeEnabled();
     await expect(profile).toContainText('A passkey is optional');
-    await profile.locator('summary').filter({hasText: 'Confirm details for account changes'}).click();
-    await stable(
-      page,
-      testInfo,
-      `crm-protected-settings-${viewport.name}.png`,
-      profile.getByRole('heading', { name: 'Confirm your Shiloh details' }),
-    );
-    const reentry = profile.locator('[data-mode="reauthenticate"]');
-    await reentry.getByLabel('First name').fill('Synthetic');
-    await reentry.getByLabel('Surname').fill('Example');
-    await reentry.getByLabel('Date of birth').fill('2000-01-01');
-    await reentry.getByLabel('Mobile number').fill('0820000001');
-    await reentry.getByRole('button', {name: 'Confirm details'}).click();
-    await expect(reentry.locator('[data-crm-status]')).toContainText('Details confirmed');
-    expect(reentries).toEqual([{body: {firstName: 'Synthetic', surname: 'Example', dateOfBirth: '2000-01-01', mobile: '0820000001'}, csrf: 'synthetic-csrf'}]);
-    await expect(reentry.getByLabel('First name')).toHaveValue('');
-    await expect(reentry.getByRole('button', {name: 'Confirm details'})).toBeEnabled();
+    await expect(profile.getByText('Confirm details for account changes',{exact:true})).toHaveCount(0);
+    await expect(profile).not.toContainText('Confirm your Shiloh details');
+    await expect(profile.getByLabel('New mobile number')).toBeEnabled();
+    await expect(profile.locator('[data-mode="reauthenticate"]')).toHaveCount(0);
+    await page.evaluate(()=>{window.ShilohConfirm=async()=>true;});
+    await profile.getByRole('button',{name:'Sign out other sessions',exact:true}).click();
+    await expect(profile.locator('[data-sign-out-others-status]')).toContainText('Other sessions are signed out');
+    expect(reentries).toEqual([]);
+    await stable(page,testInfo,`crm-protected-settings-${viewport.name}.png`,profile.getByRole('heading',{name:'Make next time easier.'}));
     const axe = await new AxeBuilder({ page })
       .include('[data-view="profile"]')
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])

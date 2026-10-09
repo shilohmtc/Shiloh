@@ -518,7 +518,7 @@ function createMyShilohRouter({
         const status = result.code === 'CLIENT_PASSKEY_DISABLED' ? 404 :
           result.code === 'CLIENT_PASSKEY_UNAVAILABLE' ? 503 :
             result.code === 'CLIENT_RECENT_AUTH_REQUIRED' ? 428 : 403;
-        return res.status(status).json({ error: status === 428 ? 'Re-enter your Shiloh details before saving a passkey.' : 'Passkey setup is unavailable. Please try later.', requestId: req.id });
+        return res.status(status).json({ error: status === 428 ? 'Your sign-in has expired. Please sign in again.' : 'Passkey setup is unavailable. Please try later.', requestId: req.id });
       }
       return res.status(200).json({ options: result.options, expiresAt: result.expiresAt });
     } catch (error) { return next(error); }
@@ -537,7 +537,7 @@ function createMyShilohRouter({
         const status = result.code === 'CLIENT_PASSKEY_DISABLED' ? 404 :
           result.code === 'CLIENT_PASSKEY_UNAVAILABLE' ? 503 :
             result.code === 'CLIENT_RECENT_AUTH_REQUIRED' ? 428 : 401;
-        return res.status(status).json({ error: status === 428 ? 'Re-enter your Shiloh details before saving a passkey.' : 'Passkey setup could not be completed. Please try again.', requestId: req.id });
+        return res.status(status).json({ error: status === 428 ? 'Your sign-in has expired. Please sign in again.' : 'Passkey setup could not be completed. Please try again.', requestId: req.id });
       }
       return res.status(200).json({ registered: true });
     } catch (error) { return next(error); }
@@ -564,7 +564,7 @@ function createMyShilohRouter({
         const status = result.code === 'CLIENT_RECENT_AUTH_REQUIRED' ? 428 :
           result.code === 'CLIENT_PASSKEY_INVALID' ? 404 : 503;
         return res.status(status).json({
-          error: status === 428 ? 'Re-enter your Shiloh details before removing a passkey.' : 'Could not remove this passkey.',
+          error: status === 428 ? 'Your sign-in has expired. Please sign in again.' : 'Could not remove this passkey.',
           requestId: req.id,
         });
       }
@@ -690,7 +690,7 @@ function createMyShilohRouter({
     try {
       setNoStoreJson(res);
       const result = await sessionService.revokeOtherSessions(req.myShilohClientSession);
-      if (!result.ok) return res.status(428).json({ error: 'Re-enter your Shiloh details before signing out other sessions.' });
+      if (!result.ok) return res.status(428).json({ error: 'Your sign-in has expired. Please sign in again.' });
       return res.json({ revoked: true });
     } catch (error) { return next(error); }
   });
@@ -842,7 +842,7 @@ function createMyShilohRouter({
   router.post('/my-shiloh/api/profile/update', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
     try {
       setNoStoreJson(res);
-      const allowed = new Set(['expectedRevision', 'name', 'dateOfBirth', 'gender']);
+      const allowed = new Set(['expectedRevision', 'name', 'dateOfBirth', 'gender', 'mobile']);
       if (Object.keys(req.body && typeof req.body === 'object' ? req.body : {}).some((key) => !allowed.has(key))) {
         return res.status(422).json({ error: 'Please reload My Shiloh and try again', requestId: req.id });
       }
@@ -850,6 +850,7 @@ function createMyShilohRouter({
         sessionId: req.myShilohClientSession.sessionId,
         crmV2ClientId: req.myShilohClientSession.crmV2ClientId,
         expectedRevision: req.body?.expectedRevision,
+        mobile: req.body?.mobile,
         name: req.body?.name,
         dateOfBirth: req.body?.dateOfBirth,
         gender: req.body?.gender,

@@ -98,12 +98,15 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
     await expect(form.locator('input[name="dateOfBirth"]')).toHaveValue(profile.dateOfBirth);
     await expect(form.locator('select[name="gender"]')).toHaveValue('');
     expect(writes).toEqual([]);
+    await expect(page.getByText('Confirm details for account changes', {exact:true})).toHaveCount(0);
     await form.locator('select[name="gender"]').selectOption('prefer_not_to_say');
+    await form.getByLabel('New mobile number').fill('083 000 0003');
     await form.getByRole('button', { name: /Save/ }).click();
     await expect(page.locator('[data-client-profile-status]')).toContainText('Your profile changed');
     expect(writes).toEqual([{ expectedRevision: profile.revision, name: profile.name,
-      dateOfBirth: profile.dateOfBirth, gender: 'prefer_not_to_say' }]);
+      dateOfBirth: profile.dateOfBirth, gender: 'prefer_not_to_say', mobile:'083 000 0003' }]);
     await expect(form.locator('input[name="dateOfBirth"]')).toHaveValue(profile.dateOfBirth);
+    await expect(form.getByLabel('New mobile number')).toHaveValue('083 000 0003');
     await captureStable(page, testInfo, `profile-confirmation-conflict-${viewport.name}.png`, page.locator('[data-client-profile-status]'));
     await page.locator('[data-view-target="home"]').click();
     const setup = page.locator('[data-client-setup]');
@@ -156,7 +159,7 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
     await page.evaluate(() => { window.ShilohConfirm = async () => true; });
     await page.locator('[data-sign-out-others]').click();
     await expect(page.locator('[data-sign-out-others-status]')).toContainText('Sign in again');
-    await captureStable(page, testInfo, `session-revocation-fresh-auth-required-${viewport.name}.png`, page.locator('[data-sign-out-others-status]'));
+    await captureStable(page, testInfo, `session-revocation-expired-sign-in-${viewport.name}.png`, page.locator('[data-sign-out-others-status]'));
     requireFresh = false;
     await page.locator('[data-sign-out-others]').click();
     await expect(page.locator('[data-sign-out-others-status]')).toContainText('Other sessions are signed out');
@@ -164,6 +167,17 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
     await captureStable(page, testInfo, `session-revocation-result-${viewport.name}.png`, page.locator('[data-sign-out-others-status]'));
     expect(revocations).toBe(2);
     expect(writes).toHaveLength(1);
+    await expect(form.getByLabel('New mobile number')).toHaveValue('083 000 0003');
+    await captureStable(page,testInfo,`mobile-update-retry-${viewport.name}.png`,form.getByLabel('New mobile number'));
+    await page.route('**/my-shiloh/api/profile/update',route=>{
+      writes.push(route.request().postDataJSON());
+      return route.fulfill({json:{status:'updated',profile:{...profile,revision:'b'.repeat(64),gender:'prefer_not_to_say',mobile:'0•• ••• 0003',registrationComplete:true}}});
+    });
+    await form.getByRole('button',{name:'Save personal details'}).click();
+    await expect(page.locator('[data-client-profile-status]')).toHaveText('Your personal details have been saved.');
+    await expect(form.getByLabel('New mobile number')).toHaveValue('');
+    expect(writes).toHaveLength(2);expect(confirmations).toBe(0);
+
   });
 }
 

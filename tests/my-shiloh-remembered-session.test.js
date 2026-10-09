@@ -82,7 +82,7 @@ test('already-issued shorter sessions retain their stored deadline through valid
   assert.equal((await h.service.validateSessionToken(issued.sessionToken)).ok, false);
 });
 
-test('fresh sign-out-other-sessions closes SMS, passkey and recovery for only this owner; logout closes current session', async t => {
+test('remembered sign-out-other-sessions closes SMS, passkey and recovery for only this owner; logout closes current session', async t => {
   const h = await harness(t);
   const current = await h.issue('issueVerifiedSmsSession', true);
   const others = [];
@@ -95,10 +95,10 @@ test('fresh sign-out-other-sessions closes SMS, passkey and recovery for only th
   assert.equal((await h.service.validateSessionToken(differentClient.sessionToken)).ok, true);
   const newOther = await h.issue('issueVerifiedSmsSession', true);
   h.advance(600001);
-  assert.equal((await h.service.revokeOtherSessions(session)).code, 'CLIENT_RECENT_AUTH_REQUIRED');
-  assert.equal((await h.service.validateSessionToken(newOther.sessionToken)).ok, true);
-  // A forged fresh timestamp cannot bypass the stored recent-auth check.
-  assert.equal((await h.service.revokeOtherSessions({ ...session, authenticatedAt: h.at() })).ok, false);
+  assert.equal((await h.service.revokeOtherSessions(session)).ok, true);
+  assert.equal((await h.service.validateSessionToken(newOther.sessionToken)).ok, false);
+  // Forged identity cannot bypass stored session ownership.
+  assert.equal((await h.service.revokeOtherSessions({ ...session, crmV2ClientId:18, authenticatedAt: h.at() })).ok, false);
   await h.service.revokeSession(current.sessionId);
   assert.equal((await h.service.validateSessionToken(current.sessionToken)).ok, false);
 });

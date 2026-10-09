@@ -121,7 +121,7 @@ test('strict tuple, Unicode/spacing and SA input normalization; no fuzzy, foreig
   assert.notEqual(networkGroup('2001:db8:1:3::1'), networkGroup('2001:db8:1:2::1'));
 });
 
-test('CRM match has fixed 30 days, never verifies phone or changes CRM; first-key setup is available while other sensitive gates deny even fresh auth', async (t) => {
+test('CRM match has fixed 30 days, never verifies phone or changes CRM; mounted account changes use remembered sessions; retired recovery keeps its old gate', async (t) => {
   const h = await harness(t);
   const owner = await h.insert();
   const result = await h.attempt();
@@ -131,25 +131,16 @@ test('CRM match has fixed 30 days, never verifies phone or changes CRM; first-ke
   assert.equal(session.authMethod, 'crm_details');
   assert.equal(session.assurance, 'biographical_match');
   assert.equal(recentClientSession(session, h.now()), false);
-  assert.equal((await h.sessions.revokeOtherSessions(session)).code, 'CLIENT_RECENT_AUTH_REQUIRED');
+  assert.equal((await h.sessions.revokeOtherSessions(session)).ok, true);
   const enroll = createClientPasskeyEnrollmentService({ db: h.db, env, now: h.now });
   assert.equal((await enroll.begin({ session })).ok, true);
   assert.equal((await enroll.finish({ session })).code, 'CLIENT_PASSKEY_INVALID');
-  assert.equal((await enroll.revoke({ session, credentialId: 1 })).code, 'CLIENT_RECENT_AUTH_REQUIRED');
+  assert.equal((await enroll.revoke({ session, credentialId: 1 })).code, 'CLIENT_PASSKEY_INVALID');
   const recovery = createClientPasskeyRecoveryService({ db: h.db, env, now: h.now });
   assert.equal((await recovery.create({ session })).code, 'CLIENT_RECENT_AUTH_REQUIRED');
   const profiles = createMyShilohProfileService({ db: h.db, now: h.now });
-  await assert.rejects(
-    profiles.updateProfile({
-      sessionId: session.sessionId,
-      crmV2ClientId: owner.id,
-      expectedRevision: profileRevision(owner),
-      name: 'Other Example',
-      dateOfBirth: synthetic.dateOfBirth,
-      gender: synthetic.gender,
-    }),
-    /session has expired/,
-  );
+  assert.equal((await profiles.updateProfile({sessionId:session.sessionId,crmV2ClientId:owner.id,
+    expectedRevision:profileRevision(owner),name:owner.name,dateOfBirth:synthetic.dateOfBirth,gender:synthetic.gender})).status,'unchanged');
   assert.deepEqual((await h.db.query('SELECT * FROM crm_v2_clients')).rows[0], owner);
   const start = h.now().getTime();
   h.advance(SESSION_TTL_MS - 1);
@@ -313,11 +304,11 @@ test('stored assurance/revocation is rechecked: pretending a CRM timestamp is ve
   assert.equal((await enroll.begin({ session: forged })).ok, true); // First key needs no fresh assurance.
   assert.equal(
     (await enroll.revoke({ session: forged, credentialId: 1 })).code,
-    'CLIENT_RECENT_AUTH_REQUIRED',
+    'CLIENT_PASSKEY_INVALID',
   );
   const recovery = createClientPasskeyRecoveryService({ db: h.db, env, now: h.now });
   assert.equal((await recovery.create({ session: forged })).code, 'CLIENT_RECENT_AUTH_REQUIRED');
-  assert.equal((await h.sessions.revokeOtherSessions(forged)).code, 'CLIENT_RECENT_AUTH_REQUIRED');
+  assert.equal((await h.sessions.revokeOtherSessions(forged)).ok, true);
   for (const authMethod of [undefined, 'unknown', 'crm_details'])
     assert.equal(recentClientSession({ ...actual, authMethod }, h.now()), false);
 });
@@ -674,29 +665,29 @@ test('first-ever passkey can be saved near the remembered deadline, without exte
   const f = fixture(); f.challenge = start.options.challenge;
   assert.equal((await service.finish({ session, response:registrationResponse(f) })).ok,true);
   assert.deepEqual((await h.db.query('SELECT * FROM client_browser_sessions')).rows[0], before);
-  assert.equal((await service.begin({ session })).code, 'CLIENT_RECENT_AUTH_REQUIRED');
+  assert.equal((await service.begin({ session })).ok, true);
   h.advance(60_000);
   assert.equal((await service.begin({ session })).code, 'CLIENT_RECENT_AUTH_REQUIRED');
 });
-test('first-key exception excludes historical revoked keys and rejects cross-client/revoked sessions', async (t) => {
+test('remembered setup includes historical revoked keys and rejects cross-client/revoked sessions', async (t) => {
   const h = await harness(t); const owner=await h.insert(); const signed=await h.attempt();
   h.advance(86400000); const session=await h.sessions.validateSessionToken(signed.sessionToken);
   const service=createClientPasskeyEnrollmentService({db:h.db,env,now:h.now});
   assert.equal((await service.begin({session:{...session,crmV2ClientId:owner.id+1}})).ok,false);
   await h.db.query("INSERT INTO client_auth_passkey_credentials(crm_v2_client_id,credential_id,public_key_spki,algorithm,revoked_at) VALUES($1,$2,$3,-7,$4)",[owner.id,'A'.repeat(24),Buffer.from('synthetic-public-key'),h.now()]);
-  assert.equal((await service.begin({session})).code,'CLIENT_RECENT_AUTH_REQUIRED');
+  assert.equal((await service.begin({session})).ok,true);
   await h.db.query('DELETE FROM client_auth_passkey_credentials');
   await h.sessions.revokeSession(session.sessionId,'logout');
   assert.equal((await service.begin({session})).ok,false);
 });
-test('finish repeats historical-key absence, preventing another remembered session adding a second key', async (t) => {
+test('remembered session may finish an additional optional key under the same client limit', async (t) => {
   const h=await harness(t);const owner=await h.insert();const signed=await h.attempt();h.advance(86400000);
   const session=await h.sessions.validateSessionToken(signed.sessionToken);
   const service=createClientPasskeyEnrollmentService({db:h.db,env,now:h.now});const start=await service.begin({session});
   await h.db.query("INSERT INTO client_auth_passkey_credentials(crm_v2_client_id,credential_id,public_key_spki,algorithm) VALUES($1,$2,$3,-7)",[owner.id,'B'.repeat(24),Buffer.from('synthetic-public-key')]);
   const f=fixture();f.challenge=start.options.challenge;
-  assert.equal((await service.finish({session,response:registrationResponse(f)})).code,'CLIENT_RECENT_AUTH_REQUIRED');
-  assert.equal((await h.db.query('SELECT * FROM client_auth_passkey_credentials')).rowCount,1);
+  assert.equal((await service.finish({session,response:registrationResponse(f)})).ok,true);
+  assert.equal((await h.db.query('SELECT * FROM client_auth_passkey_credentials')).rowCount,2);
 });
 test('expiry during an enrollment lock wait fails closed', async (t) => {
   const h=await harness(t);await h.insert();const signed=await h.attempt();
@@ -705,4 +696,64 @@ test('expiry during an enrollment lock wait fails closed', async (t) => {
   const service=createClientPasskeyEnrollmentService({db,env,now:h.now});
   assert.equal((await service.begin({session})).ok,false);
   assert.equal((await h.db.query('SELECT * FROM client_auth_passkey_challenges')).rowCount,0);
+});
+
+test('remembered mobile update preserves client/session deadline, invalidates other sessions and supports new details only', async (t) => {
+  const h=await harness(t);const owner=await h.insert();const signed=await h.attempt();const other=await h.attempt();
+  h.advance(86400000);const session=await h.sessions.validateSessionToken(signed.sessionToken);
+  await h.db.query("UPDATE crm_v2_clients SET first_name='Synthetic',surname='Example',mobile_verified_at=$2 WHERE id=$1",[owner.id,h.now()]);
+  const current=(await h.db.query('SELECT * FROM crm_v2_clients WHERE id=$1',[owner.id])).rows[0];
+  const before=(await h.db.query('SELECT * FROM client_browser_sessions WHERE id=$1',[session.sessionId])).rows[0];
+  const service=createMyShilohProfileService({db:h.db,now:h.now});
+  const result=await service.updateProfile({sessionId:session.sessionId,crmV2ClientId:owner.id,expectedRevision:profileRevision(current),name:current.name,dateOfBirth:synthetic.dateOfBirth,gender:synthetic.gender,mobile:'083 000 0003'});
+  assert.equal(result.status,'updated');assert.equal(result.profile.mobile,'0•• ••• 0003');
+  const updated=(await h.db.query('SELECT * FROM crm_v2_clients WHERE id=$1',[owner.id])).rows[0];
+  assert.equal(updated.first_name,'Synthetic');assert.equal(updated.surname,'Example');
+  assert.equal(updated.normalized_mobile,'27830000003');assert.equal(updated.mobile_verified_at,null);assert.equal(updated.provenance.phoneOwnershipVerified,false);
+  assert.equal((await h.db.query('SELECT COUNT(*)::int AS n FROM crm_v2_clients')).rows[0].n,1);
+  assert.deepEqual((await h.db.query('SELECT * FROM client_browser_sessions WHERE id=$1',[session.sessionId])).rows[0],before);
+  assert.equal((await h.sessions.validateSessionToken(other.sessionToken)).ok,false);
+  assert.equal((await h.attempt()).ok,false);assert.equal((await h.attempt({...synthetic,mobile:'0830000003'})).ok,true);
+  const event=(await h.db.query("SELECT metadata FROM client_auth_security_events WHERE event_type='client_profile_updated'")).rows[0];
+  assert.deepEqual(event.metadata.changedFields,['mobile']);assert.ok(!JSON.stringify(event).includes('27830000003'));
+  const keyService=createClientPasskeyEnrollmentService({db:h.db,env,now:h.now});const start=await keyService.begin({session});assert.equal(start.ok,true);
+  const f=fixture();f.challenge=start.options.challenge;assert.equal((await keyService.finish({session,response:registrationResponse(f)})).ok,true);
+  const key=(await h.db.query('SELECT id FROM client_auth_passkey_credentials')).rows[0];
+  assert.equal((await keyService.revoke({session,credentialId:Number(key.id)})).ok,true);
+  assert.equal((await keyService.begin({session})).ok,true); // Revoked history does not block replacement.
+});
+
+test('mobile change rejects conflicts, stale/cross-client/expired sessions and malformed input without writes',async(t)=>{
+  const h=await harness(t);const owner=await h.insert();await h.insert({...synthetic,firstName:'Other',mobile:'0830000003'});
+  const signed=await h.attempt();const session=await h.sessions.validateSessionToken(signed.sessionToken);
+  const service=createMyShilohProfileService({db:h.db,now:h.now});
+  const payload={sessionId:session.sessionId,crmV2ClientId:owner.id,expectedRevision:profileRevision(owner),name:owner.name,dateOfBirth:synthetic.dateOfBirth,gender:synthetic.gender};
+  for(const mobile of ['bad','+44 7700 000000','08200000010',''])await assert.rejects(service.updateProfile({...payload,mobile}),/South African/);
+  await assert.rejects(service.updateProfile({...payload,mobile:'0830000003'}),/cannot be used/);
+  await h.db.query("UPDATE crm_v2_clients SET status='archived' WHERE normalized_mobile='27830000003'");
+  await assert.rejects(service.updateProfile({...payload,mobile:'0830000003'}),/cannot be used/);
+  assert.equal((await h.sessions.validateSessionToken(signed.sessionToken)).ok,true);
+  await assert.rejects(service.updateProfile({...payload,expectedRevision:'a'.repeat(64),mobile:'0840000004'}),/profile changed/);
+  await assert.rejects(service.updateProfile({...payload,crmV2ClientId:owner.id+1,mobile:'0840000004'}),/session has expired/);
+  h.advance(SESSION_TTL_MS);await assert.rejects(service.updateProfile({...payload,mobile:'0840000004'}),/session has expired/);
+  assert.deepEqual((await h.db.query('SELECT * FROM crm_v2_clients WHERE id=$1',[owner.id])).rows[0],owner);
+});
+
+test('other-session revocation fails if the current session expires during a lock wait',async(t)=>{
+  const h=await harness(t);const owner=await h.insert();const first=await h.attempt();const other=await h.attempt();
+  const session=await h.sessions.validateSessionToken(first.sessionToken);h.advance(SESSION_TTL_MS-1);
+  const before=(await h.db.query('SELECT * FROM client_browser_sessions ORDER BY id')).rows;
+  const db={async query(sql,p){if(sql.includes('FOR UPDATE OF s FOR SHARE'))h.advance(1);return h.db.query(sql,p);},async connect(){return {query:this.query.bind(this),release(){}};}};
+  const sessions=createClientBrowserSessionService({db,now:h.now});assert.equal((await sessions.revokeOtherSessions(session)).ok,false);
+  assert.deepEqual((await h.db.query('SELECT * FROM client_browser_sessions ORDER BY id')).rows,before);
+  assert.equal((await h.db.query('SELECT * FROM crm_v2_clients WHERE id=$1',[owner.id])).rows[0].normalized_mobile,'27820000001');
+});
+
+test('mobile update rereads expiry after canonical number lock waits',async(t)=>{
+  const h=await harness(t);const owner=await h.insert();const signed=await h.attempt();
+  const session=await h.sessions.validateSessionToken(signed.sessionToken);h.advance(SESSION_TTL_MS-1);
+  const db={async query(sql,p){if(sql.includes('pg_advisory_xact_lock(hashtext'))h.advance(1);return h.db.query(sql,p);},async connect(){return {query:this.query.bind(this),release(){}};}};
+  const service=createMyShilohProfileService({db,now:h.now});
+  await assert.rejects(service.updateProfile({sessionId:session.sessionId,crmV2ClientId:owner.id,expectedRevision:profileRevision(owner),name:owner.name,dateOfBirth:synthetic.dateOfBirth,gender:synthetic.gender,mobile:'0830000003'}),/sign in again/i);
+  assert.deepEqual((await h.db.query('SELECT * FROM crm_v2_clients WHERE id=$1',[owner.id])).rows[0],owner);
 });

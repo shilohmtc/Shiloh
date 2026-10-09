@@ -1,4 +1,5 @@
 'use strict';
+// All database records in this file are fabricated local fixtures; no client/provider data.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -61,6 +62,7 @@ async function fixture(t) {
     INSERT INTO appointment_payment_accounts VALUES (1,901,100),(2,904,200);
     INSERT INTO consultation_form_assignments VALUES (1,901,'completed'),(2,904,'sent');
   `);
+  await db.exec("ALTER TABLE client_browser_sessions ADD COLUMN issued_at timestamptz DEFAULT '2026-01-01', ADD COLUMN auth_method text DEFAULT 'crm_details'");
   // Execute the exact additive migration only in this disposable PostgreSQL fixture.
   await db.exec(migration);
   return db;
@@ -185,7 +187,6 @@ test('PostgreSQL mutations reject foreign, missing, active, nonlegacy and stale 
     { sessionId: 8, crmV2ClientId: 56, appointmentId: 902 },
     { sessionId: 10, crmV2ClientId: 55, appointmentId: 901 },
     { sessionId: 11, crmV2ClientId: 55, appointmentId: 901 },
-    { sessionId: 12, crmV2ClientId: 57, appointmentId: 914 },
     { sessionId: 13, crmV2ClientId: 58, appointmentId: 915 },
   ]) {
     await assert.rejects(service.setVisibility({ ...input, hidden: true }), { code: unavailable.code, httpStatus: 404 });
@@ -269,4 +270,17 @@ test('visibility mutation locks eligibility atomically and migration adds only t
   assert.match(migration, /PRIMARY KEY \(crm_v2_client_id, appointment_id\)/);
   assert.match(migration, /hidden BOOLEAN NOT NULL DEFAULT TRUE/);
   assert.doesNotMatch(migration, /^\s*(?:UPDATE|DELETE FROM|INSERT INTO|ALTER TABLE)\b/im);
+});
+
+
+test('owned history preference still works after mobile verification resets, without changing canonical records',async t=>{
+  const db=await fixture(t);await db.exec('UPDATE crm_v2_clients SET mobile_verified_at=NULL WHERE id=55');
+  const before=await canonicalSnapshot(db);const service=createMyShilohBookingHistoryVisibilityService({db,now:()=>NOW});
+  for(const hidden of [true,false])assert.deepEqual(await service.setVisibility({sessionId:8,crmV2ClientId:55,appointmentId:901,hidden}),{appointmentId:901,hidden});
+  assert.deepEqual(await canonicalSnapshot(db),before);
+  assert.deepEqual(await service.setVisibility({sessionId:12,crmV2ClientId:57,appointmentId:914,hidden:true}),{appointmentId:914,hidden:true});
+  await db.exec("UPDATE client_browser_sessions SET issued_at='2090-01-01' WHERE id=14");
+  await assert.rejects(service.setVisibility({sessionId:14,crmV2ClientId:55,appointmentId:901,hidden:true}),{httpStatus:404});
+  await db.exec("UPDATE client_browser_sessions SET issued_at='2026-01-01',auth_method='unknown' WHERE id=14");
+  await assert.rejects(service.setVisibility({sessionId:14,crmV2ClientId:55,appointmentId:901,hidden:true}),{httpStatus:404});
 });

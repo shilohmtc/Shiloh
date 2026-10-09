@@ -9,7 +9,7 @@ const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 const { renderCouplesBookingChoice } = require('./myShilohBookingActions');
 
-const MY_SHILOH_ASSET_VERSION = '20261009-first-passkey-v1';
+const MY_SHILOH_ASSET_VERSION = '20261009-account-simple-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -209,7 +209,6 @@ function renderMyShilohPage({
         <div class="profile-avatar" aria-hidden="true">${firstName.charAt(0).toUpperCase()}</div>
         <div class="profile-auth-card__identity"><span>Signed in as</span><strong>${clientName}</strong><small>${signInMethod === 'crm_details' ? 'Signed in with your Shiloh details' : signInMethod === 'passkey' ? 'Signed in with a passkey' : 'Signed in securely'}</small></div>
       </div>
-      <details class="profile-editor"><summary>Confirm details for account changes</summary>${crmSignIn('settings', true)}</details>
       ${passkeysAvailable ? `<section class="profile-editor" aria-labelledby="passkey-title">
         <div class="profile-editor__heading"><div><p class="eyebrow">Sign-in</p><h2 id="passkey-title">Make next time easier.</h2></div></div>
         <p>A passkey is optional. It makes signing in quicker. If it stops working, use your Shiloh details.</p>
@@ -247,8 +246,11 @@ function renderMyShilohPage({
             </label>
           </div>
           <div class="profile-mobile">
-            <div><span>${signInMethod === 'crm_details' ? 'Mobile number' : 'Verified mobile number'}</span><strong data-client-profile-mobile>Checking…</strong></div>
-            <p>Your sign-in number cannot be changed here. Please ask the clinic team if it needs to be updated.</p>
+            <div><span>Mobile number</span><strong data-client-profile-mobile>Checking…</strong></div>
+            <label class="profile-field" for="profile-mobile"><span>New mobile number</span>
+              <input id="profile-mobile" name="mobile" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" placeholder="082 000 0000" disabled>
+            </label>
+            <p>Leave blank to keep your number. After saving a new number, use it to sign in. Your other sessions will be signed out.</p>
           </div>
           <p class="profile-editor__status" data-client-profile-status role="status" aria-live="polite">Loading your details…</p>
           <button class="button button--primary button--wide" type="submit" disabled>Save personal details</button>
@@ -293,7 +295,7 @@ function renderMyShilohPage({
       </div>
       <button class="button button--soft button--wide profile-signout" type="button" data-client-auth-logout>Sign out</button>
       <button class="button button--soft button--wide" type="button" data-sign-out-others>Sign out other sessions</button>
-      <p>Lost a phone? Confirm your Shiloh details, then sign out its sessions here. Remove its saved passkey separately.</p><p role="status" data-sign-out-others-status></p>
+      <p>Lost a phone? Sign out its sessions here. Remove its saved passkey separately.</p><p role="status" data-sign-out-others-status></p>
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>`
     : `<div class="page-intro">
         <p class="eyebrow">Profile</p>
