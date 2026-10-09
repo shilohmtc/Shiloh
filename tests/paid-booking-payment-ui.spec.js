@@ -37,6 +37,7 @@ for (const [name, viewport] of [['phone', { width: 390, height: 844 }], ['deskto
     }
     await page.goto(`${base}/paid`);
     await page.locator('details.manual-payment > summary').click();
+    await page.locator('[data-payment-method]').selectOption('card_machine');
     const form = page.locator('[data-manual-form]'), button = form.getByRole('button', { name: 'Record payment', exact: true });
     await expect(button).toBeDisabled();
     await form.getByRole('checkbox').check();
