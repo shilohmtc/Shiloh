@@ -10,7 +10,6 @@ function payment(method = 'card_machine', change = () => {}) {
   const node = document.createElement('div'); node.innerHTML = surface(payments.renderCalendarPaymentPage({ model }));
   queueMicrotask(() => {
     new Function(payments.calendarPaymentsClientScript())();
-    const details = node.querySelector('[data-payment-method-card]'); if (details) details.open = true;
     const select = node.querySelector('[data-payment-method]'); if (select) { select.value = method; select.dispatchEvent(new Event('change')); }
     if (method === 'client-credit') { const amount = node.querySelector('[data-booking-noncash="client-credit"] input[name="amount"]'); if (amount) { amount.value = '500'; amount.dispatchEvent(new Event('input')); } }
   });

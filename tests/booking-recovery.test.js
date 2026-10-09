@@ -44,8 +44,8 @@ test('cancelled deposit screen has one link form and no cancellation policy para
   assert.doesNotMatch(html,/Create a secure payment link below/);
   assert.match(html,/Deposit · R\s?295[,.]00<\/strong><small>Ozow · Cancelled/);
   assert.doesNotMatch(html,/One person can pay the full balance/);
-  assert.match(html,/<details class="payment-card manual-payment" data-payment-method-card open><summary>Record payment<\/summary>/);
-  assert.match(html,/cash, card or EFT/);
+  assert.match(html,/<details class="payment-card manual-payment" data-payment-method-card><summary>Record payment<\/summary>/);
+  assert.match(html,/Cash, card or EFT only/);
   assert.match(html,/name="receivedOutsideOzowConfirmed" required/);
 });
 
@@ -70,7 +70,7 @@ test('active payment link keeps contextual guidance and manual settlement compac
   } });
   assert.doesNotMatch(html,/Reception help/);
   assert.match(html,/1 active payment link/);
-  assert.match(html,/<details class="payment-card manual-payment" data-payment-method-card open><summary>Record payment<\/summary>/);
+  assert.match(html,/<details class="payment-card manual-payment" data-payment-method-card><summary>Record payment<\/summary>/);
 });
 
 test('failed Ozow attempt warns against requesting payment again after a bank debit', () => {

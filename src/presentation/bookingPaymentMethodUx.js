@@ -25,6 +25,12 @@ function renderBookingPaymentMethod({ model, manualForm, noncashForms }) {
   ];
   const defaultMethod =
     Number(model.payment.outstanding) > 0 ? methods.find(([, , reason]) => !reason)?.[0] || '' : '';
+  const expandCollection =
+    Number(model.payment.outstanding) > 0 &&
+    model.deposit?.requirement?.state !== 'awaiting' &&
+    !model.payment.requests.some((item) =>
+      ['created', 'link_issued', 'pending'].includes(item.state),
+    );
   const options = methods
     .map(
       ([value, label, reason]) =>
@@ -35,7 +41,7 @@ function renderBookingPaymentMethod({ model, manualForm, noncashForms }) {
     .filter(([, , reason]) => reason)
     .map(([, label, reason]) => `<li><strong>${label}:</strong> ${esc(reason)}</li>`)
     .join('');
-  return `<details class="payment-card manual-payment" data-payment-method-card${Number(model.payment.outstanding) > 0 ? ' open' : ''}><summary>Record payment</summary><div class="payment-method-label"><label for="booking-payment-method">Payment method</label><select id="booking-payment-method" data-payment-method aria-describedby="payment-method-help"><option value="">Choose a payment method</option>${options}</select></div><p class="hint" id="payment-method-help">Voucher and client credit reduce the treatment balance without recording new money received.</p>${unavailable ? `<ul class="payment-method-unavailable" aria-label="Unavailable payment methods">${unavailable}</ul>` : ''}${manualForm.replace('data-payment-panel="manual"', `data-payment-panel="manual"${['card_machine', 'cash', 'manual_eft'].includes(defaultMethod) ? '' : ' hidden'}`)}${noncashForms}</details>`;
+  return `<details class="payment-card manual-payment" data-payment-method-card${expandCollection ? ' open' : ''}><summary>Record payment</summary><div class="payment-method-label"><label for="booking-payment-method">Payment method</label><select id="booking-payment-method" data-payment-method aria-describedby="payment-method-help"><option value="">Choose a payment method</option>${options}</select></div><p class="hint" id="payment-method-help">Voucher and client credit reduce the treatment balance without recording new money received.</p>${unavailable ? `<ul class="payment-method-unavailable" aria-label="Unavailable payment methods">${unavailable}</ul>` : ''}${manualForm.replace('data-payment-panel="manual"', `data-payment-panel="manual"${['card_machine', 'cash', 'manual_eft'].includes(defaultMethod) ? '' : ' hidden'}`)}${noncashForms}</details>`;
 }
 
 function initializeBookingPaymentMethod() {

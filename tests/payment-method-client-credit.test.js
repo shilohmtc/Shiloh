@@ -22,6 +22,7 @@ test('one selector exposes five methods while manual ledger receives only its hi
   assert.match(html, /name="method" value="card_machine"/);
   assert.match(html, /data-payment-panel="gift-voucher"[^>]* hidden/);
   assert.match(html, /data-payment-panel="client-credit"[^>]* hidden/);
+  assert.match(html, /data-payment-method-card open/);
   new (require('node:vm').Script)(calendarPaymentsClientScript());
 });
 test('unavailable noncash choices give accurate reasons and render no settlement form', () => {
@@ -57,6 +58,9 @@ test('unavailable noncash choices give accurate reasons and render no settlement
     const html = renderCalendarPaymentPage({ model });
     assert.doesNotMatch(html, /data-booking-noncash=/);
     assert.match(html, /value="client-credit" disabled/);
+    if (model.deposit.requirement.state === 'awaiting' || model.payment.requests.length) {
+      assert.doesNotMatch(html, /data-payment-method-card open/);
+    }
   }
   const model = eligible();
   model.noncash.credit.balance = 0;

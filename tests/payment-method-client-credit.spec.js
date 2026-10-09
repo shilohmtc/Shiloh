@@ -118,6 +118,10 @@ for (const [name, viewport] of [
             page.getByText('Credit balance is temporarily unavailable.', { exact: false }),
           ).toBeVisible();
       } else {
+        if (state === 'active-request') {
+          await expect(page.locator('[data-payment-method-card]')).not.toHaveAttribute('open');
+          await page.locator('[data-payment-method-card] summary').click();
+        }
         await expect(page.getByLabel('Payment method', { exact: true })).toBeVisible();
         await expect(page.getByLabel('Payment method', { exact: true })).toHaveValue(
           { voucher: 'gift-voucher', 'partial-client-credit': 'client-credit' }[state] ||
