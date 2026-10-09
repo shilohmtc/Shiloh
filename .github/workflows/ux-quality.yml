@@ -97,12 +97,26 @@ jobs:
           path: artifacts/south-african-phone/*.png
           if-no-files-found: error
           retention-days: 14
+      - name: Bind payment method and client Credit review to exact source
+        env:
+          EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          EVIDENCE_PROVENANCE: github-actions-synthetic
+        run: node scripts/payment-method-client-credit-evidence.js
+      - name: Upload payment method and client Credit review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: payment-method-client-credit-review
+          path: artifacts/payment-method-client-credit
+          if-no-files-found: error
+          retention-days: 14
       - name: Upload UX evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: ux-visual-accessibility-evidence
           path: |
+            artifacts/payment-method-client-credit/*.png
             artifacts/paid-booking-payment/*.png
             artifacts/treatment-credit/*.png
             artifacts/ux-playwright-results
@@ -174,6 +188,7 @@ jobs:
         with:
           name: treatment-credit-booking-payment-review
           path: |
+            artifacts/payment-method-client-credit/*.png
             artifacts/paid-booking-payment/*.png
             artifacts/treatment-credit/*.png
             artifacts/treatment-credit/manifest.json

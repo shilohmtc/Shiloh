@@ -27,9 +27,9 @@ test('satisfied deposit request is historical while remaining treatment payment 
   assert.doesNotMatch(html, /data-copy-link/);
   assert.match(html, /data-ozow-form/);
   assert.match(html, /data-rewards-form/);
-  assert.match(html, /data-booking-noncash="client-credit"/);
-  assert.match(html, /SV-SYNTHETIC01/);
-  assert.match(html, /SV-SYNTHETIC02/);
+  assert.match(html, /value="client-credit" disabled/);
+  assert.match(html, /Review the active payment request first/);
+  assert.doesNotMatch(html, /data-booking-noncash=/);
   const awaiting = renderCalendarPaymentPage({ model: paymentFixture({ paid: false, awaitingDeposit: true }) });
   assert.match(awaiting, /data-copy-link/);
   assert.match(awaiting, /New deposit payment link/);
