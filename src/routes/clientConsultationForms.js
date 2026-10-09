@@ -108,7 +108,7 @@ function createClientConsultationFormsRouter({
   function clinicFormMarkup(markup, access) {
     if (!access.kiosk) return markup;
     return markup.replace(/autocomplete="[^"]*"/g,'autocomplete="off"')
-      .replace('data-client-consultation-form novalidate','data-client-consultation-form autocomplete="off" novalidate')
+      .replace('data-client-consultation-form novalidate','data-client-consultation-form data-clinic-checkin autocomplete="off" novalidate')
       .replace('</body>', '<script src="/forms/assets/clinic-ipad-reset.js" defer></script></body>');
   }
 
