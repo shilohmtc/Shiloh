@@ -36,8 +36,8 @@ for (const viewport of [
         await expect(page.getByText('Clinic team', { exact: true })).toBeVisible();
       }
       if (story.id.endsWith('access-overview')) {
-        await expect(page.getByRole('link', { name: /Jean-Pierre/ })).toBeVisible();
-        await expect(page.getByRole('link', { name: /Jean-Pierre/ })).toHaveAttribute('href', /\/calendar\/team\/staff-access\/42$/);
+        await expect(page.getByRole('link', { name: /Synthetic Client AI/ })).toBeVisible();
+        await expect(page.getByRole('link', { name: /Synthetic Client AI/ })).toHaveAttribute('href', /\/calendar\/team\/staff-access\/42$/);
       }
 
       if (story.id.endsWith('administrator-access') || story.id.endsWith('reception-access')) {
