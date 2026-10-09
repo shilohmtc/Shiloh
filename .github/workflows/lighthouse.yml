@@ -28,7 +28,7 @@ jobs:
         run: npm run lighthouse:ci
       - name: Upload private Lighthouse reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: lighthouse-production-booking
           path: artifacts/lighthouse

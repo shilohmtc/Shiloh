@@ -49,7 +49,7 @@ jobs:
         run: node scripts/workspace-marietjie-services-authenticated-playwright.js
       - name: Upload Marietjie Services UX evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: workspace-marietjie-services-proof
           path: |

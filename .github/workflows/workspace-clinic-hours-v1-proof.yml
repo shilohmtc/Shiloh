@@ -28,7 +28,7 @@ jobs:
       - name: Run authenticated Desktop and Phone Clinic hours proof
         run: node scripts/workspace-clinic-hours-browser-proof.js
       - name: Upload authenticated Clinic hours proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: workspace-clinic-hours-v1
           path: artifacts/workspace-clinic-hours-v1

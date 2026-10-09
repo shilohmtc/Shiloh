@@ -30,7 +30,7 @@ jobs:
       - name: Prove Phone Calendar columns and toggles in Chrome
         run: node scripts/calendar-phone-column-toggle-browser-proof.js
       - name: Upload Phone Calendar column proof
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: calendar-phone-column-toggle-v1
           path: artifacts/calendar-phone-column-toggle-v1

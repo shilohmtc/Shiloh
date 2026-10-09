@@ -48,7 +48,7 @@ jobs:
         run: node --test tests/staff-passkey-auth-v1.test.js tests/staff-passkey-auth-v1-production-schema.test.js tests/staff-passkey-device-bootstrap-v1.test.js tests/staff-calendar-access-ux.test.js tests/reception-passkey-stale-recovery.test.js tests/reception-laptop-lock.test.js
       - name: Authenticated Desktop + Phone passkey proof
         run: node scripts/staff-passkey-auth-v1-browser-proof.js
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v6
         with:
           name: staff-passkey-auth-v1
           path: artifacts/staff-passkey-auth-v1

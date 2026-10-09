@@ -41,7 +41,7 @@ jobs:
         run: node scripts/consultation-form-trial-browser-proof.js
       - name: Upload synthetic browser evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v6
         with:
           name: consultation-form-trial-proof
           path: artifacts/consultation-form-trial-proof
