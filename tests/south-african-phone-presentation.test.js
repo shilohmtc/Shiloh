@@ -6,6 +6,7 @@ const { localPhoneInput, displayPhone, canonicalPhoneInput, phonePresentationCli
 const { normalizeMobile, normalizeMobileSearch, createCrmV2ClientService } = require('../src/services/crmV2ClientService');
 const { formatMobile } = require('../src/presentation/workspaceClientsUx');
 const { formatClientMobile } = require('../src/presentation/calendarReadOnlyUx');
+const { verify: renderIpadConfirmation } = require('../src/presentation/clinicIpadCheckinUx');
 const { injectClientDetailManagement } = require('../src/presentation/workspaceClientsManageUx');
 
 test('SA display/input round trips preserve canonical CRM identity in every supported format', () => {
@@ -14,6 +15,7 @@ test('SA display/input round trips preserve canonical CRM identity in every supp
     assert.equal(displayPhone(number), '082 123 4567');
     assert.equal(formatMobile(number), '082 123 4567');
     assert.equal(formatClientMobile(number), '082 123 4567');
+    assert.match(renderIpadConfirmation({ mobile: number }), /<dd>082 123 4567<\/dd>/);
     assert.equal(canonicalPhoneInput(number), '27821234567');
     assert.equal(normalizeMobile(localPhoneInput(number)), normalizeMobile(number));
     assert.equal(normalizeMobileSearch(number), '27821234567');

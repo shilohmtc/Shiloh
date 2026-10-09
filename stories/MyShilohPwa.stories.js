@@ -269,7 +269,7 @@ export const AuthenticatedProfile = {
       form.querySelectorAll('input,select,button').forEach((control) => { control.disabled = false; });
     }
     const mobile = surface.querySelector('[data-client-profile-mobile]');
-    if (mobile) mobile.textContent = '+27 •• ••• 2646';
+    if (mobile) mobile.textContent = '0•• ••• 2646';
     const status = surface.querySelector('[data-client-profile-status]');
     if (status) {
       status.dataset.state = 'success';
