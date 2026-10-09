@@ -9,7 +9,7 @@ const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 const { renderCouplesBookingChoice } = require('./myShilohBookingActions');
 
-const MY_SHILOH_ASSET_VERSION = '20261009-details-only-v1';
+const MY_SHILOH_ASSET_VERSION = '20261009-first-passkey-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -46,7 +46,7 @@ function serviceCards(catalogue = [], authenticated = false) {
 function crmSignIn(scope, reauthenticate = false) {
   return `<section class="sms-setup-choice" aria-labelledby="${scope}-crm-title">
     <h2 id="${scope}-crm-title" data-crm-title>${reauthenticate ? 'Confirm your Shiloh details' : 'Sign in with your Shiloh details'}</h2>
-    <p data-crm-copy>${reauthenticate ? 'Re-enter your details to change account settings.' : 'Enter your details as recorded by Shiloh.'}</p>
+    <p data-crm-copy>${reauthenticate ? 'Re-enter your details to edit personal details, remove passkeys or sign out other sessions.' : 'Enter your details as recorded by Shiloh.'}</p>
     <form class="sms-auth-form" data-client-crm-form data-mode="${reauthenticate ? 'reauthenticate' : 'sign-in'}">
       <label>First name<input name="firstName" autocomplete="given-name" maxlength="100" required></label>
       <label>Surname<input name="surname" autocomplete="family-name" maxlength="100" required></label>

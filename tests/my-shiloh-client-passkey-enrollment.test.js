@@ -57,14 +57,14 @@ function dbForBegin({ owner = true, recent = 0, existing = [] } = {}) {
   return db;
 }
 
-test('enrollment is disabled by default and requires a fresh verified client session', async () => {
-  const db = dbForBegin();
+test('enrollment is disabled by default and requires a live client session; additional keys require fresh authentication', async () => {
+  const db = dbForBegin({ existing: ['B'.repeat(24)] });
   const disabled = makeService(db, { enabled: false }).service;
   assert.deepEqual(await disabled.begin({ session }), { ok: false, code: 'CLIENT_PASSKEY_DISABLED' });
   const enabled = makeService(db).service;
   assert.deepEqual(await enabled.begin({ session: { ...session, authenticatedAt: new Date('2026-09-27T16:30:00Z') } }),
     { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' });
-  assert.equal(db.queries.length, 0);
+  assert.ok(db.queries.length > 0);
 });
 
 test('client passkeys use the My Shiloh host even if Calendar origin differs', () => {
