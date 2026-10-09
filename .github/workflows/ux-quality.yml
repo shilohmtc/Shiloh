@@ -75,6 +75,14 @@ jobs:
           path: artifacts/paid-booking-payment
           if-no-files-found: error
           retention-days: 14
+      - name: Upload focused South African phone review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: south-african-phone-review
+          path: artifacts/south-african-phone/*.png
+          if-no-files-found: error
+          retention-days: 14
       - name: Upload UX evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -83,7 +91,6 @@ jobs:
           path: |
             artifacts/paid-booking-payment/*.png
             artifacts/treatment-credit/*.png
-            artifacts/south-african-phone/*.png
             artifacts/ux-playwright-results
             artifacts/ux-playwright-report
             artifacts/workspace-deposits
