@@ -9,7 +9,7 @@ const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 const { renderCouplesBookingChoice } = require('./myShilohBookingActions');
 
-const MY_SHILOH_ASSET_VERSION = '20261009-account-simple-v1';
+const MY_SHILOH_ASSET_VERSION = '20261009-bookings-focused-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -435,13 +435,7 @@ function renderMyShilohPage({
             <a class="button button--soft" href="${escapeHtml(bookingsHelpHref)}"${bookingsHelpHref.startsWith('#') ? '' : ' rel="noopener noreferrer"'}>${bookingsHelpLabel}</a>
           </article>
         </div>
-        ${authenticated ? `<section class="booking-history" data-booking-history hidden aria-labelledby="booking-history-title">
-          <h2 id="booking-history-title">Past requests</h2>
-          <p class="booking-history-copy">These requests were not booked. Hiding or restoring them only changes your Bookings list. The clinic keeps its records.</p>
-          <div class="stack" data-booking-history-visible hidden></div>
-          <button class="button button--soft" type="button" data-booking-history-toggle aria-expanded="false" aria-controls="booking-history-hidden">Show hidden requests</button>
-          <div class="stack" id="booking-history-hidden" data-booking-history-hidden hidden></div>
-        </section><p class="booking-history-status" role="status" aria-live="polite" tabindex="-1" data-booking-history-status></p>` : ''}
+
       </section>
 
       <section class="view" id="shiloh" data-view="shiloh" aria-labelledby="shiloh-title" hidden>

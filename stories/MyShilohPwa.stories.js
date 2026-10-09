@@ -691,7 +691,7 @@ export const CouplesBookingChoices = {
   },
 };
 
-function bookingHistorySurface({ hidden = true, expanded = false, busy = false, error = '' } = {}) {
+function bookingsSurface(hasUpcoming = true) {
   const surface = AuthenticatedHome.render();
   surface.querySelectorAll('[data-view]').forEach(view => {
     view.hidden = view.dataset.view !== 'bookings';
@@ -701,28 +701,15 @@ function bookingHistorySurface({ hidden = true, expanded = false, busy = false, 
     if (item.dataset.viewTarget === 'bookings') item.setAttribute('aria-current', 'page');
     else item.removeAttribute('aria-current');
   });
-  const upcoming = surface.querySelector('[data-client-experience-bookings] .action-card');
-  upcoming.querySelector('h2').textContent = 'Hot Stone Massage';
-  upcoming.querySelector('p').textContent = 'Fri, 9 Oct · 10:00 · Christel';
-  upcoming.querySelector('a').textContent = 'Pay deposit';
-  const host = surface.querySelector('[data-booking-history]');
-  host.hidden = false;
-  const toggle = host.querySelector('[data-booking-history-toggle]');
-  toggle.hidden = !hidden;
-  toggle.textContent = expanded ? 'Close hidden requests (1)' : 'Show hidden requests (1)';
-  toggle.setAttribute('aria-expanded', String(expanded));
-  toggle.disabled = busy;
-  const list = host.querySelector(hidden ? '[data-booking-history-hidden]' : '[data-booking-history-visible]');
-  list.hidden = hidden && !expanded;
-  list.innerHTML = `<article class="action-card booking-history-card"><div><h3>Quick Relief Back &amp; Neck</h3><p>Mon, 14 Sep · 10:00 · Christel</p><p>Could not accommodate</p></div><button class="button button--soft" type="button" ${busy ? 'disabled' : ''}>${hidden ? 'Restore to my bookings' : 'Hide from my bookings'}</button></article>`;
-  surface.querySelector('[data-booking-history-status]').textContent = error || (busy ? 'Restoring this request…' : '');
+  const primary = surface.querySelector('[data-client-experience-bookings] .action-card');
+  primary.querySelector('h2').textContent = hasUpcoming ? 'Hot Stone Massage' : 'Book something new';
+  primary.querySelector('p').textContent = hasUpcoming ? 'Fri, 9 Oct · 10:00 · Christel' : 'You don’t have an upcoming appointment at the moment.';
+  primary.querySelector('a').textContent = hasUpcoming ? 'Pay deposit' : 'Start booking';
+  primary.querySelector('a').href = hasUpcoming ? '/pay/synthetic_booking_901' : '/my-shiloh/book';
   return surface;
 }
-export const BookingHistoryHidden = { render: () => bookingHistorySurface() };
-export const BookingHistoryExpanded = { render: () => bookingHistorySurface({ expanded: true }) };
-export const BookingHistoryRestored = { render: () => bookingHistorySurface({ hidden: false }) };
-export const BookingHistorySaving = { render: () => bookingHistorySurface({ expanded: true, busy: true }) };
-export const BookingHistoryError = { render: () => bookingHistorySurface({ expanded: true, error: 'We could not confirm this change. Reload Bookings and try again.' }) };
+export const UpcomingBookings = { render: () => bookingsSurface() };
+export const BookingsWithoutUpcoming = { render: () => bookingsSurface(false) };
 
 export const MissingDobRequest = {render:()=>{
   const root=productionSurface({id:55,name:'Synthetic Client',firstName:'Synthetic'});

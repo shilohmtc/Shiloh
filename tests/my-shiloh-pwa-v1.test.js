@@ -69,6 +69,7 @@ test('authenticated My Shiloh Home exposes tappable summary cards without duplic
   assert.match(html, /data-client-experience-fact[^>]*data-fact-key="forms"/);
   assert.match(html, /data-client-experience-fact[^>]*data-fact-key="payment"/);
   assert.match(html, /data-client-experience-fact-status/);
+  assert.doesNotMatch(html, /Past requests|Show hidden requests|data-booking-history/);
   assert.match(html, /welcome drink on arrival.*coffee bar.*variety of teas/);
   assert.match(html, /data-client-experience-primary href="\/my-shiloh\/book"/);
   assert.match(html, /data-client-notification-centre hidden/);
@@ -228,7 +229,7 @@ test('retired SMS never renders, while Shiloh details remain the primary install
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {
   const worker = read('public/my-shiloh/sw.js');
-  assert.match(worker, /my-shiloh-shell-v59/);
+  assert.match(worker, /my-shiloh-shell-v60/);
   assert.match(worker, /app\.css\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /app\.js\?v=\$\{ASSET_VERSION\}/);
   assert.match(worker, /booking\.js/);
