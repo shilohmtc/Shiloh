@@ -1,3 +1,5 @@
+import presentationFixtures from '../tests/fixtures/bookingPaymentPresentation.js';
+const { paymentFixture } = presentationFixtures;
 import paymentPresentation from '../src/presentation/calendarPaymentsUx.js';
 
 const { renderCalendarPaymentPage } = paymentPresentation;
@@ -43,4 +45,14 @@ export const MissingDepositLink = {
     deposit: { applicable:true, policy:{ rateBasisPoints:5000, freeNoticeHours:48, partialNoticeHours:24, partialForfeitBasisPoints:5000, lateForfeitBasisPoints:10000 }, requirement:{ state:'awaiting', required_amount:'295.00', net_paid:'0.00', rate_basis_points:5000 }, events:[] },
     authority: { canCollect:true, canRefund:false, ozowConfigured:true },
   } })),
+};
+
+export const PaidWithEarlierDeposit = {
+  render: () => surface(renderCalendarPaymentPage({ model: paymentFixture() })),
+};
+export const BalanceWithSatisfiedDeposit = {
+  render: () => surface(renderCalendarPaymentPage({ model: paymentFixture({ paid: false }) })),
+};
+export const AwaitingDeposit = {
+  render: () => surface(renderCalendarPaymentPage({ model: paymentFixture({ paid: false, awaitingDeposit: true }) })),
 };

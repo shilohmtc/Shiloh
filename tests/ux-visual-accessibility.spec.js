@@ -914,7 +914,7 @@ test('linked booking payment is usable on Phone and Desktop', async ({page},test
     await page.goto('/iframe.html?id=workspace-production-surfaces--linked-booking-payment&viewMode=story',{waitUntil:'networkidle'});
     await expect(page.getByRole('heading',{name:'Linked booking #55'})).toBeVisible();
     await expect(page.getByText('R 740,00').first()).toBeVisible();
-    const metrics=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth,short:[...document.querySelectorAll('button,input,select,a')].filter(node=>node.getClientRects().length&&node.getBoundingClientRect().height<44).length}));
+    const metrics=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth,short:[...document.querySelectorAll('button,input,select,a')].filter(node=>node.getClientRects().length&&(node.type==='checkbox'?node.closest('label'):node).getBoundingClientRect().height<44).length}));
     expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);expect(metrics.short).toBe(0);
     const accessibility=await new AxeBuilder({page}).include('.workspace-surface-story').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
@@ -928,20 +928,21 @@ test('booking deposit status is clear and accessible on Phone and Desktop', asyn
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await page.goto('/iframe.html?id=workspace-production-surfaces--booking-deposit-awaiting&viewMode=story',{waitUntil:'networkidle'});
     await expect(page.getByRole('heading',{name:'Appointment #812'})).toBeVisible();
-    await expect(page.getByRole('heading',{name:'50% booking deposit'})).toBeVisible();
+    await expect(page.getByText('50% booking deposit',{exact:true})).toBeVisible();
     await expect(page.getByText('Awaiting deposit',{exact:true})).toBeVisible();
     await expect(page.locator('[data-deposit-policy]')).not.toContainText(/48\+ hours notice|24–48 hours|no-show/);
     const manual=page.locator('[data-payment-page] details.manual-payment');
     await expect(manual).not.toHaveAttribute('open');
     await manual.locator('summary').click();
-    await expect(page.getByRole('heading',{name:'Record deposit received'})).toBeVisible();
-    await expect(manual.getByLabel('I verified that Shiloh received this payment outside Ozow.')).toBeVisible();
+    await expect(manual.locator('summary')).toHaveText('Record payment');
+    await expect(manual).toContainText('Cash, card or EFT only. Ozow updates automatically.');
+    await expect(manual.getByLabel('Payment received.')).toBeVisible();
     await expect(page.getByRole('heading',{name:'Shiloh Rewards'})).toHaveCount(0);
     const metrics=await page.evaluate(()=>({
       viewport:innerWidth,
       document:document.documentElement.scrollWidth,
       short:[...document.querySelectorAll('[data-payment-page] button,[data-payment-page] input,[data-payment-page] select,[data-payment-page] a')]
-        .filter(node=>node.getClientRects().length&&node.getBoundingClientRect().height<44).length,
+        .filter(node=>node.getClientRects().length&&(node.type==='checkbox'?node.closest('label'):node).getBoundingClientRect().height<44).length,
     }));
     expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
     expect(metrics.short).toBe(0);
@@ -960,7 +961,7 @@ test('cancelled deposit link has one clear replacement action on Phone and Deskt
     await expect(root.locator('.balance')).toContainText('Welcome voucher used');
     await expect(root.locator('.balance')).toContainText('R 100,00');
     await expect(root.locator('.balance')).toContainText('R 490,00');
-    await expect(root.locator('details.recovery')).toHaveAttribute('open');
+    await expect(root.locator('[data-request-guidance]')).toBeVisible();
     await expect(root.locator('details.manual-payment')).not.toHaveAttribute('open');
     await expect(root.getByText(/previous deposit link was cancelled and cannot be used/)).toBeVisible();
     await expect(root.getByRole('link',{name:'Create a secure payment link below'})).toHaveCount(0);
@@ -968,7 +969,7 @@ test('cancelled deposit link has one clear replacement action on Phone and Deskt
     await expect(root.getByRole('button',{name:'Create deposit payment link'})).toHaveCount(1);
     await expect(root.locator('[data-ozow-form] [name="amount"]')).toHaveValue('295.00');
     await expect(root.locator('[data-deposit-policy]')).not.toContainText(/48\+ hours notice|24–48 hours|no-show/);
-    const metrics=await root.evaluate(node=>({viewport:innerWidth,document:document.documentElement.scrollWidth,short:[...node.querySelectorAll('button,input,select,a')].filter(el=>el.getClientRects().length&&el.getBoundingClientRect().height<44).length}));
+    const metrics=await root.evaluate(node=>({viewport:innerWidth,document:document.documentElement.scrollWidth,short:[...node.querySelectorAll('button,input,select,a')].filter(el=>el.getClientRects().length&&(el.type==='checkbox'?el.closest('label'):el).getBoundingClientRect().height<44).length}));
     expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
     expect(metrics.short).toBe(0);
     const accessibility=await new AxeBuilder({page}).include('[data-payment-page]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
@@ -977,22 +978,20 @@ test('cancelled deposit link has one clear replacement action on Phone and Deskt
   }
 });
 
-test('active booking payment keeps routine help and manual recording tucked away on Phone and Desktop',async({page},testInfo)=>{
+test('active booking payment keeps guidance by requests and manual recording tucked away on Phone and Desktop',async({page},testInfo)=>{
   for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await page.goto('/iframe.html?id=workspace-booking-payment-recovery--replacement-request&viewMode=story',{waitUntil:'networkidle'});
     const root=page.locator('[data-payment-page]');
-    const recovery=root.locator('details.recovery');
+    const recovery=root.locator('[data-request-guidance]');
     const manual=root.locator('details.manual-payment');
-    await expect(recovery).not.toHaveAttribute('open');
-    await expect(recovery.locator('summary')).toContainText('payment link ready');
+    await expect(root.locator('details.recovery')).toHaveCount(0);
+    await expect(recovery).toContainText('1 active payment link');
     await expect(manual).not.toHaveAttribute('open');
     await expect(root).not.toContainText('One person can pay the full balance');
-    await recovery.locator('summary').click();
-    await expect(recovery).toContainText('Copy the existing link below');
-    await recovery.locator('summary').click();
+    await expect(recovery).toContainText('Copy the existing link above');
     await manual.locator('summary').click();
-    await expect(manual.getByLabel('I verified that Shiloh received this payment outside Ozow.')).toBeVisible();
+    await expect(manual.getByLabel('Payment received.')).toBeVisible();
     const accessibility=await new AxeBuilder({page}).include('[data-payment-page]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(accessibility.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
     await page.screenshot({path:testInfo.outputPath(`booking-payment-compact-${viewport.name}.png`),fullPage:true,animations:'disabled'});
@@ -1048,8 +1047,8 @@ test('Reception can prepare a missing deposit link on Phone and Desktop', async 
   for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]){
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await page.goto('/iframe.html?id=workspace-booking-payment-recovery--missing-deposit-link&viewMode=story',{waitUntil:'networkidle'});
-    const recovery=page.locator('details.recovery');
-    await expect(recovery).toHaveAttribute('open');
+    const recovery=page.locator('[data-request-guidance]');
+    await expect(recovery).toBeVisible();
     await expect(recovery.getByRole('button',{name:'Prepare deposit link'})).toBeVisible();
     await expect(recovery).toContainText('Latest payment request: created');
     const metrics=await recovery.evaluate(node=>({viewport:innerWidth,document:document.documentElement.scrollWidth,buttonHeight:node.querySelector('[data-retry-deposit]').getBoundingClientRect().height}));
