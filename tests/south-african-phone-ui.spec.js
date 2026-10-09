@@ -31,7 +31,11 @@ for (const [label, width, height] of [['desktop',1280,900],['mobile',390,844],['
     const client={id:91,name:'Synthetic Foreign Phone Client',normalized_mobile:foreign,status:'active',revision:'a'.repeat(64)};
     const model={client,manageAllowed:true,appointments:[],policyAcceptances:[],hasMore:false};
     const html=injectClientDetailManagement(renderClientDetailPage(model),model);
-    await page.route('https://synthetic.shiloh.test/**',route=>route.fulfill({contentType:'text/html',body:html}));
+    await page.route('https://synthetic.shiloh.test/**',route=> {
+      if(route.request().url().includes('/calendar/pwa/icon-192.png')) return route.fulfill({contentType:'image/png',body:fs.readFileSync(path.resolve('public/assets/pwa/shiloh-pwa-192.png'))});
+      if(route.request().url().endsWith('/client')) return route.fulfill({contentType:'text/html',body:html});
+      return route.fulfill({contentType:'application/javascript',body:''});
+    });
     await page.goto('https://synthetic.shiloh.test/client');
     await expect(page.locator('#edit-client-mobile')).toHaveValue(foreign);
     await expect(page.locator('.contact-card strong')).toHaveText(foreign);
