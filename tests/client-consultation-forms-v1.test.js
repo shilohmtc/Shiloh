@@ -204,7 +204,7 @@ test('a rendered form submits from an opaque mobile origin with a signed proof, 
     service: {
       isClientConsultationFormsEnabled: () => true,
       parseDataKey: () => Buffer.alloc(32, 9),
-      openForm: async () => ({ form: fixtureForm(), prefill: {} }),
+      openForm: async () => submissions ? { completed: true } : ({ form: fixtureForm(), prefill: {} }),
       submitForm: async (_token, answers) => {
         assert.equal(Object.hasOwn(answers, 'submission_proof'), false);
         assert.equal(answers.consent_acknowledged, 'yes');
@@ -237,7 +237,10 @@ test('a rendered form submits from an opaque mobile origin with a signed proof, 
       'http.route': '/forms/f/:accessToken',
     });
     assert.doesNotMatch(JSON.stringify(incidents.map(incident => incident.tags)), new RegExp(token));
-    assert.equal((await post(proof)).status, 200);
+    const confirmed = await post(proof);
+    assert.equal(confirmed.status, 200);
+    assert.match(await confirmed.text(), /Thank you — your form is complete/);
+    assert.match(await (await fetch(base)).text(), /Thank you — your form is complete/);
     assert.equal(submissions, 1);
     assert.equal(incidents.length, 2);
   } finally {

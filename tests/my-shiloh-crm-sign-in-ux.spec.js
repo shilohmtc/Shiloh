@@ -59,6 +59,9 @@ for (const viewport of [
     const form = home.locator('[data-client-crm-form]');
     await expect(home.getByRole('button', { name: 'Use a saved passkey' })).toBeVisible();
     await expect(home.locator('[data-client-sms-start]')).toHaveCount(0);
+    const dateBounds = await form.getByLabel('Date of birth').evaluate(input => ({right: input.getBoundingClientRect().right, width: input.getBoundingClientRect().width, formWidth: input.closest('form').getBoundingClientRect().width}));
+    expect(dateBounds.right).toBeLessThanOrEqual(viewport.width);
+    expect(dateBounds.width).toBeGreaterThan(dateBounds.formWidth * 0.8);
     await stable(
       page,
       testInfo,
@@ -118,7 +121,7 @@ for (const viewport of [
     await start(page);
     await expect(page.locator('[data-view="home"] input[name="firstName"]')).toHaveValue('');
   });
-  test(`CRM profile requires stronger proof and keeps ordinary logout on ${viewport.name}`, async ({
+  test(`Shiloh profile permits fresh detail re-entry and keeps ordinary logout on ${viewport.name}`, async ({
     page,
   }, testInfo) => {
     await page.setViewportSize(viewport);
@@ -150,23 +153,40 @@ for (const viewport of [
         status: 428,
         json: {
           error:
-            'Verify your phone by SMS or use a saved passkey before changing account security.',
+            'Re-enter your Shiloh details before changing account security.',
         },
       }),
     );
+    const reentries = [];
+    await page.route('**/my-shiloh/auth/crm/reauthenticate', route => {
+      reentries.push({body: route.request().postDataJSON(), csrf: route.request().headers()['x-shiloh-csrf-token']});
+      return route.fulfill({json: {reauthenticated: true}});
+    });
     await start(page, 'lower-assurance-profile');
     await page.getByRole('link', { name: 'Profile', exact: true }).click();
     const profile = page.locator('[data-view="profile"]');
-    await expect(profile).toContainText('phone ownership unverified');
+    await expect(profile).toContainText('Signed in with your Shiloh details');
+    await expect(profile.locator('[data-client-sms-start], [data-passkey-recovery-create]')).toHaveCount(0);
     await expect(profile.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible();
-    await expect(profile.locator('[data-client-profile-form] input[name="name"]')).toBeDisabled();
-    await expect(profile).toContainText('A passkey remains optional');
+    await expect(profile.locator('[data-client-profile-form] input[name="name"]')).toBeEnabled();
+    await expect(profile).toContainText('A passkey is optional');
+    await profile.locator('summary').filter({hasText: 'Confirm details for account changes'}).click();
     await stable(
       page,
       testInfo,
       `crm-protected-settings-${viewport.name}.png`,
-      profile.getByRole('heading', { name: 'Protect your account settings' }),
+      profile.getByRole('heading', { name: 'Confirm your Shiloh details' }),
     );
+    const reentry = profile.locator('[data-mode="reauthenticate"]');
+    await reentry.getByLabel('First name').fill('Synthetic');
+    await reentry.getByLabel('Surname').fill('Example');
+    await reentry.getByLabel('Date of birth').fill('2000-01-01');
+    await reentry.getByLabel('Mobile number').fill('0820000001');
+    await reentry.getByRole('button', {name: 'Confirm details'}).click();
+    await expect(reentry.locator('[data-crm-status]')).toContainText('Details confirmed');
+    expect(reentries).toEqual([{body: {firstName: 'Synthetic', surname: 'Example', dateOfBirth: '2000-01-01', mobile: '0820000001'}, csrf: 'synthetic-csrf'}]);
+    await expect(reentry.getByLabel('First name')).toHaveValue('');
+    await expect(reentry.getByRole('button', {name: 'Confirm details'})).toBeEnabled();
     const axe = await new AxeBuilder({ page })
       .include('[data-view="profile"]')
       .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])

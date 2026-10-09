@@ -156,7 +156,7 @@ test('SMS/passkey/recovery routes ignore legacy choices, preserve private cookie
     return fetch(origin + '/my-shiloh/auth/' + path, { method: 'POST',
       headers: { origin, 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
   }
-  for (const path of ['sms/complete', 'passkeys/sign-in/finish', 'passkeys/recovery/use']) {
+  for (const path of ['passkeys/sign-in/finish']) {
     for (const choice of [true, false, 'true', undefined]) {
       const r = await post(path, { keepSignedIn: choice });
       assert.equal(r.status, 200);
@@ -166,6 +166,11 @@ test('SMS/passkey/recovery routes ignore legacy choices, preserve private cookie
       assert.ok(seconds <= 30 * 86400);
       assert.ok(seconds >= 30 * 86400 - 2);
     }
+  }
+  for (const path of ['sms/start', 'sms/complete', 'passkeys/recovery/create', 'passkeys/recovery/use']) {
+    const retired = await post(path, {});
+    assert.equal(retired.status, 410);
+    assert.match(retired.headers.get('cache-control'), /no-store/);
   }
   assert.equal((await post('sessions/revoke-others', {})).status, 401);
   assert.equal((await post('sessions/revoke-others', {}, { cookie: 'shiloh_client_session=synthetic' })).status, 403);

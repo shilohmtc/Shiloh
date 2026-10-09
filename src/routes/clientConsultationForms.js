@@ -157,7 +157,7 @@ function createClientConsultationFormsRouter({
       const { submission_proof: _submissionProof, ...answers } = req.body || {};
       await service.submitForm(req.params.accessToken, answers);
       if (access.kiosk) return finishClinicForm(req,res);
-      return res.status(200).type('html').send(renderCompleted());
+      return res.redirect(303, `/forms/f/${encodeURIComponent(req.params.accessToken)}`);
     } catch (error) {
       if (Number(error?.httpStatus) === 422) {
         try {

@@ -198,6 +198,8 @@ function createClientBrowserSessionService({
       crmV2ClientId: Number(row.crm_v2_client_id),
       csrfHash: row.csrf_hash,
       authenticatedAt: row.reauthenticated_at || row.issued_at,
+      reauthenticatedAt: row.reauthenticated_at,
+      issuedAt: row.issued_at,
       authMethod: row.auth_method || 'whatsapp_challenge',
       assurance: row.auth_method === 'crm_details' ? 'biographical_match' : 'verified',
       client: publicClient(row),
@@ -255,7 +257,8 @@ function createClientBrowserSessionService({
       `WITH authorizing AS (
          SELECT id FROM client_browser_sessions
           WHERE id = $1 AND crm_v2_client_id = $2 AND revoked_at IS NULL
-            AND auth_method IN ('sms_code','passkey','passkey_recovery','whatsapp_challenge')
+            AND auth_method IN ('sms_code','passkey','passkey_recovery','whatsapp_challenge','crm_details')
+            AND (auth_method <> 'crm_details' OR reauthenticated_at > issued_at)
             AND expires_at > $3 AND COALESCE(reauthenticated_at, issued_at) <= $3
             AND COALESCE(reauthenticated_at, issued_at) >= $3 - INTERVAL '10 minutes'
           FOR UPDATE

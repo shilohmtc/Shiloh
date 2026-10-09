@@ -76,13 +76,13 @@ test('valid code signs in only once; bad codes and rate limiting issue no sessio
 test('passkey entry offers recovery and a recovered client is prompted to replace the used code', () => {
   const guest = renderMyShilohPage({ passkeysAvailable: true, catalogue: [] });
   assert.match(guest, /Can’t use your passkey\?/);
-  assert.match(guest, /data-passkey-recovery-form/);
+  assert.doesNotMatch(guest, /data-passkey-recovery-form/);
   const profile = renderMyShilohPage({ passkeysAvailable: true, catalogue: [],
     client: { id: '17', firstName: 'Synthetic', name: 'Synthetic Example' },
     signInMethod: 'passkey_recovery' });
-  assert.match(profile, /Signed in with a recovery code/);
-  assert.match(profile, /Save a new passkey and create a new recovery code now/);
-  assert.match(profile, /data-passkey-recovery-create/);
+  assert.match(profile, /Signed in securely/);
+  assert.match(profile, /If it stops working, use your Shiloh details/);
+  assert.doesNotMatch(profile, /data-passkey-recovery-create/);
 });
 
 test('single-use recovery ignores legacy remembered choices only after proof', async () => {

@@ -46,8 +46,10 @@ async function harness(t) {
   await pg.exec('ALTER TABLE client_browser_sessions ADD COLUMN passkey_credential_id BIGINT');
   await pg.exec(fs.readFileSync('migrations/189_client_crm_detail_auth.sql', 'utf8'));
   let current = new Date('2026-10-09T06:00:00Z');
+  const queries = [];
   const db = {
     async query(sql, params) {
+      queries.push(sql);
       const r = await pg.query(sql, params);
       return { rows: r.rows, rowCount: r.rows.length || r.affectedRows || 0 };
     },
@@ -81,6 +83,7 @@ async function harness(t) {
   };
   return {
     db,
+    queries,
     sessions,
     auth,
     attempt,
@@ -293,7 +296,8 @@ test('registration fields and lower assurance settings distinguish proof; featur
     passkeysAvailable: true,
     signInMethod: 'crm_details',
   });
-  assert.match(signed, /phone ownership unverified/);
+  assert.match(signed, /Signed in with your Shiloh details/);
+  assert.doesNotMatch(signed, /data-client-sms|data-passkey-recovery|Your recovery code|CRM details/);
   assert.doesNotMatch(signed, /data-client-setup hidden/);
 });
 
@@ -395,6 +399,19 @@ test('CRM HTTP flow rejects cross-origin and unknown fields, sends protected coo
   assert.deepEqual(observed, [{ crmV2ClientId: Number(owner.id) }]);
   const csrfSession = await h.sessions.validateSessionToken(cookie.split(';')[0].split('=')[1]);
   const csrf = await h.sessions.rotateCsrfToken(csrfSession.sessionId);
+  const reenter = (headers = {}, body = input) => fetch(`${base}/my-shiloh/auth/crm/reauthenticate`, {
+    method: 'POST', headers: {origin: base, 'content-type': 'application/json', ...headers}, body: JSON.stringify(body)
+  });
+  assert.equal((await reenter()).status, 401);
+  assert.equal((await reenter({cookie: cookie.split(';')[0]})).status, 403);
+  const reentryHeaders = {cookie: cookie.split(';')[0], 'x-shiloh-csrf-token': csrf.csrfToken};
+  assert.equal((await reenter({...reentryHeaders, origin: 'https://foreign.invalid'})).status, 403);
+  h.advance(1000);
+  const refreshed = await reenter(reentryHeaders);
+  assert.equal(refreshed.status, 200);
+  assert.equal((await refreshed.json()).reauthenticated, true);
+  assert.ok(refreshed.headers.getSetCookie().every(value => !value.startsWith('shiloh_client_session=')));
+
   assert.equal(
     (
       await fetch(`${base}/my-shiloh/auth/logout`, {
@@ -570,4 +587,45 @@ test('limiter evaluates current time after waiting for all shared bucket locks',
     'CRM_AUTH_INVALID',
     'Expired backoff at lock acquisition must allow the attempt',
   );
+});
+
+
+test('Shiloh detail re-entry is scoped, bounded and never renews the session deadline', async t => {
+  const h = await harness(t);
+  await h.insert();
+  const first = await h.attempt();
+  const initial = await h.sessions.validateSessionToken(first.sessionToken);
+  assert.equal(recentClientSession(initial, h.now()), false);
+  const deadline = first.expiresAt.getTime();
+  assert.equal(initial.reauthenticatedAt.getTime(), initial.issuedAt.getTime());
+  assert.equal(recentClientSession(initial, h.now()), false);
+  const other = { ...synthetic, firstName: 'Other', mobile: '0820000002' };
+  await h.insert(other);
+  h.advance(1000);
+  assert.equal((await h.attempt(other, false, { reauthenticateSession: initial })).ok, false);
+  h.advance(1000);
+  assert.equal((await h.attempt({ ...synthetic, surname: 'Wrong' }, false,
+    { reauthenticateSession: initial })).ok, false);
+  h.advance(1001);
+  h.queries.length = 0;
+  const reentered = await h.attempt(synthetic, false, { reauthenticateSession: initial });
+  assert.equal(reentered.reauthenticated, true);
+  const sessionLock = h.queries.findIndex(sql => /FROM client_browser_sessions/.test(sql) && /FOR UPDATE/.test(sql));
+  const clientLock = h.queries.findIndex(sql => /SELECT \* FROM crm_v2_clients/.test(sql));
+  assert.ok(sessionLock >= 0 && clientLock > sessionLock, 'session lock precedes client lock during re-entry');
+  assert.equal(reentered.sessionToken, undefined);
+  const fresh = await h.sessions.validateSessionToken(first.sessionToken);
+  assert.equal(fresh.assurance, 'biographical_match');
+  assert.equal(recentClientSession(fresh, h.now()), true);
+  assert.equal((await h.db.query('SELECT expires_at FROM client_browser_sessions WHERE id=$1', [fresh.sessionId])).rows[0].expires_at.getTime(), deadline);
+  assert.equal((await h.sessions.revokeOtherSessions(fresh)).ok, true);
+  const owner = (await h.db.query('SELECT * FROM crm_v2_clients WHERE id=$1', [fresh.crmV2ClientId])).rows[0];
+  const profiles = createMyShilohProfileService({db: h.db, now: h.now});
+  assert.equal((await profiles.updateProfile({sessionId: fresh.sessionId, crmV2ClientId: fresh.crmV2ClientId, expectedRevision: profileRevision(owner), name: owner.name, dateOfBirth: synthetic.dateOfBirth, gender: synthetic.gender})).status, 'unchanged');
+  h.advance(10 * 60 * 1000);
+  assert.equal(recentClientSession(await h.sessions.validateSessionToken(first.sessionToken), h.now()), true);
+  h.advance(1);
+  assert.equal(recentClientSession(await h.sessions.validateSessionToken(first.sessionToken), h.now()), false);
+  await h.sessions.revokeSession(fresh.sessionId, 'logout');
+  assert.equal((await h.attempt(synthetic, false, { reauthenticateSession: fresh })).ok, false);
 });

@@ -18,6 +18,7 @@ function productionSurface(client = null, options = {}) {
   const page = renderMyShilohPage({
     whatsappNumber: '27830000000',
     catalogue,
+    crmAvailable: true,
     client,
     ...options,
     now: new Date('2026-09-18T18:00:00.000Z'),
@@ -108,52 +109,12 @@ export const PasskeyGuest = {
   render: () => productionSurface(null, { passkeysAvailable: true }),
 };
 
-export const SmsAndPasskeyGuest = {
-  render: () => productionSurface(null, { passkeysAvailable: true, smsAvailable: true }),
-};
-
-export const RegisterEntry = {
-  render: () => {
-    const surface = productionSurface(null, { passkeysAvailable: true, smsAvailable: true });
-    surface.querySelector('[data-view="home"] [data-client-sms-choice]').hidden = false;
-    surface.querySelector('[data-view="home"] [data-client-sms-open="register"]').setAttribute('aria-expanded', 'true');
-    return surface;
-  },
-};
-
-export const NewPhoneRecovery = {
-  render: () => {
-    const surface = productionSurface(null, { passkeysAvailable: true, smsAvailable: true });
-    const home = surface.querySelector('[data-view="home"]');
-    home.querySelector('[data-client-sms-choice]').hidden = false;
-    home.querySelector('[data-client-sms-title]').textContent = 'Sign in to My Shiloh';
-    home.querySelector('[data-client-sms-copy]').textContent = 'Verify your mobile number. We’ll reconnect your existing profile, or help you complete your details. A passkey is optional.';
-    home.querySelector('[data-client-sms-open="recover"]').setAttribute('aria-expanded', 'true');
-    return surface;
-  },
-};
-
-export const SmsCodeEntry = {
-  render: () => {
-    const surface = productionSurface(null, { passkeysAvailable: true, smsAvailable: true });
-    const choice = surface.querySelector('[data-view="home"] [data-client-sms-choice]');
-    if (choice) choice.hidden = false;
-    const code = surface.querySelector('[data-view="home"] [data-client-sms-complete]');
-    if (code) code.hidden = false;
-    const status = surface.querySelector('[data-view="home"] [data-auth-status]');
-    if (status) status.textContent = 'Check your SMS and enter the code below.';
-    return surface;
-  },
-};
-
-export const PasskeyRecovery = {
-  render: () => {
-    const surface = productionSurface(null, { passkeysAvailable: true, smsAvailable: true });
-    const home = surface.querySelector('[data-view="home"] .passkey-recovery');
-    if (home) home.open = true;
-    return surface;
-  },
-};
+// Historic story IDs remain links to the new details-first experience.
+export const SmsAndPasskeyGuest = { render: () => productionSurface(null, { passkeysAvailable: true }) };
+export const RegisterEntry = { render: () => productionSurface(null, { passkeysAvailable: true }) };
+export const NewPhoneRecovery = { render: () => productionSurface(null, { passkeysAvailable: true }) };
+export const SmsCodeEntry = { render: () => productionSurface(null, { passkeysAvailable: true }) };
+export const PasskeyRecovery = { render: () => productionSurface(null, { passkeysAvailable: true }) };
 
 export const AuthenticatedHome = {
   render: () => productionSurface({
@@ -340,11 +301,6 @@ export const PasskeyProfile = {
 export const PasskeyRecoveryCode = {
   render: () => {
     const surface = PasskeyProfile.render();
-    const code = surface.querySelector('[data-passkey-recovery-code]');
-    code.hidden = false;
-    code.textContent = 'ABCDE-FGHIJ-KLMNO-PQRST-UVWXY-Z1234-56789-ABCDE';
-    surface.querySelector('[data-passkey-recovery-create-status]').textContent =
-      'Save this code privately now. It works once and will not be shown again.';
     return surface;
   },
 };

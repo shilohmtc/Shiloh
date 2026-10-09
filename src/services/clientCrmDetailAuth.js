@@ -107,6 +107,7 @@ function createClientCrmDetailAuthService({
     address,
     deviceToken,
     requestFingerprintHash = null,
+    reauthenticateSession = null,
   } = {}) {
     if (!enabled()) return { ok: false, code: 'CRM_AUTH_UNAVAILABLE' };
     const network = networkGroup(address);
@@ -187,7 +188,12 @@ function createClientCrmDetailAuthService({
       await client.query('SAVEPOINT identity_operation');
       let result = INVALID;
       try {
-        if (parsed) {
+        // Match enrollment's session-before-client lock order, and retain revocation authority.
+        const authorizing = reauthenticateSession ? await client.query(`SELECT id
+          FROM client_browser_sessions WHERE id=$1 AND crm_v2_client_id=$2
+          AND revoked_at IS NULL AND expires_at>$3 AND issued_at<$3 FOR UPDATE`,
+          [reauthenticateSession.sessionId, reauthenticateSession.crmV2ClientId, current]) : null;
+        if (parsed && (!reauthenticateSession || authorizing.rowCount === 1)) {
           await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
             `crm-v2-mobile:${parsed.mobile}`,
           ]);
@@ -197,7 +203,7 @@ function createClientCrmDetailAuthService({
           );
           let owner =
             found.rows.length === 1 && matches(found.rows[0], parsed) ? found.rows[0] : null;
-          if (register && found.rows.length === 0) {
+          if (register && !reauthenticateSession && found.rows.length === 0) {
             // Serialize explicit registrations so a typo in a phone cannot create the same name/DOB twice.
             await client.query(
               "SELECT pg_advisory_xact_lock(hashtextextended('crm-detail-registration',0))",
@@ -231,7 +237,20 @@ function createClientCrmDetailAuthService({
               owner = inserted.rows[0];
             }
           }
-          if (owner)
+          if (owner && reauthenticateSession) {
+            // Re-entry is scoped to the current account. Never issue a new session or extend its deadline.
+            if (Number(owner.id) === Number(reauthenticateSession.crmV2ClientId)) {
+              const refreshed = await client.query(`UPDATE client_browser_sessions
+                SET reauthenticated_at=$3 WHERE id=$1 AND crm_v2_client_id=$2
+                AND revoked_at IS NULL AND expires_at>$3 AND issued_at<$3
+                RETURNING id`, [reauthenticateSession.sessionId, owner.id, current]);
+              if (refreshed.rowCount === 1) {
+                await client.query(`INSERT INTO client_auth_security_events(event_type,crm_v2_client_id,session_id,metadata)
+                  VALUES('crm_detail_reauthenticated',$1,$2,'{"assurance":"biographical_match","phoneOwnershipVerified":false}'::jsonb)`, [owner.id, reauthenticateSession.sessionId]);
+                result = { ok: true, reauthenticated: true };
+              }
+            }
+          } else if (owner)
             result = await sessionService.issueCrmDetailSession({
               transaction: client,
               owner,

@@ -41,14 +41,7 @@
   const passkeyEnrollStatus = document.querySelector('[data-passkey-enroll-status]');
   const passkeyDevices = document.querySelector('[data-passkey-devices]');
   const passkeyDeviceStatus = document.querySelector('[data-passkey-device-status]');
-  const recoveryCreateButton = document.querySelector('[data-passkey-recovery-create]');
-  const recoveryCreateStatus = document.querySelector('[data-passkey-recovery-create-status]');
-  const recoveryCodeDisplay = document.querySelector('[data-passkey-recovery-code]');
-  const recoveryForms = [...document.querySelectorAll('[data-passkey-recovery-form]')];
   const authLogoutButtons = [...document.querySelectorAll('[data-client-auth-logout]')];
-  const smsOpenButtons = [...document.querySelectorAll('[data-client-sms-open]')];
-  const smsStartForms = [...document.querySelectorAll('[data-client-sms-start]')];
-  const smsCompleteForms = [...document.querySelectorAll('[data-client-sms-complete]')];
   const authStatusHosts = [...document.querySelectorAll('[data-auth-status]')];
   const experienceHome = document.querySelector('[data-client-experience-home]');
   const experienceFactButtons = [...document.querySelectorAll('[data-client-experience-fact]')];
@@ -900,7 +893,7 @@
   function setClientProfileBusy(busy) {
     if (!clientProfileForm) return;
     clientProfileForm.querySelectorAll('button,input,select').forEach((control) => {
-      control.disabled = Boolean(busy) || appFrame?.dataset.clientAuthMethod === 'crm_details';
+      control.disabled = Boolean(busy);
     });
   }
 
@@ -1085,10 +1078,8 @@
   }
 
   function setAuthControlsDisabled(disabled) {
-    for (const button of [...passkeySignInButtons, ...authLogoutButtons, ...smsOpenButtons]) button.disabled = Boolean(disabled);
-    for (const form of [...smsStartForms, ...smsCompleteForms]) {
-      form.querySelectorAll('button,input').forEach((control) => { control.disabled = Boolean(disabled); });
-    }
+    for (const button of [...passkeySignInButtons, ...authLogoutButtons]) button.disabled = Boolean(disabled);
+
   }
 
   async function postJson(url, body = {}, extraHeaders = {}) {
@@ -1290,7 +1281,7 @@
       const result = await finish.json().catch(() => ({}));
       if (!finish.ok || result.authenticated !== true) {
         const guidance = finish.status === 401
-          ? ' You can use your CRM details for ordinary sign-in. To save a new passkey, verify your phone by SMS under Profile.'
+          ? ' Sign in with your Shiloh details instead.'
           : '';
         throw new Error(`${result.error || 'We could not verify this passkey.'}${guidance}`);
       }
@@ -1298,53 +1289,9 @@
       setAuthStatus('Welcome back. Opening My Shiloh…', 'success');
       window.location.replace(signedInLanding());
     } catch (error) {
-      setAuthStatus(passkeyError(error, 'Passkey sign-in could not be completed. You can request a mobile code.'), 'error');
+      setAuthStatus(passkeyError(error, 'Passkey sign-in could not be completed. Use your Shiloh details instead.'), 'error');
       authActionInFlight = false;
       setAuthControlsDisabled(false);
-    }
-  }
-
-  async function createRecoveryCode() {
-    if (!recoveryCreateButton || appFrame?.dataset.clientAuthenticated !== 'true') return;
-    recoveryCreateButton.disabled = true;
-    if (recoveryCodeDisplay) { recoveryCodeDisplay.hidden = true; recoveryCodeDisplay.textContent = ''; }
-    if (recoveryCreateStatus) recoveryCreateStatus.textContent = 'Creating your code…';
-    try {
-      const token = await freshCsrfToken();
-      const response = await postJson('/my-shiloh/auth/passkeys/recovery/create', {}, { 'x-shiloh-csrf-token': token });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.code) throw new Error(data.error || 'Could not create a recovery code.');
-      recoveryCodeDisplay.textContent = data.code;
-      recoveryCodeDisplay.hidden = false;
-      recoveryCreateStatus.textContent = 'Save this code privately now. It works once and will not be shown again.';
-    } catch (error) {
-      if (recoveryCreateStatus) recoveryCreateStatus.textContent = error.message || 'Could not create a recovery code.';
-    } finally { recoveryCreateButton.disabled = false; }
-  }
-
-  async function signInWithRecoveryCode(event) {
-    event.preventDefault();
-    if (authActionInFlight) return;
-    const form = event.currentTarget;
-    const code = form.elements.code?.value || '';
-    authActionInFlight = true;
-    setAuthControlsDisabled(true);
-    const button = form.querySelector('button');
-    if (button) button.disabled = true;
-    const status = form.parentElement.querySelector('[data-passkey-recovery-status]');
-    if (status) status.textContent = 'Checking your recovery code…';
-    try {
-      const response = await postJson('/my-shiloh/auth/passkeys/recovery/use', { code });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || data.authenticated !== true) throw new Error(data.error || 'That recovery code could not be used.');
-      form.reset();
-      renderAppMode();
-      window.location.replace('/my-shiloh/#profile');
-    } catch (error) {
-      if (status) status.textContent = error.message || 'That recovery code could not be used.';
-      authActionInFlight = false;
-      setAuthControlsDisabled(false);
-      if (button) button.disabled = false;
     }
   }
 
@@ -1573,7 +1520,7 @@
 
   clientProfileForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
-    if (!clientProfileRevision || appFrame?.dataset.clientAuthMethod === 'crm_details') return;
+    if (!clientProfileRevision) return;
     // Disabled controls are omitted by FormData; read values before locking the form.
     const form = new FormData(clientProfileForm);
     setClientProfileBusy(true);
@@ -2116,10 +2063,12 @@
 
   const crmForms = [...document.querySelectorAll('[data-client-crm-form]')];
   crmForms.forEach(form => {
-    form.querySelector('[data-crm-mode]').addEventListener('click', () => {
+    form.querySelector('[data-crm-mode]')?.addEventListener('click', () => {
       if (authActionInFlight) return;
       const register = form.dataset.mode !== 'register';
       form.dataset.mode = register ? 'register' : 'sign-in';
+      form.closest('section').querySelector('[data-crm-title]').textContent = register ? 'Register with Shiloh' : 'Sign in with your Shiloh details';
+      form.closest('section').querySelector('[data-crm-copy]').textContent = register ? 'Enter your details to create your Shiloh profile.' : 'Enter your details as recorded by Shiloh.';
       form.querySelector('[data-crm-gender]').hidden = !register;
       form.elements.namedItem('gender').disabled = !register;
       form.elements.namedItem('gender').required = register;
@@ -2138,11 +2087,22 @@
       setAuthControlsDisabled(true);
       status.textContent = 'Checking your details…';
       try {
-        const response = await postJson(`/my-shiloh/auth/crm/${form.dataset.mode}`, payload);
+        const reauthenticate = form.dataset.mode === 'reauthenticate';
+        const headers = reauthenticate ? { 'x-shiloh-csrf-token': await freshCsrfToken() } : {};
+        const response = await postJson(`/my-shiloh/auth/crm/${form.dataset.mode}`, payload, headers);
         const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.authenticated) throw new Error(result.error || 'We could not continue with these details. Please try again.');
-        status.textContent = 'Opening My Shiloh…';
-        window.location.replace(signedInLanding());
+        if (!response.ok || !(result.authenticated || result.reauthenticated)) throw new Error(result.error || 'We could not continue with these details. Please try again.');
+        if (reauthenticate) {
+          form.reset();
+          status.textContent = 'Details confirmed. You can change your account settings for the next ten minutes.';
+          authActionInFlight = false;
+          crmForms.forEach(item => item.querySelectorAll('button,input,select').forEach(control => { control.disabled = false; }));
+          crmForms.forEach(item => { item.elements.namedItem('gender').disabled = item.dataset.mode !== 'register'; });
+          setAuthControlsDisabled(false);
+        } else {
+          status.textContent = 'Opening My Shiloh…';
+          window.location.replace(signedInLanding());
+        }
       } catch (error) {
         status.textContent = error.message || 'Sign-in could not be completed. Please try again.';
         authActionInFlight = false;
@@ -2154,76 +2114,6 @@
       }
     });
   });
-
-  smsOpenButtons.forEach((button) => button.addEventListener('click', () => {
-    if (authActionInFlight) return;
-    const panel = document.getElementById(button.getAttribute('aria-controls'));
-    if (!panel) return;
-    if (!panel.hidden && button.getAttribute('aria-expanded') === 'true') {
-      panel.hidden = true;
-      smsOpenButtons.filter((item) => item.getAttribute('aria-controls') === panel.id)
-        .forEach((item) => item.setAttribute('aria-expanded', 'false'));
-      return;
-    }
-    const recovering = button.dataset.clientSmsOpen === 'recover';
-    panel.querySelector('[data-client-sms-title]').textContent = 'Sign in to My Shiloh';
-    panel.querySelector('[data-client-sms-copy]').textContent = 'Verify your mobile number. We’ll reconnect your existing profile, or help you complete your details. A passkey is optional.';
-    panel.hidden = false;
-    smsOpenButtons.filter((item) => item.getAttribute('aria-controls') === panel.id)
-      .forEach((item) => item.setAttribute('aria-expanded', String(item === button)));
-    const codeForm = panel.querySelector('[data-client-sms-complete]');
-    const focus = codeForm && !codeForm.hidden ? codeForm.elements.namedItem('code')
-      : panel.querySelector(recovering ? 'input[name="mobile"]' : 'input[name="name"]');
-    focus?.focus();
-  }));
-
-  async function beginSmsAuth(event) {
-    event.preventDefault();
-    if (authActionInFlight) return;
-    const form = event.currentTarget;
-    let codeSent = false;
-    authActionInFlight = true;
-    setAuthControlsDisabled(true);
-    setAuthStatus('Sending your code…', 'working');
-    try {
-      const response = await postJson('/my-shiloh/auth/sms/start', {
-        name: form.elements.namedItem('name').value.trim(),
-        mobile: form.elements.namedItem('mobile').value.trim(),
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || result.status !== 'code_sent') throw new Error(result.error || 'Could not send your code.');
-      for (const item of smsCompleteForms) item.hidden = false;
-      setAuthStatus('Check your SMS and enter the code below.', 'waiting');
-      codeSent = true;
-    } catch (error) {
-      setAuthStatus(error.message || 'Could not send your code.', 'error');
-    } finally {
-      authActionInFlight = false;
-      setAuthControlsDisabled(false);
-      if (codeSent) form.parentElement.querySelector('[data-client-sms-complete]')?.elements.namedItem('code')?.focus();
-    }
-  }
-
-  async function completeSmsAuth(event) {
-    event.preventDefault();
-    if (authActionInFlight) return;
-    const code = String(event.currentTarget.elements.namedItem('code').value || '').replace(/\s/g, '');
-    if (!/^\d{6}$/.test(code)) return setAuthStatus('Enter your 6-digit SMS code.', 'error');
-    authActionInFlight = true;
-    setAuthControlsDisabled(true);
-    setAuthStatus('Checking your code…', 'working');
-    try {
-      const response = await postJson('/my-shiloh/auth/sms/complete', { code });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || !result.authenticated) throw new Error(result.error || 'Could not verify your code.');
-      setAuthStatus('Verified. Opening My Shiloh…', 'success');
-      window.location.replace(signedInLanding());
-    } catch (error) {
-      setAuthStatus(error.message || 'Could not verify your code.', 'error');
-      authActionInFlight = false;
-      setAuthControlsDisabled(false);
-    }
-  }
 
   document.querySelector('[data-sign-out-others]')?.addEventListener('click', async (event) => {
     const button = event.currentTarget;
@@ -2261,14 +2151,10 @@
     }
   }
 
-  smsStartForms.forEach((form) => form.addEventListener('submit', beginSmsAuth));
-  smsCompleteForms.forEach((form) => form.addEventListener('submit', completeSmsAuth));
   if (!passkeySupported()) passkeySignInButtons.forEach((button) => { button.hidden = true; });
   if (!passkeySupported() && passkeyEnrollButton) passkeyEnrollButton.hidden = true;
   passkeySignInButtons.forEach((button) => button.addEventListener('click', signInWithPasskey));
   passkeyEnrollButton?.addEventListener('click', enrollClientPasskey);
-  recoveryCreateButton?.addEventListener('click', createRecoveryCode);
-  recoveryForms.forEach((form) => form.addEventListener('submit', signInWithRecoveryCode));
   loadPasskeyDevices();
   authLogoutButtons.forEach((button) => button.addEventListener('click', logoutClient));
   window.addEventListener('pageshow', refreshAuthenticatedClientState);

@@ -43,11 +43,18 @@
         return;
       }
       if (button) {
+        form.dataset.submitting = 'true';
         button.disabled = true;
         button.textContent = 'Submitting securely…';
       }
     });
   }
+
+  // A restored page must ask the server whether submission completed, never infer success.
+  window.addEventListener('pageshow', event => {
+    const form = document.querySelector('[data-client-consultation-form]');
+    if (event.persisted && form?.dataset.submitting === 'true') window.location.replace(form.action);
+  });
 
   document.addEventListener('DOMContentLoaded', () => {
     const form = document.querySelector('[data-client-consultation-form]');

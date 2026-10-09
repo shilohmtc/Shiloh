@@ -156,8 +156,9 @@ function createMyShilohProfileService({ db = pool, now = () => new Date() } = {}
             AND s.revoked_at IS NULL
             AND s.expires_at>$3
             AND c.status='active'
-            AND c.mobile_verified_at IS NOT NULL
-            AND s.auth_method IN ('sms_code','passkey','passkey_recovery','whatsapp_challenge')
+            AND (s.auth_method='crm_details' OR c.mobile_verified_at IS NOT NULL)
+            AND s.auth_method IN ('sms_code','passkey','passkey_recovery','whatsapp_challenge','crm_details')
+            AND (s.auth_method <> 'crm_details' OR s.reauthenticated_at > s.issued_at)
             AND COALESCE(s.reauthenticated_at,s.issued_at) BETWEEN $3 - INTERVAL '10 minutes' AND $3
           LIMIT 1
           FOR UPDATE OF c`,

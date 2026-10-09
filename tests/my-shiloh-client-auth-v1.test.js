@@ -44,8 +44,7 @@ test('historical client session schema remains intact for existing sessions', ()
 test('My Shiloh routes retire WhatsApp challenges and preserve SMS, passkey, session, CSRF', () => {
   const source = read('src/routes/myShiloh.js');
   assert.match(source, /sameOriginGuard|requireClientSession|clientCsrfGuard/);
-  assert.match(source, /\/my-shiloh\/auth\/sms\/start/);
-  assert.match(source, /\/my-shiloh\/auth\/sms\/complete/);
+  assert.doesNotMatch(source, /smsAuthService|passkeyRecoveryService/);
   assert.match(source, /\/my-shiloh\/auth\/passkeys\/sign-in\/finish/);
   assert.match(source, /\/my-shiloh\/auth\/logout/);
   assert.doesNotMatch(source, /router\.post\('\/my-shiloh\/auth\/(?:start|complete|status)'/);
@@ -71,8 +70,8 @@ test('My Shiloh shows SMS and passkey, with separate human Reception contact', (
 
 test('installed app has no WhatsApp authentication handoff or polling', () => {
   const source = read('public/my-shiloh/assets/app.js');
-  assert.match(source, /\/my-shiloh\/auth\/sms\/start/);
-  assert.match(source, /\/my-shiloh\/auth\/sms\/complete/);
+  assert.doesNotMatch(source, /\/my-shiloh\/auth\/sms\//);
+  assert.match(source, /\/my-shiloh\/auth\/crm\//);
   assert.doesNotMatch(source, /welcomeBackFromWhatsApp|whatsappHandoffStarted|openWhatsAppDirect|\/my-shiloh\/auth\/(?:start|complete|status)/);
   assert.doesNotMatch(source, /sessionStorage|indexedDB/);
 });
@@ -91,10 +90,10 @@ test('every normal browser is an installation doorway while standalone mode keep
 
   assert.match(presentation, /data-install-gate/);
   assert.match(presentation, /Add My Shiloh to your phone/);
-  assert.match(presentation, /Sign in with an SMS code, or use your saved passkey/);
+  assert.match(presentation, /Sign in with your Shiloh details, or use your saved passkey/);
   assert.match(presentation, /data-install-gate-status aria-live="polite"><\/p>/);
   assert.doesNotMatch(presentation, /data-install-verification-gate/);
-  assert.match(presentation, /data-client-sms-start/);
+  assert.match(presentation, /data-client-crm-form/);
   assert.match(presentation, /data-app-frame[^>]*hidden/);
   assert.match(client, /function browserNeedsInstall\(\)/);
   assert.match(client, /return !standalone\(\)/);
