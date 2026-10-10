@@ -27,6 +27,8 @@
     "playwright:install": "node scripts/install-playwright-chromium.js",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
+    "ai:review:preflight": "node scripts/assistant-model-review.js --dry-run",
+    "ai:review:live": "node scripts/assistant-model-review.js --live",
     "system:check": "node scripts/system-maintenance-check.js",
     "system:snapshot": "node scripts/verify-code-snapshot.js",
     "system:backup:code": "node scripts/independent-code-backup.js"
