@@ -125,6 +125,7 @@ function createCalendarOperationalMutationService({
   clinicHours = checkClinicHours,
   authoritativeSchedule = checkAuthoritativeSchedule,
   now = () => new Date(),
+  transaction = null,
 } = {}) {
   if (!db || typeof db.query !== 'function' || typeof db.connect !== 'function') {
     throw new Error('Calendar operational mutations require a transactional database.');
@@ -173,24 +174,24 @@ function createCalendarOperationalMutationService({
   async function inMutation({ adminId, operation, action, requestId: rawRequestId, fingerprintPayload, execute }) {
     const requestId = requireRequestId(rawRequestId);
     const requestFingerprint = operationFingerprint(action, fingerprintPayload);
-    const client = await db.connect();
+    const client = transaction || await db.connect();
     try {
-      await client.query('BEGIN');
+      if (!transaction) await client.query('BEGIN');
       const operator = await resolveOperator(adminId, client, { operation });
       await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, [`calendar-operation:${operator.id}:${requestId}`]);
       const replay = await loadReplay(client, operator.id, action, requestId, requestFingerprint);
       if (replay) {
-        await client.query('COMMIT');
+        if (!transaction) await client.query('COMMIT');
         return replay;
       }
       const result = await execute(client, operator, { requestId, requestFingerprint });
-      await client.query('COMMIT');
+      if (!transaction) await client.query('COMMIT');
       return result;
     } catch (error) {
-      try { await client.query('ROLLBACK'); } catch (_) {}
+      if (!transaction) { try { await client.query('ROLLBACK'); } catch (_) {} }
       throw error;
     } finally {
-      client.release();
+      if (!transaction) client.release();
     }
   }
 

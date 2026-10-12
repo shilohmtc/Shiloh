@@ -18,6 +18,7 @@ const { createWorkspaceAppointmentNotesService } = require('../services/workspac
 const { calendarManageAppointmentNotesClientScript } = require('../presentation/calendarAppointmentNotesUx');
 const { calendarAppointmentCompactEditorClientScript } = require('../presentation/calendarAppointmentCompactEditorUx');
 const logger = require('../lib/logger');
+const { createCalendarCouplesEditingService } = require('../services/calendarCouplesEditing');
 
 function setOperationalSecurityHeaders(res) {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
@@ -71,6 +72,7 @@ function createCalendarOperationalMutationRouter({
   servicesService = workspaceServices,
   customerChangeNotificationService = customerChangeNotifications,
   notesService = createWorkspaceAppointmentNotesService({ db: pool }),
+  couplesEditingService = createCalendarCouplesEditingService({ db: pool }),
   renderClient = calendarOperationalMutationsClientScript,
   renderNotesClient = calendarManageAppointmentNotesClientScript,
   renderCompactEditorClient = calendarAppointmentCompactEditorClientScript,
@@ -168,6 +170,24 @@ function createCalendarOperationalMutationRouter({
     } catch (error) {
       return sendOperationalError(error, req, res, next);
     }
+  });
+
+  router.get('/appointments/:appointmentId/couples', requireSession, async (req, res, next) => {
+    try {
+      return res.status(200).json(await couplesEditingService.get({ adminId: req.staffBrowserSession.adminId, appointmentId: req.params.appointmentId }));
+    } catch (error) { return sendOperationalError(error, req, res, next); }
+  });
+  router.patch('/appointments/:appointmentId/couples', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      const result = await couplesEditingService.update({ adminId: req.staffBrowserSession.adminId, appointmentId: req.params.appointmentId, input: req.body });
+      if (result.moved) {
+        for (const appointmentId of result.appointmentIds) {
+          try { await customerChangeNotificationService.queueCustomerChangeNotification(appointmentId, 'time'); }
+          catch (error) { logger.error({ err: error, appointmentId, requestId: req.id }, 'Couples move saved but client update could not be queued'); }
+        }
+      }
+      return res.status(200).json(result);
+    } catch (error) { return sendOperationalError(error, req, res, next); }
   });
 
   router.patch('/appointments/:appointmentId/notes', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {

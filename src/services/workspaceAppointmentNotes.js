@@ -47,7 +47,7 @@ function fingerprint(payload) {
   return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 }
 
-function createWorkspaceAppointmentNotesService({ db = pool } = {}) {
+function createWorkspaceAppointmentNotesService({ db = pool, transaction = null } = {}) {
   if (!db || typeof db.query !== 'function' || typeof db.connect !== 'function') {
     throw new Error('Workspace appointment notes require a transactional database.');
   }
@@ -172,9 +172,9 @@ function createWorkspaceAppointmentNotesService({ db = pool } = {}) {
     const normalizedNotes = normalizeAppointmentNotes(notes);
     const operationId = requestId(rawRequestId);
     const requestFingerprint = fingerprint({ appointmentId: id, expectedRevision: expected, notes: normalizedNotes });
-    const client = await db.connect();
+    const client = transaction || await db.connect();
     try {
-      await client.query('BEGIN');
+      if (!transaction) await client.query('BEGIN');
       const operator = await resolveOperator(client, adminId);
       await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, [`calendar-notes:${operator.id}:${operationId}`]);
       const replay = await client.query(
@@ -191,7 +191,7 @@ function createWorkspaceAppointmentNotesService({ db = pool } = {}) {
         if (String(replay.rows[0].metadata?.requestFingerprint || '') !== requestFingerprint) {
           throw notesError('CALENDAR_NOTES_IDEMPOTENCY_MISMATCH', 'That operation identifier was already used for a different note update.', 409);
         }
-        await client.query('COMMIT');
+        if (!transaction) await client.query('COMMIT');
         return {
           status: 'idempotent_replay',
           appointmentId: Number(replay.rows[0].entity_id),
@@ -224,13 +224,13 @@ function createWorkspaceAppointmentNotesService({ db = pool } = {}) {
           after: { notesPresent: Boolean(normalizedNotes), noteLength: normalizedNotes ? normalizedNotes.length : 0, revision },
         })]
       );
-      await client.query('COMMIT');
+      if (!transaction) await client.query('COMMIT');
       return { status: 'updated', appointmentId: id, revision };
     } catch (error) {
-      try { await client.query('ROLLBACK'); } catch (_) {}
+      if (!transaction) { try { await client.query('ROLLBACK'); } catch (_) {} }
       throw error;
     } finally {
-      client.release();
+      if (!transaction) client.release();
     }
   }
 
