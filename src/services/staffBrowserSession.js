@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { staffDetailRevision } = require('./staffDetailIdentity');
 const {
   CALENDAR_CAPABILITIES,
   evaluateCalendarAuthority,
@@ -343,9 +344,10 @@ function createStaffBrowserSessionService({
     const tokenHash = sha256(token);
     const result = await db.query(
       `SELECT bs.id AS session_id, bs.admin_id, bs.csrf_hash, bs.issued_at, bs.expires_at, bs.revoked_at,
-              bs.auth_method, bs.reauthenticated_at, bs.recovery_required,
+              bs.auth_method, bs.reauthenticated_at, bs.recovery_required, bs.detail_identity_revision,
               a.id, a.staff_id, a.role, a.business_role, a.calendar_scope, a.service_scope,
-              a.permissions, a.active AS admin_active, s.status AS staff_status
+              a.permissions, a.active AS admin_active, s.status AS staff_status,
+              a.sign_in_first_name, a.sign_in_surname, a.sign_in_date_of_birth, a.normalized_whatsapp
          FROM staff_browser_sessions bs
          JOIN staff_admin_accounts a ON a.id = bs.admin_id
          LEFT JOIN staff s ON s.id = a.staff_id
@@ -357,6 +359,10 @@ function createStaffBrowserSessionService({
     const current = now();
     const linkedStaffInactive = row?.staff_id != null && row.staff_status !== 'active';
     if (!row || row.revoked_at || row.admin_active !== true || linkedStaffInactive || new Date(row.expires_at).getTime() <= current.getTime()) {
+      return { ok: false, code: 'STAFF_SESSION_INVALID' };
+    }
+
+    if (row.auth_method === 'staff_details' && (!row.detail_identity_revision || row.detail_identity_revision !== staffDetailRevision(row))) {
       return { ok: false, code: 'STAFF_SESSION_INVALID' };
     }
 

@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { staffDetailAuthEnabled, validDetailEnrollment } = require('./staffDetailIdentity');
 const { sha256, issueStaffBrowserSession, isRecentAuthentication } = require('./staffBrowserSession');
 
 const FEATURE_FLAG = 'SHILOH_STAFF_PASSKEY_AUTH_ENABLED';
@@ -274,15 +275,20 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
       transports: Array.isArray(credential.transports) ? credential.transports : [],
     };
   }
+  function detailEnrollmentSession(session) {
+    return staffDetailAuthEnabled(env) && session?.ok === true && session.authMethod === 'staff_details' && session.recoveryRequired !== true;
+  }
   async function beginRegistration({ session, mode = 'add', requestFingerprintHash = null } = {}) {
     const p = policy(); const current = now();
     if (!p.operational) return { ok: false, code: unavailableCode() };
-    if (!strongRecentSession(session, current)) return { ok: false, code: 'STAFF_RECENT_STRONG_AUTH_REQUIRED' };
+    if (!strongRecentSession(session, current) && !detailEnrollmentSession(session)) return { ok: false, code: 'STAFF_RECENT_STRONG_AUTH_REQUIRED' };
+    if (mode !== 'add' && !strongRecentSession(session, current)) return { ok: false, code: 'STAFF_RECENT_STRONG_AUTH_REQUIRED' };
     const purpose = mode === 'replace' ? REPLACEMENT_REGISTRATION_PURPOSE : mode === 'add' ? REGISTRATION_PURPOSE : null;
     if (!purpose) return { ok: false, code: 'STAFF_PASSKEY_INVALID' };
     const client = typeof db.connect === 'function' ? await db.connect() : db;
     try {
       await client.query('BEGIN');
+      if (detailEnrollmentSession(session) && !await validDetailEnrollment(client, session, current, env)) { await client.query('ROLLBACK'); return { ok:false,code:'STAFF_AUTH_FORBIDDEN' }; }
       const admin = await resolveAdmin(client, session.adminId, true);
       if (!admin) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' }; }
       await client.query(`UPDATE staff_auth_webauthn_challenges SET consumed_at = $2
@@ -300,11 +306,12 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
   async function finishRegistration({ session, response, deviceLabel = null, requestFingerprintHash = null } = {}) {
     const p = policy(); const current = now();
     if (!p.operational) return { ok: false, code: unavailableCode() };
-    if (!strongRecentSession(session, current)) return { ok: false, code: 'STAFF_RECENT_STRONG_AUTH_REQUIRED' };
+    if (!strongRecentSession(session, current) && !detailEnrollmentSession(session)) return { ok: false, code: 'STAFF_RECENT_STRONG_AUTH_REQUIRED' };
     let cd; try { cd = clientData(response?.response?.clientDataJSON, 'webauthn.create', p.origin); } catch (_) { return { ok: false, code: 'STAFF_PASSKEY_INVALID' }; }
     const client = typeof db.connect === 'function' ? await db.connect() : db;
     try {
       await client.query('BEGIN');
+      if (detailEnrollmentSession(session) && !await validDetailEnrollment(client, session, current, env)) { await client.query('ROLLBACK'); return { ok:false,code:'STAFF_AUTH_FORBIDDEN' }; }
       const admin = await resolveAdmin(client, session.adminId, true);
       if (!admin) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' }; }
       const challengeResult = await client.query(`SELECT id, purpose, expires_at FROM staff_auth_webauthn_challenges
@@ -323,6 +330,7 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8) RETURNING id`,
       [admin.id, verified.credentialId, verified.publicKeySpki, verified.algorithm, verified.signCount, JSON.stringify(verified.transports), verified.backedUp, personalizedDeviceLabel(admin.display_name, deviceLabel)]);
       const replacement = challenge.purpose === REPLACEMENT_REGISTRATION_PURPOSE;
+      if (replacement && !strongRecentSession(session, current)) { await client.query('ROLLBACK'); return { ok:false,code:'STAFF_RECENT_STRONG_AUTH_REQUIRED' }; }
       let revokedCredentialCount = 0;
       let revokedSessionCount = 0;
       if (replacement) {

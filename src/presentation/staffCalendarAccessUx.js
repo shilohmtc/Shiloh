@@ -191,6 +191,7 @@ module.exports = {
   escapeHtml,
   messageForReason,
   renderStaffCalendarAccessPage,
+  styles,
   allocateWeekOverlapLanes,
   staffCalendarAccessClientScript,
 };
