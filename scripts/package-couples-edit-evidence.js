@@ -1,0 +1,12 @@
+const fs = require('node:fs');
+const crypto = require('node:crypto');
+const { execFileSync } = require('node:child_process');
+const path = require('node:path');
+const directory = 'artifacts/couples-edit-review';
+const digest = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+const head = execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
+if (process.env.EVIDENCE_EXPECTED_HEAD && process.env.EVIDENCE_EXPECTED_HEAD !== head) throw new Error('Couples evidence must match the exact reviewed head.');
+const images = fs.readdirSync(directory).filter(file=>file.endsWith('.png')).sort();
+if (images.length < 6) throw new Error('Both appointment entries and completed pair screenshots are required on Phone and Desktop.');
+const sources = ['src/services/calendarCouplesEditing.js','src/presentation/calendarCouplesEditingUx.js','src/presentation/calendarAppointmentDetailsUx.js','src/presentation/calendarReadOnlyUx.js','src/routes/calendarOperationalMutations.js','tests/calendar-couples-editing.spec.js','stories/fixtures/calendarCouplesEditing.html'];
+fs.writeFileSync(path.join(directory,'manifest.json'),JSON.stringify({head,tree:execFileSync('git',['rev-parse','HEAD^{tree}'],{encoding:'utf8'}).trim(),synthetic:true,sources:sources.map(file=>({file,sha256:digest(file)})),images:images.map(file=>({file,sha256:digest(path.join(directory,file))}))},null,2)+'\n');

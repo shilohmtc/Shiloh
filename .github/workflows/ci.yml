@@ -362,6 +362,10 @@ jobs:
         env:
           TEST_COUPLES_DATABASE_URL: postgres://postgres:synthetic-test-only@localhost:5432/package_proof
         run: node scripts/my-shiloh-couples-postgres-proof.js
+      - name: Prove paired editing, conflict rollback and concurrent retries in PostgreSQL
+        env:
+          TEST_COUPLES_EDIT_DATABASE_URL: postgres://postgres:synthetic-test-only@localhost:5432/package_proof
+        run: node scripts/calendar-couples-edit-postgres-proof.js
       - name: Prove staff handover, DOB rollback and concurrent one-use claim in PostgreSQL
         env:
           TEST_IPAD_DATABASE_URL: postgres://postgres:synthetic-test-only@localhost:5432/package_proof
