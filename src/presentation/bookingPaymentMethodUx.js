@@ -22,6 +22,7 @@ function renderBookingPaymentMethod({ model, manualForm, noncashForms }) {
     ],
     ['gift-voucher', 'Voucher', noncash.gift],
     ['client-credit', 'Client credit', noncash.credit],
+    ...(model.authority.canRecordPrior ? [['prior-payment','Paid previously',model.subject.crmV2ClientId?'':'Link the current Shiloh client before recording prior payment.']] : []),
   ];
   const defaultMethod =
     Number(model.payment.outstanding) > 0 ? methods.find(([, , reason]) => !reason)?.[0] || '' : '';
@@ -50,6 +51,15 @@ function initializeBookingPaymentMethod() {
   if (!root) return;
   const selector = root.querySelector('[data-payment-method]');
   if (!selector) return;
+  // Native pointer focus can scroll a narrow viewport between press and release,
+  // moving the intended button away from the pointer. Preserve focus without scrolling.
+  root.querySelectorAll('.payment-form button').forEach(button => {
+    button.addEventListener('mousedown', event => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+    });
+    button.addEventListener('click', () => button.focus({ preventScroll: true }));
+  });
   const forms = [...root.querySelectorAll('[data-payment-panel]')],
     manualKey = 'shiloh-booking-manual:' + root.dataset.appointmentId;
   let busy = false,
@@ -62,7 +72,7 @@ function initializeBookingPaymentMethod() {
   } catch (_) {
     sessionStorage.removeItem(manualKey);
   }
-  for (const action of ['gift-voucher', 'client-credit']) {
+  for (const action of ['gift-voucher', 'client-credit', 'prior-payment', 'prior-payment-reverse']) {
     try {
       if (
         JSON.parse(
@@ -96,7 +106,7 @@ function initializeBookingPaymentMethod() {
     completed: false,
     active: (form) =>
       !busy &&
-      (!pendingAction || pendingAction === (form.dataset.bookingNoncash || 'manual')) &&
+      (!pendingAction || pendingAction === (form.dataset.bookingNoncash || form.dataset.priorPayment || 'manual')) &&
       !form.hidden &&
       Boolean(selector.value),
     blocked: () => busy || Boolean(pendingAction),

@@ -1,3 +1,4 @@
+const { priorPaymentSql } = require('../domain/priorPaymentSql');
 'use strict';
 
 const { pool } = require('../db/pool');
@@ -344,7 +345,7 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
     const account = result.rows[0];
     if (Number(account.canonical_amount_due) !== Number(scope.amountDue)) {
       const settled = await queryable.query(
-        'SELECT 1 FROM payment_ledger_entries WHERE payment_account_id=$1 LIMIT 1',
+        'SELECT 1 FROM payment_ledger_entries WHERE payment_account_id=$1 UNION ALL SELECT 1 FROM booking_prior_payment_entries WHERE booking_payment_account_id=$1 OR source_payment_account_id=$1 LIMIT 1',
         [account.id],
       );
       if (settled.rowCount) {
@@ -391,7 +392,7 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
   async function effectiveNetPaid(queryable, paymentAccountId) {
     const result = await queryable.query(
       `SELECT COALESCE(SUM(amount) FILTER (WHERE entry_type='payment'),0)
-              - COALESCE(SUM(amount) FILTER (WHERE entry_type='refund'),0) AS net_paid
+              - COALESCE(SUM(amount) FILTER (WHERE entry_type='refund'),0) + ${priorPaymentSql('$1')} AS net_paid
          FROM payment_ledger_entries
         WHERE payment_account_id=$1`,
       [paymentAccountId],

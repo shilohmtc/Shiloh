@@ -2,7 +2,7 @@
 const { paymentFixture } = require('./bookingPaymentPresentation');
 function paymentMethodFixture() {
   const model = paymentFixture({ paid: false });
-  model.payment = { ...model.payment, amountDue: '800.00', netPaid: '0.00', outstanding: '800.00', state: 'unpaid', requests: [], entries: [] };
+  model.payment = { ...model.payment, amountDue: '800.00', netPaid: '0.00', previouslyPaid: '0.00', receivedToday: '0.00', outstanding: '800.00', state: 'unpaid', requests: [], entries: [] };
   model.deposit = { applicable: false };
   model.noncash.credit.balance = '500.00';
   return model;

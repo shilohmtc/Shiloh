@@ -8,6 +8,7 @@ CREATE TABLE booking_payment_accounts(id BIGSERIAL PRIMARY KEY,appointment_id BI
 CREATE TABLE booking_deposit_requirements(id BIGSERIAL PRIMARY KEY,payment_account_id BIGINT,state TEXT);
 CREATE TABLE payment_requests(id BIGSERIAL PRIMARY KEY,payment_account_id BIGINT,state TEXT);
 CREATE TABLE payment_ledger_entries(id BIGSERIAL PRIMARY KEY,payment_account_id BIGINT,entry_type TEXT,amount NUMERIC(12,2));
+CREATE VIEW booking_prior_payment_totals AS SELECT NULL::bigint AS account_id,0::numeric AS incoming,0::numeric AS outgoing WHERE FALSE;
 CREATE TABLE booking_loyalty_allocations(booking_payment_account_id BIGINT,state TEXT,amount NUMERIC(12,2));
 CREATE TABLE booking_welcome_voucher_allocations(booking_payment_account_id BIGINT,state TEXT,amount NUMERIC(12,2));
 CREATE TABLE crm_audit_events(actor_admin_id BIGINT,action TEXT,entity_type TEXT,entity_id BIGINT,metadata JSONB);

@@ -9,6 +9,8 @@ const { createShilohRewardsService } = require('./shilohRewards');
 const { queueClientNotification } = require('./myShilohPush');
 const { createBookingDepositPolicyService } = require('./bookingDepositPolicy');
 const logger = require('../lib/logger');
+const { priorPaymentIncomingSql, priorPaymentOutgoingSql } = require('../domain/priorPaymentSql');
+const { createBookingPriorPaymentActions } = require('./bookingPriorPayments');
 
 const CAPABILITIES = Object.freeze({ VIEW: 'payment:view', COLLECT: 'payment:collect', REFUND: 'payment:refund' });
 
@@ -51,6 +53,7 @@ function createBookingPaymentService({
   notifyClient = null,
   deposits = createBookingDepositPolicyService({ db }),
   env = process.env,
+  now = () => new Date(),
 } = {}) {
   const pushNotify = notifyClient || (db === pool ? queueClientNotification : null);
   async function syncRewardsAfterPayment() {
@@ -250,7 +253,7 @@ function createBookingPaymentService({
   async function loadSubject(queryable, appointmentId, { lock = false } = {}) {
     const result = await queryable.query(
       `/* bookingPayments:subject */
-       SELECT a.id AS appointment_id,a.crm_v2_client_id,a.status AS appointment_status,a.total_price AS appointment_total,
+       SELECT a.id AS appointment_id,a.client_id AS legacy_client_id,a.crm_v2_client_id,a.status AS appointment_status,a.total_price AS appointment_total,
               a.currency,a.updated_at AS appointment_revision,
               COALESCE(c.display_name,v2.name) AS client_name,
               COALESCE((SELECT cc.normalized_value
@@ -283,6 +286,7 @@ function createBookingPaymentService({
     return {
       appointmentId: Number(row.appointment_id), groupId: row.group_id ? Number(row.group_id) : null,
       crmV2ClientId: row.crm_v2_client_id ? Number(row.crm_v2_client_id) : null,
+      legacyClientId: row.legacy_client_id ? Number(row.legacy_client_id) : null,
       amountDue: money(amount), currency: String(row.currency || 'ZAR'),
       pricingRevision: new Date(row.group_id ? row.group_revision : row.appointment_revision).toISOString(),
       clientName: String(row.client_name || ''), clientMobile: String(row.client_mobile || ''),
@@ -312,7 +316,7 @@ function createBookingPaymentService({
     }
     const account = result.rows[0] || null;
     if (account && Number(account.canonical_amount_due) !== Number(subject.amountDue)) {
-      const settled = await queryable.query(`SELECT 1 FROM payment_ledger_entries WHERE payment_account_id=$1 UNION ALL SELECT 1 FROM treatment_credit_entries WHERE booking_payment_account_id=$1 UNION ALL SELECT 1 FROM booking_gift_voucher_allocations WHERE booking_payment_account_id=$1 LIMIT 1`, [account.id]);
+      const settled = await queryable.query(`SELECT 1 FROM payment_ledger_entries WHERE payment_account_id=$1 UNION ALL SELECT 1 FROM treatment_credit_entries WHERE booking_payment_account_id=$1 UNION ALL SELECT 1 FROM booking_gift_voucher_allocations WHERE booking_payment_account_id=$1 UNION ALL SELECT 1 FROM booking_prior_payment_entries WHERE booking_payment_account_id=$1 OR source_payment_account_id=$1 LIMIT 1`, [account.id]);
       if (settled.rowCount) throw new BookingPaymentError('PAYMENT_PRICE_CHANGED_AFTER_SETTLEMENT', 'This booking price changed after payment activity. Review the payment history before continuing.', 409);
       if (!create) return { ...account, canonical_amount_due:subject.amountDue, pricing_revision:subject.pricingRevision };
       const refreshed = await queryable.query(`UPDATE booking_payment_accounts SET canonical_amount_due=$2,pricing_revision=$3,updated_at=NOW() WHERE id=$1 RETURNING *`, [account.id, subject.amountDue, subject.pricingRevision]); return refreshed.rows[0];
@@ -321,9 +325,13 @@ function createBookingPaymentService({
   }
 
   async function position(queryable, account, subject) {
-    if (!account) return { amountDue: subject.amountDue, paid: '0.00', refunded: '0.00', netPaid: '0.00', rewardsApplied: '0.00', welcomeVoucherApplied: '0.00', treatmentCreditApplied: '0.00', giftVoucherApplied: '0.00', noncashEntries: [], outstanding: subject.amountDue, state: 'unpaid', requests: [], entries: [] };
+    if (!account) return { accountId:null,amountDue: subject.amountDue, paid: '0.00', refunded: '0.00', netPaid: '0.00', priorPaid:'0.00',transferredOut:'0.00',previouslyPaid:'0.00',receivedToday:'0.00',rewardsApplied: '0.00', welcomeVoucherApplied: '0.00', treatmentCreditApplied: '0.00', giftVoucherApplied: '0.00', noncashEntries: [], outstanding: subject.amountDue, state: 'unpaid', requests: [], entries: [] };
     const [totals, rewardsApplied, welcomeVoucherApplied, requests, entries] = await Promise.all([
-      queryable.query(`SELECT COALESCE(SUM(amount) FILTER (WHERE entry_type='payment'),0) paid,COALESCE(SUM(amount) FILTER (WHERE entry_type='refund'),0) refunded FROM payment_ledger_entries WHERE payment_account_id=$1`, [account.id]),
+      queryable.query(`SELECT COALESCE(SUM(amount) FILTER (WHERE entry_type='payment'),0) paid,COALESCE(SUM(amount) FILTER (WHERE entry_type='refund'),0) refunded,
+        ${priorPaymentIncomingSql('$1')} AS prior_paid,${priorPaymentOutgoingSql('$1')} AS transferred_out,
+        COALESCE(SUM(amount) FILTER (WHERE entry_type='payment' AND (created_at AT TIME ZONE 'Africa/Johannesburg')::date=$2::date),0) AS received_today,
+        COALESCE(SUM(CASE WHEN entry_type='payment' THEN amount ELSE -amount END) FILTER (WHERE (created_at AT TIME ZONE 'Africa/Johannesburg')::date<$2::date),0) AS received_before
+        FROM payment_ledger_entries WHERE payment_account_id=$1`, [account.id,now().toLocaleDateString('en-CA',{timeZone:'Africa/Johannesburg'})]),
       queryable.query(`SELECT COALESCE(SUM(amount),0) AS amount FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1 AND state='applied'`, [account.id]),
       queryable.query(`SELECT COALESCE(SUM(amount),0) AS amount,COALESCE((SELECT -SUM(signed_amount) FROM treatment_credit_entries WHERE booking_payment_account_id=$1 AND entry_type IN ('apply','undo')),0) AS treatment_amount,
         COALESCE((SELECT SUM(amount) FROM booking_gift_voucher_allocations WHERE booking_payment_account_id=$1),0) AS gift_amount,
@@ -337,11 +345,13 @@ function createBookingPaymentService({
       queryable.query(`SELECT id,request_key,provider,provider_request_id,provider_payment_url,amount,state,purpose,deposit_requirement_id,deposit_member_appointment_id,payer_name,payer_mobile,expires_at,created_at FROM payment_requests WHERE payment_account_id=$1 ORDER BY id DESC`, [account.id]),
       queryable.query(`SELECT id,entry_type,amount,method,evidence_kind,external_reference,notes,created_at FROM payment_ledger_entries WHERE payment_account_id=$1 ORDER BY id DESC`, [account.id]),
     ]);
-    const paid = Number(totals.rows[0].paid), refunded = Number(totals.rows[0].refunded), net = paid - refunded, loyalty = Number(rewardsApplied.rows[0].amount || 0), welcome = Number(welcomeVoucherApplied.rows[0].amount || 0), treatment = Number(welcomeVoucherApplied.rows[0].treatment_amount || 0), gift = Number(welcomeVoucherApplied.rows[0].gift_amount || 0);
-    const due = Number(account.canonical_amount_due), outstanding = Math.max(0, due - net - loyalty - welcome - treatment - gift);
+    const priorPaid = Number(totals.rows[0].prior_paid || 0), transferredOut = Number(totals.rows[0].transferred_out || 0);
+    const paid = Number(totals.rows[0].paid), refunded = Number(totals.rows[0].refunded), net = paid - refunded - transferredOut, loyalty = Number(rewardsApplied.rows[0].amount || 0), welcome = Number(welcomeVoucherApplied.rows[0].amount || 0), treatment = Number(welcomeVoucherApplied.rows[0].treatment_amount || 0), gift = Number(welcomeVoucherApplied.rows[0].gift_amount || 0);
+    const due = Number(account.canonical_amount_due), settledCents = Math.round(net*100)+Math.round(priorPaid*100)+Math.round(loyalty*100)+Math.round(welcome*100)+Math.round(treatment*100)+Math.round(gift*100),outstanding = Math.max(0, Math.round(due*100)-settledCents)/100;
     return {
-      amountDue: due.toFixed(2), paid: paid.toFixed(2), refunded: refunded.toFixed(2), netPaid: net.toFixed(2), rewardsApplied: loyalty.toFixed(2), welcomeVoucherApplied: welcome.toFixed(2), treatmentCreditApplied: treatment.toFixed(2), giftVoucherApplied: gift.toFixed(2), noncashEntries: welcomeVoucherApplied.rows[0].noncash_entries || [], outstanding: outstanding.toFixed(2),
-      state: net + loyalty + welcome + treatment + gift > due ? 'overpaid' : outstanding === 0 ? (refunded > 0 ? 'partially_refunded' : 'paid') : net + loyalty + welcome + treatment + gift > 0 ? 'partially_paid' : 'unpaid',
+      accountId:Number(account.id),amountDue: due.toFixed(2), paid: paid.toFixed(2), refunded: refunded.toFixed(2), netPaid: net.toFixed(2), rewardsApplied: loyalty.toFixed(2), welcomeVoucherApplied: welcome.toFixed(2), treatmentCreditApplied: treatment.toFixed(2), giftVoucherApplied: gift.toFixed(2), noncashEntries: welcomeVoucherApplied.rows[0].noncash_entries || [], outstanding: outstanding.toFixed(2),
+      priorPaid:priorPaid.toFixed(2),transferredOut:transferredOut.toFixed(2),previouslyPaid:(Number(totals.rows[0].received_before||0)-transferredOut+priorPaid).toFixed(2),receivedToday:Number(totals.rows[0].received_today||0).toFixed(2),
+      state: settledCents > Math.round(due*100) ? 'overpaid' : outstanding === 0 ? (refunded > 0 ? 'partially_refunded' : 'paid') : settledCents > 0 ? 'partially_paid' : 'unpaid',
       requests: requests.rows, entries: entries.rows,
     };
   }
@@ -359,7 +369,7 @@ function createBookingPaymentService({
       const review = await db.query(
         `SELECT created_at,metadata
            FROM crm_audit_events
-          WHERE action='payment.received_after_booking_cancelled'
+          WHERE action IN ('payment.received_after_booking_cancelled','payment.received_after_prior_settlement')
             AND entity_type='booking_payment_account'
             AND entity_id=$1::bigint
           ORDER BY created_at DESC,id DESC
@@ -367,13 +377,14 @@ function createBookingPaymentService({
         [account.id],
       );
       if (review.rows[0]) paymentReview = {
-        kind: 'cancelled_booking_payment_received',
+        kind: review.rows[0].metadata?.priorPaymentEntryId ? 'prior_settlement_payment_received' : 'cancelled_booking_payment_received',
         createdAt: review.rows[0].created_at,
         metadata: review.rows[0].metadata || {},
       };
     }
-    return { subject, payment: await position(db, account, subject), deposit, rewards: rewardWallet, paymentReview, authority: {
+    return { subject, payment: await position(db, account, subject), priorPayments:await prior.evidenceModel(db,subject,account,hasCapability(operator.calendarAuthority,CAPABILITIES.COLLECT)&&prior.allowed(operator)), deposit, rewards: rewardWallet, paymentReview, authority: {
       canCollect: hasCapability(operator.calendarAuthority, CAPABILITIES.COLLECT),
+      canRecordPrior:hasCapability(operator.calendarAuthority,CAPABILITIES.COLLECT)&&prior.allowed(operator),
       canRefund: hasCapability(operator.calendarAuthority, CAPABILITIES.REFUND),
       ozowConfigured: ozow.configured(),
     } };
@@ -578,8 +589,9 @@ function createBookingPaymentService({
       const paidAfterBookingCancellation = paid
         && String(request.appointment_status || '').toLowerCase() === 'cancelled'
         && !request.gift_voucher_order_id;
+      const paidAfterPriorSettlement = paid && request.prior_payment_closed_by_entry_id && !request.gift_voucher_order_id;
       if (paid && request.state !== 'paid') {
-        if (!paidAfterBookingCancellation) {
+        if (!paidAfterBookingCancellation && !paidAfterPriorSettlement) {
           transitionPaymentState(request.state, STATES.PAID, { evidence:EVIDENCE.VERIFIED_PROVIDER });
         }
         if (request.gift_voucher_order_id) {
@@ -592,7 +604,7 @@ function createBookingPaymentService({
           const balance = (await client.query(
           `SELECT bpa.canonical_amount_due,
                   COALESCE(SUM(ple.amount) FILTER (WHERE ple.entry_type='payment'),0)
-                  - COALESCE(SUM(ple.amount) FILTER (WHERE ple.entry_type='refund'),0) AS net_paid
+                  - COALESCE(SUM(ple.amount) FILTER (WHERE ple.entry_type='refund'),0) + ${priorPaymentIncomingSql('bpa.id')} - ${priorPaymentOutgoingSql('bpa.id')} AS net_paid
              FROM booking_payment_accounts bpa
              LEFT JOIN payment_ledger_entries ple ON ple.payment_account_id=bpa.id
             WHERE bpa.id=$1
@@ -602,7 +614,7 @@ function createBookingPaymentService({
           paymentReceived = {
             request,
             remaining: Math.max(0, Number(balance?.canonical_amount_due || 0) - Number(balance?.net_paid || 0)),
-            reviewRequired: paidAfterBookingCancellation,
+            reviewRequired: Boolean(paidAfterBookingCancellation || paidAfterPriorSettlement),
           };
           if (paidAfterBookingCancellation) {
             await client.query(
@@ -621,6 +633,8 @@ function createBookingPaymentService({
             );
           }
         }
+          if (paidAfterPriorSettlement) await client.query(`INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
+            VALUES('payment.received_after_prior_settlement','booking_payment_account',$1,$2::jsonb)`,[request.payment_account_id,JSON.stringify({appointmentId:Number(request.appointment_id),paymentRequestId:Number(request.id),priorPaymentEntryId:Number(request.prior_payment_closed_by_entry_id),amount:Number(request.amount).toFixed(2),providerEventKey:eventKey,reviewRequired:true,automaticRefundIssued:false})]);
       } else if (!paid && notVerifiedOutcome && ['link_issued', 'pending'].includes(String(request.state))) {
         const nextState = cancelled ? STATES.CANCELLED : STATES.FAILED;
         transitionPaymentState(request.state, nextState);
@@ -638,7 +652,7 @@ function createBookingPaymentService({
           appointmentId: Number(paymentReceived.request.appointment_id),
           paymentRequestId: Number(paymentReceived.request.id),
           amount: Number(paymentReceived.request.amount).toFixed(2),
-        }, 'Payment received after booking cancellation; manual payment/refund review required');
+        }, 'Payment received after collection closed; manual payment/refund review required');
       }
       let receiptSentViaApp = false;
       if (paymentReceived && !paymentReceived.reviewRequired) {
@@ -692,7 +706,9 @@ function createBookingPaymentService({
           category: 'payment',
           title: paymentReceived.reviewRequired ? 'Payment needs review' : 'Payment received',
           body: paymentReceived.reviewRequired
-            ? 'A payment reached Shiloh after this booking was cancelled. The booking stays cancelled and Shiloh will review the payment. No automatic refund has been issued.'
+            ? paymentReceived.request.prior_payment_closed_by_entry_id
+              ? 'A payment reached Shiloh after prior payment was recorded. Shiloh will review the payment. No automatic refund has been issued.'
+              : 'A payment reached Shiloh after this booking was cancelled. The booking stays cancelled and Shiloh will review the payment. No automatic refund has been issued.'
             : 'Your Shiloh payment was received successfully.',
           targetPath: '/my-shiloh/#bookings',
         });
@@ -711,7 +727,8 @@ function createBookingPaymentService({
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
   }
 
-  return { get, recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification };
+  const prior = createBookingPriorPaymentActions({ db,money,requestKey,positiveId,ErrorType:BookingPaymentError,resolveOperator,loadSubject,assertTarget,accountFor,position,syncDepositAfterSettlement,now });
+  return { get, recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification,recordPrior:prior.recordPrior,reversePrior:prior.reversePrior };
 }
 
 module.exports = { CAPABILITIES, BookingPaymentError, money, createBookingPaymentService };

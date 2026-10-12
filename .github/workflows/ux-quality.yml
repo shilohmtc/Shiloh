@@ -77,6 +77,18 @@ jobs:
           fi
       - name: Package small My Shiloh sign-in review
         run: node scripts/package-my-shiloh-signin-evidence.js
+      - name: Bind prior-payment screenshots to exact head
+        env:
+          EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/package-prior-payment-evidence.js
+      - name: Upload prior-payment synthetic phone and desktop review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: prior-payments-review
+          path: artifacts/prior-payments-review
+          if-no-files-found: error
+          retention-days: 14
       - name: Bind couples editing screenshots to exact head
         env:
           EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}

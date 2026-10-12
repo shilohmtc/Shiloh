@@ -28,6 +28,7 @@ test.beforeAll(async () => {
       model.payment.state = Number(model.payment.outstanding) ? 'partially_paid' : 'paid';
       if (action === 'manual') {
         model.payment.netPaid = (Number(model.payment.netPaid) + amount).toFixed(2);
+        model.payment.receivedToday = (Number(model.payment.receivedToday || 0) + amount).toFixed(2);
         model.payment.entries.push({
           entry_type: 'payment',
           method: req.body.method,
