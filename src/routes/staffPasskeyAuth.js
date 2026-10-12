@@ -4,6 +4,7 @@ const { pool } = require('../db/pool');
 const { createStaffBrowserSessionService } = require('../services/staffBrowserSession');
 const { createStaffPasskeyAuthService, normalizeCredentialHint, defaultDeviceLabel } = require('../services/staffPasskeyAuth');
 const { createStaffPasskeyDeviceBootstrapService } = require('../services/staffPasskeyDeviceBootstrap');
+const { staffDetailAuthEnabled } = require('../services/staffDetailIdentity');
 const { managePage, manageScript } = require('../presentation/staffPasskeyUx');
 const {
   sameOriginGuard,
@@ -150,7 +151,7 @@ function createStaffPasskeyAuthRouter({
       const result = await passkeyService.listCredentials({ session: req.staffBrowserSession, credentialIdHint: passkeyHintFromRequest(req, env) });
       if (!result.ok) return error(res, result);
       secure(res);
-      return res.status(200).type('html').send(managePage({ credentials: result.credentials }));
+      return res.status(200).type('html').send(managePage({ credentials: result.credentials, optionalPasskeys: staffDetailAuthEnabled(env) }));
     } catch (e) { return next(e); }
   });
   router.get('/manage.js', requireSession, async (req, res, next) => {

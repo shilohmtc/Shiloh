@@ -8,6 +8,8 @@ const {
   staffCalendarHandoffClientScript,
 } = require('../presentation/staffCalendarHandoffUx');
 const { passkeyPolicy } = require('../services/staffPasskeyAuth');
+const { staffDetailAuthEnabled } = require('../services/staffDetailIdentity');
+const detailUx = require('../presentation/staffDetailSigninUx');
 const { signinPanel, signinScript } = require('../presentation/staffPasskeyUx');
 
 function isStaffCalendarAccessUxEnabled(env = process.env) {
@@ -60,8 +62,10 @@ function withAccessChangedGuidance(html, reason) {
   return String(html).replace('data-state="ready"></div>', 'data-state="session-ended">Your Shiloh Workspace access changed or no longer permits Workspace. Sign in again, or ask an authorized administrator if access should be restored.</div>');
 }
 
-function bootstrapAwareSigninScript() {
-  return signinScript();
+function bootstrapAwareSigninScript(env = process.env) {
+  if (!staffDetailAuthEnabled(env)) return signinScript();
+  return signinScript().replaceAll('Use existing passkey', 'Use a saved passkey')
+    .replace(/var unlinked='[^']*';/, "var unlinked='Use your details above to open Workspace, or use a saved passkey.';");
 }
 
 function createStaffCalendarAccessPageHandler({ env = process.env, renderPage = renderStaffCalendarAccessPage } = {}) {
@@ -73,6 +77,10 @@ function createStaffCalendarAccessPageHandler({ env = process.env, renderPage = 
     const reason = normalizeReason(req.query?.reason);
     let html = renderPage({ reason, clientScriptPath: `${basePath}/client.js`, providerIndependentAuthEnabled: false });
     if (passkeyEnabled) html = withPasskeyReentry(html);
+    if (staffDetailAuthEnabled(env)) {
+      html = html.replace('<main class="card">', `<main class="card">${detailUx.signinPanel()}<script src="/calendar/staff-auth/details/signin.js" defer></script>`);
+      html = html.replace('Continue with device sign-in', 'Use a saved passkey').replace('Use existing passkey', 'Use a saved passkey');
+    }
     html = retireBrowserWhatsAppGuidance(html);
     html = withAccessChangedGuidance(html, reason);
     return res.status(200).type('html').send(html);

@@ -27,6 +27,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run Staff access authority and boundary regressions
         run: node --test tests/workspace-staff-access-changes.test.js tests/workspace-staff-access-profiles-v1.test.js tests/workspace-staff-access-v1.test.js tests/workspace-staff-access-policy-boundary.test.js tests/workspace-access-v2.test.js
+      - name: Verify staff details sign-in, session and HTTP boundaries
+        run: node --test tests/staff-detail-auth.test.js tests/staff-detail-auth-http.test.js
       - name: Build production-backed Storybook catalogue
         env:
           STORYBOOK_DISABLE_TELEMETRY: '1'
@@ -43,6 +45,8 @@ jobs:
           exit 1
       - name: Run Staff access Storybook accessibility proof on Desktop and Phone
         run: npx playwright test --config=playwright.staff-access.config.js
+      - name: Verify staff details sign-in and account setup on Desktop and Phone
+        run: npx playwright test tests/staff-detail-signin-ux.spec.js --config=playwright.ux.config.js --output=artifacts/staff-detail-signin-browser
       - name: Run authenticated Staff access Playwright proof on Desktop and Phone
         run: node scripts/workspace-staff-access-authenticated-playwright.js
       - name: Upload Staff access UX evidence
@@ -51,6 +55,7 @@ jobs:
         with:
           name: workspace-staff-access-proof
           path: |
+            artifacts/staff-detail-signin-browser
             artifacts/workspace-staff-access-ui
             artifacts/workspace-staff-access-storybook
             artifacts/workspace-staff-access-storybook-report
