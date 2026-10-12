@@ -61,8 +61,8 @@ function renderCalendarPaymentPage({ model, csrfToken = '', clientScriptPath = '
   const previousPayer = payment.requests.find(item => String(item.payer_name || '').trim() || String(item.payer_mobile || '').trim()) || {};
   const payerName = String(subject.clientName || previousPayer.payer_name || '').trim();
   const payerMobile = localPhoneInput(subject.clientMobile || previousPayer.payer_mobile || '');
-  const creditOnly = Number(payment.netPaid) <= 0 && (Number(payment.rewardsApplied) > 0 || Number(payment.welcomeVoucherApplied) > 0 || Number(payment.treatmentCreditApplied) > 0 || Number(payment.giftVoucherApplied) > 0);
-  const status = paymentReview ? 'Cancelled booking · payment review' : bookingCancelled ? 'Booking cancelled' : payment.state === 'overpaid' ? 'Overpayment needs attention' : payment.state === 'paid' ? 'Paid in full' : payment.state === 'partially_paid' ? creditOnly ? 'Credit applied · payment due' : 'Partially paid' : payment.state === 'partially_refunded' ? 'Refunded in part' : 'Unpaid';
+  const creditOnly = Number(payment.netPaid) <= 0 && Number(payment.priorPaid || 0) <= 0 && (Number(payment.rewardsApplied) > 0 || Number(payment.welcomeVoucherApplied) > 0 || Number(payment.treatmentCreditApplied) > 0 || Number(payment.giftVoucherApplied) > 0);
+  const status = paymentReview ? paymentReview.kind === 'prior_settlement_payment_received' ? 'Payment review needed' : 'Cancelled booking · payment review' : bookingCancelled ? 'Booking cancelled' : payment.state === 'overpaid' ? 'Overpayment needs attention' : payment.state === 'paid' ? 'Paid in full' : payment.state === 'partially_paid' ? creditOnly ? 'Credit applied · payment due' : 'Partially paid' : payment.state === 'partially_refunded' ? 'Refunded in part' : 'Unpaid';
   const requirement = deposit?.requirement || null;
   const depositApplicable = deposit?.applicable === true && Boolean(requirement);
   const depositAwaiting = depositApplicable && requirement.state === 'awaiting';

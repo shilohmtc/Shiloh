@@ -67,6 +67,7 @@ function createBookingPriorPaymentActions({
       FROM payment_ledger_entries e JOIN booking_payment_accounts p ON p.id=e.payment_account_id
       JOIN appointments source ON source.id=p.appointment_id JOIN crm_v2_clients c ON c.id=source.crm_v2_client_id
       WHERE source.crm_v2_client_id=$1 AND source.client_id IS NULL AND c.status='active'
+        AND p.canonical_amount_due>0 AND source.total_price=p.canonical_amount_due
         AND source.id<>$2 AND e.entry_type='payment' AND (e.created_at AT TIME ZONE 'Africa/Johannesburg')::date<$3::date
         AND NOT EXISTS(SELECT 1 FROM appointment_group_members gm WHERE gm.appointment_id=source.id)
       ORDER BY e.id DESC`,
@@ -249,6 +250,11 @@ function createBookingPriorPaymentActions({
               'Choose an available receipt for this same client.',
             );
           const sourceAccount = await accountFor(connection, sourceSubject, { create: true });
+          if (Number(sourceAccount.canonical_amount_due) <= 0)
+            fail(
+              'PRIOR_PAYMENT_SOURCE_PRICE_REVIEW',
+              'Review the original treatment price and payment history before linking unused receipt value.',
+            );
           const sourcePosition = await position(connection, sourceAccount, sourceSubject);
           const used = (
             await connection.query(

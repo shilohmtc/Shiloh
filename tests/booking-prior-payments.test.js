@@ -6,6 +6,8 @@ const { install, serviceFor, priorInput } = require('./helpers/priorPaymentFixtu
 const { remainingTreatmentCents } = require('../src/services/clientTreatmentCredit');
 const { BALANCES_SQL, RECEIPTS_SQL } = require('../src/services/workspaceFinancialReports');
 const { paymentState } = require('../src/services/myShilohClientContext');
+const { renderCalendarPaymentPage } = require('../src/presentation/calendarPaymentsUx');
+const { priorPaymentFixture } = require('./fixtures/bookingPriorPaymentPresentation');
 async function setup(t) {
   const pg = new PGlite();
   t.after(() => pg.close());
@@ -22,6 +24,42 @@ async function setup(t) {
   await install(db);
   return { pg, db, service: serviceFor(db) };
 }
+test('partial earlier payment remains payment when combined with goodwill credit', () => {
+  const model = priorPaymentFixture();
+  model.payment = {
+    ...model.payment,
+    state: 'partially_paid',
+    priorPaid: '200.00',
+    previouslyPaid: '200.00',
+    treatmentCreditApplied: '100.00',
+    outstanding: '200.00',
+  };
+  const html = renderCalendarPaymentPage({ model });
+  assert.match(html, /Partially paid/);
+  assert.doesNotMatch(html, /Credit applied · payment due/);
+});
+test('receipts on zero-priced source bookings require original-price review before reuse', async (t) => {
+  const { pg, service } = await setup(t);
+  await pg.exec(
+    "UPDATE appointments SET total_price=0 WHERE id=202; INSERT INTO booking_payment_accounts(id,appointment_id,canonical_amount_due,currency,pricing_revision) VALUES(100,202,0,'ZAR',NOW())",
+  );
+  const receipt = (
+    await pg.query(
+      "INSERT INTO payment_ledger_entries(payment_account_id,entry_type,amount,created_at) VALUES(100,'payment',500,'2026-09-15T08:00Z') RETURNING id",
+    )
+  ).rows[0];
+  assert.equal(
+    (await service.get({ adminId: 2, appointmentId: 201 })).priorPayments.candidates.length,
+    0,
+  );
+  await assert.rejects(service.recordPrior(priorInput({ sourceEntryId: receipt.id })), {
+    code: 'PRIOR_PAYMENT_SOURCE_PRICE_REVIEW',
+  });
+  assert.equal(
+    (await pg.query('SELECT COUNT(*)::int AS n FROM booking_prior_payment_entries')).rows[0].n,
+    0,
+  );
+});
 test('cent-sized prior receipt allocations settle exactly without floating-point overpayment', async (t) => {
   const { pg, service } = await setup(t);
   await pg.exec(
@@ -246,6 +284,8 @@ test('verified money arriving on a link closed for prior settlement is recorded 
   assert.equal((await service.handleOzowNotification(notification)).status, 'duplicate');
   const model = await service.get({ adminId: 2, appointmentId: 201 });
   assert.equal(model.paymentReview.kind, 'prior_settlement_payment_received');
+  assert.match(renderCalendarPaymentPage({ model }), /Payment review needed/);
+  assert.doesNotMatch(renderCalendarPaymentPage({ model }), /Cancelled booking · payment review/);
   assert.equal(model.payment.state, 'overpaid');
   assert.equal(model.payment.netPaid, '250.00');
   assert.equal(
@@ -268,6 +308,12 @@ test('prior-payment routes require session, same origin and CSRF and use the ser
     '/calendar/payments',
     createCalendarPaymentsRouter({
       env: { NODE_ENV: 'test' },
+      rewardsService: {
+        applyStaffCredit: async (input) => {
+          received.push(input);
+          return { status: 'applied' };
+        },
+      },
       sessionService: {
         validateSessionToken: async (token) =>
           token === 'signed-in' ? { ok: true, adminId: 2 } : { ok: false },
@@ -281,6 +327,18 @@ test('prior-payment routes require session, same origin and CSRF and use the ser
         reversePrior: async (input) => {
           received.push(input);
           return { status: 'reversed' };
+        },
+        recordManual: async (input) => {
+          received.push(input);
+          return { status: 'recorded' };
+        },
+        recordRefund: async (input) => {
+          received.push(input);
+          return { status: 'refunded' };
+        },
+        createOzowRequest: async (input) => {
+          received.push(input);
+          return { status: 'link_issued' };
         },
       },
     }),
@@ -301,12 +359,19 @@ test('prior-payment routes require session, same origin and CSRF and use the ser
       headers: { ...headers, ...extra },
       body: JSON.stringify({ adminId: 999, appointmentId: 999 }),
     });
-  for (const action of ['prior-payment', 'prior-payment-reverse']) {
+  for (const action of [
+    'prior-payment',
+    'prior-payment-reverse',
+    'manual',
+    'refund',
+    'ozow',
+    'rewards',
+  ]) {
     assert.equal((await post(action, { cookie: '' })).status, 401);
     assert.equal((await post(action, { origin: 'https://other.test' })).status, 403);
     assert.equal((await post(action, { 'x-shiloh-csrf-token': '' })).status, 403);
     const count = received.length;
-    assert.equal((await post(action)).status, 201);
+    assert.equal((await post(action)).status, action === 'rewards' ? 200 : 201);
     assert.equal(received.length, count + 1);
     assert.equal(received.at(-1).adminId, 2);
     assert.equal(received.at(-1).appointmentId, '201');

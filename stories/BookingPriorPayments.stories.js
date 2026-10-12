@@ -7,7 +7,12 @@ function surface(options) {
   queueMicrotask(() => {
     new Function(payments.calendarPaymentsClientScript())();
     const selector = node.querySelector('[data-payment-method]');
-    if (selector && options?.viewOnly !== true && options?.settled !== true) {
+    if (
+      selector &&
+      options?.viewOnly !== true &&
+      options?.settled !== true &&
+      options?.receiptReview !== true
+    ) {
       selector.value = 'prior-payment';
       selector.dispatchEvent(new Event('change'));
       node.querySelector('[data-payment-method-card]').open = true;
@@ -19,3 +24,5 @@ export default { title: 'Workspace/Paid previously', parameters: { layout: 'full
 export const Reception = { render: () => surface({}) };
 export const PaidPreviously = { render: () => surface({ settled: true }) };
 export const ViewOnly = { render: () => surface({ settled: true, viewOnly: true }) };
+export const PartialPriorWithCredit = { render: () => surface({ partial: true }) };
+export const PriorReceiptReview = { render: () => surface({ settled: true, receiptReview: true }) };

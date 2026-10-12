@@ -76,7 +76,13 @@ for (const [name, viewport] of [
   }) => {
     test.setTimeout(90000);
     await page.setViewportSize(viewport);
-    for (const story of ['reception', 'paid-previously', 'view-only']) {
+    for (const story of [
+      'reception',
+      'paid-previously',
+      'view-only',
+      'partial-prior-with-credit',
+      'prior-receipt-review',
+    ]) {
       await page.goto(
         `${base}/storybook/iframe.html?id=workspace-paid-previously--${story}&viewMode=story`,
       );
@@ -84,6 +90,10 @@ for (const [name, viewport] of [
       if (story === 'reception')
         await expect(page.locator('[data-prior-payment="prior-payment"]')).toBeVisible();
       if (story === 'view-only') await expect(page.locator('[data-prior-payment]')).toHaveCount(0);
+      if (story === 'partial-prior-with-credit')
+        await expect(page.locator('.payment-head .state')).toHaveText('Partially paid');
+      if (story === 'prior-receipt-review')
+        await expect(page.locator('.payment-head .state')).toHaveText('Payment review needed');
       await shot(page, `${name}-storybook-${story}`);
       const violations = (
         await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
