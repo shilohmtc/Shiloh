@@ -525,13 +525,11 @@ test('own last passkey can be removed and a new one saved while details session 
   const passkeySigned = await h.passkeys.finishAuthentication({
     response: assertionResponse(f, credential),
   });
-  // Authentication rotates the previous session; sign in with details again.
+  // Both sign-in methods keep their earlier sessions usable.
   const again = await h.attempt();
   Object.assign(session, await h.sessions.validateSessionToken(again.sessionToken));
-  // Simulate another existing passkey session without rotating the details session.
-  await h.db.query(`UPDATE staff_browser_sessions SET revoked_at=NULL WHERE id=$1`, [
-    passkeySigned.sessionId,
-  ]);
+  assert.equal((await h.sessions.validateSessionToken(signed.sessionToken)).ok, true);
+  assert.equal((await h.sessions.validateSessionToken(passkeySigned.sessionToken)).ok, true);
   const pending = await h.passkeys.beginRegistration({ session });
   assert.equal(pending.ok, true);
   const removed = await h.passkeys.revokeCredential({ session, credentialId: finish.credentialId });
@@ -563,8 +561,19 @@ test('own last passkey can be removed and a new one saved while details session 
     ])
   ).rows[0];
   assert.equal(other.revoked_at, null);
-  const events = (await h.db.query("SELECT auth_method,operator_admin_id,subject_admin_id FROM staff_auth_security_events WHERE event_type IN ('passkey_registered','passkey_revoked')")).rows;
-  assert.ok(events.every(row => row.auth_method === 'staff_details' && Number(row.operator_admin_id) === 2 && Number(row.subject_admin_id) === 2));
+  const events = (
+    await h.db.query(
+      "SELECT auth_method,operator_admin_id,subject_admin_id FROM staff_auth_security_events WHERE event_type IN ('passkey_registered','passkey_revoked')",
+    )
+  ).rows;
+  assert.ok(
+    events.every(
+      (row) =>
+        row.auth_method === 'staff_details' &&
+        Number(row.operator_admin_id) === 2 &&
+        Number(row.subject_admin_id) === 2,
+    ),
+  );
 });
 
 test('optional key management rechecks expired, revoked, changed and recovery sessions', async (t) => {
@@ -660,4 +669,113 @@ test('a passkey session may remove its last own key, then must use staff details
     ).ok,
     true,
   );
+});
+
+test('phone and browser details sessions coexist with independent CSRF, logout and fixed deadlines', async (t) => {
+  const h = await harness(t);
+  const phone = await h.attempt(input, {
+    deviceToken: 'P'.repeat(43),
+    requestFingerprintHash: 'a'.repeat(64),
+  });
+  assert.equal(phone.ok, true);
+  h.advance(60 * 60 * 1000);
+  const browser = await h.attempt(input, {
+    deviceToken: 'B'.repeat(43),
+    requestFingerprintHash: 'b'.repeat(64),
+  });
+  assert.equal(browser.ok, true);
+  assert.notEqual(phone.sessionToken, browser.sessionToken);
+  const phoneSession = await h.sessions.validateSessionToken(phone.sessionToken);
+  const browserSession = await h.sessions.validateSessionToken(browser.sessionToken);
+  assert.equal(phoneSession.ok, true);
+  assert.equal(browserSession.ok, true);
+  assert.equal(phoneSession.adminId, browserSession.adminId);
+  const phoneCsrf = await h.sessions.rotateCsrfToken(phone.sessionId);
+  const browserCsrf = await h.sessions.rotateCsrfToken(browser.sessionId);
+  Object.assign(phoneSession, await h.sessions.validateSessionToken(phone.sessionToken));
+  Object.assign(browserSession, await h.sessions.validateSessionToken(browser.sessionToken));
+  assert.equal(h.sessions.validateCsrfToken(phoneSession, phoneCsrf.csrfToken), true);
+  assert.equal(h.sessions.validateCsrfToken(browserSession, phoneCsrf.csrfToken), false);
+  assert.equal(h.sessions.validateCsrfToken(phoneSession, browserCsrf.csrfToken), false);
+  const rows = (
+    await h.db.query(
+      'SELECT expires_at,rotated_from_session_id,revoked_at FROM staff_browser_sessions ORDER BY id',
+    )
+  ).rows;
+  assert.equal(new Date(rows[0].expires_at).getTime(), new Date(phone.expiresAt).getTime());
+  assert.ok(rows.every((row) => row.revoked_at == null && row.rotated_from_session_id == null));
+  await h.sessions.revokeSession(browser.sessionId, 'logout');
+  assert.equal((await h.sessions.validateSessionToken(browser.sessionToken)).ok, false);
+  assert.equal((await h.sessions.validateSessionToken(phone.sessionToken)).ok, true);
+  // A later sign-in never extends the older phone session's fixed deadline.
+  const nextBrowser = await h.attempt(input, { deviceToken: 'B'.repeat(43) });
+  h.advance(7 * 60 * 60 * 1000);
+  assert.equal((await h.sessions.validateSessionToken(phone.sessionToken)).ok, false);
+  assert.equal((await h.sessions.validateSessionToken(nextBrowser.sessionToken)).ok, true);
+  await h.sessions.revokeAllForAdmin(h.owner.id, 'authority_revoked');
+  assert.equal((await h.sessions.validateSessionToken(nextBrowser.sessionToken)).ok, false);
+});
+
+test('mixed phone passkey and browser details sign-ins stay active; account and detail changes still invalidate them', async (t) => {
+  const h = await harness(t);
+  const first = await h.attempt();
+  const session = await h.sessions.validateSessionToken(first.sessionToken);
+  const start = await h.passkeys.beginRegistration({ session });
+  const f = fixture();
+  f.challenge = start.options.challenge;
+  const saved = await h.passkeys.finishRegistration({ session, response: registrationResponse(f) });
+  const credential = (
+    await h.db.query('SELECT * FROM staff_auth_passkey_credentials WHERE id=$1', [
+      saved.credentialId,
+    ])
+  ).rows[0];
+  const auth = await h.passkeys.beginAuthentication();
+  f.challenge = auth.options.challenge;
+  const phone = await h.passkeys.finishAuthentication({
+    response: assertionResponse(f, credential),
+  });
+  assert.equal(phone.ok, true);
+  const browser = await h.attempt(input, { deviceToken: 'B'.repeat(43) });
+  assert.equal(browser.ok, true);
+  const secondAuth = await h.passkeys.beginAuthentication();
+  f.challenge = secondAuth.options.challenge;
+  const secondPhone = await h.passkeys.finishAuthentication({
+    response: assertionResponse(f, credential, { signCount: 2 }),
+  });
+  assert.equal(secondPhone.ok, true);
+  for (const token of [
+    first.sessionToken,
+    phone.sessionToken,
+    secondPhone.sessionToken,
+    browser.sessionToken,
+  ])
+    assert.equal((await h.sessions.validateSessionToken(token)).ok, true);
+  await h.db.query("UPDATE staff_admin_accounts SET sign_in_surname='Changed' WHERE id=2");
+  assert.equal((await h.sessions.validateSessionToken(browser.sessionToken)).ok, false);
+  assert.equal((await h.sessions.validateSessionToken(first.sessionToken)).ok, false);
+  assert.equal((await h.sessions.validateSessionToken(phone.sessionToken)).ok, true);
+  await h.db.query('UPDATE staff_admin_accounts SET active=FALSE WHERE id=2');
+  assert.equal((await h.sessions.validateSessionToken(phone.sessionToken)).ok, false);
+  assert.equal((await h.sessions.validateSessionToken(secondPhone.sessionToken)).ok, false);
+});
+
+test('explicit recovery issuance retains account-wide session rotation', async (t) => {
+  const h = await harness(t);
+  const phone = await h.attempt();
+  const browser = await h.attempt(input, { deviceToken: 'B'.repeat(43) });
+  assert.equal((await h.sessions.validateSessionToken(phone.sessionToken)).ok, true);
+  assert.equal((await h.sessions.validateSessionToken(browser.sessionToken)).ok, true);
+  const recovery = await issueStaffBrowserSession({
+    client: h.db,
+    admin: h.owner,
+    current: h.now(),
+    authMethod: 'passkey',
+    recoveryRequired: true,
+  });
+  assert.equal((await h.sessions.validateSessionToken(phone.sessionToken)).ok, false);
+  assert.equal((await h.sessions.validateSessionToken(browser.sessionToken)).ok, false);
+  const current = await h.sessions.validateSessionToken(recovery.sessionToken);
+  assert.equal(current.ok, true);
+  assert.equal(current.recoveryRequired, true);
+  assert.equal(current.viewer, null);
 });
