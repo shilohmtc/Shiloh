@@ -11,9 +11,10 @@ function surface(options) {
       selector &&
       options?.viewOnly !== true &&
       options?.settled !== true &&
-      options?.receiptReview !== true
+      options?.receiptReview !== true &&
+      options?.noChargeSaved !== true
     ) {
-      selector.value = 'prior-payment';
+      selector.value = options?.noCharge ? 'no-charge' : 'prior-payment';
       selector.dispatchEvent(new Event('change'));
       node.querySelector('[data-payment-method-card]').open = true;
     }
@@ -26,3 +27,6 @@ export const PaidPreviously = { render: () => surface({ settled: true }) };
 export const ViewOnly = { render: () => surface({ settled: true, viewOnly: true }) };
 export const PartialPriorWithCredit = { render: () => surface({ partial: true }) };
 export const PriorReceiptReview = { render: () => surface({ settled: true, receiptReview: true }) };
+
+export const NoCharge = { render: () => surface({ noCharge: true }) };
+export const NoChargeRecorded = { render: () => surface({ noChargeSaved: true }) };

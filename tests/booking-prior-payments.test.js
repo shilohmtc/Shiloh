@@ -324,6 +324,10 @@ test('prior-payment routes require session, same origin and CSRF and use the ser
           received.push(input);
           return { status: 'applied' };
         },
+        recordNoCharge: async (input) => {
+          received.push(input);
+          return { status: 'no_charge_recorded' };
+        },
         reversePrior: async (input) => {
           received.push(input);
           return { status: 'reversed' };
@@ -360,6 +364,7 @@ test('prior-payment routes require session, same origin and CSRF and use the ser
       body: JSON.stringify({ adminId: 999, appointmentId: 999 }),
     });
   for (const action of [
+    'no-charge',
     'prior-payment',
     'prior-payment-reverse',
     'manual',
@@ -376,4 +381,317 @@ test('prior-payment routes require session, same origin and CSRF and use the ser
     assert.equal(received.at(-1).adminId, 2);
     assert.equal(received.at(-1).appointmentId, '201');
   }
+});
+
+test('business admin can record, retry and reverse prior payment with their own audited identity', async (t) => {
+  const { pg, service } = await setup(t);
+  await pg.exec(
+    "UPDATE staff_admin_accounts SET business_role='business_admin',display_name='Synthetic Business Admin' WHERE id=2",
+  );
+  const input = priorInput();
+  const model = await service.get({ adminId: 2, appointmentId: 201 });
+  assert.equal(model.authority.canRecordPrior, true);
+  assert.match(
+    renderCalendarPaymentPage({ model }),
+    /<option value="prior-payment">Paid previously<\/option>/,
+  );
+  const saved = await service.recordPrior(input);
+  assert.equal(saved.payment.amountDue, '500.00');
+  assert.equal(saved.payment.previouslyPaid, '500.00');
+  assert.equal(saved.payment.outstanding, '0.00');
+  assert.equal(saved.payment.receivedToday, '0.00');
+  assert.equal((await service.recordPrior(input)).status, 'idempotent_replay');
+  const reversed = await service.reversePrior({
+    adminId: 2,
+    appointmentId: 201,
+    entryId: saved.entry.id,
+    reason: 'Synthetic evidence correction',
+    reviewed: true,
+    operationId: require('node:crypto').randomUUID(),
+  });
+  assert.equal(reversed.payment.outstanding, '500.00');
+  const entries = (
+    await pg.query(
+      'SELECT actor_admin_id, entry_type FROM booking_prior_payment_entries ORDER BY id',
+    )
+  ).rows;
+  assert.deepEqual(
+    entries.map((e) => Number(e.actor_admin_id)),
+    [2, 2],
+  );
+  assert.deepEqual(
+    entries.map((e) => e.entry_type),
+    ['apply', 'undo'],
+  );
+  assert.equal(
+    (await pg.query('SELECT COUNT(*)::int AS n FROM payment_ledger_entries')).rows[0].n,
+    0,
+  );
+});
+for (const [label, change] of [
+  ['missing collection permission', "permissions=permissions-'payment:collect'"],
+  ['missing view permission', "permissions=permissions-'payment:view'"],
+  ['inactive account', 'active=FALSE'],
+  ['own service scope', "service_scope='own_services'"],
+  ['own calendar scope', "calendar_scope='own_appointments',service_scope='own_services'"],
+  ['practitioner role', "business_role='employee_practitioner'"],
+])
+  test(`business-admin prior-payment access fails closed for ${label}`, async (t) => {
+    const { pg, service } = await setup(t);
+    await pg.exec("UPDATE staff_admin_accounts SET business_role='business_admin' WHERE id=2");
+    const input = priorInput({ amount: '100' });
+    const saved = await service.recordPrior(input);
+    await pg.exec(`UPDATE staff_admin_accounts SET ${change} WHERE id=2`);
+    await assert.rejects(service.recordPrior(input), { httpStatus: 403 });
+    await assert.rejects(
+      service.reversePrior({
+        adminId: 2,
+        appointmentId: 201,
+        entryId: saved.entry.id,
+        reason: 'Synthetic correction',
+        reviewed: true,
+        operationId: require('node:crypto').randomUUID(),
+      }),
+      { httpStatus: 403 },
+    );
+    assert.equal(
+      (await pg.query('SELECT COUNT(*)::int AS n FROM booking_prior_payment_entries')).rows[0].n,
+      1,
+    );
+  });
+
+async function noChargeInput(service, overrides = {}) {
+  const model = await service.get({ adminId: 2, appointmentId: 201 });
+  return {
+    adminId: 2,
+    appointmentId: 201,
+    expectedRevision: model.subject.pricingRevision,
+    reason: 'Owner approved complimentary visit',
+    reviewed: true,
+    operationId: require('node:crypto').randomUUID(),
+    ...overrides,
+  };
+}
+test('no charge preserves original price and attendance, records actor/reason, creates no payment and retries exactly', async (t) => {
+  const { pg, service } = await setup(t);
+  const input = await noChargeInput(service);
+  await pg.exec(
+    "INSERT INTO booking_payment_accounts(id,appointment_id,canonical_amount_due,currency,pricing_revision) VALUES(100,201,500,'ZAR',NOW()); INSERT INTO payment_requests(payment_account_id,state,amount,request_key) VALUES(100,'pending',250,'no_charge_request')",
+  );
+  const result = await service.recordNoCharge(input);
+  assert.equal(result.status, 'no_charge_recorded');
+  assert.equal(result.payment.amountDue, '0.00');
+  assert.equal(result.payment.outstanding, '0.00');
+  assert.equal(result.payment.previouslyPaid, '0.00');
+  assert.equal(result.payment.receivedToday, '0.00');
+  assert.deepEqual(
+    (
+      await pg.query(
+        'SELECT status,financial_classification,total_price,pre_adjustment_total_price FROM appointments WHERE id=201',
+      )
+    ).rows[0],
+    {
+      status: 'completed',
+      financial_classification: 'no_charge',
+      total_price: '0.00',
+      pre_adjustment_total_price: '500.00',
+    },
+  );
+  assert.equal((await pg.query('SELECT state FROM payment_requests')).rows[0].state, 'cancelled');
+  assert.equal((await service.recordNoCharge(input)).status, 'idempotent_replay');
+  await assert.rejects(service.recordNoCharge({ ...input, reason: 'Different reason' }), {
+    code: 'NO_CHARGE_RETRY_MISMATCH',
+  });
+  const model = await service.get({ adminId: 2, appointmentId: 201 });
+  assert.equal(model.noChargeEvidence.actor_name, 'Synthetic Reception');
+  assert.equal(model.noChargeEvidence.metadata.reason, input.reason);
+  assert.match(renderCalendarPaymentPage({ model }), /Original treatment price/);
+  assert.match(renderCalendarPaymentPage({ model }), /class="state">No charge/);
+  assert.equal(
+    (await pg.query('SELECT COUNT(*)::int AS n FROM payment_ledger_entries')).rows[0].n,
+    0,
+  );
+  assert.equal(
+    (await pg.query('SELECT COUNT(*)::int AS n FROM booking_prior_payment_entries')).rows[0].n,
+    0,
+  );
+  assert.equal(
+    (
+      await pg.query(
+        "SELECT COUNT(*)::int AS n FROM crm_audit_events WHERE action='booking.no_charge_recorded'",
+      )
+    ).rows[0].n,
+    1,
+  );
+});
+for (const role of ['owner', 'business_admin', 'booking_operator'])
+  test(`no charge uses the existing ${role} payment and appointment authority`, async (t) => {
+    const { pg, service } = await setup(t);
+    await pg.exec(`UPDATE staff_admin_accounts SET business_role='${role}' WHERE id=2`);
+    const input = await noChargeInput(service);
+    assert.equal(
+      (await service.get({ adminId: 2, appointmentId: 201 })).authority.canRecordNoCharge,
+      true,
+    );
+    assert.equal((await service.recordNoCharge(input)).status, 'no_charge_recorded');
+    await pg.exec(
+      "UPDATE staff_admin_accounts SET permissions=permissions-'calendar:booking:cancel' WHERE id=2",
+    );
+    await assert.rejects(service.recordNoCharge(input), { httpStatus: 403 });
+  });
+for (const [label, sql] of [
+  [
+    'cash receipts',
+    "INSERT INTO payment_ledger_entries(payment_account_id,entry_type,amount) VALUES(100,'payment',100)",
+  ],
+  [
+    'prior payment',
+    "INSERT INTO booking_prior_payment_entries(booking_payment_account_id,appointment_id,crm_v2_client_id,entry_type,amount,payment_date,reference,reason,actor_admin_id,operation_id,request_fingerprint) VALUES(100,201,101,'apply',100,'2026-09-15','SYNTHETIC','Existing payment',2,'existingoperation','fingerprint')",
+  ],
+  ['rewards', "INSERT INTO booking_loyalty_allocations VALUES(100,'applied',100)"],
+  ['welcome credit', "INSERT INTO booking_welcome_voucher_allocations VALUES(100,'applied',100)"],
+  ['package visit', "INSERT INTO package_session_redemptions VALUES(201,'redeemed')"],
+  ['uncompleted visit', "UPDATE appointments SET status='confirmed' WHERE id=201"],
+  [
+    'linked visit',
+    "INSERT INTO appointment_groups VALUES(51,'completed',500,500,NOW()); INSERT INTO appointment_group_members VALUES(51,201,1)",
+  ],
+])
+  test(`no charge refuses ${label} without changing price or evidence`, async (t) => {
+    const { pg, service } = await setup(t);
+    const input = await noChargeInput(service);
+    await pg.exec(
+      "INSERT INTO booking_payment_accounts(id,appointment_id,canonical_amount_due,currency,pricing_revision) VALUES(100,201,500,'ZAR',NOW())",
+    );
+    await pg.exec(sql);
+    await assert.rejects(service.recordNoCharge(input), { httpStatus: 409 });
+    assert.equal(
+      (await pg.query('SELECT total_price FROM appointments WHERE id=201')).rows[0].total_price,
+      '500.00',
+    );
+    assert.equal(
+      (
+        await pg.query(
+          "SELECT COUNT(*)::int AS n FROM crm_audit_events WHERE action='booking.no_charge_recorded'",
+        )
+      ).rows[0].n,
+      0,
+    );
+  });
+test('no charge rejects missing review, blank reason and stale booking revision', async (t) => {
+  const { pg, service } = await setup(t);
+  const input = await noChargeInput(service);
+  for (const changes of [{ reviewed: false }, { reason: ' ' }, { expectedRevision: 'invalid' }])
+    await assert.rejects(service.recordNoCharge({ ...input, ...changes }), { httpStatus: 400 });
+  await pg.exec("UPDATE appointments SET updated_at='2026-10-13T09:00Z' WHERE id=201");
+  await assert.rejects(service.recordNoCharge(input), { code: 'NO_CHARGE_STALE' });
+});
+test('verified payment on a link closed for no charge remains cash evidence for review, not a cancelled booking', async (t) => {
+  const { pg, service } = await setup(t);
+  const input = await noChargeInput(service);
+  await pg.exec(
+    "INSERT INTO booking_payment_accounts(id,appointment_id,canonical_amount_due,currency,pricing_revision) VALUES(100,201,500,'ZAR',NOW());INSERT INTO payment_requests(payment_account_id,state,amount,request_key) VALUES(100,'pending',250,'no_charge_late_request')",
+  );
+  await service.recordNoCharge(input);
+  const notification = {
+    TransactionId: 'synthetic_no_charge_late',
+    TransactionReference: 'no_charge_late_request',
+    Status: 'Complete',
+    Amount: '250.00',
+    CurrencyCode: 'ZAR',
+  };
+  assert.equal((await service.handleOzowNotification(notification)).status, 'paid_review_required');
+  assert.equal((await service.handleOzowNotification(notification)).status, 'duplicate');
+  const model = await service.get({ adminId: 2, appointmentId: 201 });
+  assert.equal(model.paymentReview.kind, 'no_charge_payment_received');
+  assert.equal(model.payment.netPaid, '250.00');
+  assert.equal(model.payment.amountDue, '0.00');
+  assert.match(renderCalendarPaymentPage({ model }), /Payment received after no charge/);
+  assert.doesNotMatch(renderCalendarPaymentPage({ model }), /booking was cancelled/);
+  assert.equal(
+    (await pg.query('SELECT status FROM appointments WHERE id=201')).rows[0].status,
+    'completed',
+  );
+});
+
+test('no charge retains an earlier original price as well as the latest charged price', async (t) => {
+  const { pg, service } = await setup(t);
+  await pg.exec(
+    "UPDATE appointments SET pre_adjustment_total_price=650,financial_classification='price_adjusted' WHERE id=201",
+  );
+  await service.recordNoCharge(await noChargeInput(service));
+  const model = await service.get({ adminId: 2, appointmentId: 201 });
+  assert.equal(model.subject.originalPrice, '650.00');
+  assert.equal(model.noChargeEvidence.metadata.originalPrice, '650.00');
+  assert.equal(model.noChargeEvidence.metadata.previousChargedPrice, '500.00');
+});
+
+for (const [label, change] of [
+  ['collection revoked', "permissions=permissions-'payment:collect'"],
+  ['view revoked', "permissions=permissions-'payment:view'"],
+  ['inactive account', 'active=FALSE'],
+  ['limited service scope', "service_scope='own_services'"],
+  ['limited calendar scope', "calendar_scope='own_appointments',service_scope='own_services'"],
+])
+  test(`no charge remains forbidden with ${label}`, async (t) => {
+    const { pg, service } = await setup(t);
+    const input = await noChargeInput(service);
+    await pg.exec(`UPDATE staff_admin_accounts SET ${change} WHERE id=2`);
+    await assert.rejects(service.recordNoCharge(input), { httpStatus: 403 });
+    assert.equal(
+      (await pg.query('SELECT total_price FROM appointments WHERE id=201')).rows[0].total_price,
+      '500.00',
+    );
+  });
+for (const kind of ['treatment credit', 'gift voucher'])
+  test(`no charge cannot overwrite applied ${kind}`, async (t) => {
+    const { pg, db, service } = await setup(t);
+    const input = await noChargeInput(service);
+    const { randomUUID } = require('node:crypto');
+    if (kind === 'treatment credit') {
+      const credit =
+        require('../src/services/clientTreatmentCredit').createClientTreatmentCreditService({ db });
+      await credit.issue({
+        adminId: 1,
+        clientId: 101,
+        amount: '100',
+        creditType: 'goodwill',
+        reason: 'Synthetic goodwill',
+        operationId: randomUUID(),
+      });
+      await credit.apply({
+        adminId: 2,
+        clientId: 101,
+        appointmentId: 201,
+        amount: '100',
+        operationId: randomUUID(),
+      });
+    } else
+      await require('../src/services/bookingNoncashSettlement')
+        .createBookingNoncashSettlementService({ db })
+        .applyGift({
+          adminId: 2,
+          clientId: 101,
+          appointmentId: 201,
+          voucherCode: 'SV-AAAAAAAAAAAA',
+          amount: '100',
+          operationId: randomUUID(),
+        });
+    await assert.rejects(service.recordNoCharge(input), { code: 'NO_CHARGE_PAYMENT_REVIEW' });
+    assert.equal(
+      (await pg.query('SELECT total_price FROM appointments WHERE id=201')).rows[0].total_price,
+      '500.00',
+    );
+  });
+
+test('explicitly reviewed no charge classifies an already-zero free visit without inventing its original price', async (t) => {
+  const { pg, service } = await setup(t);
+  await pg.exec('UPDATE appointments SET total_price=0 WHERE id=201');
+  const input = await noChargeInput(service);
+  await service.recordNoCharge(input);
+  const model = await service.get({ adminId: 2, appointmentId: 201 });
+  assert.equal(model.subject.financialClassification, 'no_charge');
+  assert.equal(model.subject.originalPrice, '0.00');
+  assert.equal(model.noChargeEvidence.metadata.originalPrice, '0.00');
+  assert.equal(model.payment.previouslyPaid, '0.00');
 });

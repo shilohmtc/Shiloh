@@ -25,3 +25,7 @@ CREATE TABLE gift_voucher_payment_entries(id BIGINT,created_at TIMESTAMPTZ,amoun
 UPDATE staff_admin_accounts SET permissions=permissions || '{"appointment:view":true,"payment:collect":true,"payment:refund":true}'::jsonb WHERE id IN (1,2);
 UPDATE appointments SET total_price=500 WHERE id IN (201,202,203);
 CREATE TABLE payment_provider_events(id BIGSERIAL,provider TEXT,provider_event_key TEXT,signature_verified BOOLEAN,payload_sha256 TEXT,outcome TEXT,payment_request_id BIGINT);
+
+ALTER TABLE appointments ADD COLUMN financial_classification TEXT DEFAULT 'standard',ADD COLUMN pre_adjustment_total_price NUMERIC(12,2);
+CREATE TABLE package_session_redemptions(appointment_id BIGINT,status TEXT);
+UPDATE staff_admin_accounts SET permissions=permissions || '{"appointment:adjust_end":true,"calendar:booking:reschedule":true,"calendar:booking:cancel":true,"calendar:booking:reassign":true}'::jsonb WHERE id IN(1,2);
