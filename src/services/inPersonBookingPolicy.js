@@ -1,6 +1,7 @@
 'use strict';
 
 const { pool } = require('../db/pool');
+const { appointmentScopePredicate } = require('./clientRelationshipScope');
 const {
   BOOKING_POLICY_VERSION,
   BOOKING_POLICY_TEXT,
@@ -93,19 +94,19 @@ function createInPersonBookingPolicyService({ db = pool, now = () => new Date() 
       const inserted = await client.query(
         `INSERT INTO booking_policy_acceptances(
            phone,policy_version,accepted_at,channel,service_text,preferred_date,preferred_time,therapist_text,
-           crm_v2_client_id,appointment_id
+           policy_text_snapshot,crm_v2_client_id,appointment_id
          )
          VALUES(
            $1,$2,NOW(),'clinic_device',$3,
            TO_CHAR(($4::timestamptz AT TIME ZONE 'Africa/Johannesburg')::date,'YYYY-MM-DD'),
            TO_CHAR(($4::timestamptz AT TIME ZONE 'Africa/Johannesburg')::time,'HH24:MI'),
-           $5,$6,$7
+           $5,$6,$7,$8
          )
          ON CONFLICT (appointment_id,policy_version,channel)
            WHERE appointment_id IS NOT NULL AND channel IN ('clinic_device','payment_link')
          DO NOTHING
          RETURNING id,policy_version,accepted_at,channel`,
-        [context.mobile, BOOKING_POLICY_VERSION, context.serviceText, context.startsAt, context.therapistText, context.crmV2ClientId, context.appointmentId],
+        [context.mobile, BOOKING_POLICY_VERSION, context.serviceText, context.startsAt, context.therapistText, context.policyText, context.crmV2ClientId, context.appointmentId],
       );
       const acceptance = inserted.rows[0] || (await client.query(
         `SELECT id,policy_version,accepted_at,channel
@@ -127,20 +128,40 @@ function createInPersonBookingPolicyService({ db = pool, now = () => new Date() 
     }
   }
 
-  async function listClientAcceptanceHistory({ clientId, mobile, limit = 20 } = {}) {
+  async function listClientAcceptanceHistory({ clientId, mobile, limit = 20, offset = 0, scope = null } = {}) {
     const id = positiveId(clientId);
     if (!id) return [];
     const safeMobile = String(mobile || '').trim();
+    const appointmentScope = scope ? appointmentScopePredicate('bpa.appointment_id', scope, 5) : { sql: 'TRUE', values: [] };
     const result = await db.query(
-      `SELECT id,policy_version,accepted_at,channel,service_text,appointment_id
-         FROM booking_policy_acceptances
-        WHERE crm_v2_client_id=$1
-           OR (crm_v2_client_id IS NULL AND phone=$2)
-        ORDER BY accepted_at DESC,id DESC
-        LIMIT $3`,
-      [id, safeMobile, Math.max(1, Math.min(Number(limit) || 20, 50))],
+      `SELECT bpa.id,bpa.policy_version,bpa.accepted_at,bpa.channel,bpa.service_text,bpa.appointment_id,
+              bpa.crm_v2_client_id,(bpa.policy_text_snapshot IS NOT NULL) AS has_snapshot
+         FROM booking_policy_acceptances bpa
+        WHERE (bpa.crm_v2_client_id=$1
+           OR (bpa.crm_v2_client_id IS NULL AND bpa.appointment_id IS NULL AND bpa.phone=$2))
+          AND (bpa.appointment_id IS NULL OR ${appointmentScope.sql})
+        ORDER BY bpa.accepted_at DESC,bpa.id DESC
+        LIMIT $3 OFFSET $4`,
+      [id, safeMobile, Math.max(1, Math.min(Number(limit) || 20, 50)), Math.max(0, Number(offset) || 0), ...appointmentScope.values],
     );
     return result.rows;
+  }
+
+  async function getClientAcceptance({ clientId, acceptanceId, scope } = {}) {
+    const id = positiveId(clientId), reference = positiveId(acceptanceId);
+    if (!id || !reference) throw new InPersonBookingPolicyError('POLICY_ACCEPTANCE_NOT_FOUND', 'That acceptance record was not found.', 404);
+    const appointmentScope = appointmentScopePredicate('bpa.appointment_id', scope, 3);
+    const result = await db.query(`/* inPersonBookingPolicy:client-document */
+      SELECT bpa.id,bpa.policy_version,bpa.accepted_at,bpa.channel,bpa.service_text,
+             bpa.preferred_date,bpa.preferred_time,bpa.therapist_text,bpa.appointment_id,bpa.policy_text_snapshot,
+             (ap.crm_v2_client_id IS NOT NULL AND ap.crm_v2_client_id<>bpa.crm_v2_client_id) AS organiser_acceptance
+        FROM booking_policy_acceptances bpa
+        LEFT JOIN appointments ap ON ap.id=bpa.appointment_id
+       WHERE bpa.id=$1 AND bpa.crm_v2_client_id=$2
+         AND (bpa.appointment_id IS NULL OR ${appointmentScope.sql})
+       LIMIT 1`, [reference,id,...appointmentScope.values]);
+    if (!result.rows[0]) throw new InPersonBookingPolicyError('POLICY_ACCEPTANCE_NOT_FOUND', 'That acceptance record was not found.', 404);
+    return result.rows[0];
   }
 
   async function readinessForAppointments(appointmentIds = []) {
@@ -177,7 +198,7 @@ function createInPersonBookingPolicyService({ db = pool, now = () => new Date() 
     }));
   }
 
-  return { appointmentContext, recordClinicDeviceAcceptance, listClientAcceptanceHistory, readinessForAppointments };
+  return { appointmentContext, recordClinicDeviceAcceptance, listClientAcceptanceHistory, getClientAcceptance, readinessForAppointments };
 }
 
 module.exports = {

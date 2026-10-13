@@ -231,7 +231,7 @@ function renderSubmissionGroup(group = {}, answers = {}) {
   return `<section class="preview-group"><h3>${escapeHtml(group.title || 'Details')}</h3>${[...fields, ...questions].map(item => renderSubmissionAnswerItem(item, answers)).join('')}</section>`;
 }
 
-function renderSubmissionPage(model = {}) {
+function renderSubmissionPage(model = {}, { clientProfileId = null } = {}) {
   const form = model.form || {};
   const answers = model.answers || {};
   const sections = (form.sections || []).map(section => {
@@ -244,10 +244,12 @@ function renderSubmissionPage(model = {}) {
   const practitioner = (appointment.practitioners || []).join(' & ');
   const signed = formatDateTime(model.signedAt);
   const signatureName = String(model.signature?.name || '');
+  const clientDocument = Number.isSafeInteger(Number(clientProfileId)) && Number(clientProfileId) > 0;
+  const documentStyles = clientDocument ? require('./workspaceClientDocumentsUx').documentPrintStyles : '';
   const metaChips = [model.isTest ? 'Private test' : treatment, practitioner, appointmentWhen].filter(Boolean)
     .map(text => `<span class="chip">${escapeHtml(text)}</span>`).join('');
 
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(model.clientName || 'Client')} — Form submission</title><style>${workspaceShellStyles()}${formsStyles()}</style></head><body data-workspace-form-submission="true"><div class="workspace-frame">${renderWorkspaceNavigation({
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(model.clientName || 'Client')} — Form submission</title><style>${workspaceShellStyles()}${formsStyles()}${documentStyles}</style></head><body data-workspace-form-submission="true"><div class="workspace-frame">${renderWorkspaceNavigation({
     active: 'forms',
     displayName: model.authority?.displayName,
     dashboardHref: '/calendar/workspace',
@@ -259,12 +261,13 @@ function renderSubmissionPage(model = {}) {
     reportsHref: '/calendar/reports',
     clinicHoursHref: '/calendar/clinic-hours',
   })}<main class="workspace-main"><div class="shell preview-shell">
-    <a data-workspace-action="secondary" class="preview-back" href="${Number.isSafeInteger(Number(appointment.id)) && Number(appointment.id)>0 ? `/calendar/forms?appointmentId=${Number(appointment.id)}#appointment-${Number(appointment.id)}` : "/calendar/forms"}">← Back to Forms</a>
+    ${clientDocument ? `<div class="document-actions"><a data-workspace-action="secondary" class="preview-back" href="/calendar/clients/${Number(clientProfileId)}#consultation-documents">← Back to client</a> <button class="preview-back" data-workspace-action="secondary" data-print-document type="button">Print / Save PDF</button></div>` : `<a data-workspace-action="secondary" class="preview-back" href="${Number.isSafeInteger(Number(appointment.id)) && Number(appointment.id)>0 ? `/calendar/forms?appointmentId=${Number(appointment.id)}#appointment-${Number(appointment.id)}` : "/calendar/forms"}">← Back to Forms</a>`}
     ${model.isTest ? '<div class="test-banner"><strong>TEST SUBMISSION.</strong> This isolated submission is not attached to a client or appointment.</div>' : '<div class="sensitive-banner"><strong>Private health information.</strong> View only when needed for treatment preparation and do not copy it into WhatsApp or ordinary Calendar notes.</div>'}
     <article class="submission-panel">
       <header class="preview-hero">
         <div class="preview-hero-top"><div><h1>${escapeHtml(model.clientName || 'Client')}</h1><p>${escapeHtml(form.title || 'Consultation form')}</p></div><span class="preview-pill">${model.isTest ? 'Test complete' : escapeHtml(labelStatus(model.status || 'completed'))}</span></div>
         <div class="preview-meta">${metaChips}</div>
+        ${clientDocument ? `<p>Signed submission #${escapeHtml(model.reference)} · Form version ${escapeHtml(form.version || 'Not recorded')} · South Africa time</p>` : ''}
       </header>
       ${sections || '<div class="empty">No questionnaire snapshot is available.</div>'}
       <section class="consent-card"><h2>Consent & declaration signed</h2><p>${escapeHtml(form.consentText || 'No declaration snapshot is available.')}</p>
@@ -272,7 +275,7 @@ function renderSubmissionPage(model = {}) {
       </section>
       <p class="preview-warning">Read-only signed record. The encrypted stored submission is not modified when viewed.</p>
     </article>
-  </div></main></div></body></html>`;
+  </div></main></div>${clientDocument ? '<script src="/calendar/clients/documents.js" defer></script>' : ''}</body></html>`;
 }
 
 function renderFormsUnavailablePage({ message = 'Forms are temporarily unavailable.' } = {}) {
