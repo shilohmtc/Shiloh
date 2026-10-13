@@ -438,6 +438,29 @@ function createMyShilohRouter({
     }
   });
 
+  router.get('/my-shiloh/api/booking/unfinished-draft', requireSession, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      return res.json(await bookingService.unfinishedDraft({ crmV2ClientId: req.myShilohClientSession.crmV2ClientId }));
+    } catch (error) {
+      if (error instanceof MyShilohBookingError) return res.status(error.httpStatus).json({ error: error.message, code: error.code, requestId: req.id });
+      return next(error);
+    }
+  });
+  router.post('/my-shiloh/api/booking/unfinished-draft/discard', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const payload = req.body;
+      if (!payload || typeof payload !== 'object' || Array.isArray(payload) || Object.keys(payload).some(key => key !== 'revision')) {
+        return res.status(422).json({ error: 'Review the unfinished draft before discarding it.', code: 'BOOKING_DRAFT_INVALID' });
+      }
+      return res.json(await bookingService.discardDraft({ crmV2ClientId: req.myShilohClientSession.crmV2ClientId, sessionId: req.myShilohClientSession.sessionId, revision: payload.revision }));
+    } catch (error) {
+      if (error instanceof MyShilohBookingError) return res.status(error.httpStatus).json({ error: error.message, code: error.code, requestId: req.id });
+      return next(error);
+    }
+  });
+
   router.post('/my-shiloh/api/booking/confirm', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
     try {
       setNoStoreJson(res);

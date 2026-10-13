@@ -603,6 +603,23 @@ export const AuthenticatedNativeBooking = {
   render: () => bookingSurface(),
 };
 
+export const UnfinishedBookingDraft = {
+  render: () => {
+    const surface = bookingSurface();
+    surface.querySelectorAll('[data-step]').forEach(node => { node.hidden = node.dataset.step !== '4'; });
+    surface.querySelector('[data-review-service]').textContent = 'Hot Stone Massage';
+    surface.querySelector('[data-review-practitioner]').textContent = 'Synthetic Practitioner';
+    surface.querySelector('[data-review-date]').textContent = 'Mon, 2 Nov 2026';
+    surface.querySelector('[data-review-time]').textContent = '10:00–11:15';
+    surface.querySelector('[data-confirm-status]').textContent = 'An unfinished booking draft is blocking this request. Review or discard the draft before sending a new request. Reload this page if the draft is not shown.';
+    surface.querySelector('[data-booking-draft]').hidden = false;
+    surface.querySelector('[data-booking-draft-detail]').textContent = 'Synthetic unfinished treatment · Fri, 16 Oct · 12:45';
+    surface.querySelector('[data-discard-booking-draft]').disabled = false;
+    surface.querySelector('[data-submit-booking]').disabled = true;
+    return surface;
+  },
+};
+
 function proposalSurface({ busy = false, error = '', expired = false } = {}) {
   const surface = AuthenticatedHome.render();
   surface.querySelectorAll('[data-view]').forEach(view => { view.hidden = view.dataset.view !== 'bookings'; });

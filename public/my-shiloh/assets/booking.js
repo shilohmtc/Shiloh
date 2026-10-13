@@ -5,7 +5,7 @@
   const get = selector => root.querySelector(selector);
   const steps = [...root.querySelectorAll('[data-step]')];
   const progress = [...root.querySelectorAll('[data-progress]')];
-  const state = { service:null, practitioner:null, slot:null, cart:[], quote:null, editing:null, requestId:null, busy:false, generation:0 };
+  const state = { service:null, practitioner:null, slot:null, cart:[], quote:null, editing:null, requestId:null, busy:false, generation:0, draftBlocked:false, draft:null };
   const status = get('[data-booking-status]');
   const slotStatus = get('[data-slot-status]');
   const confirmStatus = get('[data-confirm-status]');
@@ -18,6 +18,9 @@
   const occasionNote = get('[data-occasion-note]');
   const occasionDetails = get('[data-occasion-details]');
   const submit = get('[data-submit-booking]');
+  const draftCard = get('[data-booking-draft]');
+  const draftStatus = get('[data-booking-draft-status]');
+  const discardDraft = get('[data-discard-booking-draft]');
   const prepaidPackage = root.dataset.prepaidPackage === 'true';
   const rate = prepaidPackage ? 0 : Number(root.dataset.depositRate || 50);
   const multiple = !prepaidPackage && root.dataset.multipleBookings === 'true';
@@ -65,6 +68,8 @@
     state.busy = value;
     root.querySelectorAll('button').forEach(button => { button.disabled = value; });
     get('[data-add-booking]').disabled = value || selected().length >= 10;
+    submit.disabled = value || state.draftBlocked;
+    if (discardDraft) discardDraft.disabled = value || !state.draft?.canDiscard;
   }
   function renderCart(list) {
     const host = get('[data-cart-items]');
@@ -225,8 +230,45 @@
       });
     } catch (error) { if (generation === state.generation) setStatus(slotStatus,error.message,'error'); }
   });
-  submit?.addEventListener('click', async () => {
+  async function reviewDraft() {
+    state.draft = null;
+    setStatus(draftStatus, 'Loading your unfinished draft…');
+    try {
+      const data = await json('/my-shiloh/api/booking/unfinished-draft');
+      state.draft = data.draft;
+      if (!data.draft) {
+        state.draftBlocked = false;
+        get('[data-booking-draft-detail]').textContent = '';
+        setStatus(draftStatus, 'No unfinished draft remains. Check Bookings before sending another request.');
+      } else {
+        get('[data-booking-draft-detail]').textContent = [data.draft.treatment || 'Treatment not chosen', data.draft.practitioner, (/^\d{4}-\d{2}-\d{2}$/.test(data.draft.date || '') ? localDateLabel(data.draft.date + 'T00:00:00Z') : data.draft.date), data.draft.time].filter(Boolean).join(' · ');
+        setStatus(draftStatus, data.draft.canDiscard ? 'Review this draft before deciding to discard it.' : 'Reception needs to help with this draft.');
+      }
+    } catch (error) { setStatus(draftStatus, error.message, 'error'); }
+  }
+  get('[data-review-booking-draft]')?.addEventListener('click', async () => {
     if (state.busy) return;
+    busy(true); await reviewDraft(); busy(false);
+  });
+  discardDraft?.addEventListener('click', async () => {
+    if (state.busy || !state.draft?.canDiscard || typeof window.ShilohConfirm !== 'function') return;
+    const revision = state.draft.revision;
+    const approved = await window.ShilohConfirm({ title:'Discard this unfinished draft?', copy:'This removes only the unfinished draft you reviewed. Your appointments stay unchanged. You can then send the booking request selected on this page.', cancel:'Keep draft', action:'Discard draft', danger:true });
+    if (!approved || state.busy) return;
+    busy(true);
+    try {
+      const result = await post('/my-shiloh/api/booking/unfinished-draft/discard', { revision });
+      if (!result.discarded) throw new Error('The draft could not be discarded. Review it again.');
+      state.draft = null; state.draftBlocked = false; draftCard.hidden = true;
+      setStatus(confirmStatus, 'Unfinished draft discarded. Review your selected booking, then send your request.');
+      busy(false); submit.focus();
+    } catch (error) {
+      setStatus(confirmStatus, error.message, 'error');
+      await reviewDraft(); busy(false);
+    }
+  });
+  submit?.addEventListener('click', async () => {
+    if (state.busy || state.draftBlocked) return;
     const list = selected(); if (!list.length) return;
     const occasionChoice = get('[data-special-occasion]:checked')?.value;
     if (!occasionChoice) { setStatus(confirmStatus,'Please choose Yes or No for a special occasion.','error'); return; }
@@ -244,6 +286,7 @@
       get('[data-success-message]').textContent = data.message || 'Your selected time is being held while Shiloh confirms it.'; step(5);
     } catch (error) {
       if (error.code === 'BOOKING_CART_QUOTE_CHANGED') { invalidate(); busy(false); await review(); setStatus(confirmStatus,error.message,'error'); return; }
+      if (error.code === 'BOOKING_ALREADY_IN_PROGRESS' && draftCard) { state.draftBlocked = true; draftCard.hidden = false; await reviewDraft(); }
       setStatus(confirmStatus,error.code ? error.message : 'We could not verify the response. Check your bookings, or retry this same request safely.','error');
       busy(false);
     }

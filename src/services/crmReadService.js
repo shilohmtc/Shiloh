@@ -1,4 +1,5 @@
 const { pool } = require("../db/pool");
+const { normalizeMobileSearch } = require('./crmV2ClientService');
 const { CLIENT_RELATIONSHIP_TYPES, validClientScope, positiveId } = require('./clientRelationshipScope');
 
 function clampLimit(value, fallback = 50, max = 200) {
@@ -70,7 +71,7 @@ async function listClients({ q, status, limit, offset, scope }) {
   if (search) {
     values.push(`%${search}%`);
     const nameParam = `$${values.length}`;
-    const mobileDigits = search.replace(/[^0-9]/g, '');
+    const mobileDigits = normalizeMobileSearch(search);
     values.push(mobileDigits ? `%${mobileDigits}%` : null);
     const mobileParam = `$${values.length}`;
     where.push(`(c.name ILIKE ${nameParam} OR (${mobileParam}::text IS NOT NULL AND c.normalized_mobile LIKE ${mobileParam}))`);
