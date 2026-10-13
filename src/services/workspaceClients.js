@@ -85,7 +85,8 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
     );
     const authority = evaluateClientReadAuthority(result.rows);
     if (!authority) return null;
-    return { ...authority, manageAllowed: Boolean(evaluateClientManageAuthority(result.rows)) };
+    const management = evaluateClientManageAuthority(result.rows);
+    return { ...authority, manageAllowed: Boolean(management), deleteAllowed: management?.deleteAllowed === true };
   }
 
   async function requireAccess(adminId) {

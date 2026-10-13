@@ -62,6 +62,16 @@ function createWorkspaceClientMutationRouter({
     }
   });
 
+  router.post('/:id/delete', ...mutationChain, async (req, res, next) => {
+    try {
+      const body = strictBody(req.body, ['requestId', 'expectedRevision', 'confirmation']);
+      const result = await service.deleteClient({ adminId: req.staffBrowserSession.adminId, clientId: req.params.id, ...body });
+      return res.status(200).json(result);
+    } catch (error) {
+      return sendMutationError(res, error, req.id) || next(error);
+    }
+  });
+
   router.post('/:id/archive', ...mutationChain, async (req, res, next) => {
     try {
       const body = strictBody(req.body, ['requestId', 'expectedRevision']);

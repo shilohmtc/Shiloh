@@ -118,8 +118,9 @@ function listHtml() {
   return injectClientListManagement(renderClientListPage(model, options), model);
 }
 
-function detailHtml() {
+function detailHtml(clinic = false) {
   const model = detailModel();
+  if (clinic) model.authority = { ...model.authority, displayName: 'Synthetic clinic owner', businessRole: 'owner', deleteAllowed: true, clientScope: { kind: 'clinic', ownerStaffId: null } };
   return injectClientDetailManagement(renderClientDetailPageWithCommunications(model, options), model);
 }
 
@@ -138,3 +139,5 @@ export const MarietjieClientBase = {
 export const MarietjieClientManagement = {
   render: () => productionSurface(detailHtml()),
 };
+
+export const ClinicClientDeletion = { render: () => productionSurface(detailHtml(true)) };
