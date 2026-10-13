@@ -307,7 +307,7 @@ function createBookingPaymentService({
     }
   }
 
-  async function accountFor(queryable, subject, { create = false } = {}) {
+  async function accountFor(queryable, subject, { create = false, allowPriceReview = false } = {}) {
     const column = subject.groupId ? 'appointment_group_id' : 'appointment_id';
     const value = subject.groupId || subject.appointmentId;
     let result = await queryable.query(`SELECT * FROM booking_payment_accounts WHERE ${column}=$1 ${create ? 'FOR UPDATE' : ''}`, [value]);
@@ -321,7 +321,10 @@ function createBookingPaymentService({
     const account = result.rows[0] || null;
     if (account && Number(account.canonical_amount_due) !== Number(subject.amountDue)) {
       const settled = await queryable.query(`SELECT 1 FROM payment_ledger_entries WHERE payment_account_id=$1 UNION ALL SELECT 1 FROM treatment_credit_entries WHERE booking_payment_account_id=$1 UNION ALL SELECT 1 FROM booking_gift_voucher_allocations WHERE booking_payment_account_id=$1 UNION ALL SELECT 1 FROM booking_prior_payment_entries WHERE booking_payment_account_id=$1 OR source_payment_account_id=$1 LIMIT 1`, [account.id]);
-      if (settled.rowCount) throw new BookingPaymentError('PAYMENT_PRICE_CHANGED_AFTER_SETTLEMENT', 'This booking price changed after payment activity. Review the payment history before continuing.', 409);
+      if (settled.rowCount) {
+        if (!create && allowPriceReview) return { ...account, priceReview: { kind: 'price_changed_after_settlement', recordedAmountDue: money(account.canonical_amount_due), currentAmountDue: subject.amountDue } };
+        throw new BookingPaymentError('PAYMENT_PRICE_CHANGED_AFTER_SETTLEMENT', 'This booking price changed after payment activity. Review the payment history before continuing.', 409);
+      }
       if (!create) return { ...account, canonical_amount_due:subject.amountDue, pricing_revision:subject.pricingRevision };
       const refreshed = await queryable.query(`UPDATE booking_payment_accounts SET canonical_amount_due=$2,pricing_revision=$3,updated_at=NOW() WHERE id=$1 RETURNING *`, [account.id, subject.amountDue, subject.pricingRevision]); return refreshed.rows[0];
     }
@@ -360,14 +363,15 @@ function createBookingPaymentService({
     };
   }
 
-  async function get({ adminId, appointmentId } = {}) {
+  async function get({ adminId, appointmentId } = {}, { allowPriceReview = false } = {}) {
     const operator = await resolveOperator(db, adminId, CAPABILITIES.VIEW);
     const subject = await loadSubject(db, appointmentId); assertTarget(operator, subject);
-    const account = await accountFor(db, subject);
+    const account = await accountFor(db, subject, { allowPriceReview });
+    const priceReview = account?.priceReview || null;
     let rewardWallet=null;
-    if(subject.crmV2ClientId){try{rewardWallet=await rewards.getClientBalance(subject.crmV2ClientId);}catch(error){logger.error({err:error,appointmentId:subject.appointmentId},'Shiloh Rewards balance unavailable on payment page');}}
+    if(!priceReview && subject.crmV2ClientId){try{rewardWallet=await rewards.getClientBalance(subject.crmV2ClientId);}catch(error){logger.error({err:error,appointmentId:subject.appointmentId},'Shiloh Rewards balance unavailable on payment page');}}
     let deposit=null;
-    try { await deposits.ensureRequirement({ appointmentId:subject.appointmentId }); deposit=await deposits.getPosition({ appointmentId:subject.appointmentId }); } catch (error) { logger.error({err:error,appointmentId:subject.appointmentId},'Booking deposit position unavailable'); }
+    if (!priceReview) { try { await deposits.ensureRequirement({ appointmentId:subject.appointmentId }); deposit=await deposits.getPosition({ appointmentId:subject.appointmentId }); } catch (error) { logger.error({err:error,appointmentId:subject.appointmentId},'Booking deposit position unavailable'); } }
     let paymentReview=null;
     if (account?.id) {
       const review = await db.query(
@@ -387,11 +391,11 @@ function createBookingPaymentService({
       };
     }
     const noChargeEvidence = (await db.query(`SELECT e.created_at,e.metadata,a.display_name AS actor_name FROM crm_audit_events e JOIN staff_admin_accounts a ON a.id=e.actor_admin_id WHERE e.action='booking.no_charge_recorded' AND e.entity_type='appointment' AND e.entity_id=$1 ORDER BY e.id DESC LIMIT 1`,[subject.appointmentId])).rows[0] || null;
-    return { subject, noChargeEvidence, payment: await position(db, account, subject), priorPayments:await prior.evidenceModel(db,subject,account,hasCapability(operator.calendarAuthority,CAPABILITIES.COLLECT)&&prior.allowed(operator)), deposit, rewards: rewardWallet, paymentReview, authority: {
-      canCollect: hasCapability(operator.calendarAuthority, CAPABILITIES.COLLECT),
-      canRecordNoCharge: noCharge.allowed(operator),
-      canRecordPrior:hasCapability(operator.calendarAuthority,CAPABILITIES.COLLECT)&&prior.allowed(operator),
-      canRefund: hasCapability(operator.calendarAuthority, CAPABILITIES.REFUND),
+    return { subject, noChargeEvidence, priceReview, payment: await position(db, account, subject), priorPayments:await prior.evidenceModel(db,subject,account,!priceReview&&hasCapability(operator.calendarAuthority,CAPABILITIES.COLLECT)&&prior.allowed(operator)), deposit, rewards: rewardWallet, paymentReview, authority: {
+      canCollect: !priceReview && hasCapability(operator.calendarAuthority, CAPABILITIES.COLLECT),
+      canRecordNoCharge: !priceReview && noCharge.allowed(operator),
+      canRecordPrior:!priceReview&&hasCapability(operator.calendarAuthority,CAPABILITIES.COLLECT)&&prior.allowed(operator),
+      canRefund: !priceReview && hasCapability(operator.calendarAuthority, CAPABILITIES.REFUND),
       ozowConfigured: ozow.configured(),
     } };
   }
@@ -739,7 +743,8 @@ function createBookingPaymentService({
 
   const noCharge = createBookingNoChargeActions({db, ErrorType:BookingPaymentError,positiveId,requestKey,resolveOperator,loadSubject,assertTarget,accountFor,position,syncDepositAfterSettlement});
   const prior = createBookingPriorPaymentActions({ db,money,requestKey,positiveId,ErrorType:BookingPaymentError,resolveOperator,loadSubject,assertTarget,accountFor,position,syncDepositAfterSettlement,now });
-  return { get, recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification,recordNoCharge:noCharge.record,recordPrior:prior.recordPrior,reversePrior:prior.reversePrior };
+  const getReview = ({ adminId, appointmentId } = {}) => get({ adminId, appointmentId }, { allowPriceReview: true });
+  return { get, getReview, recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification,recordNoCharge:noCharge.record,recordPrior:prior.recordPrior,reversePrior:prior.reversePrior };
 }
 
 module.exports = { CAPABILITIES, BookingPaymentError, money, createBookingPaymentService };
