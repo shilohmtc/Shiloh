@@ -67,9 +67,37 @@ async function validDetailEnrollment(client, session, current, env) {
   );
 }
 
+// Optional own-account keys require a live Workspace session and a usable
+// details fallback. Saving a key never changes this session's assurance.
+async function validOptionalPasskeySession(client, session, current, env) {
+  if (
+    !staffDetailAuthEnabled(env) ||
+    !session?.ok ||
+    session.recoveryRequired ||
+    !['staff_details', 'passkey'].includes(session.authMethod)
+  )
+    return false;
+  const result = await client.query(
+    `SELECT bs.auth_method, bs.detail_identity_revision, a.sign_in_first_name,
+      a.sign_in_surname, a.sign_in_date_of_birth, a.normalized_whatsapp
+      FROM staff_browser_sessions bs JOIN staff_admin_accounts a ON a.id=bs.admin_id
+      WHERE bs.id=$1 AND bs.admin_id=$2 AND bs.recovery_required=FALSE
+      AND bs.revoked_at IS NULL AND bs.expires_at>$3 FOR UPDATE OF bs`,
+    [session.sessionId, session.adminId, current],
+  );
+  const row = result.rows[0],
+    revision = staffDetailRevision(row);
+  return (
+    !!revision &&
+    row.auth_method === session.authMethod &&
+    (row.auth_method === 'passkey' || row.detail_identity_revision === revision)
+  );
+}
+
 module.exports = {
   staffDetailRevision,
   staffDetailsMatch,
   staffDetailAuthEnabled,
   validDetailEnrollment,
+  validOptionalPasskeySession,
 };

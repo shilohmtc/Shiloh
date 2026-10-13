@@ -480,3 +480,184 @@ test('setup rechecks current sessions, permissions, identity and active staff in
   assert.equal((await save()).code, 'STAFF_DETAIL_SETUP_FORBIDDEN');
   assert.equal((await h.setup.read({ session })).ok, false);
 });
+
+test('own last passkey can be removed and a new one saved while details session remains valid', async (t) => {
+  const h = await harness(t);
+  const signed = await h.attempt();
+  const session = await h.sessions.validateSessionToken(signed.sessionToken);
+  h.advance(11 * 60 * 1000);
+  async function enroll() {
+    const start = await h.passkeys.beginRegistration({ session });
+    assert.equal(start.ok, true);
+    const f = fixture();
+    f.challenge = start.options.challenge;
+    const finish = await h.passkeys.finishRegistration({
+      session,
+      response: registrationResponse(f),
+    });
+    assert.equal(finish.ok, true);
+    return { f, finish };
+  }
+  const { f, finish } = await enroll();
+  await h.db.query(
+    `INSERT INTO staff_admin_accounts(id,display_name,active) VALUES(9,'Other staff',TRUE)`,
+  );
+  await h.db.query(
+    `INSERT INTO staff_auth_passkey_credentials(admin_id,credential_id,public_key_spki,algorithm)
+    SELECT 9,'other-credential',public_key_spki,algorithm FROM staff_auth_passkey_credentials WHERE id=$1`,
+    [finish.credentialId],
+  );
+  const foreign = (
+    await h.db.query('SELECT id FROM staff_auth_passkey_credentials WHERE admin_id=9')
+  ).rows[0];
+  assert.equal(
+    (await h.passkeys.revokeCredential({ session, credentialId: foreign.id })).code,
+    'STAFF_PASSKEY_NOT_FOUND',
+  );
+  assert.equal((await h.passkeys.listCredentials({ session })).credentials.length, 1);
+  const start = await h.passkeys.beginAuthentication();
+  f.challenge = start.options.challenge;
+  const credential = (
+    await h.db.query('SELECT * FROM staff_auth_passkey_credentials WHERE id=$1', [
+      finish.credentialId,
+    ])
+  ).rows[0];
+  const passkeySigned = await h.passkeys.finishAuthentication({
+    response: assertionResponse(f, credential),
+  });
+  // Authentication rotates the previous session; sign in with details again.
+  const again = await h.attempt();
+  Object.assign(session, await h.sessions.validateSessionToken(again.sessionToken));
+  // Simulate another existing passkey session without rotating the details session.
+  await h.db.query(`UPDATE staff_browser_sessions SET revoked_at=NULL WHERE id=$1`, [
+    passkeySigned.sessionId,
+  ]);
+  const pending = await h.passkeys.beginRegistration({ session });
+  assert.equal(pending.ok, true);
+  const removed = await h.passkeys.revokeCredential({ session, credentialId: finish.credentialId });
+  assert.equal(removed.ok, true);
+  assert.equal(removed.signInRequired, false);
+  assert.equal((await h.sessions.validateSessionToken(again.sessionToken)).ok, true);
+  assert.equal((await h.sessions.validateSessionToken(passkeySigned.sessionToken)).ok, false);
+  assert.equal(
+    (await h.passkeys.revokeCredential({ session, credentialId: finish.credentialId })).code,
+    'STAFF_PASSKEY_NOT_FOUND',
+  );
+  f.challenge = pending.options.challenge;
+  assert.equal(
+    (await h.passkeys.finishRegistration({ session, response: registrationResponse(f) })).ok,
+    false,
+  );
+  await enroll();
+  assert.equal(
+    (await h.sessions.validateSessionToken(again.sessionToken)).authMethod,
+    'staff_details',
+  );
+  const active = (await h.passkeys.listCredentials({ session })).credentials.filter(
+    (row) => !row.revokedAt,
+  );
+  assert.equal(active.length, 1);
+  const other = (
+    await h.db.query('SELECT revoked_at FROM staff_auth_passkey_credentials WHERE id=$1', [
+      foreign.id,
+    ])
+  ).rows[0];
+  assert.equal(other.revoked_at, null);
+  const events = (await h.db.query("SELECT auth_method,operator_admin_id,subject_admin_id FROM staff_auth_security_events WHERE event_type IN ('passkey_registered','passkey_revoked')")).rows;
+  assert.ok(events.every(row => row.auth_method === 'staff_details' && Number(row.operator_admin_id) === 2 && Number(row.subject_admin_id) === 2));
+});
+
+test('optional key management rechecks expired, revoked, changed and recovery sessions', async (t) => {
+  const h = await harness(t);
+  const signed = await h.attempt();
+  const session = await h.sessions.validateSessionToken(signed.sessionToken);
+  const start = await h.passkeys.beginRegistration({ session });
+  const f = fixture();
+  f.challenge = start.options.challenge;
+  const saved = await h.passkeys.finishRegistration({ session, response: registrationResponse(f) });
+  assert.equal(saved.ok, true);
+  for (const [sql, restore] of [
+    [
+      "UPDATE staff_admin_accounts SET sign_in_surname='Changed' WHERE id=2",
+      "UPDATE staff_admin_accounts SET sign_in_surname='Example' WHERE id=2",
+    ],
+    [
+      'UPDATE staff_admin_accounts SET active=FALSE WHERE id=2',
+      'UPDATE staff_admin_accounts SET active=TRUE WHERE id=2',
+    ],
+    [
+      'UPDATE staff_browser_sessions SET recovery_required=TRUE',
+      'UPDATE staff_browser_sessions SET recovery_required=FALSE',
+    ],
+    [
+      'UPDATE staff_browser_sessions SET revoked_at=NOW()',
+      'UPDATE staff_browser_sessions SET revoked_at=NULL',
+    ],
+  ]) {
+    await h.db.query(sql);
+    assert.equal((await h.passkeys.beginRegistration({ session })).ok, false);
+    assert.equal(
+      (await h.passkeys.revokeCredential({ session, credentialId: saved.credentialId })).ok,
+      false,
+    );
+    assert.equal((await h.passkeys.listCredentials({ session })).ok, false);
+    await h.db.query(restore);
+  }
+  h.advance(8 * 60 * 60 * 1000);
+  assert.equal((await h.passkeys.beginRegistration({ session })).ok, false);
+  assert.equal(
+    (await h.passkeys.revokeCredential({ session, credentialId: saved.credentialId })).ok,
+    false,
+  );
+});
+
+test('a passkey session may remove its last own key, then must use staff details to enroll again', async (t) => {
+  const h = await harness(t);
+  const signed = await h.attempt();
+  const detailsSession = await h.sessions.validateSessionToken(signed.sessionToken);
+  const start = await h.passkeys.beginRegistration({ session: detailsSession });
+  const f = fixture();
+  f.challenge = start.options.challenge;
+  const saved = await h.passkeys.finishRegistration({
+    session: detailsSession,
+    response: registrationResponse(f),
+  });
+  const credential = (
+    await h.db.query('SELECT * FROM staff_auth_passkey_credentials WHERE id=$1', [
+      saved.credentialId,
+    ])
+  ).rows[0];
+  const signIn = await h.passkeys.beginAuthentication();
+  f.challenge = signIn.options.challenge;
+  const authenticated = await h.passkeys.finishAuthentication({
+    response: assertionResponse(f, credential),
+  });
+  const session = await h.sessions.validateSessionToken(authenticated.sessionToken);
+  h.advance(11 * 60 * 1000);
+  assert.equal((await h.passkeys.beginRegistration({ session })).ok, true);
+  const removed = await h.passkeys.revokeCredential({ session, credentialId: saved.credentialId });
+  assert.equal(removed.ok, true);
+  assert.equal(removed.signInRequired, true);
+  assert.equal((await h.sessions.validateSessionToken(authenticated.sessionToken)).ok, false);
+  assert.equal((await h.passkeys.beginRegistration({ session })).ok, false);
+  const replay = await h.passkeys.beginAuthentication();
+  f.challenge = replay.options.challenge;
+  assert.equal(
+    (
+      await h.passkeys.finishAuthentication({
+        response: assertionResponse(f, credential, { signCount: 2 }),
+      })
+    ).ok,
+    false,
+  );
+  const fallback = await h.attempt();
+  assert.equal(fallback.ok, true);
+  assert.equal(
+    (
+      await h.passkeys.beginRegistration({
+        session: await h.sessions.validateSessionToken(fallback.sessionToken),
+      })
+    ).ok,
+    true,
+  );
+});

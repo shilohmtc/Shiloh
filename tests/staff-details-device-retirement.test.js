@@ -28,6 +28,10 @@ test('staff device and SMS routes retire while administrator authentication and 
   };
   const calls = [];
   const passkeys = {
+    async listCredentials({ session: actual }) { assert.equal(actual, session); return { ok: true, credentials: [] }; },
+    async beginRegistration({ session: actual }) { assert.equal(actual, session); return { ok: true, options: {} }; },
+    async finishRegistration({ session: actual }) { assert.equal(actual, session); return { ok: true, credentialId: 19, credentialHint: 'A'.repeat(43) }; },
+    async revokeCredential({ session: actual, credentialId }) { assert.equal(actual, session); assert.equal(credentialId, '19'); return { ok: true, credentialHint: 'A'.repeat(43) }; },
     async beginAuthentication({ session: actual } = {}) {
       calls.push(actual ? 'confirmation' : 'sign-in');
       return { ok: true, options: { challenge: 'synthetic' } };
@@ -51,15 +55,19 @@ test('staff device and SMS routes retire while administrator authentication and 
   async function request(path, method = 'POST') {
     return fetch(origin + '/calendar/staff-auth/passkeys' + path, { method, headers, ...(method === 'POST' ? { body: '{}' } : {}), redirect: 'manual' });
   }
-  for (const path of ['/registration/options', '/registration/finish', '/self-bootstrap', '/19/rename', '/19/revoke', '/sms-setup/verify', '/bootstrap/start', '/bootstrap/finish']) {
+  for (const path of ['/self-bootstrap', '/19/rename', '/sms-setup/verify', '/bootstrap/start', '/bootstrap/finish']) {
     assert.equal((await request(path)).status, 410, path);
   }
-  for (const path of ['/', '/manage.js', '/sms-setup', '/sms-setup.js', '/bootstrap', '/bootstrap.js']) {
+  for (const path of ['/sms-setup', '/sms-setup.js', '/bootstrap', '/bootstrap.js']) {
     assert.equal((await request(path, 'GET')).status, 410, path);
   }
   const manage = await request('/manage', 'GET');
-  assert.equal(manage.status, 302);
-  assert.equal(manage.headers.get('location'), '/calendar/staff-auth/details/manage');
+  assert.equal(manage.status, 200);
+  assert.match(await manage.text(), /My passkeys/);
+  for (const path of ['/', '/manage.js']) assert.equal((await request(path, 'GET')).status, 200);
+  assert.equal((await request('/registration/options')).status, 200);
+  assert.equal((await request('/registration/finish')).status, 201);
+  assert.equal((await request('/19/revoke')).status, 200);
   assert.equal((await fetch(origin + '/calendar/team/workspace-access/19/sms-device-setup', { method: 'POST', headers, body: '{}' })).status, 410);
   assert.equal((await request('/authentication/options')).status, 200);
   assert.equal((await request('/reauthentication/options')).status, 200);
@@ -76,7 +84,9 @@ test('staff SMS issuance and verification fail closed before any database or gat
 test('staff navigation and enrollment use details instead of devices and SMS', () => {
   const navigation = passkeyNavigationClientScript(env);
   assert.match(navigation, /My sign-in details/);
-  assert.doesNotMatch(navigation, /passkeys\/manage|Devices/);
+  assert.match(navigation, /My passkeys/);
+  assert.match(navigation, /passkeys\/manage/);
+  assert.doesNotMatch(navigation, /Devices/);
   const panel = staffSmsSetupPanel({ id: 19, active: true }, 1, true);
   assert.match(panel, /Staff sign-in details/);
   assert.match(panel, /administrator changes still require passkey confirmation/);

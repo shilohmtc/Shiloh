@@ -98,13 +98,16 @@ function createStaffPasskeyAuthRouter({
     return res.status(200).json({ authenticated: true, csrfToken: result.csrfToken, viewer: result.viewer || null, recoveryRequired: false });
   }
 
-  // Details are the normal staff entry; retain passkeys only for authentication
-  // and protected confirmation. Do not accept obsolete device-management actions.
+  // Reopen only optional own-account save/list/remove; obsolete setup stays retired.
   router.use((req, res, next) => {
     if (!staffDetailAuthEnabled(env)) return next();
     if (req.path === '/known-principal' || /^\/(?:re)?authentication\/(options|finish)$/.test(req.path)) return next();
+    if (req.method === 'GET' && ['/', '/manage', '/manage.js'].includes(req.path)) return next();
+    if (req.method === 'POST' && /^\/(registration\/(options|finish)|\d+\/revoke)$/.test(req.path)) {
+      if (req.body?.mode && req.body.mode !== 'add') return res.status(410).json({ error: 'Use Save passkey or remove one of your own saved passkeys.' });
+      return next();
+    }
     noStore(res);
-    if (req.method === 'GET' && req.path === '/manage') return res.redirect(302, '/calendar/staff-auth/details/manage');
     return res.status(410).json({ error: 'Staff device setup has been retired. Use your recorded staff details to sign in.' });
   });
 
@@ -169,7 +172,7 @@ function createStaffPasskeyAuthRouter({
       const result = await passkeyService.listCredentials({ session: req.staffBrowserSession, credentialIdHint: passkeyHintFromRequest(req, env) });
       if (!result.ok) return error(res, result);
       secure(res);
-      return res.status(200).type('application/javascript').send(manageScript());
+      return res.status(200).type('application/javascript').send(manageScript({ optionalPasskeys: staffDetailAuthEnabled(env) }));
     } catch (e) { return next(e); }
   });
   router.get('/', requireSession, async (req, res, next) => {
@@ -235,6 +238,7 @@ function createStaffPasskeyAuthRouter({
       if (hintBefore && hintBefore === normalizeCredentialHint(result.credentialHint)) {
         res.setHeader('Set-Cookie', serializeExpiredPasskeyHintCookie({ env }));
       }
+      if (staffDetailAuthEnabled(env)) return res.status(200).json({ removed: true, signInRequired: result.signInRequired === true });
       return res.status(204).send();
     } catch (e) { return next(e); }
   });
