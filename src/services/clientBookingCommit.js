@@ -283,7 +283,7 @@ async function commitAcceptedClientBooking(phone, { crmV2ClientId = null } = {})
     if (!clinic.covered) {
       await resetAcceptedIntentForNewSlot(normalizedPhone, db);
       await db.query('COMMIT');
-      return { handled: true, status: 'clinic_hours_changed', reply: chooseAnotherTimeReply('Shiloh’s authoritative clinic hours no longer permit that time.') };
+      return { handled: true, status: 'clinic_hours_changed', reply: chooseAnotherTimeReply('That treatment time is outside Shiloh’s client booking hours.') };
     }
 
     const schedule = await checkAuthoritativeSchedule({
