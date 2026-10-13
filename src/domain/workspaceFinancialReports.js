@@ -62,15 +62,15 @@ function summarizeFinancials({ period, treatments = [], receipts = [], balances 
   const unpaid = [];
   let balanceReviewCount = 0;
   for (const row of balances) {
-    const due = cents(row.amount_due), paid = cents(row.net_paid), credits = cents(row.credits);
-    if (![due, paid, credits].every(Number.isSafeInteger) || due < 0 || credits < 0) {
+    const due = cents(row.amount_due), paid = cents(row.net_paid), credits = cents(row.credits), prior = cents(row.prior_paid||0);
+    if (![due, paid, credits, prior].every(Number.isSafeInteger) || due < 0 || credits < 0 || prior < 0) {
       balanceReviewCount += 1;
       continue;
     }
-    const outstanding = Math.max(0, due - paid - credits);
+    const outstanding = Math.max(0, due - paid - prior - credits);
     if (!outstanding) continue;
     unpaid.push({ appointmentId: Number(row.appointment_id), groupId: row.group_id || null,
-      date: clinicDate(row.starts_at), amountDue: rand(due), netPaid: rand(paid), credits: rand(credits),
+      date: clinicDate(row.starts_at), amountDue: rand(due), netPaid: rand(paid), priorPaid:rand(prior), credits: rand(credits),
       outstanding: rand(outstanding), mixedStatus: row.mixed_status === true });
   }
   const convertTotals = totals => ({ ...totals, treatmentValue: rand(totals.treatmentValue),

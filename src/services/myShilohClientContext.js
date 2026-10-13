@@ -1,4 +1,5 @@
 'use strict';
+const { priorPaymentIncomingSql, priorPaymentOutgoingSql } = require('../domain/priorPaymentSql');
 
 const { pool } = require('../db/pool');
 const { requiredFormVersionsSql, projectRequiredForm } = require('./consultationFormReadiness');
@@ -17,30 +18,32 @@ function decimal(value) {
   return Number.isFinite(number) ? number.toFixed(2) : null;
 }
 
-function paymentState({ amountDue, paid, refunded, rewardsApplied = 0, welcomeVoucherApplied = 0, treatmentCreditApplied = 0, giftVoucherApplied = 0 }) {
+function paymentState({ amountDue, paid, refunded, rewardsApplied = 0, welcomeVoucherApplied = 0, treatmentCreditApplied = 0, giftVoucherApplied = 0, priorPaid = 0, transferredOut = 0 }) {
   if (amountDue == null) {
     return { state: 'unknown', amountDue: null, paid: null, refunded: null, netPaid: null, rewardsApplied: null, welcomeVoucherApplied: null, outstanding: null };
   }
   const due = Number(amountDue);
   const received = Number(paid || 0);
   const returned = Number(refunded || 0);
-  const net = received - returned;
+  const net = received - returned - Number(transferredOut||0);
+  const prior = Number(priorPaid||0);
   const rewards = Number(rewardsApplied || 0);
   const welcome = Number(welcomeVoucherApplied || 0);
   const treatment = Number(treatmentCreditApplied || 0), gift = Number(giftVoucherApplied || 0);
-  const outstanding = Math.max(0, due - net - rewards - welcome - treatment - gift);
+  const settledCents = Math.round(net*100)+Math.round(prior*100)+Math.round(rewards*100)+Math.round(welcome*100)+Math.round(treatment*100)+Math.round(gift*100);
+  const outstanding = Math.max(0, Math.round(due*100)-settledCents)/100;
   return {
-    state: net + rewards + welcome + treatment + gift > due
+    state: settledCents > Math.round(due*100)
       ? 'overpaid'
       : outstanding === 0
         ? (returned > 0 ? 'partially_refunded' : 'paid')
-        : net + rewards + welcome + treatment + gift > 0
+        : settledCents > 0
           ? 'partially_paid'
           : 'unpaid',
     amountDue: due.toFixed(2),
     paid: received.toFixed(2),
     refunded: returned.toFixed(2),
-    netPaid: net.toFixed(2),
+    netPaid: net.toFixed(2),priorPaid:prior.toFixed(2),
     rewardsApplied: rewards.toFixed(2),
     welcomeVoucherApplied: welcome.toFixed(2),
     treatmentCreditApplied: treatment.toFixed(2), giftVoucherApplied: gift.toFixed(2),
@@ -328,6 +331,7 @@ function createMyShilohClientContextService({
               dp.late_forfeit_basis_points AS deposit_late_forfeit_basis_points,
               COALESCE(SUM(ple.amount) FILTER (WHERE ple.entry_type='payment'),0) AS paid,
               COALESCE(SUM(ple.amount) FILTER (WHERE ple.entry_type='refund'),0) AS refunded,
+              ${priorPaymentIncomingSql('bpa.id')} AS prior_paid,${priorPaymentOutgoingSql('bpa.id')} AS transferred_out,
               (SELECT COALESCE(SUM(bla.amount),0) FROM booking_loyalty_allocations bla WHERE bla.booking_payment_account_id=bpa.id AND bla.state='applied') AS rewards_applied,
               (SELECT COALESCE(SUM(wva.amount),0) FROM booking_welcome_voucher_allocations wva WHERE wva.booking_payment_account_id=bpa.id AND wva.state='applied') AS welcome_voucher_applied,
               (SELECT COALESCE(-SUM(tc.signed_amount),0) FROM treatment_credit_entries tc WHERE tc.booking_payment_account_id=bpa.id AND tc.entry_type IN ('apply','undo')) AS treatment_credit_applied,
@@ -380,14 +384,14 @@ function createMyShilohClientContextService({
     const requestKey = String(requestResult.rows[0]?.request_key || '');
     const base = paymentState({
       amountDue: account.canonical_amount_due,
-      paid: account.paid,
+      paid: account.paid,priorPaid:account.prior_paid,transferredOut:account.transferred_out,
       refunded: account.refunded,
       rewardsApplied: account.rewards_applied,
       welcomeVoucherApplied: account.welcome_voucher_applied,
       treatmentCreditApplied: account.treatment_credit_applied, giftVoucherApplied: account.gift_voucher_applied,
     });
     const depositRequired = account.deposit_required_amount == null ? null : Number(account.deposit_required_amount);
-    const netMoneyPaid = Math.max(0, Number(account.paid || 0) - Number(account.refunded || 0));
+    const netMoneyPaid = Math.max(0, Number(account.paid || 0) - Number(account.refunded || 0) + Number(account.prior_paid||0) - Number(account.transferred_out||0));
     const depositOutstanding = depositRequired == null ? null : Math.max(0, depositRequired - netMoneyPaid);
     return {
       ...base,

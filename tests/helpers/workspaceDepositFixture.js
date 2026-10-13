@@ -11,6 +11,7 @@ module.exports = `CREATE TABLE appointments(id bigint,client_id bigint,crm_v2_cl
     CREATE TABLE booking_deposit_requirements(id bigint,payment_account_id bigint,required_amount numeric,state text);
     CREATE TABLE booking_deposit_requirement_members(requirement_id bigint,appointment_id bigint,required_amount numeric);
     CREATE TABLE payment_ledger_entries(payment_account_id bigint,payment_request_id bigint,entry_type text,amount numeric);
+    CREATE VIEW booking_prior_payment_totals AS SELECT NULL::bigint AS account_id,0::numeric AS incoming,0::numeric AS outgoing WHERE FALSE;
     CREATE TABLE payment_requests(id bigint,payment_account_id bigint,purpose text,deposit_requirement_id bigint,state text,provider_payment_url text,expires_at timestamptz);
     INSERT INTO appointments VALUES(1,null,null,'2026-10-07','2026-10-01','scheduled','shiloh','ZAR',500,'Massage','Synthetic Aloe'),(2,null,null,'2026-10-08','2026-10-01','scheduled','shiloh','ZAR',500,'Massage','Synthetic Fynbos');
     INSERT INTO appointment_groups VALUES(1,'scheduled',1000,1000);INSERT INTO appointment_group_members VALUES(1,1),(1,2);

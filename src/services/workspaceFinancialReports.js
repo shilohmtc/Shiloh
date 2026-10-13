@@ -1,3 +1,4 @@
+const { priorPaymentIncomingSql, priorPaymentOutgoingSql } = require('../domain/priorPaymentSql');
 const { pool } = require('../db/pool');
 const { createWorkspaceStaffEarningsService, clinicDate } = require('./workspaceStaffEarnings');
 const { resolvePeriod } = require('./workspaceReports');
@@ -71,11 +72,13 @@ const BALANCES_SQL = `/* FinancialReports:balances */
        AND a.starts_at >= $1::timestamptz AND a.starts_at < $2::timestamptz)
   ) SELECT s.*,p.id AS account_id,
        CASE WHEN EXISTS (SELECT 1 FROM payment_ledger_entries e WHERE e.payment_account_id=p.id)
+         OR EXISTS (SELECT 1 FROM booking_prior_payment_entries prior WHERE prior.booking_payment_account_id=p.id OR prior.source_payment_account_id=p.id)
          OR EXISTS (SELECT 1 FROM treatment_credit_entries tc WHERE tc.booking_payment_account_id=p.id)
          OR EXISTS (SELECT 1 FROM booking_gift_voucher_allocations gift WHERE gift.booking_payment_account_id=p.id)
          THEN p.canonical_amount_due ELSE s.current_due END AS amount_due,
        COALESCE((SELECT SUM(CASE WHEN e.entry_type='payment' THEN e.amount ELSE -e.amount END)
-          FROM payment_ledger_entries e WHERE e.payment_account_id=p.id),0) AS net_paid,
+          FROM payment_ledger_entries e WHERE e.payment_account_id=p.id),0) - ${priorPaymentOutgoingSql('p.id')} AS net_paid,
+       ${priorPaymentIncomingSql('p.id')} AS prior_paid,
        COALESCE((SELECT SUM(l.amount) FROM booking_loyalty_allocations l
          WHERE l.booking_payment_account_id=p.id AND l.state='applied'),0)
        + COALESCE((SELECT SUM(v.amount) FROM booking_welcome_voucher_allocations v
@@ -130,13 +133,15 @@ function createWorkspaceFinancialReportsService({ db = pool,
       throw Object.assign(new Error('Report dates changed. Refresh the report.'), { httpStatus: 409 });
     }
     const params = [effective.from, effective.to, effective.previousFrom, effective.previousTo];
-    const [visits, ledger, balances, vouchers, credits, gifts] = await Promise.all([
+    const [visits, ledger, balances, vouchers, credits, gifts, priorPayments] = await Promise.all([
       db.query(TREATMENTS_SQL, params), db.query(RECEIPTS_SQL, params), db.query(BALANCES_SQL, params.slice(0, 2)),
       db.query(VOUCHERS_SQL, [effective.from, effective.to, clinicDate(now)]),
       db.query(CREDITS_SQL, params.slice(0, 2)), db.query(GIFT_APPLICATIONS_SQL, params.slice(0, 2)),
+      db.query(`SELECT e.*,a.display_name AS actor_name FROM booking_prior_payment_entries e JOIN staff_admin_accounts a ON a.id=e.actor_admin_id
+        WHERE e.created_at >= $1::timestamptz AND e.created_at < $2::timestamptz ORDER BY e.created_at,e.id`,params.slice(0,2)),
     ]);
     return { ...summarizeFinancials({ period: effective, treatments: visits.rows, receipts: ledger.rows, balances: balances.rows }),
-      vouchers: vouchers.rows[0] || {}, treatmentCredits: credits.rows, giftVoucherApplications: gifts.rows, period: effective, scope: 'all_business' };
+      vouchers: vouchers.rows[0] || {}, treatmentCredits: credits.rows, giftVoucherApplications: gifts.rows, priorPayments:priorPayments.rows, period: effective, scope: 'all_business' };
   }
   return { requireAccess, build };
 }

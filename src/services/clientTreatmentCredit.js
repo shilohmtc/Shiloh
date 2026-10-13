@@ -1,4 +1,5 @@
 'use strict';
+const { priorPaymentSql } = require('../domain/priorPaymentSql');
 
 const { createHash } = require('node:crypto');
 const { pool } = require('../db/pool');
@@ -64,7 +65,7 @@ async function lockCompletedTreatmentAccount(queryable, data) {
 
 async function remainingTreatmentCents(queryable, account) {
   const totals = (await queryable.query(`SELECT
-    COALESCE((SELECT SUM(CASE WHEN entry_type='payment' THEN amount ELSE -amount END) FROM payment_ledger_entries WHERE payment_account_id=$1),0) AS net_paid,
+    COALESCE((SELECT SUM(CASE WHEN entry_type='payment' THEN amount ELSE -amount END) FROM payment_ledger_entries WHERE payment_account_id=$1),0) + ${priorPaymentSql('$1')} AS net_paid,
     COALESCE((SELECT SUM(amount) FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0)
     + COALESCE((SELECT SUM(amount) FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0)
     + COALESCE((SELECT -SUM(signed_amount) FROM treatment_credit_entries WHERE booking_payment_account_id=$1 AND entry_type IN ('apply','undo')),0)

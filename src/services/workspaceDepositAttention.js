@@ -1,4 +1,5 @@
 'use strict';
+const { priorPaymentSql } = require('../domain/priorPaymentSql');
 
 const { pool } = require('../db/pool');
 const { allowsAppointmentTarget } = require('./calendarAuthorization');
@@ -11,7 +12,7 @@ const DEPOSIT_ATTENTION_SQL = `/* WorkspaceDepositAttention:read */
         g.status AS group_status,
         COALESCE((SELECT SUM(CASE WHEN e.entry_type='payment' THEN e.amount
                                  WHEN e.entry_type='refund' THEN -e.amount ELSE 0 END)
-                    FROM payment_ledger_entries e WHERE e.payment_account_id=pa.id),0) AS net_paid,
+                    FROM payment_ledger_entries e WHERE e.payment_account_id=pa.id),0) + ${priorPaymentSql('pa.id')} AS net_paid,
         EXISTS(SELECT 1 FROM payment_requests pr WHERE pr.payment_account_id=pa.id
                 AND pr.purpose='deposit' AND pr.deposit_requirement_id=r.id
                 AND pr.state IN ('link_issued','pending') AND pr.provider_payment_url IS NOT NULL

@@ -4,6 +4,10 @@
 
 # Shiloh Platform Handbook
 
+## Prior payments — accepted 12 October 2026
+
+Reception and Christel record a paid treatment at its actual charged value, even when no money is due on the visit date. Existing payments already attached to the canonical booking account count automatically; prepaid package treatments use the existing package visit authority. Payment from before Shiloh’s records uses clearly labelled **Paid previously** evidence with original payment date/reference, evidence note, actor and explicit payment/package review. It reduces the booking/deposit balance without creating a receipt today, goodwill credit, cash-up movement or new rewards. Existing receipt links may use only unused cash from another ordinary booking for the same active client; never reallocate value already covering another treatment. Mixed-client linked bookings need separate allocation review. Duplicate reference checks, exact retries, canonical balance locks and immutable full reversals protect evidence. Receipt reports retain original receipt dates; prior-payment evidence is reported separately. Active payment links close when prior payment is allocated; verified money arriving on those closed links remains recorded and flagged for review. Historical R0 booking correction requires individual price/payment evidence review and is not an automatic backfill. Implementation is staged on `codex/paid-previously`: 2,874 repository tests, PostgreSQL concurrency proof and 25 focused phone/desktop/accessibility browser checks passed locally. Production migration, exact-head CI and release verification remain pending; historical booking corrections have not been performed.
+
 **Purpose:** the quickest reliable orientation point for Shiloh's structure, tools, integrations and operating boundaries.
 
 **Status:** canonical orientation map, updated 2026-09-24. This document does not replace application code, migrations, approved policies, Figma files, workflow definitions or production evidence. Those remain the authorities linked below.

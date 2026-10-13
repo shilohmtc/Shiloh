@@ -58,7 +58,7 @@ test('welcome voucher reduces the balance without claiming cash has been paid', 
   assert.match(html,/Credit applied · payment due/);
   assert.match(html,/Welcome voucher used<\/small><strong>R\s?100[,.]00/);
   assert.match(html,/Net money received<\/small><strong>R\s?0[,.]00/);
-  assert.match(html,/Remaining<\/small><strong>R\s?490[,.]00/);
+  assert.match(html,/Balance to pay<\/small><strong>R\s?490[,.]00/);
   assert.doesNotMatch(html,/Partially paid/);
 });
 

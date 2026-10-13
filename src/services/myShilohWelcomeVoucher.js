@@ -1,4 +1,5 @@
 'use strict';
+const { priorPaymentSql } = require('../domain/priorPaymentSql');
 
 const { pool } = require('../db/pool');
 
@@ -114,7 +115,7 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
       `SELECT a.id,a.starts_at,a.total_price,
               COALESCE((SELECT string_agg(aps.service_name_snapshot,' + ' ORDER BY aps.position) FROM appointment_services aps WHERE aps.appointment_id=a.id),a.title,'Shiloh treatment') AS service_name,
               GREATEST(0,a.total_price
-                - COALESCE((SELECT SUM(CASE WHEN ple.entry_type='payment' THEN ple.amount ELSE -ple.amount END) FROM payment_ledger_entries ple WHERE ple.payment_account_id=bpa.id),0)
+                - COALESCE((SELECT SUM(CASE WHEN ple.entry_type='payment' THEN ple.amount ELSE -ple.amount END) FROM payment_ledger_entries ple WHERE ple.payment_account_id=bpa.id),0) - ${priorPaymentSql('bpa.id')}
                 - COALESCE((SELECT SUM(bla.amount) FROM booking_loyalty_allocations bla WHERE bla.booking_payment_account_id=bpa.id AND bla.state='applied'),0)
                 - COALESCE((SELECT -SUM(tc.signed_amount) FROM treatment_credit_entries tc WHERE tc.booking_payment_account_id=bpa.id AND tc.entry_type IN ('apply','undo')),0)
                 - COALESCE((SELECT SUM(amount) FROM booking_gift_voucher_allocations WHERE booking_payment_account_id=bpa.id),0)
@@ -243,7 +244,7 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
         [bookingId, booking.total_price, booking.currency || 'ZAR', booking.updated_at],
       )).rows[0];
       const totals = (await client.query(
-        `SELECT COALESCE((SELECT SUM(CASE WHEN entry_type='payment' THEN amount ELSE -amount END) FROM payment_ledger_entries WHERE payment_account_id=$1),0) AS net_paid,
+        `SELECT COALESCE((SELECT SUM(CASE WHEN entry_type='payment' THEN amount ELSE -amount END) FROM payment_ledger_entries WHERE payment_account_id=$1),0) + ${priorPaymentSql('$1')} AS net_paid,
                 COALESCE((SELECT SUM(amount) FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0) AS rewards,
                 COALESCE((SELECT SUM(amount) FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0) AS welcome,
                 COALESCE((SELECT -SUM(signed_amount) FROM treatment_credit_entries WHERE booking_payment_account_id=$1 AND entry_type IN ('apply','undo')),0)+COALESCE((SELECT SUM(amount) FROM booking_gift_voucher_allocations WHERE booking_payment_account_id=$1),0) AS treatment`,
