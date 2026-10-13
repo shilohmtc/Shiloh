@@ -437,3 +437,31 @@ test('Reception time-change decision requires session, same origin and CSRF', as
   });
   assert.deepEqual(calls, [{ adminId: 7, viewer: session.viewer, requestId: '45', decision: 'approve' }]);
 });
+
+test('planning appointment refresh is session guarded and confirmation retains origin and CSRF checks', async () => {
+  const calls=[];
+  const session={ ok:true,adminId:7,viewer:{ calendarScope:'all_business' },accountPrincipal:authorityPrincipal() };
+  const sessionService={ async validateSessionToken(token) { return token==='valid'?session:{ ok:false }; },validateCsrfToken(current,token) { return current===session&&token==='csrf'; } };
+  const dashboardService={
+    async planningAppointments(input) { calls.push(input); return { appointments:[] }; },
+    async resolvePlanningRequest(input) { calls.push(input); return { id:81,status:'arranged' }; },
+  };
+  const app=express();app.use(express.json());
+  app.use('/calendar/workspace',createWorkspaceOperationalRouter({ env:ENABLED_ENV,sessionService,dashboardService }));
+  await withServer(app,async base=>{
+    const path=`${base}/calendar/workspace/planning-requests/81`;
+    assert.equal((await fetch(path+'/appointments')).status,401);
+    const refresh=await fetch(path+'/appointments',{ headers:{ cookie:'shiloh_staff_session=valid' } });
+    assert.equal(refresh.status,200);assert.match(refresh.headers.get('cache-control'),/no-store/);
+    assert.deepEqual(await refresh.json(),{ appointments:[] });
+    const headers={ cookie:'shiloh_staff_session=valid',origin:base,'content-type':'application/json','x-shiloh-csrf-token':'csrf' };
+    const post=custom=>fetch(path+'/arranged',{ method:'POST',headers:custom,body:JSON.stringify({ appointmentId:801,adminId:1 }) });
+    assert.equal((await post({ ...headers,cookie:'' })).status,401);
+    assert.equal((await post({ ...headers,origin:'https://other.test' })).status,403);
+    assert.equal((await post({ ...headers,'x-shiloh-csrf-token':'bad' })).status,403);
+    assert.equal((await post(headers)).status,200);
+  });
+  assert.equal(calls.length,2);assert.equal(calls[0].requestId,'81');
+  assert.equal(calls[0].sessionPrincipal,session.accountPrincipal);
+  assert.equal(calls[1].adminId,7);assert.equal(calls[1].appointmentId,801);
+});

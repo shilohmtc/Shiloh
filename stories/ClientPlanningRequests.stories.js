@@ -60,3 +60,15 @@ export const RetiredHandoffIgnored = {
     humanHandoffs:[{ id:92,client_name:'Synthetic Client AJ',client_mobile:'27662399138' }],
   })),
 };
+
+export const ReceptionAppointments = {
+  render:()=>surface(dashboard.renderDashboardPage({ requestedDateKey:'2026-09-27',operationalDateKey:'2026-09-27',
+    displayName:'Synthetic Client AN',mode:'owner_overview',appointments:[],carryOver:[],teamGroups:[],awaitingFinalization:[],
+    bookingRequests:[],rescheduleRequests:[],holidayDecisions:[],calendar:{ timeline:{ staff:[] } },
+    planningRequests:[{ id:81,request_kind:'flexible',status:'planning',client_name:'Synthetic Client AI',
+      service_detail:'Couples Massage',candidate_appointments:[
+        { id:801,startsAt:'2030-12-16T08:00:00Z',serviceName:'Couples Massage',staffNames:'Synthetic practitioner A' },
+        { id:802,startsAt:'2030-12-16T10:00:00Z',serviceName:'Sports Massage',staffNames:'Synthetic practitioner B' },
+      ] }],
+  })),
+};

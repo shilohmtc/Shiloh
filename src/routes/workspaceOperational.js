@@ -86,7 +86,7 @@ function dashboardSafeError(error) {
 }
 
 function dashboardMutationError(error) {
-  const status = [400, 403, 409].includes(Number(error?.httpStatus)) ? Number(error.httpStatus) : 503;
+  const status = [400, 403, 409, 422].includes(Number(error?.httpStatus)) ? Number(error.httpStatus) : 503;
   return {
     status,
     code: String(error?.code || 'WORKSPACE_DASHBOARD_UNAVAILABLE'),
@@ -223,6 +223,21 @@ function createWorkspaceOperationalRouter({
     (req, res) => bookingRequestAction(req, res, 'accept'));
   router.post('/booking-requests/:appointmentId/propose', sameOrigin, requireCsrf,
     (req, res) => bookingRequestAction(req, res, 'propose'));
+
+  router.get('/planning-requests/:requestId/appointments', async (req, res) => {
+    try {
+      const result = await dashboardService.planningAppointments({
+        adminId:req.staffBrowserSession?.adminId,
+        viewer:req.staffBrowserSession?.viewer,
+        ...(req.staffBrowserSession?.accountPrincipal ? { sessionPrincipal:req.staffBrowserSession.accountPrincipal } : {}),
+        requestId:req.params.requestId,
+      });
+      return res.status(200).json(result);
+    } catch (error) {
+      const safe = dashboardMutationError(error);
+      return res.status(safe.status).json({ error:safe.message, code:safe.code, requestId:req.id });
+    }
+  });
 
   router.post('/planning-requests/:requestId/:action', sameOrigin, requireCsrf, async (req, res) => {
     try {

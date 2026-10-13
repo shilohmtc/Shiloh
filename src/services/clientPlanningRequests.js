@@ -26,6 +26,23 @@ function boundedText(value, maximum, label) {
   return text || null;
 }
 
+// Linking resolves the request; it must never stand in for booking approval.
+function arrangedAppointmentPredicate(alias = 'a') {
+  return `${alias}.status IN ('scheduled','confirmed') AND ${alias}.starts_at>NOW()
+    AND NOT EXISTS (SELECT 1 FROM appointment_booking_approvals approval
+      WHERE approval.appointment_id=${alias}.id AND approval.status<>'approved')`;
+}
+
+function candidateAppointmentsSql() {
+  return `SELECT a.id,a.starts_at,
+    (SELECT string_agg(s.name,' + ' ORDER BY aps.id) FROM appointment_services aps
+      JOIN services s ON s.id=aps.service_id WHERE aps.appointment_id=a.id) AS service_name,
+    (SELECT string_agg(p.display_name,' + ' ORDER BY p.id) FROM appointment_staff ast
+      JOIN staff p ON p.id=ast.staff_id WHERE ast.appointment_id=a.id) AS staff_names
+    FROM appointments a WHERE a.crm_v2_client_id=r.crm_v2_client_id
+      AND ${arrangedAppointmentPredicate()} ORDER BY a.starts_at,a.id`;
+}
+
 function validate(input = {}, now = new Date()) {
   const clientId = positiveId(input.crmV2ClientId);
   if (!clientId) throw new ClientPlanningRequestError('PLANNING_CLIENT_INVALID', 'Please sign in again.', 401);
@@ -111,24 +128,34 @@ function createClientPlanningRequestService({ db = pool, now = () => new Date() 
 
   async function forReception(principal) {
     if (!isDerivedGlobalCoordinator(principal)) return [];
-    const result = await db.query(`SELECT r.id,r.request_kind,r.status,r.service_detail,r.preferred_date,r.preferred_daypart,
+    const result = await db.query(`SELECT r.id,r.request_kind,r.status,r.service_detail,r.preferred_date::text AS preferred_date,r.preferred_daypart,
       r.guest_count,r.special_occasion,r.occasion_note,r.client_note,r.requested_at,r.planning_started_at,
       c.name AS client_name,s.name AS service_name,p.display_name AS practitioner_name,
-      COALESCE((SELECT jsonb_agg(jsonb_build_object('id',candidate.id,'startsAt',candidate.starts_at) ORDER BY candidate.starts_at)
-        FROM (SELECT a.id,a.starts_at FROM appointments a
-              WHERE a.crm_v2_client_id=r.crm_v2_client_id AND a.status IN ('scheduled','confirmed')
-                AND a.starts_at>NOW() ORDER BY a.starts_at LIMIT 8) candidate),'[]'::jsonb) AS candidate_appointments
+      COALESCE((SELECT jsonb_agg(jsonb_build_object('id',candidate.id,'startsAt',candidate.starts_at,
+        'serviceName',candidate.service_name,'staffNames',candidate.staff_names) ORDER BY candidate.starts_at,candidate.id)
+        FROM (${candidateAppointmentsSql()}) candidate),'[]'::jsonb) AS candidate_appointments
       FROM client_planning_requests r JOIN crm_v2_clients c ON c.id=r.crm_v2_client_id
       LEFT JOIN services s ON s.id=r.service_id LEFT JOIN staff p ON p.id=r.practitioner_id
       WHERE r.status IN ('requested','planning') ORDER BY r.requested_at,r.id LIMIT 100`);
     return result.rows;
   }
 
+  async function appointmentsForRequest({ principal, id }) {
+    if (!isDerivedGlobalCoordinator(principal)) throw new ClientPlanningRequestError('PLANNING_FORBIDDEN', 'Reception planning access is required.', 403);
+    const requestId = positiveId(id);
+    if (!requestId) throw new ClientPlanningRequestError('PLANNING_ACTION_INVALID', 'Please reload and try again.');
+    const result = await db.query(`SELECT candidate.id,candidate.starts_at AS "startsAt",
+      candidate.service_name AS "serviceName",candidate.staff_names AS "staffNames"
+      FROM client_planning_requests r CROSS JOIN LATERAL (${candidateAppointmentsSql()}) candidate
+      WHERE r.id=$1 AND r.status IN ('requested','planning') ORDER BY candidate.starts_at,candidate.id`, [requestId]);
+    return { appointments: result.rows };
+  }
+
   async function decide({ principal, id, action, appointmentId = null }) {
     if (!isDerivedGlobalCoordinator(principal)) throw new ClientPlanningRequestError('PLANNING_FORBIDDEN', 'Reception planning access is required.', 403);
     const requestId = positiveId(id);
     const adminId = positiveId(principal?.id || principal?.calendarAuthority?.operatorAdminId);
-    if (!requestId || !adminId || !['start_planning','decline','arranged'].includes(action)) throw new ClientPlanningRequestError('PLANNING_ACTION_INVALID', 'Please reload and try again.');
+    if (!requestId || !adminId || action !== 'arranged') throw new ClientPlanningRequestError('PLANNING_ACTION_INVALID', 'Arrange an appointment with the client, then confirm it here.');
     const connection = await db.connect();
     try {
       await connection.query('BEGIN');
@@ -139,15 +166,13 @@ function createClientPlanningRequestService({ db = pool, now = () => new Date() 
       if (action === 'arranged') {
         linked = positiveId(appointmentId);
         if (!linked) throw new ClientPlanningRequestError('PLANNING_APPOINTMENT_REQUIRED', 'Choose the appointment arranged for this client.');
-        const matching = await connection.query(`SELECT id FROM appointments WHERE id=$1 AND crm_v2_client_id=$2 AND status IN ('scheduled','confirmed') LIMIT 1`, [linked,row.crm_v2_client_id]);
-        if (!matching.rowCount) throw new ClientPlanningRequestError('PLANNING_APPOINTMENT_MISMATCH', 'That appointment does not belong to this client.', 409);
+        const matching = await connection.query(`SELECT a.id FROM appointments a WHERE a.id=$1
+          AND a.crm_v2_client_id=$2 AND ${arrangedAppointmentPredicate()} FOR UPDATE OF a`, [linked,row.crm_v2_client_id]);
+        if (!matching.rowCount) throw new ClientPlanningRequestError('PLANNING_APPOINTMENT_MISMATCH', 'That appointment is no longer available to link. Refresh appointments and choose an approved upcoming booking for this client.', 409);
       }
-      const status = action === 'start_planning' ? 'planning' : action === 'decline' ? 'declined' : 'arranged';
+      const status = 'arranged';
       const result = await connection.query(`UPDATE client_planning_requests SET status=$2,
-        planning_started_at=CASE WHEN $2='planning' THEN COALESCE(planning_started_at,NOW()) ELSE planning_started_at END,
-        planning_by_admin_id=CASE WHEN $2='planning' THEN COALESCE(planning_by_admin_id,$3) ELSE planning_by_admin_id END,
-        decided_at=CASE WHEN $2 IN ('declined','arranged') THEN NOW() ELSE NULL END,
-        decided_by_admin_id=CASE WHEN $2 IN ('declined','arranged') THEN $3 ELSE NULL END,
+        decided_at=NOW(),decided_by_admin_id=$3,
         linked_appointment_id=$4,updated_at=NOW() WHERE id=$1 RETURNING id,status`, [requestId,status,adminId,linked]);
       await connection.query('COMMIT');
       return { id:Number(result.rows[0].id), status:result.rows[0].status };
@@ -157,7 +182,7 @@ function createClientPlanningRequestService({ db = pool, now = () => new Date() 
     } finally { connection.release(); }
   }
 
-  return { submit, forClient, forReception, decide, practitioners };
+  return { submit, forClient, forReception, decide, appointmentsForRequest, practitioners };
 }
 
 module.exports = { ClientPlanningRequestError, validate, createClientPlanningRequestService };
