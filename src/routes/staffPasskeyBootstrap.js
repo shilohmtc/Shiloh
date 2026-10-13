@@ -12,6 +12,7 @@ const {
 const { serializePasskeyHintCookie } = require('./staffPasskeyAuth');
 const { defaultDeviceLabel } = require('../services/staffPasskeyAuth');
 const { createStaffSmsDeviceSetupService } = require('../services/staffSmsDeviceSetup');
+const { staffDetailAuthEnabled } = require('../services/staffDetailIdentity');
 
 function createStaffPasskeyBootstrapRouter({
   env = process.env,
@@ -21,6 +22,11 @@ function createStaffPasskeyBootstrapRouter({
   if (!bootstrapService || typeof bootstrapService.startRegistration !== 'function') throw new Error('staff passkey bootstrap service is required');
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
+  router.use((req, res, next) => {
+    if (!staffDetailAuthEnabled(env) || !/^\/(bootstrap|sms-setup)(\.js|\/|$)/.test(req.path)) return next();
+    res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+    return res.status(410).type('text/plain').send('Staff device setup has been retired. Sign in at /calendar/staff with your recorded details.');
+  });
 
   function noStore(res) {
     res.setHeader('Cache-Control', 'private, no-store, max-age=0');

@@ -98,6 +98,16 @@ function createStaffPasskeyAuthRouter({
     return res.status(200).json({ authenticated: true, csrfToken: result.csrfToken, viewer: result.viewer || null, recoveryRequired: false });
   }
 
+  // Details are the normal staff entry; retain passkeys only for authentication
+  // and protected confirmation. Do not accept obsolete device-management actions.
+  router.use((req, res, next) => {
+    if (!staffDetailAuthEnabled(env)) return next();
+    if (req.path === '/known-principal' || /^\/(?:re)?authentication\/(options|finish)$/.test(req.path)) return next();
+    noStore(res);
+    if (req.method === 'GET' && req.path === '/manage') return res.redirect(302, '/calendar/staff-auth/details/manage');
+    return res.status(410).json({ error: 'Staff device setup has been retired. Use your recorded staff details to sign in.' });
+  });
+
   router.get('/known-principal', async (req, res, next) => {
     try {
       const result = await passkeyService.knownPrincipal({ credentialIdHint: passkeyHintFromRequest(req, env) });

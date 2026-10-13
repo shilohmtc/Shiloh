@@ -2,6 +2,7 @@
 
 const crypto = require('crypto');
 const { pool } = require('../db/pool');
+const { staffDetailAuthEnabled } = require('./staffDetailIdentity');
 const {
   sha256,
   deriveCalendarViewer,
@@ -31,7 +32,7 @@ function registrationPurpose(mode) {
 }
 
 function bootstrapPolicy(env = process.env) {
-  const smsEnabled = String(env.MY_SHILOH_SMS_AUTH_ENABLED || '').trim().toLowerCase() === 'true';
+  const smsEnabled = !staffDetailAuthEnabled(env) && String(env.MY_SHILOH_SMS_AUTH_ENABLED || '').trim().toLowerCase() === 'true';
   const passkey = passkeyPolicy(env);
   return {
     enabled: smsEnabled,

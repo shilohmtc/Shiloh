@@ -2,6 +2,7 @@ const {attachBookingNotePresence}=require('../services/workspaceAppointmentNotes
 'use strict';
 
 const express = require('express');
+const { staffDetailAuthEnabled } = require('../services/staffDetailIdentity');
 const workspaceDashboard = require('../services/workspaceDashboard');
 const workspaceNavigation = require('../services/workspaceNavigation');
 const {
@@ -49,6 +50,7 @@ function accountNavigationMetadata({ viewer, passkeyEnabled = false } = {}) {
 }
 
 function passkeyNavigationClientScript(env = process.env) {
+  if (staffDetailAuthEnabled(env)) return `(()=>{'use strict';const account=document.querySelector('[data-workspace-account-footer]');if(!account||account.querySelector('[data-workspace-staff-details]'))return;const link=document.createElement('a');link.className='workspace-account-signout';link.href='/calendar/staff-auth/details/manage';link.dataset.workspaceStaffDetails='true';link.textContent='My sign-in details';account.appendChild(link);})();`;
   if (!isStaffPasskeyAuthEnabled(env)) return '';
   return `(()=>{'use strict';const account=document.querySelector('[data-workspace-account-footer]');if(!account||account.querySelector('[data-workspace-passkey-security]'))return;const link=document.createElement('a');link.className='workspace-account-signout';link.href='/calendar/staff-auth/passkeys/manage';link.dataset.workspacePasskeySecurity='true';link.textContent='Devices & sign-in';const details=document.createElement('a');details.className='workspace-account-signout';details.href='/calendar/staff-auth/details/manage';details.textContent='My sign-in details';account.appendChild(details);const signout=account.querySelector('[data-shiloh-logout]');if(signout)account.insertBefore(link,signout);else account.appendChild(link);})();`;
 }

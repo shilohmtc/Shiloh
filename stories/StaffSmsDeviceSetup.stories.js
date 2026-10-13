@@ -21,3 +21,15 @@ export const ApprovedDeviceSetup = {
     return `<style>${styles}</style>${body}`;
   },
 };
+
+export const DetailsSignIn = {
+  render: () => {
+    const html = presentation.renderAccessDetailPage({
+      principal, copySources: [], detailSigninEnabled: true,
+      authority: { displayName: 'Synthetic Client AN', operatorAdminId: 1 },
+    });
+    const styles = [...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(match => match[1]).join('\n');
+    const body = html.match(/<body[^>]*>([\s\S]*?)<\/body>/)?.[1] || '';
+    return `<style>${styles}</style>${body}`;
+  },
+};
