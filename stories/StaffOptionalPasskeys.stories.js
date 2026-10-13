@@ -14,6 +14,7 @@ export const SavedPasskey = {
   render: () =>
     surface([
       { id: 900001, label: 'Synthetic phone', current: true, createdAt: '2026-10-13T06:00:00Z' },
+      { id: 900002, label: 'Synthetic removed phone', revokedAt: '2026-10-13T06:00:00Z' },
     ]),
 };
 export const NoPasskeys = { render: () => surface([]) };
