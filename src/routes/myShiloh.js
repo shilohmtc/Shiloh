@@ -642,7 +642,8 @@ function createMyShilohRouter({
           const status = result.code === 'CRM_AUTH_RATE_LIMITED' ? 429 : result.code === 'CRM_AUTH_UNAVAILABLE' ? 503 : 401;
           return res.status(status).json({ error: status === 429 ? 'Please wait before trying again.' :
             status === 503 ? 'Sign-in is temporarily unavailable. Please try again later.' :
-            'We could not continue with these details. Check them and try again, or contact Reception.' });
+            mode === 'register' ? 'We could not complete your registration. Check your first name, surname, date of birth and mobile number. If you have visited Shiloh before, choose “Already a client? Sign in”. If you still cannot continue, contact Reception for help registering.' :
+            'We could not confirm your details. Use your first name, surname, date of birth and mobile number as recorded by Shiloh. If you still cannot sign in, ask Reception to check or complete your details on record.' });
         }
         if (mode === 'reauthenticate') { res.setHeader('Set-Cookie', deviceCookie); return res.json({ reauthenticated: true }); }
         return sendAuthenticatedClient(res, result, [deviceCookie]);

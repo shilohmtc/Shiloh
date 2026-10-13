@@ -376,6 +376,20 @@ test('CRM HTTP flow rejects cross-origin and unknown fields, sends protected coo
   const { gender, ...input } = synthetic;
   assert.equal((await post(input, 'https://example.invalid')).status, 403);
   assert.equal((await post({ ...input, crmV2ClientId: 999 })).status, 401);
+  const mismatch = await post({ ...input, surname: 'Different' });
+  assert.equal(mismatch.status, 401);
+  assert.match((await mismatch.json()).error, /as recorded by Shiloh/);
+  const conflict = await fetch(`${base}/my-shiloh/auth/crm/register`, {
+    method: 'POST', headers: { origin: base, 'content-type': 'application/json' },
+    body: JSON.stringify({ ...synthetic, surname: 'Different' }),
+  });
+  assert.equal(conflict.status, 401);
+  const registrationError = (await conflict.json()).error;
+  assert.match(registrationError, /Already a client\? Sign in/);
+  assert.match(registrationError, /contact Reception for help registering/);
+  assert.ok(!registrationError.includes(synthetic.mobile));
+  assert.ok(!conflict.headers.getSetCookie().some(value => value.startsWith('shiloh_client_session=')));
+  h.advance(60000);
   const good = await post(input);
   assert.equal(good.status, 200);
   assert.match(good.headers.get('cache-control'), /private, no-store/);
