@@ -50,7 +50,9 @@ for (const viewport of [
         status: 401,
         json: {
           error:
-            'We could not continue with these details. Check them and try again, or contact Reception.',
+            submissions.at(-1).path.endsWith('/register')
+              ? 'We could not complete your registration. Check your first name, surname, date of birth and mobile number. If you have visited Shiloh before, choose “Already a client? Sign in”. If you still cannot continue, contact Reception for help registering.'
+              : 'We could not confirm your details. Use your first name, surname, date of birth and mobile number as recorded by Shiloh. If you still cannot sign in, ask Reception to check or complete your details on record.',
         },
       });
     });
@@ -83,7 +85,7 @@ for (const viewport of [
     await expect(form.getByRole('button', { name: 'New to Shiloh? Register' })).toBeDisabled();
     release();
     pending = null;
-    await expect(form.locator('[data-crm-status]')).toContainText('We could not continue');
+    await expect(form.locator('[data-crm-status]')).toContainText('We could not confirm your details');
     expect(submissions[0].payload).toEqual({
       firstName: 'Synthetic',
       surname: 'Example',
@@ -110,6 +112,9 @@ for (const viewport of [
     await form.getByRole('button', { name: 'Register and open My Shiloh' }).click();
     await expect.poll(() => submissions.length).toBe(2);
     expect(submissions[1].payload.gender).toBe('prefer_not_to_say');
+    await expect(form.locator('[data-crm-status]')).toContainText('contact Reception for help registering');
+    await stable(page, testInfo, `crm-registration-generic-error-${viewport.name}.png`, form.locator('[data-crm-status]'));
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await form.getByRole('button', { name: 'Already a client? Sign in' }).click();
     await expect(form.getByLabel('Gender', { exact: true })).toBeHidden();
     const axe = await new AxeBuilder({ page })
