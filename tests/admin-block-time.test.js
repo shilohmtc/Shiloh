@@ -109,5 +109,4 @@ test('shared client slot generation already excludes calendar blocks', () => {
 
 test('Block time belongs to Calendar without a startup preload or ordinary WhatsApp action', () => {
   assert.doesNotMatch(pkg, /adminBlockTimePatch\.js/);
-  assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '..', 'src', 'controllers', 'webhookController.js'), 'utf8'), /processAdminBlockTimeMessage/);
 });

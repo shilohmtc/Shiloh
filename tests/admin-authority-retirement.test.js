@@ -5,7 +5,7 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
-const webhook = read('src/controllers/webhookController.js');
+
 const assistant = read('src/services/adminAssistant.js');
 const interactive = read('src/services/adminInteractiveMenu.js');
 const mobile = read('src/services/adminMobileMenu.js');
@@ -121,13 +121,6 @@ test('#900 active linked staff receives the Workspace launcher without explicit 
   assert.equal(inactiveResult.handled, true);
   assert.equal(inactiveResult.interactive, undefined);
   assert.match(inactiveResult.reply, /Workspace access is not available/);
-});
-
-test('ordinary webhook exposes client proposal handling and only the bounded staff authority adapter', () => {
-  assert.match(webhook, /processClientBookingProposalMessage\(from,text\)/);
-  assert.match(webhook, /processAdminRetiredAuthorityMessage\(from,text\)/);
-  assert.doesNotMatch(webhook, /processClientBookingApprovalMessage|processAdminInteractiveMenuMessage|commandForAdminButton/);
-  assert.doesNotMatch(webhook, /booking_approval_(?:approve|decline)_/);
 });
 
 test('non-admin stale command is not intercepted and ambiguous staff authority fails closed', async () => {

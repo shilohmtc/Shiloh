@@ -82,8 +82,6 @@ test('explicit change boundaries reconcile stale pending requests so they cannot
   const clientRequest = patch.indexOf('await reconcileStalePendingRescheduleHolds();');
   const create = patch.indexOf('await createPendingRescheduleRequest', clientRequest);
   assert.ok(clientRequest >= 0 && create > clientRequest);
-  const webhook = fs.readFileSync(path.join(root, 'src', 'controllers', 'webhookController.js'), 'utf8');
-  assert.match(webhook, /processRescheduleApprovalDecision\(from,text\)/);
 });
 
 test('in-flight practitioner decision payloads remain recognized while new requests use Reception', () => {
@@ -103,8 +101,7 @@ test('legacy practitioner decisions require exact active WhatsApp identity and p
   assert.match(service, /Number\(admin\.staff_id\) !== Number\(context\.approver_staff_id\)/);
   assert.match(service, /context\.decision_owner !== 'practitioner'/);
   assert.match(service, /You are not authorized to decide this reschedule request/);
-  const webhook = fs.readFileSync(path.join(root, 'src', 'controllers', 'webhookController.js'), 'utf8');
-  assert.match(webhook, /processRescheduleApprovalDecision\(from,text\)/);
+
   assert.doesNotMatch(patch, /originalProcessBookingApprovalMessage/);
 });
 

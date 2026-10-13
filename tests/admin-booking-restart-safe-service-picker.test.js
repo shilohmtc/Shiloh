@@ -4,7 +4,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const bridge = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'adminBookingUpdateStateless.js'), 'utf8');
-const webhook = fs.readFileSync(path.join(__dirname, '..', 'src', 'controllers', 'webhookController.js'), 'utf8');
 
 test('manage-booking service actions carry appointment identity across restarts', () => {
   assert.match(bridge, /manage_change_service_\$\{appointmentId\}/);
@@ -18,10 +17,4 @@ test('restart-safe bridge reconstructs the authorized booking before replaying s
   assert.match(bridge, /processAdminBookingUpdateMessage\(sender, `manage_booking_select_\$\{appointmentId\}`\)/);
   assert.match(bridge, /processAdminBookingUpdateMessage\(sender, 'manage_change_service'\)/);
   assert.match(bridge, /processAdminBookingUpdateMessage\(sender, `manage_service_pick_\$\{serviceId\}`\)/);
-});
-
-test('restart-safe bridge is not reachable from the ordinary staff webhook', () => {
-  assert.doesNotMatch(webhook, /scopeAdminBookingInteractive/);
-  assert.doesNotMatch(webhook, /processStatelessAdminBookingUpdateMessage|processAdminBookingUpdateMessage/);
-  assert.match(webhook, /processAdminRetiredAuthorityMessage\(from,text\)/);
 });

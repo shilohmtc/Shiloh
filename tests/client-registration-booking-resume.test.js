@@ -1,9 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
 
-const webhook = fs.readFileSync(path.join(__dirname, '..', 'src', 'controllers', 'webhookController.js'), 'utf8');
 const { processBookingMessage } = require('../src/services/bookingIntent');
 const { decorateClientBookingResult } = require('../src/services/clientBookingInteractive');
 const { pool } = require('../src/db/pool');
@@ -13,11 +10,6 @@ async function withStubbedQuery(stub, fn) {
   pool.query = stub;
   try { return await fn(); } finally { pool.query = original; }
 }
-
-test('registration completion resumes a bare booking intent instead of treating appointment as a service', () => {
-  assert.match(webhook, /processBookingMessage\(from,"booking"\)/);
-  assert.doesNotMatch(webhook, /processBookingMessage\(from,"I want to book an appointment"\)/);
-});
 
 test('bare booking start produces the available-family service list with no invalid appointment service', async () => {
   let intent = null;

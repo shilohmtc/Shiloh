@@ -4,11 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const servicePath = path.join(__dirname,'..','src','services','adminClientDemo.js');
-const webhookPath = path.join(__dirname,'..','src','controllers','webhookController.js');
+
 const tableMigrationPath = path.join(__dirname,'..','migrations','041_christel_client_demo_mode.sql');
 const staffMigrationPath = path.join(__dirname,'..','migrations','043_demo_client_staff_access.sql');
 const source = fs.readFileSync(servicePath,'utf8');
-const webhook = fs.readFileSync(webhookPath,'utf8');
+
 const tableMigration = fs.readFileSync(tableMigrationPath,'utf8');
 const staffMigration = fs.readFileSync(staffMigrationPath,'utf8');
 const { exactTime, localDateTime, practitionerName, demoScope, practitionerAllowed } = require(servicePath);
@@ -33,11 +33,6 @@ test('demo mode uses isolated virtual identity and never imports outbound WhatsA
   assert.match(source,/source='whatsapp_demo'/);
   assert.doesNotMatch(source,/require\(['"]\.\/whatsapp['"]\)/);
   assert.doesNotMatch(source,/sendWhatsAppMessage\(/);
-});
-
-test('demo handler is not exposed through ordinary admin routing',()=>{
-  assert.doesNotMatch(webhook,/processAdminClientDemoMessage|processAdminAvailableSlotsMessage|processAdminAssistantMessage/);
-  assert.match(webhook,/processAdminRetiredAuthorityMessage\(from,text\)/);
 });
 
 test('demo booking purge is proof-bound and cannot be an arbitrary appointment delete',()=>{

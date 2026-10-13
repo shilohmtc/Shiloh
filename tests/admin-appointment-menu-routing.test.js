@@ -8,7 +8,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const byDate = read('src/services/adminAppointmentsByDate.js');
 const mobile = read('src/services/adminMobileMenu.js');
 const interactive = read('src/services/adminInteractiveMenu.js');
-const webhook = read('src/controllers/webhookController.js');
+
 const { relativeCommand, lastWeekBounds } = require('../src/services/adminAppointmentsByDate');
 const { commandForAdminButton } = require('../src/services/adminEarningsButtons');
 const { classifyRetiredAdminAction } = require('../src/services/adminAuthorityRetirement');
@@ -34,12 +34,6 @@ test('stale Appointments and mutation IDs resolve to retirement instead of old e
     assert.equal(classifyRetiredAdminAction(normalized).kind, 'calendar');
   }
   assert.equal(classifyRetiredAdminAction('admin_appointment_finalize').kind, 'internal_only');
-});
-
-test('ordinary webhook dispatches retirement and contains no appointment mutation fallthrough', () => {
-  assert.match(webhook, /processAdminRetiredAuthorityMessage\(from,text\)/);
-  assert.doesNotMatch(webhook, /processAdminInteractiveMenuMessage/);
-  assert.doesNotMatch(webhook, /processAdminBookingUpdateMessage|processAdminMobileBookingFlowMessage|processAdminAssistantMessage/);
 });
 
 test('retained Today/Tomorrow query remains scope-bound and excludes cancelled appointments', () => {

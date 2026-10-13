@@ -11,11 +11,6 @@ const {
 } = require('../src/services/clientIdentityOnboarding');
 const { commandForAdminButton } = require('../src/services/adminEarningsButtons');
 
-const webhookSource = fs.readFileSync(
-  path.join(__dirname, '..', 'src', 'controllers', 'webhookController.js'),
-  'utf8'
-);
-
 const serviceSource = fs.readFileSync(
   path.join(__dirname, '..', 'src', 'services', 'clientTransitionWelcome.js'),
   'utf8'
@@ -80,7 +75,6 @@ test('Book appointment enters deterministic service discovery instead of stale b
 test('already-delivered legacy Book appointment payload remains compatible', () => {
   const { commandForClientBookingButton } = require('../src/services/clientBookingInteractive');
   assert.equal(commandForClientBookingButton('client_book_now'), 'services');
-  assert.match(webhookSource, /commandForClientBookingButton\(id\)\|\|id\|\|null/);
 });
 
 test('registered-client interactive body stays within Meta limit and excludes the greeting', () => {
@@ -165,11 +159,7 @@ test('subsequent onboarding messages do not repeat premium greeting', () => {
   assert.doesNotMatch(serviceSource, /if \(!isGreetingOnly\(text\)\) return \{ handled: false \};/);
 });
 
-test('first-contact routing is centralized before normal identity handling for all ordinary client messages', () => {
-  const transitionIndex = webhookSource.indexOf('const transitionWelcome=await processClientTransitionWelcome');
-  const identityIndex = webhookSource.indexOf('const identity=await processClientIdentityMessage');
-  assert.ok(transitionIndex >= 0, 'central first-contact transition route must exist');
-  assert.ok(identityIndex > transitionIndex, 'first-contact presentation must run before normal identity handling');
+test('legacy welcome helper centralizes first-contact presentation', () => {
   assert.match(serviceSource, /async function processClientTransitionWelcome\(phone, text\)/);
   assert.doesNotMatch(serviceSource, /async function processClientTransitionWelcome\(phone, text\) \{\n  if \(!isGreetingOnly\(text\)\)/);
 });

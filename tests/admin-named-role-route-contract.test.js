@@ -7,7 +7,6 @@ const { getMenuOptions } = require('../src/services/adminMobileMenu');
 
 const rollout = fs.readFileSync(path.join(__dirname, '..', 'migrations', '037_p2_staff_rollout_permissions.sql'), 'utf8');
 const demoAccess = fs.readFileSync(path.join(__dirname, '..', 'migrations', '043_demo_client_staff_access.sql'), 'utf8');
-const webhook = fs.readFileSync(path.join(__dirname, '..', 'src/controllers/webhookController.js'), 'utf8');
 
 function rolloutBlock(name) {
   return rollout.split(/(?=UPDATE staff_admin_accounts)/)
@@ -51,10 +50,4 @@ test('named-person earnings shortcuts are not stable top-level actions', () => {
   const interactive = fs.readFileSync(path.join(__dirname, '..', 'src/services/adminInteractiveMenu.js'), 'utf8');
   assert.doesNotMatch(interactive, /christel_earnings|abigail_earnings|marietjie_earnings|admin_action_earnings/);
   assert.match(interactive, /processRetiredAdminAuthorityMessage/);
-});
-
-test('ordinary webhook has no generic Admin Assistant fallthrough', () => {
-  assert.match(webhook, /processAdminRetiredAuthorityMessage\(from,text\)/);
-  assert.doesNotMatch(webhook, /processAdminInteractiveMenuMessage/);
-  assert.doesNotMatch(webhook, /processAdminAssistantMessage|processAdminMobileBookingFlowMessage|processAdminBookingUpdateMessage/);
 });

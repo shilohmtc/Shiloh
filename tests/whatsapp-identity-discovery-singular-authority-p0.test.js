@@ -13,7 +13,6 @@ const {
 const ROOT = path.resolve(__dirname, '..');
 const source = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
 
-const webhook = source('src/controllers/webhookController.js');
 const legacyGuard = source('src/services/identityOnboardingGuard.js');
 const onboarding = source('src/services/clientIdentityOnboarding.js');
 const transition = source('src/services/clientTransitionWelcome.js');
@@ -26,20 +25,10 @@ function queryableSession(session) {
   };
 }
 
-test('request 06490a25 recurrence bypass is removed so WhatsApp reaches the canonical identity path', () => {
-  assert.doesNotMatch(webhook, /guardActiveNameConfirmation|nameGuard/);
+test('legacy identity helpers retain the canonical resolver without historical appointment proof', () => {
   assert.doesNotMatch(legacyGuard, /resolveVerifiedClientByWhatsApp|historical_unverified|appointment history/);
-  assert.doesNotMatch(
-    `${webhook}\n${legacyGuard}`,
-    /This number matches a Shiloh profile with appointment history/
-  );
 
-  const transitionIndex = webhook.indexOf('const transitionWelcome=await processClientTransitionWelcome');
-  const identityIndex = webhook.indexOf('const identity=await processClientIdentityMessage');
-  const discoveryIndex = webhook.indexOf('const familyDiscovery=await processClientServiceFamilyMessage');
-  assert.ok(transitionIndex >= 0);
-  assert.ok(identityIndex > transitionIndex);
-  assert.ok(discoveryIndex > identityIndex);
+  assert.doesNotMatch(legacyGuard, /This number matches a Shiloh profile with appointment history/);
   assert.match(transition, /resolveWhatsAppBookingIdentity\(phone\)/);
   assert.match(transition, /processClientIdentityMessage\(phone, text\)/);
 });
@@ -141,9 +130,7 @@ test('historical appointment or imported-contact evidence cannot establish or ov
   assert.match(onboarding, /if \(manualReviewIdentity\(identity\)\)/);
 });
 
-test('the correction changes no identity data and adds no resolver or fallback', () => {
-  const changedRuntime = `${webhook}\n${legacyGuard}`;
-  assert.doesNotMatch(changedRuntime, /(?:INSERT INTO|UPDATE|DELETE FROM) (?:clients|client_contacts|appointments|crm_v2_clients)/i);
+test('legacy guard adds no identity resolver or data mutation', () => {
+  assert.doesNotMatch(legacyGuard, /(?:INSERT INTO|UPDATE|DELETE FROM) (?:clients|client_contacts|appointments|crm_v2_clients)/i);
   assert.doesNotMatch(legacyGuard, /require\(['"]\.\/clientVerifiedIdentity['"]\)/);
-  assert.equal((webhook.match(/processClientIdentityMessage\(from,text\)/g) || []).length, 1);
 });

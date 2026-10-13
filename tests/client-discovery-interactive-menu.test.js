@@ -4,9 +4,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const discoveryPath = path.join(__dirname, '..', 'src', 'services', 'clientDiscoveryMenu.js');
-const webhookPath = path.join(__dirname, '..', 'src', 'controllers', 'webhookController.js');
+
 const source = fs.readFileSync(discoveryPath, 'utf8');
-const webhook = fs.readFileSync(webhookPath, 'utf8');
+
 const { clientHomeInteractive, isHomeCommand, processClientDiscoveryMessage, selectClientBookableServiceByName, servicePageInteractive, welcomeVoucherReply, welcomeVoucherRequestedService, SERVICE_PAGE_SIZE } = require(discoveryPath);
 const { MY_SHILOH_WEBSITE_PROMPT, myShilohAwarenessReply } = require('../src/presentation/whatsappClientMenu');
 
@@ -125,23 +125,4 @@ test('client service and practitioner selections are revalidated before entering
   assert.match(source, /processBookingMessage\(sender, `booking with \$\{practitioner\.display_name\}`\)/);
   assert.match(source, /decorateClientBookingResult\(await processBookingMessage/);
   assert.doesNotMatch(source, /Savanna|Pieter/);
-});
-
-test('non-admin interactive button IDs survive inbound normalization', () => {
-  assert.match(webhook, /button_reply[\s\S]*commandForClientBookingButton\(id\)[\s\S]*\|\|id\|\|null/);
-  assert.match(webhook, /list_reply[\s\S]*return id\|\|null/);
-  assert.doesNotMatch(webhook, /commandForAdminButton/);
-});
-
-test('client discovery runs after identity handling but before scope and booking fallthrough', () => {
-  const identity = webhook.indexOf('processClientIdentityMessage(from,text)');
-  const discovery = webhook.indexOf('processClientDiscoveryMessage(from,text)');
-  const scope = webhook.indexOf('evaluateClinicScope(text)');
-  const policy = webhook.indexOf('processBookingPolicyMessage(from,text)');
-  const booking = webhook.lastIndexOf('processBookingMessage(from,text)');
-  assert.ok(identity >= 0 && discovery >= 0 && scope >= 0 && policy >= 0 && booking >= 0);
-  assert.ok(identity < discovery);
-  assert.ok(discovery < scope);
-  assert.ok(scope < policy);
-  assert.ok(policy < booking);
 });

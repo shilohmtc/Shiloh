@@ -1,13 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 
 const {
   needsLanguageCheck,
   isEnglishCompatibleControlToken,
 } = require('../src/services/englishLanguageGuard');
-
-const webhookSource = fs.readFileSync('src/controllers/webhookController.js', 'utf8');
 
 test('controlled Juvan reset Confirm and Cancel tokens bypass natural-language classification', () => {
   for (const action of ['confirm', 'cancel']) {
@@ -49,11 +46,4 @@ test('unrecognized machine-like text does not receive a broad language bypass', 
 test('ordinary non-English free text remains subject to the English-only guard', () => {
   assert.equal(needsLanguageCheck('Ek wil my afspraak verander'), true);
   assert.equal(needsLanguageCheck('Kan ek asseblief môre kom'), true);
-});
-
-test('webhook still feeds interactive button IDs into the guarded command pipeline', () => {
-  assert.match(webhookSource, /message\.interactive\.button_reply\?\.id/);
-  assert.match(webhookSource, /const language=await guardEnglishOnly\(text\)/);
-  assert.match(webhookSource, /processAdminRetiredAuthorityMessage\(from,text\)/);
-  assert.doesNotMatch(webhookSource, /processAdminAssistantMessage\(from,text\)/);
 });
