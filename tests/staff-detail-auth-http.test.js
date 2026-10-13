@@ -19,7 +19,7 @@ async function server(t, patch = {}) {
     ok: true,
     sessionId: 17,
     adminId: 42,
-    authMethod: 'passkey',
+    authMethod: 'staff_details',
     authenticatedAt: new Date(),
     csrfHash: sha256('C'.repeat(43)),
   };
@@ -112,6 +112,28 @@ test('setup requires session/CSRF and ignores a body-supplied operator session',
   );
   assert.equal(response.status, 200);
   assert.equal(h.calls[0].session.adminId, 42);
+  assert.equal(h.calls[0].session.authMethod, 'staff_details');
+});
+test('setup reports the three-account restriction for denied reads and saves', async (t) => {
+  const setup = {
+    async read() {
+      return { ok: false, code: 'STAFF_DETAIL_SETUP_FORBIDDEN' };
+    },
+    async save() {
+      return { ok: false, code: 'STAFF_DETAIL_SETUP_FORBIDDEN' };
+    },
+  };
+  const h = await server(t, { setup });
+  const headers = {
+    Cookie: 'shiloh_staff_session=' + 'A'.repeat(43),
+    'x-shiloh-csrf-token': 'C'.repeat(43),
+  };
+  const page = await fetch(h.origin + '/calendar/staff-auth/details/manage', { headers });
+  assert.equal(page.status, 403);
+  assert.match(await page.text(), /Only Reception, Christel and JP/);
+  const response = await h.post('/setup', {}, headers);
+  assert.equal(response.status, 403);
+  assert.match((await response.json()).error, /Only Reception, Christel and JP/);
 });
 test('ordinary details entry stays disabled until configured; existing authenticated setup remains available', async (t) => {
   const h = await server(t, { env: { ...env, SHILOH_STAFF_DETAIL_AUTH_ENABLED: 'false' } });
