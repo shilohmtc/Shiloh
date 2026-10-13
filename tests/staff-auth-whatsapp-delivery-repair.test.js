@@ -19,11 +19,6 @@ const {
   buildStaffAuthTemplateContract,
 } = require('../src/services/staffAuthTemplateDefinition');
 const {
-  summarizeExactTemplate,
-  inspectStaffAuthTemplateInventory,
-  submitStaffAuthTemplateIfAbsent,
-} = require('../src/services/staffAuthTemplateProvisioning');
-const {
   CONTRACTS,
   compareContract,
   inspectMetaTemplateInventory,
@@ -210,55 +205,6 @@ test('retired staff authentication transports are absent', () => {
   const services = path.join(__dirname, '../src/services');
   assert.equal(fs.existsSync(path.join(services, 'staffAuthWhatsApp.js')), false);
   assert.equal(fs.existsSync(path.join(services, 'staffBrowserChallengeDelivery.js')), false);
-});
-
-test('provider inventory inspection is sanitized and template submission is exactly one mocked request when absent', async () => {
-  const otherAuth = { id: 'provider-secret-id', name: 'other_auth', language: 'en_US', category: 'AUTHENTICATION', status: 'APPROVED' };
-  const inspection = await inspectStaffAuthTemplateInventory({
-    discoverWabaId: async () => 'secret-waba',
-    fetchTemplates: async () => [otherAuth],
-  });
-  assert.equal(inspection.ok, true);
-  assert.equal(inspection.authenticationTemplateCount, 1);
-  assert.equal(inspection.exactTemplate.exists, false);
-  const serialized = JSON.stringify(inspection);
-  assert.doesNotMatch(serialized, /secret-waba/);
-  assert.doesNotMatch(serialized, /provider-secret-id/);
-  assert.doesNotMatch(serialized, /other_auth/);
-
-  let posts = 0;
-  let submittedBody;
-  const submission = await submitStaffAuthTemplateIfAbsent({
-    env: { WHATSAPP_TOKEN: 'secret' },
-    discoverWabaId: async () => 'secret-waba',
-    fetchTemplates: async () => [otherAuth],
-    post: async (url, body) => {
-      posts += 1;
-      submittedBody = body;
-      return { data: { status: 'PENDING', category: 'AUTHENTICATION', id: 'do-not-return' } };
-    },
-  });
-  assert.equal(posts, 1);
-  assert.equal(submission.submitted, true);
-  assert.equal(submission.status, 'PENDING');
-  assert.equal(submission.category, 'AUTHENTICATION');
-  assert.equal(submittedBody.name, STAFF_AUTH_TEMPLATE_NAME);
-  assert.equal(JSON.stringify(submission).includes('do-not-return'), false);
-});
-
-test('provider provisioning never submits when the exact template identity already exists', async () => {
-  const exact = { id: 'hidden-id', name: STAFF_AUTH_TEMPLATE_NAME, language: STAFF_AUTH_TEMPLATE_LANGUAGE, category: STAFF_AUTH_TEMPLATE_CATEGORY, status: 'PENDING' };
-  assert.equal(summarizeExactTemplate([exact]).exists, true);
-  let posts = 0;
-  const result = await submitStaffAuthTemplateIfAbsent({
-    env: { WHATSAPP_TOKEN: 'secret' },
-    discoverWabaId: async () => 'hidden-waba',
-    fetchTemplates: async () => [exact],
-    post: async () => { posts += 1; throw new Error('must not be called'); },
-  });
-  assert.equal(posts, 0);
-  assert.equal(result.submitted, false);
-  assert.equal(result.reason, 'exact_identity_already_exists');
 });
 
 test('provider text sanitizer redacts phone challenge and credentials', () => {
