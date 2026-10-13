@@ -1,8 +1,23 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const path = require('node:path');
 const { validateEnv } = require('../src/config/env');
 const { channelReady } = require('../src/services/workspaceClientNotifications');
+
+test('retired isolated Meta provisioning and audit entry points cannot be loaded', () => {
+  for (const relative of [
+    'scripts/provision-consultation-form-templates.js',
+    'src/bootstrap/staffAuthTemplateProvisioningBootstrap.js',
+    'src/bootstrap/metaWabaTemplatePermissionAuditBootstrap.js',
+    'src/services/staffAuthTemplateProvisioning.js',
+    'src/services/metaWabaTemplatePermissionAudit.js',
+    'src/controllers/clientLifecycleTemplateController.js',
+  ]) {
+    assert.throws(() => require.resolve(path.join(__dirname, '..', relative)),
+      { code: 'MODULE_NOT_FOUND' }, relative);
+  }
+});
 
 test('Shiloh starts without retired outbound Meta credentials', () => {
   assert.doesNotThrow(() => validateEnv({ OPENAI_API_KEY: 'app-ai', DATABASE_URL: 'postgres://test' }));
