@@ -1,0 +1,33 @@
+name: Export reviewed client consent screenshots
+
+on:
+  push:
+    branches: [codex/client-consent-baseline-export]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read the two synthetic screenshots from the existing exact-head artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/shilohmtc/Shiloh/actions/artifacts/11832614350/zip > /tmp/consent-review.zip
+          python3 - <<'PY'
+          import base64, zipfile
+          with zipfile.ZipFile('/tmp/consent-review.zip') as archive:
+              for name in ['client-history-desktop', 'client-history-phone']:
+                  matches = [path for path in archive.namelist() if path.endswith('/' + name + '-actual.png')]
+                  if len(matches) != 1:
+                      raise RuntimeError('Expected one exact-head screenshot for ' + name)
+                  encoded = base64.b64encode(archive.read(matches[0])).decode('ascii')
+                  print('BASELINE_BEGIN:' + name + '.png')
+                  for index, offset in enumerate(range(0, len(encoded), 12000), start=1):
+                      print('BASELINE_PART:' + name + '.png:' + str(index).zfill(2) + ':' + encoded[offset:offset + 12000])
+                  print('BASELINE_END:' + name + '.png')
+          PY
