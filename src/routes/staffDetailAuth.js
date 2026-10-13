@@ -80,7 +80,9 @@ function createStaffDetailAuthRouter({
         targetId: req.query.target || req.staffBrowserSession.adminId,
       });
       if (!model.ok)
-        return res.status(403).send('Staff sign-in details are unavailable for this account.');
+        return res
+          .status(403)
+          .send('Only Reception, Christel and JP can edit staff sign-in details.');
       return res.type('html').send(ux.setupPage(model, styles()));
     } catch (error) {
       next(error);
@@ -97,20 +99,18 @@ function createStaffDetailAuthRouter({
     const code = result.code;
     return res
       .status(
-        code === 'STAFF_RECENT_STRONG_AUTH_REQUIRED'
-          ? 428
-          : code === 'STAFF_DETAIL_SETUP_STALE'
-            ? 409
-            : code === 'STAFF_DETAIL_SETUP_INVALID'
-              ? 400
-              : code === 'STAFF_DETAIL_SETUP_UNAVAILABLE'
-                ? 503
-                : 403,
+        code === 'STAFF_DETAIL_SETUP_STALE'
+          ? 409
+          : code === 'STAFF_DETAIL_SETUP_INVALID'
+            ? 400
+            : code === 'STAFF_DETAIL_SETUP_UNAVAILABLE'
+              ? 503
+              : 403,
       )
       .json({
         error:
-          code === 'STAFF_RECENT_STRONG_AUTH_REQUIRED'
-            ? 'Sign in with your saved passkey, then save within 10 minutes.'
+          code === 'STAFF_DETAIL_SETUP_FORBIDDEN'
+            ? 'Only Reception, Christel and JP can edit staff sign-in details. Sign in again if your session has expired.'
             : code === 'STAFF_DETAIL_SETUP_STALE'
               ? 'These details changed. Reload before saving.'
               : code === 'STAFF_DETAIL_SETUP_INVALID'

@@ -2,8 +2,37 @@
 const crypto = require('node:crypto');
 const { pool } = require('../db/pool');
 const { details } = require('./clientCrmDetailAuth');
-const { strongRecentSession } = require('./staffPasskeyAuth');
 const { staffDetailRevision } = require('./staffDetailIdentity');
+// Canonical personal accounts are fixed by migration 184. Reception is the
+// existing unique, unlinked operational principal, not a generic role grant.
+function canManageStaffDetails(operator) {
+  if (
+    !operator?.active ||
+    (operator.staff_id != null && operator.staff_status !== 'active') ||
+    operator.permissions?.['staff_access:manage'] !== true ||
+    operator.calendar_scope !== 'all_business' ||
+    operator.service_scope !== 'all_services'
+  )
+    return false;
+  const name = String(operator.display_name || '')
+    .trim()
+    .toLowerCase();
+  return (
+    (Number(operator.id) === 2 &&
+      name === 'christel' &&
+      operator.role === 'owner' &&
+      operator.business_role === 'owner') ||
+    (Number(operator.id) === 4 &&
+      name === 'jean-pierre' &&
+      operator.role === 'admin' &&
+      operator.business_role === 'business_admin') ||
+    (name === 'shiloh reception' &&
+      operator.staff_id == null &&
+      operator.role === 'receptionist' &&
+      operator.business_role === 'booking_operator' &&
+      Number(operator.reception_count) === 1)
+  );
+}
 function revision(row) {
   return crypto
     .createHash('sha256')
@@ -12,6 +41,19 @@ function revision(row) {
 }
 function createStaffDetailSetupService({ db = pool, now = () => new Date() } = {}) {
   const denied = { ok: false, code: 'STAFF_DETAIL_SETUP_FORBIDDEN' };
+  async function currentSession(queryable, session, lock = false) {
+    if (!session?.ok || session.recoveryRequired) return null;
+    return (
+      (
+        await queryable.query(
+          `SELECT auth_method, detail_identity_revision FROM staff_browser_sessions
+       WHERE id=$1 AND admin_id=$2 AND recovery_required=FALSE
+       AND revoked_at IS NULL AND expires_at>$3${lock ? ' FOR UPDATE' : ''}`,
+          [session.sessionId, session.adminId, now()],
+        )
+      ).rows[0] || null
+    );
+  }
   async function authorize(queryable, session, targetId, lock = false) {
     if (
       !session?.ok ||
@@ -20,19 +62,21 @@ function createStaffDetailSetupService({ db = pool, now = () => new Date() } = {
       Number(targetId) <= 0
     )
       return null;
+    const persistedSession = await currentSession(queryable, session, lock);
+    if (!persistedSession) return null;
     const operator = (
       await queryable.query(
-        `SELECT a.*, s.status AS staff_status FROM staff_admin_accounts a
+        `SELECT a.*, s.status AS staff_status,
+        (SELECT COUNT(*) FROM staff_admin_accounts WHERE LOWER(BTRIM(display_name))='shiloh reception') AS reception_count
+        FROM staff_admin_accounts a
       LEFT JOIN staff s ON s.id=a.staff_id WHERE a.id=$1${lock ? ' FOR UPDATE OF a' : ''}`,
         [session.adminId],
       )
     ).rows[0];
-    if (!operator?.active || (operator.staff_id != null && operator.staff_status !== 'active'))
-      return null;
+    if (!canManageStaffDetails(operator)) return null;
     if (
-      Number(session.adminId) !== Number(targetId) &&
-      (operator.permissions?.['staff_access:manage'] !== true ||
-        operator.calendar_scope !== 'all_business')
+      persistedSession.auth_method === 'staff_details' &&
+      persistedSession.detail_identity_revision !== staffDetailRevision(operator)
     )
       return null;
     return (
@@ -63,21 +107,14 @@ function createStaffDetailSetupService({ db = pool, now = () => new Date() } = {
     };
   }
   async function save({ session, targetId = session?.adminId, input, expectedRevision } = {}) {
-    if (!strongRecentSession(session, now()))
-      return { ok: false, code: 'STAFF_RECENT_STRONG_AUTH_REQUIRED' };
+    if (!session?.ok || session.recoveryRequired) return denied;
     const parsed = details(input || {}, false);
     if (!parsed) return { ok: false, code: 'STAFF_DETAIL_SETUP_INVALID' };
     const client = await db.connect();
     try {
       await client.query('BEGIN');
-      // Lock and recheck the authorizing session before target identity changes.
-      const valid = await client.query(
-        `SELECT id FROM staff_browser_sessions WHERE id=$1 AND admin_id=$2
-        AND auth_method='passkey' AND recovery_required=FALSE AND revoked_at IS NULL AND expires_at>$3
-        AND reauthenticated_at >= $4 FOR UPDATE`,
-        [session.sessionId, session.adminId, now(), new Date(now().getTime() - 10 * 60 * 1000)],
-      );
-      const row = valid.rows.length ? await authorize(client, session, targetId, true) : null;
+      // Lock and recheck the live session and canonical authority before saving.
+      const row = await authorize(client, session, targetId, true);
       if (!row || row.active !== true || (row.staff_id != null && row.staff_status !== 'active')) {
         await client.query('ROLLBACK');
         return denied;
@@ -123,4 +160,4 @@ function createStaffDetailSetupService({ db = pool, now = () => new Date() } = {
   }
   return { read, save };
 }
-module.exports = { createStaffDetailSetupService };
+module.exports = { createStaffDetailSetupService, canManageStaffDetails };

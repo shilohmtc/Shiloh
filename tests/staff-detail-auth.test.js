@@ -165,8 +165,8 @@ async function harness(t) {
     },
   };
   const owner = (
-    await db.query(`INSERT INTO staff_admin_accounts(display_name,normalized_whatsapp,role,business_role,calendar_scope,service_scope,permissions,
-    sign_in_first_name,sign_in_surname,sign_in_date_of_birth) VALUES('Synthetic Example','27820000001','owner','owner','all_business','all_services',
+    await db.query(`INSERT INTO staff_admin_accounts(id,display_name,normalized_whatsapp,role,business_role,calendar_scope,service_scope,permissions,
+    sign_in_first_name,sign_in_surname,sign_in_date_of_birth) VALUES(2,'Christel','27820000001','owner','owner','all_business','all_services',
     '{"appointment:view":true,"staff_access:manage":true}','Synthetic','Example','2000-01-01') RETURNING *`)
   ).rows[0];
   const auth = createStaffDetailAuthService({ db, env, now: () => current });
@@ -320,7 +320,7 @@ test('passkey enrollment is optional for a valid details session; replacement an
   await h.sessions.revokeSession(session.sessionId, 'logout');
   assert.equal((await h.passkeys.beginRegistration({ session })).code, 'STAFF_AUTH_FORBIDDEN');
 });
-test('recording details requires current passkey authority, revision and unchanged recorded mobile', async (t) => {
+test('recording details uses the authorized Workspace session, revision and unchanged recorded mobile', async (t) => {
   const h = await harness(t);
   const signed = await issueStaffBrowserSession({
     client: h.db,
@@ -363,6 +363,120 @@ test('recording details requires current passkey authority, revision and unchang
   const detailsSession = await h.sessions.validateSessionToken(detailSigned.sessionToken);
   assert.equal(
     (await h.setup.save({ session: detailsSession, input, expectedRevision: model.revision })).code,
-    'STAFF_RECENT_STRONG_AUTH_REQUIRED',
+    'STAFF_DETAIL_SETUP_STALE',
   );
+  const current = await h.setup.read({ session: detailsSession });
+  assert.equal(
+    (await h.setup.save({ session: detailsSession, input, expectedRevision: current.revision })).ok,
+    true,
+  );
+});
+
+test('only canonical Christel, JP and Reception can edit any staff details, without a recent passkey', async (t) => {
+  const h = await harness(t);
+  await h.db.query(`INSERT INTO staff_admin_accounts
+    (id,display_name,normalized_whatsapp,role,business_role,calendar_scope,service_scope,permissions)
+    VALUES (4,'Jean-Pierre','27820000004','admin','business_admin','all_business','all_services','{"appointment:view":true,"staff_access:manage":true}'),
+    (8,'Shiloh Reception','27820000008','receptionist','booking_operator','all_business','all_services','{"appointment:view":true,"staff_access:manage":true}'),
+    (10,'Other administrator','27820000010','owner','owner','all_business','all_services','{"appointment:view":true,"staff_access:manage":true}'),
+    (11,'Christel','27820000011','owner','owner','all_business','all_services','{"appointment:view":true,"staff_access:manage":true}'),
+    (12,'Jean-Pierre','27820000012','admin','business_admin','all_business','all_services','{"appointment:view":true,"staff_access:manage":true}'),
+    (13,'Practitioner','27820000013','practitioner','employee_practitioner','own_appointments','own_services','{"appointment:view":true}')`);
+  await h.db.query(
+    "UPDATE staff_admin_accounts SET sign_in_first_name='Synthetic',sign_in_surname='Example',sign_in_date_of_birth='2000-01-01'",
+  );
+  for (const adminId of [2, 4, 8, 10, 11, 12, 13]) {
+    const admin = (await h.db.query('SELECT * FROM staff_admin_accounts WHERE id=$1', [adminId]))
+      .rows[0];
+    const signed = await issueStaffBrowserSession({
+      client: h.db,
+      admin,
+      current: h.now(),
+      authMethod: 'staff_details',
+    });
+    await h.db.query('UPDATE staff_browser_sessions SET detail_identity_revision=$2 WHERE id=$1', [
+      signed.sessionId,
+      staffDetailRevision(admin),
+    ]);
+    h.advance(11 * 60 * 1000);
+    const session = await h.sessions.validateSessionToken(signed.sessionToken);
+    assert.equal(session.ok, true, `valid details session for ${adminId}`);
+    const allowed = [2, 4, 8].includes(adminId);
+    for (const targetId of [13, adminId]) {
+      const model = await h.setup.read({ session, targetId });
+      assert.equal(model.ok, allowed, `read ${adminId} -> ${targetId}`);
+      const target = (
+        await h.db.query('SELECT * FROM staff_admin_accounts WHERE id=$1', [targetId])
+      ).rows[0];
+      const result = await h.setup.save({
+        session,
+        targetId,
+        input: { ...input, mobile: target.normalized_whatsapp },
+        expectedRevision: model.revision,
+      });
+      assert.equal(result.ok, allowed, `save ${adminId} -> ${targetId}`);
+    }
+  }
+  const audit = (
+    await h.db.query(
+      "SELECT * FROM staff_auth_security_events WHERE event_type='staff_details_updated'",
+    )
+  ).rows;
+  assert.equal(audit.length, 6);
+  assert.ok(audit.every((row) => [2, 4, 8].includes(Number(row.operator_admin_id))));
+  const reception = (await h.db.query('SELECT * FROM staff_admin_accounts WHERE id=8')).rows[0];
+  const signed = await issueStaffBrowserSession({
+    client: h.db,
+    admin: reception,
+    current: h.now(),
+    authMethod: 'passkey',
+  });
+  const session = await h.sessions.validateSessionToken(signed.sessionToken);
+  await h.db.query(
+    "INSERT INTO staff_admin_accounts(id,display_name,active) VALUES(14,'Shiloh Reception',FALSE)",
+  );
+  assert.equal((await h.setup.read({ session, targetId: 13 })).ok, false);
+  assert.equal(
+    (await h.setup.save({ session, targetId: 13, input, expectedRevision: 'stale' })).code,
+    'STAFF_DETAIL_SETUP_FORBIDDEN',
+  );
+});
+
+test('setup rechecks current sessions, permissions, identity and active staff instead of trusting a cached session', async (t) => {
+  const h = await harness(t);
+  const signed = await h.attempt();
+  const session = await h.sessions.validateSessionToken(signed.sessionToken);
+  const model = await h.setup.read({ session });
+  const save = () => h.setup.save({ session, input, expectedRevision: model.revision });
+  await h.db.query("UPDATE staff_admin_accounts SET permissions='{}' WHERE id=2");
+  assert.equal((await save()).code, 'STAFF_DETAIL_SETUP_FORBIDDEN');
+  await h.db.query('UPDATE staff_admin_accounts SET permissions=$1 WHERE id=2', [
+    JSON.stringify(h.owner.permissions),
+  ]);
+  await h.db.query("UPDATE staff_admin_accounts SET sign_in_surname='Changed' WHERE id=2");
+  assert.equal((await save()).code, 'STAFF_DETAIL_SETUP_FORBIDDEN');
+  await h.db.query(
+    "UPDATE staff_admin_accounts SET sign_in_surname='Example',active=FALSE WHERE id=2",
+  );
+  assert.equal((await save()).code, 'STAFF_DETAIL_SETUP_FORBIDDEN');
+  await h.db.query('UPDATE staff_admin_accounts SET active=TRUE WHERE id=2');
+  await h.db.query("INSERT INTO staff(id,status) VALUES(7,'inactive')");
+  await h.db.query('UPDATE staff_admin_accounts SET staff_id=7 WHERE id=2');
+  assert.equal((await save()).code, 'STAFF_DETAIL_SETUP_FORBIDDEN');
+  await h.db.query('UPDATE staff_admin_accounts SET staff_id=NULL WHERE id=2');
+  await h.db.query('UPDATE staff_browser_sessions SET recovery_required=TRUE WHERE id=$1', [
+    session.sessionId,
+  ]);
+  assert.equal((await save()).code, 'STAFF_DETAIL_SETUP_FORBIDDEN');
+  await h.db.query('UPDATE staff_browser_sessions SET recovery_required=FALSE WHERE id=$1', [
+    session.sessionId,
+  ]);
+  assert.equal((await save()).ok, true);
+  assert.equal((await save()).code, 'STAFF_DETAIL_SETUP_FORBIDDEN');
+  assert.equal((await h.setup.read({ session })).ok, false);
+  const again = await h.attempt();
+  Object.assign(session, await h.sessions.validateSessionToken(again.sessionToken));
+  h.advance(8 * 60 * 60 * 1000);
+  assert.equal((await save()).code, 'STAFF_DETAIL_SETUP_FORBIDDEN');
+  assert.equal((await h.setup.read({ session })).ok, false);
 });

@@ -80,6 +80,8 @@ for (const viewport of [
     });
     await expect(page.getByLabel('Mobile number')).toHaveAttribute('readonly', '');
     await expect(page.getByLabel('Mobile number')).toHaveValue('0820000001');
+    await expect(page.locator('.lead')).toContainText('Only Reception, Christel and JP');
+    await expect(page.locator('.lead')).toContainText('no passkey confirmation is needed');
     await page.addScriptTag({ content: ux.setupScript() });
     await page.route('**/calendar/staff-auth/csrf', (route) =>
       route.fulfill({ json: { csrfToken: 'synthetic-csrf' } }),
