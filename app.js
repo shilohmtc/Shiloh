@@ -48,7 +48,6 @@ const publicWebsiteRoutes = require("./src/routes/publicWebsite");
 const serviceRoutes = require("./src/routes/services");
 const { createClientConsultationFormsRouter } = require("./src/routes/clientConsultationForms");
 const { checkDatabase, startConversationSessionCleanupScheduler } = require("./src/services/memory");
-const { startClientWhatsAppContinuationCleanupScheduler } = require('./src/services/clientWhatsAppContinuation');
 const { startTemporarySessionCleanupScheduler } = require("./src/services/temporarySessionRetention");
 const { startGoogleBusinessProfileSyncScheduler } = require("./src/services/googleBusinessProfileSync");
 const { startAppointmentLifecycleScheduler } = require("./src/services/appointmentLifecycle");
@@ -101,7 +100,7 @@ async function start() {
   try { logger.info(await require("./src/services/workspacePackages").readiness(), "Workspace package readiness verified"); } catch (error) { logger.warn({ err: error }, "Workspace package readiness check failed"); }
   await ensureBookingConfirmationDeliverySchema(); logger.info({ initialized: true, migrations: ['071_booking_confirmation_template_evidence.sql', '083_initial_booking_confirmation_guarantee.sql', '085_calendar_clean_crm_v2_cutover.sql'], migrationAppliedNow: false, checksumVerified: true, durableRetryColumns: true, crmV2RecipientSnapshots: true }, "Booking confirmation delivery evidence schema verified");
   try { await runConfiguredClientProvenanceAudit(logger); } catch (error) { logger.error({ err: error }, "Read-only CRM provenance audit failed"); }
-  server = app.listen(PORT, () => { logger.info({ port: PORT }, "Shiloh started"); startConversationSessionCleanupScheduler(); startClientWhatsAppContinuationCleanupScheduler(); startTemporarySessionCleanupScheduler(); startGoogleBusinessProfileSyncScheduler(); startAppointmentLifecycleScheduler(); startCustomerCareScheduler(); startBookingIntegrityScheduler(); startCustomerBookingConfirmationScheduler(); startConsultationFormDeliveryScheduler(); startMandatoryDemoCleanupScheduler(); setTimeout(logMyShilohCutoverCoverage, 15000).unref(); });
+  server = app.listen(PORT, () => { logger.info({ port: PORT }, "Shiloh started"); startConversationSessionCleanupScheduler(); startTemporarySessionCleanupScheduler(); startGoogleBusinessProfileSyncScheduler(); startAppointmentLifecycleScheduler(); startCustomerCareScheduler(); startBookingIntegrityScheduler(); startCustomerBookingConfirmationScheduler(); startConsultationFormDeliveryScheduler(); startMandatoryDemoCleanupScheduler(); setTimeout(logMyShilohCutoverCoverage, 15000).unref(); });
 }
 start().catch(async (error) => {
   observability.captureException(error, { "error.kind": "startup", "error.code": error?.code, "runtime.phase": "startup" });

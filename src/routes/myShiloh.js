@@ -47,7 +47,6 @@ const { queueWorkspaceAlert } = require('../services/workspacePush');
 const { createMyShilohBookingService, MyShilohBookingError } = require('../services/myShilohBooking');
 const { createMyShilohMultipleBookingService } = require('../services/myShilohMultipleBooking');
 const { createClientPlanningRequestService, ClientPlanningRequestError } = require('../services/clientPlanningRequests');
-const { createClientWhatsAppContinuationService } = require('../services/clientWhatsAppContinuation');
 const bookingProposals = require('../services/clientBookingApproval');
 const { BookingDepositPolicyError } = require('../services/bookingDepositPolicy');
 const { POLICY_TEXT } = require('../services/bookingPolicy');
@@ -101,7 +100,7 @@ function createMyShilohRouter({
   whatsappResolver = resolveWhatsAppNumber,
   catalogueProvider = getPublicServiceCatalogue,
   experienceService = createMyShilohExperienceOrchestrator(),
-  assistantService = createMyShilohAssistantService({ continuationService:createClientWhatsAppContinuationService({ db:pool }) }),
+  assistantService = createMyShilohAssistantService(),
   actionService = createMyShilohClientActionService(),
   formActionService = createMyShilohConsultationFormActionService(),
   formService = clientConsultationForms,
@@ -118,7 +117,6 @@ function createMyShilohRouter({
   couplesBookingService = createMyShilohMultipleBookingService({ db:pool, booking:bookingService, couples:true }),
   proposalService = bookingProposals,
   planningService = createClientPlanningRequestService({ db: pool }),
-  continuationService = createClientWhatsAppContinuationService({ db: pool }),
 } = {}) {
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
@@ -952,26 +950,6 @@ function createMyShilohRouter({
       }
       return next(error);
     }
-  });
-
-  router.get('/my-shiloh/api/shiloh/whatsapp-continuation', requireSession, async (req, res, next) => {
-    try {
-      setNoStoreJson(res);
-      const available = await continuationService.available({ crmV2ClientId:req.myShilohClientSession.crmV2ClientId });
-      return res.status(200).json({ available });
-    } catch (error) { return next(error); }
-  });
-
-  router.post('/my-shiloh/api/shiloh/whatsapp-continuation', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
-    try {
-      setNoStoreJson(res);
-      const exchange = await continuationService.claim({
-        crmV2ClientId:req.myShilohClientSession.crmV2ClientId,
-        sessionId:req.myShilohClientSession.sessionId,
-      });
-      if (!exchange) return res.status(404).json({ error:'That recent WhatsApp conversation is no longer available.' });
-      return res.status(200).json({ exchange });
-    } catch (error) { return next(error); }
   });
 
   router.post('/my-shiloh/api/actions/confirm', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
