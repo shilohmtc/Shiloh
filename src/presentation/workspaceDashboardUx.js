@@ -148,8 +148,9 @@ function planningRequestItem(item) {
   const kind = item.request_kind === 'group' ? 'Group visit or event' : 'Flexible visit';
   const date = item.preferred_date ? String(item.preferred_date).slice(0,10) : 'Date flexible';
   const daypart = item.preferred_daypart && item.preferred_daypart !== 'any' ? item.preferred_daypart : 'Time flexible';
-  const appointments = (item.candidate_appointments || []).map(candidate => `<option value="${escapeHtml(candidate.id)}">${escapeHtml(dateTimeLabel(candidate.startsAt))}</option>`).join('');
-  return `<article class="booking-request" data-dashboard-planning-request="${escapeHtml(item.id)}"><div class="appointment-main"><span class="appointment-time">Request</span><div class="appointment-copy"><strong>${escapeHtml(item.client_name)}</strong><span>${escapeHtml(kind)} · ${escapeHtml(item.service_name || item.service_detail)}</span></div><span class="status-pill pending">${item.status === 'planning' ? 'Planning' : 'Requested'}</span></div><p class="request-note">${escapeHtml(date)} · ${escapeHtml(daypart)}${item.guest_count ? ` · About ${escapeHtml(item.guest_count)} guests` : ''}${item.practitioner_name ? ` · Prefers ${escapeHtml(item.practitioner_name)}` : ''}</p>${item.special_occasion ? `<p class="request-note"><strong>Occasion:</strong> ${escapeHtml(item.occasion_note)}</p>` : ''}${item.client_note ? `<p class="request-note"><strong>Client note:</strong> ${escapeHtml(item.client_note)}</p>` : ''}<p class="request-note">This request has not booked a time or requested payment.</p><div class="request-actions">${item.status === 'requested' ? '<button data-workspace-action="secondary" class="action-button" type="button" data-planning-action="start_planning">Start planning</button>' : ''}</div><div class="proposal-fields"><label class="proposal-field"><span>Appointment arranged for this client</span><select data-planning-appointment><option value="">Choose their scheduled appointment</option>${appointments}</select></label><button data-workspace-action="primary" class="action-button complete" type="button" data-planning-action="arranged"${appointments ? '' : ' disabled'}>Link arranged appointment</button><button data-workspace-action="danger" class="action-button cannot" type="button" data-planning-show-decline>Cannot accommodate</button><div data-planning-decline hidden><p class="request-note">This closes the request without changing any appointment. Confirm only after speaking with the client.</p><button data-workspace-action="danger" class="action-button cannot" type="button" data-planning-action="decline">Confirm cannot accommodate</button><button data-workspace-action="secondary" class="action-button" type="button" data-planning-cancel-decline>Keep planning</button></div><p class="operation-status request-operation-status" data-planning-status role="status" aria-live="polite"></p></div></article>`;
+  const appointments = (item.candidate_appointments || []).map(candidate => `<option value="${escapeHtml(candidate.id)}">${escapeHtml([dateTimeLabel(candidate.startsAt), candidate.serviceName, candidate.staffNames].filter(Boolean).join(' · '))}</option>`).join('');
+  const calendar = /^\d{4}-\d{2}-\d{2}$/.test(date) ? `/calendar/read-only?view=week&amp;date=${escapeHtml(date)}&amp;staff=all` : '/calendar/read-only';
+  return `<article class="booking-request" data-dashboard-planning-request="${escapeHtml(item.id)}"><div class="appointment-main"><span class="appointment-time">Request</span><div class="appointment-copy"><strong>${escapeHtml(item.client_name)}</strong><span>${escapeHtml(kind)} · ${escapeHtml(item.service_name || item.service_detail)}</span></div><span class="status-pill pending">Awaiting appointment</span></div><p class="request-note">${escapeHtml(date)} · ${escapeHtml(daypart)}${item.guest_count ? ` · About ${escapeHtml(item.guest_count)} guests` : ''}${item.practitioner_name ? ` · Prefers ${escapeHtml(item.practitioner_name)}` : ''}</p>${item.special_occasion ? `<p class="request-note"><strong>Occasion:</strong> ${escapeHtml(item.occasion_note)}</p>` : ''}${item.client_note ? `<p class="request-note"><strong>Client note:</strong> ${escapeHtml(item.client_note)}</p>` : ''}<p class="request-note">This request has not booked a time or requested payment. Agree the details with the client, arrange their booking in Calendar, then confirm it below.</p><div class="request-actions"><a data-workspace-action="secondary" class="button" href="${calendar}">Arrange appointment in Calendar</a><button data-workspace-action="secondary" class="action-button" type="button" data-planning-refresh>Refresh appointments</button></div><div class="proposal-fields"><label class="proposal-field"><span>Arranged appointment</span><select data-planning-appointment${appointments ? '' : ' disabled'}><option value="">${appointments ? 'Choose appointment' : 'No appointments available'}</option>${appointments}</select></label><p class="request-note" data-planning-selected hidden></p><button data-workspace-action="primary" class="action-button complete" type="button" data-planning-action="arranged" disabled>Confirm arranged appointment</button><p class="request-note" data-planning-empty${appointments ? ' hidden' : ''}>No approved upcoming appointment is available for this client. Arrange one in Calendar, complete any booking approval, then refresh appointments.</p><p class="operation-status request-operation-status" data-planning-status role="status" aria-live="polite"></p></div></article>`;
 }
 
 function rescheduleRequestItem(item) {
@@ -188,29 +189,41 @@ function dashboardClientScript() {
 }
 
 function planningRequestClientScript() {
-  return workspaceErrorRecoveryClientScript() + `(()=>{'use strict';document.addEventListener('click',async event=>{
-    const button=event.target.closest('[data-planning-action],[data-planning-show-decline],[data-planning-cancel-decline]');
-    if(!button)return;
-    const card=button.closest('[data-dashboard-planning-request]');if(!card)return;
-    const decline=card.querySelector('[data-planning-decline]');
-    if(button.hasAttribute('data-planning-show-decline')){decline.hidden=false;decline.querySelector('button').focus();return;}
-    if(button.hasAttribute('data-planning-cancel-decline')){decline.hidden=true;card.querySelector('[data-planning-show-decline]').focus();return;}
-    const action=button.dataset.planningAction;
-    if(!['start_planning','decline','arranged'].includes(action))return;
-    const status=card.querySelector('[data-planning-status]');
-    const appointment=card.querySelector('[data-planning-appointment]');
-    if(action==='arranged'&&!appointment.value){status.textContent='Choose the appointment arranged for this client.';appointment.focus();return;}
-    button.disabled=true;status.textContent='Checking the current request…';
+  return workspaceErrorRecoveryClientScript() + `(()=>{'use strict';
+  function sync(card){const select=card.querySelector('[data-planning-appointment]'),detail=card.querySelector('[data-planning-selected]');card.querySelector('[data-planning-action="arranged"]').disabled=card.dataset.planningBusy==='true'||!select.value;detail.hidden=!select.value;detail.textContent=select.value?select.selectedOptions[0].textContent:'';}
+  document.addEventListener('change',event=>{if(event.target.matches('[data-planning-appointment]'))sync(event.target.closest('[data-dashboard-planning-request]'));});
+  document.addEventListener('click',async event=>{
+    const button=event.target.closest('[data-planning-action],[data-planning-refresh]');if(!button)return;
+    const card=button.closest('[data-dashboard-planning-request]');if(!card||card.dataset.planningBusy==='true')return;
+    const status=card.querySelector('[data-planning-status]'),appointment=card.querySelector('[data-planning-appointment]');
+    const refresh=button.hasAttribute('data-planning-refresh');
+    if(!refresh&&button.dataset.planningAction!=='arranged')return;
+    if(!refresh&&!appointment.value){status.textContent='Choose the appointment arranged for this client.';appointment.focus();return;}
+    const selected=appointment.value;status.dataset.tone='ready';status.setAttribute('role','status');
+    card.dataset.planningBusy='true';card.querySelectorAll('button,select').forEach(control=>{control.disabled=true;});status.textContent=refresh?'Checking appointments…':'Checking the current request…';
     try{
-      const csrf=await fetch('/calendar/staff-auth/csrf',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json'},body:'{}'});
-      const token=await csrf.json();if(!csrf.ok||!token.csrfToken)throw new Error('Your secure session has expired.');
-      const response=await fetch('/calendar/workspace/planning-requests/'+encodeURIComponent(card.dataset.dashboardPlanningRequest)+'/'+action,{
-        method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','Accept':'application/json','x-shiloh-csrf-token':token.csrfToken},
-        body:JSON.stringify(action==='arranged'?{appointmentId:Number(appointment.value)}:{}),
-      });
-      const result=await response.json();if(!response.ok)throw window.ShilohErrorRecovery.failure(result,response,'The request was not changed.');
-      status.textContent='Request updated. Refreshing…';setTimeout(()=>location.reload(),500);
-    }catch(error){window.ShilohErrorRecovery.render(status,error,'error');button.disabled=false;button.focus();}
+      const path='/calendar/workspace/planning-requests/'+encodeURIComponent(card.dataset.dashboardPlanningRequest);
+      if(refresh){
+        const response=await fetch(path+'/appointments',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(15000),headers:{Accept:'application/json'}});
+        const result=await response.json();if(!response.ok)throw window.ShilohErrorRecovery.failure(result,response,'Appointments could not be refreshed.');
+        const items=result.appointments||[];appointment.replaceChildren(new Option(items.length?'Choose appointment':'No appointments available',''));
+        const formatter=new Intl.DateTimeFormat('en-ZA',{timeZone:'Africa/Johannesburg',weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',hour12:false});
+        items.forEach(item=>appointment.add(new Option([formatter.format(new Date(item.startsAt)),item.serviceName,item.staffNames].filter(Boolean).join(' · '),String(item.id))));
+        if(items.some(item=>String(item.id)===selected))appointment.value=selected;
+        card.querySelector('[data-planning-empty]').hidden=items.length>0;
+        status.textContent=items.length?'Appointments refreshed. Choose the agreed appointment, then confirm.':'No approved upcoming appointment is available yet.';
+      }else{
+        const csrf=await fetch('/calendar/staff-auth/csrf',{method:'POST',credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(15000),headers:{'Content-Type':'application/json','Accept':'application/json'},body:'{}'});
+        const token=await csrf.json();if(!csrf.ok||!token.csrfToken)throw new Error('Your secure session has expired.');
+        const response=await fetch(path+'/arranged',{
+          method:'POST',credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(15000),headers:{'Content-Type':'application/json','Accept':'application/json','x-shiloh-csrf-token':token.csrfToken},
+          body:JSON.stringify({appointmentId:Number(selected)}),
+        });
+        const result=await response.json();if(!response.ok)throw window.ShilohErrorRecovery.failure(result,response,'The request was not changed.');
+        status.textContent='Arranged appointment confirmed. Refreshing…';setTimeout(()=>location.reload(),500);return;
+      }
+    }catch(error){window.ShilohErrorRecovery.render(status,error,'error');}
+    card.dataset.planningBusy='false';card.querySelector('[data-planning-refresh]').disabled=false;appointment.disabled=appointment.options.length<2;sync(card);button.focus();
   });})();`;
 }
 
