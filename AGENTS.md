@@ -8,6 +8,7 @@ These instructions apply to the entire repository.
 - At the start of each request, advise whether normal Chat or Work is appropriate.
 - Keep client-facing language warm, simple and non-technical.
 - State assumptions, blockers and release risk plainly. Never imply that an action was completed without direct evidence.
+- Minimise approval interruptions. Batch related routine checks, reuse already granted permissions where the platform supports them, and carry an authorised task through without asking again at each step. Explain the specific platform or repository requirement when an approval is unavoidable. Never bypass a denied approval or claim to have disabled platform controls.
 
 ## Idea review and durable decisions
 
@@ -27,7 +28,9 @@ Use [`docs/SHILOH_PLATFORM_HANDBOOK.md`](docs/SHILOH_PLATFORM_HANDBOOK.md) as th
 
 ## Publishing changes through connected GitHub
 
-Use Shiloh's connected GitHub integration as the default publishing path. Do not attempt to authenticate a local `git push` from the workspace, ask for Git credentials, or route around an approval rejection. The user's authorization to publish must be established before writing to GitHub.
+Use Shiloh's connected GitHub integration as the default publishing path. Do not attempt to authenticate a local `git push` from the workspace, ask for Git credentials, or route around an approval rejection.
+
+Assess authorisation from the user's task and existing session approvals, rather than asking at every release step. A request to build, implement or fix a Shiloh feature authorises ordinary local changes, relevant checks, a dedicated connected GitHub branch and a draft PR for that task. A request to publish, release, deploy or make that change live authorises the necessary PR, passing exact-head checks, merge, controlled migration and deployment verification within the agreed scope. Carry that authorisation forward across retries and follow-ups. Ask only when the next action materially exceeds the agreed scope or a platform control specifically requires approval. A status question alone does not authorise deployment. Existing quality, migration, production and business-authority safeguards still apply.
 
 1. Fetch current `main`, work on a dedicated local branch, review the diff, and run the applicable local checks. Keep generated artifacts and secrets out of the commit.
 2. Create the same dedicated branch through the connected GitHub integration from the exact `main` SHA used locally. Upload only changed file blobs. Compare each returned blob SHA with `git ls-tree` for the local commit.

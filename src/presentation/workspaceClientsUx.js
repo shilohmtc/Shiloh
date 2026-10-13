@@ -143,14 +143,16 @@ function renderClientDetailPage(model, {
   const policyRows = (model.policyAcceptances || []).map(item => {
     const accepted = formatDateTime(item.accepted_at);
     const booking = item.appointment_id ? `Booking #${item.appointment_id}` : (item.service_text || 'Booking request');
-    return `<div class="policy-history-row"><strong>${escapeHtml(item.policy_version || 'Policy')}</strong><span>${escapeHtml(accepted.date)} ${escapeHtml(accepted.time)}</span><span>${escapeHtml(acceptanceChannelLabel(item.channel))} · ${escapeHtml(booking)}</span></div>`;
+    const linked = Number(item.crm_v2_client_id) === Number(client.id);
+    const document = linked ? `<a data-workspace-action="secondary" class="button" href="${historyBase}/policy-acceptances/${encodeURIComponent(String(item.id))}">View acceptance</a>` : '<span>Historical phone-only record · Client link not verified</span>';
+    return `<div class="policy-history-row"><div><strong>${escapeHtml(item.policy_version || 'Policy')}</strong><br><span>${escapeHtml(accepted.date)} ${escapeHtml(accepted.time)}</span></div><span>${escapeHtml(acceptanceChannelLabel(item.channel))} · ${escapeHtml(booking)}${linked && !item.has_snapshot ? '<br>Historical wording not captured' : ''}</span><div>${document}</div></div>`;
   }).join('');
   const policyHistoryBody = model.policyAcceptanceUnavailable
     ? '<div class="empty">Booking Policy acceptance evidence is temporarily unavailable. No acceptance claim is being made.</div>'
-    : policyRows;
-  const policySection = (model.policyAcceptanceUnavailable || policyRows)
-    ? `<section class="history-panel" data-policy-acceptance-history style="margin-bottom:12px"><header class="section-heading"><div><span class="eyebrow">Policies &amp; consents</span><h2>Booking Policy &amp; Terms</h2></div><span class="truth-note">Exact version and acceptance channel</span></header><div class="policy-history-list">${policyHistoryBody}</div></section>`
-    : '';
+    : policyRows || '<p>No booking-policy acceptance records are available for this client.</p>';
+  const policyOffset = model.policyOffset || 0;
+  const policyHref = offset => `${historyBase}?policyOffset=${offset}&formsPage=${model.consultationHistory?.page || 0}#policy-documents`;
+  const policySection = `<section class="history-panel" id="policy-documents" data-policy-acceptance-history style="margin-bottom:12px"><header class="section-heading"><div><span class="eyebrow">Documents &amp; consent</span><h2>Booking Policy &amp; Terms</h2></div></header><div class="policy-history-list">${policyHistoryBody}</div><nav class="pager" aria-label="Policy acceptance history pages">${policyOffset > 0 ? `<a class="pager-link" href="${policyHref(Math.max(0,policyOffset-20))}">Newer acceptances</a>` : '<span></span>'}${model.policyHasMore ? `<a class="pager-link" href="${policyHref(policyOffset+20)}">Older acceptances</a>` : ''}</nav></section>`;
   const hasBookingReadiness = (model.appointments || []).some(item => item?.bookingReadiness);
   const historyTruth = hasBookingReadiness
     ? 'Booking readiness and historical treatment details'
@@ -172,6 +174,7 @@ module.exports = {
   formatDateTime,
   formatMobile,
   maskMobile,
+  acceptanceChannelLabel,
   renderClientListPage,
   renderClientDetailPage,
   renderClientsUnavailablePage,

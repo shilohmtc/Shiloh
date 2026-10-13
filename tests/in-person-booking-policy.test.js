@@ -115,7 +115,7 @@ test('Workspace client record exposes policy history and appointment readiness w
   const ux = read('src/presentation/workspaceClientsUx.js');
   assert.match(service, /listClientAcceptanceHistory/);
   assert.match(service, /readinessForAppointments/);
-  assert.match(ux, /Policies &amp; consents/);
+  assert.match(ux, /Documents &amp; consent/);
   assert.match(ux, /Booking readiness/);
   assert.match(ux, /Terms accepted/);
   assert.match(ux, /Deposit received/);

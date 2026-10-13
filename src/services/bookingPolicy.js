@@ -56,10 +56,10 @@ async function recordAcceptance(phone, channel = POLICY_CHANNEL) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const updated = await client.query(`UPDATE booking_intents SET status = 'policy_accepted', policy_version = $2, policy_accepted_at = NOW(), policy_channel = $3, updated_at = NOW() WHERE phone = $1 AND status = 'awaiting_policy_acceptance' RETURNING *`, [phone, POLICY_VERSION, channel]);
+    const updated = await client.query(`UPDATE booking_intents SET status = 'policy_accepted', policy_version = $2, policy_accepted_at = NOW(), policy_channel = $3, updated_at = NOW() WHERE phone = $1 AND status = 'awaiting_policy_acceptance' AND policy_version=$2 RETURNING *`, [phone, POLICY_VERSION, channel]);
     const intent = updated.rows[0];
     if (!intent) { await client.query("ROLLBACK"); return null; }
-    await client.query(`INSERT INTO booking_policy_acceptances (phone, policy_version, accepted_at, channel, service_text, preferred_date, preferred_time, therapist_text) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [phone, POLICY_VERSION, intent.policy_accepted_at, channel, intent.service_text, intent.preferred_date, intent.preferred_time, intent.therapist_text]);
+    await client.query(`INSERT INTO booking_policy_acceptances (phone, policy_version, accepted_at, channel, service_text, preferred_date, preferred_time, therapist_text, policy_text_snapshot, crm_v2_client_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, (SELECT MIN(id) FROM crm_v2_clients WHERE normalized_mobile=$1 AND status='active' HAVING COUNT(*)=1))`, [phone, POLICY_VERSION, intent.policy_accepted_at, channel, intent.service_text, intent.preferred_date, intent.preferred_time, intent.therapist_text, POLICY_TEXT]);
     await client.query("COMMIT"); return intent;
   } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
 }
@@ -132,6 +132,10 @@ async function processBookingPolicyMessage(phone, text) {
     }
     if (intent.status !== "awaiting_policy_acceptance") return { handled: false };
     if (isDecline(text)) { await declinePolicy(phone); return { handled: true, reply: "No problem — the booking request has been cancelled and no appointment has been confirmed. I can help again whenever you're ready." }; }
+    if (intent.policy_version !== POLICY_VERSION) {
+      await pool.query(`UPDATE booking_intents SET policy_version=$2,policy_accepted_at=NULL,policy_channel=NULL,updated_at=NOW() WHERE phone=$1 AND status='awaiting_policy_acceptance'`, [phone,POLICY_VERSION]);
+      return { handled: true, reply: `The Booking Policy & Terms have changed. Please review this version before accepting.\n\n${POLICY_TEXT}` };
+    }
     if (!isExplicitAcceptance(text)) return { handled: true, reply: "I can only continue after explicit acceptance of the Booking Policy & Terms. Please reply *I AGREE* to accept, or *DECLINE* to stop this booking request.", intent };
     const accepted = await recordAcceptance(phone);
     if (!accepted) return { handled: true, reply: "I couldn't record your policy acceptance safely, so the booking has not been confirmed. Please try again." };

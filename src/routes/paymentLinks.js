@@ -123,8 +123,8 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema,
       }
       if (!alreadyAccepted) await db.query(
         `INSERT INTO booking_policy_acceptances
-          (phone,policy_version,accepted_at,channel,service_text,crm_v2_client_id,appointment_id)
-         VALUES ($1,$2,NOW(),'payment_link',$3,$4,$5)
+          (phone,policy_version,accepted_at,channel,service_text,crm_v2_client_id,appointment_id,policy_text_snapshot)
+         VALUES ($1,$2,NOW(),'payment_link',$3,$4,$5,$6)
          ON CONFLICT (appointment_id,policy_version,channel)
            WHERE appointment_id IS NOT NULL AND channel IN ('clinic_device','payment_link')
          DO NOTHING`,
@@ -134,6 +134,7 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema,
           request.appointment_id ? `Booking #${request.appointment_id}` : 'Shiloh payment',
           request.payer_crm_v2_client_id || null,
           request.appointment_id || null,
+          BOOKING_POLICY_TEXT,
         ],
       );
 

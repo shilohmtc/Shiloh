@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { pool } = require('../db/pool');
 const workspaceForms = require('./workspaceForms');
 const { decryptSubmissionPayload } = require('./clientConsultationForms');
+const { appointmentScopePredicate } = require('./clientRelationshipScope');
 
 class WorkspaceFormSubmissionError extends Error {
   constructor(code, message, httpStatus) {
@@ -86,7 +87,7 @@ function createWorkspaceFormSubmissionsService({
     ]);
   }
 
-  async function listRealSubmissions(authority, { search = '', page = 0, history = false, appointmentId=null } = {}) {
+  async function listRealSubmissions(authority, { search = '', page = 0, history = false, appointmentId=null, clientId=null, clientScope=null } = {}) {
     const scope = scopeSql(authority, 1);
     const values = [...scope.values];
     let searchSql = '';
@@ -97,6 +98,14 @@ function createWorkspaceFormSubmissionsService({
     if(appointmentId!==null) {
       const id=normalizeSubmissionId(appointmentId);values.push(id);
       searchSql+=` AND ap.id=$${values.length}`;
+    }
+    if (clientId !== null) {
+      values.push(normalizeSubmissionId(clientId));
+      searchSql += ` AND ap.crm_v2_client_id=$${values.length}
+        AND (a.crm_v2_client_id IS NULL OR a.crm_v2_client_id=ap.crm_v2_client_id)`;
+      const relationship = appointmentScopePredicate('ap.id', clientScope, values.length + 1);
+      searchSql += ` AND ${relationship.sql}`;
+      values.push(...relationship.values);
     }
     const pagingSql = history ? `LIMIT 51 OFFSET $${values.push(page * 50)}` : 'LIMIT 50';
     const result = await db.query(`/* workspaceFormSubmissions:list-real */
@@ -152,6 +161,12 @@ function createWorkspaceFormSubmissionsService({
     return { authority, items: items.slice(0,50), hasMore: items.length>50, search: search.trim(), page: pageNumber };
   }
 
+  async function listClientHistory({ adminId, clientId, clientScope, page = 0 } = {}) {
+    const authority = await formsService.requireAccess(adminId);
+    const items = await listRealSubmissions(authority, { clientId, clientScope, page, history: true });
+    return { items: items.slice(0,50), hasMore: items.length > 50, page };
+  }
+
   async function listTrialSubmissions(authority) {
     if (!canReadTrialSubmission(authority)) return [];
     const result = await db.query(`/* workspaceFormSubmissions:list-trials */
@@ -203,9 +218,19 @@ function createWorkspaceFormSubmissionsService({
     };
   }
 
-  async function realSubmissionRow(authority, submissionId) {
+  async function realSubmissionRow(authority, submissionId, clientConstraint = null) {
     const id = normalizeSubmissionId(submissionId);
     const scope = scopeSql(authority, 2);
+    const values = [id, ...scope.values];
+    let clientSql = '';
+    if (clientConstraint) {
+      values.push(normalizeSubmissionId(clientConstraint.clientId));
+      clientSql = ` AND ap.crm_v2_client_id=$${values.length}
+        AND (a.crm_v2_client_id IS NULL OR a.crm_v2_client_id=ap.crm_v2_client_id)`;
+      const relationship = appointmentScopePredicate('ap.id', clientConstraint.clientScope, values.length + 1);
+      clientSql += ` AND ${relationship.sql}`;
+      values.push(...relationship.values);
+    }
     const result = await db.query(`/* workspaceFormSubmissions:real-detail */
       SELECT sub.id,sub.payload_ciphertext,sub.payload_iv,sub.payload_auth_tag,
              sub.template_snapshot,sub.consent_text_snapshot,sub.signature_method,
@@ -229,8 +254,8 @@ function createWorkspaceFormSubmissionsService({
         JOIN consultation_form_templates t ON t.id=tv.template_id
         LEFT JOIN clients c ON c.id=a.client_id
         LEFT JOIN crm_v2_clients v2 ON v2.id=a.crm_v2_client_id
-       WHERE sub.id=$1${scope.sql}
-       LIMIT 1`, [id, ...scope.values]);
+       WHERE sub.id=$1${scope.sql}${clientSql}
+       LIMIT 1`, values);
     const row = result.rows[0];
     if (!row) throw new WorkspaceFormSubmissionError('WORKSPACE_FORM_SUBMISSION_NOT_FOUND', 'That form submission was not found.', 404);
     return row;
@@ -281,12 +306,12 @@ function createWorkspaceFormSubmissionsService({
     };
   }
 
-  async function getRealSubmission({ adminId, submissionId } = {}) {
+  async function getRealSubmission({ adminId, submissionId, clientConstraint = null } = {}) {
     const authority = await formsService.requireAccess(adminId);
     if (!canReadSensitiveSubmission(authority)) {
       throw new WorkspaceFormSubmissionError('WORKSPACE_FORM_SUBMISSION_FORBIDDEN', 'Your Workspace access can see form status but not private health answers.', 403);
     }
-    const row = await realSubmissionRow(authority, submissionId);
+    const row = await realSubmissionRow(authority, submissionId, clientConstraint);
     const payload = decryptRow(row);
     await auditSensitiveRead(authority, {
       kind: 'client',
@@ -294,6 +319,10 @@ function createWorkspaceFormSubmissionsService({
       appointmentId: row.appointment_id,
     });
     return detailModel(authority, row, payload, { reference: String(row.id) });
+  }
+
+  async function getClientSubmission({ adminId, submissionId, clientId, clientScope } = {}) {
+    return getRealSubmission({ adminId, submissionId, clientConstraint: { clientId, clientScope } });
   }
 
   async function getTrialSubmission({ adminId, reference } = {}) {
@@ -329,6 +358,8 @@ function createWorkspaceFormSubmissionsService({
   return {
     listSubmissions,
     listHistory,
+    listClientHistory,
+    getClientSubmission,
     getSubmission,
     getRealSubmission,
     getTrialSubmission,
