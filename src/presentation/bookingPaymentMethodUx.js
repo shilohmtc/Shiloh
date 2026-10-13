@@ -20,6 +20,7 @@ function renderBookingPaymentMethod({ model, manualForm, noncashForms }) {
       'EFT',
       model.authority.canCollect ? '' : 'Your access does not permit recording money received.',
     ],
+    ...(model.authority.canRecordNoCharge ? [['no-charge','No charge',model.subject.status==='completed'&&!model.subject.groupId?'':'Complete an ordinary treatment first; linked bookings need separate review.']] : []),
     ['gift-voucher', 'Voucher', noncash.gift],
     ['client-credit', 'Client credit', noncash.credit],
     ...(model.authority.canRecordPrior ? [['prior-payment','Paid previously',model.subject.crmV2ClientId?'':'Link the current Shiloh client before recording prior payment.']] : []),
@@ -72,7 +73,7 @@ function initializeBookingPaymentMethod() {
   } catch (_) {
     sessionStorage.removeItem(manualKey);
   }
-  for (const action of ['gift-voucher', 'client-credit', 'prior-payment', 'prior-payment-reverse']) {
+  for (const action of ['gift-voucher', 'client-credit', 'prior-payment', 'prior-payment-reverse', 'no-charge']) {
     try {
       if (
         JSON.parse(
@@ -143,7 +144,7 @@ function initializeBookingPaymentMethod() {
     }
     lastSelection = selector.value;
     for (const form of forms) {
-      form.elements.amount.value = '';
+      if(form.elements.amount) form.elements.amount.value = '';
       const confirm = form.elements.receivedOutsideOzowConfirmed;
       if (confirm) confirm.checked = false;
       form.dispatchEvent(new Event('input', { bubbles: true }));

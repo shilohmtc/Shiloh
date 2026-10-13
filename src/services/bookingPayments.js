@@ -11,6 +11,7 @@ const { createBookingDepositPolicyService } = require('./bookingDepositPolicy');
 const logger = require('../lib/logger');
 const { priorPaymentIncomingSql, priorPaymentOutgoingSql } = require('../domain/priorPaymentSql');
 const { createBookingPriorPaymentActions } = require('./bookingPriorPayments');
+const { createBookingNoChargeActions } = require('./bookingNoCharge');
 
 const CAPABILITIES = Object.freeze({ VIEW: 'payment:view', COLLECT: 'payment:collect', REFUND: 'payment:refund' });
 
@@ -265,6 +266,8 @@ function createBookingPaymentService({
               COALESCE((SELECT string_agg(aps.service_name_snapshot, ' + ' ORDER BY aps.position)
                           FROM appointment_services aps
                          WHERE aps.appointment_id=a.id),a.title,'Shiloh appointment') AS service_name,
+              to_jsonb(a)->>'financial_classification' AS financial_classification,
+              to_jsonb(a)->>'pre_adjustment_total_price' AS original_price,
               g.id AS group_id,g.status AS group_status,COALESCE(g.final_total,g.total_price) AS group_total,
               g.updated_at AS group_revision,
               ARRAY(SELECT ast.staff_id FROM appointment_staff ast WHERE ast.appointment_id=a.id AND ast.staff_id IS NOT NULL ORDER BY ast.position) AS staff_ids,
@@ -292,6 +295,7 @@ function createBookingPaymentService({
       clientName: String(row.client_name || ''), clientMobile: String(row.client_mobile || ''),
       serviceName: String(row.service_name || 'Shiloh appointment'),
       staffIds: row.staff_ids.map(Number), serviceIds: row.service_ids.map(Number),
+      financialClassification: row.financial_classification || 'standard', originalPrice: row.original_price,
       status: String(row.group_id ? row.group_status : row.appointment_status),
       final: ['cancelled'].includes(String(row.group_id ? row.group_status : row.appointment_status)),
     };
@@ -369,7 +373,7 @@ function createBookingPaymentService({
       const review = await db.query(
         `SELECT created_at,metadata
            FROM crm_audit_events
-          WHERE action IN ('payment.received_after_booking_cancelled','payment.received_after_prior_settlement')
+          WHERE action IN ('payment.received_after_booking_cancelled','payment.received_after_prior_settlement','payment.received_after_no_charge')
             AND entity_type='booking_payment_account'
             AND entity_id=$1::bigint
           ORDER BY created_at DESC,id DESC
@@ -377,13 +381,15 @@ function createBookingPaymentService({
         [account.id],
       );
       if (review.rows[0]) paymentReview = {
-        kind: review.rows[0].metadata?.priorPaymentEntryId ? 'prior_settlement_payment_received' : 'cancelled_booking_payment_received',
+        kind: review.rows[0].metadata?.noCharge ? 'no_charge_payment_received' : review.rows[0].metadata?.priorPaymentEntryId ? 'prior_settlement_payment_received' : 'cancelled_booking_payment_received',
         createdAt: review.rows[0].created_at,
         metadata: review.rows[0].metadata || {},
       };
     }
-    return { subject, payment: await position(db, account, subject), priorPayments:await prior.evidenceModel(db,subject,account,hasCapability(operator.calendarAuthority,CAPABILITIES.COLLECT)&&prior.allowed(operator)), deposit, rewards: rewardWallet, paymentReview, authority: {
+    const noChargeEvidence = (await db.query(`SELECT e.created_at,e.metadata,a.display_name AS actor_name FROM crm_audit_events e JOIN staff_admin_accounts a ON a.id=e.actor_admin_id WHERE e.action='booking.no_charge_recorded' AND e.entity_type='appointment' AND e.entity_id=$1 ORDER BY e.id DESC LIMIT 1`,[subject.appointmentId])).rows[0] || null;
+    return { subject, noChargeEvidence, payment: await position(db, account, subject), priorPayments:await prior.evidenceModel(db,subject,account,hasCapability(operator.calendarAuthority,CAPABILITIES.COLLECT)&&prior.allowed(operator)), deposit, rewards: rewardWallet, paymentReview, authority: {
       canCollect: hasCapability(operator.calendarAuthority, CAPABILITIES.COLLECT),
+      canRecordNoCharge: noCharge.allowed(operator),
       canRecordPrior:hasCapability(operator.calendarAuthority,CAPABILITIES.COLLECT)&&prior.allowed(operator),
       canRefund: hasCapability(operator.calendarAuthority, CAPABILITIES.REFUND),
       ozowConfigured: ozow.configured(),
@@ -557,6 +563,7 @@ function createBookingPaymentService({
                    ORDER BY agm.guest_position,agm.appointment_id
                    LIMIT 1
                 )) AS appointment_id,
+                to_jsonb(payment_appointment)->>'financial_classification' AS financial_classification,
                 CASE WHEN EXISTS (
                   SELECT 1 FROM appointment_group_members gm JOIN appointment_groups g ON g.id=gm.group_id
                   JOIN appointments member ON member.id=gm.appointment_id
@@ -590,8 +597,10 @@ function createBookingPaymentService({
         && String(request.appointment_status || '').toLowerCase() === 'cancelled'
         && !request.gift_voucher_order_id;
       const paidAfterPriorSettlement = paid && request.prior_payment_closed_by_entry_id && !request.gift_voucher_order_id;
+      const currentFinancial = paid && !paidAfterBookingCancellation && !paidAfterPriorSettlement && request.appointment_id ? (await client.query("SELECT to_jsonb(a)->>'financial_classification' AS financial_classification FROM appointments a WHERE id=$1",[request.appointment_id])).rows[0] : null;
+      const paidAfterNoCharge = paid && currentFinancial?.financial_classification === 'no_charge' && !request.gift_voucher_order_id;
       if (paid && request.state !== 'paid') {
-        if (!paidAfterBookingCancellation && !paidAfterPriorSettlement) {
+        if (!paidAfterBookingCancellation && !paidAfterPriorSettlement && !paidAfterNoCharge) {
           transitionPaymentState(request.state, STATES.PAID, { evidence:EVIDENCE.VERIFIED_PROVIDER });
         }
         if (request.gift_voucher_order_id) {
@@ -612,9 +621,9 @@ function createBookingPaymentService({
           [request.payment_account_id],
           )).rows[0];
           paymentReceived = {
-            request,
+            request, noCharge: Boolean(paidAfterNoCharge),
             remaining: Math.max(0, Number(balance?.canonical_amount_due || 0) - Number(balance?.net_paid || 0)),
-            reviewRequired: Boolean(paidAfterBookingCancellation || paidAfterPriorSettlement),
+            reviewRequired: Boolean(paidAfterBookingCancellation || paidAfterPriorSettlement || paidAfterNoCharge),
           };
           if (paidAfterBookingCancellation) {
             await client.query(
@@ -633,6 +642,7 @@ function createBookingPaymentService({
             );
           }
         }
+          if (paidAfterNoCharge) await client.query(`INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata) VALUES('payment.received_after_no_charge','booking_payment_account',$1,$2::jsonb)`,[request.payment_account_id,JSON.stringify({appointmentId:Number(request.appointment_id),paymentRequestId:Number(request.id),noCharge:true,amount:Number(request.amount).toFixed(2),providerEventKey:eventKey,reviewRequired:true,automaticRefundIssued:false})]);
           if (paidAfterPriorSettlement) await client.query(`INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
             VALUES('payment.received_after_prior_settlement','booking_payment_account',$1,$2::jsonb)`,[request.payment_account_id,JSON.stringify({appointmentId:Number(request.appointment_id),paymentRequestId:Number(request.id),priorPaymentEntryId:Number(request.prior_payment_closed_by_entry_id),amount:Number(request.amount).toFixed(2),providerEventKey:eventKey,reviewRequired:true,automaticRefundIssued:false})]);
       } else if (!paid && notVerifiedOutcome && ['link_issued', 'pending'].includes(String(request.state))) {
@@ -706,7 +716,7 @@ function createBookingPaymentService({
           category: 'payment',
           title: paymentReceived.reviewRequired ? 'Payment needs review' : 'Payment received',
           body: paymentReceived.reviewRequired
-            ? paymentReceived.request.prior_payment_closed_by_entry_id
+            ? paymentReceived.noCharge ? 'A payment reached Shiloh after this treatment was marked no charge. Shiloh will review the payment. No automatic refund has been issued.' : paymentReceived.request.prior_payment_closed_by_entry_id
               ? 'A payment reached Shiloh after prior payment was recorded. Shiloh will review the payment. No automatic refund has been issued.'
               : 'A payment reached Shiloh after this booking was cancelled. The booking stays cancelled and Shiloh will review the payment. No automatic refund has been issued.'
             : 'Your Shiloh payment was received successfully.',
@@ -727,8 +737,9 @@ function createBookingPaymentService({
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
   }
 
+  const noCharge = createBookingNoChargeActions({db, ErrorType:BookingPaymentError,positiveId,requestKey,resolveOperator,loadSubject,assertTarget,accountFor,position,syncDepositAfterSettlement});
   const prior = createBookingPriorPaymentActions({ db,money,requestKey,positiveId,ErrorType:BookingPaymentError,resolveOperator,loadSubject,assertTarget,accountFor,position,syncDepositAfterSettlement,now });
-  return { get, recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification,recordPrior:prior.recordPrior,reversePrior:prior.reversePrior };
+  return { get, recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification,recordNoCharge:noCharge.record,recordPrior:prior.recordPrior,reversePrior:prior.reversePrior };
 }
 
 module.exports = { CAPABILITIES, BookingPaymentError, money, createBookingPaymentService };

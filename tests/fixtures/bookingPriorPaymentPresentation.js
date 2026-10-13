@@ -5,6 +5,8 @@ function priorPaymentFixture({
   viewOnly = false,
   partial = false,
   receiptReview = false,
+  noCharge = false,
+  noChargeSaved = false,
 } = {}) {
   const model = paymentMethodFixture();
   model.authority.canRecordPrior = !viewOnly;
@@ -92,6 +94,19 @@ function priorPaymentFixture({
       kind: 'prior_settlement_payment_received',
       metadata: { priorPaymentEntryId: 71 },
     };
+  }
+  if (noCharge || noChargeSaved) {
+    model.authority.canRecordNoCharge = !viewOnly;
+    model.subject.pricingRevision = '2026-10-12T08:00:00.000Z';
+    if (noChargeSaved) {
+      model.subject.financialClassification = 'no_charge';
+      model.subject.originalPrice = '500.00';
+      model.payment = { ...model.payment, amountDue: '0.00', outstanding: '0.00', state: 'paid' };
+      model.noChargeEvidence = {
+        actor_name: 'Synthetic Business Admin',
+        metadata: { originalPrice: '500.00', reason: 'Owner approved complimentary visit' },
+      };
+    }
   }
   return model;
 }

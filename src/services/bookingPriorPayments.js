@@ -31,7 +31,7 @@ function createBookingPriorPaymentActions({
   function allowed(operator) {
     const authority = operator.calendarAuthority;
     return (
-      ['owner', 'booking_operator'].includes(authority.businessRole) &&
+      ['owner', 'business_admin', 'booking_operator'].includes(authority.businessRole) &&
       authority.calendarScope === 'all_business' &&
       authority.serviceScope === 'all_services' &&
       hasCapability(authority, 'payment:view')
@@ -40,7 +40,11 @@ function createBookingPriorPaymentActions({
   async function operatorFor(queryable, adminId) {
     const operator = await resolveOperator(queryable, adminId, 'payment:collect');
     if (!allowed(operator))
-      fail('PRIOR_PAYMENT_FORBIDDEN', 'Reception or clinic owner payment access is required.', 403);
+      fail(
+        'PRIOR_PAYMENT_FORBIDDEN',
+        'Clinic-wide payment view and collection access is required.',
+        403,
+      );
     return operator;
   }
   async function evidenceModel(queryable, subject, account, candidatesAllowed = false) {

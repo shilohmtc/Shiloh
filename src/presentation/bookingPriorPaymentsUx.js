@@ -68,10 +68,9 @@ function initializePriorPayments() {
           field.disabled = busy || Boolean(pending);
         else field.readOnly = busy || Boolean(pending);
       }
-      const active =
-        action === 'prior-payment'
-          ? controller.active(form)
-          : !controller.blocked() || Boolean(pending);
+      const active = ['prior-payment', 'no-charge'].includes(action)
+        ? controller.active(form)
+        : !controller.blocked() || Boolean(pending);
       button.disabled =
         busy || !active || (!pending && (!form.elements.reviewed.checked || !form.checkValidity()));
     }
@@ -86,13 +85,25 @@ function initializePriorPayments() {
       const retrying = Boolean(pending);
       if (!pending) {
         const confirmed = await window.ShilohConfirm({
-          title: action === 'prior-payment' ? 'Record paid previously?' : 'Reverse prior payment?',
+          title:
+            action === 'no-charge'
+              ? 'Mark this treatment no charge?'
+              : action === 'prior-payment'
+                ? 'Record paid previously?'
+                : 'Reverse prior payment?',
           copy:
-            action === 'prior-payment'
-              ? 'Keep the treatment value and apply reviewed earlier payment evidence. No new money is recorded today. Open payment links will be closed.'
-              : 'Remove this settlement from the booking balance while keeping its evidence. This is not a cash refund.',
+            action === 'no-charge'
+              ? 'The client charge and practitioner earnings become R0. The original price and your reason remain recorded. This is a free treatment, not an earlier payment. Open payment links will close.'
+              : action === 'prior-payment'
+                ? 'Keep the treatment value and apply reviewed earlier payment evidence. No new money is recorded today. Open payment links will be closed.'
+                : 'Remove this settlement from the booking balance while keeping its evidence. This is not a cash refund.',
           cancel: 'Go back',
-          action: action === 'prior-payment' ? 'Record paid previously' : 'Reverse prior payment',
+          action:
+            action === 'no-charge'
+              ? 'Record no charge'
+              : action === 'prior-payment'
+                ? 'Record paid previously'
+                : 'Reverse prior payment',
         });
         if (!confirmed) return;
         pending = {
@@ -104,7 +115,8 @@ function initializePriorPayments() {
       busy = true;
       controller.setBusy(true);
       sync();
-      status.textContent = 'Saving prior-payment evidence…';
+      status.textContent =
+        action === 'no-charge' ? 'Recording no charge…' : 'Saving prior-payment evidence…';
       try {
         const response = await fetch(
           '/calendar/payments/appointments/' + root.dataset.appointmentId + '/' + action,
@@ -146,4 +158,19 @@ function initializePriorPayments() {
 function priorPaymentsClientScript() {
   return `(${initializePriorPayments.toString()})();`;
 }
-module.exports = { renderPriorPaymentForm, renderPriorPaymentHistory, priorPaymentsClientScript };
+function renderNoChargeForm(model) {
+  if (
+    !model.authority.canRecordNoCharge ||
+    model.subject.final ||
+    model.subject.groupId ||
+    model.subject.status !== 'completed'
+  )
+    return '';
+  return `<form class="payment-form" data-prior-payment="no-charge" data-payment-panel="no-charge" hidden><h3>No charge</h3><p class="hint">Use this only when the treatment is deliberately free. Client charge and practitioner earnings become R0. The original price stays in the audit history. For earlier payment, choose Paid previously; for prepaid treatments, use the package visit.</p><input type="hidden" name="expectedRevision" value="${esc(model.subject.pricingRevision || '')}"><label>Reason for no charge<input name="reason" maxlength="240" required></label><label class="manual-confirm"><input type="checkbox" name="reviewed" required> I checked payments and packages. This treatment is free, not paid previously.</label><button disabled>Record no charge</button><p class="status" role="status" aria-live="polite" data-prior-status></p></form>`;
+}
+module.exports = {
+  renderNoChargeForm,
+  renderPriorPaymentForm,
+  renderPriorPaymentHistory,
+  priorPaymentsClientScript,
+};
