@@ -4,6 +4,8 @@ const { createWorkspaceCommunicationEvidenceService } = require('./workspaceComm
 const { evaluateClientManageAuthority, clientRelationshipRevision } = require('./workspaceClientMutations');
 const { scopeForPrincipal, validClientScope } = require('./clientRelationshipScope');
 const { createInPersonBookingPolicyService } = require('./inPersonBookingPolicy');
+const { createWorkspaceFormsService } = require('./workspaceForms');
+const { createWorkspaceFormSubmissionsService } = require('./workspaceFormSubmissions');
 
 const CLIENT_LOOKUP_CAPABILITY = 'client:lookup';
 const CLIENT_LIST_PAGE_SIZE = 24;
@@ -64,10 +66,11 @@ function normalizeOffset(value) {
   return Math.min(offset, 100000);
 }
 
-function createWorkspaceClientsService({ db = pool, readService = crmReadService, communicationService = null, policyAcceptanceService = null } = {}) {
+function createWorkspaceClientsService({ db = pool, readService = crmReadService, communicationService = null, policyAcceptanceService = null, submissionService = null } = {}) {
   if (!db || typeof db.query !== 'function') throw new Error('Workspace Clients database is required');
   const communicationReads = communicationService || createWorkspaceCommunicationEvidenceService({ db });
   const policyReads = policyAcceptanceService || createInPersonBookingPolicyService({ db });
+  const submissionReads = submissionService || createWorkspaceFormSubmissionsService({ db, formsService: createWorkspaceFormsService({ db }) });
 
   async function resolveAccess(adminId) {
     const id = positiveId(adminId);
@@ -126,7 +129,7 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
     };
   }
 
-  async function getClientDetail({ adminId, clientId, historyOffset } = {}) {
+  async function getClientDetail({ adminId, clientId, historyOffset, policyOffset, formsPage } = {}) {
     const authority = await requireAccess(adminId);
     const manageAllowed = authority.manageAllowed === true;
     const id = positiveId(clientId);
@@ -156,6 +159,8 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
       scope: authority.clientScope,
     });
     const visibleHistory = history.slice(0, CLIENT_HISTORY_PAGE_SIZE);
+    const safePolicyOffset = normalizeOffset(policyOffset);
+    const safeFormsPage = Math.min(normalizeOffset(formsPage), 2000);
     let policyAcceptances = [];
     let readiness = new Map();
     let policyAcceptanceUnavailable = false;
@@ -164,12 +169,23 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
         policyReads.listClientAcceptanceHistory({
           clientId: client.id,
           mobile: client.normalized_mobile,
-          limit: 20,
+          limit: 21,
+          offset: safePolicyOffset,
+          scope: authority.clientScope,
         }),
         policyReads.readinessForAppointments(visibleHistory.map(item => item.id)),
       ]);
     } catch (_) {
       policyAcceptanceUnavailable = true;
+    }
+    let consultationHistory = null;
+    let consultationHistoryUnavailable = false;
+    let consultationHistoryRestricted = false;
+    try {
+      consultationHistory = await submissionReads.listClientHistory({ adminId, clientId: id, clientScope: authority.clientScope, page: safeFormsPage });
+    } catch (error) {
+      consultationHistoryRestricted = error.httpStatus === 403;
+      consultationHistoryUnavailable = !consultationHistoryRestricted;
     }
     const appointmentsWithReadiness = visibleHistory.map(item => ({
       ...item,
@@ -192,8 +208,13 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
       manageAllowed,
       client,
       appointments: appointmentsWithReadiness,
-      policyAcceptances,
+      policyAcceptances: policyAcceptances.slice(0,20),
+      policyOffset: safePolicyOffset,
+      policyHasMore: policyAcceptances.length > 20,
       policyAcceptanceUnavailable,
+      consultationHistory,
+      consultationHistoryRestricted,
+      consultationHistoryUnavailable,
       hasMore: history.length > CLIENT_HISTORY_PAGE_SIZE,
       historyOffset: safeOffset,
       pageSize: CLIENT_HISTORY_PAGE_SIZE,
@@ -202,7 +223,32 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
     };
   }
 
-  return { resolveAccess, requireAccess, listClients, getClientDetail };
+  async function clientDocumentContext({ adminId, clientId } = {}) {
+    const authority = await requireAccess(adminId);
+    const id = positiveId(clientId);
+    if (!id) throw new WorkspaceClientsError('WORKSPACE_CLIENTS_INVALID_ID', 'Client reference is invalid.', 400);
+    const client = await readService.getClient(id, { scope: authority.clientScope });
+    if (!client) throw new WorkspaceClientsError('WORKSPACE_CLIENT_NOT_FOUND', 'Client was not found.', 404);
+    return { authority, client };
+  }
+
+  async function getPolicyDocument(input = {}) {
+    const { authority, client } = await clientDocumentContext(input);
+    const acceptance = await policyReads.getClientAcceptance({ clientId: client.id, acceptanceId: input.acceptanceId, scope: authority.clientScope });
+    await db.query(`/* workspaceClients:policy-document-audit */
+      INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata)
+      VALUES($1,'workspace.policy_acceptance_viewed','booking_policy_acceptance',$2,$3::jsonb)`,
+    [authority.operatorAdminId,acceptance.id,JSON.stringify({ crmV2ClientId: client.id, appointmentId: acceptance.appointment_id || null })]);
+    return { authority, client, acceptance };
+  }
+
+  async function getConsultationDocument(input = {}) {
+    const { authority, client } = await clientDocumentContext(input);
+    const submission = await submissionReads.getClientSubmission({ adminId: input.adminId, submissionId: input.submissionId, clientId: client.id, clientScope: authority.clientScope });
+    return { ...submission, clientProfileId: client.id };
+  }
+
+  return { resolveAccess, requireAccess, listClients, getClientDetail, getPolicyDocument, getConsultationDocument };
 }
 
 const service = createWorkspaceClientsService();

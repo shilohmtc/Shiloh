@@ -309,9 +309,9 @@ async function recordPolicyAcceptance(phone, intent, db = pool) {
   await ensurePolicySchema();
   await db.query(`
     INSERT INTO booking_policy_acceptances
-      (phone, policy_version, channel, service_text, preferred_date, preferred_time, therapist_text)
-    VALUES ($1,$2,'whatsapp',$3,$4,$5,$6)
-  `, [normalizePhone(phone), POLICY_VERSION, SERVICE_NAME, intent.selected_date, formatTime(intent.selected_starts_at), STAFF_NAMES.join(' & ')]);
+      (phone, policy_version, channel, service_text, preferred_date, preferred_time, therapist_text, policy_text_snapshot, crm_v2_client_id)
+    VALUES ($1,$2,'whatsapp',$3,$4,$5,$6,$7,(SELECT MIN(id) FROM crm_v2_clients WHERE normalized_mobile=$1 AND status='active' HAVING COUNT(*)=1))
+  `, [normalizePhone(phone), POLICY_VERSION, SERVICE_NAME, intent.selected_date, formatTime(intent.selected_starts_at), STAFF_NAMES.join(' & '), POLICY_TEXT]);
 }
 
 async function commitCouplesMassage(phone) {
@@ -545,6 +545,10 @@ async function processCouplesMassageMessage(phone, text) {
     }
     if (!isExplicitAcceptance(raw)) {
       return { handled: true, reply: 'I can only continue after explicit acceptance of Shiloh’s Booking Policy & Terms. Reply *I AGREE* to accept, or *DECLINE* to stop.' };
+    }
+    if (intent.policy_version !== POLICY_VERSION) {
+      await saveIntent(normalizedPhone, { policyVersion: POLICY_VERSION, policyAcceptedAt: null, state: 'awaiting_policy_acceptance' });
+      return { handled: true, reply: `The Booking Policy & Terms have changed. Please review this version before accepting.\n\n${POLICY_TEXT}` };
     }
     await ensurePolicySchema();
     const accepted = await saveIntent(normalizedPhone, { policyVersion: POLICY_VERSION, policyAcceptedAt: new Date(), state: 'awaiting_policy_acceptance' });

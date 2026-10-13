@@ -1,6 +1,8 @@
 import clientPresentation from '../src/presentation/workspaceCommunicationEvidenceUx.js';
 import clientManagement from '../src/presentation/workspaceClientsManageUx.js';
 import clientListPresentation from '../src/presentation/workspaceClientsUx.js';
+import clientDocuments from '../src/presentation/workspaceClientDocumentsUx.js';
+import formsPresentation from '../src/presentation/workspaceFormsUx.js';
 
 const { renderClientDetailPageWithCommunications } = clientPresentation;
 const { injectClientListManagement, injectClientDetailManagement } = clientManagement;
@@ -139,5 +141,41 @@ export const MarietjieClientBase = {
 export const MarietjieClientManagement = {
   render: () => productionSurface(detailHtml()),
 };
+
+function documentsModel({ reception = false, empty = false, unavailable = false } = {}) {
+  const model = detailModel();
+  model.authority = { ...model.authority, displayName: reception ? 'Reception' : 'Christel', businessRole: reception ? 'booking_operator' : 'owner' };
+  model.manageAllowed = false;
+  model.policyAcceptances = empty ? [] : [{ ...model.policyAcceptances[0], crm_v2_client_id: model.client.id, has_snapshot: true }];
+  model.consultationHistory = { page: 0, hasMore: false, items: empty ? [] : [{ reference: '701', formTitle: 'Massage consultation', appointmentId: 9101, signedAt: '2026-10-13T08:32:00Z', services: ['Signature Massage'], canOpen: !reception }] };
+  model.policyAcceptanceUnavailable = unavailable;
+  model.consultationHistoryUnavailable = unavailable;
+  return model;
+}
+
+function documentsHtml(settings) {
+  const model = documentsModel(settings);
+  return clientDocuments.injectClientConsultationHistory(renderClientDetailPageWithCommunications(model, options), model);
+}
+
+export const ClinicClientDocuments = { render: () => productionSurface(documentsHtml({})) };
+export const ReceptionClientDocuments = { render: () => productionSurface(documentsHtml({ reception: true })) };
+export const ClientDocumentsEmpty = { render: () => productionSurface(documentsHtml({ empty: true })) };
+export const ClientDocumentsUnavailable = { render: () => productionSurface(documentsHtml({ unavailable: true })) };
+
+const policyModel = {
+  authority: { displayName: 'Christel' }, client: clients[0],
+  acceptance: { id: 501, policy_version: 'example-v1', accepted_at: '2026-10-13T08:32:00Z', channel: 'my_shiloh', appointment_id: 9101,
+    policy_text_snapshot: 'Example policy wording for interface review only.\nThis demonstrates the exact text saved when the client accepted.' },
+};
+export const PolicyAcceptanceRecord = { render: () => productionSurface(clientDocuments.renderPolicyDocument(policyModel)) };
+export const HistoricalPolicyRecord = { render: () => productionSurface(clientDocuments.renderPolicyDocument({ ...policyModel, acceptance: { ...policyModel.acceptance, policy_text_snapshot: null } })) };
+export const SignedConsultationRecord = { render: () => productionSurface(formsPresentation.renderSubmissionPage({
+  authority: { displayName: 'Christel' }, clientName: 'Synthetic Client', reference: '701',
+  form: { title: 'Massage consultation', version: 1, consentText: 'Example signed declaration for interface review only.',
+    sections: [{ title: 'Health information', definition: { groups: [{ title: 'Allergies', questions: [{ key: 'allergies', type: 'yes_no', label: 'Do you have any allergies?' }] }] } }] },
+  answers: { allergies: 'no' }, signature: { name: 'Synthetic Client', method: 'typed_name' }, signedAt: '2026-10-13T08:32:00Z',
+  appointment: { id: 9101, startsAt: '2026-10-14T08:00:00Z', services: ['Signature Massage'], practitioners: ['Christel'] },
+}, { clientProfileId: 801 })) };
 
 export const ClinicClientDeletion = { render: () => productionSurface(detailHtml(true)) };

@@ -3,6 +3,7 @@ const { Pool } = require('pg');
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const { createMyShilohMultipleBookingService } = require('../src/services/myShilohMultipleBooking');
+const { BOOKING_POLICY_TEXT } = require('../src/config/bookingPolicyAuthority');
 async function main() {
   assert.ok(process.env.TEST_COUPLES_DATABASE_URL,'Dedicated synthetic PostgreSQL URL required');
   const admin=new Pool({ connectionString:process.env.TEST_COUPLES_DATABASE_URL });
@@ -38,6 +39,8 @@ async function main() {
     const appts=(await db.query('SELECT crm_v2_client_id,total_price FROM appointments ORDER BY id')).rows;
     assert.deepEqual(appts.map(a=>a.crm_v2_client_id),['55',companion.id]); assert.deepEqual(appts.map(a=>a.total_price),['590.00','590.00']);
     assert.equal(await count('appointment_booking_approvals'),2); assert.equal(await count('booking_policy_acceptances'),2);
+    const policies=(await db.query('SELECT crm_v2_client_id,policy_text_snapshot FROM booking_policy_acceptances')).rows;
+    assert.ok(policies.every(row => row.crm_v2_client_id === '55' && row.policy_text_snapshot === BOOKING_POLICY_TEXT),'each booking preserves the organiser’s exact accepted policy wording');
     await assert.rejects(service.createRequest({ ...input,specialOccasion:true,occasionNote:'Anniversary' }),{ code:'BOOKING_CART_REQUEST_CHANGED' });
     // Existing guest is reused without modifying verification, provenance or profile fields.
     await db.query("UPDATE appointments SET status='cancelled'");

@@ -15,6 +15,8 @@ const {
 const { requireStaffSession } = require('../middleware/staffBrowserSession');
 const { injectClientCreditSummary } = require('../presentation/clientCreditSummaryUx');
 const { createClientTreatmentCreditService } = require('../services/clientTreatmentCredit');
+const { injectClientConsultationHistory, renderPolicyDocument, documentClientScript } = require('../presentation/workspaceClientDocumentsUx');
+const { renderSubmissionPage } = require('../presentation/workspaceFormsUx');
 
 function isWorkspaceClientsEnabled(env = process.env) {
   return String(env.SHILOH_CALENDAR_READONLY_UX_ENABLED || '').trim().toLowerCase() === 'true'
@@ -93,6 +95,8 @@ function createWorkspaceClientDetailHandler({
         adminId: req.staffBrowserSession?.adminId,
         clientId: req.params?.id,
         historyOffset: req.query?.historyOffset,
+        policyOffset: req.query?.policyOffset,
+        formsPage: req.query?.formsPage,
       });
       let notificationActionAllowed = false;
       try {
@@ -108,7 +112,7 @@ function createWorkspaceClientDetailHandler({
           if (!Number.isFinite(Number(credit.balance))) { credit = null; creditUnavailable = true; }
         } catch (error) { if (error.httpStatus !== 403) creditUnavailable = true; }
       } catch (_error) { /* No balance or action without explicit credit authority. */ }
-      const html = renderPage(model, pageOptions(req, staffAccessPath, { notificationActionAllowed }));
+      const html = injectClientConsultationHistory(renderPage(model, pageOptions(req, staffAccessPath, { notificationActionAllowed })), model);
       return res.status(200).type('html').send(injectClientCreditSummary(injectManagement(html, model), { clientId: model.client.id, credit, unavailable: creditUnavailable }));
     } catch (error) {
       const safe = safeError(error);
@@ -123,6 +127,27 @@ function createWorkspaceClientsRouter({ sessionService, ...options } = {}) {
   const mutationService = options.mutationService || workspaceClientMutations;
   const router = express.Router();
   router.use(requireStaffSession({ service: sessionService, env: options.env }));
+  router.get('/documents.js', (req, res) => {
+    setWorkspaceClientsSecurityHeaders(res);
+    if (!isWorkspaceClientsEnabled(options.env || process.env)) return res.sendStatus(404);
+    return res.type('application/javascript').send(documentClientScript());
+  });
+  for (const [path, method, referenceKey, render] of [
+    ['/:id/policy-acceptances/:reference', 'getPolicyDocument', 'acceptanceId', renderPolicyDocument],
+    ['/:id/consultation-forms/:reference', 'getConsultationDocument', 'submissionId', model => renderSubmissionPage(model, { clientProfileId: model.clientProfileId })],
+  ]) {
+    router.get(path, async (req, res) => {
+      setWorkspaceClientsSecurityHeaders(res);
+      if (!isWorkspaceClientsEnabled(options.env || process.env)) return res.sendStatus(404);
+      try {
+        const model = await service[method]({ adminId: req.staffBrowserSession?.adminId, clientId: req.params.id, [referenceKey]: req.params.reference });
+        return res.type('html').send(render(model));
+      } catch (error) {
+        const safe = safeError(error);
+        return res.status(safe.status).type('html').send(renderClientsUnavailablePage({ message: safe.message }));
+      }
+    });
+  }
   router.get('/manage.js', async (req, res) => {
     setWorkspaceClientsSecurityHeaders(res);
     if (!isWorkspaceClientsEnabled(options.env || process.env)) return res.sendStatus(404);

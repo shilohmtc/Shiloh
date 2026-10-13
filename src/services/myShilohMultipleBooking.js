@@ -10,7 +10,7 @@ const { getDefaultActiveLocation } = require('./clinicHours');
 const { checkAssistantBookingHours } = require('./assistantBookingHours');
 const { checkAuthoritativeSchedule, getConflicts } = require('./adminAvailability');
 const { dispatchBookingRequestAlerts } = require('./bookingRequestStaffAlerts');
-const { POLICY_VERSION } = require('./bookingPolicy');
+const { POLICY_VERSION, POLICY_TEXT } = require('./bookingPolicy');
 const { createBookingDepositPolicyService, percentAmount } = require('./bookingDepositPolicy');
 const logger = require('../lib/logger');
 const { sendCustomerBookingConfirmationForAppointment } = require('./customerBookingConfirmation');
@@ -247,8 +247,8 @@ function createMyShilohMultipleBookingService({
           VALUES($1,$2,1,$3,$4,$5)`, [id,item.serviceId,item.service,item.price,item.durationMinutes]);
         await connection.query(`INSERT INTO appointment_staff(appointment_id,staff_id,position,staff_name_snapshot) VALUES($1,$2,1,$3)`, [id,item.staffId,item.practitioner]);
         await connection.query(`INSERT INTO appointment_group_members(group_id,appointment_id,guest_position,allocated_price) VALUES($1,$2,$3,$4)`, [groupId,id,index+1,item.price]);
-        await connection.query(`INSERT INTO booking_policy_acceptances(phone,policy_version,channel,accepted_at,appointment_id,crm_v2_client_id)
-          VALUES($1,$2,$5,NOW(),$3,$4)`, [client.normalized_mobile,POLICY_VERSION,id,clientId,_reception ? 'workspace_client_agreement' : 'my_shiloh']);
+        await connection.query(`INSERT INTO booking_policy_acceptances(phone,policy_version,channel,accepted_at,appointment_id,crm_v2_client_id,policy_text_snapshot)
+          VALUES($1,$2,$5,NOW(),$3,$4,$6)`, [client.normalized_mobile,POLICY_VERSION,id,clientId,_reception ? 'workspace_client_agreement' : 'my_shiloh',POLICY_TEXT]);
         const approval = await stageApproval(connection, { appointmentId:id, occasionNote:note, specialOccasion }, { schemaReady:true });
         if (!approval) fail('BOOKING_CART_APPROVAL_FAILED', 'The requests could not be prepared safely. Nothing was booked.', 503);
         await connection.query(`INSERT INTO appointment_status_history(appointment_id,from_status,to_status,changed_by,reason)
