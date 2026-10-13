@@ -128,7 +128,7 @@ function buildClientExperience(context) {
   const proposalActive = request?.bookingRequestStatus === 'awaiting_client_confirmation'
     && request.proposedStartsAt && request.proposalExpiresAt
     && new Date(request.proposalExpiresAt).getTime() > new Date(context.generatedAt || Date.now()).getTime();
-  const proposalDisplay = proposalActive ? appointmentDisplay({ ...request, startsAt: request.proposedStartsAt }) : null;
+  const proposalDisplay = proposalActive && request.canRespondToProposal!==false ? appointmentDisplay({ ...request, startsAt: request.proposedStartsAt }) : null;
 
   let home;
   if (requestDisplay) {
@@ -329,11 +329,11 @@ function buildClientExperience(context) {
           return {
             id: item.id, service: requested?.service || 'Shiloh appointment',
             practitioner: offered && item.proposedPractitioners?.length ? item.proposedPractitioners.join(' + ') : requested?.practitioner || 'Shiloh',
-            proposal: offered && Number(item.proposalVersion) > 0 ? { version: Number(item.proposalVersion), expiresAt: item.proposalExpiresAt } : null,
+            proposal: offered && item.canRespondToProposal!==false && Number(item.proposalVersion) > 0 ? { version: Number(item.proposalVersion), expiresAt: item.proposalExpiresAt } : null,
             date: offered?.date || requested?.date,
             time: offered?.time || requested?.time,
-            status: offered ? 'Awaiting your response' : item.planningStartedAt ? 'Planning' : 'Requested',
-            nextAction: offered
+            status: offered ? item.canRespondToProposal===false ? 'Awaiting organiser response' : 'Awaiting your response' : item.planningStartedAt ? 'Planning' : 'Requested',
+            nextAction: offered && item.canRespondToProposal===false ? 'The person who requested your booking must respond to the shared alternative. Both appointments stay together.' : offered
               ? 'Review this proposed time before accepting. Availability and any required deposit will be checked again.'
               : 'Reception is reviewing your request. The appointment has not been confirmed. After approval, pay any required deposit to confirm.',
           };

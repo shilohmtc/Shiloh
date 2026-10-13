@@ -114,7 +114,8 @@ function createMyShilohRouter({
   packageService = createWorkspacePackages({ db: pool }),
   bookingService = createMyShilohBookingService({ db: pool, catalogueProvider }),
   multipleBookingService = createMyShilohMultipleBookingService({ db:pool, booking:bookingService }),
-  couplesBookingService = createMyShilohMultipleBookingService({ db:pool, booking:bookingService, couples:true }),
+  couplesBookingService = createMyShilohMultipleBookingService({ db:pool, couples:true }),
+  namedCouplesService = async id => (await pool.query("SELECT id FROM services WHERE id=$1 AND status='active' AND external_source='shiloh_special' AND external_id='couples-massage-v1'",[id])).rowCount===1,
   proposalService = bookingProposals,
   planningService = createClientPlanningRequestService({ db: pool }),
 } = {}) {
@@ -160,7 +161,7 @@ function createMyShilohRouter({
     fallthrough: false,
     setHeaders(res, filePath) {
       res.setHeader('X-Content-Type-Options', 'nosniff');
-      if (['app.css', 'app.js', 'booking.js', 'planning-request.js'].includes(path.basename(filePath))) {
+      if (['app.css', 'app.js', 'booking.js', 'couples-booking.js', 'planning-request.js'].includes(path.basename(filePath))) {
         res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
       }
     },
@@ -312,11 +313,16 @@ function createMyShilohRouter({
   router.get('/my-shiloh/book', optionalSession, (req, res, next) => {
     if (!req.myShilohClientSession) {
       const serviceId = /^[1-9]\d*$/.test(String(req.query?.service || '')) ? String(req.query.service) : '';
-      return res.redirect(303, `/my-shiloh/${serviceId ? `?service=${encodeURIComponent(serviceId)}` : ''}#book-online`);
+      return res.redirect(303, `/my-shiloh/${serviceId ? `?service=${encodeURIComponent(serviceId)}${String(req.query?.for || '') === 'two' ? '&for=two' : ''}` : String(req.query?.for || '') === 'two' ? '?for=two' : ''}#book-online`);
     }
     return next();
   }, requireSession, async (req, res, next) => {
     try {
+      const selectedCouplesId=normalizePublicServiceId(req.query?.service);
+      if(selectedCouplesId && String(req.query?.for||'')!=='two' && !req.query?.packageService && !req.query?.welcomeVoucher) {
+        const named=await namedCouplesService(selectedCouplesId);
+        if(named) return res.redirect(303,`/my-shiloh/book?for=two&service=${encodeURIComponent(selectedCouplesId)}`);
+      }
       const profile=await profileService.loadProfile({crmV2ClientId:req.myShilohClientSession.crmV2ClientId});
       if (profile?.requiresDobBeforeBooking) return res.redirect(303,'/my-shiloh/#profile');
       const packageServiceId = normalizePublicServiceId(req.query?.packageService);
@@ -334,8 +340,9 @@ function createMyShilohRouter({
         eligibleServiceIds = eligible;
         if (voucher?.state !== 'available') return res.redirect(303, '/my-shiloh/#welcome-voucher');
       }
+      const couplesMode = String(req.query?.for || '') === 'two' && !welcomeVoucherMode && !packageServiceId;
       const [catalogue, rotated, depositPolicy] = await Promise.all([
-        packageServiceId ? bookingService.packageCatalogue({ crmV2ClientId:req.myShilohClientSession.crmV2ClientId,serviceId:packageServiceId }) : bookingService.catalogue({
+        couplesMode ? couplesBookingService.catalogue() : packageServiceId ? bookingService.packageCatalogue({ crmV2ClientId:req.myShilohClientSession.crmV2ClientId,serviceId:packageServiceId }) : bookingService.catalogue({
           welcomeVoucherOnly: welcomeVoucherMode,
           minimumBookingValue: voucher?.minimumBookingValue || 450,
           eligibleServiceIds,
@@ -345,7 +352,7 @@ function createMyShilohRouter({
       ]);
       if (!rotated.ok) return res.status(401).type('text/plain').send('Unauthorized');
       setMyShilohPageHeaders(res, { allowInlineStyles: true });
-      return res.status(200).type('html').send((String(req.query?.for || '') === 'two' && !welcomeVoucherMode && !packageServiceId ? renderMyShilohCouplesBookingPage : renderMyShilohBookingPage)({
+      return res.status(200).type('html').send((couplesMode ? renderMyShilohCouplesBookingPage : renderMyShilohBookingPage)({
         catalogue,
         clientFirstName: req.myShilohClientSession.client.firstName,
         csrfToken: rotated.csrfToken,
@@ -369,6 +376,10 @@ function createMyShilohRouter({
   }, requireSession, async (req, res, next) => {
     try {
       const serviceId = normalizePublicServiceId(req.query?.service);
+      if (serviceId) {
+        const named = await namedCouplesService(serviceId);
+        if (named) return res.redirect(303, `/my-shiloh/book?for=two&service=${encodeURIComponent(serviceId)}`);
+      }
       const [rotated, practitioners, requests, catalogue] = await Promise.all([
         sessionService.rotateCsrfToken(req.myShilohClientSession.sessionId),
         planningService.practitioners(),
@@ -504,6 +515,11 @@ function createMyShilohRouter({
       }
     });
   }
+
+  router.get('/my-shiloh/api/booking/couples/practitioners', requireSession, async (req,res,next) => {
+    try { setNoStoreJson(res); return res.json(await couplesBookingService.practitioners({ serviceId:req.query.serviceId })); }
+    catch (error) { if (error instanceof MyShilohBookingError) return res.status(error.httpStatus).json({ error:error.message,code:error.code }); return next(error); }
+  });
 
   for (const action of ['availability','review','confirm']) {
     router.post(`/my-shiloh/api/booking/couples/${action}`, sameOrigin, requireSession, requireCsrf, async (req,res,next) => {

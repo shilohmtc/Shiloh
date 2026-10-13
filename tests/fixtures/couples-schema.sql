@@ -1,6 +1,6 @@
 -- Synthetic dependency tables. CRM and linked-group constraints use production migrations.
 CREATE TABLE locations(id BIGINT PRIMARY KEY,status TEXT NOT NULL);
-CREATE TABLE services(id BIGINT PRIMARY KEY,name TEXT,price NUMERIC(12,2),duration_minutes INT,processing_time_minutes INT DEFAULT 0,extra_time_minutes INT DEFAULT 0,status TEXT,variable_price BOOLEAN DEFAULT FALSE,external_source TEXT);
+CREATE TABLE services(id BIGINT PRIMARY KEY,name TEXT,price NUMERIC(12,2),duration_minutes INT,processing_time_minutes INT DEFAULT 0,extra_time_minutes INT DEFAULT 0,status TEXT,variable_price BOOLEAN DEFAULT FALSE,external_source TEXT,external_id TEXT);
 CREATE TABLE staff(id BIGINT PRIMARY KEY,display_name TEXT,status TEXT,resource_type TEXT,client_bookable BOOLEAN,business_role TEXT);
 CREATE TABLE staff_services(staff_id BIGINT REFERENCES staff(id),service_id BIGINT REFERENCES services(id),PRIMARY KEY(staff_id,service_id));
 CREATE TABLE service_packages(session_service_id BIGINT,status TEXT);

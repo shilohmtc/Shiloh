@@ -13,6 +13,7 @@ test('website service selection survives sign-in and resolves against the curren
   };
   const app = express();
   app.use(createMyShilohRouter({
+    namedCouplesService:async()=>false,
     sessionService,
     profileService:{loadProfile:async()=>({requiresDobBeforeBooking:false})},
     catalogueProvider: async () => [{ id:101, name:'Deep Tissue <Massage>', category:'Massage' }],
