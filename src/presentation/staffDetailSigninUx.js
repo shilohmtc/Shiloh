@@ -1,4 +1,5 @@
 'use strict';
+const { localPhoneInput } = require('./southAfricanPhone');
 function escape(value = '') {
   return String(value).replace(
     /[&<>"']/g,
@@ -9,7 +10,7 @@ function fields(model = {}, readOnlyMobile = false) {
   return `<div class="field"><label for="staff-first-name">Name</label><input id="staff-first-name" name="firstName" autocomplete="given-name" maxlength="100" value="${escape(model.firstName)}" required></div>
     <div class="field"><label for="staff-surname">Surname</label><input id="staff-surname" name="surname" autocomplete="family-name" maxlength="100" value="${escape(model.surname)}" required></div>
     <div class="field"><label for="staff-dob">Date of birth</label><input id="staff-dob" name="dateOfBirth" type="date" autocomplete="bday" min="1900-01-01" max="${new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Johannesburg' })}" value="${escape(model.dateOfBirth)}" required></div>
-    <div class="field"><label for="staff-mobile">Mobile number</label><input id="staff-mobile" name="mobile" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" value="${escape(model.mobile)}" ${readOnlyMobile ? 'readonly' : ''} required></div>`;
+    <div class="field"><label for="staff-mobile">Mobile number</label><input id="staff-mobile" name="mobile" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" value="${escape(localPhoneInput(model.mobile))}" ${readOnlyMobile ? 'readonly' : ''} required></div>`;
 }
 function signinPanel() {
   return `<section data-staff-detail-signin><style>[data-staff-detail-form] input{min-width:0;max-width:100%;min-height:44px}[data-staff-detail-status]:empty{display:none}</style><h2>Welcome to Workspace</h2><p class="lead">Enter your details as recorded with Shiloh.</p><form data-staff-detail-form>${fields()}<div class="actions"><button class="button" type="submit">Open Workspace</button></div><p class="status" role="status" aria-live="polite" data-staff-detail-status></p></form><p class="privacy-note">If your details need updating, ask your Shiloh administrator.</p></section>`;
