@@ -9,7 +9,7 @@ const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 const { renderCouplesBookingChoice } = require('./myShilohBookingActions');
 
-const MY_SHILOH_ASSET_VERSION = '20261009-bookings-focused-v1';
+const MY_SHILOH_ASSET_VERSION = '20261013-app-chat-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -445,7 +445,7 @@ function renderMyShilohPage({
           <h1 id="shiloh-title">Shiloh, right where you need it.</h1>
           <p>${authenticated
             ? 'Ask naturally about your appointments, forms, payments or rewards.'
-            : 'Sign in for personal help, or continue the conversation on WhatsApp.'}</p>
+            : 'Sign in for personal help, or speak to Reception on WhatsApp.'}</p>
         </div>
         ${authenticated ? `
         <div class="quiet-card">
@@ -458,11 +458,6 @@ function renderMyShilohPage({
               <span>Shiloh</span>
               <p>Hi ${firstName} 🌿 Ask me anything about your Shiloh visit, booking, forms or payment status.</p>
             </div>
-          </div>
-          <div class="assistant-continuation" data-whatsapp-continuation hidden>
-            <p>You recently chatted with Shiloh on WhatsApp. Bring the last exchange into this private conversation?</p>
-            <button class="button button--soft" type="button" data-whatsapp-continuation-accept>Continue from WhatsApp</button>
-            <span role="status" data-whatsapp-continuation-status></span>
           </div>
           <div class="prompt-grid" aria-label="Suggested questions" data-client-experience-prompts>
             <button type="button" data-shiloh-prompt><span>Prepare</span><strong>What do I need before my appointment?</strong></button>
