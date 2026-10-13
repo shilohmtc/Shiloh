@@ -112,25 +112,31 @@ async function issueStaffBrowserSession({
   const csrfHash = sha256(csrfToken);
   const expiresAt = new Date(authenticatedAt.getTime() + sessionTtlMs);
 
-  const previousResult = await client.query(
-    `SELECT id
-       FROM staff_browser_sessions
-      WHERE admin_id = $1
-        AND revoked_at IS NULL
-      ORDER BY issued_at DESC, id DESC
-      LIMIT 1
-      FOR UPDATE`,
-    [admin.id]
-  );
-  const previousSessionId = previousResult.rows[0]?.id || null;
-  await client.query(
-    `UPDATE staff_browser_sessions
-        SET revoked_at = $2,
-            revoke_reason = 'rotated'
-      WHERE admin_id = $1
-        AND revoked_at IS NULL`,
-    [admin.id, authenticatedAt]
-  );
+  // Ordinary Workspace sign-ins are independent: phone and browser coexist.
+  // Preserve account-wide rotation for legacy/recovery issuance.
+  const independent = !recoveryRequired && ['staff_details', 'passkey'].includes(authMethod);
+  let previousSessionId = null;
+  if (!independent) {
+    const previousResult = await client.query(
+      `SELECT id
+         FROM staff_browser_sessions
+        WHERE admin_id = $1
+          AND revoked_at IS NULL
+        ORDER BY issued_at DESC, id DESC
+        LIMIT 1
+        FOR UPDATE`,
+      [admin.id]
+    );
+    previousSessionId = previousResult.rows[0]?.id || null;
+    await client.query(
+      `UPDATE staff_browser_sessions
+          SET revoked_at = $2,
+              revoke_reason = 'rotated'
+        WHERE admin_id = $1
+          AND revoked_at IS NULL`,
+      [admin.id, authenticatedAt]
+    );
+  }
   const insertedSession = await client.query(
     `INSERT INTO staff_browser_sessions
        (admin_id, token_hash, csrf_hash, issued_at, expires_at, rotated_from_session_id,
