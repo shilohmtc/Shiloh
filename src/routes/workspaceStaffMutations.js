@@ -6,6 +6,7 @@ const workspaceStaffAccessPolicy = require('../services/workspaceStaffAccessPoli
 const workspaceAccessV2 = require('../services/workspaceAccessV2');
 const workspaceStaffAccessProfiles = require('../services/workspaceStaffAccessProfiles');
 const { createStaffSmsDeviceSetupService } = require('../services/staffSmsDeviceSetup');
+const { staffDetailAuthEnabled } = require('../services/staffDetailIdentity');
 const {
   requireStaffSession,
   sameOriginGuard,
@@ -207,6 +208,7 @@ function createWorkspaceStaffMutationRouter({
     } catch (error) { return sendMutationError(error, req, res, next); }
   });
   router.post('/workspace-access/:id/sms-device-setup', ...mutationChain, async (req, res, next) => {
+    if (staffDetailAuthEnabled(env)) return res.status(410).json({ error: 'Staff SMS setup has been retired. Record staff sign-in details instead.' });
     try {
       const result = await staffSmsDeviceSetupService.issue({
         session: req.staffBrowserSession, targetAdminId: req.params.id,

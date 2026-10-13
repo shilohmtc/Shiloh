@@ -65,7 +65,11 @@ function withAccessChangedGuidance(html, reason) {
 function bootstrapAwareSigninScript(env = process.env) {
   if (!staffDetailAuthEnabled(env)) return signinScript();
   return signinScript().replaceAll('Use existing passkey', 'Use a saved passkey')
-    .replace(/var unlinked='[^']*';/, "var unlinked='Use your details above to open Workspace, or use a saved passkey.';");
+    .replace(/var unlinked='[^']*';/, "var unlinked='Use your recorded staff details to open Workspace. Saved passkeys remain available for protected administrator changes.';")
+    .replace('This browser is not linked yet. If this phone already has a Shiloh passkey, tap Use a saved passkey. If that does not work, use one fresh private setup link from Shiloh.', 'Use your details above to open Workspace. If you have a saved administrator passkey, you can use it for protected changes.')
+    .replace('This browser cannot use Shiloh device sign-in. Open Shiloh in Safari or Chrome. If you are signed in on another device, create a fresh setup link from Workspace → Devices & sign-in.', 'This browser cannot use passkeys. Use your staff details above to open Workspace.')
+    .replace('No usable Shiloh passkey was found in this browser. Use one fresh private setup link from Shiloh to link this browser.', 'No usable Shiloh passkey was found. Use your staff details to open Workspace, or ask an authorized administrator to make protected changes.')
+    .replace('Device sign-in could not be verified. Try again. If this app was reinstalled, create a fresh setup link from another signed-in device.', 'Passkey sign-in could not be verified. Try again, or use your staff details above.');
 }
 
 function createStaffCalendarAccessPageHandler({ env = process.env, renderPage = renderStaffCalendarAccessPage } = {}) {
