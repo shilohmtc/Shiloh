@@ -186,6 +186,40 @@ test('search and detail resolve canonical CRM V2 clients only', async () => {
   assert.deepEqual(calls[1].values, [912]);
 });
 
+test('Workspace phone search finds equivalent SA numbers while preserving relationship and status scope', async (t) => {
+  const { PGlite } = require('@electric-sql/pglite');
+  const pg = new PGlite();
+  t.after(() => pg.close());
+  await pg.exec(`
+    CREATE TABLE crm_v2_clients(id BIGINT, name TEXT, normalized_mobile TEXT, date_of_birth DATE,
+      gender TEXT, profile_status TEXT, mobile_verified_at TIMESTAMPTZ, status TEXT);
+    CREATE TABLE crm_v2_client_relationships(client_id BIGINT, relationship_type TEXT,
+      owner_staff_id BIGINT, status TEXT);
+    CREATE TABLE appointments(id BIGINT, crm_v2_client_id BIGINT, client_id BIGINT, starts_at TIMESTAMPTZ);
+    CREATE TABLE appointment_services(appointment_id BIGINT, service_id BIGINT);
+    CREATE TABLE service_visibility_policies(service_id BIGINT, visibility_scope TEXT, owner_staff_id BIGINT);
+    INSERT INTO crm_v2_clients VALUES
+      (1,'Synthetic Phone Client','27821234567',NULL,NULL,'minimal',NULL,'active'),
+      (2,'Synthetic Tenant Client','27821234568',NULL,NULL,'minimal',NULL,'active');
+    INSERT INTO crm_v2_client_relationships VALUES
+      (1,'clinic',NULL,'active'), (2,'tenant_staff',7,'active');
+  `);
+  const originalQuery = pool.query;
+  pool.query = (sql, values) => pg.query(sql, values);
+  t.after(() => { pool.query = originalQuery; });
+  const scope = { kind: 'clinic', ownerStaffId: null };
+  for (const q of ['0821234567', '082 123 4567', '27821234567', '+27 82 123 4567', '0027 82 123 4567']) {
+    const rows = await crmReadService.listClients({ q, status: 'active', scope });
+    assert.equal(rows.length, 1, q);
+    assert.equal(Number(rows[0].id), 1);
+  }
+  assert.equal((await crmReadService.listClients({ q: '0821234568', status: null, scope })).length, 0);
+  await pg.exec("UPDATE crm_v2_client_relationships SET status='archived' WHERE client_id=1");
+  assert.equal((await crmReadService.listClients({ q: '0821234567', status: 'active', scope })).length, 0);
+  assert.equal((await crmReadService.listClients({ q: '0821234567', status: null, scope })).length, 1);
+  assert.equal((await crmReadService.listClients({ q: 'Synthetic Phone', status: null, scope })).length, 1);
+});
+
 test('CRM V2 appointment history follows the canonical XOR key and cannot cross-link an equal legacy ID', async () => {
   let captured;
   const originalQuery = pool.query;

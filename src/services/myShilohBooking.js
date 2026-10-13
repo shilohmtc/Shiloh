@@ -1,5 +1,7 @@
 'use strict';
 
+const { createHash } = require('node:crypto');
+
 const { pool } = require('../db/pool');
 const { createWorkspacePackages } = require('./workspacePackages');
 const { getPublicServiceCatalogue } = require('./publicServiceCatalogue');
@@ -116,6 +118,63 @@ function createMyShilohBookingService({
   packages = createWorkspacePackages({ db }),
   now = () => new Date(),
 } = {}) {
+  const discardableDraftStates = new Set(['collecting', 'awaiting_confirmation', 'awaiting_policy_acceptance', 'policy_accepted', 'ready_for_handoff']);
+  function draftRevision(row) {
+    return createHash('sha256').update(JSON.stringify(row)).digest('hex');
+  }
+  function draftDto(row) {
+    if (!row) return null;
+    const text = value => String(value || '').slice(0, 160);
+    return { revision: draftRevision(row), canDiscard: discardableDraftStates.has(row.status),
+      treatment: text(row.service_text), practitioner: text(row.therapist_text),
+      date: text(row.preferred_date), time: text(row.preferred_time) };
+  }
+  async function unfinishedDraft({ crmV2ClientId } = {}) {
+    const { phone } = await clientIdentity(crmV2ClientId);
+    await ensureIntentTable();
+    const result = await db.query('SELECT *,created_at::text AS created_at,updated_at::text AS updated_at FROM booking_intents WHERE phone=$1', [phone]);
+    return { draft: draftDto(result.rows[0]) };
+  }
+  async function discardDraft({ crmV2ClientId, sessionId, revision } = {}) {
+    if (typeof revision !== 'string' || !/^[a-f0-9]{64}$/.test(revision)) {
+      throw new MyShilohBookingError('BOOKING_DRAFT_INVALID', 'Review the unfinished draft before discarding it.', 422);
+    }
+    const authorizingSessionId = positiveId(sessionId, 'BOOKING_DRAFT_SESSION_REQUIRED');
+    const { client: owner, phone } = await clientIdentity(crmV2ClientId);
+    await ensureIntentTable();
+    const transaction = await db.connect();
+    try {
+      await transaction.query('BEGIN');
+      const result = await transaction.query('SELECT *,created_at::text AS created_at,updated_at::text AS updated_at FROM booking_intents WHERE phone=$1 FOR UPDATE', [phone]);
+      const row = result.rows[0];
+      const session = await transaction.query(`SELECT id FROM client_browser_sessions
+        WHERE id=$1 AND crm_v2_client_id=$2 AND revoked_at IS NULL
+          AND issued_at<=clock_timestamp() AND expires_at>clock_timestamp() FOR SHARE`, [authorizingSessionId, owner.id]);
+      if (session.rowCount !== 1) {
+        throw new MyShilohBookingError('BOOKING_DRAFT_SESSION_EXPIRED', 'Your session has ended. Sign in again before changing this draft.', 401);
+      }
+      // Commit locks this same row and deletes it in the appointment transaction.
+      // Never discard a replacement draft or interfere with a completed commit.
+      const identity = await transaction.query("SELECT normalized_mobile FROM crm_v2_clients WHERE id=$1 AND status='active' FOR SHARE", [owner.id]);
+      if (!row || draftRevision(row) !== revision || !discardableDraftStates.has(row.status)
+          || normalizePhone(identity.rows[0]?.normalized_mobile || '') !== phone) {
+        throw new MyShilohBookingError('BOOKING_DRAFT_CHANGED', 'The unfinished draft changed. Review it again, and check Bookings before sending another request.', 409);
+      }
+      const removed = await transaction.query(`DELETE FROM booking_intents WHERE phone=$1
+        AND EXISTS (SELECT 1 FROM client_browser_sessions WHERE id=$2 AND crm_v2_client_id=$3
+          AND revoked_at IS NULL AND expires_at>clock_timestamp()) RETURNING phone`, [phone, authorizingSessionId, owner.id]);
+      if (removed.rowCount !== 1) {
+        throw new MyShilohBookingError('BOOKING_DRAFT_SESSION_EXPIRED', 'Your session has ended. Sign in again before changing this draft.', 401);
+      }
+      await transaction.query(`INSERT INTO client_auth_security_events(event_type,crm_v2_client_id,metadata)
+        VALUES('booking_draft_discarded',$1,$2::jsonb)`, [owner.id, JSON.stringify({ status: row.status })]);
+      await transaction.query('COMMIT');
+      return { discarded: true };
+    } catch (error) {
+      await transaction.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally { transaction.release(); }
+  }
   async function clientIdentity(crmV2ClientId) {
     const clientId = positiveId(crmV2ClientId, 'BOOKING_CLIENT_INVALID');
     const result = await db.query(
@@ -360,9 +419,9 @@ function createMyShilohBookingService({
     if (existing.rowCount) {
       throw new MyShilohBookingError(
         'BOOKING_ALREADY_IN_PROGRESS',
-        'You already have a booking request in progress. Finish or cancel that request before starting another one.',
+        'An unfinished booking draft is blocking this request. Review or discard the draft before sending a new request. Reload this page if the draft is not shown.',
         409,
-        ['Open Shiloh in My Shiloh if you need help with the existing request.'],
+        ['Review the unfinished draft. Discarding a draft does not cancel an appointment.'],
       );
     }
 
@@ -373,7 +432,7 @@ function createMyShilohBookingService({
        )
        VALUES($1,$2,$3,$4,$5,TRUE,'awaiting_policy_acceptance',$6,NULL,NULL,NOW())
        ON CONFLICT (phone) DO NOTHING
-       RETURNING phone`,
+       RETURNING phone,created_at::text AS created_at`,
       [phone, service.name, date, localTime(requestedStart), practitioner.display_name, POLICY_VERSION],
     );
     if (inserted.rowCount !== 1) {
@@ -388,8 +447,8 @@ function createMyShilohBookingService({
       const created = await commitBooking(phone, { crmV2ClientId:Number(client.id) });
       if (!created?.handled || created.status !== 'created' || !created.appointmentId) {
         await db.query(
-          `DELETE FROM booking_intents WHERE phone=$1 AND policy_channel='my_shiloh'`,
-          [phone],
+          `DELETE FROM booking_intents WHERE phone=$1 AND created_at=$2 AND policy_channel='my_shiloh'`,
+          [phone, inserted.rows[0].created_at],
         );
         throw new MyShilohBookingError(
           'BOOKING_FINAL_CHECK_FAILED',
@@ -416,8 +475,8 @@ function createMyShilohBookingService({
       };
     } catch (error) {
       await db.query(
-        `DELETE FROM booking_intents WHERE phone=$1`,
-        [phone],
+        `DELETE FROM booking_intents WHERE phone=$1 AND created_at=$2`,
+        [phone, inserted.rows[0].created_at],
       ).catch(() => {});
       throw error;
     }
@@ -431,7 +490,7 @@ function createMyShilohBookingService({
 
   async function policy() { return depositPolicy.loadPolicy(db); }
 
-  return { catalogue, packageCatalogue, practitioners, slots, createRequest, policy, clientAppEligibleStaff };
+  return { catalogue, packageCatalogue, practitioners, slots, createRequest, policy, clientAppEligibleStaff, unfinishedDraft, discardDraft };
 }
 
 const service = createMyShilohBookingService();
