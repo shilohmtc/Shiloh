@@ -1,4 +1,6 @@
 const crypto = require('crypto');
+const { WorkspaceClientMutationError } = require('./workspaceClientMutationError');
+const { deleteUnlinkedClient, retainedMessage } = require('./workspaceClientDeletion');
 const { pool } = require('../db/pool');
 const { PostgresCrmV2ClientRepository } = require('../repositories/crmV2ClientRepository');
 const {
@@ -19,11 +21,7 @@ const CLIENT_MANAGE_CAPABILITY = 'client:manage';
 const ORIGIN = 'workspace.clients';
 const REQUEST_ID_PATTERN = /^[A-Za-z0-9_-]{8,100}$/;
 const REVISION_PATTERN = /^[a-f0-9]{64}$/i;
-const EVENT_TYPES = Object.freeze({ create: 'workspace_client_created', update: 'workspace_client_updated', archive: 'workspace_client_archived' });
-
-class WorkspaceClientMutationError extends Error {
-  constructor(code, message, httpStatus) { super(message); this.name = 'WorkspaceClientMutationError'; this.code = code; this.httpStatus = httpStatus; }
-}
+const EVENT_TYPES = Object.freeze({ create: 'workspace_client_created', update: 'workspace_client_updated', archive: 'workspace_client_archived', delete: 'workspace_client_deleted' });
 
 function positiveId(value) { const id = Number(value); return Number.isSafeInteger(id) && id > 0 ? id : null; }
 function permissionSet(value) { return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
@@ -41,6 +39,7 @@ function evaluateClientManageAuthority(rows = []) {
     displayName: String(p.display_name || 'Staff').trim() || 'Staff',
     capability: CLIENT_MANAGE_CAPABILITY,
     businessRole: String(p.business_role || '').trim().toLowerCase(),
+    deleteAllowed: permissionSet(p.permissions)['client:delete'] === true && clientScope.kind === 'clinic' && ['owner', 'business_admin', 'booking_operator'].includes(String(p.business_role || '').trim().toLowerCase()),
     linkedStaffId: positiveId(p.staff_id),
     clientScope,
   };
@@ -102,15 +101,16 @@ function sameClientProfile(row, requested) {
     && currentDob === requested.dateOfBirth
     && (field(row, 'gender', 'gender') || null) === requested.gender;
 }
-function normalizeError(error) {
+function normalizeError(error, operation) {
   if (error instanceof WorkspaceClientMutationError) return error;
+  if (operation === 'delete' && ['40001', '40P01'].includes(error?.code)) return new WorkspaceClientMutationError('WORKSPACE_CLIENT_STALE_REVISION', 'This client changed. Reload Clients before retrying.', 409);
   if (error instanceof CrmV2Error) return new WorkspaceClientMutationError(error.code, error.message, error.httpStatus || 400);
   return error;
 }
 
 function createWorkspaceClientMutationService({ db = pool } = {}) {
   if (!db || typeof db.query !== 'function') throw new Error('Workspace client mutations database is required');
-  async function principalRows(adminId, queryable = db) {
+  async function principalRows(adminId, queryable = db, { lock = false } = {}) {
     const id = positiveId(adminId); if (!id) return [];
     const result = await queryable.query(
       `SELECT a.id,a.staff_id,a.display_name,a.permissions,a.business_role,
@@ -118,14 +118,14 @@ function createWorkspaceClientMutationService({ db = pool } = {}) {
          FROM staff_admin_accounts a
          LEFT JOIN staff s ON s.id=a.staff_id
         WHERE a.id=$1 AND a.active=TRUE
-        LIMIT 2`,
+        LIMIT 2${lock ? ' FOR SHARE OF a' : ''}`,
       [id]
     );
     return result.rows;
   }
-  async function resolveManageAccess(adminId, queryable = db) { return evaluateClientManageAuthority(await principalRows(adminId, queryable)); }
-  async function requireManageAccess(adminId, queryable = db) {
-    const authority = await resolveManageAccess(adminId, queryable);
+  async function resolveManageAccess(adminId, queryable = db, options = {}) { return evaluateClientManageAuthority(await principalRows(adminId, queryable, options)); }
+  async function requireManageAccess(adminId, queryable = db, options = {}) {
+    const authority = await resolveManageAccess(adminId, queryable, options);
     if (!authority) throw new WorkspaceClientMutationError('WORKSPACE_CLIENT_MANAGE_FORBIDDEN', 'Current staff authority does not permit client changes.', 403);
     return authority;
   }
@@ -184,7 +184,7 @@ function createWorkspaceClientMutationService({ db = pool } = {}) {
   }
   async function lockRequest(client, adminId, requestId) { await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`workspace-client-request:${adminId}:${requestId}`]); }
   async function priorReplay(client, adminId, requestId) {
-    const result = await client.query(`SELECT metadata FROM staff_auth_security_events WHERE operator_admin_id=$1 AND event_type IN ('workspace_client_created','workspace_client_updated','workspace_client_archived') AND metadata->>'origin'=$2 AND metadata->>'requestId'=$3 ORDER BY id DESC LIMIT 1`, [adminId, ORIGIN, requestId]);
+    const result = await client.query(`SELECT metadata FROM staff_auth_security_events WHERE operator_admin_id=$1 AND event_type IN ('workspace_client_created','workspace_client_updated','workspace_client_archived','workspace_client_deleted') AND metadata->>'origin'=$2 AND metadata->>'requestId'=$3 ORDER BY id DESC LIMIT 1`, [adminId, ORIGIN, requestId]);
     return result.rows[0]?.metadata || null;
   }
   function replayResultOrThrow(metadata, fingerprint) {
@@ -201,8 +201,17 @@ function createWorkspaceClientMutationService({ db = pool } = {}) {
     if (typeof db.connect !== 'function') throw new Error('Workspace client mutations require a transactional database.');
     const requestId = requireRequestId(rawRequestId); const fingerprint = mutationFingerprint(operation, fingerprintPayload); const client = await db.connect();
     try {
-      await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
-      const operator = await requireManageAccess(adminId, client); await lockRequest(client, operator.operatorAdminId, requestId);
+      // Deletion reads linked rows after locking the canonical client; fresh
+      // READ COMMITTED snapshots see references committed before that lock.
+      // The parent lock prevents new FK references until commit.
+      await client.query(operation === 'delete' ? 'BEGIN ISOLATION LEVEL READ COMMITTED' : 'BEGIN ISOLATION LEVEL SERIALIZABLE');
+      const operator = await requireManageAccess(adminId, client, { lock: operation === 'delete' });
+      if (operation === 'delete' && operator.deleteAllowed !== true) throw new WorkspaceClientMutationError('WORKSPACE_CLIENT_DELETE_FORBIDDEN', 'Only authorized clinic staff with permanent-deletion permission can delete a client profile.', 403);
+      if (operation === 'delete' && operator.linkedStaffId) {
+        const staff = await client.query("SELECT id FROM staff WHERE id=$1 AND status='active' FOR SHARE", [operator.linkedStaffId]);
+        if (!staff.rows.length) throw new WorkspaceClientMutationError('WORKSPACE_CLIENT_DELETE_FORBIDDEN', 'Current staff authority does not permit permanent deletion.', 403);
+      }
+      await lockRequest(client, operator.operatorAdminId, requestId);
       const replay = replayResultOrThrow(await priorReplay(client, operator.operatorAdminId, requestId), fingerprint);
       if (replay) { await client.query('COMMIT'); return replay; }
       const repository = new PostgresCrmV2ClientRepository(client); const crm = createCrmV2ClientService({ repository });
@@ -220,7 +229,7 @@ function createWorkspaceClientMutationService({ db = pool } = {}) {
         result,
       });
       await client.query('COMMIT'); return { ...result, replayed: false };
-    } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw normalizeError(error); } finally { client.release(); }
+    } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} if (operation === 'delete' && error?.code === '23503') throw new WorkspaceClientMutationError('WORKSPACE_CLIENT_DELETE_LINKED', retainedMessage, 409); throw normalizeError(error, operation); } finally { client.release(); }
   }
   async function createClient({ adminId, requestId, name, mobile } = {}) {
     return inTransaction({
@@ -300,7 +309,21 @@ function createWorkspaceClientMutationService({ db = pool } = {}) {
       };
     }});
   }
-  return { resolveManageAccess, requireManageAccess, createClient, updateClient, archiveClient, relationshipRow };
+  async function deleteClient({ adminId, clientId, expectedRevision, requestId, confirmation } = {}) {
+    const id = positiveId(clientId); if (!id) throw new WorkspaceClientMutationError('WORKSPACE_CLIENT_INVALID_ID', 'Client reference is invalid.', 400);
+    const expected = requireExpectedRevision(expectedRevision);
+    if (confirmation !== 'DELETE') throw new WorkspaceClientMutationError('WORKSPACE_CLIENT_DELETE_CONFIRMATION', 'Confirm permanent deletion before continuing.', 400);
+    return inTransaction({ adminId, requestId, operation: 'delete', fingerprintPayload: { clientId: id, expectedRevision: expected, confirmation }, execute: async ({ client, repository, operator }) => {
+      const relationship = await requireRelationship(client, id, operator.clientScope, { forUpdate: true });
+      const current = await repository.getClientById(id, { forUpdate: true });
+      if (!current) throw new WorkspaceClientMutationError('WORKSPACE_CLIENT_NOT_FOUND', 'Client was not found.', 404);
+      const revision = clientRelationshipRevision(current, relationship.status);
+      if (revision !== expected) throw new WorkspaceClientMutationError('WORKSPACE_CLIENT_STALE_REVISION', 'This client changed. Reload Clients before retrying.', 409);
+      await deleteUnlinkedClient({ client, clientId: id, relationshipId: relationship.id, mobile: current.normalized_mobile });
+      return { status: 'deleted', clientId: id, beforeRevision: revision, revision, auditChanges: { hardDelete: true, profileDeleted: true, retainedHistoryDeleted: false } };
+    } });
+  }
+  return { resolveManageAccess, requireManageAccess, createClient, updateClient, archiveClient, deleteClient, relationshipRow };
 }
 
 const service = createWorkspaceClientMutationService();

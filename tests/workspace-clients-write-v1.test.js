@@ -134,6 +134,7 @@ test('bounded mutation implementation retains transaction, replay, audit and rel
     create: 'workspace_client_created',
     update: 'workspace_client_updated',
     archive: 'workspace_client_archived',
+    delete: 'workspace_client_deleted',
   });
   assert.equal(ORIGIN, 'workspace.clients');
 });
