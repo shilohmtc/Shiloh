@@ -405,6 +405,7 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     const calls = await optionalKeys(page);
     await expect(page.getByRole('heading', { name: 'My passkeys' })).toBeVisible();
+    await expect(page.locator('[data-passkey-history]')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Rename|Replace|another device/ })).toHaveCount(
       0,
     );
@@ -430,6 +431,7 @@ for (const viewport of [
     await expect(page.locator('[data-passkey-status]')).toHaveText('Passkey saved.');
     await expect(page.locator('[data-passkey-list]')).toContainText('Synthetic new phone');
     expect(calls).toEqual(['remove', 'options', 'finish']);
+    await expect(page.locator('[data-passkey-history]')).toHaveCount(0);
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
