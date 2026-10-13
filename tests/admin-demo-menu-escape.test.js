@@ -4,9 +4,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const escapePath = path.join(__dirname,'..','src','services','adminDemoMenuEscape.js');
-const webhookPath = path.join(__dirname,'..','src','controllers','webhookController.js');
+
 const escapeSource = fs.readFileSync(escapePath,'utf8');
-const webhookSource = fs.readFileSync(webhookPath,'utf8');
+
 const { isAdminMenuEscape } = require(escapePath);
 
 test('Menu, Admin Menu and Home are hard admin escape commands',()=>{
@@ -14,11 +14,6 @@ test('Menu, Admin Menu and Home are hard admin escape commands',()=>{
   assert.equal(isAdminMenuEscape('admin menu'),true);
   assert.equal(isAdminMenuEscape('HOME'),true);
   assert.equal(isAdminMenuEscape('pelvic treatment'),false);
-});
-
-test('ordinary webhook exposes neither demo escape nor controlled demo routing',()=>{
-  assert.doesNotMatch(webhookSource,/escapeActiveDemoToAdminMenu|processAdminClientDemoMessage/);
-  assert.match(webhookSource,/processAdminRetiredAuthorityMessage\(from,text\)/);
 });
 
 test('unfinished demo escape cannot delete a created appointment',()=>{

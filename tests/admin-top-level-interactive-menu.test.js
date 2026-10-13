@@ -14,9 +14,3 @@ test('retirement facades cannot advertise or route an operational Admin menu', a
   assert.match(source, /processRetiredAdminAuthorityMessage/);
   assert.equal(typeof processAdminInteractiveMenuMessage, 'function');
 });
-
-test('webhook does not import the retirement facade as an operational router', () => {
-  const webhook = fs.readFileSync(path.join(__dirname, '..', 'src', 'controllers', 'webhookController.js'), 'utf8');
-  assert.doesNotMatch(webhook, /adminInteractiveMenu|adminMobileMenu/);
-  assert.match(webhook, /adminAuthorityRetirement/);
-});

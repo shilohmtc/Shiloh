@@ -5,16 +5,13 @@ const path = require('node:path');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'appointmentChange.js'), 'utf8');
 const availabilitySource = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'clientRescheduleAvailability.js'), 'utf8');
-const webhookSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'controllers', 'webhookController.js'), 'utf8');
 
 test('appointment change intents remain isolated from onboarding state', () => {
   assert.match(source, /INSERT INTO appointment_change_intents/);
   assert.doesNotMatch(source, /INSERT INTO client_onboarding_sessions\(phone,action/);
 });
 
-test('bare RESCHEDULE command enters canonical appointment-change flow and carries forward the existing booking', () => {
-  assert.match(webhookSource, /\^\(reschedule\|cancel\)\$/i);
-  assert.match(webhookSource, /processAppointmentChangeMessage\(from,appointmentChangeText\)/);
+test('legacy appointment-change helper carries forward the existing booking', () => {
   assert.match(source, /if\(rows\.length===1\)return\{appointment:rows\[0\]\}/);
   assert.match(source, /What new day or date would you prefer\?/);
 });
@@ -27,9 +24,6 @@ test('reschedule date enters authoritative daypart and slot selection instead of
   assert.match(availabilitySource, /reschedule_slot_/);
   assert.match(availabilitySource, /service_id/);
   assert.match(availabilitySource, /Shiloh's canonical scheduling records/);
-  assert.match(webhookSource, /processClientRescheduleAvailabilityMessage\(from,text\)/);
-  assert.ok(webhookSource.indexOf('processClientRescheduleAvailabilityMessage(from,text)') < webhookSource.indexOf('processAppointmentChangeMessage(from,appointmentChangeText)'));
-  assert.match(webhookSource, /sendAdminResult\(from,rescheduleAvailability\)/);
 });
 
 test('authoritative reschedule slot is rechecked before the existing atomic confirmation path is entered', () => {

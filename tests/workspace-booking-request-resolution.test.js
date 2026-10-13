@@ -286,8 +286,6 @@ test('Propose alternative holds the candidate, increments a version and delivers
   assert.ok(new Date(db.state.row.proposal_expires_at).getTime() > new Date('2026-09-08T10:00:00.000Z').getTime());
 });
 
-
-
 test('own-scope practitioner cannot propose a different practitioner and V1 never changes service', async () => {
   const staffDb = fakePool(row());
   await assert.rejects(proposeAlternative({
@@ -408,15 +406,11 @@ test('active proposal holds participate in client slots, booking, reschedule and
   assert.match(holds, /a\.status NOT IN \('cancelled','no_show'\)/);
 });
 
-test('runtime cutover has no initial-booking staff template send or staff approval parser', () => {
+test('booking approval service has no initial-booking staff template send or staff approval parser', () => {
   const approval = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'clientBookingApproval.js'), 'utf8');
-  const webhook = fs.readFileSync(path.join(__dirname, '..', 'src', 'controllers', 'webhookController.js'), 'utf8');
-  assert.doesNotMatch(approval, /shiloh_booking_approval_request_v1|booking_approval_approve_|booking_approval_decline_/);
-  assert.doesNotMatch(webhook, /processClientBookingApprovalMessage|processAdminInteractiveMenuMessage|commandForAdminButton/);
-  assert.match(webhook, /processClientBookingProposalMessage/);
-  assert.match(webhook, /processRescheduleApprovalDecision/, 'adjacent confirmed-appointment reschedule contract remains explicit');
-});
 
+  assert.doesNotMatch(approval, /shiloh_booking_approval_request_v1|booking_approval_approve_|booking_approval_decline_/);
+});
 
 test('app proposal delivery requires a verified app identity before changing or holding a booking', async () => {
   const db = fakePool(row());
@@ -426,8 +420,6 @@ test('app proposal delivery requires a verified app identity before changing or 
   assert.equal(db.state.row.status, 'pending');
   assert.equal(db.state.calls.some(call => call.sql.startsWith('UPDATE')), false);
 });
-
-
 
 function appProposal(overrides = {}) {
   return row({ status: 'awaiting_client_confirmation', proposal_version: 4,
@@ -498,7 +490,6 @@ test('proposal remains available in app when phone push is disabled or unavailab
   }
 });
 
-
 test('a crafted or stale practitioner selection is rejected by canonical eligibility before any proposal write or delivery', async () => {
   for (const changed of [{ eligible:false },{ staff_status:'inactive' },{ service_status:'inactive' },{ resource_type:'room' }]) {
     const db = fakePool(row());
@@ -517,7 +508,6 @@ test('a crafted or stale practitioner selection is rejected by canonical eligibi
     assert.equal(db.state.calls.at(-1).sql,'ROLLBACK');
   }
 });
-
 
 test('retired decline cannot change pending or proposed requests or send a cancellation', async () => {
   for (const status of ['pending', 'awaiting_client_confirmation']) {

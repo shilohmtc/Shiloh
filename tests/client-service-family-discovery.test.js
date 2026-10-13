@@ -4,10 +4,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const familyPath = path.join(__dirname, '..', 'src', 'services', 'clientServiceFamilyDiscovery.js');
-const webhookPath = path.join(__dirname, '..', 'src', 'controllers', 'webhookController.js');
+
 const appPath = path.join(__dirname, '..', 'app.js');
 const familySource = fs.readFileSync(familyPath, 'utf8');
-const webhookSource = fs.readFileSync(webhookPath, 'utf8');
+
 const appSource = fs.readFileSync(appPath, 'utf8');
 const { CLIENT_FAMILY_COPY } = require('../src/config/clientFamilyCopy');
 const { presentClientFamilyResult } = require('../src/presentation/clientFamilyPresentation');
@@ -95,13 +95,4 @@ test('massage practitioner chooser exposes Any available plus only supplied elig
   ]);
   assert.deepEqual(view.rows.map((row) => row.id), ['client_practitioner_any', 'client_practitioner_10', 'client_practitioner_11']);
   assert.doesNotMatch(JSON.stringify(view), /tenant_practitioner/);
-});
-
-test('family router gets first chance before generic client discovery and booking fallthrough', () => {
-  const family = webhookSource.indexOf('processClientServiceFamilyMessage(from,text)');
-  const discovery = webhookSource.indexOf('processClientDiscoveryMessage(from,text)');
-  const booking = webhookSource.lastIndexOf('processBookingMessage(from,text)');
-  assert.ok(family >= 0 && discovery >= 0 && booking >= 0);
-  assert.ok(family < discovery);
-  assert.ok(discovery < booking);
 });

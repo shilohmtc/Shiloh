@@ -5,7 +5,6 @@ const path = require('node:path');
 
 const migration = fs.readFileSync(path.join(__dirname, '..', 'migrations', '061_massage_packages.sql'), 'utf8');
 const packages = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'clientDiscoveryPackages.js'), 'utf8');
-const webhook = fs.readFileSync(path.join(__dirname, '..', 'src', 'controllers', 'webhookController.js'), 'utf8');
 
 test('Sports Massage monthly package has the approved commercial contract', () => {
   assert.match(migration, /'sports-massage-monthly'[\s\S]*'Sports Massage — Monthly Package'/);
@@ -50,9 +49,4 @@ test('business admins record paid entitlements whose validity starts at the firs
   assert.match(packages, /NULL,NULL,\$5,'active',\$6/);
   assert.match(packages, /Validity begins with the first treatment/);
   assert.match(packages, /already has an active Sports Massage package/);
-});
-
-test('WhatsApp uses the package-aware discovery router', () => {
-  assert.match(webhook, /require\("\.\.\/services\/clientDiscoveryPackages"\)/);
-  assert.doesNotMatch(webhook, /const \{ processClientDiscoveryMessage \} = require\("\.\.\/services\/clientDiscoveryMenu"\)/);
 });

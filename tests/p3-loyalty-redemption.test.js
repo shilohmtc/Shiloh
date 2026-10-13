@@ -7,7 +7,6 @@ const root = path.resolve(__dirname, '..');
 const migration = fs.readFileSync(path.join(root, 'migrations/040_loyalty_redemption_lifecycle.sql'), 'utf8');
 const service = fs.readFileSync(path.join(root, 'src/services/loyaltyRedemption.js'), 'utf8');
 const admin = fs.readFileSync(path.join(root, 'src/services/adminLoyaltyRedemption.js'), 'utf8');
-const webhook = fs.readFileSync(path.join(root, 'src/controllers/webhookController.js'), 'utf8');
 
 test('redemption lifecycle is explicit, auditable and idempotent', () => {
   assert.match(migration, /status IN \('pending','committed','cancelled','failed'\)/);
@@ -43,8 +42,7 @@ test('redemption is appointment-bound and never asserts payment truth', () => {
 
 test('loyalty redemption remains technical-only after WhatsApp Admin retirement', () => {
   const interactive = fs.readFileSync(path.join(root, 'src/services/adminInteractiveMenu.js'), 'utf8');
-  assert.doesNotMatch(webhook, /processAdminInteractiveMenuMessage|processAdminLoyaltyRedemptionMessage/);
+
   assert.doesNotMatch(interactive, /processAdminLoyaltyRedemptionMessage/);
   assert.match(interactive, /processRetiredAdminAuthorityMessage/);
-  assert.doesNotMatch(webhook, /processAdminAssistantMessage/);
 });

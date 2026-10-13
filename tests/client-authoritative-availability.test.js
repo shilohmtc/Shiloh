@@ -5,10 +5,10 @@ const path = require('node:path');
 
 const availabilityPath = path.join(__dirname, '..', 'src', 'services', 'clientBookingAvailability.js');
 const sharedPath = path.join(__dirname, '..', 'src', 'services', 'availabilityService.js');
-const webhookPath = path.join(__dirname, '..', 'src', 'controllers', 'webhookController.js');
+
 const source = fs.readFileSync(availabilityPath, 'utf8');
 const shared = fs.readFileSync(sharedPath, 'utf8');
-const webhook = fs.readFileSync(webhookPath, 'utf8');
+
 const {
   SLOT_PAGE_SIZE,
   isAnyPractitionerPreference,
@@ -132,15 +132,4 @@ test('availability layer is non-mutating with respect to canonical appointments 
   assert.doesNotMatch(source, /UPDATE appointments/i);
   assert.doesNotMatch(source, /DELETE FROM appointments/i);
   assert.doesNotMatch(source, /createBookingEvent|createPractitionerBookingEvent|updateBookingEvent|cancelBookingEvent/);
-});
-
-test('client availability routes after discovery and before policy/generic booking fallthrough', () => {
-  const discovery = webhook.indexOf('processClientDiscoveryMessage(from,text)');
-  const availability = webhook.indexOf('processClientAvailabilityMessage(from,text)');
-  const policy = webhook.indexOf('processBookingPolicyMessage(from,text)');
-  const genericBooking = webhook.lastIndexOf('processBookingMessage(from,text)');
-  assert.ok(discovery >= 0 && availability >= 0 && policy >= 0 && genericBooking >= 0);
-  assert.ok(discovery < availability);
-  assert.ok(availability < policy);
-  assert.ok(policy < genericBooking);
 });

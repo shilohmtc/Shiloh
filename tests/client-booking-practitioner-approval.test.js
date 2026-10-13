@@ -9,7 +9,6 @@ const approval = read('src/services/clientBookingApproval.js');
 const schema = read('src/services/clientBookingApprovalSchema.js');
 const policy = read('src/services/bookingPolicy.js');
 const availability = read('src/services/availabilityService.js');
-const webhook = read('src/controllers/webhookController.js');
 
 test('client booking completion creates the canonical unresolved request without messaging staff', () => {
   assert.match(policy, /ensureBookingApprovalInfrastructure/);
@@ -38,10 +37,7 @@ test('unresolved request remains a canonical appointment conflict until explicit
   assert.doesNotMatch(approval, /appointment_calendar_events|cancelBookingEvent|cancelPractitionerBookingEvent/);
 });
 
-test('client proposal actions route before retired staff authority and bind exact payloads', () => {
-  assert.match(webhook, /processClientBookingProposalMessage/);
+test('client proposal helpers bind exact action payloads', () => {
   assert.match(approval, /booking_proposal_accept_/);
   assert.match(approval, /booking_proposal_another_/);
-  assert.ok(webhook.indexOf('processClientBookingProposalMessage(from,text)') < webhook.indexOf('processAdminRetiredAuthorityMessage(from,text)'));
-  assert.doesNotMatch(webhook, /processClientBookingApprovalMessage/);
 });

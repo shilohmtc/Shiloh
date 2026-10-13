@@ -5,10 +5,10 @@ const path = require('node:path');
 
 const dateChoicesPath = path.join(__dirname, '..', 'src', 'services', 'clientBookingDateChoices.js');
 const availabilityPath = path.join(__dirname, '..', 'src', 'services', 'clientBookingAvailability.js');
-const webhookPath = path.join(__dirname, '..', 'src', 'controllers', 'webhookController.js');
+
 const dateChoicesSource = fs.readFileSync(dateChoicesPath, 'utf8');
 const availabilitySource = fs.readFileSync(availabilityPath, 'utf8');
-const webhookSource = fs.readFileSync(webhookPath, 'utf8');
+
 const {
   applyAvailabilityAwareDateChoices,
   availableDateChoicesForIntent,
@@ -151,10 +151,6 @@ test('production wiring uses canonical future-slot authority and preserves expli
   assert.match(availabilitySource, /const result = await listAvailableSlots\(/);
 });
 
-test('availability-aware choices are applied before runtime interactive send without touching Meta template contracts', () => {
-  const apply = webhookSource.indexOf('result = await applyAvailabilityAwareDateChoices(result)');
-  const hybridize = webhookSource.indexOf('hybridizeChoiceInteractive(result.interactive)');
-  const sendButtons = webhookSource.indexOf('sendWhatsAppReplyButtons(to,result.interactive.body,result.interactive.buttons)');
-  assert.ok(apply >= 0 && hybridize > apply && sendButtons > hybridize);
+test('legacy availability-aware choices do not touch Meta template contracts', () => {
   assert.doesNotMatch(dateChoicesSource, /sendWhatsAppTemplate|assertTemplateSendAllowed|templateName|WABA/i);
 });

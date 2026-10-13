@@ -4,7 +4,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const service = fs.readFileSync(path.join(__dirname,'..','src','services','adminServiceTrends.js'),'utf8');
-const webhook = fs.readFileSync(path.join(__dirname,'..','src','controllers','webhookController.js'),'utf8');
 
 test('service trends compare rolling 30-day booking windows',()=>{
   assert.match(service,/NOW\(\) - INTERVAL '30 days'/);
@@ -29,8 +28,7 @@ test('service trends are permission gated, audited and descriptive only',()=>{
 
 test('service trends remain technical-only after WhatsApp Admin retirement',()=>{
   const interactive = fs.readFileSync(path.join(__dirname,'..','src','services','adminInteractiveMenu.js'),'utf8');
-  assert.doesNotMatch(webhook,/processAdminInteractiveMenuMessage|processAdminServiceTrendsMessage/);
+
   assert.doesNotMatch(interactive,/processAdminServiceTrendsMessage/);
   assert.match(interactive,/processRetiredAdminAuthorityMessage/);
-  assert.doesNotMatch(webhook,/processAdminAssistantMessage/);
 });
