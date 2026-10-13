@@ -1,5 +1,6 @@
 const path = require('path');
 const express = require('express');
+const { pool } = require('../db/pool');
 const { resolveWhatsAppNumber } = require('../services/publicWhatsApp');
 const { getPublicServiceCatalogue } = require('../services/publicServiceCatalogue');
 const { renderBookingPage } = require('../services/publicBookingPageEditorial');
@@ -14,10 +15,11 @@ router.use('/assets/booking', express.static(path.join(__dirname, '..', '..', 'p
 }));
 
 router.get('/book', async (req, res) => {
-  const [number, catalogue, bookable] = await Promise.all([
+  const [number, catalogue, bookable, couples] = await Promise.all([
     resolveWhatsAppNumber(),
     getPublicServiceCatalogue(),
     myShilohBooking.catalogue(),
+    pool.query("SELECT id FROM services WHERE status='active' AND external_source='shiloh_special' AND external_id='couples-massage-v1'"),
   ]);
   const ready = Boolean(catalogue);
   return res
@@ -25,6 +27,7 @@ router.get('/book', async (req, res) => {
     .type('html')
     .send(renderBookingPage(number, catalogue || [], req.query.service, {
       bookableIds: new Set(bookable.map((service) => Number(service.id))),
+      couplesServiceIds:new Set(couples.rows.map(service => Number(service.id))),
     }));
 });
 

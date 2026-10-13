@@ -67,20 +67,30 @@
     invalidate(); step(2);
   });
   root.querySelectorAll('[data-couples-service]').forEach(select => select.addEventListener('change',async () => {
-    const index = Number(select.dataset.couplesService), generation = ++state.generations[index];
+    const index = Number(select.dataset.couplesService);
+    const other = get(`[data-couples-service="${1-index}"]`);
+    const named = select.selectedOptions[0]?.dataset.couplesNamed === 'true';
+    if (named && other.value !== select.value) { other.value = select.value; other.dispatchEvent(new Event('change')); }
+    else if (!named && other.selectedOptions[0]?.dataset.couplesNamed === 'true') { other.value = ''; other.dispatchEvent(new Event('change')); }
+    const generation = ++state.generations[index];
     state.serviceIds[index] = Number(select.value) || null; state.staffIds[index] = null; state.slot = null; invalidate(); status('[data-couples-selection-status]');
     const staff = get(`[data-couples-staff="${index}"]`); staff.replaceChildren(new Option('Choose a therapist','')); staff.disabled = true;
     const selector = `[data-couples-practitioner-status="${index}"]`; status(selector,'');
     if (!state.serviceIds[index]) return;
     status(selector,'Checking therapists…');
     try {
-      const response = await fetch('/my-shiloh/api/booking/practitioners?serviceId=' + state.serviceIds[index],{ credentials:'same-origin',cache:'no-store' });
+      const response = await fetch('/my-shiloh/api/booking/couples/practitioners?serviceId=' + state.serviceIds[index],{ credentials:'same-origin',cache:'no-store' });
       const data = await response.json(); if (generation !== state.generations[index]) return;
       if (!response.ok) throw new Error(data.error || 'Please choose another treatment.');
       data.practitioners.forEach(person => staff.append(new Option(person.name,String(person.id)))); staff.disabled = false; status(selector,'');
     } catch (error) { if (generation === state.generations[index]) status(selector,error.message,true); }
   }));
   root.querySelectorAll('[data-couples-staff]').forEach(select => select.addEventListener('change',() => { state.staffIds[Number(select.dataset.couplesStaff)] = Number(select.value) || null; state.slot = null; invalidate(); status('[data-couples-selection-status]'); }));
+  if (root.dataset.selectedService) {
+    const selected = get('[data-couples-service="0"]');
+    selected.value = root.dataset.selectedService;
+    if (selected.value) selected.dispatchEvent(new Event('change'));
+  }
   get('[data-couples-next]').addEventListener('click',() => {
     if (state.serviceIds.some(value => !value) || state.staffIds.some(value => !value)) { status('[data-couples-selection-status]','Choose a treatment and therapist for each person.',true); return; }
     if (state.staffIds[0] === state.staffIds[1]) { status('[data-couples-selection-status]','Choose two different therapists so both treatments can start together.',true); return; }

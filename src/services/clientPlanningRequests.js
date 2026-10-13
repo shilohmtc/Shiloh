@@ -82,7 +82,8 @@ function validate(input = {}, now = new Date()) {
   };
 }
 
-function createClientPlanningRequestService({ db = pool, now = () => new Date() } = {}) {
+function createClientPlanningRequestService({ db = pool, now = () => new Date(), couplesBooking = null } = {}) {
+  const bookingForTwo = () => couplesBooking || require('./myShilohMultipleBooking').createMyShilohMultipleBookingService({ db,couples:true });
   async function practitioners() {
     const result = await db.query(`SELECT id,display_name FROM staff WHERE status='active'
       AND client_bookable=TRUE AND resource_type='practitioner'
@@ -129,7 +130,7 @@ function createClientPlanningRequestService({ db = pool, now = () => new Date() 
   async function forReception(principal) {
     if (!isDerivedGlobalCoordinator(principal)) return [];
     const result = await db.query(`SELECT r.id,r.request_kind,r.status,r.service_detail,r.preferred_date::text AS preferred_date,r.preferred_daypart,
-      r.guest_count,r.special_occasion,r.occasion_note,r.client_note,r.requested_at,r.planning_started_at,
+      r.guest_count,r.special_occasion,r.occasion_note,r.client_note,r.requested_at,r.planning_started_at,r.updated_at,
       c.name AS client_name,s.name AS service_name,p.display_name AS practitioner_name,
       COALESCE((SELECT jsonb_agg(jsonb_build_object('id',candidate.id,'startsAt',candidate.starts_at,
         'serviceName',candidate.service_name,'staffNames',candidate.staff_names) ORDER BY candidate.starts_at,candidate.id)
@@ -149,6 +150,38 @@ function createClientPlanningRequestService({ db = pool, now = () => new Date() 
       FROM client_planning_requests r CROSS JOIN LATERAL (${candidateAppointmentsSql()}) candidate
       WHERE r.id=$1 AND r.status IN ('requested','planning') ORDER BY candidate.starts_at,candidate.id`, [requestId]);
     return { appointments: result.rows };
+  }
+
+  async function couplesEnquiry(principal,id) {
+    if(!isDerivedGlobalCoordinator(principal)) throw new ClientPlanningRequestError('PLANNING_FORBIDDEN','Reception access is required.',403);
+    const result=await db.query(`SELECT r.*,r.preferred_date::text AS preferred_date,c.name AS client_name FROM client_planning_requests r
+      JOIN crm_v2_clients c ON c.id=r.crm_v2_client_id WHERE r.id=$1`,[positiveId(id)]);
+    const row=result.rows[0];
+    if(!row || row.request_kind!=='flexible' || String(row.service_detail||'').trim().toLowerCase()!=='couples massage')
+      throw new ClientPlanningRequestError('PLANNING_COUPLES_REQUIRED','Choose a Couples Massage enquiry.',409);
+    return row;
+  }
+  async function completeCouplesEnquiry({principal,id,action,payload={}}) {
+    const row=await couplesEnquiry(principal,id), booking=bookingForTwo();
+    const catalogue=await booking.catalogue(), service=catalogue.find(item=>item.couplesService===true);
+    if(!service) throw new ClientPlanningRequestError('PLANNING_COUPLES_UNAVAILABLE','Couples Massage is not currently available. Reception must review its treatment and practitioner settings.',409);
+    if(action==='options') {
+      if(!['requested','planning'].includes(row.status)) throw new ClientPlanningRequestError('PLANNING_ALREADY_RESOLVED','This enquiry is already arranged. Refresh Dashboard.',409);
+      const people=await booking.practitioners({serviceId:service.id});
+      return {service,practitioners:people.practitioners,clientName:row.client_name,preferredDate:row.preferred_date,revision:new Date(row.updated_at).toISOString()};
+    }
+    const allowed=new Set(action==='availability' ? ['staffIds','date'] : ['staffIds','startsAt','guest','quoteHash','requestId','clientAgreed','revision']);
+    if(!['availability','review','confirm'].includes(action) || Object.keys(payload).some(key=>!allowed.has(key)))
+      throw new ClientPlanningRequestError('PLANNING_ACTION_INVALID','Review both appointment details.');
+    if(action==='availability') return booking.availability({serviceIds:[service.id,service.id],staffIds:payload.staffIds,date:payload.date});
+    if(!Array.isArray(payload.staffIds)||payload.staffIds.length!==2) throw new ClientPlanningRequestError('PLANNING_ACTION_INVALID','Choose two practitioners.');
+    const input={crmV2ClientId:Number(row.crm_v2_client_id),guest:payload.guest,
+      treatments:payload.staffIds.map(staffId=>({staffId,serviceId:service.id,startsAt:payload.startsAt}))};
+    if(action==='review') return booking.review(input);
+    if(payload.clientAgreed!==true) throw new ClientPlanningRequestError('PLANNING_CLIENT_AGREEMENT_REQUIRED','Agree the exact booking details and Booking Policy & Terms with the client before confirming.');
+    return booking.createRequest({...input,quoteHash:payload.quoteHash,requestId:payload.requestId,policyAccepted:true,
+      specialOccasion:row.special_occasion,occasionNote:row.occasion_note,
+      _reception:{requestId:Number(row.id),adminId:Number(principal.id||principal.calendarAuthority?.operatorAdminId),revision:String(payload.revision||'')}});
   }
 
   async function decide({ principal, id, action, appointmentId = null }) {
@@ -182,7 +215,7 @@ function createClientPlanningRequestService({ db = pool, now = () => new Date() 
     } finally { connection.release(); }
   }
 
-  return { submit, forClient, forReception, decide, appointmentsForRequest, practitioners };
+  return { submit, forClient, forReception, decide, appointmentsForRequest, practitioners, completeCouplesEnquiry };
 }
 
 module.exports = { ClientPlanningRequestError, validate, createClientPlanningRequestService };

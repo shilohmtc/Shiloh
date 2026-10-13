@@ -68,6 +68,14 @@ Flexible and group requests follow the same no-decline/no-Start-planning directi
 
 Release verification pending.
 
+## Couples requests — accepted 13 October 2026
+
+Couples Massage should enter a complete booking request in My Shiloh, with the organiser and consenting guest, two eligible practitioners and one shared available start. Preserve the named service’s canonical total price for both people, divided into linked appointment allocations; do not replace it with two independently priced treatments. Keep the existing separate ordinary booking-for-two option.
+
+Reception reviews one card showing both clients, treatments, practitioners, the requested time and total. Confirm both appointments together or propose a shared alternative for the organiser to accept in My Shiloh. Recheck both canonical appointments, availability, identities and payment authority atomically. Do not approve or move one member independently. No planning or decline step is added.
+
+Existing Couples Massage enquiries keep their submitted preferences. **Set appointment details** on the enquiry collects the missing guest and practitioner details and a jointly available time, reviews the price/deposit, and records the client’s explicit agreement to the exact booking and Booking Policy & Terms. **Confirm booking for both** creates and approves the two canonical linked appointments and resolves the enquiry in one transaction. Retries must return the same booking; failures must leave the enquiry and booking unchanged. No invented partner, practitioner or exact time and no automatic conversion of existing records. The generic flexible/group enquiry linking flow remains for other experiences. Implementation and release evidence belongs on #611.
+
 ## Shared Shiloh direction — accepted 1 October 2026
 
 Workspace for the clinic team and My Shiloh for clients are the heart of one Shiloh platform and its shared north star. Use the existing Lucide outline icons across both, with a 24-unit viewBox, rounded strokes and consistent 2-unit stroke weight; the official S mark remains the brand anchor. Reuse the shared icon renderers rather than hand-drawing substitutes.

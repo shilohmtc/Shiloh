@@ -2,6 +2,7 @@ const {attachBookingNotePresence}=require('../services/workspaceAppointmentNotes
 'use strict';
 
 const express = require('express');
+const {couplesEnquiryClientScript}=require('../presentation/couplesEnquiryUx');
 const { staffDetailAuthEnabled } = require('../services/staffDetailIdentity');
 const workspaceDashboard = require('../services/workspaceDashboard');
 const workspaceNavigation = require('../services/workspaceNavigation');
@@ -123,7 +124,7 @@ function createWorkspaceOperationalRouter({
   router.use(requireSession);
 
   router.get('/client.js', (_req, res) => {
-    return res.status(200).type('application/javascript').send(dashboardClientScript() + '\n' + planningRequestClientScript() + '\n' + depositQueueClientScript());
+    return res.status(200).type('application/javascript').send(dashboardClientScript() + '\n' + planningRequestClientScript() + '\n' + couplesEnquiryClientScript() + '\n' + depositQueueClientScript());
   });
 
   router.get('/navigation', async (req, res) => {
@@ -210,6 +211,7 @@ function createWorkspaceOperationalRouter({
         expectedRevision: req.body?.expectedRevision,
         startsAt: req.body?.startsAt,
         staffId: req.body?.staffId,
+        ...(req.body?.staffIds!==undefined ? {staffIds:req.body.staffIds} : {}),
         serviceId: req.body?.serviceId,
       });
       return res.status(200).json(result);
@@ -223,6 +225,18 @@ function createWorkspaceOperationalRouter({
     (req, res) => bookingRequestAction(req, res, 'accept'));
   router.post('/booking-requests/:appointmentId/propose', sameOrigin, requireCsrf,
     (req, res) => bookingRequestAction(req, res, 'propose'));
+
+  async function couplesEnquiryAction(req,res,action) {
+    try {
+      const result=await dashboardService.completeCouplesEnquiry({adminId:req.staffBrowserSession?.adminId,
+        viewer:req.staffBrowserSession?.viewer,
+        ...(req.staffBrowserSession?.accountPrincipal ? {sessionPrincipal:req.staffBrowserSession.accountPrincipal} : {}),
+        requestId:req.params.requestId,action,payload:req.body||{}});
+      return res.status(200).json(result);
+    } catch(error) { const safe=dashboardMutationError(error); return res.status(safe.status).json({error:safe.message,code:safe.code,requestId:req.id}); }
+  }
+  router.get('/planning-requests/:requestId/couples', (req,res)=>couplesEnquiryAction(req,res,'options'));
+  router.post('/planning-requests/:requestId/couples/:action',sameOrigin,requireCsrf,(req,res)=>couplesEnquiryAction(req,res,req.params.action));
 
   router.get('/planning-requests/:requestId/appointments', async (req, res) => {
     try {

@@ -66,9 +66,28 @@ export const ReceptionAppointments = {
     displayName:'Synthetic Client AN',mode:'owner_overview',appointments:[],carryOver:[],teamGroups:[],awaitingFinalization:[],
     bookingRequests:[],rescheduleRequests:[],holidayDecisions:[],calendar:{ timeline:{ staff:[] } },
     planningRequests:[{ id:81,request_kind:'flexible',status:'planning',client_name:'Synthetic Client AI',
-      service_detail:'Couples Massage',candidate_appointments:[
+      service_detail:'Sports Massage',candidate_appointments:[
         { id:801,startsAt:'2030-12-16T08:00:00Z',serviceName:'Couples Massage',staffNames:'Synthetic practitioner A' },
         { id:802,startsAt:'2030-12-16T10:00:00Z',serviceName:'Sports Massage',staffNames:'Synthetic practitioner B' },
       ] }],
   })),
+};
+
+export const CouplesEnquiry = {
+  render:()=>surface(dashboard.renderDashboardPage({requestedDateKey:'2030-11-02',operationalDateKey:'2030-11-02',
+    displayName:'Synthetic Reception',mode:'owner_overview',appointments:[],carryOver:[],teamGroups:[],awaitingFinalization:[],
+    bookingRequests:[],rescheduleRequests:[],holidayDecisions:[],calendar:{timeline:{staff:[]}},
+    planningRequests:[{id:81,request_kind:'flexible',status:'planning',client_name:'Synthetic Organiser',service_detail:'Couples Massage',
+      preferred_date:'2030-11-02',preferred_daypart:'morning',practitioner_name:'Synthetic Practitioner A',special_occasion:true,occasion_note:'Anniversary'}]})),
+};
+
+export const CouplesAppointmentRequest = {
+  render:()=>surface(dashboard.renderDashboardPage({requestedDateKey:'2030-11-02',operationalDateKey:'2030-11-02',
+    displayName:'Synthetic Reception',mode:'owner_overview',appointments:[],carryOver:[],teamGroups:[],awaitingFinalization:[],
+    planningRequests:[],rescheduleRequests:[],holidayDecisions:[],calendar:{timeline:{staff:[]}},
+    bookingRequests:[{appointmentId:801,groupId:55,groupTotal:'1080.00',clientName:'Synthetic Organiser & Synthetic Guest',
+      staffName:'Practitioner A & Practitioner B',serviceName:'Booking for two',requestedStartsAt:'2030-11-02T08:00:00Z',
+      requestedRevision:'2030-10-01T08:00:00Z',effectiveStatus:'pending',canChangePractitioner:false,
+      members:[{currentStaffId:11,eligiblePractitioners:[{id:11,displayName:'Practitioner A'},{id:12,displayName:'Practitioner B'}],clientName:'Synthetic Organiser',serviceName:'Couples Massage',practitionerName:'Practitioner A',requestedStartsAt:'2030-11-02T08:00:00Z'},
+        {currentStaffId:12,eligiblePractitioners:[{id:11,displayName:'Practitioner A'},{id:12,displayName:'Practitioner B'}],clientName:'Synthetic Guest',serviceName:'Couples Massage',practitionerName:'Practitioner B',requestedStartsAt:'2030-11-02T08:00:00Z'}]}]})),
 };
