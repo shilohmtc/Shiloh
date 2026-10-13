@@ -140,6 +140,28 @@ async function run() {
     assert.equal(providerModel.payment.netPaid,'100.00');
     if(providerRace[0].status==='fulfilled') {assert.equal(providerModel.payment.amountDue,'0.00');assert.equal(providerModel.paymentReview.kind,'no_charge_payment_received');}
     else {assert.equal(providerRace[0].reason.code,'NO_CHARGE_PAYMENT_REVIEW');assert.equal(providerModel.payment.amountDue,'500.00');}
+    await admin.query(`INSERT INTO appointments(id,crm_v2_client_id,status,total_price,currency,updated_at,starts_at,title) VALUES(210,101,'completed',500,'ZAR',NOW(),'2026-10-08','Synthetic callback owns request first');
+      INSERT INTO appointment_staff VALUES(210,11,1);INSERT INTO appointment_services VALUES(210,21,'Synthetic treatment',1);
+      INSERT INTO booking_payment_accounts(id,appointment_id,canonical_amount_due,currency,pricing_revision) VALUES(110,210,500,'ZAR',NOW());
+      INSERT INTO payment_requests(payment_account_id,state,amount,request_key) VALUES(110,'pending',100,'SYNTHETIC-REQUEST-LOCK-FIRST')`);
+    const forcedWaiver=await noChargeInput(210);
+    let signalProvider, releaseProvider, signalWaiver;
+    const providerLocked=new Promise(resolve=>signalProvider=resolve),providerContinue=new Promise(resolve=>releaseProvider=resolve),waiverWaiting=new Promise(resolve=>signalWaiver=resolve);
+    const orderedDb={...db,async connect(){const client=await db.connect();return {release:()=>client.release(),async query(sql,params){
+      if(sql.includes("SELECT to_jsonb(a)->>'financial_classification'") && Number(params?.[0])===210) {signalProvider();await providerContinue;}
+      if(sql.startsWith('SELECT id FROM payment_requests WHERE payment_account_id=') && Number(params?.[0])===110) signalWaiver();
+      return client.query(sql,params);
+    }};}};
+    const orderedService=serviceFor(orderedDb);
+    const providerFirst=orderedService.handleOzowNotification({TransactionId:'SYNTHETIC-LOCK-FIRST-EVENT',TransactionReference:'SYNTHETIC-REQUEST-LOCK-FIRST',Status:'Complete',Amount:'100.00',CurrencyCode:'ZAR'});
+    await providerLocked;
+    const waiverSecond=orderedService.recordNoCharge(forcedWaiver);
+    // The waiver has reached the already locked request. The receipt must be
+    // able to obtain its real account foreign-key lock and commit first.
+    await waiverWaiting;releaseProvider();
+    const forcedResults=await Promise.allSettled([providerFirst,waiverSecond]);
+    assert.equal(forcedResults[0].status,'fulfilled');assert.equal(forcedResults[1].status,'rejected');assert.equal(forcedResults[1].reason.code,'NO_CHARGE_PAYMENT_REVIEW');
+    const forcedModel=await service.get({adminId:2,appointmentId:210});assert.equal(forcedModel.payment.amountDue,'500.00');assert.equal(forcedModel.payment.netPaid,'100.00');
     console.log('No-charge PostgreSQL proof passed: exact concurrent retry and serialization against manual money and verified provider callbacks.');
     console.log(
       'Prior-payment PostgreSQL proof passed: exact concurrent replay, duplicate-evidence protection, booking caps, receipt-use caps, single reversal and unchanged original receipts.',

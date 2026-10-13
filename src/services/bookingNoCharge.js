@@ -107,13 +107,17 @@ function createBookingNoChargeActions({
             'NO_CHARGE_PACKAGE_REVIEW',
             'This is a package visit. Use its existing package evidence rather than no charge.',
           );
-        const account = await accountFor(client, subject, { create: true });
+        let account = await accountFor(client, subject);
+        if (!account) account = await accountFor(client, subject, { create: true });
         // Lock provider requests before checking receipts: a verified callback must
         // either commit first and block the waiver, or arrive after it for review.
         await client.query(
           'SELECT id FROM payment_requests WHERE payment_account_id=$1 ORDER BY id FOR UPDATE',
           [account.id],
         );
+        // Existing callbacks lock the request before inserting a receipt, whose
+        // account foreign key takes a parent-row lock. Match that lock order.
+        account = await accountFor(client, subject, { create: true });
         const activity = await client.query(
           `SELECT 1 FROM payment_ledger_entries WHERE payment_account_id=$1
           UNION ALL SELECT 1 FROM treatment_credit_entries WHERE booking_payment_account_id=$1

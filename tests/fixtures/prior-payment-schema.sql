@@ -29,3 +29,6 @@ CREATE TABLE payment_provider_events(id BIGSERIAL,provider TEXT,provider_event_k
 ALTER TABLE appointments ADD COLUMN financial_classification TEXT DEFAULT 'standard',ADD COLUMN pre_adjustment_total_price NUMERIC(12,2);
 CREATE TABLE package_session_redemptions(appointment_id BIGINT,status TEXT);
 UPDATE staff_admin_accounts SET permissions=permissions || '{"appointment:adjust_end":true,"calendar:booking:reschedule":true,"calendar:booking:cancel":true,"calendar:booking:reassign":true}'::jsonb WHERE id IN(1,2);
+
+ALTER TABLE payment_ledger_entries ADD CONSTRAINT payment_ledger_account_fk FOREIGN KEY(payment_account_id) REFERENCES booking_payment_accounts(id);
+ALTER TABLE payment_requests ADD CONSTRAINT payment_request_account_fk FOREIGN KEY(payment_account_id) REFERENCES booking_payment_accounts(id);
