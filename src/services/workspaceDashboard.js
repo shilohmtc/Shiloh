@@ -396,7 +396,12 @@ function createWorkspaceDashboardService({
     return planningRequestService.decide({ principal, id:requestId, action, appointmentId });
   }
 
-  return { buildModel, depositQueue, finalizeVisit, resolveBookingRequest, resolveRescheduleRequest, resolvePlanningRequest };
+  async function planningAppointments({ adminId, viewer, sessionPrincipal = null, requestId } = {}) {
+    const { principal } = await resolveAuthority(adminId, viewer, sessionPrincipal);
+    return planningRequestService.appointmentsForRequest({ principal, id:requestId });
+  }
+
+  return { buildModel, depositQueue, finalizeVisit, resolveBookingRequest, resolveRescheduleRequest, resolvePlanningRequest, planningAppointments };
 }
 
 const service = createWorkspaceDashboardService({
