@@ -79,6 +79,7 @@ for (const viewport of [
       waitUntil: 'networkidle',
     });
     await expect(page.getByLabel('Mobile number')).toHaveAttribute('readonly', '');
+    await expect(page.getByLabel('Mobile number')).toHaveValue('0820000001');
     await page.addScriptTag({ content: ux.setupScript() });
     await page.route('**/calendar/staff-auth/csrf', (route) =>
       route.fulfill({ json: { csrfToken: 'synthetic-csrf' } }),
@@ -92,7 +93,7 @@ for (const viewport of [
           firstName: 'Synthetic',
           surname: 'Example',
           dateOfBirth: '2000-01-01',
-          mobile: '27820000001',
+          mobile: '0820000001',
         },
       });
       return route.fulfill({ json: { saved: true } });
