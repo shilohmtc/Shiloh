@@ -1,5 +1,6 @@
 const { pool } = require('../db/pool');
 const { listAvailableSlots } = require('./availabilityService');
+const { checkAssistantBookingHours } = require('./assistantBookingHours');
 const { getIntent, extractDate, extractTime, processBookingMessage, displayDate, verifyService } = require('./bookingIntent');
 const { decorateClientBookingResult } = require('./clientBookingInteractive');
 const { getClinicDateStatus, getNextOpenClinicDates } = require('./clinicDateChoices');
@@ -56,7 +57,10 @@ async function authoritativeSlotsForIntent(intent, { daypart = null, now = new D
     if (result.status === 'not_eligible' || result.status === 'inactive_or_missing') continue;
     for (const slot of result.slots || []) {
       const enriched = { ...slot, staff_id: Number(practitioner.id), staff_name: practitioner.display_name, service_id: Number(service.id), service_name: service.name };
-      if (!isFutureSlot(enriched, now)) continue; if (daypart && daypartForSlot(enriched) !== daypart) continue; combined.push(enriched);
+      if (!isFutureSlot(enriched, now)) continue; if (daypart && daypartForSlot(enriched) !== daypart) continue;
+      const hours = await checkAssistantBookingHours({ startsAt: enriched.starts_at, endsAt: enriched.ends_at });
+      if (!hours.covered) continue;
+      combined.push(enriched);
     }
   }
   combined.sort((a, b) => { const time = new Date(a.starts_at) - new Date(b.starts_at); return time || Number(a.staff_id) - Number(b.staff_id); });
@@ -88,7 +92,10 @@ async function revalidateSelectedSlot(intent, selection) {
   const service = await resolveService(intent); if (!service) return null; const staff = await resolveEligibleStaff(service.id, intent.therapist_text); const practitioner = staff.find((row) => Number(row.id) === Number(selection.staffId)); if (!practitioner) return null;
   if (clean(intent.therapist_text) && !isAnyPractitionerPreference(intent.therapist_text) && clean(practitioner.display_name).toLowerCase() !== clean(intent.therapist_text).toLowerCase()) return null;
   const result = await listAvailableSlots({ staffId: practitioner.id, serviceId: service.id, date: intent.preferred_date, intervalMinutes: 15 });
-  return (result.slots || []).find((slot) => isFutureSlot(slot) && localDateKey(slot.starts_at) === selection.dateKey && `${localTimeParts(slot.starts_at).hh}${localTimeParts(slot.starts_at).mm}` === selection.hhmm) ? practitioner : null;
+  const slot = (result.slots || []).find((slot) => isFutureSlot(slot) && localDateKey(slot.starts_at) === selection.dateKey && `${localTimeParts(slot.starts_at).hh}${localTimeParts(slot.starts_at).mm}` === selection.hhmm);
+  if (!slot) return null;
+  const hours = await checkAssistantBookingHours({ startsAt: slot.starts_at, endsAt: slot.ends_at });
+  return hours.covered ? practitioner : null;
 }
 
 async function acceptSlot(sender, intent, selection) {
