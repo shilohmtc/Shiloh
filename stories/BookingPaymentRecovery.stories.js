@@ -56,3 +56,14 @@ export const BalanceWithSatisfiedDeposit = {
 export const AwaitingDeposit = {
   render: () => surface(renderCalendarPaymentPage({ model: paymentFixture({ paid: false, awaitingDeposit: true }) })),
 };
+
+export const PriceChangedAfterPayment = {
+  render: () => {
+    const model = paymentFixture({ paid: false });
+    model.subject.amountDue = '0.00';
+    model.priceReview = { kind: 'price_changed_after_settlement', recordedAmountDue: model.payment.amountDue, currentAmountDue: '0.00' };
+    model.authority = { ...model.authority, canCollect: false, canRefund: false, canRecordNoCharge: false, canRecordPrior: false };
+    model.deposit = null; model.rewards = null; model.noncash = { eligible: false };
+    return surface(renderCalendarPaymentPage({ model }));
+  },
+};

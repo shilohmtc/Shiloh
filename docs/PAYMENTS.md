@@ -17,6 +17,8 @@ Each request row uses **Deposit · amount** only when its recorded purpose is de
 
 Refund records require the narrower `payment:refund` capability. The initial migration grants collection to active canonical owner/booking-operator principals with full business/service scope and refund authority only to the active canonical owner.
 
+When the current booking price differs from its recorded payment-account price after payment or credit activity, authorized staff can still open Payments to review the original account, receipts and earlier-payment evidence. The page identifies both prices and labels the original balance as review only. Collection, refunds, credit applications, No charge decisions and sharing payment links remain blocked on this review page; opening it does not reconcile prices, change money or create a deposit requirement. Ordinary financial actions retain their existing price-mismatch guards. A current price of R0 is separate from the audited No charge classification and does not erase existing payment or credit history.
+
 ## Booking Policy & Terms — deposit enforcement
 
 Shiloh has one client-facing **Booking Policy & Terms** authority. The deposit tables below are a technical enforcement mirror of that same policy, layered on top of the existing payment ledger; they are not a second clinic policy.

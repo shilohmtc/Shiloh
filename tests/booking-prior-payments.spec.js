@@ -67,6 +67,21 @@ async function shot(page, label) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: `${directory}/${label}.png`, fullPage: true });
 }
+async function accessibilityViolations(page) {
+  let violations;
+  // Storybook's addon can already be scanning when Playwright requests Axe.
+  // Retry only that overlap; actual violations and other errors still fail.
+  await expect.poll(async () => {
+    try {
+      violations = (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations;
+      return true;
+    } catch (error) {
+      if (error.message.includes('Axe is already running')) return false;
+      throw error;
+    }
+  }, { timeout: 10000 }).toBe(true);
+  return violations;
+}
 for (const [name, viewport] of [
   ['desktop', { width: 1440, height: 1000 }],
   ['phone', { width: 390, height: 844 }],
@@ -99,9 +114,7 @@ for (const [name, viewport] of [
         if (story === 'prior-receipt-review')
           await expect(page.locator('.payment-head .state')).toHaveText('Payment review needed');
         await shot(page, `${name}-storybook-${story}`);
-        const violations = (
-          await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
-        ).violations;
+        const violations = await accessibilityViolations(page);
         expect(violations).toEqual([]);
       }
       if (role === 'business_admin')
@@ -140,7 +153,7 @@ for (const [name, viewport] of [
       await page.reload();
       await expect(form).toBeVisible();
       await expect(form.getByRole('button', { name: 'Record paid previously' })).toBeEnabled();
-      await form.getByRole('button', { name: 'Record paid previously' }).click();
+      await Promise.all([page.waitForEvent('load'), form.getByRole('button', { name: 'Record paid previously' }).click()]);
       await expect(page.locator('[data-prior-history]')).toContainText('Paid previously');
       await expect(page.locator('.balance').first()).toContainText(/R\s?500[,.]00/);
       const result = await service.get({ adminId: 2, appointmentId: 201 });
@@ -155,14 +168,13 @@ for (const [name, viewport] of [
       ).toBe(1);
       await shot(page, `${label}-settled`);
       expect(
-        (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
-          .violations,
+        await accessibilityViolations(page),
       ).toEqual([]);
       const reversal = page.locator('[data-prior-payment="prior-payment-reverse"]');
       await reversal.locator('[name="reason"]').fill('Evidence requires correction');
       await reversal.locator('[name="reviewed"]').check();
       await reversal.getByRole('button', { name: 'Reverse prior payment' }).click();
-      await page.getByRole('dialog').getByRole('button', { name: 'Reverse prior payment' }).click();
+      await Promise.all([page.waitForEvent('load'), page.getByRole('dialog').getByRole('button', { name: 'Reverse prior payment' }).click()]);
       await expect(page.locator('[data-prior-history]')).toContainText('Prior payment reversed');
       expect((await service.get({ adminId: 2, appointmentId: 201 })).payment.outstanding).toBe(
         '500.00',
@@ -190,8 +202,7 @@ for (const [name, viewport] of [
         await expect(page.locator('[data-prior-payment="no-charge"]')).toBeVisible();
       else await expect(page.locator('.payment-head .state')).toHaveText('No charge');
       expect(
-        (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
-          .violations,
+        await accessibilityViolations(page),
       ).toEqual([]);
       await shot(page, `${name}-storybook-${story}`);
     }
@@ -226,7 +237,7 @@ for (const [name, viewport] of [
     await expect(form.locator('[data-prior-status]')).toContainText('Retry this unchanged request');
     await page.reload();
     await expect(form).toBeVisible();
-    await form.getByRole('button', { name: 'Record no charge' }).click();
+    await Promise.all([page.waitForEvent('load'), form.getByRole('button', { name: 'Record no charge' }).click()]);
     await expect(page.locator('.payment-head .state')).toHaveText('No charge');
     await expect(page.locator('[data-no-charge-history]')).toContainText(
       'Owner approved complimentary visit',
@@ -250,8 +261,7 @@ for (const [name, viewport] of [
       (await db.query('SELECT COUNT(*)::int AS n FROM payment_ledger_entries')).rows[0].n,
     ).toBe(0);
     expect(
-      (await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze())
-        .violations,
+      await accessibilityViolations(page),
     ).toEqual([]);
     await shot(page, `${name}-no-charge-saved`);
   });
