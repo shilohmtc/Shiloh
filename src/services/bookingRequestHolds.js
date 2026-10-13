@@ -6,6 +6,7 @@ async function pendingBookingProposalConflicts({
   startsAt,
   endsAt,
   excludeAppointmentId = null,
+  excludeAppointmentIds = [],
 }) {
   const result = await db.query(`
     SELECT 'booking_request_proposal_hold'::text AS conflict_type,
@@ -23,8 +24,9 @@ async function pendingBookingProposalConflicts({
        AND aba.proposed_starts_at<$3
        AND aba.proposed_ends_at>$2
        AND ($4::bigint IS NULL OR aba.appointment_id<>$4)
+       AND NOT(aba.appointment_id=ANY($5::bigint[]))
      ORDER BY aba.proposed_starts_at,aba.appointment_id
-  `, [staffId, startsAt, endsAt, excludeAppointmentId]);
+  `, [staffId, startsAt, endsAt, excludeAppointmentId, excludeAppointmentIds]);
   return result.rows || [];
 }
 

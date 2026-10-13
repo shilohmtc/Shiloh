@@ -11,8 +11,9 @@ for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',w
     let availabilityCalls=0,reviewCalls=0;
     const confirms=[];
     const slot={ startsAt:'2026-11-02T08:00:00.000Z',time:'10:00',endTime:'11:00',guestEndTime:'11:15' };
-    await page.route('**/my-shiloh/api/booking/practitioners?*',route => route.fulfill({ json:{ practitioners:[{ id:11,name:'Synthetic Client AN' },{ id:12,name:'Abigail' }] } }));
+    await page.route('**/my-shiloh/api/booking/couples/practitioners?*',route => route.fulfill({ json:{ practitioners:[{ id:11,name:'Synthetic Client AN' },{ id:12,name:'Abigail' }] } }));
     await page.route('**/my-shiloh/api/booking/couples/**',async route => {
+      if(route.request().method()==='GET') return route.fulfill({json:{practitioners:[{id:11,name:'Synthetic Client AN'},{id:12,name:'Abigail'}]}});
       const action=route.request().url().split('/').pop(); const body=route.request().postDataJSON();
       expect(route.request().headers()['x-shiloh-csrf-token']).toBe('storybook-csrf');
       expect(body.crmV2ClientId).toBeUndefined();

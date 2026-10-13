@@ -98,7 +98,11 @@ function rowVisibleToScope(row, principal, scope) {
 
 async function rawUnresolvedRows(db, scope) {
   const result = await db.query(`
-    SELECT aba.appointment_id,aba.approver_staff_id,aba.status,aba.requested_at,aba.planning_started_at,aba.client_occasion_note,aba.client_special_occasion,
+    SELECT (SELECT g.id FROM appointment_group_members gm JOIN appointment_groups g ON g.id=gm.group_id
+             WHERE gm.appointment_id=a.id AND g.source='shiloh_my_shiloh_couples' AND g.group_type='couples_massage') AS couples_group_id,
+           (SELECT gm.guest_position FROM appointment_group_members gm WHERE gm.appointment_id=a.id) AS guest_position,
+           (SELECT g.final_total FROM appointment_group_members gm JOIN appointment_groups g ON g.id=gm.group_id WHERE gm.appointment_id=a.id) AS group_total,
+           aba.appointment_id,aba.approver_staff_id,aba.status,aba.requested_at,aba.planning_started_at,aba.client_occasion_note,aba.client_special_occasion,
            aba.requested_starts_at,aba.requested_ends_at,aba.requested_revision,
            aba.requested_staff_ids,aba.proposed_starts_at,aba.proposed_ends_at,
            aba.proposed_staff_id,aba.proposal_version,aba.proposal_expires_at,
@@ -154,7 +158,8 @@ async function listUnresolvedBookingRequests({ db = pool, principal, now = new D
   const scope = await coordinationScopeForPrincipal(db, principal);
   if (scope.kind === 'none') return [];
   const rows = await rawUnresolvedRows(db, scope);
-  return rows.filter(row => rowVisibleToScope(row, principal, scope)).map(row => ({
+  const requests = rows.filter(row => rowVisibleToScope(row, principal, scope)).map(row => ({
+    groupId:positiveId(row.couples_group_id), guestPosition:Number(row.guest_position||0), groupTotal:row.group_total,
     appointmentId: Number(row.appointment_id),
     currentStaffId: positiveId(row.current_staff_id),
     canChangePractitioner: Number(row.current_staff_count) === 1,
@@ -182,6 +187,17 @@ async function listUnresolvedBookingRequests({ db = pool, principal, now = new D
     proposedStaffName: row.proposed_staff_name,
     proposalVersion: Number(row.proposal_version || 0),
     proposalExpiresAt: row.proposal_expires_at,
+  }));
+  const groups=new Map();
+  for(const item of requests) if(item.groupId) { if(!groups.has(item.groupId)) groups.set(item.groupId,[]); groups.get(item.groupId).push(item); }
+  return requests.filter(item=>!item.groupId).concat([...groups.values()].map(members=>{
+    members.sort((a,b)=>a.guestPosition-b.guestPosition);
+    const lead=members[0];
+    return {...lead,members,canChangePractitioner:false,eligiblePractitioners:[],
+      clientName:members.map(member=>member.clientName).join(' & '),staffName:members.map(member=>member.practitionerName).join(' & '),
+      proposedStaffName:members.map(member=>member.proposedStaffName).join(' & '),
+      serviceName:'Booking for two',
+      effectiveStatus:members.some(member=>member.effectiveStatus==='awaiting_client_confirmation') ? 'awaiting_client_confirmation' : 'pending'};
   }));
 }
 

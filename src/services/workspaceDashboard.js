@@ -375,11 +375,11 @@ function createWorkspaceDashboardService({
     throw new WorkspaceDashboardError('WORKSPACE_DASHBOARD_FINALIZE_INVALID', 'This appointment outcome cannot be recorded.', 400);
   }
 
-  async function resolveBookingRequest({ adminId, viewer, sessionPrincipal = null, appointmentId, expectedRevision, action, startsAt, staffId, serviceId } = {}) {
+  async function resolveBookingRequest({ adminId, viewer, sessionPrincipal = null, appointmentId, expectedRevision, action, startsAt, staffId, staffIds, serviceId } = {}) {
     const { principal } = await resolveAuthority(adminId, viewer, sessionPrincipal);
     const input = { principal, appointmentId, expectedRevision };
     if (action === 'accept' && typeof bookingRequestService.acceptRequestedAppointment === 'function') return bookingRequestService.acceptRequestedAppointment(input);
-    if (action === 'propose' && typeof bookingRequestService.proposeAlternative === 'function') return bookingRequestService.proposeAlternative({ ...input, startsAt, staffId, serviceId });
+    if (action === 'propose' && typeof bookingRequestService.proposeAlternative === 'function') return bookingRequestService.proposeAlternative({ ...input, startsAt, staffId, staffIds, serviceId });
     throw new WorkspaceDashboardError('WORKSPACE_BOOKING_REQUEST_INVALID', 'Choose a valid booking-request resolution.', 400);
   }
 
@@ -396,12 +396,17 @@ function createWorkspaceDashboardService({
     return planningRequestService.decide({ principal, id:requestId, action, appointmentId });
   }
 
+  async function completeCouplesEnquiry({adminId,viewer,sessionPrincipal=null,requestId,action,payload}={}) {
+    const {principal}=await resolveAuthority(adminId,viewer,sessionPrincipal);
+    return planningRequestService.completeCouplesEnquiry({principal,id:requestId,action,payload});
+  }
+
   async function planningAppointments({ adminId, viewer, sessionPrincipal = null, requestId } = {}) {
     const { principal } = await resolveAuthority(adminId, viewer, sessionPrincipal);
     return planningRequestService.appointmentsForRequest({ principal, id:requestId });
   }
 
-  return { buildModel, depositQueue, finalizeVisit, resolveBookingRequest, resolveRescheduleRequest, resolvePlanningRequest, planningAppointments };
+  return { buildModel, depositQueue, finalizeVisit, resolveBookingRequest, resolveRescheduleRequest, resolvePlanningRequest, planningAppointments, completeCouplesEnquiry };
 }
 
 const service = createWorkspaceDashboardService({

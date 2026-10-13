@@ -106,6 +106,7 @@ function fixedCataloguePrice(service = {}) {
 
 function createMyShilohBookingService({
   db = pool,
+  allowCouplesService = false,
   catalogueProvider = getPublicServiceCatalogue,
   availability = authoritativeSlotsForIntent,
   eligibleStaff = resolveEligibleStaff,
@@ -241,10 +242,11 @@ function createMyShilohBookingService({
         WHERE s.id=$1
           AND COALESCE(s.variable_price,FALSE)=FALSE
           AND s.price IS NOT NULL
-          AND s.external_source IS DISTINCT FROM 'shiloh_special'
+          AND (s.external_source IS DISTINCT FROM 'shiloh_special'
+            OR ($2::boolean AND s.external_source='shiloh_special' AND s.external_id='couples-massage-v1'))
 
         LIMIT 1`,
-      [id],
+      [id, allowCouplesService],
     );
     const service = result.rows[0];
     if (!service || service.status !== 'active') {
@@ -356,6 +358,19 @@ function createMyShilohBookingService({
       if (allowed && !allowed.has(id)) return false;
       return Number.isFinite(amount) && amount >= minimum;
     });
+  }
+
+  async function couplesCatalogue() {
+    const ordinary = await catalogue();
+    const named = await db.query(`SELECT s.id,s.name,s.price,s.duration_minutes,s.processing_time_minutes,s.extra_time_minutes
+      FROM services s WHERE s.status='active' AND s.external_source='shiloh_special'
+        AND s.external_id='couples-massage-v1' AND COALESCE(s.variable_price,FALSE)=FALSE AND s.price>0
+        AND (SELECT COUNT(DISTINCT st.id) FROM staff_services ss JOIN staff st ON st.id=ss.staff_id
+          WHERE ss.service_id=s.id AND st.status='active' AND st.resource_type='practitioner'
+            AND st.client_bookable=TRUE AND COALESCE(st.business_role,'')<>'tenant_practitioner')>=2`);
+    return [...ordinary, ...named.rows.map(row => ({ id:Number(row.id),name:row.name,
+      duration:`${Number(row.duration_minutes)+Number(row.processing_time_minutes||0)+Number(row.extra_time_minutes||0)} min`,
+      price:`R${Number(row.price).toFixed(2)} for two`, couplesService:true }))];
   }
 
   async function createRequest({
@@ -490,7 +505,7 @@ function createMyShilohBookingService({
 
   async function policy() { return depositPolicy.loadPolicy(db); }
 
-  return { catalogue, packageCatalogue, practitioners, slots, createRequest, policy, clientAppEligibleStaff, unfinishedDraft, discardDraft };
+  return { catalogue, couplesCatalogue, packageCatalogue, practitioners, slots, createRequest, policy, clientAppEligibleStaff, unfinishedDraft, discardDraft };
 }
 
 const service = createMyShilohBookingService();

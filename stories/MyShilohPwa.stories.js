@@ -734,3 +734,13 @@ export const MissingDobRequest = {render:()=>{
   request.querySelector('[data-dob-request-copy]').textContent='Please add your date of birth in Profile when you have a moment. Your existing bookings stay as they are.';
   return root;
 }};
+
+export const NamedCouplesMassage = {
+  render:()=>{
+    const source=couplesBookingPresentation.renderMyShilohCouplesBookingPage({catalogue:[...catalogue,{id:901,name:'Couples Massage',duration:'90 min',price:'R1080.00 for two',couplesService:true}],
+      selectedServiceId:901,clientFirstName:'Synthetic Organiser',csrfToken:'storybook-csrf',bookingPolicyText:BOOKING_POLICY_TEXT});
+    const styles=[...source.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map(match=>match[1]).join('\n');
+    const body=source.match(/<body[^>]*>([\s\S]*?)<\/body>/)?.[1]||'';
+    const root=document.createElement('div');root.innerHTML=`<style>${styles}</style><div data-story-surface>${body.replace(/<script[\s\S]*?<\/script>/g,'')}</div>`;return root;
+  },
+};

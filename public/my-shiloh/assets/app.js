@@ -443,7 +443,8 @@
 
   function planningServiceQuery() {
     const id = new URLSearchParams(window.location.search).get('service') || '';
-    return /^[1-9]\d*$/.test(id) ? `?service=${encodeURIComponent(id)}` : '';
+    const two = new URLSearchParams(window.location.search).get('for') === 'two';
+    return /^[1-9]\d*$/.test(id) ? `?service=${encodeURIComponent(id)}${two ? '&for=two' : ''}` : two ? '?for=two' : '';
   }
 
   function signedInLanding() {

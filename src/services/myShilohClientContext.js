@@ -60,6 +60,7 @@ function appointmentFromRow(row) {
     endsAt: new Date(row.ends_at).toISOString(),
     status: String(row.status || ''),
     bookingRequestStatus: row.booking_request_status ? String(row.booking_request_status) : null,
+    canRespondToProposal:row.can_respond_to_proposal!==false,
     planningStartedAt: row.planning_started_at ? new Date(row.planning_started_at).toISOString() : null,
     proposedStartsAt: row.proposed_starts_at ? new Date(row.proposed_starts_at).toISOString() : null,
     proposalExpiresAt: row.proposal_expires_at ? new Date(row.proposal_expires_at).toISOString() : null,
@@ -215,17 +216,27 @@ function createMyShilohClientContextService({
     const result = await db.query(
       `/* myShilohClientContext:active-booking-request */
        SELECT a.id,a.crm_v2_client_id,a.starts_at,a.ends_at,a.status,
+              (linked_group.id IS NULL OR group_seed.guest_position=1) AS can_respond_to_proposal,
               aba.status AS booking_request_status,aba.planning_started_at,aba.proposed_starts_at,aba.proposed_ends_at,aba.proposal_expires_at,aba.proposal_version,
-              COALESCE((SELECT jsonb_agg(jsonb_build_object('name',st.display_name) ORDER BY offered.position)
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('name',pair_staff.display_name) ORDER BY gm.guest_position)
+                FROM appointment_group_members gm JOIN appointment_booking_approvals pair_approval ON pair_approval.appointment_id=gm.appointment_id
+                JOIN staff pair_staff ON pair_staff.id=pair_approval.proposed_staff_id WHERE gm.group_id=linked_group.id),
+                (SELECT jsonb_agg(jsonb_build_object('name',st.display_name) ORDER BY offered.position)
                 FROM unnest(aba.proposed_staff_ids) WITH ORDINALITY offered(staff_id,position)
                 JOIN staff st ON st.id=offered.staff_id),'[]'::jsonb) AS proposed_practitioners,
-              a.total_price,a.currency,
-              COALESCE((SELECT jsonb_agg(jsonb_build_object('name',aps.service_name_snapshot) ORDER BY aps.position,aps.id)
+              COALESCE(linked_group.final_total,a.total_price) AS total_price,a.currency,
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('name',pair_service.service_name_snapshot) ORDER BY gm.guest_position)
+                FROM appointment_group_members gm JOIN appointment_services pair_service ON pair_service.appointment_id=gm.appointment_id AND pair_service.position=1 WHERE gm.group_id=linked_group.id),
+                (SELECT jsonb_agg(jsonb_build_object('name',aps.service_name_snapshot) ORDER BY aps.position,aps.id)
                           FROM appointment_services aps WHERE aps.appointment_id=a.id),'[]'::jsonb) AS services,
-              COALESCE((SELECT jsonb_agg(jsonb_build_object('name',ast.staff_name_snapshot) ORDER BY ast.position,ast.id)
+              COALESCE((SELECT jsonb_agg(jsonb_build_object('name',pair_staff.staff_name_snapshot) ORDER BY gm.guest_position)
+                FROM appointment_group_members gm JOIN appointment_staff pair_staff ON pair_staff.appointment_id=gm.appointment_id AND pair_staff.position=1 WHERE gm.group_id=linked_group.id),
+                (SELECT jsonb_agg(jsonb_build_object('name',ast.staff_name_snapshot) ORDER BY ast.position,ast.id)
                           FROM appointment_staff ast WHERE ast.appointment_id=a.id),'[]'::jsonb) AS practitioners
          FROM appointment_booking_approvals aba
          JOIN appointments a ON a.id=aba.appointment_id
+         LEFT JOIN appointment_group_members group_seed ON group_seed.appointment_id=a.id
+         LEFT JOIN appointment_groups linked_group ON linked_group.id=group_seed.group_id AND linked_group.source='shiloh_my_shiloh_couples'
         WHERE a.crm_v2_client_id=$1 AND a.client_id IS NULL
           AND a.status NOT IN ('cancelled','no_show')
           AND aba.status IN ('pending','awaiting_client_confirmation')
