@@ -165,6 +165,14 @@ jobs:
           path: artifacts/ux-playwright-results/**/couples-*.png
           if-no-files-found: ignore
           retention-days: 14
+      - name: Upload phone-assisted enquiry resolution review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: enquiry-resolution-visual-review
+          path: artifacts/ux-playwright-results/**/enquiry-*.png
+          if-no-files-found: error
+          retention-days: 14
       - name: Upload Workspace deposit visual review
         if: always()
         uses: actions/upload-artifact@v7

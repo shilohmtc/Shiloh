@@ -103,7 +103,7 @@ test('arranged requests list every approved upcoming booking and recheck eligibi
   const { PGlite } = require('@electric-sql/pglite');
   const pg = new PGlite(); t.after(() => pg.close());
   await pg.exec(`
-    CREATE TABLE crm_v2_clients(id bigint PRIMARY KEY,name text);
+    CREATE TABLE crm_v2_clients(id bigint PRIMARY KEY,name text,normalized_mobile text);
     CREATE TABLE staff_admin_accounts(id bigint PRIMARY KEY);
     CREATE TABLE services(id bigint PRIMARY KEY,name text);
     CREATE TABLE staff(id bigint PRIMARY KEY,display_name text);
@@ -111,7 +111,7 @@ test('arranged requests list every approved upcoming booking and recheck eligibi
     CREATE TABLE appointment_booking_approvals(appointment_id bigint PRIMARY KEY,status text);
     CREATE TABLE appointment_services(id bigint PRIMARY KEY,appointment_id bigint,service_id bigint);
     CREATE TABLE appointment_staff(appointment_id bigint,staff_id bigint);
-    INSERT INTO crm_v2_clients VALUES(22,'Synthetic client'),(23,'Other client');
+    INSERT INTO crm_v2_clients(id,name) VALUES(22,'Synthetic client'),(23,'Other client');
     INSERT INTO staff_admin_accounts VALUES(4);
     INSERT INTO staff VALUES(7,'Synthetic practitioner');
     INSERT INTO services VALUES(5,'Synthetic treatment');

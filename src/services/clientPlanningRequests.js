@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const { pool } = require('../db/pool');
 const { isDerivedGlobalCoordinator } = require('./workspaceBookingRequestRouting');
+const { createPlanningRequestCompletion } = require('./clientPlanningRequestCompletion');
 
 class ClientPlanningRequestError extends Error {
   constructor(code, message, httpStatus = 422) {
@@ -83,6 +84,7 @@ function validate(input = {}, now = new Date()) {
 }
 
 function createClientPlanningRequestService({ db = pool, now = () => new Date(), couplesBooking = null } = {}) {
+  const completion=createPlanningRequestCompletion({db,ErrorClass:ClientPlanningRequestError});
   const bookingForTwo = () => couplesBooking || require('./myShilohMultipleBooking').createMyShilohMultipleBookingService({ db,couples:true });
   async function practitioners() {
     const result = await db.query(`SELECT id,display_name FROM staff WHERE status='active'
@@ -131,13 +133,13 @@ function createClientPlanningRequestService({ db = pool, now = () => new Date(),
     if (!isDerivedGlobalCoordinator(principal)) return [];
     const result = await db.query(`SELECT r.id,r.request_kind,r.status,r.service_detail,r.preferred_date::text AS preferred_date,r.preferred_daypart,
       r.guest_count,r.special_occasion,r.occasion_note,r.client_note,r.requested_at,r.planning_started_at,r.updated_at,
-      c.name AS client_name,s.name AS service_name,p.display_name AS practitioner_name,
+      c.name AS client_name,CASE WHEN $1::boolean THEN c.id END AS client_id,CASE WHEN $1::boolean THEN c.normalized_mobile END AS client_mobile,r.source_channel,s.name AS service_name,p.display_name AS practitioner_name,
       COALESCE((SELECT jsonb_agg(jsonb_build_object('id',candidate.id,'startsAt',candidate.starts_at,
         'serviceName',candidate.service_name,'staffNames',candidate.staff_names) ORDER BY candidate.starts_at,candidate.id)
         FROM (${candidateAppointmentsSql()}) candidate),'[]'::jsonb) AS candidate_appointments
       FROM client_planning_requests r JOIN crm_v2_clients c ON c.id=r.crm_v2_client_id
       LEFT JOIN services s ON s.id=r.service_id LEFT JOIN staff p ON p.id=r.practitioner_id
-      WHERE r.status IN ('requested','planning') ORDER BY r.requested_at,r.id LIMIT 100`);
+      WHERE r.status IN ('requested','planning') ORDER BY r.requested_at,r.id LIMIT 100`,[principal.permissions?.['client:lookup']===true]);
     return result.rows;
   }
 
@@ -215,7 +217,8 @@ function createClientPlanningRequestService({ db = pool, now = () => new Date(),
     } finally { connection.release(); }
   }
 
-  return { submit, forClient, forReception, decide, appointmentsForRequest, practitioners, completeCouplesEnquiry };
+  return { submit, forClient, forReception, decide, appointmentsForRequest, practitioners, completeCouplesEnquiry,
+    attendedAppointments:completion.attendedAppointments,resolveCompletion:completion.resolve };
 }
 
 module.exports = { ClientPlanningRequestError, validate, createClientPlanningRequestService };

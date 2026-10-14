@@ -391,8 +391,9 @@ function createWorkspaceDashboardService({
     return bookingRequestService.decideReceptionReschedule({ principal, requestId, decision });
   }
 
-  async function resolvePlanningRequest({ adminId, viewer, sessionPrincipal = null, requestId, action, appointmentId } = {}) {
+  async function resolvePlanningRequest({ adminId, viewer, sessionPrincipal = null, requestId, action, appointmentId, expectedRevision, operationId, confirmed } = {}) {
     const { principal } = await resolveAuthority(adminId, viewer, sessionPrincipal);
+    if (['attended','cancelled'].includes(action)) return planningRequestService.resolveCompletion({principal,requestId,action,appointmentId,expectedRevision,operationId,confirmed});
     return planningRequestService.decide({ principal, id:requestId, action, appointmentId });
   }
 
@@ -401,8 +402,9 @@ function createWorkspaceDashboardService({
     return planningRequestService.completeCouplesEnquiry({principal,id:requestId,action,payload});
   }
 
-  async function planningAppointments({ adminId, viewer, sessionPrincipal = null, requestId } = {}) {
+  async function planningAppointments({ adminId, viewer, sessionPrincipal = null, requestId, attended=false } = {}) {
     const { principal } = await resolveAuthority(adminId, viewer, sessionPrincipal);
+    if(attended) return planningRequestService.attendedAppointments({principal,requestId});
     return planningRequestService.appointmentsForRequest({ principal, id:requestId });
   }
 

@@ -81,6 +81,15 @@ export const CouplesEnquiry = {
       preferred_date:'2030-11-02',preferred_daypart:'morning',practitioner_name:'Synthetic Practitioner A',special_occasion:true,occasion_note:'Anniversary'}]})),
 };
 
+export const EnquiryResolution = {
+  render:()=>surface(dashboard.renderDashboardPage({requestedDateKey:'2030-11-02',operationalDateKey:'2030-11-02',
+    displayName:'Synthetic Reception',mode:'owner_overview',appointments:[],carryOver:[],teamGroups:[],awaitingFinalization:[],
+    bookingRequests:[],rescheduleRequests:[],holidayDecisions:[],calendar:{timeline:{staff:[]}},
+    planningRequests:[{id:81,request_kind:'flexible',status:'planning',client_name:'Synthetic Organiser',client_id:22,
+      client_mobile:'27820000022',service_detail:'Couples Massage',preferred_date:'2030-11-02',preferred_daypart:'morning',
+      source_channel:'my_shiloh',requested_at:'2030-10-30T09:00:00Z',updated_at:'2030-10-30T09:00:00Z'}]})),
+};
+
 export const CouplesAppointmentRequest = {
   render:()=>surface(dashboard.renderDashboardPage({requestedDateKey:'2030-11-02',operationalDateKey:'2030-11-02',
     displayName:'Synthetic Reception',mode:'owner_overview',appointments:[],carryOver:[],teamGroups:[],awaitingFinalization:[],

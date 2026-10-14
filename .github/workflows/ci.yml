@@ -374,6 +374,10 @@ jobs:
         env:
           TEST_PLANNING_RELATIONSHIP_DATABASE_URL: postgres://postgres:synthetic-test-only@localhost:5432/package_proof
         run: node --test tests/planning-request-client-relationship.test.js
+      - name: Prove enquiry resolution preserves visits and payments under concurrent decisions
+        env:
+          TEST_PLANNING_RESOLUTION_DATABASE_URL: postgres://postgres:synthetic-test-only@localhost:5432/package_proof
+        run: node --test tests/planning-request-completion.test.js
 
       - name: Prove paired editing, conflict rollback and concurrent retries in PostgreSQL
         env:
