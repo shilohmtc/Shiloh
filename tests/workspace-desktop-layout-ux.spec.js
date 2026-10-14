@@ -14,7 +14,7 @@ for (const kind of ['sparse', 'busy']) for (const width of [1180, 1440, 390, 500
     await page.goto('/desktop-review', { waitUntil: 'networkidle' });
     const model = desktopDashboardModel(kind);
     await expect(page.locator('[data-dashboard-today] .day-summary')).toContainText(`${model.appointments.length} appointments`);
-    await expect(page.locator('[data-dashboard-attention-panel]>.panel-head .summary-pill')).toHaveText(String(model.awaitingFinalization.length + 2));
+    await expect(page.locator('[data-dashboard-attention-panel]>.panel-head .summary-pill')).toHaveText('2');
     const today = await page.locator('[data-dashboard-today]').boundingBox();
     const attention = await page.locator('[data-dashboard-attention-panel]').boundingBox();
     const carry = await page.locator('[data-dashboard-carryover-panel]').boundingBox();

@@ -5,8 +5,8 @@ const { confirmationClientScript } = require('./workspaceConfirmation');
 
 function planningRequestContact(item) {
   const mobile=String(item.client_mobile||'');
-  const phone=/^27[678][0-9]{8}$/.test(mobile) ? `<a class="button" href="tel:+${mobile}">Call +${escapeHtml(mobile)}</a>` : '';
-  const client=Number.isSafeInteger(Number(item.client_id))&&Number(item.client_id)>0 ? `<a class="button" href="/calendar/clients/${Number(item.client_id)}">Open client profile</a>` : '';
+  const phone=/^27[678][0-9]{8}$/.test(mobile) ? `<a data-workspace-action="secondary" class="button" href="tel:+${mobile}">Call +${escapeHtml(mobile)}</a>` : '';
+  const client=Number.isSafeInteger(Number(item.client_id))&&Number(item.client_id)>0 ? `<a data-workspace-action="secondary" class="button" href="/calendar/clients/${Number(item.client_id)}">Open client profile</a>` : '';
   const submitted=new Date(item.requested_at);
   const timestamp=item.requested_at && Number.isFinite(submitted.getTime()) ? new Intl.DateTimeFormat('en-ZA',{timeZone:'Africa/Johannesburg',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(submitted) : '';
   const origin=item.source_channel==='my_shiloh' ? `<p class="request-note">Submitted through My Shiloh${timestamp ? ' · '+escapeHtml(timestamp) : ''}</p>` : '';
@@ -16,14 +16,14 @@ function planningRequestContact(item) {
 function planningRequestCompletion(item) {
   const name=escapeHtml(item.client_name),key=escapeHtml(item.id);
   return `<section class="planning-completion" data-planning-completion data-enquiry-revision="${escapeHtml(item.updated_at ? new Date(item.updated_at).toISOString() : '')}" data-enquiry-client="${name}">
-    <details data-attended-details><summary class="button">Already attended</summary>
+    <details data-attended-details><summary data-workspace-action="create" class="button">Already attended</summary>
       <p class="request-note">Select ${name}’s actual completed visit. If it is missing, record the past appointment, save its attendance outcome in Dashboard, then refresh visits. Treatment and guest details must match what actually happened.</p>
       <div class="request-actions"><a class="button" href="/calendar/book/past?clientName=${escapeHtml(encodeURIComponent(item.client_name||''))}">Record past appointment</a><button class="action-button" type="button" data-enquiry-refresh>Refresh completed visits</button></div>
       <label class="proposal-field" for="attended-visit-${key}"><span>Actual completed visit</span><select id="attended-visit-${key}" data-enquiry-visit disabled><option value="">Refresh completed visits</option></select></label>
       <p class="request-note" data-enquiry-visit-summary hidden></p>
       <button class="action-button complete" type="button" data-enquiry-action="attended" disabled>Confirm visit already attended</button>
     </details>
-    <button class="action-button" type="button" data-enquiry-action="cancelled">Client cancelled</button>
+    <button data-workspace-action="danger" class="action-button" type="button" data-enquiry-action="cancelled">Client cancelled</button>
     <p class="operation-status request-operation-status" data-enquiry-status role="status" aria-live="polite"></p>
   </section>`;
 }
