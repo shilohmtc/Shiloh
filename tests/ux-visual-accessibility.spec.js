@@ -119,7 +119,7 @@ test('redeemed welcome offer does not appear on the signed-out Home', async ({ p
   await page.evaluate(() => { Object.defineProperty(navigator, 'standalone', { value:true, configurable:true }); });
   await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
   const home = page.locator('[data-view="home"]');
-  await expect(home.getByRole('button', { name:'Open My Shiloh', exact:true })).toBeVisible();
+  await expect(home.getByRole('button', { name:'Continue', exact:true })).toBeVisible();
   await expect(home.locator('.welcome-voucher')).toHaveCount(0);
 });
 
@@ -185,7 +185,7 @@ test('Shiloh details and optional passkey fit one phone column', async ({ page }
   const help = home.locator('#home-recovery-help');
   await expect(home.getByRole('button', { name:'Use a saved passkey' })).toBeVisible();
   await expect(smsChoice).toHaveCount(0);
-  await expect(form.getByRole('button', { name:'Open My Shiloh' })).toBeVisible();
+  await expect(form.getByRole('button', { name:'Continue', exact:true })).toBeVisible();
   const formBox = await form.boundingBox();
   const helpBox = await help.boundingBox();
   const heroBox = await home.locator('.hero').boundingBox();
@@ -569,9 +569,9 @@ test('My Shiloh detail entry is clear and accessible on Phone and Desktop', asyn
     const appFrame = page.locator('[data-app-frame]');
     const home = appFrame.locator('[data-view="home"]');
     await expect(home.getByRole('heading',{name:'Welcome to My Shiloh'})).toBeVisible();
-    await expect(home.getByLabel('Date of birth')).toBeVisible();
+    await expect(home.getByLabel('Date of birth')).toBeHidden();
     await expect(home.locator('[data-client-sms-start]')).toHaveCount(0);
-    await expect(home.getByRole('button',{name:'Open My Shiloh'})).toBeVisible();
+    await expect(home.getByRole('button',{name:'Continue',exact:true})).toBeVisible();
     const metrics=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth,short:[...document.querySelectorAll('[data-client-crm-form] input, [data-client-crm-form] button')].filter(node=>node.getClientRects().length&&node.getBoundingClientRect().height<44).length}));
     expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);expect(metrics.short).toBe(0);
     const accessibility=await new AxeBuilder({page}).include('[data-view="home"] .hero').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
@@ -2187,8 +2187,8 @@ test('My Shiloh guest sign-in shows details and optional passkey choices without
     const home = appFrame.locator('[data-view="home"]');
     await expect(home.getByRole('button', { name:'Use a saved passkey' })).toBeVisible();
     await expect(home.locator('[data-client-sms-choice]')).toHaveCount(0);
-    await expect(home.getByRole('button', { name:'Open My Shiloh', exact:true })).toBeVisible();
-    await expect(home.getByRole('button', {name:'New to Shiloh? Register'})).toBeVisible();
+    await expect(home.getByRole('button', { name:'Continue', exact:true })).toBeVisible();
+    await expect(home.locator('[data-crm-mode]')).toHaveCount(0);
     await expect(home.locator('[data-client-auth-code-disclosure]')).toHaveCount(0);
     await page.screenshot({ path:testInfo.outputPath(`my-shiloh-guest-sign-in-${viewport.name}.png`), fullPage:true });
     const accessibility = await new AxeBuilder({ page }).include('[data-view="home"] .hero').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
@@ -2477,7 +2477,7 @@ test('My Shiloh client sign-in has no legacy WhatsApp control on phone', async (
   await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
   const home = page.locator('[data-view="home"]');
   await expect(home.locator('[data-client-sms-choice]')).toHaveCount(0);
-    await expect(home.getByRole('button', { name:'Open My Shiloh', exact:true })).toBeVisible();
+    await expect(home.getByRole('button', { name:'Continue', exact:true })).toBeVisible();
   await expect(home.locator('[data-client-crm-form]')).toBeVisible();
   await expect(home.locator('[data-client-sms-start]')).toHaveCount(0);
   await expect(home.locator('[data-passkey-sign-in]')).toBeVisible();
@@ -3304,12 +3304,12 @@ test('actionable Workspace errors retain accessible Phone/Desktop recovery contr
 });
 
 
-test('My Shiloh detail entry retains inputs through mode changes and interrupted retries', async ({page},testInfo)=>{
+test('My Shiloh automatic CRM entry retains inputs through interrupted retries', async ({page},testInfo)=>{
   await page.addInitScript(()=>Object.defineProperty(navigator,'standalone',{value:true,configurable:true}));
   for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]) {
     await page.setViewportSize(viewport);
     const attempts=[];
-    await page.route('**/my-shiloh/auth/crm/sign-in',route=>{
+    await page.route('**/my-shiloh/auth/crm/continue',route=>{
       attempts.push(route.request().postDataJSON());
       return route.fulfill({status:503,json:{error:'Sign-in is temporarily unavailable. Please try again later.'}});
     });
@@ -3319,22 +3319,16 @@ test('My Shiloh detail entry retains inputs through mode changes and interrupted
     const form=home.locator('[data-client-crm-form]');
     await form.getByLabel('First name').fill('Synthetic');
     await form.getByLabel('Surname').fill('Example');
-    await form.getByLabel('Date of birth').fill('2000-01-01');
     await form.getByLabel('Mobile number').fill('0820000010');
-    await form.getByRole('button',{name:'New to Shiloh? Register'}).click();
-    await expect(home.getByRole('heading',{name:'Register with Shiloh'})).toBeVisible();
-    await expect(form.getByLabel('First name')).toBeFocused();
-    await form.getByRole('button',{name:'Already a client? Sign in'}).click();
-    await expect(form.getByLabel('First name')).toHaveValue('Synthetic');
-    await expect(form.getByLabel('Mobile number')).toHaveValue('0820000010');
+    await expect(form.getByLabel('Date of birth')).toBeHidden();
     for(let i=0;i<2;i++) {
-      await form.getByRole('button',{name:'Open My Shiloh'}).click();
+      await form.getByRole('button',{name:'Continue',exact:true}).click();
       await expect(form.locator('[data-crm-status]')).toContainText('temporarily unavailable');
-      await expect(form.getByRole('button',{name:'Open My Shiloh'})).toBeEnabled();
+      await expect(form.getByRole('button',{name:'Continue',exact:true})).toBeEnabled();
     }
     expect(attempts).toHaveLength(2);
-    expect(attempts[0]).toEqual({firstName:'Synthetic',surname:'Example',dateOfBirth:'2000-01-01',mobile:'0820000010'});
-    await expect(form.getByLabel('Date of birth')).toHaveValue('2000-01-01');
+    expect(attempts[0]).toEqual({firstName:'Synthetic',surname:'Example',mobile:'0820000010',completeProfile:false});
+    await expect(form.getByLabel('First name')).toHaveValue('Synthetic');
     const help=home.locator('.recovery-help');await help.locator('summary').click();
     await expect(help.getByRole('link',{name:'Call Reception'})).toBeVisible();
     await expect(help.getByRole('link',{name:'WhatsApp Reception'})).toBeVisible();

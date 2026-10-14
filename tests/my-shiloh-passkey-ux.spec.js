@@ -185,7 +185,7 @@ test('Shiloh detail entry stays readable at narrow phone width and enlarged text
   await page.setViewportSize({ width: 320, height: 844 });
   await page.goto('/iframe.html?id=client-my-shiloh-pwa--register-entry&viewMode=story', { waitUntil: 'networkidle' });
   await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
-  await expect(page.getByRole('button', { name: 'Open My Shiloh' }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue', exact: true }).first()).toBeVisible();
   await expect(page.locator('[data-keep-signed-in]')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const axe = await new AxeBuilder({ page }).include('[data-view="home"]')
