@@ -2,6 +2,7 @@
 const { priorPaymentSql } = require('../domain/priorPaymentSql');
 
 const { pool } = require('../db/pool');
+const { allowsDepositWaiverActor, depositWaiverMembersEligible } = require('./bookingDepositWaiver');
 const { allowsAppointmentTarget } = require('./calendarAuthorization');
 const { createBookingDepositPolicyService, depositSettlementPosition } = require('./bookingDepositPolicy');
 
@@ -9,7 +10,7 @@ const { createBookingDepositPolicyService, depositSettlementPosition } = require
 // Never call payment.get(), ensureRequirement() or getPosition(): those can write.
 const DEPOSIT_ATTENTION_SQL = `/* WorkspaceDepositAttention:read */
  SELECT r.*,pa.appointment_group_id,pa.canonical_amount_due,pa.currency,
-        g.status AS group_status,
+        g.status AS group_status,g.source AS group_source,
         COALESCE((SELECT SUM(CASE WHEN e.entry_type='payment' THEN e.amount
                                  WHEN e.entry_type='refund' THEN -e.amount ELSE 0 END)
                     FROM payment_ledger_entries e WHERE e.payment_account_id=pa.id),0) + ${priorPaymentSql('pa.id')} AS net_paid,
@@ -20,6 +21,14 @@ const DEPOSIT_ATTENTION_SQL = `/* WorkspaceDepositAttention:read */
         EXISTS(SELECT 1 FROM payment_requests pr WHERE pr.payment_account_id=pa.id
                 AND pr.state='paid' AND NOT EXISTS(SELECT 1 FROM payment_ledger_entries e
                   WHERE e.payment_request_id=pr.id AND e.entry_type='payment')) AS unrecorded_payment,
+        EXISTS(SELECT 1 FROM payment_requests pr WHERE pr.payment_account_id=pa.id
+                AND pr.purpose='deposit' AND pr.deposit_requirement_id=r.id
+                AND (pr.state='expired' OR (pr.state IN ('created','link_issued','pending')
+                  AND pr.expires_at IS NOT NULL AND pr.expires_at<=$1))) AS expired_deposit_request,
+        EXISTS(SELECT 1 FROM crm_audit_events e WHERE e.entity_type='booking_payment_account'
+                AND e.entity_id=pa.id AND e.action IN ('payment.received_after_booking_cancelled',
+                  'payment.received_after_prior_settlement','payment.received_after_no_charge',
+                  'payment.received_after_deposit_waived')) AS payment_review,
         (SELECT jsonb_agg(jsonb_build_object(
           'appointmentId',a.id,'startsAt',a.starts_at,'createdAt',a.created_at,'status',a.status,
           'source',a.source,'approval',aba.status,'currency',a.currency,
@@ -47,7 +56,7 @@ const DEPOSIT_ATTENTION_SQL = `/* WorkspaceDepositAttention:read */
       AND (a.id=pa.appointment_id OR EXISTS(SELECT 1 FROM appointment_group_members gm
         WHERE gm.group_id=pa.appointment_group_id AND gm.appointment_id=a.id)))`;
 
-function projectDeposit(row, authority, policy, now) {
+function projectDeposit(row, authority, policy, now, canWaive = false) {
   const members = row.members || [];
   if (!members.length || !members.every(member => allowsAppointmentTarget(authority, member))) return null;
   if (row.group_status === 'cancelled' || ['exempt','waived'].includes(row.state)) return null;
@@ -75,6 +84,11 @@ function projectDeposit(row, authority, policy, now) {
     outstanding: settlement?.outstanding ?? null,
     state: inconsistent ? 'review' : netPaid > 0 ? 'partial' : 'awaiting',
     hasLink: row.has_link === true,
+    canWaiveDeposit: canWaive && !inconsistent && row.state === 'awaiting'
+      && Number.isFinite(required) && required > netPaid
+      && !row.expired_deposit_request && !row.payment_review
+      && members.every(member => Number.isFinite(Number(member.requiredAmount)) && Number(member.requiredAmount) >= 0)
+      && depositWaiverMembersEligible(members.map(member => ({ ...member, starts_at: member.startsAt })), row.group_source, now),
   };
 }
 
@@ -84,7 +98,9 @@ function createWorkspaceDepositAttentionService({ db = pool, deposits = createBo
     const policy = await deposits.loadPolicy(db);
     if (!policy.enabled) return [];
     const { rows } = await db.query(DEPOSIT_ATTENTION_SQL, [now.toISOString()]);
-    return rows.map(row => projectDeposit(row, principal.calendarAuthority, policy, now)).filter(Boolean)
+    // Reuse the current waiver authority without a locking or mutating payment read.
+    const canWaive = await allowsDepositWaiverActor(principal, db, { lock: false });
+    return rows.map(row => projectDeposit(row, principal.calendarAuthority, policy, now, canWaive)).filter(Boolean)
       .sort((a, b) => new Date(a.members[0].startsAt) - new Date(b.members[0].startsAt));
   }
   return { list };
