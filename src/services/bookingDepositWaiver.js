@@ -4,10 +4,7 @@ const { createHash } = require('node:crypto');
 const { hasCapability, hasFullAppointmentEditAuthority, allowsAppointmentTarget } = require('./calendarAuthorization');
 const { priorPaymentSql } = require('../domain/priorPaymentSql');
 
-// Requirement-only authority: never change price, settlement or attendance.
-function createBookingDepositWaiverActions({ db, ErrorType, positiveId, requestKey, resolveOperator, loadSubject }) {
-  const fail = (code, message, status = 409) => { throw new ErrorType(code, message, status); };
-  async function allowed(operator, queryable = db) {
+async function allowsDepositWaiverActor(operator, queryable, { lock = true } = {}) {
     const authority = operator?.calendarAuthority;
     if (!hasFullAppointmentEditAuthority(authority) || !hasCapability(authority, 'payment:view') || !hasCapability(authority, 'payment:collect')) return false;
     if (Number(operator.id) === 2 && operator.role === 'owner' && operator.business_role === 'owner') return true;
@@ -17,9 +14,21 @@ function createBookingDepositWaiverActions({ db, ErrorType, positiveId, requestK
       SELECT id FROM staff_admin_accounts WHERE active=TRUE AND staff_id IS NULL
         AND role='receptionist' AND business_role='booking_operator'
         AND calendar_scope='all_business' AND service_scope='all_services'
-      ORDER BY id LIMIT 2 FOR SHARE`)).rows;
+      ORDER BY id LIMIT 2${lock ? ' FOR SHARE' : ''}`)).rows;
     return rows.length === 1 && Number(rows[0].id) === Number(operator.id);
-  }
+}
+
+function depositWaiverMembersEligible(members, groupSource, now) {
+  return members.length > 0 && members.every(member => ['scheduled', 'confirmed'].includes(member.status)
+    && new Date(member.starts_at) > new Date(now)
+    && (member.approval === 'approved' || (member.approval == null && member.source !== 'shiloh_client_whatsapp'
+      && !['shiloh_my_shiloh_multi', 'shiloh_my_shiloh_couples'].includes(groupSource))));
+}
+
+// Requirement-only authority: never change price, settlement or attendance.
+function createBookingDepositWaiverActions({ db, ErrorType, positiveId, requestKey, resolveOperator, loadSubject }) {
+  const fail = (code, message, status = 409) => { throw new ErrorType(code, message, status); };
+  async function allowed(operator, queryable = db) { return allowsDepositWaiverActor(operator, queryable); }
 
   async function record(input = {}) {
     const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
@@ -64,7 +73,7 @@ function createBookingDepositWaiverActions({ db, ErrorType, positiveId, requestK
       const account = (await client.query(`SELECT * FROM booking_payment_accounts WHERE ${subject.groupId ? 'appointment_group_id' : 'appointment_id'}=$1 FOR UPDATE`, [subject.groupId || subject.appointmentId])).rows[0];
       if (!account) fail('DEPOSIT_WAIVER_REVIEW_REQUIRED', 'Open payment details and review the existing deposit requirement first.');
       const clock = (await client.query('SELECT clock_timestamp() AS now')).rows[0].now;
-      if (subject.final || !members.every(member => ['scheduled', 'confirmed'].includes(member.status) && new Date(member.starts_at) > new Date(clock) && (member.approval === 'approved' || (member.approval == null && member.source !== 'shiloh_client_whatsapp' && !['shiloh_my_shiloh_multi','shiloh_my_shiloh_couples'].includes(groupSource))))) fail('DEPOSIT_WAIVER_BOOKING_UNAVAILABLE', 'Only approved future active bookings can have their deposit waived. Cancelled or expired bookings remain unchanged.');
+      if (subject.final || !depositWaiverMembersEligible(members, groupSource, clock)) fail('DEPOSIT_WAIVER_BOOKING_UNAVAILABLE', 'Only approved future active bookings can have their deposit waived. Cancelled or expired bookings remain unchanged.');
       const replay = (await client.query(`SELECT id,created_at,metadata FROM crm_audit_events WHERE action='booking.deposit_waived' AND actor_admin_id=$1 AND metadata->>'operationId'=$2 ORDER BY id LIMIT 1`, [data.adminId, data.operationId])).rows[0];
       if (replay) {
         if (replay.metadata.fingerprint !== fingerprint) fail('DEPOSIT_WAIVER_RETRY_MISMATCH', 'This request identifier already belongs to another waiver decision.');
@@ -113,4 +122,4 @@ function createBookingDepositWaiverActions({ db, ErrorType, positiveId, requestK
   return { allowed, record };
 }
 
-module.exports = { createBookingDepositWaiverActions };
+module.exports = { createBookingDepositWaiverActions, allowsDepositWaiverActor, depositWaiverMembersEligible };

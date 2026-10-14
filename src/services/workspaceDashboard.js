@@ -200,7 +200,7 @@ function operationalDayWindow(dateKey) {
 
 function createWorkspaceDashboardService({
   calendarService = calendarReadOnlyUx,
-  resolvePrincipal = adminId => resolveCalendarAuthority(pool, adminId),
+  resolvePrincipal = adminId => resolveCalendarAuthority(pool, adminId, { additionalCapabilities: ['payment:view', 'payment:collect'] }),
   finalizeAppointmentFn = finalizeAppointment,
   canCertifyAppointmentFn = canCertifyAppointment,
   bookingRequestService = NO_BOOKING_REQUESTS,

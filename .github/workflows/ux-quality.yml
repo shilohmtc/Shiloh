@@ -118,6 +118,19 @@ jobs:
           path: artifacts/dashboard-deposit-organisation
           if-no-files-found: error
           retention-days: 14
+      - name: Capture source-bound Dashboard waiver shortcut review
+        env:
+          EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          REVIEW_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node scripts/dashboard-deposit-waiver-shortcut-evidence.js
+      - name: Upload source-bound Dashboard waiver shortcut review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dashboard-deposit-waiver-shortcut-review
+          path: artifacts/dashboard-deposit-waiver-shortcut
+          if-no-files-found: error
+          retention-days: 14
       - name: Capture source-bound deposit waiver review
         env:
           EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}

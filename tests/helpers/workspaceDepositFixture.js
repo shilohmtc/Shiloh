@@ -2,7 +2,7 @@
 // Synthetic, isolated schema for executing the production deposit projection.
 module.exports = `CREATE TABLE appointments(id bigint,client_id bigint,crm_v2_client_id bigint,starts_at timestamptz,created_at timestamptz,status text,source text,currency text,total_price numeric,title text,source_client_name text);
     CREATE TABLE clients(id bigint,display_name text);CREATE TABLE crm_v2_clients(id bigint,name text,status text);
-    CREATE TABLE appointment_groups(id bigint,status text,final_total numeric,total_price numeric);
+    CREATE TABLE appointment_groups(id bigint,status text,final_total numeric,total_price numeric,source text);
     CREATE TABLE appointment_group_members(group_id bigint,appointment_id bigint);
     CREATE TABLE appointment_booking_approvals(appointment_id bigint,status text);
     CREATE TABLE appointment_staff(appointment_id bigint,staff_id bigint,staff_name_snapshot text,position int);
@@ -13,8 +13,9 @@ module.exports = `CREATE TABLE appointments(id bigint,client_id bigint,crm_v2_cl
     CREATE TABLE payment_ledger_entries(payment_account_id bigint,payment_request_id bigint,entry_type text,amount numeric);
     CREATE VIEW booking_prior_payment_totals AS SELECT NULL::bigint AS account_id,0::numeric AS incoming,0::numeric AS outgoing WHERE FALSE;
     CREATE TABLE payment_requests(id bigint,payment_account_id bigint,purpose text,deposit_requirement_id bigint,state text,provider_payment_url text,expires_at timestamptz);
+    CREATE TABLE crm_audit_events(entity_type text,entity_id bigint,action text);
     INSERT INTO appointments VALUES(1,null,null,'2026-10-07','2026-10-01','scheduled','shiloh','ZAR',500,'Massage','Synthetic Aloe'),(2,null,null,'2026-10-08','2026-10-01','scheduled','shiloh','ZAR',500,'Massage','Synthetic Fynbos');
-    INSERT INTO appointment_groups VALUES(1,'scheduled',1000,1000);INSERT INTO appointment_group_members VALUES(1,1),(1,2);
+    INSERT INTO appointment_groups VALUES(1,'scheduled',1000,1000,'shiloh');INSERT INTO appointment_group_members VALUES(1,1),(1,2);
     INSERT INTO appointment_staff VALUES(1,11,'Practitioner',1),(2,12,'Practitioner Two',1);
     INSERT INTO appointment_services VALUES(1,21,'Massage',1),(2,22,'Massage',1);
     INSERT INTO booking_payment_accounts VALUES(1,null,1,1000,'ZAR');INSERT INTO booking_deposit_requirements VALUES(1,1,500,'awaiting');
