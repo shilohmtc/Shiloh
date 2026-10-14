@@ -16,7 +16,7 @@ function filesIn(dir) {
 }
 const files = filesIn(source);
 const expected = ['phone', 'desktop'].flatMap((device) =>
-  ['entry', 'generic-error', 'registration', 'registration-generic-error', 'protected-settings'].map(
+  ['entry', 'completion', 'dob-check', 'generic-error', 'registration', 'registration-generic-error', 'protected-settings'].map(
     (state) => `crm-${state}-${device}.png`,
   ),
 );

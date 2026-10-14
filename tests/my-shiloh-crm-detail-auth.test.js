@@ -771,3 +771,141 @@ test('mobile update rereads expiry after canonical number lock waits',async(t)=>
   await assert.rejects(service.updateProfile({sessionId:session.sessionId,crmV2ClientId:owner.id,expectedRevision:profileRevision(owner),name:owner.name,dateOfBirth:synthetic.dateOfBirth,gender:synthetic.gender,mobile:'0830000003'}),/sign in again/i);
   assert.deepEqual((await h.db.query('SELECT * FROM crm_v2_clients WHERE id=$1',[owner.id])).rows[0],owner);
 });
+
+
+test('automatic CRM check requests only needed details and completes the existing record after confirmation', async t => {
+  const h = await harness(t);
+  const owner = await h.insert({ missingDob: true, gender: null });
+  const identity = { firstName: synthetic.firstName, surname: synthetic.surname, mobile: '+27 82 000 0001' };
+  const lookup = await h.attempt(identity, false, { discover: true });
+  assert.deepEqual(lookup.requiredFields, ['dateOfBirth', 'gender']);
+  assert.deepEqual(lookup.missingFields, ['dateOfBirth', 'gender']);
+  assert.equal(lookup.next, 'existing');
+  assert.equal(lookup.sessionToken, undefined);
+  assert.deepEqual((await h.db.query('SELECT * FROM crm_v2_clients')).rows[0], owner);
+  const prefilled = await h.attempt(synthetic, false, { discover: true });
+  assert.equal(prefilled.code, 'CRM_AUTH_DETAILS_REQUIRED', 'prefilled values require explicit confirmation');
+  h.advance(60000);
+  const completed = await h.attempt(synthetic, false, { discover: true, completeProfile: true });
+  assert.equal(completed.ok, true);
+  assert.equal(Number(completed.client.id), Number(owner.id));
+  assert.equal(completed.expiresAt - h.now(), SESSION_TTL_MS);
+  const row = (await h.db.query('SELECT * FROM crm_v2_clients')).rows[0];
+  assert.equal(row.date_of_birth.toISOString().slice(0,10), synthetic.dateOfBirth);
+  assert.equal(row.gender, synthetic.gender);
+  assert.equal(row.profile_status, 'registered');
+  assert.equal(row.mobile_verified_at, null);
+  assert.equal(row.provenance.myShilohProfileCompletion.assurance, 'name_mobile_match');
+  const events = (await h.db.query("SELECT metadata FROM client_auth_security_events WHERE event_type='crm_profile_completed'")).rows;
+  assert.equal(events.length, 1);
+  assert.deepEqual(events[0].metadata.changedFields, ['dateOfBirth', 'gender']);
+  assert.ok(!JSON.stringify(events).includes(synthetic.dateOfBirth));
+  h.advance(60000);
+  const replay = await h.attempt(synthetic, false, { discover: true, completeProfile: true });
+  assert.equal(replay.ok, true);
+  assert.equal((await h.db.query('SELECT COUNT(*)::int AS n FROM crm_v2_clients')).rows[0].n, 1);
+  assert.equal((await h.db.query("SELECT COUNT(*)::int AS n FROM client_auth_security_events WHERE event_type='crm_profile_completed'")).rows[0].n, 1);
+});
+
+test('automatic flow preserves recorded values, requires recorded DOB and rejects conflicts without writes', async t => {
+  const h = await harness(t);
+  const owner = await h.insert({ gender: null });
+  const identity = { firstName: synthetic.firstName, surname: synthetic.surname, mobile: synthetic.mobile };
+  const lookup = await h.attempt(identity, false, { discover: true });
+  assert.deepEqual(lookup.requiredFields, ['dateOfBirth', 'gender']);
+  assert.deepEqual(lookup.missingFields, ['gender']);
+  for (const patch of [{ dateOfBirth: '2001-01-01' }, { surname: 'Wrong' }, { mobile: 'bad' }]) {
+    h.advance(60000);
+    assert.equal((await h.attempt({ ...synthetic, ...patch }, false, { discover: true, completeProfile: true })).ok, false);
+    assert.deepEqual((await h.db.query('SELECT * FROM crm_v2_clients')).rows[0], owner);
+  }
+  h.advance(60000);
+  assert.equal((await h.attempt(synthetic, false, { discover: true, completeProfile: true })).ok, true);
+  const updated = (await h.db.query('SELECT * FROM crm_v2_clients')).rows[0];
+  assert.equal(updated.date_of_birth.getTime(), owner.date_of_birth.getTime());
+  h.advance(60000);
+  const completeLookup = await h.attempt(identity, false, { discover: true });
+  assert.deepEqual(completeLookup.requiredFields, ['dateOfBirth']);
+  assert.deepEqual(completeLookup.missingFields, []);
+  h.advance(60000);
+  assert.equal((await h.attempt({ ...synthetic, gender: 'female' }, false, { discover: true, completeProfile: true })).ok, true);
+  assert.deepEqual((await h.db.query('SELECT * FROM crm_v2_clients')).rows[0], updated);
+});
+
+test('DOB-only completion retains gender and rejects split-name, archived and ambiguous matches', async t => {
+  const h = await harness(t);
+  const owner = await h.insert({ missingDob: true });
+  assert.deepEqual((await h.attempt(synthetic, false, { discover: true })).missingFields, ['dateOfBirth']);
+  assert.equal((await h.attempt({ ...synthetic, gender: '' }, false, { discover: true, completeProfile: true })).ok, true);
+  assert.equal((await h.db.query('SELECT gender FROM crm_v2_clients')).rows[0].gender, owner.gender);
+  await h.db.query("UPDATE crm_v2_clients SET first_name='Other',surname='Example' WHERE id=$1", [owner.id]);
+  h.advance(60000);
+  assert.equal((await h.attempt(synthetic, false, { discover: true, completeProfile: true })).code, 'CRM_AUTH_INVALID');
+  await h.db.query("UPDATE crm_v2_clients SET first_name=NULL,surname=NULL,status='archived' WHERE id=$1", [owner.id]);
+  h.advance(60000);
+  assert.equal((await h.attempt(synthetic, false, { discover: true, completeProfile: true })).code, 'CRM_AUTH_INVALID');
+  await h.insert({ firstName: 'Other' });
+  h.advance(60000);
+  assert.equal((await h.attempt(synthetic, false, { discover: true })).code, 'CRM_AUTH_INVALID');
+  assert.equal((await h.db.query('SELECT COUNT(*)::int AS n FROM crm_v2_clients')).rows[0].n, 2);
+});
+
+test('new clients need explicit complete registration; existing duplicate-name/DOB guard remains', async t => {
+  const h = await harness(t);
+  const identity = { firstName: synthetic.firstName, surname: synthetic.surname, mobile: synthetic.mobile };
+  assert.equal((await h.attempt(identity, false, { discover: true })).next, 'new');
+  assert.equal((await h.attempt(synthetic, false, { discover: true })).next, 'new');
+  h.advance(60000);
+  assert.equal((await h.attempt({ ...identity, dateOfBirth: synthetic.dateOfBirth }, false, { discover: true, completeProfile: true })).code, 'CRM_AUTH_DETAILS_REQUIRED');
+  assert.equal((await h.db.query('SELECT COUNT(*)::int AS n FROM crm_v2_clients')).rows[0].n, 0);
+  h.advance(60000);
+  assert.equal((await h.attempt(synthetic, false, { discover: true, completeProfile: true })).ok, true);
+  h.advance(60000);
+  assert.equal((await h.attempt({ ...synthetic, mobile: '0820000002' }, false, { discover: true, completeProfile: true })).code, 'CRM_AUTH_INVALID');
+  assert.equal((await h.db.query('SELECT COUNT(*)::int AS n FROM crm_v2_clients')).rows[0].n, 1);
+});
+
+test('profile completion rolls back if session issuance fails', async t => {
+  const h = await harness(t);
+  const owner = await h.insert({ missingDob: true, gender: null });
+  const auth = createClientCrmDetailAuthService({ db: h.db, env, now: h.now,
+    sessionService: { async issueCrmDetailSession() { return { ok: false, code: 'CLIENT_AUTH_PROFILE_UNAVAILABLE' }; } } });
+  const result = await auth.attempt({ input: synthetic, discover: true, completeProfile: true, address: '192.0.2.1' });
+  assert.equal(result.ok, false);
+  assert.deepEqual((await h.db.query('SELECT * FROM crm_v2_clients')).rows[0], owner);
+  assert.equal((await h.db.query("SELECT COUNT(*)::int AS n FROM client_auth_security_events WHERE event_type='crm_profile_completed'")).rows[0].n, 0);
+});
+
+test('Continue HTTP flow validates origin/payload, guides without session or PII, then binds the same CRM client', async t => {
+  const express = require('express');
+  const { createMyShilohRouter } = require('../src/routes/myShiloh');
+  const h = await harness(t);
+  const owner = await h.insert({ missingDob: true, gender: null });
+  const app = express(); app.use(express.json());
+  app.use(createMyShilohRouter({ env, sessionService: h.sessions, crmAuthService: h.auth }));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const post = (body, origin = base) => fetch(`${base}/my-shiloh/auth/crm/continue`, {
+    method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  assert.equal((await post(synthetic, 'https://example.invalid')).status, 403);
+  for (const patch of [{ crmV2ClientId: owner.id }, { completeProfile: 'true' }]) {
+    assert.equal((await post({ ...synthetic, ...patch })).status, 401);
+    h.advance(60000);
+  }
+  const guide = await post({ firstName: synthetic.firstName, surname: synthetic.surname, mobile: synthetic.mobile });
+  assert.equal(guide.status, 200);
+  assert.match(guide.headers.get('cache-control'), /private, no-store/);
+  assert.ok(!guide.headers.getSetCookie().some(value => value.startsWith('shiloh_client_session=')));
+  assert.deepEqual(await guide.json(), { next: 'existing', requiredFields: ['dateOfBirth','gender'], missingFields: ['dateOfBirth','gender'] });
+  h.advance(60000);
+  const complete = await post({ ...synthetic, completeProfile: true });
+  assert.equal(complete.status, 200);
+  assert.equal((await complete.json()).authenticated, true);
+  const cookie = complete.headers.getSetCookie().find(value => value.startsWith('shiloh_client_session='));
+  assert.match(cookie, /HttpOnly/);
+  assert.match(cookie, /SameSite=Strict/);
+  const session = await h.sessions.validateSessionToken(cookie.split(';')[0].split('=')[1]);
+  assert.equal(session.crmV2ClientId, Number(owner.id));
+});

@@ -9,7 +9,7 @@ const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 const { renderCouplesBookingChoice } = require('./myShilohBookingActions');
 
-const MY_SHILOH_ASSET_VERSION = '20261013-app-chat-v1';
+const MY_SHILOH_ASSET_VERSION = '20261014-crm-completion-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -45,20 +45,19 @@ function serviceCards(catalogue = [], authenticated = false) {
 
 function crmSignIn(scope, reauthenticate = false) {
   return `<section class="sms-setup-choice" aria-labelledby="${scope}-crm-title">
-    <h2 id="${scope}-crm-title" data-crm-title>${reauthenticate ? 'Confirm your Shiloh details' : 'Sign in with your Shiloh details'}</h2>
-    <p data-crm-copy>${reauthenticate ? 'Re-enter your details to edit personal details, remove passkeys or sign out other sessions.' : 'Enter your details as recorded by Shiloh.'}</p>
-    <form class="sms-auth-form" data-client-crm-form data-mode="${reauthenticate ? 'reauthenticate' : 'sign-in'}">
+    <h2 id="${scope}-crm-title" data-crm-title>${reauthenticate ? 'Confirm your Shiloh details' : 'Open My Shiloh'}</h2>
+    <p data-crm-copy>${reauthenticate ? 'Re-enter your details to edit personal details, remove passkeys or sign out other sessions.' : 'Enter your name and mobile number. We will check your Shiloh record and guide you from there.'}</p>
+    <form class="sms-auth-form" data-client-crm-form data-mode="${reauthenticate ? 'reauthenticate' : 'continue'}">
       <label>First name<input name="firstName" autocomplete="given-name" maxlength="100" required></label>
       <label>Surname<input name="surname" autocomplete="family-name" maxlength="100" required></label>
-      <label>Date of birth<input name="dateOfBirth" type="date" min="1900-01-01" autocomplete="bday" required></label>
+      <label data-crm-dob${reauthenticate ? '' : ' hidden'}>Date of birth<input name="dateOfBirth" type="date" min="1900-01-01" autocomplete="bday" ${reauthenticate ? 'required' : 'disabled'}></label>
       <label>Mobile number<input name="mobile" type="tel" autocomplete="tel-national" inputmode="tel" maxlength="30" placeholder="082 000 0000" required></label>
       <label data-crm-gender hidden>Gender<select name="gender" aria-label="Gender" disabled>
         <option value="">Choose an option</option><option value="female">Female</option><option value="male">Male</option>
         <option value="non_binary">Non-binary</option><option value="prefer_not_to_say">Prefer not to say</option><option value="other">Other</option>
       </select></label>
       ${reauthenticate ? '' : '<p>My Shiloh stays signed in for up to 30 days. Sign out when using a shared phone.</p>'}
-      <button class="button button--primary button--wide" type="submit" data-crm-submit>${reauthenticate ? 'Confirm details' : 'Open My Shiloh'}</button>
-      ${reauthenticate ? '' : '<button class="button button--soft button--wide" type="button" data-crm-mode>New to Shiloh? Register</button>'}
+      <button class="button button--primary button--wide" type="submit" data-crm-submit>${reauthenticate ? 'Confirm details' : 'Continue'}</button>
       <p role="status" aria-live="polite" data-crm-status></p>
     </form>
   </section>`;
