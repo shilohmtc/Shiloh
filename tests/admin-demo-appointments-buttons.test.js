@@ -4,14 +4,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { commandForAdminButton } = require('../src/services/adminEarningsButtons');
-const { classifyRetiredAdminAction } = require('../src/services/adminAuthorityRetirement');
+
 const { getMenuOptions } = require('../src/services/adminMobileMenu');
 
 test('legacy Demo and Appointments controls normalize only to retirement dispositions', () => {
   assert.equal(commandForAdminButton('admin_menu_appointments'), 'admin_menu_appointments');
   assert.equal(commandForAdminButton('admin_demo_client_start'), 'admin_retired_internal_action');
-  assert.equal(classifyRetiredAdminAction(commandForAdminButton('admin_menu_appointments')).kind, 'calendar');
-  assert.equal(classifyRetiredAdminAction(commandForAdminButton('admin_demo_client_start')).kind, 'internal_only');
+
 });
 
 test('ordinary staff menu never exposes Demo or an alternate Appointments panel', () => {

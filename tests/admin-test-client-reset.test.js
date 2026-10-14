@@ -3,9 +3,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
 const servicePath = 'src/services/adminTestClientReset.js';
-const routerPath = 'src/services/adminInteractiveMenu.js';
+
 const serviceSource = fs.readFileSync(servicePath, 'utf8');
-const routerSource = fs.readFileSync(routerPath, 'utf8');
+
 const {
   CONFIRM_ID,
   CANCEL_ID,
@@ -289,9 +289,4 @@ test('cleanup path adds a fail-closed outstanding-booking recheck without changi
   const reset = await resetControlledJuvan(admin, { connect: async () => identityOnly.db });
   assert.equal(reset.status, 'reset');
   assert.equal(identityOnly.calls.some(({ text }) => text.includes('FROM appointments')), false);
-});
-
-test('reset implementation remains internal and ordinary router cannot invoke it', () => {
-  assert.doesNotMatch(routerSource, /processAdminTestClientResetMessage/);
-  assert.match(routerSource, /processAdminRetiredAuthorityMessage/);
 });

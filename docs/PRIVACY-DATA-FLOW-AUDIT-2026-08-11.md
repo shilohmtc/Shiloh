@@ -1,5 +1,7 @@
 # Shiloh OS — Privacy & Data-Flow Audit — 11 Aug 2026
 
+
+> Historical audit of the platform on 11 August 2026. Current retirement note, 14 October 2026: automated WhatsApp conversations and delivery are retired. The mounted webhook acknowledges inbound messages and retains historical delivery-status evidence; clients contact human Reception directly. Passkeys/SMS and current My Shiloh/Workspace flows remain separate. The old language/onboarding guards, human-handoff writer, staff routing adapter and unused template-status readers described by historical work are removed from runtime. This note does not mean current app AI processing or historical processor/retention obligations have ended. See the current integration map in [SHILOH_PLATFORM_HANDBOOK.md](SHILOH_PLATFORM_HANDBOOK.md).
 ## Status and scope
 
 This is an engineering/privacy architecture audit of the current Shiloh OS code and production infrastructure. It is not a legal certification of POPIA compliance.
@@ -121,7 +123,7 @@ The wider CRM includes client-linked appointments, service snapshots, practition
 
 ### Meta / WhatsApp
 
-Client messages and identifiers originate through the Meta WhatsApp Cloud API. Outbound Shiloh replies are sent back through that provider. Meta is therefore part of the end-to-end personal-information processing chain and its contractual/data-location terms must be kept in Shiloh's processor/subprocessor register.
+At the audit date, client messages and identifiers originated through the Meta WhatsApp Cloud API and outbound Shiloh replies used that provider. Those automated conversation and sending paths have since retired; historical delivery-status callbacks remain. Meta is therefore part of the end-to-end personal-information processing chain and its contractual/data-location terms must be kept in Shiloh's processor/subprocessor register.
 
 ### Render
 
@@ -129,7 +131,7 @@ Render hosts the public Node application and PostgreSQL database. The confirmed 
 
 ### OpenAI — language classification
 
-Before most workflow routing, `englishLanguageGuard` can transmit up to 700 characters of an incoming WhatsApp message to the configured fast OpenAI model. This request uses `store:false`. Short messages that do not require language classification are not sent by this guard.
+Historically, before WhatsApp workflow routing, `englishLanguageGuard` could transmit up to 700 characters of an incoming WhatsApp message to the configured fast OpenAI model. This request uses `store:false`. The guard is now removed and this WhatsApp language-classification flow no longer runs. Current app AI flows require their own processor assessment.
 
 ### OpenAI — knowledge retrieval embeddings
 

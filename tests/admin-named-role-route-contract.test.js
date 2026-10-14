@@ -45,9 +45,3 @@ test('named roles advertise only retained and capability-gated actions', () => {
     }
   }
 });
-
-test('named-person earnings shortcuts are not stable top-level actions', () => {
-  const interactive = fs.readFileSync(path.join(__dirname, '..', 'src/services/adminInteractiveMenu.js'), 'utf8');
-  assert.doesNotMatch(interactive, /christel_earnings|abigail_earnings|marietjie_earnings|admin_action_earnings/);
-  assert.match(interactive, /processRetiredAdminAuthorityMessage/);
-});

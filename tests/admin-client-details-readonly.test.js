@@ -5,8 +5,6 @@ const path = require('node:path');
 
 const lookupSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'adminClientLookup.js'), 'utf8');
 const menuSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'adminMobileMenu.js'), 'utf8');
-const interactiveSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'adminInteractiveMenu.js'), 'utf8');
-const { classifyRetiredAdminAction } = require('../src/services/adminAuthorityRetirement');
 
 test('underlying client lookup helper remains read-only if needed by another bounded surface later', () => {
   assert.match(lookupSource, /maskContact/);
@@ -17,10 +15,7 @@ test('underlying client lookup helper remains read-only if needed by another bou
 
 test('ordinary WhatsApp Admin no longer routes client lookup/details', () => {
   assert.doesNotMatch(menuSource, /findClients|filterClientsForAdminScope|scopedClientLookup|client_lookup/);
-  assert.doesNotMatch(interactiveSource, /processAdminClientLookup|scopedClientLookup|clientGuide/);
-  for (const input of ['Find a client', 'Find client Juvan', 'Client details', 'admin_action_client']) {
-    assert.equal(classifyRetiredAdminAction(input)?.kind, 'retired', input);
-  }
+
 });
 
 test('client lookup helper retains masked ambiguity handling even though it is no longer an ordinary Admin action', () => {

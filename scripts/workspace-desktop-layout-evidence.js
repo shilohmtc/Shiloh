@@ -54,11 +54,14 @@ async function main() {
       records.push({ kind, stage, viewport, filename, sha256: hash(fs.readFileSync(path.join(output, filename))), renderedHtml, renderedHtmlSha256: hash(html), metrics });
       await page.unroute('**/review-layout');
     }
-    const files = git('diff', '--name-only', base, 'HEAD').split('\n').filter(Boolean);
+    const files = git('diff', '--no-renames', '--name-only', base, 'HEAD').split('\n').filter(Boolean);
+    const deletedSourceFiles = files.filter(file => !fs.existsSync(path.join(root, file)));
     const manifest = { sourceHead: head, sourceTree: git('rev-parse', 'HEAD^{tree}'), baseCommit: base, dirty,
       browser: await browser.version(), fontProfileSha256: process.env.FONTCONFIG_FILE ? hash(fs.readFileSync(process.env.FONTCONFIG_FILE)) : null,
       brandAssetSha256: hash(fs.readFileSync(path.join(root, 'public/assets/pwa/shiloh-pwa-192.png'))),
-      sourceFiles: files.map(file => ({ file, sha256: hash(fs.readFileSync(path.join(root, file))) })),
+      patchSha256: hash(execFileSync('git', ['diff', '--no-renames', base, 'HEAD'], { cwd: root, maxBuffer: 16 * 1024 * 1024 })),
+      sourceFiles: files.filter(file => !deletedSourceFiles.includes(file)).map(file => ({ file, sha256: hash(fs.readFileSync(path.join(root, file))) })),
+      deletedSourceFiles,
       provenance: 'Identical fabricated models, Chromium, font profile and original brand asset. Before Dashboard AND shell compiled from recorded base. After uses current production presenters. Exact-source acceptance requires clean expected head. No live client data, authenticated live UI or physical devices.', records };
     fs.writeFileSync(path.join(output, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
     console.log('Synthetic comparable Dashboard evidence and layout metrics captured.');

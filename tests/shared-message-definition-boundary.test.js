@@ -24,16 +24,27 @@ test('shared message definitions and payment values load without provider or dat
 });
 
 test('retired payment transport and unused provider submissions cannot be invoked', () => {
-  for (const file of ['paymentWhatsAppNotifications', 'profileExtractor', 'scopeGuard']) {
+  for (const file of [
+    'paymentWhatsAppNotifications',
+    'profileExtractor',
+    'scopeGuard',
+    'englishLanguageGuard',
+    'identityOnboardingGuard',
+    'adminAuthorityRetirement',
+    'adminInteractiveMenu',
+    'clientHumanHandoffs',
+    'clientBookingDateChoices',
+    'clientBookingIdentityGate',
+    'bookingConfirmationTemplateProvisioning',
+    'bookingConfirmationV2TemplateProvisioning',
+    'staffFinalizationTemplateProvisioning',
+    'reminderActionTemplateProvisioning',
+    'consultationFormTemplateProvisioning',
+  ]) {
     assert.throws(() => require.resolve('../src/services/' + file), { code: 'MODULE_NOT_FOUND' });
   }
   const removed = {
-    bookingConfirmationTemplateProvisioning: ['submitBookingConfirmationTemplate'],
-    bookingConfirmationV2TemplateProvisioning: ['submitBookingConfirmationV2Template'],
-    staffFinalizationTemplateProvisioning: ['submitStaffFinalizationTemplate', 'submitStaffFinalizationActionTemplate'],
-    reminderActionTemplateProvisioning: ['submitReminderActionTemplate'],
     clientLifecycleTemplateProvisioning: ['submitClientLifecycleTemplate'],
-    consultationFormTemplateProvisioning: ['submitConsultationFormTemplates'],
   };
   for (const [file, functions] of Object.entries(removed)) {
     const service = require('../src/services/' + file);

@@ -204,6 +204,8 @@ For iPhone installation, the public website sends clients to `https://app.shiloh
 | OpenAI Responses API | In-app assistant capability where configured | Keep prompts, tools and permissions inside repository authorities | Never expose provider credentials or assume model output is policy |
 | Public domains/DNS | Website and client entry points | Preserve existing records unless explicitly changing them | Verify live HTTPS, redirects and canonical links after changes |
 
+WhatsApp retirement cleanup (14 October 2026): dormant bot-only language/onboarding guards, the staff routing adapter, old client handoff writer/date-button/identity-gate helpers and five unused template-status readers are removed. Shared canonical identity, booking/date availability and message definitions remain. `POST /webhook` only acknowledges conversations and retains historical delivery-status evidence; all automated send entry points remain closed. Historical audit documents describe their original dates rather than current data flows.
+
 Items such as the exact approved Figma file, current provider account identifiers, DNS ownership and environment-variable inventory should be verified in their authenticated systems when needed; credentials and sensitive identifiers do not belong here.
 
 ## Source-of-truth boundaries

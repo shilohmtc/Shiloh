@@ -9,12 +9,11 @@ const source = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 test('pending approval list and resend implementation is removed at cutover', () => {
   assert.equal(fs.existsSync(path.join(root, 'src/services/adminPendingBookingApprovals.js')), false);
 
-  assert.doesNotMatch(source('src/services/adminInteractiveMenu.js'), /Pending approvals|sendWhatsAppTemplate/);
 });
 
 test('legacy staff decision IDs cannot reach a booking mutation', () => {
   const approval = source('src/services/clientBookingApproval.js');
 
   assert.doesNotMatch(approval, /booking_approval_(?:approve|decline)_/);
-  assert.match(source('src/services/adminAuthorityRetirement.js'), /booking_approval_\(\?:approve\|decline\)_/);
+
 });

@@ -160,13 +160,6 @@ test('archive fallback explicitly checks controlled authority before selecting a
   assert.ok(noActiveBlock.indexOf('controlledAuthorityForPhone(normalized, db)') < noActiveBlock.indexOf('nonActiveExactPhoneOwners(normalized, db)'));
 });
 
-test('imported label matching can no longer promote or verify a client', () => {
-  const guard = source('src/services/identityOnboardingGuard.js');
-  assert.doesNotMatch(guard, /persistVerifiedWhatsAppClaim/);
-  assert.doesNotMatch(guard, /pending_name\s*=\s*\$3/);
-  assert.match(guard, /MUST NOT be used to verify, claim or link a client/);
-});
-
 test('imported DOB and gender are not seeded into a fresh archive-aware claim session', () => {
   const onboarding = source('src/services/clientIdentityOnboarding.js');
   assert.match(onboarding, /pendingName:\s*null/);
@@ -236,12 +229,12 @@ test('premium welcome exact-once delivery state is not mutated by reclaim implem
 
 test('Booking/Admin gate and final commit inherit the centralized discriminated resolver authority', () => {
   const onboarding = source('src/services/clientIdentityOnboarding.js');
-  const gate = source('src/services/clientBookingIdentityGate.js');
+
   const commit = source('src/services/clientBookingCommit.js');
   const bookingIdentity = source('src/services/whatsappBookingIdentity.js');
   assert.match(onboarding, /resolveVerifiedClientByWhatsApp/);
   assert.match(onboarding, /status:\s*"unique",\s*authorityStatus:\s*"verified_client"/);
-  assert.match(gate, /resolveWhatsAppBookingIdentity/);
+
   assert.match(commit, /resolveWhatsAppBookingIdentity/);
   assert.match(bookingIdentity, /resolveVerifiedClientByWhatsApp/);
   assert.match(bookingIdentity, /revalidateSessionIdentity/);

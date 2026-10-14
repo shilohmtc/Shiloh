@@ -8,7 +8,7 @@ const {
   FORM_URL,
   buildConsultationFormTemplateDefinitions,
   providerContractMatches,
-} = require('../src/services/consultationFormTemplateProvisioning');
+} = require('../src/messageDefinitions/consultationForm');
 
 test('consultation form and reminder are Utility templates with one secure dynamic form button', () => {
   const definitions = buildConsultationFormTemplateDefinitions();

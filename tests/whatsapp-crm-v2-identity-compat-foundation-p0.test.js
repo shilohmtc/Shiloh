@@ -326,12 +326,13 @@ test('the identity foundation introduces no provider, booking, approval, appoint
 });
 
 test('booking consumers keep using the centralized discriminated compatibility seam after activation', () => {
-  const gate = read('src/services/clientBookingIdentityGate.js');
+
   const commit = read('src/services/clientBookingCommit.js');
   const bookingIdentity = read('src/services/whatsappBookingIdentity.js');
-  assert.match(gate, /resolveWhatsAppBookingIdentity/);
+
   assert.match(commit, /resolveFinalBookingIdentity/);
   assert.match(commit, /crm_v2_client_id/);
   assert.match(bookingIdentity, /identityFromSession/);
-  assert.doesNotMatch(`${gate}\n${commit}\n${bookingIdentity}`, /registerWhatsAppClient/);
+
+  assert.doesNotMatch(`${commit}\n${bookingIdentity}`, /registerWhatsAppClient/);
 });

@@ -1,5 +1,7 @@
 # Shiloh OS — Reconciliation — Imported Contact Book vs Canonical CRM Identity
 
+
+> Historical record. As of 14 October 2026, automated WhatsApp routing is retired and the dormant language/onboarding/booking-gate modules mentioned below are removed. Retained canonical identity helpers still support My Shiloh and current booking flows. Use [SHILOH_PLATFORM_HANDBOOK.md](SHILOH_PLATFORM_HANDBOOK.md) for current runtime boundaries.
 Date: 2026-08-22
 Owning audit/implementation workstream: **CRM & Identity**
 Required shared-contract consumer: **Booking & Admin UX**

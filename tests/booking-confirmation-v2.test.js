@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const axios = require('axios');
 
-const provisioning = require('../src/services/bookingConfirmationV2TemplateProvisioning');
+const provisioning = require('../src/messageDefinitions/bookingConfirmationV2');
 const {
   bookingConfirmationV2QuickReplyPayloads,
   commandForClientBookingButton,
