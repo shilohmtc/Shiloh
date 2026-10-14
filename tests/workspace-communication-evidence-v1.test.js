@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const {
   createWorkspaceCommunicationEvidenceService,
+  appNotificationEntry,
   messageDeliveryEntry,
   rescheduleEntry,
   intentLabel,
@@ -99,6 +100,23 @@ test('Client Communications UX shows Shiloh template and provider outcome but hi
   assert.doesNotMatch(html, /Send message|Reply|Compose/);
 });
 
+test('Client Communications UX retains current app availability beside document/history anchors without retired provider claims', () => {
+  const notification = appNotificationEntry({ category: 'appointment', title: 'Booking confirmation',
+    appointment_id: 71, created_at: '2026-09-01T08:00:08.000Z',
+    template_name: 'private_template', provider_message_id: 'private_provider_id', provider_delivered_at: '2026-09-01T08:00:09Z' });
+  const html = renderClientDetailPageWithCommunications(clientDetailModel({ communications: [notification] }), { calendarNavigationAllowed: true });
+  assert.equal((html.match(/data-client-communications/g) || []).length, 1);
+  assert.match(html, /My Shiloh updates/);
+  assert.match(html, /Booking confirmation/);
+  assert.match(html, /Available in My Shiloh/);
+  assert.match(html, /Appointment #71/);
+  assert.match(html, /id="appointment-history"/);
+  assert.match(html, /id="policy-documents"/);
+  assert.doesNotMatch(html, /Template:|private_template|private_provider_id|provider_message_id|Graph API/i);
+  assert.doesNotMatch(html, /Delivered on WhatsApp|Sent to WhatsApp|Read on WhatsApp/);
+  assert.doesNotMatch(html, /Send message|Reply|Compose/);
+});
+
 test('Client appointment history exposes an obvious accessible drill-in to Calendar details', () => {
   const html = renderClientDetailPageWithCommunications(clientDetailModel({
     appointments: [{
@@ -125,6 +143,9 @@ test('communication evidence failure renders a neutral unavailable state rather 
     communications: [],
     communicationsUnavailable: true,
   }));
+  assert.equal((html.match(/data-client-communications/g) || []).length, 1);
+  assert.equal((html.match(/id="appointment-history"/g) || []).length, 1);
+  assert.match(html, /href="#appointment-history"/);
   assert.match(html, /Communication evidence is temporarily unavailable/);
   assert.match(html, /No delivery claim is being made/);
   assert.doesNotMatch(html, /No recorded Shiloh notifications yet/);
@@ -134,4 +155,23 @@ test('communication section remains truthful when there is no recorded evidence'
   const html = renderCommunicationSection([]);
   assert.match(html, /No recorded Shiloh notifications yet/);
   assert.doesNotMatch(html, /delivered/i);
+});
+
+
+test('client detail composition retains scoped documents, communications and profile management beside the history jump', () => {
+  const { injectClientConsultationHistory } = require('../src/presentation/workspaceClientDocumentsUx');
+  const { injectClientDetailManagement } = require('../src/presentation/workspaceClientsManageUx');
+  for (const manageAllowed of [true,false]) for (const communicationsUnavailable of [true,false]) {
+    const model = clientDetailModel({ manageAllowed, communicationsUnavailable,
+      consultationHistory: { items:[{submissionId:101,appointmentId:71,formTitle:'Synthetic consent',signedAt:'2026-09-01T08:00:00Z',services:['Synthetic treatment'],canOpen:false}], page:0,hasMore:false } });
+    const html = injectClientDetailManagement(injectClientConsultationHistory(renderClientDetailPageWithCommunications(model),model),model);
+    for (const marker of ['id="appointment-history"','data-client-communications','data-policy-acceptance-history','data-client-consultation-history']) {
+      assert.equal(html.split(marker).length-1,1,marker);
+    }
+    assert.equal(html.split('data-client-management ').length-1,manageAllowed ? 1 : 0);
+    assert.match(html,/href="#appointment-history"/);
+    assert.match(html,/Private answers restricted/);
+    assert.doesNotMatch(html,/href="[^"]*consultation-forms\/101|Send booking confirmation/);
+    if (communicationsUnavailable) assert.match(html,/Communication evidence is temporarily unavailable/);
+  }
 });

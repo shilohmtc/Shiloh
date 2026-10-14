@@ -30,3 +30,4 @@ module.exports = defineConfig({
 // Keep this focused addition separate from the shared browser catalogue.
 module.exports.testMatch.push('payment-price-review-ux.spec.js');
 module.exports.testMatch.push('planning-request-completion-ux.spec.js');
+module.exports.testMatch.push('workspace-browser-review-ux.spec.js');

@@ -3,6 +3,7 @@ const {
   workspaceShellStyles,
   renderWorkspaceNavigation,
 } = require('./workspaceShell');
+const { appointmentDetailHref } = require('./calendarAppointmentDetailLinks');
 const { formatDateTime } = require('./workspaceClientNotificationsUx');
 
 function statusTone(status) {
@@ -19,7 +20,7 @@ function styles() {
   return `${baseStyles()}:root{--muted:#52645b}`;
 }
 
-function attentionItem(item) {
+function attentionItem(item, selectedView) {
   const appointment = item.appointment || {};
   const client = item.client || {};
   const confirmation = item.confirmation || {};
@@ -31,7 +32,10 @@ function attentionItem(item) {
     || (item.canRecover ? 'Retry is available through Shiloh’s existing booking-confirmation channel.' : null)
     || item.reasonMessage
     || 'Recovery is not currently available.';
-  return `<article class="item" data-message-attention="${escapeHtml(appointment.id)}"><header class="item-head"><div><h3>${escapeHtml(client.name || 'Unnamed client')}</h3><p>Appointment #${escapeHtml(appointment.id)} · ${escapeHtml(appointment.serviceName || 'Shiloh appointment')}</p></div><span class="status attention">${escapeHtml(confirmation.statusLabel || 'Unknown')}</span></header><p>${escapeHtml(formatDateTime(appointment.startsAt))}</p><div class="explanations"><div class="explanation"><strong>Delivery</strong><span>${escapeHtml(delivery)}</span></div><div class="explanation"><strong>Recovery</strong><span>${escapeHtml(recovery)}</span></div></div><div class="item-actions"><a data-workspace-action="secondary" class="button" href="/calendar/clients/${escapeHtml(client.id)}">Client</a><a data-workspace-action="secondary" class="button" href="/calendar/read-only?view=day&amp;date=${escapeHtml(String(appointment.startsAt || '').slice(0, 10))}">Calendar</a>${recover}</div></article>`;
+  const detailHref = appointment.startsAt ? appointmentDetailHref({ appointmentId: appointment.id, startsAt: appointment.startsAt }) : null;
+  const returnTo = `/calendar/messages?view=${['all', 'attention', 'recent'].includes(selectedView) ? selectedView : 'all'}`;
+  const calendar = detailHref ? `<a data-workspace-action="secondary" class="button" href="${escapeHtml(detailHref + '&returnTo=' + encodeURIComponent(returnTo))}">Calendar</a>` : '';
+  return `<article class="item" data-message-attention="${escapeHtml(appointment.id)}"><header class="item-head"><div><h3>${escapeHtml(client.name || 'Unnamed client')}</h3><p>Appointment #${escapeHtml(appointment.id)} · ${escapeHtml(appointment.serviceName || 'Shiloh appointment')}</p></div><span class="status attention">${escapeHtml(confirmation.statusLabel || 'Unknown')}</span></header><p>${escapeHtml(formatDateTime(appointment.startsAt))}</p><div class="explanations"><div class="explanation"><strong>Delivery</strong><span>${escapeHtml(delivery)}</span></div><div class="explanation"><strong>Recovery</strong><span>${escapeHtml(recovery)}</span></div></div><div class="item-actions"><a data-workspace-action="secondary" class="button" href="/calendar/clients/${escapeHtml(client.id)}">Client</a>${calendar}${recover}</div></article>`;
 }
 
 function changeDeliveryItem(item) {
@@ -54,7 +58,7 @@ function renderMessagesPage(model, {
     ? '<div class="empty">Communication attention is temporarily unavailable. No recovery or delivery claim is being made.</div>'
     : !model.notificationAuthority
       ? '<div class="empty">Recovery actions are not available with your current access.</div>'
-      : (model.attention || []).map(attentionItem).join('') || '<div class="empty">No current My Shiloh updates need attention.</div>';
+      : (model.attention || []).map(item => attentionItem(item, model.selectedView)).join('') || '<div class="empty">No current My Shiloh updates need attention.</div>';
   const changeBody = model.notificationAuthority
     ? model.changeAttentionUnavailable
       ? '<div class="empty">Booking-change delivery evidence is temporarily unavailable. Review the client record before any resend.</div>'

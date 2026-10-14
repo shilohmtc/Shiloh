@@ -413,6 +413,7 @@ function createCalendarReadOnlyHandler({
 
       let html = renderPage(renderedModel, {
         basePath,
+        messagesReturnTo: req.query?.returnTo,
         staffAccessPath,
         staffAccessScriptPath: `${staffAccessPath}/client.js`,
         operationalMutationsScriptPath,

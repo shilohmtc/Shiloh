@@ -78,7 +78,7 @@ function renderClientListPage(model, {
   const selectedStatus = model.status || 'all';
   const rows = (model.clients || []).map(client => {
     const last = client.last_appointment_at ? formatDateTime(client.last_appointment_at).date : 'No appointment yet';
-    return `<a class="client-row" href="/calendar/clients/${escapeHtml(client.id)}"><span class="client-name">${escapeHtml(client.name || 'Unnamed client')}</span><span class="client-contact">${escapeHtml(maskMobile(client.normalized_mobile))}</span>${statusPill(client.status)}<span class="client-last">${escapeHtml(last)}</span><span class="row-arrow" aria-hidden="true">›</span></a>`;
+    return `<a class="client-row" href="/calendar/clients/${escapeHtml(client.id)}"><span class="client-name">${escapeHtml(client.name || 'Unnamed client')}</span><span class="client-contact">${escapeHtml(maskMobile(client.normalized_mobile))}</span>${statusPill(client.status)}<span class="client-last">${client.last_appointment_at ? 'Last appointment: ' : ''}${escapeHtml(last)}</span><span class="row-arrow" aria-hidden="true">›</span></a>`;
   }).join('');
   const statusOptions = [['active', 'Active'], ['archived', 'Archived'], ['all', 'All']]
     .map(([value, label]) => `<option value="${value}"${selectedStatus === value || (!model.status && value === 'all') ? ' selected' : ''}>${label}</option>`).join('');
@@ -158,10 +158,10 @@ function renderClientDetailPage(model, {
     ? 'Booking readiness and historical treatment details'
     : 'Historical service and practitioner snapshots';
   return `${shellStart({ title: 'Client detail', subtitle: 'Client profile and appointment history.', displayName: model.authority?.displayName, calendarNavigationAllowed, staffAccessScriptPath })}<main data-client-detail-view>
-    <nav class="detail-actions" aria-label="Client navigation"><a data-workspace-action="secondary" class="button" href="/calendar/clients" data-workspace-back-context="/calendar/clients">← Back to Clients</a></nav>
+    <nav class="detail-actions" aria-label="Client navigation"><a data-workspace-action="secondary" class="button" href="/calendar/clients" data-workspace-back-context="/calendar/clients">← Back to Clients</a><a data-workspace-action="secondary" class="button" href="#appointment-history">Appointment history</a></nav>
     <section class="profile-panel"><header class="profile-heading"><div><span class="eyebrow">Client record</span><h2>${escapeHtml(client.name || 'Unnamed client')}</h2></div>${statusPill(client.status)}</header><div class="profile-grid"><div class="profile-field"><span>Profile</span><strong>${escapeHtml(String(client.profile_status || 'unknown').replace(/_/g, ' '))}</strong></div><div class="profile-field"><span>Date of birth</span><strong>${escapeHtml(formatDateOnly(client.date_of_birth))}</strong></div><div class="profile-field"><span>Gender</span><strong>${escapeHtml(String(client.gender || 'Not recorded').replace(/_/g, ' '))}</strong></div><div class="profile-field"><span>Appointment history</span><strong>${model.appointments.length} shown</strong></div></div><div class="contact-card"><div><span class="eyebrow">Primary mobile</span><strong>${escapeHtml(formatMobile(client.normalized_mobile))}</strong></div><small>${escapeHtml(verified)}</small></div></section>
     ${policySection}
-    <section class="history-panel"><header class="section-heading"><div><span class="eyebrow">History</span><h2>Appointments</h2></div><span class="truth-note">${escapeHtml(historyTruth)}</span></header><div class="history-list">${historyRows || '<div class="empty">No appointments are recorded for this client.</div>'}</div><nav class="pager" aria-label="Appointment history pages">${previous}${next}</nav></section>
+    <section class="history-panel"><header class="section-heading"><div><span class="eyebrow">History</span><h2 id="appointment-history">Appointments</h2></div><span class="truth-note">${escapeHtml(historyTruth)}</span></header><div class="history-list">${historyRows || '<div class="empty">No appointments are recorded for this client.</div>'}</div><nav class="pager" aria-label="Appointment history pages">${previous}${next}</nav></section>
   </main><p class="footer-note">Only appointments linked to this client are shown.</p></div></div></div></body></html>`;
 }
 

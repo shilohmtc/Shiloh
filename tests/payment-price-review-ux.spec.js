@@ -1,5 +1,19 @@
 const {test,expect}=require('@playwright/test');
 const AxeBuilder=require('@axe-core/playwright').default;
+async function accessibilityViolations(page) {
+ let violations;
+ // Serialize with Storybook's automatic scan; violations and all other errors still fail.
+ await expect.poll(async()=>{
+  try {
+   violations=(await new AxeBuilder({page}).include('[data-payment-page]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations;
+   return true;
+  } catch(error) {
+   if(error.message.includes('Axe is already running'))return false;
+   throw error;
+  }
+ },{timeout:10000}).toBe(true);
+ return violations;
+}
 for(const [name,width,height] of [['phone',390,844],['desktop',1280,900]]){
  test(`changed payment price opens an accessible read-only review on ${name}`,async({page},testInfo)=>{
   await page.setViewportSize({width,height});let mutations=[];
@@ -10,7 +24,7 @@ for(const [name,width,height] of [['phone',390,844],['desktop',1280,900]]){
   await expect(page.locator('[data-payment-history]')).toBeVisible();
   await expect(page.locator('[data-manual-form],[data-refund-form],[data-ozow-form],[data-copy-link],[data-retry-deposit],[data-payment-method-card]')).toHaveCount(0);
   await expect(page.getByText('Recorded balance · review only',{exact:true})).toBeVisible();
-  expect((await new AxeBuilder({page}).include('[data-payment-page]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);
+  expect(await accessibilityViolations(page)).toEqual([]);
   await page.screenshot({path:testInfo.outputPath(`price-review-${name}.png`),fullPage:true});
   await page.getByRole('link',{name:'Review payment history',exact:true}).click();
   await expect(page).toHaveURL(/#payment-history$/);expect(mutations).toHaveLength(0);

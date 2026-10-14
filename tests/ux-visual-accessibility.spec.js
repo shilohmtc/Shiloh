@@ -906,7 +906,7 @@ test('linked booking payment is usable on Phone and Desktop', async ({page},test
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     await page.goto('/iframe.html?id=workspace-production-surfaces--linked-booking-payment&viewMode=story',{waitUntil:'networkidle'});
     await expect(page.getByRole('heading',{name:'Linked booking #55'})).toBeVisible();
-    await expect(page.getByText('R 740,00').first()).toBeVisible();
+    await expect(page.getByText('R740,00').first()).toBeVisible();
     const metrics=await page.evaluate(()=>({viewport:innerWidth,document:document.documentElement.scrollWidth,short:[...document.querySelectorAll('button,input,select,a')].filter(node=>node.getClientRects().length&&(node.type==='checkbox'?node.closest('label'):node).getBoundingClientRect().height<44).length}));
     expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);expect(metrics.short).toBe(0);
     const accessibility=await new AxeBuilder({page}).include('.workspace-surface-story').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
@@ -952,8 +952,8 @@ test('cancelled deposit link has one clear replacement action on Phone and Deskt
     const root=page.locator('[data-payment-page]');
     await expect(root.locator('.payment-head .state')).toHaveText('Credit applied · payment due');
     await expect(root.locator('.balance')).toContainText('Welcome voucher used');
-    await expect(root.locator('.balance')).toContainText('R 100,00');
-    await expect(root.locator('.balance')).toContainText('R 490,00');
+    await expect(root.locator('.balance')).toContainText('R100,00');
+    await expect(root.locator('.balance')).toContainText('R490,00');
     await expect(root.locator('[data-request-guidance]')).toBeVisible();
     await expect(root.locator('details.manual-payment')).not.toHaveAttribute('open');
     await expect(root.getByText(/previous deposit link was cancelled and cannot be used/)).toBeVisible();

@@ -75,6 +75,21 @@ jobs:
             echo 'Candidate baselines generated. Review the PNGs and commit only approved .png.b64.part* fixtures deliberately.'
             exit 1
           fi
+      - name: Capture final-source synthetic Workspace browser review
+        env:
+          EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          REVIEW_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$REVIEW_BASE_SHA"
+          node scripts/workspace-browser-review-evidence.js
+      - name: Upload source-bound Workspace browser review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: workspace-browser-review
+          path: artifacts/workspace-browser-review
+          if-no-files-found: error
+          retention-days: 14
       - name: Package small My Shiloh sign-in review
         run: node scripts/package-my-shiloh-signin-evidence.js
       - name: Bind prior-payment screenshots to exact head

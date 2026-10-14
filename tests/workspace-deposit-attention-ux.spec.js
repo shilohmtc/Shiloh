@@ -45,7 +45,7 @@ for(const [name,viewport] of [['phone',{width:390,height:844}],['desktop',{width
     await expect(section.locator('[data-deposit-account]')).toHaveCount(1);
     await expect(section.locator('[data-deposit-account]')).toHaveAttribute('data-workspace-card','deposit-pending');
     await expect(section.locator('.booking-notes-indicator')).toHaveCount(0);
-    await expect(section).toContainText('R350 deposit outstanding');await expect(section).toContainText('Synthetic Fynbos');
+    await expect(section).toContainText('R350,00 deposit outstanding');await expect(section).toContainText('Synthetic Fynbos');
     await expect(section.getByRole('link',{name:'Review payment'})).toHaveAttribute('href','/calendar/payments/appointments/1');
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     const axe=await new AxeBuilder({page}).analyze();expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
@@ -57,7 +57,7 @@ for(const [name,viewport] of [['phone',{width:390,height:844}],['desktop',{width
     await page.screenshot({path:`artifacts/workspace-deposits/${name}-empty.png`,fullPage:true});
     failure=true;await section.getByRole('button',{name:'Refresh deposits'}).click();await expect(section).toContainText('temporarily unavailable');await expect(section.locator('[data-deposit-account]')).toHaveCount(0);
     await page.screenshot({path:`artifacts/workspace-deposits/${name}-error.png`,fullPage:true});
-    failure=false;await db.exec("INSERT INTO payment_ledger_entries VALUES(1,null,'refund',25)");await section.getByRole('button',{name:'Refresh deposits'}).click();await expect(section).toContainText('R25 deposit outstanding');
+    failure=false;await db.exec("INSERT INTO payment_ledger_entries VALUES(1,null,'refund',25)");await section.getByRole('button',{name:'Refresh deposits'}).click();await expect(section).toContainText('R25,00 deposit outstanding');
     await context.addCookies([{name:cookieName(env),value:'own',url:base}]);await page.reload();await expect(section).toContainText('No upcoming bookings');await expect(page.getByText('Synthetic Fynbos')).toHaveCount(0);
     await context.addCookies([{name:cookieName(env),value:'denied',url:base}]);await page.reload();await expect(section).toHaveCount(0);const before=reads;
     expect((await page.request.get(base+'/calendar/workspace/deposits')).status()).toBe(200);expect(reads).toBe(before);
