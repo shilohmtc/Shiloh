@@ -37,3 +37,5 @@ module.exports.testMatch.push('booking-deposit-waiver.spec.js', 'booking-deposit
 module.exports.testMatch.push('workspace-dashboard-deposit-organisation-ux.spec.js');
 
 module.exports.testMatch.push('dashboard-deposit-waiver-shortcut.spec.js');
+module.exports.testMatch.push('payment-waiver-alignment.spec.js');
+module.exports.testMatch.push('rebook-action-style.spec.js');
