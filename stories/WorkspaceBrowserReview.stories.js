@@ -1,3 +1,5 @@
+import depositsSparse from './fixtures/workspaceBrowserReview.generated/deposits-sparse.html?url';
+import depositsBusy from './fixtures/workspaceBrowserReview.generated/deposits-busy.html?url';
 // Generated from the exact production presenters and fabricated models before each build.
 import empty from './fixtures/workspaceBrowserReview.generated/empty.html?url';
 import populated from './fixtures/workspaceBrowserReview.generated/populated.html?url';
@@ -17,3 +19,6 @@ export const SearchFirstClients = { render: () => iframe(clients) };
 export const RewardsFields = { render: () => iframe(rewards) };
 export const DesktopSparseDay = { render: () => iframe(sparse) };
 export const DesktopBusyDay = { render: () => iframe(busy) };
+
+export const DepositsBelowTodaySparse = { render: () => iframe(depositsSparse) };
+export const DepositsBelowTodayBusy = { render: () => iframe(depositsBusy) };

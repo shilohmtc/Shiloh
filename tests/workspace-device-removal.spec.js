@@ -45,3 +45,25 @@ for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width
     });
   }
 }
+
+for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1280,height:900}]) {
+  test(`repeated Remove Cancel and Escape restore the actual trigger without removal on ${viewport.name}`,async({page})=>{
+    await page.setViewportSize(viewport);
+    const fixture=await setup(page);
+    const remove=page.locator('[data-passkey-list]').getByRole('button',{name:'Remove',exact:true}).first();
+    const dialog=page.locator('[data-device-dialog]');
+    for(const dismiss of ['Cancel','Escape','Cancel']) {
+      await remove.click();
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole('button',{name:'Cancel',exact:true})).toBeFocused();
+      if(dismiss==='Escape')await page.keyboard.press('Escape');
+      else await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
+      await expect(dialog).toBeHidden();
+      await expect(remove).toBeEnabled();
+      await expect(remove).toBeFocused();
+      await expect(page.locator('[data-passkey-list] .credential')).toHaveCount(5);
+    }
+    expect(fixture.calls()).toBe(0);
+    expect(await page.evaluate(()=>window.__passkeyPrompts)).toBe(0);
+  });
+}
