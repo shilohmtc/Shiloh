@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { extractHtmlSection } = require('./helpers/extractHtmlSection');
 
 const { renderDashboardPage } = require('../src/presentation/workspaceDashboardUx');
 
@@ -42,12 +43,19 @@ function model({ canFinalize = true } = {}) {
 }
 
 function attentionPanel(html) {
-  const start = html.indexOf('<section class="panel" data-dashboard-attention-panel>');
-  const end = html.indexOf('<section class="panel" data-dashboard-activity-panel>', start);
-  assert.notEqual(start, -1);
-  assert.notEqual(end, -1);
-  return html.slice(start, end);
+  return extractHtmlSection(html, 'data-dashboard-attention-panel');
 }
+
+test('panel extraction retains nested contents and excludes neighbours in either order', () => {
+  const panel = '<section data-dashboard-attention-panel><section data-nested>Exact visit</section><button>Completed</button></section>';
+  const activity = '<section data-dashboard-activity-panel>Unrelated action</section>';
+  const script = `<script>const example = '${panel}';</script>`;
+  assert.equal(attentionPanel(script + activity + panel), panel);
+  assert.equal(attentionPanel(panel + activity + script), panel);
+  assert.throws(() => attentionPanel(activity));
+  assert.throws(() => attentionPanel(panel + panel));
+  assert.throws(() => attentionPanel('<section data-dashboard-attention-panel>'));
+});
 
 test('Needs attention identifies the exact unresolved visit and exposes canonical outcome actions when authorized', () => {
   const panel = attentionPanel(renderDashboardPage(model({ canFinalize: true })));

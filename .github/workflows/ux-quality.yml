@@ -11,7 +11,7 @@ jobs:
   ux_quality:
     runs-on: ubuntu-latest
     # Preserve the full UX suite and evidence packaging on slower runners.
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - name: Checkout exact PR head
         uses: actions/checkout@v7
@@ -88,6 +88,21 @@ jobs:
         with:
           name: workspace-browser-review
           path: artifacts/workspace-browser-review
+          if-no-files-found: error
+          retention-days: 14
+      - name: Capture source-bound Workspace desktop layout review
+        # Desktop refinement review has its own source-bound, synthetic packet.
+        # Reuse the same fetched base, browser and existing static Storybook.
+        env:
+          EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          REVIEW_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node scripts/workspace-desktop-layout-evidence.js
+      - name: Upload source-bound Workspace desktop layout review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: workspace-desktop-layout-review
+          path: artifacts/workspace-desktop-layout
           if-no-files-found: error
           retention-days: 14
       - name: Package small My Shiloh sign-in review
