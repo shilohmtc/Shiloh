@@ -26,7 +26,7 @@ for(const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',wi
     await expect(card).not.toContainText('Start planning');await expect(card).not.toContainText('Cannot accommodate');
     await expect(select).toBeDisabled();await expect(confirm).toBeDisabled();
     await expect(card.locator('[data-planning-empty]')).toBeVisible();
-    await expect(card.getByRole('link',{ name:'Arrange appointment in Calendar' })).toHaveAttribute('href',/\/calendar\/read-only/);
+    await expect(card.getByRole('link',{ name:'Rebook with client' })).toHaveAttribute('href',/\/calendar\/read-only/);
     await refresh.click();await expect(card.locator('[data-planning-status]')).toContainText('No approved upcoming appointment');
     await page.screenshot({ path:testInfo.outputPath(`planning-empty-${viewport.name}.png`),fullPage:true,animations:'disabled' });
     available=true;await refresh.click();await expect(select).toBeEnabled();await expect(confirm).toBeDisabled();

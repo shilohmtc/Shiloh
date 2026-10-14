@@ -245,6 +245,7 @@ function createWorkspaceOperationalRouter({
         viewer:req.staffBrowserSession?.viewer,
         ...(req.staffBrowserSession?.accountPrincipal ? { sessionPrincipal:req.staffBrowserSession.accountPrincipal } : {}),
         requestId:req.params.requestId,
+        attended:req.query?.kind==='attended',
       });
       return res.status(200).json(result);
     } catch (error) {
@@ -262,6 +263,9 @@ function createWorkspaceOperationalRouter({
         requestId:req.params.requestId,
         action:req.params.action,
         appointmentId:req.body?.appointmentId,
+        expectedRevision:req.body?.expectedRevision,
+        operationId:req.body?.operationId,
+        confirmed:req.body?.confirmed,
       });
       return res.status(200).json(result);
     } catch (error) {
