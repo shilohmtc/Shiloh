@@ -2,6 +2,20 @@
 
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
+async function accessibilityViolations(page) {
+  let violations;
+  // Storybook can own the Axe engine before the explicit scan; all other errors still fail.
+  await expect.poll(async () => {
+    try {
+      violations = (await new AxeBuilder({ page }).include('[data-story-surface]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations;
+      return true;
+    } catch (error) {
+      if (error.message.includes('Axe is already running')) return false;
+      throw error;
+    }
+  }, { timeout: 10000 }).toBe(true);
+  return violations;
+}
 const { documentClientScript } = require('../src/presentation/workspaceClientDocumentsUx');
 
 for (const [device,width,height] of [['phone',390,844],['desktop',1280,900]]) {
@@ -45,7 +59,7 @@ for (const [device,width,height] of [['phone',390,844],['desktop',1280,900]]) {
         }
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      expect((await new AxeBuilder({ page }).include('[data-story-surface]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);
+      expect(await accessibilityViolations(page)).toEqual([]);
       await page.screenshot({ path:testInfo.outputPath(`${story}-${device}.png`),fullPage:true });
       if (story.endsWith('record')) {
         await page.emulateMedia({ media:'print' });

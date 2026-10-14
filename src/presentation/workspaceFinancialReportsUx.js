@@ -1,8 +1,7 @@
+const { formatRand: money } = require('./currency');
 const { escapeHtml } = require('./workspaceShell');
 
-function money(value) {
-  return `R${Number(value || 0).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+
 function dateLabel(value) {
   return new Intl.DateTimeFormat('en-ZA', { day: '2-digit', month: 'short' }).format(new Date(`${value}T12:00:00+02:00`));
 }

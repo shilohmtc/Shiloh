@@ -11,3 +11,6 @@ private-data/
 *.zip
 *.csv
 *.ics
+
+# Production-backed synthetic browser-review Storybook surfaces.
+stories/fixtures/workspaceBrowserReview.generated/

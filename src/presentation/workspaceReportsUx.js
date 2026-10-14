@@ -1,3 +1,6 @@
+const { formatRand: generatedRand } = require('./currency');
+// Preserve the report's existing non-negative/missing-value presentation authority.
+function formatRand(value) { return generatedRand(Math.max(0, Number(value) || 0)); }
 const { workspaceErrorRecoveryClientScript } = require('./workspaceErrorRecovery');
 const { recordsStyles, recordSections } = require('./workspaceFinancialRecordsUx');
 const { financialStyles, financialOverview, financialContext, financialSections } = require('./workspaceFinancialReportsUx');
@@ -87,9 +90,7 @@ function formatTimestamp(value) {
   }).format(date);
 }
 
-function formatRand(value) {
-  return `R${Math.max(0, Number(value) || 0).toLocaleString('en-ZA', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
-}
+
 
 function queryForPreset(preset, selectedStaffId) {
   const params = new URLSearchParams({ range: preset });
@@ -212,7 +213,7 @@ function renderReportsPage(model, {
         <section class="panel"><div class="panel-heading"><div><span class="eyebrow">Appointments</span><h3>Appointment status</h3><p>${escapeHtml(model.appointments?.operational || 0)} appointment${Number(model.appointments?.operational || 0) === 1 ? '' : 's'} excluding cancellations · ${escapeHtml(model.appointments?.allRecorded || 0)} appointment${Number(model.appointments?.allRecorded || 0) === 1 ? '' : 's'} recorded, including cancellations.</p></div></div><div class="status-strip">${statusPills || '<div class="empty">No appointments were recorded in this period.</div>'}</div></section>
         <details class="panel" id="treatments" data-report-section><summary class="panel-heading"><div><span class="eyebrow">Treatments</span><h3>Treatments booked</h3><p>Which treatments were booked most often.</p></div></summary><div class="panel-body"><div class="service-list">${serviceRows || '<div class="empty">No treatments were booked in this period.</div>'}</div></div></details>
 
-        <details class="panel" id="clients" data-report-section><summary class="panel-heading"><div><span class="eyebrow">Clients</span><h3>New and returning clients</h3><p>Clients with non-cancelled appointments in this period.</p></div></summary><div class="panel-body"><p class="footer-note">New means their first recorded non-cancelled appointment falls in this period; it does not confirm attendance. Contact details are not shown here.</p><div class="client-grid"><div class="client-stat"><strong>${escapeHtml(model.clients?.uniqueClients || 0)}</strong><span>Total clients</span></div><div class="client-stat"><strong>${escapeHtml(model.clients?.newClients || 0)}</strong><span>New</span></div><div class="client-stat"><strong>${escapeHtml(model.clients?.returningClients || 0)}</strong><span>Returning</span></div></div></div></details>
+        <details class="panel" id="clients" data-report-section><summary class="panel-heading"><div><span class="eyebrow">Clients</span><h3>New and returning clients</h3><p>Clients linked to non-cancelled appointments in this period.</p></div></summary><div class="panel-body"><p class="footer-note">This client mix does not yet include all clients in the current Clients list. Appointment totals can be higher. New means their first recorded non-cancelled appointment falls in this period; it does not confirm attendance. Contact details are not shown here.</p><div class="client-grid"><div class="client-stat"><strong>${escapeHtml(model.clients?.uniqueClients || 0)}</strong><span>Total clients</span></div><div class="client-stat"><strong>${escapeHtml(model.clients?.newClients || 0)}</strong><span>New</span></div><div class="client-stat"><strong>${escapeHtml(model.clients?.returningClients || 0)}</strong><span>Returning</span></div></div></div></details>
 
         <details class="panel" id="activity-comparison" data-report-section><summary class="panel-heading"><div><span class="eyebrow">Comparison</span><h3>Appointments compared with the previous period</h3><p>${model.period.preset === 'week' ? 'The same weekdays last week.' : model.period.preset === 'month' ? 'The same elapsed dates last month, up to its final day.' : 'The same number of days immediately before this report.'}</p></div></summary><div class="panel-body"><div class="trend-card"><div class="trend-number">${Number(model.trend?.delta || 0) > 0 ? '+' : ''}${escapeHtml(model.trend?.delta || 0)}</div><div class="trend-copy">${escapeHtml(trendSummary(model.trend))} This period: ${escapeHtml(model.trend?.currentOperationalAppointments || 0)} · Previous: ${escapeHtml(model.trend?.previousOperationalAppointments || 0)}.</div></div></div></details>
     </div></details>

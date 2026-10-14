@@ -3,16 +3,12 @@ const assert = require('node:assert/strict');
 const express = require('express');
 const fs = require('node:fs');
 const http = require('node:http');
-const os = require('node:os');
-const path = require('node:path');
-const { execFile } = require('node:child_process');
-const { promisify } = require('node:util');
+const { chromium } = require('@playwright/test');
 
 const { createWorkspaceOperationalRouter } = require('../src/routes/workspaceOperational');
 const { createStaffCalendarAccessRouter } = require('../src/routes/staffCalendarAccessUx');
 const { isHumanBrowserNavigation } = require('../src/middleware/staffBrowserSession');
 
-const execFileAsync = promisify(execFile);
 const TEST_KEY = Buffer.alloc(32, 7).toString('base64url');
 const ENV = {
   NODE_ENV: 'test',
@@ -162,34 +158,37 @@ test('#831 real Chromium Desktop and Phone direct navigation land on simplified 
   const chrome = chromeExecutable();
   assert.ok(chrome, 'Chrome/Chromium is required for #831 browser-navigation proof');
   await withServer(fixture(), async base => {
-    async function dump(args, url) {
-      const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'shiloh-831-chrome-'));
+    // Capture the actual redirected browser document through Playwright instead
+    // of Chromium's CLI --dump-dom, which can exit with empty stdout locally.
+    const browser = await chromium.launch({ executablePath: chrome, headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+    async function document(viewport, url, userAgent) {
+      const context = await browser.newContext({ viewport, ...(userAgent ? { userAgent } : {}) });
       try {
-        const result = await execFileAsync(chrome, [
-          '--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
-          '--no-first-run', '--no-default-browser-check', `--user-data-dir=${profile}`,
-          '--virtual-time-budget=800', '--dump-dom', ...args, url,
-        ], { encoding: 'utf8', timeout: 30_000, maxBuffer: 5 * 1024 * 1024 });
-        assert.ok(result.stdout, `Chromium returned no document: ${result.stderr}`);
-        return result.stdout;
+        const page = await context.newPage();
+        const response = await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 });
+        assert.equal(response.status(), 200, 'The redirected sign-in document must load successfully');
+        await page.locator('main').waitFor({ state: 'visible', timeout: 30_000 });
+        assert.match(new URL(page.url()).pathname, /^\/calendar\/staff(?:\/|$)/);
+        return await page.content();
       } finally {
-        fs.rmSync(profile, { recursive: true, force: true });
+        await context.close();
       }
     }
+    try {
+      const desktop = await document({ width: 1440, height: 900 }, `${base}/calendar/workspace`);
+      assert.match(desktop, /Shiloh Workspace sign-in/);
+      assert.doesNotMatch(desktop, /\{"error":"Unauthorized"/);
+      assert.doesNotMatch(desktop, /First Time|New Device|device not set up|permissions\/governance/i);
+      assert.doesNotMatch(desktop, /Use another sign-in method|Sign in with authenticator|Use a recovery code/);
 
-    const desktop = await dump(['--window-size=1440,900'], `${base}/calendar/workspace`);
-    assert.match(desktop, /Shiloh Workspace sign-in/);
-    assert.doesNotMatch(desktop, /\{"error":"Unauthorized"/);
-    assert.doesNotMatch(desktop, /First Time|New Device|device not set up|permissions\/governance/i);
-    assert.doesNotMatch(desktop, /Use another sign-in method|Sign in with authenticator|Use a recovery code/);
-
-    const phone = await dump([
-      '--window-size=390,844',
-      '--user-agent=Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36',
-    ], `${base}/calendar/workspace`);
-    assert.match(phone, /Shiloh Workspace sign-in/);
-    assert.doesNotMatch(phone, /\{"error":"Unauthorized"/);
-    assert.doesNotMatch(phone, /First Time|New Device|device not set up|permissions\/governance/i);
-    assert.doesNotMatch(phone, /Use another sign-in method|Sign in with authenticator|Use a recovery code/);
+      const phone = await document({ width: 390, height: 844 }, `${base}/calendar/workspace`,
+        'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36');
+      assert.match(phone, /Shiloh Workspace sign-in/);
+      assert.doesNotMatch(phone, /\{"error":"Unauthorized"/);
+      assert.doesNotMatch(phone, /First Time|New Device|device not set up|permissions\/governance/i);
+      assert.doesNotMatch(phone, /Use another sign-in method|Sign in with authenticator|Use a recovery code/);
+    } finally {
+      await browser.close();
+    }
   });
 });

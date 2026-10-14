@@ -83,7 +83,7 @@ test('Dashboard removes empty urgency chrome and leads with the operational day'
   assert.match(body, /<h2>Today across the team<\/h2><p class="truth-note">Friday, 11 September<\/p>/);
 });
 
-test('#854 renders bounded Desktop backlog and stable Phone order without changing finalization controls', () => {
+test('#854 retains bounded backlog, compact responsive team cards and stable Phone order without changing finalization controls', () => {
   const html = renderDashboardPage(model());
 
   assert.match(html, /class="dashboard-grid" data-dashboard-grid/);
@@ -100,12 +100,12 @@ test('#854 renders bounded Desktop backlog and stable Phone order without changi
   assert.match(html, /\.dashboard-grid>\[data-dashboard-today\]\{grid-column:1\/5;grid-row:1\/3\}/);
   assert.match(html, /\.dashboard-grid>\[data-dashboard-carryover-panel\]\{grid-column:5\/7;grid-row:1\}/);
   assert.doesNotMatch(html, /\.carryover-panel\{position:sticky/);
-  assert.match(html, /@media\(min-width:1180px\)\{\.team-groups\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}\}/);
+  assert.match(html, /@media\(min-width:1180px\)\{\.team-groups\{grid-template-columns:repeat\(auto-fit,minmax\(min\(220px,100%\),1fr\)\)\}\}/);
   assert.match(html, /@media\(min-width:1051px\)\{\.workspace-main \.shell\{display:flex;min-height:100vh;flex-direction:column\}/);
-  assert.match(html, /\.dashboard-grid\{flex:1;grid-template-rows:auto minmax\(0,1fr\);align-items:stretch\}/);
+  assert.match(html, /\.dashboard-grid\{grid-template-rows:auto auto;align-items:start\}/);
   assert.match(html, /\.dashboard-grid>\[data-dashboard-today\]\{grid-row:1\}/);
   assert.match(html, /\.dashboard-grid>\[data-dashboard-activity-panel\]\{grid-row:2\}/);
-  assert.match(html, /\.dashboard-grid:not\(:has\(\[data-dashboard-attention-panel\]\)\)\{grid-template-rows:auto minmax\(0,1fr\)\}/);
+  assert.match(html, /\.dashboard-grid:not\(:has\(\[data-dashboard-attention-panel\]\)\)\{grid-template-rows:auto auto\}/);
   assert.match(html, /\.dashboard-grid:not\(:has\(\[data-dashboard-attention-panel\]\)\)>\[data-dashboard-activity-panel\]\{grid-row:2\}/);
   assert.match(html, /@media\(max-width:850px\)[\s\S]*\[data-dashboard-attention-panel\]\{grid-column:1;grid-row:1\}[\s\S]*\[data-dashboard-today\]\{grid-column:1;grid-row:2\}/);
   assert.match(html, /@media\(max-width:850px\)[\s\S]*\.dashboard-grid:not\(:has\(\[data-dashboard-attention-panel\]\)\)>\[data-dashboard-today\]\{grid-row:1\}/);

@@ -670,9 +670,14 @@ body[data-calendar-view="week"] .workspace-main .footer-note{margin-top:8px!impo
 }`;
 }
 
+// Booking geometry is shared by approved desktop and phone presentations.
+function bookingSlotStyles() {
+  return `.calendar-booking-hint{margin:0 0 7px;color:var(--muted);font-size:.72rem;font-weight:700}.calendar-booking-slots{position:absolute;inset:0;z-index:1;pointer-events:none}.calendar-booking-slot{position:absolute;top:var(--slot-top);left:0;right:0;height:var(--slot-height);pointer-events:auto;border-top:1px dashed transparent;color:var(--leaf-deep);outline-offset:-2px}.calendar-booking-slot>span{position:absolute;right:7px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:20px;height:20px;border-radius:999px;background:var(--leaf-soft);font-size:.8rem;font-weight:900;opacity:0}.calendar-booking-slot:hover,.calendar-booking-slot:focus-visible{background:rgba(231,238,233,.58);border-top-color:rgba(63,102,83,.22);outline:2px solid var(--leaf)}.calendar-booking-slot:hover>span,.calendar-booking-slot:focus-visible>span{opacity:1}`;
+}
+
 function calendarFirstPhoneStyles() {
   const gridHeight = ((GRID_END_MINUTES - GRID_START_MINUTES) / 60) * GRID_PIXELS_PER_HOUR;
-  return `.calendar-booking-hint{margin:0 0 7px;color:var(--muted);font-size:.72rem;font-weight:700}.calendar-booking-slots{position:absolute;inset:0;z-index:1;pointer-events:none}.calendar-booking-slot{position:absolute;top:var(--slot-top);left:0;right:0;height:var(--slot-height);pointer-events:auto;border-top:1px dashed transparent;color:var(--leaf-deep);outline-offset:-2px}.calendar-booking-slot>span{position:absolute;right:7px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:20px;height:20px;border-radius:999px;background:var(--leaf-soft);font-size:.8rem;font-weight:900;opacity:0}.calendar-booking-slot:hover,.calendar-booking-slot:focus-visible{background:rgba(231,238,233,.58);border-top-color:rgba(63,102,83,.22);outline:2px solid var(--leaf)}.calendar-booking-slot:hover>span,.calendar-booking-slot:focus-visible>span{opacity:1}
+  return `
 @media(max-width:700px){
 body[data-calendar-view="day"] .workspace-main .shell,body[data-calendar-view="week"] .workspace-main .shell,body[data-calendar-view="month"] .workspace-main .shell{padding:8px 8px 20px!important}
 body[data-calendar-view="day"] .workspace-main .brand p,body[data-calendar-view="week"] .workspace-main .brand p,body[data-calendar-view="month"] .workspace-main .brand p,body[data-calendar-view="day"] .workspace-main .truth-note,body[data-calendar-view="week"] .workspace-main .truth-note,body[data-calendar-view="month"] .workspace-main .truth-note,body[data-calendar-view="day"] .workspace-main .scan-summary,body[data-calendar-view="week"] .workspace-main .scan-summary,body[data-calendar-view="month"] .workspace-main .scan-summary{display:none!important}
@@ -820,6 +825,7 @@ function calendar823Styles() {
 
 function renderCalendarPage(model, {
   basePath = '/calendar/read-only',
+  messagesReturnTo = '',
   staffAccessScriptPath = '/calendar/staff/client.js',
   operationalMutationsScriptPath = '/calendar/operations/client.js',
   operationalActions = [],
@@ -831,6 +837,8 @@ function renderCalendarPage(model, {
   clientsPath = '/calendar/clients',
   timelineReadOnlyMessage = 'Read-only operational view. Booking, reschedule, cancellation, block, leave and schedule mutations are not available here.',
 } = {}) {
+  const backToMessages = /^\/calendar\/messages(?:\?view=(?:all|attention|recent))?$/.test(String(messagesReturnTo))
+    ? `<a data-workspace-action="secondary" class="nav-button" href="${escapeHtml(messagesReturnTo)}">Back to Messages</a>` : '';
   const booking = { enabled: bookingEnabled === true, path: bookingPath };
   const content = model.view === 'week'
     ? renderWeek(model, booking, basePath)
@@ -842,8 +850,8 @@ function renderCalendarPage(model, {
   const canMutate = mutationEnabled(model);
   const operationScript = canMutate ? `<script src="${escapeHtml(operationalMutationsScriptPath)}" defer></script>` : '';
   const legacyPhoneStyles = approvedPhonePresentation ? '' : `${calendarFirstPhoneStyles()}${goldieDensityPhoneStyles()}`;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Calendar — Shiloh Workspace</title><style>${serviceFamilyAccentCss()}${styles()}${desktopFirstPaintStyles()}${workspaceShellStyles()}${workspaceV1Styles()}${desktopSpatialLaneStyles()}${calendarViewParityStyles()}${calendarViewParityResponsiveStyles()}${canMutate ? operationalStyles() : ''}${legacyPhoneStyles}${calendar823Styles()}${calendarEventToneCss()}</style><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${operationScript}</head><body data-calendar-view="${escapeHtml(model.view)}" data-calendar-desktop-pending="${model.view === 'week' && desktopEnhancementEnabled ? 'true' : 'false'}" data-calendar-readonly="${canMutate ? 'false' : 'true'}"><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'calendar', clientsHref: clientNavigationAllowed ? clientsPath : null })}<div class="workspace-main"><div class="shell">
-    <header class="topbar"><div class="brand"><h1>Calendar</h1><p>Your clinic schedule, at a glance.</p></div><div class="topbar-side"><div class="access-controls"></div></div></header>
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Calendar — Shiloh Workspace</title><style>${serviceFamilyAccentCss()}${styles()}${desktopFirstPaintStyles()}${workspaceShellStyles()}${workspaceV1Styles()}${desktopSpatialLaneStyles()}${calendarViewParityStyles()}${calendarViewParityResponsiveStyles()}${canMutate ? operationalStyles() : ''}${legacyPhoneStyles}${calendar823Styles()}${calendarEventToneCss()}${booking.enabled ? bookingSlotStyles() : ''}${backToMessages ? '.calendar-message-return{display:none}@media(max-width:700px){body[data-phone-calendar-v2="true"] .calendar-message-return{display:flex;justify-content:flex-end;margin:4px 0 8px}}' : ''}</style><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${operationScript}</head><body data-calendar-view="${escapeHtml(model.view)}" data-calendar-desktop-pending="${model.view === 'week' && desktopEnhancementEnabled ? 'true' : 'false'}" data-calendar-readonly="${canMutate ? 'false' : 'true'}"><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'calendar', clientsHref: clientNavigationAllowed ? clientsPath : null })}<div class="workspace-main"><div class="shell">
+    <header class="topbar"><div class="brand"><h1>Calendar</h1><p>Your clinic schedule, at a glance.</p></div><div class="topbar-side"><div class="access-controls">${backToMessages}</div></div></header>${backToMessages ? `<nav class="calendar-message-return" aria-label="Return navigation">${backToMessages}</nav>` : ''}
     ${renderControls(model, basePath, operationalActions)}${canMutate ? '<span class="operation-status" role="status" aria-live="polite" data-calendar-operation-status></span>' : ''}${content}${renderOperationalSummary(model)}
     <div class="footer-note">${escapeHtml(timelineReadOnlyMessage)}</div>${renderManagementPanel(model)}
   </div></div></div></body></html>`;
