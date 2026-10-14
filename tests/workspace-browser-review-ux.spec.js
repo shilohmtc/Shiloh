@@ -99,7 +99,7 @@ for (const width of [1180,1440,500]) {
     const groups=page.locator('[data-dashboard-team-group]');await expect(groups).toHaveCount(3);
     await expect(page.locator('[data-dashboard-today] .day-summary')).toContainText('3 appointments');
     const grid=await page.locator('.team-groups').boundingBox();
-    const columns=width===500?1:width===1180?2:3;
+    const columns=width>=1400?3:1;
     for(let index=0;index<3;index++) {
       const group=groups.nth(index),box=await group.boundingBox();
       expect(box.width).toBeCloseTo((grid.width-(columns-1)*10)/columns,0);
