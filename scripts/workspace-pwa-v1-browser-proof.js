@@ -82,21 +82,30 @@ async function chromeRun(chrome, args) {
         });
         const page = context.pages()[0] || await context.newPage();
         await page.goto(url, { waitUntil: 'load', timeout: 60_000 });
+        const observationDeadline = Date.now() + budget;
+        async function observe(operation) {
+          const remaining = observationDeadline - Date.now();
+          if (remaining <= 0) throw new Error(`Browser proof observation exceeded existing ${budget}ms total budget`);
+          try { return await operation(remaining); } catch (error) {
+            if (error.name === 'TimeoutError') throw new Error(`Browser proof observation exceeded existing ${budget}ms total budget: ${error.message}`);
+            throw error;
+          }
+        }
         // The unchanged application reloads on first controllerchange. Wait
         // through that navigation in the browser's polling context before
         // inspecting or capturing the document; direct evaluate can race it.
         if (value('--user-agent=')) {
-          await page.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated'
-            && document.readyState === 'complete', {}, { timeout: budget });
+          await observe(timeout => page.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated'
+            && document.readyState === 'complete', {}, { timeout }));
         }
         if (url.endsWith('/proof-auth') && value('--user-agent=')) {
-          await page.waitForFunction(() => document.documentElement.dataset.swReady === 'true', {}, { timeout: budget });
+          await observe(timeout => page.waitForFunction(() => document.documentElement.dataset.swReady === 'true', {}, { timeout }));
         } else if (url.endsWith('/proof-auth')) {
-          await page.waitForFunction(() => document.documentElement.dataset.rootOverflow !== undefined, {}, { timeout: budget });
+          await observe(timeout => page.waitForFunction(() => document.documentElement.dataset.rootOverflow !== undefined, {}, { timeout }));
         } else if (url.endsWith('/proof-expired')) {
-          await page.locator('[data-shiloh-status][data-state="session-ended"]').waitFor({ state: 'attached', timeout: budget });
+          await observe(timeout => page.locator('[data-shiloh-status][data-state="session-ended"]').waitFor({ state: 'attached', timeout }));
         } else {
-          await page.locator('[data-workspace-install-doorway]').waitFor({ timeout: budget });
+          await observe(timeout => page.locator('[data-workspace-install-doorway]').waitFor({ timeout }));
         }
         if (screenshot) await page.screenshot({ path: screenshot, timeout: 60_000 });
         const dom = await page.content();
@@ -227,12 +236,9 @@ async function main() {
     const phoneProfile = path.join(temp, 'phone-profile');
     const phonePng = path.join(OUT_DIR, 'phone-390x844.png');
     await captureScreenshot(chrome, [`--user-data-dir=${phoneProfile}`, androidUa, '--window-size=390,844', `--screenshot=${phonePng}`, `${origin}/proof-auth`], phonePng);
-    let phoneDom = '';
-    // First launch installs the worker; a second navigation allows activation on slower CI runners.
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      phoneDom = await chromeRun(chrome, [`--user-data-dir=${phoneProfile}`, androidUa, '--window-size=390,844', '--virtual-time-budget=4000', '--dump-dom', `${origin}/proof-auth`]);
-      if (/data-sw-ready="true"/.test(phoneDom)) break;
-    }
+    // The protocol observer already awaits actual activation within one shared
+    // 4000ms deadline. No additional warm-up/retry allowance is necessary.
+    const phoneDom = await chromeRun(chrome, [`--user-data-dir=${phoneProfile}`, androidUa, '--window-size=390,844', '--virtual-time-budget=4000', '--dump-dom', `${origin}/proof-auth`]);
     assert.match(phoneDom, /data-authenticated-workspace/);
     assert.match(phoneDom, /data-root-overflow="false"/);
     assert.match(phoneDom, /manifest\.webmanifest\?v=official-brand-v2/);
