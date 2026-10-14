@@ -3,7 +3,7 @@ const { pool } = require('../db/pool');
 const { resolveCalendarAuthority, hasCapability, allowsAppointmentTarget } = require('./calendarAuthorization');
 const { createOzowPaymentProvider } = require('./ozowPaymentProvider');
 const { STATES, EVIDENCE, transitionPaymentState } = require('../domain/paymentState');
-const { formatRand, normalizeWhatsAppMobile } = require('./paymentWhatsAppNotifications');
+const { formatRand, normalizePaymentMobile } = require('./paymentValues');
 const { issueVerifiedVoucher } = require('./giftVouchers');
 const { createShilohRewardsService } = require('./shilohRewards');
 const { queueClientNotification } = require('./myShilohPush');
@@ -672,14 +672,14 @@ function createBookingPaymentService({
       if (paymentReceived && !paymentReceived.reviewRequired) {
         const receipt = paymentReceived.request;
         const appOnlyEnabled = env.SHILOH_PAYMENT_RECEIPT_APP_ONLY_ENABLED === 'true' && Boolean(pushNotify)
-          && Number(receipt.payer_crm_v2_client_id) > 0 && Boolean(normalizeWhatsAppMobile(receipt.payer_mobile));
+          && Number(receipt.payer_crm_v2_client_id) > 0 && Boolean(normalizePaymentMobile(receipt.payer_mobile));
         let eligible = false;
         if (appOnlyEnabled) {
           // The payment payer can differ from the booked client. Only route a
           // receipt to an active profile with this exact verified payer mobile.
           const identity = await db.query(`SELECT 1 FROM crm_v2_clients
             WHERE id=$1 AND normalized_mobile=$2 AND status='active'`,
-          [receipt.payer_crm_v2_client_id, normalizeWhatsAppMobile(receipt.payer_mobile)]);
+          [receipt.payer_crm_v2_client_id, normalizePaymentMobile(receipt.payer_mobile)]);
           eligible = identity.rowCount === 1;
         }
         if (eligible) {

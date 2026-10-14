@@ -6,7 +6,7 @@ const path = require('node:path');
 const service = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'customerChangeNotification.js'), 'utf8');
 const patch = fs.readFileSync(path.join(__dirname, '..', 'src', 'bootstrap', 'adminBookingCustomerNotificationPatch.js'), 'utf8');
 const operationalRoute = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'calendarOperationalMutations.js'), 'utf8');
-const lifecycle = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'clientLifecycleTemplateProvisioning.js'), 'utf8');
+const lifecycle = fs.readFileSync(path.join(__dirname, '..', 'src', 'messageDefinitions', 'clientLifecycle.js'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
 
 test('retired booking-update template remains inspectable with its full historical confirmation', () => {
@@ -137,7 +137,7 @@ test('customer notification patch is preloaded after the Google provider guard',
 
 
 test('cancellation payment-safety template warns that old payment links are invalid', () => {
-  const lifecycleSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'clientLifecycleTemplateProvisioning.js'), 'utf8');
+  const lifecycleSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'messageDefinitions', 'clientLifecycle.js'), 'utf8');
   assert.match(lifecycleSource, /cancellation_confirmation_v2/);
   assert.match(lifecycleSource, /earlier unpaid deposit or payment link/);
   assert.match(lifecycleSource, /No refund is issued automatically/);

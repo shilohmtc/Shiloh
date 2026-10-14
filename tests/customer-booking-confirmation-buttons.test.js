@@ -6,7 +6,7 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const confirmation = fs.readFileSync(path.join(root, 'src', 'services', 'customerBookingConfirmation.js'), 'utf8');
 const appointmentActions = fs.readFileSync(path.join(root, 'src', 'services', 'customerAppointmentActions.js'), 'utf8');
-const provisioning = fs.readFileSync(path.join(root, 'src', 'services', 'bookingConfirmationTemplateProvisioning.js'), 'utf8');
+const provisioning = fs.readFileSync(path.join(root, 'src', 'messageDefinitions', 'bookingConfirmation.js'), 'utf8');
 const { shouldSendLegacyConfirmationSupplements, bookingConfirmationTemplatePayload, providerMessageId } = require('../src/services/customerBookingConfirmation');
 
 test('live booking confirmation v1 suppresses all four redundant supplemental message groups', () => {

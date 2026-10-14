@@ -6,50 +6,20 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const {
-  PAYMENT_TEMPLATE_KEYS,
-  normalizeWhatsAppMobile,
-  paymentNotificationsEnabled,
-  securePaymentUrl,
-  secureVoucherUrl,
-  withActionLink,
-  sendPaymentTemplate,
-} = require('../src/services/paymentWhatsAppNotifications');
+const { normalizePaymentMobile, securePaymentUrl } = require('../src/services/paymentValues');
 const { createPaymentLinkRouter } = require('../src/routes/paymentLinks');
 const { webPolicyHtml } = require('../src/presentation/paymentPolicyUx');
 const { BOOKING_POLICY_TEXT } = require('../src/config/bookingPolicyAuthority');
 
-test('payment WhatsApp notifications normalize South African mobile numbers', () => {
-  assert.equal(normalizeWhatsAppMobile('071 674 2646'), '27716742646');
-  assert.equal(normalizeWhatsAppMobile('+27 71 674 2646'), '27716742646');
-  assert.equal(normalizeWhatsAppMobile('011 555 0100'), null);
+test('shared payment values normalize South African mobile numbers', () => {
+  assert.equal(normalizePaymentMobile('071 674 2646'), '27716742646');
+  assert.equal(normalizePaymentMobile('+27 71 674 2646'), '27716742646');
+  assert.equal(normalizePaymentMobile('011 555 0100'), null);
 });
 
-test('voucher notifications include direct secure links as a button fallback', () => {
+test('shared payment links retain the canonical origin and reject unsafe keys', () => {
   assert.equal(securePaymentUrl('voucher_request_123'), 'https://app.shilohmtc.co.za/pay/voucher_request_123');
-  assert.equal(secureVoucherUrl('voucher_request_123'), 'https://app.shilohmtc.co.za/gift-vouchers/voucher_request_123');
-  assert.equal(
-    withActionLink('R50.00', 'Secure payment link', securePaymentUrl('voucher_request_123')),
-    'R50.00\nSecure payment link: https://app.shilohmtc.co.za/pay/voucher_request_123',
-  );
   assert.throws(() => securePaymentUrl('unsafe/key'));
-});
-
-test('retired payment WhatsApp transport ignores old flags and injected senders', async () => {
-  let calls = 0;
-  assert.equal(paymentNotificationsEnabled({}), false);
-  assert.equal(paymentNotificationsEnabled({ WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED: 'true' }), false);
-  for (const templateKey of [PAYMENT_TEMPLATE_KEYS.RECEIVED, PAYMENT_TEMPLATE_KEYS.DEPOSIT_REQUEST, PAYMENT_TEMPLATE_KEYS.BALANCE_DUE]) {
-    const result = await sendPaymentTemplate({
-      templateKey,
-      to: '0716742646',
-      bodyParameters: ['Jean-Pierre'],
-      environment: { WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED: 'true', WHATSAPP_PAYMENT_DEPOSIT_REQUEST_TEMPLATE: 'shiloh_payment_deposit_request_v1' },
-      send: async () => { calls += 1; },
-    });
-    assert.deepEqual(result, { sent: false, reason: 'disabled' });
-  }
-  assert.equal(calls, 0);
 });
 
 test('web payment policy formats and reorders the canonical authority without changing its wording', () => {

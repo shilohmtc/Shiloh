@@ -6,7 +6,6 @@ const {
   sendWhatsAppMessage, sendWhatsAppSignInMessage, sendWhatsAppTemplate,
   sendWhatsAppReplyButtons, sendWhatsAppCtaUrl, sendWhatsAppList,
 } = require('../src/services/whatsapp');
-const { paymentNotificationsEnabled } = require('../src/services/paymentWhatsAppNotifications');
 const { deliverClaimedReminder, deliverClaimedFollowup } = require('../src/services/appointmentLifecycle');
 
 test('automated Meta transport stays retired regardless of the former sign-in flag', async () => {
@@ -43,7 +42,6 @@ test('automated Meta transport stays retired regardless of the former sign-in fl
 test('permanent retirement does not claim reminder or follow-up delivery without an accepted app wake', async () => {
   assert.equal(metaSignInOnly(), true);
   assert.equal(metaSignInOnly({ SHILOH_META_SIGNIN_ONLY_ENABLED: 'false' }), false);
-  assert.equal(paymentNotificationsEnabled({ WHATSAPP_PAYMENT_NOTIFICATIONS_ENABLED: 'true', SHILOH_META_SIGNIN_ONLY_ENABLED: 'true' }), false);
   const appointment = { id: 1, appointment_id: 2, crm_v2_client_id: 3, phone: '27820000000',
     client_name_snapshot: 'Client', service_text: 'Toe Gel Only', appointment_at: '2026-09-30T06:00:00Z' };
   const env = { SHILOH_META_SIGNIN_ONLY_ENABLED: 'true' };

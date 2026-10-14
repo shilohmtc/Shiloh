@@ -9,7 +9,7 @@ const {
   TEMPLATE_BUTTONS,
   buildWorkspaceBookingRequestAlertTemplateDefinition,
   providerContractMatches,
-} = require('../src/services/workspaceBookingRequestAlertTemplateProvisioning');
+} = require('../src/messageDefinitions/workspaceBookingRequestAlert');
 const { getShilohMessageContract } = require('../src/services/shilohMessageContracts');
 const { getMetaTemplateBindingSpec, configuredMetaTemplateName } = require('../src/services/metaTemplateAdapter');
 

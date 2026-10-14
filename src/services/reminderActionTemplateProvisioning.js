@@ -1,21 +1,9 @@
+const definitions = require('../messageDefinitions/reminder');
+const { TEMPLATE_NAME, TEMPLATE_LANGUAGE, TEMPLATE_CATEGORY, TEMPLATE_BODY, buildReminderActionTemplateDefinition } = definitions;
 const axios = require('axios');
 const { discoverWabaId } = require('./birthdayTemplateProvisioning');
 
 const GRAPH_VERSION = 'v23.0';
-const TEMPLATE_NAME = 'shiloh_appointment_reminder_actions_v1';
-const TEMPLATE_LANGUAGE = 'en';
-const TEMPLATE_CATEGORY = 'UTILITY';
-const TEMPLATE_BODY = `Hello {{1}},
-
-This is a friendly reminder of your appointment at Shiloh Massage Therapy & Aesthetic Clinic.
-
-Treatment: {{2}}
-Date: {{3}}
-Time: {{4}}
-
-We look forward to welcoming you.
-
-Need to make a change? Use a button below.`;
 
 function graphUrl(path) {
   return `https://graph.facebook.com/${GRAPH_VERSION}/${String(path).replace(/^\//, '')}`;
@@ -28,30 +16,6 @@ function graphConfig() {
       'Content-Type': 'application/json',
     },
     timeout: 15000,
-  };
-}
-
-function buildReminderActionTemplateDefinition() {
-  return {
-    name: TEMPLATE_NAME,
-    language: TEMPLATE_LANGUAGE,
-    category: TEMPLATE_CATEGORY,
-    components: [
-      {
-        type: 'BODY',
-        text: TEMPLATE_BODY,
-        example: {
-          body_text: [['Dummy Test', 'Medi-Heel Pedicure', 'Sat, 15 Aug 2026', '12:15']],
-        },
-      },
-      {
-        type: 'BUTTONS',
-        buttons: [
-          { type: 'QUICK_REPLY', text: 'Reschedule' },
-          { type: 'QUICK_REPLY', text: 'Cancel booking' },
-        ],
-      },
-    ],
   };
 }
 
@@ -78,30 +42,4 @@ async function getReminderActionTemplateStatus() {
   };
 }
 
-async function submitReminderActionTemplate() {
-  const status = await getReminderActionTemplateStatus();
-  if (!status.ok) return status;
-  if (status.template) return { ...status, submitted: false, reason: 'already_exists' };
-  const response = await axios.post(graphUrl(`${status.wabaId}/message_templates`), buildReminderActionTemplateDefinition(), graphConfig());
-  return {
-    ok: true,
-    wabaId: status.wabaId,
-    templateName: TEMPLATE_NAME,
-    submitted: true,
-    provider: {
-      id: response.data?.id || null,
-      status: response.data?.status || null,
-      category: response.data?.category || TEMPLATE_CATEGORY,
-    },
-  };
-}
-
-module.exports = {
-  TEMPLATE_NAME,
-  TEMPLATE_LANGUAGE,
-  TEMPLATE_CATEGORY,
-  TEMPLATE_BODY,
-  buildReminderActionTemplateDefinition,
-  getReminderActionTemplateStatus,
-  submitReminderActionTemplate,
-};
+module.exports = { ...definitions, getReminderActionTemplateStatus };
