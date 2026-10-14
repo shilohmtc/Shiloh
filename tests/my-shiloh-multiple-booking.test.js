@@ -121,7 +121,9 @@ test('pending group creates no provider link; approved group issues one combined
     { appointment_id:100,required_amount:'325.00' },{ appointment_id:101,required_amount:'325.00' },
   ] };
   let row;
-  const db = { async query(sql) {
+  const db = { async connect() { return {query:(sql,values)=>db.query(sql,values),release() {}}; }, async query(sql) {
+    if (sql.includes('pg_try_advisory_lock')) return {rows:[{acquired:true}]};
+    if (sql.includes('pg_advisory_unlock')) return {rows:[]};
     if (sql.includes('FROM appointment_group_members')) return { rows:[100,101].map(id => ({ appointment_id:id,status:'scheduled',approval_status:approved ? 'approved' : 'pending' })) };
     if (sql.includes('SELECT * FROM payment_requests')) return { rows:row ? [row] : [] };
     if (sql.includes('INSERT INTO payment_requests')) { row = { id:3,request_key:'dep_test_combined',amount:'650.00',state:'created' }; return { rows:[row] }; }

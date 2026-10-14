@@ -113,7 +113,8 @@ function acceptanceChannelLabel(value) {
 
 function readinessMarkup(readiness) {
   if (!readiness) return '';
-  const deposit = readiness.depositState === 'satisfied' ? ['Deposit received','ok']
+  const deposit = readiness.depositState === 'waived' ? ['Deposit waived','ok']
+    : readiness.depositState === 'satisfied' ? ['Deposit received','ok']
     : readiness.depositState === 'exempt' ? ['No deposit required','ok']
       : readiness.depositState === 'awaiting' ? ['Deposit awaiting','wait']
         : ['Deposit not recorded','wait'];

@@ -10,7 +10,9 @@ function fixture({ accepted = 1, active = true, flag = true, metaFails = false, 
     deposit_notice_state: 'pending', deposit_notice_channel: null,
   };
   const calls = { push: 0, meta: 0, claims: 0 };
-  const db = { async query(sql) {
+  const db = { async connect() { return {query:sql=>db.query(sql),release() {}}; }, async query(sql) {
+    if (sql.includes('pg_try_advisory_lock')) return {rows:[{acquired:true}],rowCount:1};
+    if (sql.includes('pg_advisory_unlock')) return {rows:[],rowCount:0};
     if (sql.includes('SELECT * FROM payment_requests')) return { rows: [row], rowCount: 1 };
     if (sql.includes('SELECT 1 FROM appointments a JOIN crm_v2_clients')) return { rows: active ? [{ '?column?': 1 }] : [], rowCount: active ? 1 : 0 };
     if (sql.includes("deposit_notice_state='sending'" ) && sql.includes("state='link_issued'")) {

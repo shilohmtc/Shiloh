@@ -118,6 +118,20 @@ jobs:
           path: artifacts/dashboard-deposit-organisation
           if-no-files-found: error
           retention-days: 14
+      - name: Capture source-bound deposit waiver review
+        env:
+          EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          REVIEW_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node scripts/booking-deposit-waiver-evidence.js
+      - name: Upload source-bound deposit waiver review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: booking-deposit-waiver-review
+          path: artifacts/deposit-waiver/capture
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Package small My Shiloh sign-in review
         run: node scripts/package-my-shiloh-signin-evidence.js
       - name: Bind prior-payment screenshots to exact head

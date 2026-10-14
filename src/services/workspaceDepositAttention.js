@@ -42,7 +42,7 @@ const DEPOSIT_ATTENTION_SQL = `/* WorkspaceDepositAttention:read */
    FROM booking_deposit_requirements r
    JOIN booking_payment_accounts pa ON pa.id=r.payment_account_id
    LEFT JOIN appointment_groups g ON g.id=pa.appointment_group_id
-  WHERE r.state<>'exempt' AND r.required_amount>0
+  WHERE r.state NOT IN ('exempt','waived') AND r.required_amount>0
     AND EXISTS(SELECT 1 FROM appointments a WHERE a.starts_at>$1 AND a.status IN ('scheduled','confirmed')
       AND (a.id=pa.appointment_id OR EXISTS(SELECT 1 FROM appointment_group_members gm
         WHERE gm.group_id=pa.appointment_group_id AND gm.appointment_id=a.id)))`;
@@ -50,7 +50,7 @@ const DEPOSIT_ATTENTION_SQL = `/* WorkspaceDepositAttention:read */
 function projectDeposit(row, authority, policy, now) {
   const members = row.members || [];
   if (!members.length || !members.every(member => allowsAppointmentTarget(authority, member))) return null;
-  if (row.group_status === 'cancelled' || row.state === 'exempt') return null;
+  if (row.group_status === 'cancelled' || ['exempt','waived'].includes(row.state)) return null;
   // Prospective applicability uses the same booking dates as deposit policy.
   if (new Date(members[0].createdAt) < policy.effectiveFrom) return null;
   const upcoming = members.filter(member => ['scheduled', 'confirmed'].includes(member.status)

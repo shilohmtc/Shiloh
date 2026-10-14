@@ -47,7 +47,7 @@ function depositSettlementPosition(requirement, netPaid) {
   const paid = moneyNumber(netPaid);
   return {
     satisfied: paid + 0.0001 >= required,
-    outstanding: moneyText(Math.max(0, required - paid)),
+    outstanding: requirement.state === 'waived' ? '0.00' : moneyText(Math.max(0, required - paid)),
   };
 }
 
@@ -108,6 +108,7 @@ function bookingDepositPolicyPreview({
 
 function buildClientDepositPolicyNotice(preview) {
   if (!preview?.applicable) return null;
+  if (preview.waived) return 'Your booking deposit has been waived by Shiloh. The treatment charge and any recorded payments remain unchanged.';
   return buildDepositPolicyNotice({
     priceKnown: preview.priceKnown,
     exempt: preview.exempt,
@@ -192,6 +193,7 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
     const result = await queryable.query(
       `SELECT a.id,a.created_at,a.starts_at,
               gm.group_id,
+              r.state AS deposit_state,
               CASE WHEN gm.group_id IS NULL
                 THEN a.total_price
                 ELSE COALESCE(g.final_total,g.total_price)
@@ -218,6 +220,8 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
          FROM appointments a
          LEFT JOIN appointment_group_members gm ON gm.appointment_id=a.id
          LEFT JOIN appointment_groups g ON g.id=gm.group_id
+         LEFT JOIN booking_payment_accounts bpa ON (gm.group_id IS NULL AND bpa.appointment_id=a.id) OR bpa.appointment_group_id=gm.group_id
+         LEFT JOIN booking_deposit_requirements r ON r.payment_account_id=bpa.id
         WHERE a.id=$1
         LIMIT 1`,
       [id, policy.exemptStaffId],
@@ -226,7 +230,7 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
     if (!row) {
       throw new BookingDepositPolicyError('DEPOSIT_BOOKING_NOT_FOUND', 'The canonical appointment no longer exists.', 404);
     }
-    return bookingDepositPolicyPreview({
+    const preview = bookingDepositPolicyPreview({
       policy,
       createdAt: row.created_at,
       startsAt: row.starts_at,
@@ -235,6 +239,7 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
       groupId: row.group_id,
       now,
     });
+    return { ...preview, waived: row.deposit_state === 'waived' };
   }
 
   async function assertApprovalReady({ appointmentId, queryable = db, now = new Date() } = {}) {
@@ -416,26 +421,29 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
   async function syncState(queryable, requirement) {
     if (!requirement) return null;
     if (requirement.state === 'exempt') return requirement;
+    if (requirement.state === 'waived') return { ...requirement, net_paid: moneyText(await effectiveNetPaid(queryable, requirement.payment_account_id)), transitioned: false, reopened: false };
     const netPaid = await effectiveNetPaid(queryable, requirement.payment_account_id);
     const { satisfied } = depositSettlementPosition(requirement, netPaid);
     if (satisfied && requirement.state !== 'satisfied') {
       const result = await queryable.query(
         `UPDATE booking_deposit_requirements
             SET state='satisfied',satisfied_at=COALESCE(satisfied_at,NOW()),updated_at=NOW()
-          WHERE id=$1
+          WHERE id=$1 AND state IN ('awaiting','satisfied')
           RETURNING *`,
         [requirement.id],
       );
+      if (!result.rows[0]) return { ...(await queryable.query('SELECT * FROM booking_deposit_requirements WHERE id=$1', [requirement.id])).rows[0], net_paid: moneyText(netPaid), transitioned: false, reopened: false };
       return { ...result.rows[0], net_paid: moneyText(netPaid), transitioned: true, reopened: false };
     }
     if (!satisfied && requirement.state === 'satisfied') {
       const result = await queryable.query(
         `UPDATE booking_deposit_requirements
             SET state='awaiting',satisfied_at=NULL,updated_at=NOW()
-          WHERE id=$1
+          WHERE id=$1 AND state IN ('awaiting','satisfied')
           RETURNING *`,
         [requirement.id],
       );
+      if (!result.rows[0]) return { ...(await queryable.query('SELECT * FROM booking_deposit_requirements WHERE id=$1', [requirement.id])).rows[0], net_paid: moneyText(netPaid), transitioned: false, reopened: false };
       return { ...result.rows[0], net_paid: moneyText(netPaid), transitioned: false, reopened: true };
     }
     return { ...requirement, net_paid: moneyText(netPaid), transitioned: false, reopened: false };
@@ -592,7 +600,7 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
     const position = await ensureRequirement({ appointmentId });
     if (!position.applicable) return { allowed: true, ...position };
     const requirement = position.requirement;
-    if (!requirement || requirement.state === 'exempt' || requirement.state === 'satisfied') {
+    if (!requirement || requirement.state === 'exempt' || requirement.state === 'satisfied' || requirement.state === 'waived') {
       return { allowed: true, ...position };
     }
     return { allowed: false, reason: 'deposit_required', ...position };
