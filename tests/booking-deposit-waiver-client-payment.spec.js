@@ -19,7 +19,15 @@ for (const shared of [false, true]) for (const width of [1180, 1440, 390, 500]) 
       const appointments = (shared ? [201, 203] : [201]).map(id => ({ id, startsAt: '2099-10-15T08:00:00Z', endsAt: '2099-10-15T09:00:00Z', status: 'confirmed', services: ['Synthetic treatment'], practitioners: ['Synthetic practitioner'] }));
       const model = buildClientExperience({ client: { id: 101, name: 'Synthetic client' }, nextAppointment: appointments[0], upcomingAppointments: appointments, forms: [], payment, appointmentPayments: appointments.map(item => ({ appointmentId: item.id, payment })) });
       await page.route('**/my-shiloh/api/experience', route => route.fulfill({ json: model }));
+      // Repeated goto of the same story can retain the previous document and handlers.
+      await page.goto('about:blank');
       await page.goto('/iframe.html?id=client-my-shiloh-pwa--bookings-without-upcoming&viewMode=story#bookings', { waitUntil: 'networkidle' });
+      // Storybook can finish network loading before it mounts the production surface.
+      // The application captures these nodes at startup, so mount before injecting it.
+      await expect(page.locator('[data-app-frame]')).toHaveAttribute('data-client-authenticated', 'true');
+      await expect(page.locator('[data-client-experience-bookings] .action-card').first()).toBeVisible();
+      // Finished follows the addon's afterEach accessibility scan; do not race it.
+      await page.waitForFunction(() => window.__STORYBOOK_PREVIEW__?.currentRender?.phase === 'finished');
       await page.evaluate(() => Object.defineProperty(navigator, 'standalone', { value: true, configurable: true }));
       await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
       const bookings = page.locator('[data-client-experience-bookings]');
