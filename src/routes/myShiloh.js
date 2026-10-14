@@ -649,7 +649,7 @@ function createMyShilohRouter({
     } catch (error) { return next(error); }
   });
 
-  for (const mode of ['sign-in', 'register', 'reauthenticate']) {
+  for (const mode of ['sign-in', 'register', 'continue', 'reauthenticate']) {
     router.post(`/my-shiloh/auth/crm/${mode}`, sameOrigin, ...(mode === 'reauthenticate' ? [requireSession, requireCsrf] : []), async (req, res, next) => {
       try {
         setNoStoreJson(res);
@@ -659,11 +659,18 @@ function createMyShilohRouter({
         const deviceToken = isValidOpaqueToken(previous) ? previous : randomOpaqueToken();
         const deviceCookie = `${cookieName}=${deviceToken}; Path=/; Max-Age=2592000; HttpOnly; SameSite=Strict${env.NODE_ENV === 'production' ? '; Secure' : ''}`;
         const payload = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
-        const allowed = new Set(['firstName','surname','dateOfBirth','mobile', ...(mode === 'register' ? ['gender'] : [])]);
+        const allowed = new Set(['firstName','surname','dateOfBirth','mobile',
+          ...(['register', 'continue'].includes(mode) ? ['gender'] : []),
+          ...(mode === 'continue' ? ['completeProfile', 'profileIntent'] : [])]);
         let result;
         try {
           result = await crmAuthService.attempt({
-            input: Object.keys(payload).some(key => !allowed.has(key)) ? {} : payload,
+            input: Object.keys(payload).some(key => !allowed.has(key)) ||
+              (mode === 'continue' && ((payload.completeProfile !== undefined && typeof payload.completeProfile !== 'boolean') ||
+                (payload.profileIntent !== undefined && !['existing', 'new'].includes(payload.profileIntent)) ||
+                (payload.completeProfile === true && !['existing', 'new'].includes(payload.profileIntent)))) ? {} : payload,
+            discover: mode === 'continue', completeProfile: mode === 'continue' && payload.completeProfile === true,
+            profileIntent: mode === 'continue' ? payload.profileIntent : null,
             reauthenticateSession: mode === 'reauthenticate' ? req.myShilohClientSession : null,
             register: mode === 'register', address: req.ip || req.socket?.remoteAddress,
             deviceToken, requestFingerprintHash: requestFingerprintHash(req),
@@ -674,12 +681,18 @@ function createMyShilohRouter({
         }
         // Equal minimum response time for missing records, malformed inputs and conflicting details.
         await new Promise(resolve => setTimeout(resolve, Math.max(0, 300 - (Date.now()-started))));
+        if (result.code === 'CRM_AUTH_DETAILS_REQUIRED') {
+          res.setHeader('Set-Cookie', deviceCookie);
+          return res.json({ next: result.next, requiredFields: result.requiredFields,
+            missingFields: result.missingFields });
+        }
         if (!result.ok) {
           res.setHeader('Set-Cookie', deviceCookie);
           const status = result.code === 'CRM_AUTH_RATE_LIMITED' ? 429 : result.code === 'CRM_AUTH_UNAVAILABLE' ? 503 : 401;
           return res.status(status).json({ error: status === 429 ? 'Please wait before trying again.' :
             status === 503 ? 'Sign-in is temporarily unavailable. Please try again later.' :
             mode === 'register' ? 'We could not complete your registration. Check your first name, surname, date of birth and mobile number. If you have visited Shiloh before, choose “Already a client? Sign in”. If you still cannot continue, contact Reception for help registering.' :
+            mode === 'continue' ? 'We could not confirm these details. Check your name, mobile number and date of birth if entered. If you still cannot continue, contact Reception to check your Shiloh record.' :
             'We could not confirm your details. Use your first name, surname, date of birth and mobile number as recorded by Shiloh. If you still cannot sign in, ask Reception to check or complete your details on record.' });
         }
         if (mode === 'reauthenticate') { res.setHeader('Set-Cookie', deviceCookie); return res.json({ reauthenticated: true }); }

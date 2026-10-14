@@ -20,7 +20,7 @@ function cleanPart(value) {
   const text = value.normalize('NFC').trim().replace(/\s+/gu, ' ');
   return NAME_PART.test(text) ? text : null;
 }
-function details(input, register) {
+function details(input, register, { discover = false } = {}) {
   try {
     const firstName = cleanPart(input.firstName);
     const surname = cleanPart(input.surname);
@@ -28,8 +28,8 @@ function details(input, register) {
       typeof input.mobile === 'string' && /^[+\d ()-]{10,30}$/.test(input.mobile)
         ? crm.normalizeMobile(input.mobile)
         : null;
-    const dateOfBirth = crm.normalizeDateOfBirth(input.dateOfBirth, { required: true });
-    const gender = register ? crm.normalizeGender(input.gender, { required: true }) : null;
+    const dateOfBirth = crm.normalizeDateOfBirth(input.dateOfBirth, { required: !discover });
+    const gender = register || discover ? crm.normalizeGender(input.gender, { required: register && !discover }) : null;
     const name = firstName && surname ? crm.normalizeName(`${firstName} ${surname}`) : null;
     return name && mobile ? { firstName, surname, mobile, dateOfBirth, gender, name } : null;
   } catch (_) {
@@ -41,13 +41,11 @@ function dateOnly(value) {
     ? value.toISOString().slice(0, 10)
     : String(value || '').slice(0, 10);
 }
-function matches(row, input) {
+function matchesIdentity(row, input) {
   if (
     !row ||
     row.status !== 'active' ||
-    !row.date_of_birth ||
     row.normalized_mobile !== input.mobile ||
-    dateOnly(row.date_of_birth) !== input.dateOfBirth ||
     canonicalName(row.name) !== canonicalName(input.name)
   )
     return false;
@@ -59,6 +57,10 @@ function matches(row, input) {
     );
   }
   return true;
+}
+function matches(row, input) {
+  return matchesIdentity(row, input) && Boolean(row.date_of_birth) &&
+    dateOnly(row.date_of_birth) === input.dateOfBirth;
 }
 function networkGroup(address) {
   const text = String(address || '')
@@ -104,6 +106,9 @@ function createClientCrmDetailAuthService({
   async function attempt({
     input = {},
     register = false,
+    discover = false,
+    completeProfile = false,
+    profileIntent = null,
     address,
     deviceToken,
     requestFingerprintHash = null,
@@ -115,7 +120,7 @@ function createClientCrmDetailAuthService({
     const browserToken = isValidOpaqueToken(deviceToken)
       ? deviceToken
       : randomOpaqueToken(randomBytes);
-    const parsed = details(input, register);
+    const parsed = details(input, register, { discover });
     // Count malformed requests too. Never persist raw personal data in limiter/audit keys.
     const identity =
       parsed?.mobile ||
@@ -203,7 +208,50 @@ function createClientCrmDetailAuthService({
           );
           let owner =
             found.rows.length === 1 && matches(found.rows[0], parsed) ? found.rows[0] : null;
-          if (register && !reauthenticateSession && found.rows.length === 0) {
+          if (discover && !reauthenticateSession) {
+            const candidate = found.rows.length === 1 && matchesIdentity(found.rows[0], parsed)
+              ? found.rows[0] : null;
+            // Never disclose recorded DOB/gender, IDs, or reasons for conflicting identities.
+            if (candidate && (!candidate.date_of_birth || !parsed.dateOfBirth ||
+                dateOnly(candidate.date_of_birth) === parsed.dateOfBirth)) {
+              const missingFields = [
+                ...(!candidate.date_of_birth ? ['dateOfBirth'] : []),
+                ...(!String(candidate.gender || '').trim() ? ['gender'] : []),
+              ];
+              const requiredFields = [...new Set([
+                ...(!parsed.dateOfBirth || missingFields.length ? ['dateOfBirth'] : []), ...missingFields,
+              ])];
+              if (requiredFields.length && (!completeProfile ||
+                  requiredFields.some(field => !parsed[field]))) {
+                owner = null;
+                result = { ok: false, code: 'CRM_AUTH_DETAILS_REQUIRED',
+                  next: 'existing', requiredFields, missingFields };
+              } else if (missingFields.length) {
+                // The owner accepted exact-name/mobile completion without phone verification.
+                // Fill only absent fields under the same row lock and transaction as session issuance.
+                owner = (await client.query(`UPDATE crm_v2_clients SET
+                  date_of_birth=COALESCE(date_of_birth,$2::date),
+                  gender=CASE WHEN gender IS NULL OR BTRIM(gender)='' THEN $3 ELSE gender END,
+                  profile_status='registered',
+                  provenance=provenance || jsonb_build_object('myShilohProfileCompletion',
+                    jsonb_build_object('assurance','name_mobile_match','fields',$4::jsonb,'selfReported',true)),
+                  updated_at=$5 WHERE id=$1 RETURNING *`,
+                [candidate.id, parsed.dateOfBirth, parsed.gender, JSON.stringify(missingFields), current])).rows[0];
+                await client.query(`INSERT INTO client_auth_security_events(event_type,crm_v2_client_id,metadata)
+                  VALUES('crm_profile_completed',$1,$2::jsonb)`, [owner.id, JSON.stringify({
+                  assurance: 'name_mobile_match', changedFields: missingFields,
+                  selfReported: true, phoneOwnershipVerified: false,
+                })]);
+              }
+            } else owner = null;
+            if (found.rows.length === 0 && profileIntent !== 'existing' &&
+                (!completeProfile || !parsed.dateOfBirth || !parsed.gender)) {
+              result = { ok: false, code: 'CRM_AUTH_DETAILS_REQUIRED', next: 'new',
+                requiredFields: ['dateOfBirth', 'gender'], missingFields: ['dateOfBirth', 'gender'] };
+            }
+          }
+          if ((register || (discover && completeProfile && profileIntent !== 'existing' && parsed.dateOfBirth && parsed.gender)) &&
+              !reauthenticateSession && found.rows.length === 0) {
             // Serialize explicit registrations so a typo in a phone cannot create the same name/DOB twice.
             await client.query(
               "SELECT pg_advisory_xact_lock(hashtextextended('crm-detail-registration',0))",
@@ -256,6 +304,8 @@ function createClientCrmDetailAuthService({
               owner,
               requestFingerprintHash,
             });
+          if (!result.ok && result.code !== 'CRM_AUTH_DETAILS_REQUIRED')
+            await client.query('ROLLBACK TO SAVEPOINT identity_operation');
         }
       } catch (error) {
         if (error.code !== '23505') throw error;
@@ -263,7 +313,7 @@ function createClientCrmDetailAuthService({
         result = INVALID;
       }
       // No submitted names/DOB/mobile, matched client IDs or match reasons on failed attempts.
-      if (!result.ok)
+      if (!result.ok && result.code !== 'CRM_AUTH_DETAILS_REQUIRED')
         await client.query(`INSERT INTO client_auth_security_events(event_type,metadata)
         VALUES('crm_detail_auth_failed','{"assurance":"biographical_match"}'::jsonb)`);
       await client.query('COMMIT');

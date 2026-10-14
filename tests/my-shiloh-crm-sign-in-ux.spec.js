@@ -24,6 +24,10 @@ async function start(page, story = 'sign-in') {
   await page.goto(`/iframe.html?id=client-crm-detail-sign-in--${story}&viewMode=story`, {
     waitUntil: 'networkidle',
   });
+  await expect(page.locator('[data-app-frame]')).toBeVisible();
+  // Keep the rendered production surface; isolate it from Storybook's asynchronous rerenders.
+  const surface = await page.locator('#storybook-root').innerHTML();
+  await page.setContent(surface);
   await page.evaluate(() =>
     Object.defineProperty(navigator, 'standalone', { value: true, configurable: true }),
   );
@@ -33,98 +37,94 @@ for (const viewport of [
   { name: 'phone', width: 390, height: 844 },
   { name: 'desktop', width: 1280, height: 900 },
 ]) {
-  test(`CRM forms, mandatory registration, generic retry and interrupted submission on ${viewport.name}`, async ({
-    page,
-  }, testInfo) => {
+  test(`automatic CRM lookup, missing details, retained values and registration on ${viewport.name}`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
     const submissions = [];
-    let release;
     let pending;
-    await page.route('**/my-shiloh/auth/crm/*', async (route) => {
-      submissions.push({
-        path: new URL(route.request().url()).pathname,
-        payload: route.request().postDataJSON(),
-      });
+    let release;
+    let reply = { next: 'existing', requiredFields: ['dateOfBirth', 'gender'], missingFields: ['dateOfBirth', 'gender'] };
+    let replyStatus = 200;
+    await page.route('**/my-shiloh/auth/crm/continue', async route => {
+      submissions.push(route.request().postDataJSON());
       if (pending) await pending;
-      await route.fulfill({
-        status: 401,
-        json: {
-          error:
-            submissions.at(-1).path.endsWith('/register')
-              ? 'We could not complete your registration. Check your first name, surname, date of birth and mobile number. If you have visited Shiloh before, choose “Already a client? Sign in”. If you still cannot continue, contact Reception for help registering.'
-              : 'We could not confirm your details. Use your first name, surname, date of birth and mobile number as recorded by Shiloh. If you still cannot sign in, ask Reception to check or complete your details on record.',
-        },
-      });
+      await route.fulfill({ status: replyStatus, json: reply });
     });
     await start(page);
     const home = page.locator('[data-view="home"]');
     const form = home.locator('[data-client-crm-form]');
     await expect(home.getByRole('button', { name: 'Use a saved passkey' })).toBeVisible();
-    await expect(home.locator('[data-client-sms-start]')).toHaveCount(0);
-    const dateBounds = await form.getByLabel('Date of birth').evaluate(input => ({right: input.getBoundingClientRect().right, width: input.getBoundingClientRect().width, formWidth: input.closest('form').getBoundingClientRect().width}));
-    expect(dateBounds.right).toBeLessThanOrEqual(viewport.width);
-    expect(dateBounds.width).toBeGreaterThan(dateBounds.formWidth * 0.8);
-    await stable(
-      page,
-      testInfo,
-      `crm-entry-${viewport.name}.png`,
-      form.getByRole('button', { name: 'Open My Shiloh', exact: true }),
-    );
+    await expect(form.locator('[data-crm-mode]')).toHaveCount(0);
+    await expect(form.getByLabel('Date of birth')).toBeHidden();
+    await expect(form.getByLabel('Gender', { exact: true })).toBeHidden();
+    await stable(page, testInfo, `crm-entry-${viewport.name}.png`, form.getByRole('button', { name: 'Continue', exact: true }));
     await form.getByLabel('First name', { exact: true }).fill('Synthetic');
     await form.getByLabel('Surname', { exact: true }).fill('Example');
-    await form.getByLabel('Date of birth', { exact: true }).fill('2000-01-01');
     await form.getByLabel('Mobile number', { exact: true }).fill('0820000001');
-    pending = new Promise((resolve) => {
-      release = resolve;
-    });
-    await form.getByRole('button', { name: 'Open My Shiloh', exact: true }).evaluate((button) => {
-      button.click();
-      button.click();
-    });
+    pending = new Promise(resolve => { release = resolve; });
+    await form.getByRole('button', { name: 'Continue', exact: true }).evaluate(button => { button.click(); button.click(); });
     await expect.poll(() => submissions.length).toBe(1);
-    await expect(form.getByRole('button', { name: 'New to Shiloh? Register' })).toBeDisabled();
-    release();
-    pending = null;
-    await expect(form.locator('[data-crm-status]')).toContainText('We could not confirm your details');
-    expect(submissions[0].payload).toEqual({
-      firstName: 'Synthetic',
-      surname: 'Example',
-      dateOfBirth: '2000-01-01',
-      mobile: '0820000001',
-    });
-    await stable(
-      page,
-      testInfo,
-      `crm-generic-error-${viewport.name}.png`,
-      form.locator('[data-crm-status]'),
-    );
-    await form.getByRole('button', { name: 'New to Shiloh? Register' }).click();
-    await expect(form.getByLabel('Gender', { exact: true })).toBeVisible();
-    await form.getByRole('button', { name: 'Register and open My Shiloh' }).click();
+    await expect(form.getByLabel('Mobile number')).toBeDisabled();
+    release(); pending = null;
+    await expect(form.locator('[data-crm-status]')).toContainText('Your Shiloh profile needs your date of birth and gender');
+    expect(submissions[0]).toEqual({ firstName: 'Synthetic', surname: 'Example', mobile: '0820000001', completeProfile: false });
+    await expect(form.getByLabel('Date of birth')).toBeFocused();
+    await expect(form.getByLabel('First name', { exact: true })).toHaveValue('Synthetic');
+    await form.getByRole('button', { name: 'Confirm and open My Shiloh' }).click();
     expect(submissions).toHaveLength(1);
+    await form.getByLabel('Date of birth').fill('2000-01-01');
     await form.getByLabel('Gender', { exact: true }).selectOption('prefer_not_to_say');
-    await stable(
-      page,
-      testInfo,
-      `crm-registration-${viewport.name}.png`,
-      form.getByRole('button', { name: 'Register and open My Shiloh' }),
-    );
-    await form.getByRole('button', { name: 'Register and open My Shiloh' }).click();
-    await expect.poll(() => submissions.length).toBe(2);
-    expect(submissions[1].payload.gender).toBe('prefer_not_to_say');
-    await expect(form.locator('[data-crm-status]')).toContainText('contact Reception for help registering');
+    const dateBounds = await form.getByLabel('Date of birth').evaluate(input => ({ right: input.getBoundingClientRect().right, width: input.getBoundingClientRect().width, formWidth: input.closest('form').getBoundingClientRect().width }));
+    expect(dateBounds.right).toBeLessThanOrEqual(viewport.width);
+    expect(dateBounds.width).toBeGreaterThan(dateBounds.formWidth * 0.8);
+    await stable(page, testInfo, `crm-completion-${viewport.name}.png`, form.getByRole('button', { name: 'Confirm and open My Shiloh' }));
+    replyStatus = 401; reply = { error: 'We could not confirm these details. Contact Reception to check your Shiloh record.' };
+    await form.getByRole('button', { name: 'Confirm and open My Shiloh' }).click();
+    await expect(form.locator('[data-crm-status]')).toContainText('Contact Reception');
+    expect(submissions[1]).toEqual({ firstName: 'Synthetic', surname: 'Example', mobile: '0820000001', dateOfBirth: '2000-01-01', gender: 'prefer_not_to_say', completeProfile: true, profileIntent: 'existing' });
+    await expect(form.getByLabel('Date of birth')).toHaveValue('2000-01-01');
+    await expect(form.getByLabel('Gender', { exact: true })).toHaveValue('prefer_not_to_say');
+    await stable(page, testInfo, `crm-generic-error-${viewport.name}.png`, form.locator('[data-crm-status]'));
+    // Editing identity requires a fresh lookup and confirmation; typed DOB/gender remain on this page only.
+    await form.getByLabel('First name', { exact: true }).fill('New');
+    await expect(form.getByLabel('Date of birth')).toBeHidden();
+    replyStatus = 200; reply = { next: 'new', requiredFields: ['dateOfBirth', 'gender'], missingFields: ['dateOfBirth', 'gender'] };
+    await form.getByRole('button', { name: 'Continue', exact: true }).click();
+    await expect(form.locator('[data-crm-status]')).toContainText('Welcome to Shiloh');
+    expect(submissions[2]).toEqual({ firstName: 'New', surname: 'Example', mobile: '0820000001', completeProfile: false });
+    await expect(form.getByLabel('Date of birth')).toHaveValue('2000-01-01');
+    await expect(form.getByLabel('Gender', { exact: true })).toHaveValue('prefer_not_to_say');
+    await stable(page, testInfo, `crm-registration-${viewport.name}.png`, form.getByRole('button', { name: 'Create profile and open My Shiloh' }));
+    replyStatus = 503; reply = { error: 'Sign-in is temporarily unavailable. Please try again later.' };
+    await form.getByRole('button', { name: 'Create profile and open My Shiloh' }).click();
+    await expect(form.locator('[data-crm-status]')).toContainText('temporarily unavailable');
     await stable(page, testInfo, `crm-registration-generic-error-${viewport.name}.png`, form.locator('[data-crm-status]'));
+    const axe = await new AxeBuilder({ page }).include('[data-view="home"]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
+    expect(axe.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await form.getByRole('button', { name: 'Already a client? Sign in' }).click();
-    await expect(form.getByLabel('Gender', { exact: true })).toBeHidden();
-    const axe = await new AxeBuilder({ page })
-      .include('[data-view="home"]')
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
-      .analyze();
-    expect(axe.violations.filter((v) => ['serious', 'critical'].includes(v.impact))).toEqual([]);
-    // Reload an interrupted form starts cleanly, with no persisted private input or claimed authentication.
+    // Successful completion follows the existing authenticated landing path.
+    await page.route(url => /^\/my-shiloh\/?$/.test(url.pathname), route => route.fulfill({ contentType: 'text/html', body: '<h1>Signed in synthetic client</h1>' }));
+    replyStatus = 200; reply = { authenticated: true };
+    await form.getByRole('button', { name: 'Create profile and open My Shiloh' }).click();
+    await expect(page.getByRole('heading', { name: 'Signed in synthetic client' })).toBeVisible();
     await start(page);
     await expect(page.locator('[data-view="home"] input[name="firstName"]')).toHaveValue('');
+  });
+
+  test(`complete CRM records request DOB only on ${viewport.name}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport);
+    await page.route('**/my-shiloh/auth/crm/continue', route => route.fulfill({ json: {
+      next: 'existing', requiredFields: ['dateOfBirth'], missingFields: [],
+    } }));
+    await start(page);
+    const form = page.locator('[data-view="home"] [data-client-crm-form]');
+    await form.getByLabel('First name', { exact: true }).fill('Synthetic');
+    await form.getByLabel('Surname').fill('Example');
+    await form.getByLabel('Mobile number').fill('0820000001');
+    await form.getByRole('button', { name: 'Continue', exact: true }).click();
+    await expect(form.locator('[data-crm-status]')).toContainText('confirm your date of birth');
+    await expect(form.getByLabel('Date of birth')).toBeVisible();
+    await expect(form.getByLabel('Gender', { exact: true })).toBeHidden();
+    await stable(page, testInfo, `crm-dob-check-${viewport.name}.png`, form.getByLabel('Date of birth'));
   });
   test(`Shiloh profile allows remembered account changes without detail re-entry and keeps ordinary logout on ${viewport.name}`, async ({
     page,

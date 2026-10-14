@@ -1943,7 +1943,33 @@
   });
 
   const crmForms = [...document.querySelectorAll('[data-client-crm-form]')];
+  function restoreCrmControls() {
+    authActionInFlight = false;
+    crmForms.forEach(item => {
+      item.querySelectorAll('button,input,select').forEach(control => { control.disabled = false; });
+      item.elements.namedItem('gender').disabled = item.querySelector('[data-crm-gender]').hidden;
+      item.elements.namedItem('dateOfBirth').disabled = Boolean(item.querySelector('[data-crm-dob]')?.hidden);
+    });
+    setAuthControlsDisabled(false);
+  }
   crmForms.forEach(form => {
+    if (form.dataset.mode === 'continue') {
+      ['firstName', 'surname', 'mobile'].forEach(name => {
+        form.elements.namedItem(name).addEventListener('input', () => {
+          delete form.dataset.completeProfile;
+          delete form.dataset.profileIntent;
+          form.closest('section').querySelector('[data-crm-title]').textContent = 'Open My Shiloh';
+          form.closest('section').querySelector('[data-crm-copy]').textContent = 'Enter your name and mobile number. We will check your Shiloh record and guide you from there.';
+          for (const [field, selector] of [['dateOfBirth', '[data-crm-dob]'], ['gender', '[data-crm-gender]']]) {
+            form.querySelector(selector).hidden = true;
+            form.elements.namedItem(field).disabled = true;
+            form.elements.namedItem(field).required = false;
+          }
+          form.querySelector('[data-crm-submit]').textContent = 'Continue';
+          form.querySelector('[data-crm-status]').textContent = '';
+        });
+      });
+    }
     form.querySelector('[data-crm-mode]')?.addEventListener('click', () => {
       if (authActionInFlight) return;
       const register = form.dataset.mode !== 'register';
@@ -1964,6 +1990,8 @@
       authActionInFlight = true;
       const status = form.querySelector('[data-crm-status]');
       const payload = Object.fromEntries(new FormData(form));
+      if (form.dataset.mode === 'continue') payload.completeProfile = form.dataset.completeProfile === 'true';
+      if (form.dataset.mode === 'continue' && payload.completeProfile) payload.profileIntent = form.dataset.profileIntent;
       crmForms.forEach(item => item.querySelectorAll('button,input,select').forEach(control => { control.disabled = true; }));
       setAuthControlsDisabled(true);
       status.textContent = 'Checking your details…';
@@ -1972,26 +2000,41 @@
         const headers = reauthenticate ? { 'x-shiloh-csrf-token': await freshCsrfToken() } : {};
         const response = await postJson(`/my-shiloh/auth/crm/${form.dataset.mode}`, payload, headers);
         const result = await response.json().catch(() => ({}));
+        if (response.ok && form.dataset.mode === 'continue' && ['existing', 'new'].includes(result.next) &&
+            Array.isArray(result.requiredFields) && result.requiredFields.length &&
+            result.requiredFields.every(field => ['dateOfBirth', 'gender'].includes(field))) {
+          const missing = Array.isArray(result.missingFields) ? result.missingFields : [];
+          const fieldNames = missing.map(field => field === 'dateOfBirth' ? 'date of birth' : 'gender').join(' and ');
+          const copy = result.next === 'new' ? 'Welcome to Shiloh! Add your date of birth and gender to create your profile.' :
+            missing.length ? `Welcome back! Your Shiloh profile needs your ${fieldNames}. Please confirm these below to continue.` :
+              'Welcome back! Please confirm your date of birth to sign in.';
+          form.closest('section').querySelector('[data-crm-title]').textContent = result.next === 'new' ? 'Create your Shiloh profile' : 'Welcome back';
+          form.closest('section').querySelector('[data-crm-copy]').textContent = copy;
+          for (const [field, selector] of [['dateOfBirth', '[data-crm-dob]'], ['gender', '[data-crm-gender]']]) {
+            const required = result.requiredFields.includes(field);
+            form.querySelector(selector).hidden = !required;
+            form.elements.namedItem(field).required = required;
+          }
+          form.dataset.completeProfile = 'true';
+          form.dataset.profileIntent = result.next;
+          form.querySelector('[data-crm-submit]').textContent = result.next === 'new' ? 'Create profile and open My Shiloh' : 'Confirm and open My Shiloh';
+          status.textContent = copy;
+          restoreCrmControls();
+          form.elements.namedItem(result.requiredFields[0]).focus();
+          return;
+        }
         if (!response.ok || !(result.authenticated || result.reauthenticated)) throw new Error(result.error || 'We could not continue with these details. Please try again.');
         if (reauthenticate) {
           form.reset();
           status.textContent = 'Details confirmed. You can change your account settings for the next ten minutes.';
-          authActionInFlight = false;
-          crmForms.forEach(item => item.querySelectorAll('button,input,select').forEach(control => { control.disabled = false; }));
-          crmForms.forEach(item => { item.elements.namedItem('gender').disabled = item.dataset.mode !== 'register'; });
-          setAuthControlsDisabled(false);
+          restoreCrmControls();
         } else {
           status.textContent = 'Opening My Shiloh…';
           window.location.replace(signedInLanding());
         }
       } catch (error) {
         status.textContent = error.message || 'Sign-in could not be completed. Please try again.';
-        authActionInFlight = false;
-        crmForms.forEach(item => {
-          item.querySelectorAll('button,input,select').forEach(control => { control.disabled = false; });
-          item.elements.namedItem('gender').disabled = item.dataset.mode !== 'register';
-        });
-        setAuthControlsDisabled(false);
+        restoreCrmControls();
       }
     });
   });
