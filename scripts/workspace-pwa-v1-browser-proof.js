@@ -5,9 +5,9 @@ const https = require('node:https');
 const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
-const { execFile, spawnSync } = require('node:child_process');
+const { spawnSync } = require('node:child_process');
 const { once } = require('node:events');
-const { promisify } = require('node:util');
+const { chromium } = require('@playwright/test');
 const express = require('express');
 
 const requestContext = require('../src/middleware/requestContext');
@@ -28,7 +28,6 @@ const {
 } = require('../src/presentation/staffCalendarAccessUx');
 const { retireBrowserWhatsAppGuidance } = require('../src/routes/staffCalendarAccessUx');
 
-const execFileAsync = promisify(execFile);
 const OUT_DIR = path.join(process.cwd(), 'artifacts', 'workspace-pwa-v1');
 const SESSION_TOKEN = 'A'.repeat(43);
 const ENV = { NODE_ENV: 'production', SHILOH_STAFF_BROWSER_SESSION_CALENDAR_BRIDGE_ENABLED: 'true' };
@@ -62,20 +61,55 @@ async function reservePort() {
   return port;
 }
 
+// CLI virtual time does not await the worker's independent activation lifecycle,
+// and a successful process exit did not guarantee a screenshot was written.
+// Use the existing Chromium through its browser protocol, observing the same
+// fixture signals and retaining the original 60s operation/10MiB DOM bounds.
 async function chromeRun(chrome, args) {
-  const chromeArgs = [
-    '--headless=new', '--no-sandbox', '--disable-gpu', '--ignore-certificate-errors',
-    '--allow-insecure-localhost', '--disable-dev-shm-usage', ...args,
-  ];
+  const value = prefix => args.find(arg => arg.startsWith(prefix))?.slice(prefix.length);
+  const [width, height] = value('--window-size=').split(',').map(Number);
+  const budget = Number(value('--virtual-time-budget=') || 4000);
+  const url = args.at(-1), screenshot = value('--screenshot=');
+  let context, timer;
   try {
-    const result = await execFileAsync(chrome, chromeArgs, {
-      encoding: 'utf8',
-      timeout: 60_000,
-      maxBuffer: 10 * 1024 * 1024,
-    });
-    return result.stdout || '';
+    return await Promise.race([
+      (async () => {
+        context = await chromium.launchPersistentContext(value('--user-data-dir='), {
+          executablePath: chrome, headless: true, timeout: 60_000,
+          args: ['--no-sandbox', '--disable-gpu', '--ignore-certificate-errors', '--allow-insecure-localhost', '--disable-dev-shm-usage'],
+          ignoreHTTPSErrors: true, viewport: { width, height },
+          ...(value('--user-agent=') ? { userAgent: value('--user-agent=') } : {}),
+        });
+        const page = context.pages()[0] || await context.newPage();
+        await page.goto(url, { waitUntil: 'load', timeout: 60_000 });
+        // The unchanged application reloads on first controllerchange. Wait
+        // through that navigation in the browser's polling context before
+        // inspecting or capturing the document; direct evaluate can race it.
+        if (value('--user-agent=')) {
+          await page.waitForFunction(() => navigator.serviceWorker.controller?.state === 'activated'
+            && document.readyState === 'complete', {}, { timeout: budget });
+        }
+        if (url.endsWith('/proof-auth') && value('--user-agent=')) {
+          await page.waitForFunction(() => document.documentElement.dataset.swReady === 'true', {}, { timeout: budget });
+        } else if (url.endsWith('/proof-auth')) {
+          await page.waitForFunction(() => document.documentElement.dataset.rootOverflow !== undefined, {}, { timeout: budget });
+        } else if (url.endsWith('/proof-expired')) {
+          await page.locator('[data-shiloh-status][data-state="session-ended"]').waitFor({ state: 'attached', timeout: budget });
+        } else {
+          await page.locator('[data-workspace-install-doorway]').waitFor({ timeout: budget });
+        }
+        if (screenshot) await page.screenshot({ path: screenshot, timeout: 60_000 });
+        const dom = await page.content();
+        if (Buffer.byteLength(dom, 'utf8') > 10 * 1024 * 1024) throw new Error('Browser proof DOM exceeds the existing 10MiB bound');
+        return dom;
+      })(),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Browser proof exceeded the existing 60s operation bound')), 60_000); }),
+    ]);
   } catch (error) {
-    throw new Error(`Chrome proof failed: ${error.stderr || error.stdout || error.message}`);
+    throw new Error(`Chrome proof failed: ${error.message}`);
+  } finally {
+    clearTimeout(timer);
+    if (context) await context.close();
   }
 }
 
@@ -242,4 +276,5 @@ async function main() {
   }
 }
 
-main().catch(error => { console.error(error); process.exitCode = 1; });
+if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1; });
+module.exports = { chromeRun, chromeExecutable, createFixture, createCertificate };

@@ -131,6 +131,19 @@ jobs:
           path: artifacts/dashboard-deposit-waiver-shortcut
           if-no-files-found: error
           retention-days: 14
+      - name: Capture source-bound Rebook action review
+        env:
+          EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          REVIEW_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: node scripts/rebook-action-evidence.js
+      - name: Upload source-bound Rebook action review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rebook-action-review
+          path: artifacts/rebook-action-review
+          if-no-files-found: error
+          retention-days: 14
       - name: Capture source-bound payment waiver alignment review
         env:
           EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
