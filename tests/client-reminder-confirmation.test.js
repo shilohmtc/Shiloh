@@ -9,7 +9,7 @@ const lifecycle = fs.readFileSync(path.join(root, 'src/services/appointmentLifec
 const care = fs.readFileSync(path.join(root, 'src/services/customerCare.js'), 'utf8');
 const bookingConfirmation = fs.readFileSync(path.join(root, 'src/services/customerBookingConfirmation.js'), 'utf8');
 const calendarCreateBookingRoute = fs.readFileSync(path.join(root, 'src/routes/calendarCreateBooking.js'), 'utf8');
-const reminderTemplate = fs.readFileSync(path.join(root, 'src/services/reminderActionTemplateProvisioning.js'), 'utf8');
+const reminderTemplate = fs.readFileSync(path.join(root, 'src/messageDefinitions/reminder.js'), 'utf8');
 const whatsapp = fs.readFileSync(path.join(root, 'src/services/whatsapp.js'), 'utf8');
 const { parseConfirmationCommand } = require('../src/services/appointmentReminderConfirmation');
 

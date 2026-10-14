@@ -2,6 +2,8 @@
 
 Issue #995 introduces one provider-independent payment authority for ordinary appointments and linked booking groups. Payment processing is integrated; booking, attendance, Calendar and loyalty truth remain separate.
 
+Shared Rand formatting, payment mobile matching and hosted payment URLs live in `src/services/paymentValues.js`. These retain their existing behavior and have no WhatsApp transport dependency. The retired payment-notification module and its unused sender/link-fallback exports are removed; current notices remain app-owned.
+
 ## Human operation
 
 Authorized owner/Reception staff open an appointment and choose **Payments**. The payment page shows the canonical booking total, net received and outstanding balance. Staff can:

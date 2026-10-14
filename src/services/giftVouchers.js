@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { pool } = require('../db/pool');
 const { createOzowPaymentProvider } = require('./ozowPaymentProvider');
 const { resolveCalendarAuthority, hasCapability } = require('./calendarAuthorization');
-const { normalizeWhatsAppMobile } = require('./paymentWhatsAppNotifications');
+const { normalizePaymentMobile } = require('./paymentValues');
 const { voucherExpiryTimestamp } = require('../lib/voucherDate');
 const { localMobile, normalizeMobile } = require('./crmV2ClientService');
 
@@ -168,7 +168,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
       const validity = await policy(client);
       if (!validity.configured) throw new GiftVoucherError('VOUCHER_POLICY_REQUIRED', 'Shiloh needs to choose the voucher validity policy before purchases can open.', 409);
       if (!ozow.configured()) throw new GiftVoucherError('VOUCHER_PAYMENT_UNAVAILABLE', 'Secure voucher payment is temporarily unavailable.', 503);
-      const buyerMobile = normalizeWhatsAppMobile(buyer.normalized_mobile);
+      const buyerMobile = normalizePaymentMobile(buyer.normalized_mobile);
       const buyerLocalMobile = localMobile(buyer.normalized_mobile);
       const targetMobile = delivery === 'purchaser' ? buyerLocalMobile : recipientLocalMobile;
       if (!targetMobile) throw new GiftVoucherError('VOUCHER_INVALID_MOBILE', 'Enter a valid South African mobile number for delivery.');

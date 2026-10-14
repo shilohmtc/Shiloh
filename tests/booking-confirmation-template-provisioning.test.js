@@ -20,7 +20,6 @@ test('booking confirmation template is a client-safe utility template with the e
   assert.match(body.text, /CANCEL/);
 });
 
-test('booking confirmation provisioning exposes provider status and submission functions', () => {
+test('historical booking confirmation status remains available for inspection', () => {
   assert.equal(typeof provisioning.getBookingConfirmationTemplateStatus, 'function');
-  assert.equal(typeof provisioning.submitBookingConfirmationTemplate, 'function');
 });

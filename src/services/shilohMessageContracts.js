@@ -1,19 +1,19 @@
 const crypto = require('node:crypto');
-const { buildBirthdayTemplateDefinition } = require('./birthdayTemplateProvisioning');
-const { buildStaffFinalizationTemplateDefinition, buildStaffFinalizationActionTemplateDefinition } = require('./staffFinalizationTemplateProvisioning');
-const { buildBookingConfirmationTemplateDefinition } = require('./bookingConfirmationTemplateProvisioning');
-const { buildBookingConfirmationV2TemplateDefinition } = require('./bookingConfirmationV2TemplateProvisioning');
-const { buildWorkspaceBookingRequestAlertTemplateDefinition } = require('./workspaceBookingRequestAlertTemplateProvisioning');
-const { buildProblemReportResolvedTemplateDefinition } = require('./problemReportResolvedTemplateProvisioning');
-const { buildReminderActionTemplateDefinition } = require('./reminderActionTemplateProvisioning');
-const { buildDefinition } = require('./clientLifecycleTemplateProvisioning');
+const { buildBirthdayTemplateDefinition } = require('../messageDefinitions/birthday');
+const { buildStaffFinalizationTemplateDefinition, buildStaffFinalizationActionTemplateDefinition } = require('../messageDefinitions/staffFinalization');
+const { buildBookingConfirmationTemplateDefinition } = require('../messageDefinitions/bookingConfirmation');
+const { buildBookingConfirmationV2TemplateDefinition } = require('../messageDefinitions/bookingConfirmationV2');
+const { buildWorkspaceBookingRequestAlertTemplateDefinition } = require('../messageDefinitions/workspaceBookingRequestAlert');
+const { buildProblemReportResolvedTemplateDefinition } = require('../messageDefinitions/problemReportResolved');
+const { buildReminderActionTemplateDefinition } = require('../messageDefinitions/reminder');
+const { buildDefinition } = require('../messageDefinitions/clientLifecycle');
 const { buildStaffAuthTemplateSubmissionDefinition } = require('./staffAuthTemplateDefinition');
 const { buildClientAuthTemplateSubmissionDefinition } = require('./clientAuthTemplateDefinition');
 const { buildPaymentTemplateDefinition } = require('./paymentTemplateDefinitions');
 const {
   TEMPLATE_SPECS: CONSULTATION_TEMPLATE_SPECS,
   buildConsultationFormTemplateDefinition,
-} = require('./consultationFormTemplateProvisioning');
+} = require('../messageDefinitions/consultationForm');
 
 const definition = (key) => buildDefinition(key);
 const consultationDefinition = (key) => buildConsultationFormTemplateDefinition(

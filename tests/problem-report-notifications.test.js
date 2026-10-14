@@ -20,7 +20,7 @@ test('historical report message cannot regain provider registration authority', 
   assert.equal(contract.lifecycle, 'retired');
   assert.equal(contract.sendable, false);
   assert.throws(() => buildMetaTemplateRegistrationPayload(contract.id), /Retired/);
-  assert.doesNotMatch(fs.readFileSync('src/services/problemReportResolvedTemplateProvisioning.js', 'utf8'), /axios|submitProblemReport|graph\.facebook/);
+  assert.doesNotMatch(fs.readFileSync('src/messageDefinitions/problemReportResolved.js', 'utf8'), /axios|submitProblemReport|graph\.facebook/);
 });
 
 test('Workspace completion copy describes My Shiloh and never promises retired WhatsApp delivery', () => {
