@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ux = fs.readFileSync(path.join(__dirname,'../src/services/adminScheduleUx.js'),'utf8');
-const menu = fs.readFileSync(path.join(__dirname,'../src/services/adminInteractiveMenu.js'),'utf8');
+
 const migration = fs.readFileSync(path.join(__dirname,'../migrations/056_staff_leave_approval_workflow.sql'),'utf8');
 
 test('internal Schedule service remains role-aware but is absent from ordinary staff menu', () => {
@@ -14,8 +14,7 @@ test('internal Schedule service remains role-aware but is absent from ordinary s
   assert.match(ux,/Clinic closures/);
   assert.doesNotMatch(ux,/Freelancer availability/);
   assert.doesNotMatch(ux,/Staff hours/);
-  assert.doesNotMatch(menu,/processAdminScheduleUxMessage|Manage schedule|admin_action_schedule/);
-  assert.match(menu,/processAdminRetiredAuthorityMessage/);
+
 });
 
 test('Abigail leave is pending until Christel resolves it', () => {

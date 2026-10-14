@@ -1,5 +1,7 @@
 # Shiloh OS — Production Handoff — Next Chat — 11 Aug 2026
 
+
+> Historical record. As of 14 October 2026, automated WhatsApp routing is retired and the dormant language/onboarding/booking-gate modules mentioned below are removed. Retained canonical identity helpers still support My Shiloh and current booking flows. Use [SHILOH_PLATFORM_HANDBOOK.md](SHILOH_PLATFORM_HANDBOOK.md) for current runtime boundaries.
 > **Project/chat identity:** Shiloh OS
 >
 > Every continuation of this production project should identify itself as **Shiloh OS**. When starting a fresh ChatGPT conversation, use **Shiloh OS** as the conversation title when the interface permits manual naming. The handoff cannot programmatically rename the ChatGPT sidebar conversation, so this naming convention is the authoritative project standard.

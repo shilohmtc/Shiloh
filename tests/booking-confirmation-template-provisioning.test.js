@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const provisioning = require('../src/services/bookingConfirmationTemplateProvisioning');
+const provisioning = require('../src/messageDefinitions/bookingConfirmation');
 
 test('booking confirmation template is a client-safe utility template with the existing seven parameters', () => {
   assert.equal(provisioning.TEMPLATE_NAME, 'shiloh_booking_confirmation_v1');
@@ -18,8 +18,4 @@ test('booking confirmation template is a client-safe utility template with the e
   assert.doesNotMatch(body.text, /canonical CRM|synchroniz|provider|revalidation/i);
   assert.match(body.text, /RESCHEDULE/);
   assert.match(body.text, /CANCEL/);
-});
-
-test('historical booking confirmation status remains available for inspection', () => {
-  assert.equal(typeof provisioning.getBookingConfirmationTemplateStatus, 'function');
 });

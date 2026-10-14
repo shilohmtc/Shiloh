@@ -2,51 +2,10 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createClientHumanHandoffService } = require('../src/services/clientHumanHandoffs');
+
 const { createMyShilohAssistantService } = require('../src/services/myShilohAssistant');
 const { renderMyShilohPage } = require('../src/presentation/myShilohPwa');
 const { renderDashboardPage } = require('../src/presentation/workspaceDashboardUx');
-
-test('human handoff request is client-scoped and idempotent without appointment or message writes', async () => {
-  const queries=[];
-  const db={ async query(sql,params) {
-    queries.push({sql,params});
-    if (sql.includes('FROM crm_v2_clients WHERE')) return { rowCount:1,rows:[{id:22}] };
-    if (sql.includes('INSERT INTO client_human_handoffs')) return { rowCount:0,rows:[] };
-    if (sql.includes('FROM client_human_handoffs') && sql.includes('crm_v2_client_id=$1')) return { rowCount:1,rows:[{id:81}] };
-    throw new Error(`Unexpected query ${sql}`);
-  } };
-  const service=createClientHumanHandoffService({db});
-  assert.deepEqual(await service.request(22),{id:81,status:'open',created:false});
-  assert.deepEqual(queries[1].params,[22]);
-  assert.equal(queries.some(item=>/INSERT INTO (appointments|client_messages|payments)/i.test(item.sql)),false);
-  await assert.rejects(service.request(0),{code:'HUMAN_CLIENT_INVALID'});
-});
-
-test('only current Reception authority can close the open handoff', async () => {
-  const db={ async query(sql,params) {
-    assert.match(sql,/WHERE id=\$1 AND status='open'/);
-    assert.deepEqual(params,[81,4]);
-    return { rowCount:1,rows:[{id:81}] };
-  } };
-  const service=createClientHumanHandoffService({db});
-  await assert.rejects(service.close({principal:{id:9,business_role:'practitioner',calendar_scope:'all_business'},id:81}),{code:'HUMAN_FORBIDDEN'});
-  assert.deepEqual(await service.close({principal:{id:4,business_role:'owner',calendar_scope:'all_business'},id:81}),{id:81,status:'closed'});
-});
-
-test('WhatsApp pause uses the exact active CRM mobile and preserves staff commands', async () => {
-  let checked=false;
-  const service=createClientHumanHandoffService({db:{async query(sql,params){
-    assert.match(sql,/JOIN crm_v2_clients c/);
-    assert.match(sql,/NOT EXISTS \(SELECT 1 FROM staff_admin_accounts/);
-    assert.deepEqual(params,['27821234567']);
-    checked=true;
-    return { rows:[{id:81}] };
-  }}});
-  assert.equal(await service.activeForPhone('unknown'),null);
-  assert.deepEqual(await service.activeForPhone('27821234567'),{id:81});
-  assert.equal(checked,true);
-});
 
 test('historical open handoffs do not suppress My Shiloh replies or authenticated tools', async () => {
   let reads=0;

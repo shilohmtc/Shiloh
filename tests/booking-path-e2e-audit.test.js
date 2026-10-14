@@ -13,9 +13,9 @@ function combined(...files) {
 
 test('booking-path audit covers new and returning client identity without bypassing registration', () => {
   const identity = combined(
-    'tests/client-booking-identity-gate.test.js',
+    'tests/verified-client-authority.test.js',
     'src/services/clientIdentityOnboarding.js',
-    'src/services/clientBookingIdentityGate.js'
+    'src/services/myShilohBooking.js'
   );
   assert.match(identity, /onboarding|registration/i);
   assert.match(identity, /return|matched_complete|profileComplete/i);

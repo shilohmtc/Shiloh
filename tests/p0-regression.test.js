@@ -111,12 +111,6 @@ test('normal post-cutover startup contains only current long-running schedulers 
   assert.doesNotMatch(app, /runCataloguePolish|runStartupTestCommand/);
 });
 
-test('OpenAI language guard uses a currently valid output-token floor', () => {
-  const guard = source('src/services/englishLanguageGuard.js');
-  assert.match(guard, /max_output_tokens:16/);
-  assert.doesNotMatch(guard, /max_output_tokens:[0-9](?:\D|$)/);
-});
-
 test('maintenance writes and outbound WhatsApp require explicit acknowledgements', () => {
   const maintenance = source('scripts/maintenance.js');
   assert.match(maintenance, /command\.mutates && !args\.includes\('--confirm'\)/);

@@ -39,10 +39,3 @@ test('redemption is appointment-bound and never asserts payment truth', () => {
   assert.doesNotMatch(service, /payment_status|mark.*paid|status\s*=\s*['"]paid['"]/i);
   assert.match(admin, /No payment status/);
 });
-
-test('loyalty redemption remains technical-only after WhatsApp Admin retirement', () => {
-  const interactive = fs.readFileSync(path.join(root, 'src/services/adminInteractiveMenu.js'), 'utf8');
-
-  assert.doesNotMatch(interactive, /processAdminLoyaltyRedemptionMessage/);
-  assert.match(interactive, /processRetiredAdminAuthorityMessage/);
-});

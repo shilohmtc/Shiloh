@@ -151,12 +151,6 @@ function deterministicRandomBytes() {
   return (size) => Buffer.alloc(size, value++);
 }
 
-test('WhatsApp Workspace launcher is retired while the technical handoff service remains bounded', () => {
-  const source = read('src/services/adminInteractiveMenu.js');
-  assert.match(source, /processRetiredAdminAuthorityMessage/);
-  assert.doesNotMatch(source, /workspaceLauncherInteractive|issueCalendarHandoffForSender|admin_open_calendar/);
-});
-
 test('canonical inbound WhatsApp viewer gets hash-only short-lived handoff and one successful session exchange', async () => {
   const db = fakeDb();
   const current = new Date('2026-08-29T14:30:00.000Z');

@@ -35,10 +35,10 @@ test('#765 future booking requests use canonical assignment snapshots with no pe
 });
 
 test('Reset Juvan and historical identity verification remain technical-only', () => {
-  const menu = read('src/services/adminInteractiveMenu.js');
+
   const bootstrap = read('src/services/juvanBookingApprovalPolicy.js');
   const app = read('app.js');
-  assert.doesNotMatch(menu, /Reset Juvan|reset_juvan|processAdminTestClientResetMessage/);
+
   assert.match(bootstrap, /verifyMigrationFiles/);
   assert.doesNotMatch(bootstrap, /applyMigrationFile/);
   assert.doesNotMatch(app, /ensureJuvanBookingApprovalPolicy/);

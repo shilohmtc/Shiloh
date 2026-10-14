@@ -25,10 +25,3 @@ test('service trends are permission gated, audited and descriptive only',()=>{
   assert.match(service,/not revenue or clinical outcomes/);
   assert.doesNotMatch(service,/UPDATE\s+appointments|DELETE\s+FROM\s+appointments|INSERT\s+INTO\s+appointments/i);
 });
-
-test('service trends remain technical-only after WhatsApp Admin retirement',()=>{
-  const interactive = fs.readFileSync(path.join(__dirname,'..','src','services','adminInteractiveMenu.js'),'utf8');
-
-  assert.doesNotMatch(interactive,/processAdminServiceTrendsMessage/);
-  assert.match(interactive,/processRetiredAdminAuthorityMessage/);
-});

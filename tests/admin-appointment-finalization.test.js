@@ -8,12 +8,10 @@ const source = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const finalization = source('src/services/adminAppointmentFinalization.js');
 const cancellation = source('src/services/adminAppointmentCancellation.js');
 const authority = source('src/services/attendanceFinalizationAuthority.js');
-const interactiveMenu = source('src/services/adminInteractiveMenu.js');
 
 test('past finalization retains its internal authorization but is absent from ordinary staff routing', () => {
   assert.match(finalization, /!has\(admin, 'appointment:view'\)/);
-  assert.doesNotMatch(interactiveMenu, /processAdminAppointmentFinalizationMessage/);
-  assert.doesNotMatch(interactiveMenu, /Finalize past visits|admin_appointment_finalize/);
+
 });
 
 test('visibility remains scoped to the approved 1-15 Aug historical window and past non-final appointments', () => {
@@ -108,9 +106,4 @@ test('attendance finalization itself synchronizes lifecycle without directly mut
   assert.match(finalization, /UPDATE appointment_lifecycle/);
   assert.doesNotMatch(finalization, /createBookingEvent|cancelBookingEvent/);
   assert.doesNotMatch(finalization, /payment|ozow|voucher/i);
-});
-
-test('interactive router cannot execute internal finalization', () => {
-  assert.doesNotMatch(interactiveMenu, /processAdminAppointmentFinalizationMessage/);
-  assert.match(interactiveMenu, /processAdminRetiredAuthorityMessage/);
 });

@@ -13,7 +13,6 @@ const {
 const ROOT = path.resolve(__dirname, '..');
 const source = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
 
-const legacyGuard = source('src/services/identityOnboardingGuard.js');
 const onboarding = source('src/services/clientIdentityOnboarding.js');
 const transition = source('src/services/clientTransitionWelcome.js');
 
@@ -26,9 +25,7 @@ function queryableSession(session) {
 }
 
 test('legacy identity helpers retain the canonical resolver without historical appointment proof', () => {
-  assert.doesNotMatch(legacyGuard, /resolveVerifiedClientByWhatsApp|historical_unverified|appointment history/);
 
-  assert.doesNotMatch(legacyGuard, /This number matches a Shiloh profile with appointment history/);
   assert.match(transition, /resolveWhatsAppBookingIdentity\(phone\)/);
   assert.match(transition, /processClientIdentityMessage\(phone, text\)/);
 });
@@ -128,9 +125,4 @@ test('historical appointment or imported-contact evidence cannot establish or ov
   assert.match(onboarding, /identityStatus: "registration_required", client: null/);
   assert.match(onboarding, /crmV2Authority = await whatsappCrmV2IdentityCompat\.resolveCrmV2ByExactMobile\(phone\)/);
   assert.match(onboarding, /if \(manualReviewIdentity\(identity\)\)/);
-});
-
-test('legacy guard adds no identity resolver or data mutation', () => {
-  assert.doesNotMatch(legacyGuard, /(?:INSERT INTO|UPDATE|DELETE FROM) (?:clients|client_contacts|appointments|crm_v2_clients)/i);
-  assert.doesNotMatch(legacyGuard, /require\(['"]\.\/clientVerifiedIdentity['"]\)/);
 });
