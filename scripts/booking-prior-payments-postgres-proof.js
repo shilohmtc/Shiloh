@@ -145,20 +145,22 @@ async function run() {
       INSERT INTO booking_payment_accounts(id,appointment_id,canonical_amount_due,currency,pricing_revision) VALUES(110,210,500,'ZAR',NOW());
       INSERT INTO payment_requests(payment_account_id,state,amount,request_key) VALUES(110,'pending',100,'SYNTHETIC-REQUEST-LOCK-FIRST')`);
     const forcedWaiver=await noChargeInput(210);
-    let signalProvider, releaseProvider, signalWaiver;
+    let signalProvider, releaseProvider, signalWaiver, financialLockAttempts=0;
     const providerLocked=new Promise(resolve=>signalProvider=resolve),providerContinue=new Promise(resolve=>releaseProvider=resolve),waiverWaiting=new Promise(resolve=>signalWaiver=resolve);
     const orderedDb={...db,async connect(){const client=await db.connect();return {release:()=>client.release(),async query(sql,params){
       if(sql.includes("SELECT to_jsonb(a)->>'financial_classification'") && Number(params?.[0])===210) {signalProvider();await providerContinue;}
-      if(sql.startsWith('SELECT id FROM payment_requests WHERE payment_account_id=') && Number(params?.[0])===110) signalWaiver();
+      // Provider owns the common financial lock before the no-charge decision.
+      // Signal the second lock attempt, rather than waiting for its unreachable request-row query.
+      if(sql==="SELECT pg_advisory_xact_lock(hashtext('shiloh-prior-payments'))" && ++financialLockAttempts===2) signalWaiver();
       return client.query(sql,params);
     }};}};
     const orderedService=serviceFor(orderedDb);
     const providerFirst=orderedService.handleOzowNotification({TransactionId:'SYNTHETIC-LOCK-FIRST-EVENT',TransactionReference:'SYNTHETIC-REQUEST-LOCK-FIRST',Status:'Complete',Amount:'100.00',CurrencyCode:'ZAR'});
     await providerLocked;
     const waiverSecond=orderedService.recordNoCharge(forcedWaiver);
-    // The waiver has reached the already locked request. The receipt must be
-    // able to obtain its real account foreign-key lock and commit first.
-    await waiverWaiting;releaseProvider();
+    // The no-charge decision has attempted the provider-owned financial lock.
+    // Release the paused provider so its actual receipt commits before that decision.
+    await waiverWaiting;assert.equal(financialLockAttempts,2);releaseProvider();
     const forcedResults=await Promise.allSettled([providerFirst,waiverSecond]);
     assert.equal(forcedResults[0].status,'fulfilled');assert.equal(forcedResults[1].status,'rejected');assert.equal(forcedResults[1].reason.code,'NO_CHARGE_PAYMENT_REVIEW');
     const forcedModel=await service.get({adminId:2,appointmentId:210});assert.equal(forcedModel.payment.amountDue,'500.00');assert.equal(forcedModel.payment.netPaid,'100.00');

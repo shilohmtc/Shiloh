@@ -58,7 +58,18 @@ function formPosition(forms = []) {
 
 function paymentPosition(payment) {
   if (!payment) return { state: 'none', label: 'No payment position', actionPath: null };
-  if (payment.depositState === 'waived') return { state: 'deposit_waived', label: 'Deposit waived · treatment balance unchanged', actionPath: null };
+  if (payment.depositState === 'waived') {
+    // A deposit decision does not replace the actual treatment settlement or its payment route.
+    const position = paymentPosition({
+      ...payment,
+      depositState: null,
+      activePaymentPath: payment.activePaymentPurpose && payment.activePaymentPurpose !== 'deposit'
+        ? payment.activePaymentPath : null,
+    });
+    const balance = position.state === 'not_recorded' && Number(payment.outstanding) > 0
+      ? ` · ${rand(payment.outstanding)} outstanding` : '';
+    return { ...position, label: `Deposit waived · ${position.label}${balance}` };
+  }
   if (payment.depositState === 'exempt') return { state: 'deposit_exempt', label: 'No deposit required', actionPath: null };
   if (payment.depositState === 'awaiting') {
     return {

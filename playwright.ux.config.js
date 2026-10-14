@@ -33,5 +33,5 @@ module.exports.testMatch.push('planning-request-completion-ux.spec.js');
 module.exports.testMatch.push('workspace-browser-review-ux.spec.js');
 module.exports.testMatch.push('workspace-desktop-layout-ux.spec.js');
 
-module.exports.testMatch.push('booking-deposit-waiver.spec.js');
+module.exports.testMatch.push('booking-deposit-waiver.spec.js', 'booking-deposit-waiver-client-payment.spec.js');
 module.exports.testMatch.push('workspace-dashboard-deposit-organisation-ux.spec.js');
