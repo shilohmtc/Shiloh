@@ -58,6 +58,18 @@ function formPosition(forms = []) {
 
 function paymentPosition(payment) {
   if (!payment) return { state: 'none', label: 'No payment position', actionPath: null };
+  if (payment.depositState === 'waived') {
+    // A deposit decision does not replace the actual treatment settlement or its payment route.
+    const position = paymentPosition({
+      ...payment,
+      depositState: null,
+      activePaymentPath: payment.activePaymentPurpose && payment.activePaymentPurpose !== 'deposit'
+        ? payment.activePaymentPath : null,
+    });
+    const balance = position.state === 'not_recorded' && Number(payment.outstanding) > 0
+      ? ` · ${rand(payment.outstanding)} outstanding` : '';
+    return { ...position, label: `Deposit waived · ${position.label}${balance}` };
+  }
   if (payment.depositState === 'exempt') return { state: 'deposit_exempt', label: 'No deposit required', actionPath: null };
   if (payment.depositState === 'awaiting') {
     return {
@@ -410,7 +422,7 @@ function buildClientExperience(context) {
     booking.paymentState = position.state;
     booking.paymentActionLabel = position.state === 'deposit_required' ? `Pay ${rand(raw.depositOutstanding) || rand(raw.depositRequired) || ''} deposit`.replace('  ', ' ') : 'Open payment';
     if (position.state === 'deposit_required') booking.readiness = 'Deposit required';
-    else if (raw.depositState === 'satisfied' || raw.depositState === 'exempt') booking.readiness = 'Confirmed';
+    else if (raw.depositState === 'satisfied' || raw.depositState === 'exempt' || raw.depositState === 'waived') booking.readiness = 'Confirmed';
     booking.readinessSummary = booking.readiness === 'Confirmed'
       ? `Booking confirmed${formState.state === 'complete' ? ' · Forms completed' : formState.state === 'action_required' ? ' · Form required before your visit' : ''}`
       : booking.readiness === 'Deposit required' ? 'Pay your deposit to confirm your booking.' : 'Your appointment details are available here.';

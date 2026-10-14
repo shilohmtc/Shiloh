@@ -102,6 +102,7 @@ test('verified Ozow payment after cancellation is recorded as payment truth but 
       const text = String(sql).replace(/\s+/g, ' ').trim();
       queries.push({ text, params });
       if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK') return { rows: [], rowCount: 0 };
+      if (text === "SELECT pg_advisory_xact_lock(hashtext('shiloh-prior-payments'))") return { rows: [], rowCount: 0 };
       if (text.includes('FROM payment_provider_events')) return { rows: [], rowCount: 0 };
       if (text.includes('FROM payment_requests pr') && text.includes('FOR UPDATE OF pr')) return { rows: [request], rowCount: 1 };
       if (text.startsWith('INSERT INTO payment_ledger_entries')) return { rows: [], rowCount: 1 };
@@ -138,6 +139,9 @@ test('verified Ozow payment after cancellation is recorded as payment truth but 
     CurrencyCode: 'ZAR',
   });
   assert.equal(result.status, 'paid_review_required');
+  const lockIndex=queries.findIndex(call=>call.text==="SELECT pg_advisory_xact_lock(hashtext('shiloh-prior-payments'))");
+  const receiptIndex=queries.findIndex(call=>call.text.startsWith('INSERT INTO payment_ledger_entries'));
+  assert.ok(lockIndex>0 && lockIndex<receiptIndex, 'The financial lock precedes actual receipt recording');
   assert.equal(depositSyncCalls, 0);
   assert.equal(normalWhatsAppCalls, 0);
   assert.equal(push.title, 'Payment needs review');

@@ -188,7 +188,7 @@ function createInPersonBookingPolicyService({ db = pool, now = () => new Date() 
     return new Map(result.rows.map(row => {
       const depositState = row.deposit_state || null;
       const confirmed = depositState
-        ? ['satisfied','exempt'].includes(depositState)
+        ? ['satisfied','exempt','waived'].includes(depositState)
         : String(row.status || '').toLowerCase() === 'confirmed';
       return [Number(row.appointment_id), {
         termsAccepted: row.terms_accepted === true,

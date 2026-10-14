@@ -51,7 +51,9 @@ for (const primaryExempt of [false,true]) test(`one combined deposit belongs to 
   ] },requirement:{ id:1,state:'awaiting',required_amount:primaryExempt ? '295.00' : '590.00',payment_account_id:9 },members:[
     { appointment_id:100,required_amount:primaryExempt ? '0.00' : '295.00' },{ appointment_id:101,required_amount:'295.00' },
   ] };
-  const db={ async query(sql,values) {
+  const db={ async connect() { return {query:(sql,values)=>db.query(sql,values),release() {}}; }, async query(sql,values) {
+    if (sql.includes('pg_try_advisory_lock')) return {rows:[{acquired:true}]};
+    if (sql.includes('pg_advisory_unlock')) return {rows:[]};
     if(sql.includes('FROM appointment_group_members')) return { rows:[100,101].map(id => ({ appointment_id:id,status:'scheduled',approval_status:approved ? 'approved' : 'pending' })) };
     if(sql.includes('SELECT * FROM payment_requests'))return { rows:row ? [row] : [] };
     if(sql.includes('INSERT INTO payment_requests')) { assert.equal(values[3],'Organiser'); assert.equal(values[4],'27821234567'); assert.equal(values[5],55); assert.equal(values[7],100); row={ id:3,request_key:'dep_test',amount:values[2],state:'created' }; return { rows:[row] }; }

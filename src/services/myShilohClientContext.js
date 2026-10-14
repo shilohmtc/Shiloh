@@ -387,7 +387,7 @@ function createMyShilohClientContextService({
          FROM payment_requests
         WHERE payment_account_id=$1
           AND provider_payment_url IS NOT NULL
-          AND state IN ('link_issued','pending')${payerScope}
+          AND state IN ('link_issued','pending')${payerScope}${account.deposit_state === 'waived' ? " AND purpose<>'deposit'" : ''}
         ORDER BY CASE WHEN purpose='deposit' THEN 0 ELSE 1 END,id DESC
         LIMIT 1`,
       requestValues,
@@ -403,7 +403,7 @@ function createMyShilohClientContextService({
     });
     const depositRequired = account.deposit_required_amount == null ? null : Number(account.deposit_required_amount);
     const netMoneyPaid = Math.max(0, Number(account.paid || 0) - Number(account.refunded || 0) + Number(account.prior_paid||0) - Number(account.transferred_out||0));
-    const depositOutstanding = depositRequired == null ? null : Math.max(0, depositRequired - netMoneyPaid);
+    const depositOutstanding = account.deposit_state === 'waived' ? 0 : depositRequired == null ? null : Math.max(0, depositRequired - netMoneyPaid);
     return {
       ...base,
       accountId: Number(account.id),

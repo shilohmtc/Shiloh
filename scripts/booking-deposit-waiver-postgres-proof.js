@@ -1,0 +1,38 @@
+'use strict';
+const assert=require('node:assert/strict');
+const {Pool}=require('pg'),{randomUUID}=require('node:crypto');
+const {install,serviceFor,input,snapshot}=require('../tests/helpers/depositWaiverFixture');
+const {cancelOutstandingPaymentRequestsForAppointment}=require('../src/services/bookingPaymentSafety');
+async function run(){
+ const url=new URL(process.env.TEST_DEPOSIT_WAIVER_DATABASE_URL||'');if(!['localhost','127.0.0.1'].includes(url.hostname))throw Error('Dedicated local synthetic PostgreSQL required.');
+ const pool=new Pool({connectionString:url.toString(),max:8});let schema;const leased=new Set();
+ async function fixture(){schema='deposit_waiver_'+randomUUID().replaceAll('-','');await pool.query(`CREATE SCHEMA ${schema}`);const current=schema;const db={async connect(){const client=await pool.connect();await client.query(`SET search_path TO ${current}`);leased.add(client);const originalRelease=client.release.bind(client);client.release=()=>{leased.delete(client);originalRelease();};return client;},async query(sql,params){const client=await this.connect();try{return await client.query(sql,params);}finally{client.release();}}};await install(db);return {db,service:serviceFor(db),schema:current};}
+ const waitForAdvisory=async()=>{for(let i=0;i<100;i++){if((await pool.query("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND wait_event='advisory') AS waiting")).rows[0].waiting)return;await new Promise(resolve=>setTimeout(resolve,10));}throw Error('Expected actual concurrent advisory-lock wait not observed');};
+ const schemas=[];try{
+ let f=await fixture();schemas.push(f.schema);const before=await snapshot(f.db);const retries=await Promise.all([f.service.recordDepositWaiver(input()),f.service.recordDepositWaiver(input())]);assert.deepEqual(retries.map(r=>r.status).sort(),['idempotent_replay','waived']);assert.equal(retries[0].auditId,retries[1].auditId);assert.deepEqual(await snapshot(f.db),before);
+ // Actual provider and waiver acquire the same canonical financial lock.
+ f=await fixture();schemas.push(f.schema);const results=await Promise.allSettled([f.service.recordDepositWaiver(input()),f.service.handleOzowNotification({TransactionId:'SYNTHETIC-NATIVE-PAID',TransactionReference:'synthetic_deposit_link',Status:'Complete',Amount:'250.00',CurrencyCode:'ZAR'})]);assert.equal(results[1].status,'fulfilled');if(results[0].status==='rejected')assert.equal(results[0].reason.code,'DEPOSIT_WAIVER_NOT_OUTSTANDING');assert.equal((await f.db.query("SELECT SUM(amount)::text AS total FROM payment_ledger_entries WHERE payment_account_id=80 AND entry_type='payment'")).rows[0].total,'300.00');assert.equal((await f.db.query('SELECT status FROM appointments WHERE id=201')).rows[0].status,'confirmed');
+ // Expiry wins first while holding the financial lock: stale waiver cannot reinstate collection.
+ f=await fixture();schemas.push(f.schema);const expiry=await f.db.connect();await expiry.query('BEGIN');await expiry.query("SELECT pg_advisory_xact_lock(hashtext('shiloh-prior-payments'))");await expiry.query("UPDATE payment_requests SET state='expired' WHERE id=100");const waiting=f.service.recordDepositWaiver(input());await waitForAdvisory();await expiry.query('COMMIT');expiry.release();await assert.rejects(waiting,{code:'DEPOSIT_WAIVER_BOOKING_UNAVAILABLE'});assert.equal((await f.db.query('SELECT state FROM booking_deposit_requirements WHERE id=90')).rows[0].state,'awaiting');
+ // Cancellation holds the actual appointment lock; waiver fails busy or unavailable, never reopens.
+ f=await fixture();schemas.push(f.schema);const cancel=await f.db.connect();await cancel.query('BEGIN');await cancel.query('SELECT id FROM appointments WHERE id=201 FOR UPDATE');await cancel.query("UPDATE appointments SET status='cancelled' WHERE id=201");await cancelOutstandingPaymentRequestsForAppointment(cancel,{appointmentId:201,actorAdminId:2});const raced=f.service.recordDepositWaiver(input());await assert.rejects(raced,{code:'DEPOSIT_WAIVER_BUSY'});await cancel.query('COMMIT');cancel.release();assert.equal((await f.db.query('SELECT status FROM appointments WHERE id=201')).rows[0].status,'cancelled');assert.equal((await f.db.query('SELECT state FROM booking_deposit_requirements WHERE id=90')).rows[0].state,'awaiting');
+ // Deposit-link issuance session lock excludes a waiver until its durable notice evidence is done.
+ f=await fixture();schemas.push(f.schema);const issue=await f.db.connect();assert.equal((await issue.query("SELECT pg_try_advisory_lock(hashtext('shiloh-prior-payments')) AS acquired")).rows[0].acquired,true);const guarded=f.service.recordDepositWaiver(input());await waitForAdvisory();assert.equal((await f.db.query('SELECT state FROM booking_deposit_requirements WHERE id=90')).rows[0].state,'awaiting');await issue.query("SELECT pg_advisory_unlock(hashtext('shiloh-prior-payments'))");issue.release();assert.equal((await guarded).state,'waived');
+ // Exercise the actual policy service while issuance holds its session lock.
+ f=await fixture();schemas.push(f.schema);
+ await f.db.query(`ALTER TABLE staff ADD COLUMN display_name TEXT;
+   ALTER TABLE appointment_staff ADD COLUMN staff_name_snapshot TEXT DEFAULT 'Synthetic practitioner';
+   ALTER TABLE appointments ADD COLUMN created_at TIMESTAMPTZ DEFAULT '2026-10-14T08:00Z',ADD COLUMN ends_at TIMESTAMPTZ DEFAULT '2099-10-15T09:00Z',ADD COLUMN source_client_name TEXT;
+   ALTER TABLE appointment_groups ADD COLUMN group_type TEXT DEFAULT 'couples_massage';
+   ALTER TABLE clinic_booking_deposit_policy ADD COLUMN enabled BOOLEAN DEFAULT TRUE,ADD COLUMN rate_basis_points INT DEFAULT 5000,ADD COLUMN exempt_staff_id BIGINT,ADD COLUMN effective_from TIMESTAMPTZ DEFAULT '2026-09-23T00:00Z',ADD COLUMN policy_version TEXT;
+   ALTER TABLE booking_deposit_requirements ADD COLUMN policy_version TEXT,ADD COLUMN rate_basis_points INT DEFAULT 5000,ADD COLUMN eligible_amount NUMERIC(12,2) DEFAULT 500;`);
+ const policyVersion=require('../src/config/bookingPolicyAuthority').BOOKING_POLICY_VERSION;
+ await f.db.query('UPDATE clinic_booking_deposit_policy SET policy_version=$1',[policyVersion]);await f.db.query('UPDATE booking_deposit_requirements SET policy_version=$1',[policyVersion]);
+ const connections=[],connect=f.db.connect.bind(f.db);f.db.connect=async()=>{const client=await connect();connections.push(client.processID);return client;};
+ const {createBookingDepositPolicyService}=require('../src/services/bookingDepositPolicy');const {createBookingPaymentService}=require('../src/services/bookingPayments');
+ const policy=createBookingDepositPolicyService({db:f.db});const issuance=createBookingPaymentService({db:f.db,deposits:policy,ozow:{configured:()=>false},rewards:{getClientBalance:async()=>null,syncEligibleEarnings:async()=>{}}});
+ const issued=await issuance.ensureDepositRequest({appointmentId:201});assert.equal(issued.status,'deposit_awaiting_provider');assert.ok(new Set(connections).size>=2,'Canonical policy must actually use a different pooled connection');assert.equal((await f.db.query('SELECT state FROM booking_deposit_requirements WHERE id=90')).rows[0].state,'awaiting');
+ console.log('Synthetic native PostgreSQL waiver proof passed: exact concurrent retry, provider money, expiry/cancel boundaries and issuance lock.');
+ }finally{for(const client of leased){try{await client.query('ROLLBACK');}finally{client.release();}}for(const name of schemas)await pool.query(`DROP SCHEMA IF EXISTS ${name} CASCADE`);await pool.end();}
+}
+if(require.main===module)run().catch(error=>{console.error(error);process.exitCode=1;});module.exports={run};
