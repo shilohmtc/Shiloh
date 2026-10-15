@@ -70,8 +70,11 @@ function createBookingSubmissionIncidentService({ db = pool, recordDb = null, no
   async function success(context, result) {
     // Only a successfully returned canonical request result can clear this exact
     // attempt. No appointment search, fuzzy matching, replay or booking write.
-    if (result?.status !== 'pending_resolution' || !(positiveId(result.appointmentId)
-      || (Array.isArray(result.appointmentIds) && result.appointmentIds.length && result.appointmentIds.every(positiveId)))) return false;
+    const committed = context.kind === 'ordinary' ? positiveId(result?.appointmentId)
+      : positiveId(result?.groupId) && Array.isArray(result?.appointmentIds)
+        && result.appointmentIds.length >= 2 && result.appointmentIds.every(positiveId)
+        && (context.kind !== 'couples' || result.appointmentIds.length === 2);
+    if (result?.status !== 'pending_resolution' || !committed) return false;
     try {
       const r = await recording().query(`/* bookingIncidents:success */
         UPDATE booking_submission_incidents SET status='retry_succeeded',recovered_at=$5::timestamptz,

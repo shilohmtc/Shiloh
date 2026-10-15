@@ -13,9 +13,10 @@ function technicalException(error) {
 }
 async function reportConfirmationFailure({ service, context, error, req, report = observability }) {
   let incident;
-  try { incident = await service.failure(context,error); } catch (_) { /* Never replace the booking error. */ }
-  const reference = UUID.test(String(incident?.reference || '')) ? incident.reference : randomUUID();
-  const linkSaved = incident?.linkSaved === true;
+  try { if (context) incident = await service.failure(context,error); } catch (_) { /* Never replace the booking error. */ }
+  const validReference = UUID.test(String(incident?.reference || ''));
+  const reference = validReference ? incident.reference : randomUUID();
+  const linkSaved = validReference && incident?.linkSaved === true;
   const safe = technicalException(error);
   try { report.captureException(safe, { 'error.kind':'booking_confirmation','error.code':safe.code,
     'support.reference':reference,'http.method':'POST','http.route':req.route?.path }); } catch (_) { /* Monitoring must not replace the original error. */ }

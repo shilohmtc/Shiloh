@@ -52,6 +52,21 @@ test('only unexpected signed-in confirmations record failures; original status/c
   assert.equal(successes.length,3);assert.equal(failures.length,4);
 });
 
+test('a database failure during session verification returns a reference without trusting or saving identity',async t=>{
+  let records=0,bookings=0,reports=0;
+  t.mock.method(observability,'captureException',()=>{reports++;});
+  const app=express();app.use(express.json());
+  app.use(createMyShilohRouter({env:{NODE_ENV:'test'},incidentService:{failure:async()=>{records++;}},
+    bookingService:{createRequest:async()=>{bookings++;}},sessionService:{validateSessionToken:async()=>{throw Object.assign(new Error('PRIVATE_SESSION_CANARY'),{code:'ECONNREFUSED'});}}}));
+  const origin=await serve(t,app);
+  for(const path of ['confirm','multiple/confirm','couples/confirm']){
+    const response=await fetch(origin+'/my-shiloh/api/booking/'+path,{method:'POST',headers:{origin,'content-type':'application/json',cookie:'shiloh_client_session=synthetic'},body:'{}'});
+    const body=await response.json();assert.equal(response.status,500);assert.match(body.supportReference,UUID);assert.equal(body.incidentLinkSaved,false);assert.match(body.supportMessage,/could not save/);
+    assert.equal(JSON.stringify(body).includes('PRIVATE_SESSION_CANARY'),false);
+  }
+  assert.equal(records,0);assert.equal(bookings,0);assert.equal(reports,3);
+});
+
 test('failed recording/reporting cannot substitute an error, claim a link, create a booking or disclose client details',async()=>{
   const privateText='PRIVATE_CLIENT_DOB_PHONE_HEALTH_PAYMENT_CREDENTIAL_CANARY';
   const error=Object.assign(new Error(privateText),{code:'42P08'});

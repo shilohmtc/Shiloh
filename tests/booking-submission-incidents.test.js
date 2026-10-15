@@ -140,6 +140,14 @@ test('short-lived booking support is separate from booking and client-message au
     const resolved=await service.list({adminId:10,status:'resolved'});assert.equal(resolved.items.length,1);
     assert.equal(resolved.items[0].reference,first.reference);
   });
+  await t.test('multiple and couples recovery require their full canonical group result',async()=>{
+    for(const kind of ['multiple','couples']){
+      const ctx=context({kind});const incident=await service.failure(ctx,{});
+      for(const result of [{status:'pending_resolution',appointmentId:51},{status:'pending_resolution',appointmentIds:[51,52]}, {status:'pending_resolution',groupId:9,appointmentIds:[51]}]) assert.equal(await service.success(ctx,result),false);
+      assert.equal(await service.success(ctx,{status:'pending_resolution',groupId:9,appointmentIds:[51,52]}),true);
+      assert.equal((await db.query('SELECT status FROM booking_submission_incidents WHERE reference=$1',[incident.reference])).rows[0].status,'retry_succeeded');
+    }
+  });
   if (process.env.TEST_BOOKING_INCIDENT_DATABASE_URL) await t.test('real independent connections group concurrent failures and serialize staff decisions; recorder SQL has a hard deadline',async()=>{
     const parallel=createBookingSubmissionIncidentService({db,recordDb:db,now:()=>new Date('2026-10-15T11:42:07Z')});
     const same=context();const [a,b]=await Promise.all([service.failure(same,{}),parallel.failure(same,{})]);

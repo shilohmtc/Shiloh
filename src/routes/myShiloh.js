@@ -1142,6 +1142,17 @@ function createMyShilohRouter({
     }));
   });
 
+  // A database failure in session/CSRF checks happens before client identity can
+  // be trusted. Give a reference only; never reconstruct or save a client link.
+  router.use(async (error,req,res,next) => {
+    const validationStatus = Number(error?.httpStatus || error?.status);
+    if (req.method !== 'POST' || !/^\/my-shiloh\/api\/booking\/(?:confirm|multiple\/confirm|couples\/confirm)$/i.test(req.path)
+      || res.headersSent || (validationStatus >= 400 && validationStatus < 500)) return next(error);
+    setNoStoreJson(res);
+    const support = await reportConfirmationFailure({ service:incidentService,context:null,error,req });
+    return res.status(500).json({error:'Internal server error',requestId:req.id,...support});
+  });
+
   return router;
 }
 
