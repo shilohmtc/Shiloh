@@ -28,7 +28,7 @@ test('only clinic coordinators with notification authority see change delivery f
   assert.match(sql,/relationship_type='clinic'/);
   assert.match(sql,/service_visibility_policies/);
   assert.match(sql,/status='sending'.*15 minutes/s);
-  assert.doesNotMatch(sql,/n\.last_error\s*,|provider_error|normalized_mobile/);
+  assert.doesNotMatch(sql,/n\.last_error\s*,|provider_error/);
 });
 
 test('Messages presents uncertain update as staff review without raw error or duplicate-send control', () => {
@@ -37,7 +37,7 @@ test('Messages presents uncertain update as staff review without raw error or du
       label:'Appointment update',status:'uncertain',statusLabel:'Send status uncertain',updatedAt:'2026-09-27T07:00:00Z',
       nextAction:'Check the client communication record before any new send. WhatsApp may have accepted the previous attempt.'}]});
   assert.match(html,/data-change-delivery-attention="701"/);
-  assert.match(html,/Review client/);
+  assert.match(html,/Open client/);
   assert.match(html,/Send status uncertain/);
   assert.doesNotMatch(html,/<script>.*Michelle|data-booking-confirmation-recover/);
   assert.match(html,/Michelle &lt;script&gt;/);

@@ -15,7 +15,7 @@ for (const [label, width, height] of [['desktop',1280,900],['mobile',390,844],['
     await page.route('**/calendar/pwa/icon-192.png*',route=>route.fulfill({contentType:'image/png',body:fs.readFileSync(path.resolve('public/assets/pwa/shiloh-pwa-192.png'))}));
     await page.goto('/iframe.html?id=workspace-clients--marietjie-client-management&viewMode=story', {waitUntil:'networkidle'});
     await expect(page.locator('#edit-client-mobile')).toHaveValue('0820000011');
-    await expect(page.locator('.contact-card strong')).toHaveText('082 000 0011');
+    await expect(page.locator('.contact-card:not([data-client-app-status]) strong')).toHaveText('082 000 0011');
     await expect(page.locator('body')).not.toContainText('+27');
     const results = await new AxeBuilder({page}).include('[data-story-surface]').analyze();
     expect(results.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
@@ -38,7 +38,7 @@ for (const [label, width, height] of [['desktop',1280,900],['mobile',390,844],['
     });
     await page.goto('https://synthetic.shiloh.test/client');
     await expect(page.locator('#edit-client-mobile')).toHaveValue(foreign);
-    await expect(page.locator('.contact-card strong')).toHaveText(foreign);
+    await expect(page.locator('.contact-card:not([data-client-app-status]) strong')).toHaveText(foreign);
     expect(await page.locator('body').evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     await page.screenshot({path:path.join(dir,`crm-foreign-${label}.png`),fullPage:true});
   });

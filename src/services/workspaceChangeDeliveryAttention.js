@@ -13,21 +13,24 @@ function canReviewChangeDelivery(authority, notificationAuthority) {
 function projectChangeDelivery(row) {
   const status = String(row.status || '');
   const kind = String(row.change_kind || '');
+  const knownStatus = { sent: 'Sent', delivered: 'Delivered', read: 'Read', confirmed: 'Confirmed', available: 'Available in My Shiloh' };
   const label = kind === 'cancellation' ? 'Cancellation update' : 'Appointment update';
   return {
     id: Number(row.audit_event_id),
     appointmentId: Number(row.appointment_id),
     clientId: Number(row.client_id),
+    normalizedMobile: row.normalized_mobile,
     clientName: String(row.client_name || 'Client'),
     label,
-    status: status === 'sending' ? 'uncertain' : status === 'failed' ? 'failed' : 'waiting',
-    statusLabel: status === 'sending' ? 'Send status uncertain' : status === 'failed' ? 'Send attempt failed' : 'Waiting for channel',
+    status: status === 'sending' ? 'uncertain' : status === 'pending' ? 'waiting' : knownStatus[status] ? status : status === 'failed' ? 'failed' : 'unknown',
+    statusLabel: status === 'sending' ? 'Send status uncertain' : status === 'failed' ? 'Send attempt failed' : knownStatus[status] || (status !== 'pending' ? 'Unknown' : kind === 'cancellation' ? 'Cancellation not confirmed' : 'Booking change not confirmed'),
+    startsAt: row.starts_at,
     updatedAt: row.updated_at,
     nextAction: status === 'sending'
-      ? 'Review the booking in My Shiloh. The phone-alert outcome is uncertain; app availability does not confirm that the client has read it.'
+      ? 'The phone-alert outcome is uncertain.'
       : status === 'failed'
-        ? 'Shiloh retains this update for retry. Review the client record and contact the client directly if timely notice matters.'
-        : 'The My Shiloh phone alert has not been accepted. Review the client record and contact the client directly if timely notice matters.',
+        ? 'The send attempt failed.'
+        : 'We can’t confirm the client was notified. Contact them if it’s urgent.',
   };
 }
 
@@ -36,8 +39,8 @@ function createWorkspaceChangeDeliveryAttentionService({ db = pool } = {}) {
     if (!canReviewChangeDelivery(authority, notificationAuthority)) return [];
     const scope = appointmentScopePredicate('a.id', authority.clientScope, 1);
     const result = await db.query(`/* workspaceChangeDeliveryAttention:clinic */
-      SELECT n.audit_event_id,n.appointment_id,n.change_kind,n.status,n.updated_at,
-             c.id AS client_id,c.name AS client_name
+      SELECT n.audit_event_id,n.appointment_id,n.change_kind,n.status,n.updated_at,a.starts_at,
+             c.id AS client_id,c.name AS client_name,c.normalized_mobile
         FROM customer_change_notifications n
         JOIN appointments a ON a.id=n.appointment_id AND a.crm_v2_client_id IS NOT NULL AND a.client_id IS NULL
         JOIN crm_v2_clients c ON c.id=a.crm_v2_client_id

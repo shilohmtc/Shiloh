@@ -190,8 +190,8 @@ function messagesModel() {
       appointment: { id: 668, serviceName: 'Full Body Swedish', startsAt: '2026-09-12T08:00:00.000Z' },
       client: { id: 9012, name: 'Synthetic Client AW', mobileLast4: '0017' },
       confirmation: {
-        statusLabel: 'App update unavailable',
-        deliveryExplanation: 'No current confirmation update is available in My Shiloh. The booking remains available in Bookings.',
+        status: 'unavailable', statusLabel: 'Booking confirmation not confirmed',
+        deliveryExplanation: 'We can’t confirm the client was notified. Contact them if it’s urgent. The booking remains available in Bookings.',
       },
       recoveryExplanation: 'Review the booking and contact the client directly if timely notice matters.',
     }],
