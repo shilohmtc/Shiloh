@@ -32,12 +32,12 @@ for (const empty of [true,false]) {
   });
 }
 
-for (const width of [1180,500]) test(`Messages Calendar opens the exact visible appointment and Back restores the selected Messages view at ${width}px`,async ({page})=>{
+for (const width of [1180,500]) test(`Messages Open booking opens the exact visible appointment and Back restores the selected Messages view at ${width}px`,async ({page})=>{
   await page.setViewportSize({width,height:757});
   await page.route('**/calendar/messages**',r=>r.fulfill({contentType:'text/html',body:messagesHtml()}));
   await page.route('**/calendar/read-only**',r=>r.fulfill({contentType:'text/html',body:calendarHtml(false)}));
   await page.goto('/calendar/messages?view=attention');
-  await page.locator('[data-message-attention]').getByRole('link',{name:'Calendar',exact:true}).click();
+  await page.locator('[data-message-attention]').getByRole('link',{name:'Open booking',exact:true}).click();
   await expect(page).toHaveURL(/date=2026-10-14.*appointment=9101/);
   await expect(page.locator('[data-appointment-details-dialog]')).toBeVisible();
   await expect(page.locator('[data-details-title]')).toHaveText('Appointment #9101');
@@ -46,7 +46,7 @@ for (const width of [1180,500]) test(`Messages Calendar opens the exact visible 
   await expect(page.locator('.event-card[data-event-id="appointment-9101"]:visible')).toHaveCount(1);
   await page.getByRole('link',{name:'Back to Messages',exact:true}).click();
   await expect(page).toHaveURL(/\/calendar\/messages\?view=attention$/);
-  await page.locator('[data-message-attention]').getByRole('link',{name:'Calendar',exact:true}).click();await page.goBack();
+  await page.locator('[data-message-attention]').getByRole('link',{name:'Open booking',exact:true}).click();await page.goBack();
   await expect(page).toHaveURL(/\/calendar\/messages\?view=attention$/);
 });
 
