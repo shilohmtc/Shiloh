@@ -26,6 +26,7 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
       return route.fulfill({ json: { discarded: true } });
     });
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-native-booking&viewMode=story', { waitUntil: 'networkidle' });
+    await expect(page.locator('[data-my-shiloh-booking]')).toBeVisible();
     await page.addScriptTag({ content: confirmationClientScript() });
     await page.addScriptTag({ url: '/my-shiloh/assets/booking.js' });
     await page.locator('[data-book-service][data-service-id="101"]').click();
