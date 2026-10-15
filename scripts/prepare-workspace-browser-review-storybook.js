@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const review = require('../stories/fixtures/workspaceBrowserReview');
+const { bookingProblemsHtml } = require('../stories/fixtures/bookingProblems');
 const { desktopDashboardHtml } = require('../stories/fixtures/workspaceDesktopLayout');
 const { shortcutHtml } = require('../stories/fixtures/dashboardDepositWaiverShortcut');
 const { rebookHtml } = require('../stories/fixtures/rebookActionPresentation');
@@ -8,6 +9,7 @@ const { dashboardDepositsHtml } = require('../stories/fixtures/workspaceDashboar
 const destination = path.resolve(__dirname, '../stories/fixtures/workspaceBrowserReview.generated');
 fs.mkdirSync(destination, { recursive: true });
 for (const [name, html] of [
+  ['booking-problems-recent',bookingProblemsHtml()],['booking-problems-unavailable',bookingProblemsHtml('unavailable')],
   ['rebook-actions',rebookHtml()],
   ['waiver-shortcut-sparse',shortcutHtml('sparse')],['waiver-shortcut-busy',shortcutHtml('busy')],
   ['waiver-shortcut-restricted',shortcutHtml('sparse',false)],

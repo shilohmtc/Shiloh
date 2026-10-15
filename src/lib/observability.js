@@ -15,6 +15,7 @@ const SAFE_TAGS = new Set([
   "http.method",
   "http.route",
   "runtime.phase",
+  "support.reference",
 ]);
 
 function safeIdentifier(value, fallback, maxLength = 80) {
@@ -65,6 +66,7 @@ function sanitizeTags(tags = {}) {
   const output = {};
   for (const [key, value] of Object.entries(tags)) {
     if (!SAFE_TAGS.has(key)) continue;
+    if (key === "support.reference" && !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""))) continue;
     const sanitized = safeIdentifier(value, undefined, 120);
     if (sanitized) output[key] = sanitized;
   }

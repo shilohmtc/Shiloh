@@ -1,3 +1,4 @@
+const { service:bookingSubmissionIncidents } = require('./bookingSubmissionIncidents');
 const { pool } = require('../db/pool');
 const calendarReadOnlyUx = require('./calendarReadOnlyUx');
 const workspaceDashboardBacklog = require('./workspaceDashboardBacklog');
@@ -208,6 +209,7 @@ function createWorkspaceDashboardService({
   backlogService = NO_DASHBOARD_BACKLOG,
   holidayAttentionService = NO_HOLIDAY_ATTENTION,
   depositAttentionService = { async list() { return null; } },
+  bookingProblemService = { async listForDashboard() { return null; } },
 } = {}) {
   if (!calendarService || typeof calendarService.buildModel !== 'function') {
     throw new Error('Workspace Dashboard requires canonical CalendarReadOnlyUx authority');
@@ -300,8 +302,10 @@ function createWorkspaceDashboardService({
     ]);
 
     const depositQueue = await projectDeposits(principal, now);
+    const bookingProblems = await bookingProblemService.listForDashboard({ adminId });
     return {
       depositQueue,
+      ...(bookingProblems ? { bookingProblems } : {}),
       generatedAt: now.toISOString(),
       requestedDateKey,
       operationalDateKey: calendar.dateKey,
@@ -417,6 +421,7 @@ const service = createWorkspaceDashboardService({
   backlogService: workspaceDashboardBacklog,
   holidayAttentionService: workspaceHolidayAttention,
   depositAttentionService: workspaceDepositAttention,
+  bookingProblemService:bookingSubmissionIncidents,
 });
 
 module.exports = {

@@ -64,10 +64,10 @@
   async function json(url, options = {}) {
     const response = await fetch(url, { credentials:'same-origin', cache:'no-store', ...options, headers:{ Accept:'application/json', ...(options.headers || {}) } });
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) { const error = new Error(body.error || 'That step could not be completed.'); error.code = body.code; throw error; }
+    if (!response.ok) { const error = new Error(body.error || 'That step could not be completed.'); error.code = body.code; error.supportReference = body.supportReference; error.incidentLinkSaved = body.incidentLinkSaved; throw error; }
     return body;
   }
-  const post = (url, body) => json(url, { method:'POST', headers:{ 'Content-Type':'application/json', 'x-shiloh-csrf-token':root.dataset.csrf }, body:JSON.stringify(body) });
+  const post = (url, body) => json(url, { method:'POST', headers:{ 'Content-Type':'application/json', 'x-shiloh-csrf-token':root.dataset.csrf, ...(url.endsWith('/confirm') ? { 'x-shiloh-booking-attempt':state.requestId } : {}) }, body:JSON.stringify(body) });
   function busy(value) {
     state.busy = value;
     root.querySelectorAll('button').forEach(button => { button.disabled = value; });
@@ -294,18 +294,23 @@
     if (!policyAccepted.checked) { setStatus(confirmStatus,'Please accept Shiloh’s Booking Policy & Terms first.','error'); return; }
     const common = { policyAccepted:true, specialOccasion:occasionChoice === 'yes', occasionNote:occasionChoice === 'yes' ? occasionNote.value : '' };
     if (list.length > 1 && !state.quote) { await review(); return; }
+    state.requestId ||= crypto.randomUUID();
     busy(true); setStatus(confirmStatus,'Sending your booking request…');
     try {
       let data;
       if (list.length > 1) {
-        state.requestId ||= crypto.randomUUID();
         data = await post('/my-shiloh/api/booking/multiple/confirm', { ...common, treatments:payload(list), quoteHash:state.quote.quoteHash, requestId:state.requestId });
       } else data = await post('/my-shiloh/api/booking/confirm', { ...common, ...payload(list)[0] });
       get('[data-success-message]').textContent = data.message || 'Your selected time is being held while Shiloh confirms it.'; step(5);
     } catch (error) {
       if (error.code === 'BOOKING_CART_QUOTE_CHANGED') { invalidate(); busy(false); await review(); setStatus(confirmStatus,error.message,'error'); return; }
       if (error.code === 'BOOKING_ALREADY_IN_PROGRESS' && draftCard) { state.draftBlocked = true; draftCard.hidden = false; await reviewDraft(); }
-      setStatus(confirmStatus,error.code ? error.message : 'We could not verify the response. Check your bookings, or retry this same request safely.','error');
+      const reference = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(error.supportReference || '') ? error.supportReference : null;
+      const message = reference ? 'We could not complete your request. ' + (error.incidentLinkSaved === true
+        ? 'We saved a support link in Shiloh. Quote this reference if you contact Reception. '
+        : 'We could not save a client support link. Please contact Reception. ') + 'Support reference: ' + reference
+        : error.code ? error.message : 'We could not verify the response. Check your bookings, or retry this same request safely.';
+      setStatus(confirmStatus,message,'error');
       busy(false);
     }
   });

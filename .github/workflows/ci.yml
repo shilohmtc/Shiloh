@@ -354,6 +354,10 @@ jobs:
         env:
           TEST_BOOKING_POLICY_DATABASE_URL: postgres://postgres:synthetic-test-only@localhost:5432/package_proof
         run: node --test tests/booking-policy-acceptance-postgres.test.js
+      - name: Prove isolated booking support, retries, rollback, access and retention in PostgreSQL
+        env:
+          TEST_BOOKING_INCIDENT_DATABASE_URL: postgres://postgres:synthetic-test-only@localhost:5432/package_proof
+        run: node --test tests/booking-submission-incidents.test.js
       - name: Prove requirement-only deposit waivers and financial races in PostgreSQL
         env:
           TEST_DEPOSIT_WAIVER_DATABASE_URL: postgres://postgres:synthetic-test-only@localhost:5432/package_proof

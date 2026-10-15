@@ -15,6 +15,8 @@ function temporarySessionTtlHours(value = process.env.TEMPORARY_WORKFLOW_TTL_HOU
 
 async function cleanupTemporarySessions() {
   const ttlHours = temporarySessionTtlHours();
+  // Independent support-link expiry shares this existing hourly timer.
+  void cleanupSupportLinks();
   try {
     const [onboarding, walkin] = await Promise.all([
       pool.query(
@@ -44,6 +46,10 @@ async function cleanupTemporarySessions() {
   }
 }
 
+async function cleanupSupportLinks() {
+  try { await require('./bookingSubmissionIncidents').service.expire(); }
+  catch (_) { logger.warn('Booking support link expiry temporarily unavailable'); }
+}
 function startTemporarySessionCleanupScheduler() {
   if (cleanupTimer) return cleanupTimer;
   cleanupTemporarySessions();
