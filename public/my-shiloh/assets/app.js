@@ -731,9 +731,9 @@
       const waiting = requests.filter(item => item.attention === 'awaiting_approval').length;
       const response = requests.filter(item => item.attention === 'respond').length;
       document.querySelector('[data-assistant-request-current]').textContent = [
-        ...(response ? [`${response} proposal${response === 1 ? '' : 's'} awaiting your response. Open Bookings to review.`] : []),
-        ...(waiting ? [`${waiting} request${waiting === 1 ? '' : 's'} awaiting Shiloh approval.`] : []),
-      ].join(' ') || 'No request is waiting for your response or Shiloh approval.';
+        ...(response ? [`${response} recent proposal${response === 1 ? '' : 's'} awaiting your response. Open Bookings to review.`] : []),
+        ...(waiting ? [`${waiting} recent request${waiting === 1 ? '' : 's'} awaiting Shiloh approval.`] : []),
+      ].join(' ') || 'No action is waiting among the recent requests shown here. Check Bookings for all current requests.';
       document.querySelector('[data-assistant-request-bookings]').textContent = response ? 'Review proposed time' : 'Bookings and changes';
     }
 

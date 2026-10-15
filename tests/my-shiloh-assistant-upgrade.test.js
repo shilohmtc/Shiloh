@@ -175,3 +175,15 @@ test('tracker preserves pending planning awaiting-client and declined visibility
   assert.equal(result.bookings.length,4);assert.equal(result.bookings[2].bookingRequestStatus,'awaiting_client_confirmation');
   assert.doesNotMatch(JSON.stringify(result),/Hidden declined treatment/);
 });
+
+test('bounded recent history never replaces an older canonical pending change in Bookings',()=>{
+  const {buildClientExperience}=require('../src/services/myShilohExperienceOrchestrator');
+  const pending={id:901,startsAt:original,endsAt:'2026-11-02T09:00:00Z',proposedStartsAt:proposed,status:'confirmed',services:['Older pending treatment'],practitioners:['Synthetic practitioner']};
+  const experience=buildClientExperience({client:{name:'Synthetic'},forms:[],pendingRescheduleRequests:[pending],rescheduleHistory:Array.from({length:5},()=>({status:'approved',originalStartsAt:original,proposedStartsAt:proposed}))});
+  assert.equal(experience.assistant.requests.length,5);
+  assert.equal(experience.bookings.upcoming.find(item=>item.id===901).status,'Change requested');
+  const script=require('node:fs').readFileSync(require('node:path').join(__dirname,'../public/my-shiloh/assets/app.js'),'utf8');
+  assert.match(script,/No action is waiting among the recent requests shown here\. Check Bookings for all current requests\./);
+  assert.match(script,/recent request\$\{waiting/);
+  assert.doesNotMatch(script,/No request is waiting for your response or Shiloh approval\./);
+});
