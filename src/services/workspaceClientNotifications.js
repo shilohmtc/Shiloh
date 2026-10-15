@@ -396,7 +396,7 @@ function createWorkspaceClientNotificationService({
       const clientAuthority = await require('./workspaceClients').createWorkspaceClientsService({ db }).requireAccess(adminId);
       if (clientAuthority.clientScope.kind !== 'clinic') return { authority, exceptions: [], generatedAt: now.toISOString() };
       const result = await db.query(`/* workspaceClientNotifications:appExceptions */
-        SELECT a.id AS appointment_id,a.starts_at,c.id AS client_id,c.name AS client_name,
+        SELECT a.id AS appointment_id,a.starts_at,c.id AS client_id,c.name AS client_name,c.normalized_mobile,
                COALESCE(a.title,'Shiloh appointment') AS service_name
           FROM appointments a JOIN crm_v2_clients c ON c.id=a.crm_v2_client_id
          WHERE a.client_id IS NULL AND a.source='shiloh_calendar'
@@ -413,11 +413,11 @@ function createWorkspaceClientNotificationService({
                AND n.expires_at>NOW())
          ORDER BY a.starts_at,a.id LIMIT 100`);
       return { authority, generatedAt: now.toISOString(), exceptions: result.rows.map(row => ({
-        client: { id: Number(row.client_id), name: row.client_name },
+        client: { id: Number(row.client_id), name: row.client_name, normalizedMobile: row.normalized_mobile },
         appointment: { id: Number(row.appointment_id), startsAt: row.starts_at, serviceName: row.service_name },
         canRecover: false,
-        confirmation: { status: 'unavailable', statusLabel: 'App update unavailable',
-          deliveryExplanation: 'No current confirmation update is available in My Shiloh. The booking remains available in Bookings.' },
+        confirmation: { status: 'unavailable', statusLabel: 'Booking confirmation not confirmed',
+          deliveryExplanation: 'We can’t confirm the client was notified. Contact them if it’s urgent. The booking remains available in Bookings.' },
         recoveryExplanation: 'Review the booking and contact the client directly if timely notice matters.',
       })) };
     }

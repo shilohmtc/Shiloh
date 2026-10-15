@@ -1,4 +1,5 @@
 const { pool } = require('../db/pool');
+const { readClientAppStatus } = require('./workspaceClientAppStatus');
 const crmReadService = require('./crmReadService');
 const { createWorkspaceCommunicationEvidenceService } = require('./workspaceCommunicationEvidence');
 const { evaluateClientManageAuthority, clientRelationshipRevision } = require('./workspaceClientMutations');
@@ -152,6 +153,7 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
     if (!revisionResult.rows[0]) throw new WorkspaceClientsError('WORKSPACE_CLIENT_NOT_FOUND', 'Client was not found.', 404);
     client.revision = clientRelationshipRevision(revisionResult.rows[0], client.status);
 
+    const appStatus = await readClientAppStatus({ db, clientId: id, scope: authority.clientScope });
     const safeOffset = normalizeOffset(historyOffset);
     const history = await readService.getClientAppointments(id, {
       limit: CLIENT_HISTORY_PAGE_SIZE + 1,
@@ -208,6 +210,7 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
       manageAllowed,
       client,
       appointments: appointmentsWithReadiness,
+      appStatus,
       policyAcceptances: policyAcceptances.slice(0,20),
       policyOffset: safePolicyOffset,
       policyHasMore: policyAcceptances.length > 20,
