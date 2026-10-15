@@ -312,13 +312,13 @@ test('My Shiloh cancellation copy uses the unified Booking Policy bands', () => 
   assert.doesNotMatch(retired, /Marietjie/i);
 });
 
-test('prepare cancellation tool is strict, argument-free and cannot confirm the action', async () => {
+test('prepare cancellation tool is strict, selects only an owned start and cannot confirm the action', async () => {
   assert.equal(ACTION_TOOL_DEFINITIONS.length, 2);
   const definition = ACTION_TOOL_DEFINITIONS.find(tool => tool.name === ACTION_TOOL_NAMES.PREPARE_CANCELLATION);
   assert.equal(definition.name, ACTION_TOOL_NAMES.PREPARE_CANCELLATION);
   assert.equal(definition.strict, true);
-  assert.deepEqual(definition.parameters.properties, {});
-  assert.deepEqual(definition.parameters.required, []);
+  assert.deepEqual(Object.keys(definition.parameters.properties), ['appointmentStartsAt']);
+  assert.deepEqual(definition.parameters.required, ['appointmentStartsAt']);
   assert.equal(definition.parameters.additionalProperties, false);
 
   const token = 'A'.repeat(43);

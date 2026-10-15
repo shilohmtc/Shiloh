@@ -284,7 +284,7 @@ test('Shiloh experience prioritises client action without becoming booking, form
   assert.equal(experience.home.facts.find(item => item.key === 'forms').href, '/my-shiloh/forms/complete');
   assert.equal(experience.home.facts.find(item => item.key === 'payment').href, '/pay/PAYREQ_123456');
   assert.match(experience.home.facts.find(item => item.key === 'payment').value, /R500/);
-  assert.ok(experience.assistant.prompts.some(prompt => /consultation form/i.test(prompt)));
+  assert.deepEqual(experience.assistant.prompts, ['Book my usual','Change my appointment','Prepare for my visit','Ask Reception']);
 });
 
 test('payment action remains in its own card beside the next visit', () => {

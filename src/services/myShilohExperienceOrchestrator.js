@@ -1,6 +1,7 @@
 'use strict';
 
 const clientContext = require('./myShilohClientContext');
+const { localAppointmentDisplay } = require('./myShilohClientActions');
 const { requiredFormsReadiness } = require('./consultationFormReadiness');
 
 function firstName(value = '') {
@@ -211,24 +212,6 @@ function buildClientExperience(context) {
     };
   }
 
-  const prompts = requestDisplay
-    ? ['What is the status of my request?', 'Can I change my requested time?', 'When will Shiloh confirm my appointment?', 'Can I speak to Reception?']
-    : nextAppointmentChange
-    ? ['What is the status of my time change?', 'Is my original appointment still booked?', 'Can I speak to Reception?', 'What do I need before my visit?']
-    : appointment
-    ? [
-      'What do I need before my appointment?',
-      'Can I move my appointment?',
-      forms.state === 'action_required' ? 'Help me with my consultation form.' : 'What is my appointment status?',
-      payment.state === 'paid' ? 'Has my payment been received?' : 'What is my payment status?',
-    ]
-    : [
-      'Help me choose a treatment.',
-      'Find me an appointment.',
-      'What would suit me?',
-      'What should I know before my first visit?',
-    ];
-
   const experience = {
     version: 'my_shiloh_client_experience_v1',
     generatedAt: context.generatedAt,
@@ -372,7 +355,15 @@ function buildClientExperience(context) {
       }]), ...pendingRescheduleCards.filter(item => item.id !== context.nextAppointment.id)] : pendingRescheduleCards,
     },
     assistant: {
-      prompts,
+      prompts: ['Book my usual', 'Change my appointment', 'Prepare for my visit', 'Ask Reception'],
+      requests: [
+        ...(context.rescheduleHistory || []).map(item => {
+          const original = localAppointmentDisplay(item.originalStartsAt);
+          const proposed = localAppointmentDisplay(item.proposedStartsAt);
+          const label = {pending:'Change requested / awaiting Shiloh approval',approved:'Change approved',declined:'Change declined',superseded:'Change request superseded',expired:'Change request expired'}[item.status] || 'Change request updated';
+          return { label, attention:item.status === 'pending' ? 'awaiting_approval' : null, detail:`Original: ${original.date} · ${original.time}. Proposed: ${proposed.date} · ${proposed.time}.${['pending','declined'].includes(item.status) ? ' This request has not moved your original appointment.' : ' View Bookings for your current appointment.'}` };
+        }),
+      ].slice(0,10),
       contextReady: true,
     },
   };
@@ -461,6 +452,19 @@ function buildClientExperience(context) {
     experience.home.status = next?.readiness || 'Upcoming';
     experience.home.primaryAction = { kind: 'navigate', label: 'View booking', href: '#bookings' };
   }
+  // Reuse the existing Bookings status/action projection and visibility decision.
+  const activeRequestIds = new Set(activeRequests.map(item => item.id));
+  experience.assistant.requests.push(
+    ...experience.bookings.upcoming.filter(item => activeRequestIds.has(item.id)).map(item => ({
+      label: item.status === 'Requested' ? 'Booking requested / awaiting Shiloh approval' : item.status,
+      attention: item.status === 'Awaiting your response' ? 'respond' : ['Requested','Planning'].includes(item.status) ? 'awaiting_approval' : null,
+      detail: `${item.service} · ${item.date} · ${item.time}. ${item.nextAction || 'Open Bookings to review your request.'}`,
+    })),
+    ...experience.bookings.history.filter(item => item.hidden === false).map(item => ({
+      label:'Booking request declined', detail:`${item.service} · ${item.date} · ${item.time}. ${item.nextAction}`,
+    })),
+  );
+  experience.assistant.requests = experience.assistant.requests.slice(0,10);
   return experience;
 }
 
@@ -472,8 +476,11 @@ function createMyShilohExperienceOrchestrator({
   }
 
   async function getExperience({ crmV2ClientId } = {}) {
-    const context = await contextService.getContext({ crmV2ClientId });
-    return context ? buildClientExperience(context) : null;
+    const [context, rescheduleHistory] = await Promise.all([
+      contextService.getContext({ crmV2ClientId }),
+      typeof contextService.loadRescheduleHistory === 'function' ? contextService.loadRescheduleHistory(crmV2ClientId) : [],
+    ]);
+    return context ? buildClientExperience({ ...context, rescheduleHistory }) : null;
   }
 
   return { getExperience };

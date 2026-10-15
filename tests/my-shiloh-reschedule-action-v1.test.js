@@ -213,6 +213,8 @@ test('reschedule confirmation consumes proposal once and delegates to practition
     phone: '27820000000',
     intent: {
       appointment_id: 901,
+      expected_revision: REVISION,
+      expected_crm_v2_client_id: 912,
       preferred_date: '2026-09-25',
       preferred_time: '09:00',
     },
@@ -224,8 +226,8 @@ test('prepare reschedule tool requires only exact returned startsAt and cannot c
   const definition = ACTION_TOOL_DEFINITIONS.find(tool => tool.name === ACTION_TOOL_NAMES.PREPARE_RESCHEDULE);
   assert.ok(definition);
   assert.equal(definition.strict, true);
-  assert.deepEqual(definition.parameters.required, ['startsAt']);
-  assert.deepEqual(Object.keys(definition.parameters.properties), ['startsAt']);
+  assert.deepEqual(definition.parameters.required, ['startsAt', 'appointmentStartsAt']);
+  assert.deepEqual(Object.keys(definition.parameters.properties), ['appointmentStartsAt', 'startsAt']);
   assert.equal(definition.parameters.additionalProperties, false);
 
   const tools = createMyShilohActionTools({

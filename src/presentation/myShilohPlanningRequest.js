@@ -28,7 +28,7 @@ function renderPlanningRequestPage({ clientFirstName = '', csrfToken = '', pract
 <div class="notice"><strong>Shiloh will plan this with you.</strong><p>Tailored group packages and special events are available upon request. ${escapeHtml(STANDARD_HOSPITALITY)} Any additional event arrangements will be discussed with Reception.</p></div>
 <p class="status" role="status" aria-live="polite" data-planning-status></p><button class="button" type="submit" data-planning-submit>Send to Reception</button></form>
 <div class="success" hidden data-planning-success><h2>We’ve received your request.</h2><p>Reception will plan the details with you. This is not a confirmed appointment.</p>${humanLink ? `<p>Would you prefer to speak with a person? ${humanLink}. Your request is already with Reception.</p>` : ''}<a class="button" href="/my-shiloh/#bookings">View My Shiloh</a></div>
-${history ? `<section aria-labelledby="your-requests-title"><h2 id="your-requests-title">Your planning requests</h2><ul>${history}</ul><p>Your confirmed appointments remain in My Shiloh Bookings.</p></section>` : ''}</main><script src="/my-shiloh/assets/planning-request.js?v=20260927-sh05-v1" defer></script></body></html>`;
+${history ? `<section aria-labelledby="your-requests-title"><h2 id="your-requests-title">Your planning requests</h2><ul>${history}</ul><p>Your confirmed appointments remain in My Shiloh Bookings.</p></section>` : ''}</main><script src="/my-shiloh/assets/planning-request.js?v=20261015-assistant-preparation-v1" defer></script></body></html>`;
 }
 
 module.exports = { renderPlanningRequestPage };

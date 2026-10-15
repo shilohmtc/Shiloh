@@ -22,7 +22,7 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 test('assistant opens the canonical Reception request form without creating a request', async () => {
   assert.equal(PLANNING_REQUEST_TOOL_DEFINITION.name, ACTION_TOOL_NAMES.OPEN_PLANNING_REQUEST);
-  assert.deepEqual(PLANNING_REQUEST_TOOL_DEFINITION.parameters.required, []);
+  assert.deepEqual(PLANNING_REQUEST_TOOL_DEFINITION.parameters.required, ['serviceDetail','preferredDate','preferredDaypart','clientNote']);
   const tools = createMyShilohActionTools({
     actionService: { async prepareCancellation() { throw new Error('unexpected write'); }, async prepareReschedule() { throw new Error('unexpected write'); } },
     formActionService: { async prepareFormAction() { throw new Error('unexpected write'); } },

@@ -9,7 +9,7 @@ const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 const { renderCouplesBookingChoice } = require('./myShilohBookingActions');
 
-const MY_SHILOH_ASSET_VERSION = '20261014-crm-completion-v1';
+const MY_SHILOH_ASSET_VERSION = '20261015-assistant-preparation-v1';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -459,11 +459,23 @@ function renderMyShilohPage({
             </div>
           </div>
           <div class="prompt-grid" aria-label="Suggested questions" data-client-experience-prompts>
-            <button type="button" data-shiloh-prompt><span>Prepare</span><strong>What do I need before my appointment?</strong></button>
-            <button type="button" data-shiloh-prompt><span>Manage</span><strong>Can I move my appointment?</strong></button>
-            <button type="button" data-shiloh-prompt><span>Status</span><strong>What is my appointment status?</strong></button>
-            <button type="button" data-shiloh-prompt><span>Payment</span><strong>What is my payment status?</strong></button>
+            <button type="button" data-shiloh-prompt><span>Book</span><strong>Book my usual</strong></button>
+            <button type="button" data-shiloh-prompt><span>Manage</span><strong>Change my appointment</strong></button>
+            <button type="button" data-shiloh-prompt><span>Prepare</span><strong>Prepare for my visit</strong></button>
+            <button type="button" data-shiloh-prompt><span>Reception</span><strong>Ask Reception</strong></button>
           </div>
+          <section class="client-action-card" aria-labelledby="assistant-requests-title">
+            <h2 id="assistant-requests-title">Your appointment requests</h2>
+            <p data-assistant-request-current>Checking your requests…</p>
+            <details class="booking-details" data-assistant-request-history hidden>
+              <summary class="button button--soft">Recent requests (<span data-assistant-request-count>0</span>)</summary>
+              <ul data-assistant-request-list></ul>
+            </details>
+            <div class="client-action-card__actions" aria-label="Request tracking">
+              <a class="button button--soft" href="#bookings" data-assistant-request-bookings>Bookings and changes</a>
+              <a class="button button--soft" href="/my-shiloh/request">Reception requests</a>
+            </div>
+          </section>
           <form class="assistant-composer" data-shiloh-chat-form>
             <label class="sr-only" for="my-shiloh-message">Message Shiloh</label>
             <textarea id="my-shiloh-message" data-shiloh-chat-input rows="1" maxlength="1000" placeholder="Ask Shiloh…" autocomplete="off"></textarea>

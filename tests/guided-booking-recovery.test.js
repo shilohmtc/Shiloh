@@ -67,7 +67,7 @@ test('problem report accepts bounded friendly prefill values from a recovery han
 test('My Shiloh failed booking actions offer retry or a private problem report', () => {
   const source = fs.readFileSync(path.join(__dirname, '../public/my-shiloh/assets/app.js'), 'utf8');
   assert.match(source, /function appendClientRecovery/);
-  assert.match(source, /Nothing has been changed\. Try once more/);
+  assert.match(source, /Check Bookings and your requests before trying again/);
   assert.match(source, /Report a problem/);
   assert.match(source, /clientProblemReportForm\.elements\.category\.value = 'booking'/);
   assert.doesNotThrow(() => new Function(source));
