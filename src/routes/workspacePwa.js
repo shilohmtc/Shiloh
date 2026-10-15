@@ -118,6 +118,10 @@ function createWorkspacePwaRouter({ sessionService, env = process.env, pushServi
     try { return res.json(await pushService.unsubscribe({ adminId:req.staffBrowserSession.adminId,endpoint:req.body?.endpoint })); }
     catch (error) { return next(error); }
   });
+  router.post('/push/status', sameOrigin, requireSession, async (req,res,next) => {
+    try { return res.json(await pushService.status({adminId:req.staffBrowserSession.adminId,endpoint:req.body?.endpoint})); }
+    catch (error) { return next(error); }
+  });
   router.post('/push/pending', sameOrigin, requireSession, async (req,res,next) => {
     try { return res.json(await pushService.pending({adminId:req.staffBrowserSession.adminId,endpoint:req.body?.endpoint})); }
     catch (error) { return next(error); }

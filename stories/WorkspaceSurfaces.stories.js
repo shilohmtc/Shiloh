@@ -65,11 +65,15 @@ function workspaceNavigationOpenStory(notificationState = null) {
     const panel = root.querySelector('[data-workspace-notifications]');
     panel.hidden = false;
     const button = panel.querySelector('[data-workspace-push-toggle]');
-    button.disabled = notificationState === 'blocked';
+    button.disabled = ['blocked','unknown'].includes(notificationState);
     button.setAttribute('aria-checked', String(notificationState === 'on'));
     button.dataset.enabled = String(notificationState === 'on');
-    panel.querySelector('[data-workspace-push-state]').textContent = notificationState === 'on' ? 'On' : 'Off';
-    if (notificationState === 'blocked') panel.querySelector('[data-workspace-push-status]').textContent = 'Allow Shiloh notifications in your phone settings.';
+    panel.querySelector('[data-workspace-push-state]').textContent = notificationState === 'on' ? 'On' : notificationState === 'unknown' ? 'Unknown' : 'Off';
+    button.title=notificationState==='on'?'Registered for this account. Delivery depends on phone settings.':'';
+    button.setAttribute('aria-description',button.title);
+    button.querySelector('.workspace-switch-track').hidden=notificationState==='unknown';
+    const guidance={on:'',off:'Tap Notifications to turn on alerts on this device.',blocked:'In phone settings, open Notifications → Shiloh Workspace and allow notifications.',stale:'Tap Notifications to reconnect this device to your account.',unknown:'Could not check notifications. Refresh Workspace when connected.'};
+    panel.querySelector('[data-workspace-push-status]').textContent=guidance[notificationState]||'';
     const link = document.createElement('a');
     link.className = 'workspace-account-signout';
     link.href = '/calendar/staff-auth/passkeys/manage';
@@ -701,3 +705,6 @@ export const FocusedWorkspaceDashboard = {
 };
 
 export const BookingNotesUpcoming = {render:()=>{const model=dashboardModel();model.appointments[0].bookingNotesPresent=true;model.appointments.forEach((item,index)=>{item.clientName="Synthetic Client "+(index+1);});return productionSurface(renderDashboardPage(model));}};
+
+export const CompactMenuNotificationsStale = { render: () => workspaceNavigationOpenStory('stale') };
+export const CompactMenuNotificationsUnknown = { render: () => workspaceNavigationOpenStory('unknown') };
