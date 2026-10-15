@@ -18,8 +18,9 @@ async function chat(page) {
 for (const width of [390,500,1180,1440]) {
   test(`assistant client-reviewed change and checklist at ${width}`,async ({page},testInfo) => {
     await page.setViewportSize({width,height:920}); let requests=0,confirms=0;
+    let releaseMessage; const messageGate=new Promise(resolve=>{releaseMessage=resolve;});
     await page.route('**/my-shiloh/api/shiloh/message',async route => {
-      requests++; await new Promise(resolve=>setTimeout(resolve,150));
+      requests++; await messageGate;
       return route.fulfill({json:{reply:'Review the proposed time. Nothing has changed yet.',action}});
     });
     await page.route('**/my-shiloh/auth/csrf',route=>route.fulfill({json:{csrfToken:'synthetic'}}));
@@ -39,6 +40,7 @@ for (const width of [390,500,1180,1440]) {
     for (const label of ['Book my usual','Change my appointment','Prepare for my visit','Ask Reception']) await expect(page.getByRole('button',{name:label,exact:false})).toBeVisible();
     await page.getByRole('button',{name:'Change my appointment'}).click();
     await expect(page.locator('[data-shiloh-chat-send]')).toBeDisabled();
+    releaseMessage();
     await expect(page.locator('[data-client-action-card]')).toContainText(original);
     await expect(page.locator('[data-client-action-card]')).toContainText(proposed);
     await expect(page.locator('[data-client-action-card]')).toContainText('unchanged');
