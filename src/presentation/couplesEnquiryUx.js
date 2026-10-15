@@ -9,8 +9,8 @@ function couplesEnquiryItem(item) {
     <div class="appointment-main"><span class="appointment-time">Request</span><div class="appointment-copy"><strong>${escapeHtml(item.client_name)}</strong><span>Couples Massage · Booking for two</span></div><span class="status-pill pending">Needs booking details</span></div>
     <p class="request-note">${escapeHtml(preferred)} · ${escapeHtml(item.preferred_daypart && item.preferred_daypart!=='any' ? item.preferred_daypart : 'Time flexible')}${item.practitioner_name ? ` · Prefers ${escapeHtml(item.practitioner_name)}` : ''}</p>
     ${item.special_occasion ? `<p class="request-note"><strong>Occasion:</strong> ${escapeHtml(item.occasion_note)}</p>` : ''}${item.client_note ? `<p class="request-note"><strong>Client note:</strong> ${escapeHtml(item.client_note)}</p>` : ''}
-    ${planningRequestContact(item)}<p class="request-note">This is an enquiry. Agree the missing details with the client, then arrange both appointments here.</p>
-    <details data-couples-enquiry-details><summary data-workspace-action="primary" class="button">Rebook with client</summary>
+    ${planningRequestContact(item)}<p class="request-note">Agree the details with the client, then arrange both appointments here.</p>
+    <details data-couples-enquiry-details><summary data-workspace-action="primary" class="button">Arrange booking</summary>
       <form data-couples-enquiry-form class="couples-enquiry-form" hidden>
         <fieldset><legend>Who is joining ${escapeHtml(item.client_name)}?</legend>
           <label>Guest’s first name and surname<input name="guestName" autocomplete="off" maxlength="120" required></label>

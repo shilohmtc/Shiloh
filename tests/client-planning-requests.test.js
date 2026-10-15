@@ -64,7 +64,7 @@ test('client and Reception surfaces label requests as unconfirmed and escape cli
     calendar:{ timeline:{ staff:[] } },
   });
   assert.match(dashboard,/data-dashboard-planning-request="3"/);
-  assert.match(dashboard,/has not booked a time or requested payment/);
+  assert.match(dashboard,/No appointment or payment request has been created/);
   assert.doesNotMatch(dashboard,/<script>/);
 });
 

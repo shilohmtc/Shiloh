@@ -1,3 +1,4 @@
+const {detailsHtml}=require('../stories/fixtures/appointmentDetailsReview');
 const fs = require('node:fs');
 const path = require('node:path');
 const review = require('../stories/fixtures/workspaceBrowserReview');
@@ -9,6 +10,7 @@ const { dashboardDepositsHtml } = require('../stories/fixtures/workspaceDashboar
 const destination = path.resolve(__dirname, '../stories/fixtures/workspaceBrowserReview.generated');
 fs.mkdirSync(destination, { recursive: true });
 for (const [name, html] of [
+  ['appointment-details',detailsHtml()],['appointment-details-pending',detailsHtml({pending:true})],['appointment-details-read-only',detailsHtml({readOnly:true})],
   ['booking-problems-recent',bookingProblemsHtml()],['booking-problems-unavailable',bookingProblemsHtml('unavailable')],
   ['rebook-actions',rebookHtml()],
   ['waiver-shortcut-sparse',shortcutHtml('sparse')],['waiver-shortcut-busy',shortcutHtml('busy')],

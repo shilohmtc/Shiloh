@@ -8,8 +8,10 @@ for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width
     await page.setViewportSize(viewport);
     await page.route('**/calendar/staff-auth/csrf',route=>route.fulfill({json:{csrfToken:'synthetic-csrf'}}));
     await page.goto('/iframe.html?id=client-planning-requests--enquiry-resolution&viewMode=story',{waitUntil:'networkidle'});
+    const card=page.locator('[data-dashboard-planning-request="81"]');
+    await expect(card).toBeVisible();
     await page.addScriptTag({content:planningRequestClientScript()});
-    return page.locator('[data-dashboard-planning-request="81"]');
+    return card;
   }
   async function proof(page,testInfo,label){
     expect((await new AxeBuilder({page}).include('[data-dashboard-attention-panel], [data-shiloh-confirm]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
@@ -57,7 +59,7 @@ for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width
       expect(writes[1]).toEqual(writes[0]);return route.fulfill({json:{id:81,status:'cancelled',replayed:true}});
     });
     const card=await open(page);await expect(card).not.toContainText('Cannot accommodate');
-    await expect(card.getByText('Rebook with client',{exact:true})).toBeVisible();
+    await expect(card.getByText('Arrange booking',{exact:true})).toBeVisible();
     await card.getByRole('button',{name:'Client cancelled',exact:true}).click();
     const dialog=page.locator('[data-shiloh-confirm]');await expect(dialog).toContainText('Synthetic Organiser');
     await expect(dialog).toContainText('use Cancel appointment in Calendar');

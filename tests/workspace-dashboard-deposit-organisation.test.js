@@ -33,7 +33,7 @@ test('deposits follow Today in the central lane before Recent activity, never in
 
 test('enquiry emphasis uses existing action palette while retaining the same paths and decision controls', () => {
   const html = renderDashboardPage(desktopDashboardModel('sparse'));
-  assert.match(html,/data-workspace-action="primary" class="button"[^>]*>Rebook with client/);
+  assert.match(html,/data-workspace-action="primary" class="button"[^>]*>Arrange booking/);
   const item = {id:8,client_id:9,client_name:'Synthetic',client_mobile:'27820000000'};
   assert.match(planningRequestContact(item),/data-workspace-action="secondary"[^>]*href="tel:/);
   assert.match(planningRequestContact(item),/data-workspace-action="secondary"[^>]*href="\/calendar\/clients\/9"/);

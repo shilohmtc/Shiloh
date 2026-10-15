@@ -94,7 +94,8 @@ test('Calendar read model projects canonical CRM V2 and legacy mobile authority 
 });
 
 test('Calendar appointment card hierarchy is time, client, canonical mobile, then treatment', () => {
-  const html = renderEventCard(baseAppointment(), baseModel());
+  // Assert the visible card hierarchy independently of its canonical data attributes.
+  const html = renderEventCard(baseAppointment(), baseModel()).replace(/^<article[^>]*>/, '');
   const positions = [
     html.indexOf('08:00–09:00'),
     html.indexOf('Demo Client'),

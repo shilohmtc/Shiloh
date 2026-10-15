@@ -381,6 +381,29 @@ function createBookingPaymentService({
     };
   }
 
+  // Opening Calendar details must never create an account, requirement, link or receipt.
+  // Reuse the canonical payment position inside an enforced read-only snapshot.
+  async function getSummary({ adminId, appointmentId } = {}) {
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      await client.query("SET LOCAL statement_timeout='2000ms'");
+      const operator = await resolveOperator(client, adminId, CAPABILITIES.VIEW);
+      const subject = await loadSubject(client, appointmentId);
+      assertTarget(operator, subject);
+      const account = await accountFor(client, subject, { allowPriceReview: true });
+      const summary = account?.priceReview
+        ? { available: true, state: 'needs_review', label: 'Payment review needed', outstanding: null }
+        : { available: true, state: 'known', outstanding: (await position(client, account, subject)).outstanding,
+          scopeLabel: subject.groupId ? 'Whole booking balance' : 'Appointment balance' };
+      await client.query('COMMIT');
+      return summary;
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally { client.release(); }
+  }
+
   async function get({ adminId, appointmentId } = {}, { allowPriceReview = false } = {}) {
     const operator = await resolveOperator(db, adminId, CAPABILITIES.VIEW);
     const subject = await loadSubject(db, appointmentId); assertTarget(operator, subject);
@@ -784,7 +807,7 @@ function createBookingPaymentService({
   const noCharge = createBookingNoChargeActions({db, ErrorType:BookingPaymentError,positiveId,requestKey,resolveOperator,loadSubject,assertTarget,accountFor,position,syncDepositAfterSettlement});
   const prior = createBookingPriorPaymentActions({ db,money,requestKey,positiveId,ErrorType:BookingPaymentError,resolveOperator,loadSubject,assertTarget,accountFor,position,syncDepositAfterSettlement,now });
   const getReview = ({ adminId, appointmentId } = {}) => get({ adminId, appointmentId }, { allowPriceReview: true });
-  return { get, getReview, recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification,recordDepositWaiver,recordNoCharge:noCharge.record,recordPrior:prior.recordPrior,reversePrior:prior.reversePrior };
+  return { get, getReview, getSummary, recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification,recordDepositWaiver,recordNoCharge:noCharge.record,recordPrior:prior.recordPrior,reversePrior:prior.reversePrior };
 }
 
 module.exports = { CAPABILITIES, BookingPaymentError, money, createBookingPaymentService };

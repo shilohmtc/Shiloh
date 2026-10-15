@@ -86,7 +86,7 @@ test('every visible canonical appointment is enhanced for read-only details inde
 
 test('Client History and Workspace converge on the canonical Calendar appointment detail deep link', () => {
   const href = appointmentDetailHref({ appointmentId: 42, startsAt: '2026-09-11T07:30:00.000Z' });
-  assert.equal(href, '/calendar/read-only?view=day&date=2026-09-11&appointment=42&staff=all');
+  assert.equal(href, '/calendar/read-only?view=week&date=2026-09-11&appointment=42&staff=all');
 
   const clientBase = '<section><article class="history-row"><div>History appointment</div></article></section>';
   const clientHtml = decorateClientAppointmentHistory(clientBase, [{ id: 42, starts_at: '2026-09-11T07:30:00.000Z' }]);

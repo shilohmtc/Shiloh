@@ -32,7 +32,7 @@ function appointmentDetailHref({ appointmentId, startsAt, dateKey, allStaff = tr
     ? String(dateKey)
     : businessDateKey(startsAt);
   if (!id || !day) return null;
-  const params = new URLSearchParams({ view: 'day', date: day, appointment: String(id) });
+  const params = new URLSearchParams({ view: 'week', date: day, appointment: String(id) });
   if (allStaff) params.set('staff', 'all');
   return `/calendar/read-only?${params.toString()}`;
 }
