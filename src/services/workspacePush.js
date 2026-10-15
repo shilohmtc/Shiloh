@@ -32,6 +32,14 @@ function createWorkspacePushService({ db=pool, env=process.env, send=safePushReq
     if (target) await db.query(`UPDATE workspace_push_subscriptions SET enabled=FALSE,updated_at=NOW() WHERE admin_id=$1 AND endpoint=$2`,[Number(adminId),target]);
     return { enabled:false };
   }
+  async function status({adminId,endpoint}) {
+    if (!await permitted(adminId)) return { enabled:false };
+    const target=validEndpoint(endpoint);
+    if (!target) return { enabled:false };
+    // Read only: never consume pending notifications or reveal another account's registration.
+    const result=await db.query(`SELECT id FROM workspace_push_subscriptions WHERE admin_id=$1 AND endpoint=$2 AND enabled=TRUE LIMIT 1`,[Number(adminId),target]);
+    return { enabled:result.rowCount>0 };
+  }
   async function pending({adminId,endpoint}) {
     if (!await permitted(adminId)) return { count:0 };
     const target=validEndpoint(endpoint);
@@ -70,7 +78,7 @@ function createWorkspacePushService({ db=pool, env=process.env, send=safePushReq
     }
     return result;
   }
-  return { permitted,config,subscribe,unsubscribe,pending,queue };
+  return { permitted,config,subscribe,unsubscribe,status,pending,queue };
 }
 
 const defaultService=createWorkspacePushService();
