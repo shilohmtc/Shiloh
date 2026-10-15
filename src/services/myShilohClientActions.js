@@ -115,12 +115,12 @@ function createMyShilohClientActionService({
     return result.rowCount === 1;
   }
 
-  async function cancellationCandidate(queryable, crmV2ClientId) {
+  async function cancellationCandidate(queryable, crmV2ClientId, appointmentStartsAt = null) {
     const clientId = positiveId(crmV2ClientId);
     if (!clientId) return null;
     const result = await queryable.query(
       `/* myShilohClientActions:cancellation-candidate */
-       SELECT a.id,a.starts_at,a.ends_at,a.status,a.updated_at,
+       SELECT a.id,a.starts_at,a.ends_at,a.status,a.updated_at::text AS updated_at,
               (SELECT gm.group_id FROM appointment_group_members gm WHERE gm.appointment_id=a.id LIMIT 1) AS group_id,
               COALESCE((
                 SELECT jsonb_agg(aps.service_name_snapshot ORDER BY aps.position,aps.id)
@@ -137,19 +137,20 @@ function createMyShilohClientActionService({
           AND a.client_id IS NULL
           AND a.status IN ('scheduled','confirmed')
           AND a.starts_at>$2
+          AND ($3::timestamptz IS NULL OR a.starts_at=$3::timestamptz)
         ORDER BY a.starts_at,a.id
-        LIMIT 1`,
-      [clientId, now()],
+        LIMIT 2`,
+      [clientId, now(), appointmentStartsAt],
     );
-    return result.rows[0] || null;
+    return (appointmentStartsAt && result.rows.length !== 1) ? null : result.rows[0] || null;
   }
 
-  async function rescheduleCandidate(queryable, crmV2ClientId) {
+  async function rescheduleCandidate(queryable, crmV2ClientId, appointmentStartsAt = null) {
     const clientId = positiveId(crmV2ClientId);
     if (!clientId) return null;
     const result = await queryable.query(
       `/* myShilohClientActions:reschedule-candidate */
-       SELECT a.id,a.location_id,a.starts_at,a.ends_at,a.status,a.updated_at,
+       SELECT a.id,a.location_id,a.starts_at,a.ends_at,a.status,a.updated_at::text AS updated_at,
               v2.normalized_mobile,
               (SELECT gm.group_id FROM appointment_group_members gm WHERE gm.appointment_id=a.id LIMIT 1) AS group_id,
               (SELECT COUNT(*)::int FROM appointment_staff ast WHERE ast.appointment_id=a.id) AS staff_count,
@@ -172,11 +173,12 @@ function createMyShilohClientActionService({
           AND a.client_id IS NULL
           AND a.status IN ('scheduled','confirmed')
           AND a.starts_at>$2
+          AND ($3::timestamptz IS NULL OR a.starts_at=$3::timestamptz)
         ORDER BY a.starts_at,a.id
-        LIMIT 1`,
-      [clientId, now()],
+        LIMIT 2`,
+      [clientId, now(), appointmentStartsAt],
     );
-    return result.rows[0] || null;
+    return (appointmentStartsAt && result.rows.length !== 1) ? null : result.rows[0] || null;
   }
 
   async function exactAvailableSlot(appointment, proposedStartsAt) {
@@ -199,13 +201,15 @@ function createMyShilohClientActionService({
       excludeAppointmentId: Number(appointment.id),
     });
     return (result.slots || []).find(slot =>
+      new Date(slot.ends_at).getTime() - new Date(slot.starts_at).getTime() === new Date(appointment.ends_at).getTime() - new Date(appointment.starts_at).getTime() &&
       new Date(slot.starts_at).getTime() === new Date(proposedStartsAt).getTime()
     ) || null;
   }
 
-  async function prepareReschedule({ sessionId, crmV2ClientId, proposedStartsAt } = {}) {
+  async function prepareReschedule({ sessionId, crmV2ClientId, proposedStartsAt, appointmentStartsAt = null } = {}) {
     const session = positiveId(sessionId);
     const clientId = positiveId(crmV2ClientId);
+    if (appointmentStartsAt != null && (typeof appointmentStartsAt !== 'string' || !Number.isFinite(Date.parse(appointmentStartsAt)))) return { ok:false, code:'CLIENT_ACTION_APPOINTMENT_INVALID' };
     const proposedStart = new Date(proposedStartsAt);
     if (!session || !clientId || Number.isNaN(proposedStart.getTime()) || proposedStart.getTime() <= now().getTime()) {
       return { ok: false, code: 'CLIENT_ACTION_RESCHEDULE_SLOT_INVALID' };
@@ -220,7 +224,7 @@ function createMyShilohClientActionService({
         return { ok: false, code: 'CLIENT_ACTION_SESSION_INVALID' };
       }
 
-      const appointment = await rescheduleCandidate(client, clientId);
+      const appointment = await rescheduleCandidate(client, clientId, appointmentStartsAt);
       if (!appointment) {
         await client.query('ROLLBACK');
         return { ok: false, code: 'CLIENT_ACTION_NO_UPCOMING_APPOINTMENT' };
@@ -296,7 +300,7 @@ function createMyShilohClientActionService({
           currentTime: currentDisplay.time,
           proposedDate: proposedDisplay.date,
           proposedTime: proposedDisplay.time,
-          note: 'Your current appointment stays confirmed until you submit this request and Reception confirms the new arrangement.',
+          note: 'Your current appointment stays unchanged until Reception approves the new arrangement.',
           confirmLabel: 'Request reschedule',
           declineLabel: 'Keep current time',
           expiresAt: expiresAt.toISOString(),
@@ -310,9 +314,10 @@ function createMyShilohClientActionService({
     }
   }
 
-  async function prepareCancellation({ sessionId, crmV2ClientId } = {}) {
+  async function prepareCancellation({ sessionId, crmV2ClientId, appointmentStartsAt = null } = {}) {
     const session = positiveId(sessionId);
     const clientId = positiveId(crmV2ClientId);
+    if (appointmentStartsAt != null && (typeof appointmentStartsAt !== 'string' || !Number.isFinite(Date.parse(appointmentStartsAt)))) return { ok:false, code:'CLIENT_ACTION_APPOINTMENT_INVALID' };
     if (!session || !clientId) return { ok: false, code: 'CLIENT_ACTION_SESSION_INVALID' };
     const client = typeof db.connect === 'function' ? await db.connect() : db;
     const release = client !== db && typeof client.release === 'function';
@@ -323,7 +328,7 @@ function createMyShilohClientActionService({
         return { ok: false, code: 'CLIENT_ACTION_SESSION_INVALID' };
       }
 
-      const appointment = await cancellationCandidate(client, clientId);
+      const appointment = await cancellationCandidate(client, clientId, appointmentStartsAt);
       if (!appointment) {
         await client.query('ROLLBACK');
         return { ok: false, code: 'CLIENT_ACTION_NO_UPCOMING_APPOINTMENT' };
@@ -418,7 +423,7 @@ function createMyShilohClientActionService({
       }
 
       const proposalResult = await client.query(
-        `SELECT p.id,p.appointment_id,p.action_type,p.appointment_revision,p.expires_at,
+        `SELECT p.id,p.appointment_id,p.action_type,p.appointment_revision::text AS appointment_revision,p.expires_at,
                 p.consumed_at,p.revoked_at,p.proposed_starts_at,p.proposed_ends_at,
                 a.starts_at,
                 COALESCE((
@@ -482,6 +487,8 @@ function createMyShilohClientActionService({
           }
           requestResult = await createRescheduleRequest(phone, {
             appointment_id: Number(proposal.appointment_id),
+            expected_revision: proposal.appointment_revision,
+            expected_crm_v2_client_id: clientId,
             preferred_date: local.date,
             preferred_time: local.time,
           });
@@ -509,7 +516,7 @@ function createMyShilohClientActionService({
         return {
           ok: accepted,
           status: requestResult?.status || 'approval_request_failed',
-          reply: requestResult?.reply || null,
+          reply: accepted ? 'Change requested / awaiting Shiloh approval. Your current appointment is unchanged.' : requestResult?.reply || null,
           appointment: {
             service: firstText(proposal.services, 'Shiloh appointment'),
             practitioner: firstText(proposal.practitioners, 'Shiloh practitioner'),

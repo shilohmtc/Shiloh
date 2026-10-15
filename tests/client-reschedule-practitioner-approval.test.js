@@ -41,7 +41,7 @@ test('request path revalidates canonical Shiloh availability under practitioner 
   const create = service.match(/async function createPendingRescheduleRequest[\s\S]*?async function loadRequestContext/);
   assert.ok(create);
   assert.match(create[0], /pg_advisory_xact_lock/);
-  assert.match(create[0], /loadAppointmentForRequest\(phone, appointment\.id, db, true\)/);
+  assert.match(create[0], /loadAppointmentForRequest\(phone, appointment\.id, db, true, intent\)/);
   assert.match(create[0], /validateCandidate/);
   assert.match(service, /checkClinicHours/);
   assert.match(service, /checkAuthoritativeSchedule/);

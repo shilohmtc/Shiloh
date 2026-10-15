@@ -153,10 +153,10 @@ function createMyShilohAssistantService({
 
     let safeReply = String(replyText || '').trim();
     if (preparedAction?.type === 'cancel_appointment') {
-      safeReply = 'I’ve prepared the cancellation for your next appointment. Please review the confirmation card below. Nothing has changed yet.';
+      safeReply = 'I’ve prepared the cancellation for your appointment. Please review the confirmation card below. Nothing has changed yet.';
     }
     if (preparedAction?.type === 'reschedule_appointment') {
-      safeReply = 'I’ve prepared that new time for your next appointment. Please review the confirmation card below. Your current appointment is still unchanged.';
+      safeReply = 'I’ve prepared that new time for your appointment. Please review the confirmation card below. Your current appointment is still unchanged.';
     }
     if (preparedAction?.type === 'consultation_form') {
       safeReply = 'You have a consultation form waiting. Use the Complete form button below to open it securely inside My Shiloh.';
@@ -167,6 +167,8 @@ function createMyShilohAssistantService({
     if (preparedAction?.type === 'planning_request') {
       safeReply = 'I can help you start a request for Reception. Open the form below to review and send your plans. Nothing is booked yet.';
     }
+    if (preparedAction?.type === 'booking_request') safeReply = 'Your booking is ready to review below. Nothing has been booked or reserved.';
+    if (preparedAction?.type === 'visit_checklist') safeReply = 'Here is your visit checklist. Use Bookings for your secure forms and payment options.';
     if (!safeReply) {
       throw new MyShilohAssistantError(
         'MY_SHILOH_ASSISTANT_EMPTY',

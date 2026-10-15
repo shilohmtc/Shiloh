@@ -5,6 +5,10 @@
   const get = selector => root.querySelector(selector);
   const steps = [...root.querySelectorAll('[data-step]')];
   const progress = [...root.querySelectorAll('[data-progress]')];
+  const handoff = new URLSearchParams(location.hash.slice(1));
+  if (handoff.has('practitioner') || handoff.has('startsAt')) history.replaceState(null,'',location.pathname + location.search);
+  let handoffPending = handoff.has('practitioner');
+  let handoffStart = null;
   const state = { service:null, practitioner:null, slot:null, cart:[], quote:null, editing:null, requestId:null, busy:false, generation:0, draftBlocked:false, draft:null };
   const status = get('[data-booking-status]');
   const slotStatus = get('[data-slot-status]');
@@ -179,6 +183,16 @@
       if (generation !== state.generation) return;
       if (!data.practitioners?.length) throw new Error('No practitioner is currently available for this treatment.');
       data.practitioners.forEach(row => practitionersHost.appendChild(practitionerButton(row))); setStatus(status,'');
+      if (handoffPending) {
+        handoffPending = false;
+        const matching = data.practitioners.filter(row => row.name === handoff.get('practitioner'));
+        if (matching.length !== 1) { setStatus(status,'Your requested practitioner is unavailable. Choose someone suitable.','error'); return; }
+        practitionersHost.querySelector('[data-practitioner-id="' + matching[0].id + '"]')?.click();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(handoff.get('date') || '')) {
+          dateInput.value = handoff.get('date'); handoffStart = handoff.get('startsAt');
+          get('[data-find-slots]').click();
+        }
+      }
     } catch (error) { if (generation === state.generation) setStatus(status,error.message,'error'); }
   }
   root.querySelectorAll('[data-book-service]').forEach(button => button.addEventListener('click', () => chooseService(button)));
@@ -221,7 +235,11 @@
       const data = await json('/my-shiloh/api/booking/availability?serviceId=' + service.id + '&staffId=' + practitioner.id + '&date=' + encodeURIComponent(date));
       if (generation !== state.generation) return;
       if (!data.slots?.length) { setStatus(slotStatus,'There are no available times on that date. Choose another date.','error'); return; }
-      setStatus(slotStatus,'Choose one available time below.');
+      if (handoffStart) {
+        const wanted = handoffStart; handoffStart = null;
+        const available = data.slots.some(row => Date.parse(row.startsAt) === Date.parse(wanted));
+        setStatus(slotStatus, available ? 'Your requested time is available below. Choose it to review your request.' : 'Your requested time is no longer available. Choose another time below.', available ? '' : 'error');
+      } else setStatus(slotStatus,'Choose one available time below.');
       data.slots.forEach(row => {
         const button = document.createElement('button'); button.type = 'button'; button.className = 'slot';
         const time = document.createElement('strong'); time.textContent = row.time + '–' + row.endTime;

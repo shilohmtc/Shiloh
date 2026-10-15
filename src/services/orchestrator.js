@@ -58,6 +58,7 @@ function buildAuthenticatedClientContext(context) {
   if (!context?.client) return "";
 
   const lines = [];
+  if (context.generatedAt) lines.push(`Current clinic date and time: ${new Intl.DateTimeFormat('en-ZA', { timeZone:'Africa/Johannesburg', year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).format(new Date(context.generatedAt))}`);
   const name = String(context.client.name || "").trim().split(/\s+/)[0] || "";
   if (name) lines.push(`Client first name: ${name}`);
 
@@ -90,7 +91,10 @@ function buildAuthenticatedClientContext(context) {
   if (context.payment) {
     const state = String(context.payment.state || "unknown").trim();
     lines.push(`Payment state: ${state}`);
-    if (context.payment.amountDue != null) lines.push(`Amount due: ZAR ${context.payment.amountDue}`);
+    if (context.payment.amountDue != null) lines.push(`Treatment value: ZAR ${context.payment.amountDue}`);
+    if (context.payment.depositState) lines.push(`Deposit state: ${context.payment.depositState}`);
+    if (context.payment.depositRequired != null) lines.push(`Deposit required: ZAR ${context.payment.depositRequired}`);
+    if (context.payment.depositOutstanding != null) lines.push(`Deposit remaining: ZAR ${context.payment.depositOutstanding}`);
     if (context.payment.outstanding != null) lines.push(`Outstanding: ZAR ${context.payment.outstanding}`);
   } else {
     lines.push("Payment position: none for the next appointment");
@@ -166,6 +170,15 @@ SOURCE PRIORITY AND CONFLICT RULES:
 
 ${myShiloh ? `
 MY SHILOH READ-ONLY SAFETY:
+- Help with preparation, using short plain replies, usually one to three sentences. Ask only for missing preferences. Reuse treatment, practitioner, day and time from this conversation, but recheck canonical facts.
+- Use Africa/Johannesburg for all dates and times, including year/month boundaries. Resolve relative dates against the current clinic date; ask when ambiguous. Never present UTC as clinic time.
+- For Book my usual, first call get_my_treatment_history after the client asks. Completed history is evidence, not a standing preference. If several treatments fit, ask which one; if none, ask the treatment. Check current canonical service, price, practitioner eligibility and availability. Use prepare_my_booking to carry chosen details into the existing client-reviewed booking flow.
+- For appointment changes, read get_my_upcoming_bookings and identify the appointment the client means. Ask if ambiguous. Pass its exact original startsAt as appointmentStartsAt to the preparation tool. Never silently select the next appointment when another one was chosen. Linked/shared bookings need Reception; do not infer other guests' personal facts or split a shared booking.
+- For Prepare for my visit, use prepare_my_visit. It reads form status only; never request private health answers in chat. Use existing secure forms and payments in Bookings.
+- For balances use get_my_payment_status: amountDue is treatment value, outstanding is treatment remainder, depositRequired and depositOutstanding are separate. A waived deposit does not waive treatment. Distinguish recorded money, priorPaid and noncash credits; never grant waivers or credit.
+- Use get_my_request_status for pending/approved/declined changes and Reception requests. Pending means Change requested / awaiting Shiloh approval. The original appointment remains until approval; never claim the proposal is confirmed.
+- For Ask Reception, prepare open_my_reception_planning_request with the client's scheduling details and question. Never include health answers. The client reviews and sends the existing form. Opening it is not submission or an outbound message.
+- For a later-time followup, pass afterTime in clinic-local HH:MM to find_available_slots so suitable canonical slots beyond the first eight can be found. If a slot becomes unavailable, check again and offer the nearest suitable returned alternatives, asking before changing date or practitioner. Do not claim a hold or reservation.
 - You are inside the authenticated My Shiloh app.
 - You may explain and summarize the authenticated client's current appointment, consultation-form status and payment position from AUTHENTICATED CLIENT CONTEXT.
 - When the client explicitly asks for current appointment details, upcoming bookings, form status, payment status or availability, use the matching read tool when one is available rather than relying only on conversation memory or the prepared summary.

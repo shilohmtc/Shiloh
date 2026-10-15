@@ -114,9 +114,10 @@ async function pendingRescheduleConflicts({ db = pool, staffId, startsAt, endsAt
   return result.rows;
 }
 
-function appointmentContextQuery({ lock = false } = {}) {
+function appointmentContextQuery({ lock = false, bindProposal = false } = {}) {
   return `
-    SELECT a.id,a.client_id,a.crm_v2_client_id,a.location_id,a.starts_at,a.ends_at,a.status,a.source,
+    SELECT a.id,a.client_id,a.crm_v2_client_id,a.location_id,a.starts_at,a.ends_at,a.status,a.source,a.updated_at,
+           EXISTS(SELECT 1 FROM appointment_group_members gm WHERE gm.appointment_id=a.id) AS linked_booking,
            CASE WHEN a.crm_v2_client_id IS NOT NULL THEN 'crm_v2' ELSE 'legacy' END AS identity_model,
            COALESCE(v2.name,c.display_name,a.source_client_name,'Client') AS client_name,
            ast.staff_id,COALESCE(st.display_name,ast.staff_name_snapshot,'Shiloh practitioner') AS staff_name,
@@ -143,13 +144,21 @@ function appointmentContextQuery({ lock = false } = {}) {
          ))
          OR (a.client_id IS NULL AND a.crm_v2_client_id IS NOT NULL AND v2.normalized_mobile=$1)
        )
+     ${bindProposal ? `AND a.updated_at=$3::timestamptz AND a.crm_v2_client_id=$4::bigint AND a.client_id IS NULL
+       AND a.status IN ('scheduled','confirmed') AND a.starts_at>clock_timestamp()
+       AND st.status='active' AND st.client_bookable=TRUE AND st.resource_type='practitioner'
+       AND s.status='active' AND EXISTS(SELECT 1 FROM staff_services ss WHERE ss.staff_id=ast.staff_id AND ss.service_id=aps.service_id)
+       AND NOT EXISTS(SELECT 1 FROM appointment_group_members gm WHERE gm.appointment_id=a.id)` : ''}
      LIMIT 1
      ${lock ? 'FOR UPDATE OF a,ast,aps' : ''}
   `;
 }
 
-async function loadAppointmentForRequest(phone, appointmentId, db = pool, lock = false) {
-  const result = await db.query(appointmentContextQuery({ lock }), [canonicalRequestPhone(phone), Number(appointmentId)]);
+async function loadAppointmentForRequest(phone, appointmentId, db = pool, lock = false, proposal = null) {
+  const bindProposal = proposal?.expected_revision != null;
+  const values = [canonicalRequestPhone(phone), Number(appointmentId)];
+  if (bindProposal) values.push(proposal.expected_revision, proposal.expected_crm_v2_client_id);
+  const result = await db.query(appointmentContextQuery({ lock, bindProposal }), values);
   return result.rows[0] || null;
 }
 
@@ -299,13 +308,26 @@ async function insertPendingRescheduleRequest(db, {
   ]);
 }
 
+function matchesClientProposal(appointment, intent, now = new Date()) {
+  if (intent?.expected_revision == null) return true;
+  return Boolean(appointment
+    && Number(appointment.crm_v2_client_id) === Number(intent.expected_crm_v2_client_id)
+    && !appointment.client_id && !appointment.linked_booking
+    && ['scheduled', 'confirmed'].includes(appointment.status)
+    && new Date(appointment.starts_at).getTime() > now.getTime()
+    && new Date(appointment.updated_at).getTime() === new Date(intent.expected_revision).getTime());
+}
+
 async function createPendingRescheduleRequest(phone, intent) {
   if (!featureEnabled()) return { status: 'feature_disabled' };
-  const appointment = await loadAppointmentForRequest(phone, intent?.appointment_id);
+  const appointment = await loadAppointmentForRequest(phone, intent?.appointment_id, pool, false, intent);
   if (!appointment) {
     return { status: 'appointment_not_found', reply: 'That booking is no longer available to change. Your current appointments were not modified.' };
   }
 
+  if (!matchesClientProposal(appointment, intent)) {
+    return { status: 'appointment_changed', reply: 'That appointment changed. Please review it again; your appointment has not been moved.' };
+  }
   const proposedStartsAt = localDateTime(intent?.preferred_date, intent?.preferred_time);
   if (!proposedStartsAt) return { status: 'invalid_time', reply: 'I couldn’t safely resolve that requested date and time. Your current appointment is unchanged.' };
   const duration = new Date(appointment.ends_at).getTime() - new Date(appointment.starts_at).getTime();
@@ -319,8 +341,8 @@ async function createPendingRescheduleRequest(phone, intent) {
   try {
     await db.query('BEGIN');
     await db.query('SELECT pg_advisory_xact_lock($1::bigint)', [Number(appointment.staff_id)]);
-    const locked = await loadAppointmentForRequest(phone, appointment.id, db, true);
-    if (!locked) {
+    const locked = await loadAppointmentForRequest(phone, appointment.id, db, true, intent);
+    if (!locked || !matchesClientProposal(locked, intent)) {
       await db.query('ROLLBACK');
       return { status: 'appointment_changed', reply: 'That appointment changed while I was checking it. Your current booking was not moved; please start the reschedule again.' };
     }
@@ -700,6 +722,7 @@ async function decideReceptionReschedule({ admin, requestId, decision, authorize
 }
 
 module.exports = {
+  matchesClientProposal,
   APPROVE_PREFIX,
   DECLINE_PREFIX,
   APPROVAL_TEMPLATE,

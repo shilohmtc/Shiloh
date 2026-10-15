@@ -10,7 +10,11 @@ const {
   createMyShilohConsultationFormActionService,
 } = require('./myShilohConsultationFormActions');
 
+const { createAssistantPreparation } = require('./myShilohAssistantPreparation');
+
 const ACTION_TOOL_NAMES = Object.freeze({
+  PREPARE_BOOKING: 'prepare_my_booking',
+  PREPARE_VISIT: 'prepare_my_visit',
   PREPARE_CANCELLATION: 'prepare_my_cancellation',
   PREPARE_RESCHEDULE: 'prepare_my_reschedule',
   PREPARE_CONSULTATION_FORM: 'prepare_my_consultation_form',
@@ -22,29 +26,30 @@ const ACTION_TOOL_DEFINITIONS = Object.freeze([
   {
     type: 'function',
     name: ACTION_TOOL_NAMES.PREPARE_CANCELLATION,
-    description: 'Prepare, but do not execute, cancellation of the authenticated client’s next upcoming Shiloh appointment. This creates a confirmation card that the client must explicitly approve.',
+    description: 'Prepare, but do not execute, cancellation of the authenticated client’s selected owned upcoming Shiloh appointment. This creates a confirmation card that the client must explicitly approve.',
     strict: true,
     parameters: {
       type: 'object',
-      properties: {},
-      required: [],
+      properties: { appointmentStartsAt: { type: ['string', 'null'], description: 'Exact startsAt from get_my_upcoming_bookings for the appointment chosen by the client; null only when they explicitly mean their next appointment.' } },
+      required: ['appointmentStartsAt'],
       additionalProperties: false,
     },
   },
   {
     type: 'function',
     name: ACTION_TOOL_NAMES.PREPARE_RESCHEDULE,
-    description: 'Prepare a reschedule request for the authenticated client’s next appointment using an exact startsAt returned by find_available_slots. This never moves the appointment; client confirmation and the authorized clinic decision are still required.',
+    description: 'Prepare a reschedule request for the authenticated client’s selected owned appointment using an exact startsAt returned by find_available_slots. This never moves the appointment; client confirmation and the authorized clinic decision are still required.',
     strict: true,
     parameters: {
       type: 'object',
       properties: {
+        appointmentStartsAt: { type: ['string', 'null'], description: 'Exact original startsAt from get_my_upcoming_bookings; null only for an explicit next-appointment request.' },
         startsAt: {
           type: 'string',
           description: 'Exact ISO 8601 slot start returned by find_available_slots.',
         },
       },
-      required: ['startsAt'],
+      required: ['startsAt', 'appointmentStartsAt'],
       additionalProperties: false,
     },
   },
@@ -81,12 +86,27 @@ const PLANNING_REQUEST_TOOL_DEFINITION = Object.freeze({
   name: ACTION_TOOL_NAMES.OPEN_PLANNING_REQUEST,
   description: 'Open the signed-in Reception planning form for a flexible time, group visit or tailored event. This only opens the form; no request or appointment is created until the client reviews and submits it.',
   strict: true,
-  parameters: { type: 'object', properties: {}, required: [], additionalProperties: false },
+  parameters: { type: 'object', properties: {
+    serviceDetail: { type: ['string','null'], description:'Treatment requested, at most 160 characters. Never include health answers.' },
+    preferredDate: { type: ['string','null'], description:'Client chosen date YYYY-MM-DD, or null.' },
+    preferredDaypart: { type: ['string','null'], enum:['morning','afternoon','any',null] },
+    clientNote: { type: ['string','null'], description:'Only client supplied scheduling preferences, practitioner, flexibility and question for Reception. At most 500 characters. No health answers.' },
+  }, required: ['serviceDetail','preferredDate','preferredDaypart','clientNote'], additionalProperties: false },
 });
+
+const PREPARATION_TOOL_DEFINITIONS = [
+  { type:'function', name:ACTION_TOOL_NAMES.PREPARE_BOOKING, strict:true,
+    description:'Prepare the existing booking flow from an exact canonical treatment and optional client-chosen practitioner and returned slot. Rechecks current service, price, eligibility and slot; never submits or holds a booking.',
+    parameters:{ type:'object', properties:{ service:{type:'string'}, practitioner:{type:['string','null']}, startsAt:{type:['string','null']} }, required:['service','practitioner','startsAt'], additionalProperties:false } },
+  { type:'function', name:ACTION_TOOL_NAMES.PREPARE_VISIT, strict:true,
+    description:'Prepare a status-only pre-visit checklist with canonical deposit and treatment balance, and existing secure actions. Never reads health answers.',
+    parameters:{ type:'object', properties:{ appointmentStartsAt:{type:['string','null']} }, required:['appointmentStartsAt'], additionalProperties:false } },
+];
 
 function createMyShilohActionTools({
   actionService = createMyShilohClientActionService(),
   formActionService = createMyShilohConsultationFormActionService(),
+  preparation = createAssistantPreparation(),
 } = {}) {
   if (
     !actionService
@@ -99,7 +119,7 @@ function createMyShilohActionTools({
   }
 
   function handles(name) {
-    return name === ACTION_TOOL_NAMES.PREPARE_CANCELLATION
+    return PREPARATION_TOOL_DEFINITIONS.some(tool => tool.name === name) || name === ACTION_TOOL_NAMES.PREPARE_CANCELLATION
       || name === ACTION_TOOL_NAMES.PREPARE_RESCHEDULE
       || name === ACTION_TOOL_NAMES.PREPARE_CONSULTATION_FORM
       || name === ACTION_TOOL_NAMES.OPEN_PROFILE
@@ -108,14 +128,22 @@ function createMyShilohActionTools({
 
   async function execute(name, args = {}, { sessionId, crmV2ClientId } = {}) {
     if (!handles(name)) return { modelResult: { ok: false, error: 'unknown_action_tool' }, clientAction: null };
+    if (name === ACTION_TOOL_NAMES.PREPARE_BOOKING) return preparation.prepareBooking(args, crmV2ClientId);
+    if (name === ACTION_TOOL_NAMES.PREPARE_VISIT) return preparation.checklist(args, crmV2ClientId);
     if (name === ACTION_TOOL_NAMES.OPEN_PLANNING_REQUEST) {
+      const draft = {};
+      for (const [key, max] of [['serviceDetail',160],['clientNote',500]]) {
+        if (typeof args[key] === 'string') draft[key] = args[key].trim().slice(0,max);
+      }
+      if (/^\d{4}-\d{2}-\d{2}$/.test(args.preferredDate || '')) draft.preferredDate = args.preferredDate;
+      if (['morning','afternoon','any'].includes(args.preferredDaypart)) draft.preferredDaypart = args.preferredDaypart;
       return {
         modelResult: { ok: true, prepared: true, action: 'reception_planning', message: 'The signed-in Reception planning form is ready. Nothing has been submitted or booked.' },
         clientAction: {
           type: 'planning_request', title: 'Tell Reception your plans',
           detail: 'Share a flexible time, group visit or special occasion with the clinic team.',
           note: 'Reception will review your request and arrange the details with you. This does not book an appointment.',
-          label: 'Open request form', href: '/my-shiloh/request',
+          label: 'Open request form', href: '/my-shiloh/request', draft,
         },
       };
     }
@@ -144,8 +172,9 @@ function createMyShilohActionTools({
         sessionId,
         crmV2ClientId,
         proposedStartsAt: args.startsAt,
+        appointmentStartsAt: args.appointmentStartsAt ?? null,
       })
-      : await actionService.prepareCancellation({ sessionId, crmV2ClientId });
+      : await actionService.prepareCancellation({ sessionId, crmV2ClientId, appointmentStartsAt: args.appointmentStartsAt ?? null });
     if (!result.ok) {
       if (result.code === 'CLIENT_FORM_MULTIPLE_PENDING') {
         return {
@@ -215,7 +244,7 @@ function createMyShilohActionTools({
   }
 
   return {
-    definitions: [...ACTION_TOOL_DEFINITIONS, CONSULTATION_FORM_TOOL_DEFINITION, PROFILE_TOOL_DEFINITION, PLANNING_REQUEST_TOOL_DEFINITION],
+    definitions: [...PREPARATION_TOOL_DEFINITIONS, ...ACTION_TOOL_DEFINITIONS, CONSULTATION_FORM_TOOL_DEFINITION, PROFILE_TOOL_DEFINITION, PLANNING_REQUEST_TOOL_DEFINITION],
     handles,
     execute,
   };

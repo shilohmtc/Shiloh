@@ -716,9 +716,30 @@
       }
     }
 
+    const tracker = document.querySelector('[data-assistant-request-list]');
+    if (tracker) {
+      tracker.replaceChildren();
+      const requests = Array.isArray(experience.assistant?.requests) ? experience.assistant.requests : [];
+      for (const request of requests) {
+        const item = document.createElement('li');
+        const label = document.createElement('strong'); label.textContent = request.label;
+        const detail = document.createElement('p'); detail.textContent = request.detail;
+        item.append(label,detail); tracker.append(item);
+      }
+      document.querySelector('[data-assistant-request-history]').hidden = requests.length === 0;
+      document.querySelector('[data-assistant-request-count]').textContent = String(requests.length);
+      const waiting = requests.filter(item => item.attention === 'awaiting_approval').length;
+      const response = requests.filter(item => item.attention === 'respond').length;
+      document.querySelector('[data-assistant-request-current]').textContent = [
+        ...(response ? [`${response} recent proposal${response === 1 ? '' : 's'} awaiting your response. Open Bookings to review.`] : []),
+        ...(waiting ? [`${waiting} recent request${waiting === 1 ? '' : 's'} awaiting Shiloh approval.`] : []),
+      ].join(' ') || 'No action is waiting among the recent requests shown here. Check Bookings for all current requests.';
+      document.querySelector('[data-assistant-request-bookings]').textContent = response ? 'Review proposed time' : 'Bookings and changes';
+    }
+
     if (experiencePrompts) {
       const prompts = Array.isArray(experience.assistant?.prompts) ? experience.assistant.prompts.slice(0, 4) : [];
-      experiencePrompts.querySelectorAll('article strong').forEach((node, index) => {
+      experiencePrompts.querySelectorAll('button strong, article strong').forEach((node, index) => {
         if (prompts[index]) node.textContent = String(prompts[index]);
       });
     }
@@ -741,6 +762,10 @@
   });
 
   function renderExperienceUnavailable() {
+    const trackerStatus = document.querySelector('[data-assistant-request-current]');
+    if (trackerStatus) trackerStatus.textContent = 'Request status is unavailable. Open Bookings or Reception requests to check.';
+    const history = document.querySelector('[data-assistant-request-history]');
+    if (history) history.hidden = true;
     if (!experienceHome) return;
     const heading = experienceHome.querySelector('h2');
     const summary = experienceHome.querySelector(':scope > p');
@@ -1657,10 +1682,12 @@
   });
 
   function setActionCardBusy(card, busy) {
+    if (card) card.dataset.busy = String(Boolean(busy));
     card?.querySelectorAll('button').forEach((button) => { button.disabled = Boolean(busy); });
   }
 
   async function confirmClientAction(action, card) {
+    if (card?.dataset.busy === 'true') return;
     if (!action || !/^[A-Za-z0-9_-]{43}$/.test(String(action.token || ''))) return;
     setActionCardBusy(card, true);
     try {
@@ -1681,20 +1708,22 @@
         appendShilohMessage('shiloh', data.message || (details
           ? `Your time-change request for ${details} is with Reception for planning. Your current appointment stays unchanged until the new arrangement is confirmed.`
           : 'Your time-change request is with Reception for planning. Your current appointment stays unchanged until the new arrangement is confirmed.'));
-      } else {
+      } else if (data.status === 'cancelled') {
         const details = [appointment.service, appointment.date, appointment.time].filter(Boolean).join(' · ');
         appendShilohMessage('shiloh', details
           ? `Your appointment has been cancelled. ${details}`
           : 'Your appointment has been cancelled.');
       }
+      if (!['pending_approval','cancelled'].includes(data.status)) throw new Error('Please check Bookings for the latest result before trying again.');
       await loadClientExperience();
     } catch (error) {
       card?.remove();
-      appendClientRecovery(error.message || 'That request could not be confirmed. Your current appointment is unchanged.');
+      appendClientRecovery(error.message || 'Please check Bookings for the latest result before trying again.');
     }
   }
 
   async function declineClientAction(action, card) {
+    if (card?.dataset.busy === 'true') return;
     if (!action || !/^[A-Za-z0-9_-]{43}$/.test(String(action.token || ''))) {
       card?.remove();
       return;
@@ -1716,7 +1745,27 @@
       : 'No problem — your appointment is unchanged.');
   }
 
+  function renderPreparedNavigation(action) {
+    const booking = action.type === 'booking_request';
+    if (booking && !/^\/my-shiloh\/book\?(?:service|packageService)=[1-9]\d*(?:#[^\s]*)?$/.test(action.href || '')) return null;
+    if (!booking && action.href !== '#bookings') return null;
+    shilohMessages.querySelector('[data-client-action-card]')?.remove();
+    const card = document.createElement('section'); card.className = 'client-action-card'; card.dataset.clientActionCard = '';
+    card.setAttribute('aria-label', booking ? 'Review booking preparation' : 'Pre-visit checklist');
+    const title = document.createElement('h3'); title.textContent = action.title;
+    const detail = document.createElement('p'); detail.className = 'client-action-card__detail'; detail.textContent = action.detail;
+    detail.style.whiteSpace = 'pre-line';
+    const note = document.createElement('p'); note.textContent = action.note;
+    const actions = document.createElement('div'); actions.className = 'client-action-card__actions';
+    for (const item of [{ href:action.href, label:action.label }, ...(booking ? [] : action.links || [])]) {
+      if (item.href !== action.href && !/^\/my-shiloh\/forms\/complete\?assignmentId=[1-9]\d*$/.test(item.href || '') && !/^\/pay\/[A-Za-z0-9_-]{8,100}$/.test(item.href || '')) continue;
+      const link = document.createElement('a'); link.className = 'button button--primary'; link.href = item.href; link.textContent = item.label; actions.append(link);
+    }
+    card.append(title, detail, note, actions); shilohMessages.append(card); return card;
+  }
+
   function renderClientAction(action) {
+    if (['booking_request','visit_checklist'].includes(action?.type)) return renderPreparedNavigation(action);
     if (!shilohMessages || !['cancel_appointment', 'reschedule_appointment', 'consultation_form', 'profile_details', 'planning_request'].includes(action?.type)) return null;
     if (!['consultation_form', 'profile_details', 'planning_request'].includes(action.type) && !/^[A-Za-z0-9_-]{43}$/.test(String(action.token || ''))) return null;
     if (action.type === 'consultation_form' && String(action.href || '') !== '/my-shiloh/forms/complete') return null;
@@ -1791,7 +1840,11 @@
       const open = document.createElement('a');
       open.className = 'button button--primary';
       if (action.type === 'planning_request') {
-        open.href = '/my-shiloh/request';
+        const draft = new URLSearchParams();
+        for (const [key,max] of [['serviceDetail',160],['preferredDate',10],['preferredDaypart',9],['clientNote',500]]) {
+          if (typeof action.draft?.[key] === 'string') draft.set(key, action.draft[key].slice(0,max));
+        }
+        open.href = '/my-shiloh/request' + (draft.size ? '#' + draft.toString() : '');
         open.textContent = String(action.label || 'Open request form');
       } else if (action.type === 'profile_details') {
         open.href = '#profile';
@@ -1846,7 +1899,7 @@
   }
 
   function appendClientRecovery(message) {
-    appendShilohMessage('shiloh', `${String(message || 'That did not work.')}\n\nNothing has been changed. Try once more, or report the problem if it continues.`);
+    appendShilohMessage('shiloh', `${String(message || 'That did not work.')}\n\nCheck Bookings and your requests before trying again, or report the problem if it continues.`);
     if (!shilohMessages) return;
     const card = document.createElement('section');
     card.className = 'client-action-card';
@@ -1904,6 +1957,7 @@
     const message = String(value || '').trim();
     if (!message || message.length > 1000) return;
 
+    shilohMessages?.querySelector('[data-client-action-card]')?.remove();
     appendShilohMessage('user', message);
     if (shilohChatInput) {
       shilohChatInput.value = '';

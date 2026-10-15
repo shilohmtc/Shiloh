@@ -275,6 +275,7 @@ function createMyShilohBookingService({
         durationMinutes: Number(service.duration_minutes || 0),
         price: service.variable_price ? null : Number(service.price),
         variablePrice: service.variable_price === true,
+        prepaidPackage: Boolean(service.entitlement),
       },
       practitioners: service.staff.map(row => ({
         id: Number(row.id),

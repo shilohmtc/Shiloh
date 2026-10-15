@@ -308,6 +308,40 @@ function createMyShilohClientContextService({
     }));
   }
 
+  // History is opt-in through the assistant tool, never part of every model prompt.
+  // Exclude linked visits: a guest must not inherit the other guest's treatment.
+  async function loadTreatmentHistory(crmV2ClientId) {
+    const id = positiveId(crmV2ClientId);
+    if (!id) return [];
+    const result = await db.query(`/* myShilohClientContext:treatment-history */
+      SELECT a.starts_at,s.name AS service_name,st.display_name AS practitioner
+      FROM appointments a
+      JOIN appointment_services aps ON aps.appointment_id=a.id
+      JOIN services s ON s.id=aps.service_id
+      JOIN appointment_staff ast ON ast.appointment_id=a.id AND ast.position=1
+      JOIN staff st ON st.id=ast.staff_id
+      WHERE a.crm_v2_client_id=$1 AND a.client_id IS NULL
+        AND a.status='completed' AND a.ends_at<$2
+        AND NOT EXISTS(SELECT 1 FROM appointment_group_members gm WHERE gm.appointment_id=a.id)
+      ORDER BY a.starts_at DESC,a.id DESC,aps.position LIMIT 5`, [id, now()]);
+    return result.rows.map(row => ({ startsAt: new Date(row.starts_at).toISOString(),
+      service: String(row.service_name), practitioner: String(row.practitioner) }));
+  }
+
+  async function loadRescheduleHistory(crmV2ClientId) {
+    const id = positiveId(crmV2ClientId);
+    if (!id) return [];
+    const result = await db.query(`/* myShilohClientContext:reschedule-history */
+      SELECT r.status,r.original_starts_at,r.proposed_starts_at
+      FROM appointment_reschedule_requests r JOIN appointments a ON a.id=r.appointment_id
+      WHERE r.crm_v2_client_id=$1 AND r.client_id IS NULL
+        AND a.crm_v2_client_id=$1 AND a.client_id IS NULL
+      ORDER BY r.requested_at DESC,r.id DESC LIMIT 5`, [id]);
+    return result.rows.map(row => ({ status: String(row.status),
+      originalStartsAt: new Date(row.original_starts_at).toISOString(),
+      proposedStartsAt: new Date(row.proposed_starts_at).toISOString() }));
+  }
+
   async function loadForms(crmV2ClientId, appointmentId) {
     const clientId = positiveId(crmV2ClientId);
     const bookingId = positiveId(appointmentId);
@@ -471,6 +505,8 @@ function createMyShilohClientContextService({
     loadActiveBookingRequests,
     loadDeclinedBookingRequests,
     loadPendingRescheduleRequests,
+    loadTreatmentHistory,
+    loadRescheduleHistory,
     loadForms,
     loadPayment,
     getContext,

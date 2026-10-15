@@ -36,6 +36,8 @@ test('My Shiloh read-tool schemas are strict and expose no client selector', () 
   assert.deepEqual(
     READ_TOOL_DEFINITIONS.map(tool => tool.name),
     [
+      TOOL_NAMES.TREATMENT_HISTORY,
+      TOOL_NAMES.REQUEST_STATUS,
       TOOL_NAMES.NEXT_APPOINTMENT,
       TOOL_NAMES.UPCOMING_BOOKINGS,
       TOOL_NAMES.FORM_STATUS,
