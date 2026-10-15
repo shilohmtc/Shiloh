@@ -127,7 +127,21 @@ async function main() {
     const origin = `http://127.0.0.1:${server.address().port}`;
     const debugPort = await reservePort();
     chrome = spawn(executable, ['--headless=new','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',`--remote-debugging-port=${debugPort}`,`--user-data-dir=${path.join(directory,'profile')}`,'about:blank'], { stdio: ['ignore','ignore','pipe'] });
-    const targets = await poll(async () => (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json(), items => Array.isArray(items) && items.some(item => item.type === 'page' && item.webSocketDebuggerUrl));
+    // Keep the original readiness deadline and assertions, but retain startup
+    // evidence when the runner cannot expose Chrome before application navigation.
+    let startupStderr='',startupError=null,lastCdpState=null;
+    chrome.stderr.on('data',chunk=>{startupStderr=(startupStderr+String(chunk)).slice(-4096);});
+    chrome.on('error',error=>{startupError=error.message;});
+    const targets = await poll(async () => {
+      try {
+        const response=await fetch(`http://127.0.0.1:${debugPort}/json/list`);
+        const items=await response.json();
+        lastCdpState={status:response.status,targets:Array.isArray(items)?items.map(item=>({type:item.type,debuggerReady:Boolean(item.webSocketDebuggerUrl)})):null};
+        return items;
+      } catch(error) { lastCdpState={error:error.message,cause:error.cause?.code};throw error; }
+    }, items => Array.isArray(items) && items.some(item => item.type === 'page' && item.webSocketDebuggerUrl)).catch(error=>{
+      throw new Error(error.message+' before application navigation; Chrome startup: '+JSON.stringify({executable,exitCode:chrome.exitCode,signalCode:chrome.signalCode,startupError,lastCdpState,stderr:startupStderr}),{cause:error});
+    });
     cdp = await connectCdp(targets.find(item => item.type === 'page').webSocketDebuggerUrl);
     await cdp.send('Page.enable');
     await cdp.send('Runtime.enable');

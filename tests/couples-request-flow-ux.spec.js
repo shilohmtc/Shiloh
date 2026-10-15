@@ -24,7 +24,7 @@ for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width
     await page.goto('/iframe.html?id=client-planning-requests--couples-enquiry&viewMode=story',{waitUntil:'networkidle'});
     await page.addScriptTag({content:couplesEnquiryClientScript()});const card=page.locator('[data-couples-enquiry]');
     await expect(card).not.toContainText('Refresh appointments');await expect(card).not.toContainText('Cannot accommodate');
-    await card.getByText('Rebook with client',{exact:true}).click();await expect(card.locator('form')).toBeVisible();
+    await card.getByText('Arrange booking',{exact:true}).click();await expect(card.locator('form')).toBeVisible();
     await card.getByLabel('Guest’s first name and surname').fill('Synthetic Guest');await card.getByLabel('Guest’s mobile number').fill('0822345678');
     await card.locator('[name="guestConsent"]').check();await card.locator('[name="firstStaff"]').selectOption('11');await card.locator('[name="secondStaff"]').selectOption('12');
     await card.getByRole('button',{name:'Show shared times'}).click();await expect(card.locator('[data-couples-enquiry-status]')).toContainText('No shared times');

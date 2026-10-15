@@ -206,7 +206,7 @@ function mutationAttributes(item, model) {
     const operations = appointmentOperations(item, model);
     if (!operations.length) return '';
     const draggable = operations.includes('appointment:reschedule') ? ' draggable="true"' : '';
-    return ` data-appointment-id="${escapeHtml(item.id)}" data-appointment-management-target="true" role="button" tabindex="0" aria-label="Manage appointment for ${escapeHtml(item.clientName || 'Client')}" data-revision="${revision}" data-staff-ids="${escapeHtml(eventStaffIds(item).join(','))}" data-starts-at="${escapeHtml(item.startsAt || '')}" data-ends-at="${escapeHtml(item.endsAt || '')}" data-client-name="${escapeHtml(item.clientName || 'Client')}" data-client-mobile="${escapeHtml(formatClientMobile(item.clientMobile))}" data-service-name="${escapeHtml(item.serviceName || '')}" data-practitioner-names="${escapeHtml(staffNamesFor(item, model).join(' + '))}" data-appointment-status="${escapeHtml(eventDetailPieces(item, model) || 'Scheduled')}" data-allowed-operations="${escapeHtml(operations.join(','))}"${draggable}`;
+    return ` data-appointment-id="${escapeHtml(item.id)}" data-appointment-management-target="true" role="button" tabindex="0" aria-label="Manage appointment for ${escapeHtml(item.clientName || 'Client')}" data-revision="${revision}" data-staff-ids="${escapeHtml(eventStaffIds(item).join(','))}" data-allowed-operations="${escapeHtml(operations.join(','))}"${draggable}`;
   }
   if (item.kind === 'calendar_block' && staffOperationEnabled(model, 'calendar_block:manage', eventStaffIds(item)[0])) {
     return ` data-block-id="${escapeHtml(item.id)}" data-revision="${revision}" data-staff-ids="${escapeHtml(eventStaffIds(item)[0] || '')}" data-location-id="${escapeHtml(item.locationId || '')}" data-starts-at="${escapeHtml(item.startsAt || '')}" data-ends-at="${escapeHtml(item.endsAt || '')}" data-block-type="${escapeHtml(item.blockType || 'other')}" data-title="${escapeHtml(item.title || 'Operational block')}"`;
@@ -215,6 +215,13 @@ function mutationAttributes(item, model) {
     return ` data-leave-id="${escapeHtml(item.id)}" data-revision="${revision}" data-staff-ids="${escapeHtml(eventStaffIds(item)[0] || '')}" data-location-id="${escapeHtml(item.locationId || '')}" data-date="${escapeHtml(dateKey(item.date || item.startsAt) || '')}" data-reason="${escapeHtml(item.reason || 'Operational leave')}"`;
   }
   return '';
+}
+
+function appointmentDetailAttributes(item, model) {
+  if (item.kind !== 'appointment') return '';
+  // Read-only and pending cards carry the same already-visible canonical labels.
+  // Hidden compact initials are presentation only, never a therapist-name source.
+  return ` data-starts-at="${escapeHtml(item.startsAt || '')}" data-ends-at="${escapeHtml(item.endsAt || '')}" data-client-name="${escapeHtml(item.clientName || 'Client')}" data-client-mobile="${escapeHtml(formatClientMobile(item.clientMobile))}" data-service-name="${escapeHtml(item.serviceName || '')}" data-practitioner-names="${escapeHtml(staffNamesFor(item, model).join(' + '))}" data-appointment-status="${escapeHtml(eventDetailPieces(item, model) || 'Appointment')}"`;
 }
 
 function renderMutationButton(item, model) {
@@ -238,7 +245,7 @@ function renderEventCard(item, model) {
   const multiple = item.kind === 'appointment' && item.appointmentGroupType === 'multi_service_booking';
   const id = `${item.kind || 'event'}-${item.id || 'unknown'}`;
   const meta = renderEventMeta(item, model);
-  return `<article class="event-card event-canonical ${shared ? 'event-shared' : ''} ${couples ? 'event-couples' : ''} ${group ? 'event-group' : ''} ${multiple ? 'event-multi-service' : ''}" data-event-id="${escapeHtml(id)}" data-kind="${escapeHtml(item.kind || '')}" data-canonical="true" data-event-staff-ids="${escapeHtml(eventStaffIds(item).join(','))}"${couples && mutationEnabled(model) && appointmentOperationScope(item,model) ? ' data-couples-edit-target="true"' : ''}${couples || group || multiple ? ` data-appointment-group-id="${escapeHtml(item.appointmentGroupId)}" data-appointment-group-position="${escapeHtml(item.appointmentGroupPosition)}"` : ''}${calendarEventVisualAttributes(item)}${mutationAttributes(item, model)}>
+  return `<article class="event-card event-canonical ${shared ? 'event-shared' : ''} ${couples ? 'event-couples' : ''} ${group ? 'event-group' : ''} ${multiple ? 'event-multi-service' : ''}" data-event-id="${escapeHtml(id)}" data-kind="${escapeHtml(item.kind || '')}" data-canonical="true" data-event-staff-ids="${escapeHtml(eventStaffIds(item).join(','))}"${couples && mutationEnabled(model) && appointmentOperationScope(item,model) ? ' data-couples-edit-target="true"' : ''}${couples || group || multiple ? ` data-appointment-group-id="${escapeHtml(item.appointmentGroupId)}" data-appointment-group-position="${escapeHtml(item.appointmentGroupPosition)}"` : ''}${appointmentDetailAttributes(item, model)}${calendarEventVisualAttributes(item)}${mutationAttributes(item, model)}>
     <div class="event-card-top"><div class="event-time"><span class="event-time-range">${escapeHtml(formatRange(item))}</span><span class="event-time-start" aria-hidden="true">${escapeHtml(item.allDay ? 'All day' : formatTime(item.startsAt))}</span></div><span class="kind-pill">${escapeHtml(eventKindLabel(item))}</span></div>
     <h4>${escapeHtml(eventTitle(item))}</h4>${item.kind==='appointment' && item.bookingNotesPresent===true && appointmentOperations(item,model).length ? `<button type="button" class="booking-notes-indicator" data-notes-indicator data-calendar-operation="manage-appointment" aria-label="View booking notes for appointment ${escapeHtml(item.id)}">${renderLucideIcon('notes',{size:16})} <span>Notes</span></button>` : ''}
     ${item.kind === 'appointment' ? `<p class="event-client-mobile">${escapeHtml(formatClientMobile(item.clientMobile))}</p>` : ''}

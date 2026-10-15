@@ -340,7 +340,7 @@ test('flexible and group requests reach Reception without claiming a booking on 
     await page.goto('/iframe.html?id=client-planning-requests--reception-attention&viewMode=story', { waitUntil:'networkidle' });
     const card=page.locator('[data-dashboard-planning-request="81"]');
     await expect(card).toContainText('Birthday');
-    await expect(card).toContainText('has not booked a time or requested payment');
+    await expect(card).toContainText('No appointment or payment request has been created');
     const receptionAxe=await new AxeBuilder({ page }).include('[data-dashboard-attention-panel]')
       .withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(receptionAxe.violations.filter(v => ['serious','critical'].includes(v.impact))).toEqual([]);

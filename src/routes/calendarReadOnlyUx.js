@@ -460,6 +460,10 @@ function createCalendarReadOnlyHandler({
 
 function createCalendarReadOnlyRouter(options = {}) {
   const router = express.Router();
+  router.get('/appointments/:appointmentId/details', require('./calendarAppointmentDetails').createCalendarAppointmentDetailsHandler({
+    ...options, resolveViewer: options.resolveViewer || resolveServerViewer, isFeatureEnabled,
+    setSecurityHeaders: setCalendarSecurityHeaders, statusForError,
+  }));
   router.get('/phone-v2.js', (_req, res) => {
     res.setHeader('Cache-Control', 'private, no-store, max-age=0');
     res.setHeader('X-Content-Type-Options', 'nosniff');

@@ -29,9 +29,9 @@ for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',w
     for(const id of [101,102]) {
       await frame.locator(`[data-event-id="appointment-${id}"]`).focus();await page.keyboard.press('Enter');
       const details=frame.locator('[data-appointment-details-dialog]');
-      await expect(details.getByRole('button',{name:'Edit couples booking'})).toBeVisible();
+      await expect(details.getByRole('button',{name:'Manage booking'})).toBeVisible();
       if(id===101)await page.screenshot({path:testInfo.outputPath(`couples-details-${viewport.name}.png`),fullPage:true});
-      await details.getByRole('button',{name:'Edit couples booking'}).click();
+      await details.getByRole('button',{name:'Manage booking'}).click();
       const editor=frame.locator('[data-couples-edit-dialog]');
       await expect(editor.getByText('Synthetic Guest A · Appointment #101')).toBeVisible();
       await expect(editor.getByText('Synthetic Guest B · Appointment #102')).toBeVisible();
@@ -46,7 +46,7 @@ for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',w
     completed=true;
     await frame.locator('.event-card').evaluateAll(cards=>cards.forEach(card=>{card.dataset.eventTone='completed';card.querySelector('.event-state').textContent='completed';}));
     await frame.locator('[data-event-id="appointment-102"]').click();
-    await frame.getByRole('button',{name:'Edit couples booking'}).click();
+    await frame.getByRole('button',{name:'Manage booking'}).click();
     const editor=frame.locator('[data-couples-edit-dialog]');
     await expect(editor.getByLabel('Booking notes for Synthetic Guest A')).toHaveValue('First note');
     await expect(editor.getByLabel('Date',{exact:true})).toBeHidden();
@@ -69,7 +69,7 @@ for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',w
       await frame.locator('html').evaluate(node=>{node.style.fontSize='';});await page.setViewportSize(viewport);
     }
     await page.keyboard.press('Escape');denied=true;
-    await frame.locator('[data-event-id="appointment-101"]').click();await frame.getByRole('button',{name:'Edit couples booking'}).click();
+    await frame.locator('[data-event-id="appointment-101"]').click();await frame.getByRole('button',{name:'Manage booking'}).click();
     await expect(editor.getByRole('status')).toContainText('outside your appointment scope');
     await expect(editor.locator('form')).toBeHidden();
     expect(await editor.getByText('Synthetic Guest B · Appointment #102').isVisible()).toBe(false);
