@@ -63,7 +63,10 @@ jobs:
       - name: Bind notification clarity evidence to exact head
         env:
           EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
-        run: node scripts/package-notification-clarity-evidence.js
+          REVIEW_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$REVIEW_BASE_SHA"
+          node scripts/package-notification-clarity-evidence.js
       - name: Upload synthetic notification clarity review
         if: always()
         uses: actions/upload-artifact@v7
