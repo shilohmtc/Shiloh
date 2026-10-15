@@ -300,7 +300,7 @@ function createMyShilohClientActionService({
           currentTime: currentDisplay.time,
           proposedDate: proposedDisplay.date,
           proposedTime: proposedDisplay.time,
-          note: 'Your current appointment stays confirmed until you submit this request and Reception confirms the new arrangement.',
+          note: 'Your current appointment stays unchanged until Reception approves the new arrangement.',
           confirmLabel: 'Request reschedule',
           declineLabel: 'Keep current time',
           expiresAt: expiresAt.toISOString(),
@@ -516,7 +516,7 @@ function createMyShilohClientActionService({
         return {
           ok: accepted,
           status: requestResult?.status || 'approval_request_failed',
-          reply: requestResult?.reply || null,
+          reply: accepted ? 'Change requested / awaiting Shiloh approval. Your current appointment is unchanged.' : requestResult?.reply || null,
           appointment: {
             service: firstText(proposal.services, 'Shiloh appointment'),
             practitioner: firstText(proposal.practitioners, 'Shiloh practitioner'),

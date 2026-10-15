@@ -144,7 +144,8 @@ test('prepare reschedule accepts only an exact canonical slot and returns token 
   assert.equal(prepared.clientAction.type, ACTION_TYPE_RESCHEDULE);
   assert.equal(prepared.clientAction.token.length, 43);
   assert.equal(JSON.stringify(prepared.modelResult).includes(prepared.clientAction.token), false);
-  assert.match(prepared.clientAction.note, /stays confirmed/i);
+  assert.match(prepared.clientAction.note, /stays unchanged/i);
+  assert.doesNotMatch(prepared.clientAction.note, /stays confirmed/i);
   assert.equal(prepared.clientAction.proposedTime, '09:00');
   assert.deepEqual(availabilityCalls[0], {
     staffId: 13,
@@ -208,6 +209,8 @@ test('reschedule confirmation consumes proposal once and delegates to practition
 
   assert.equal(confirmed.ok, true);
   assert.equal(confirmed.status, 'pending_approval');
+  assert.match(confirmed.reply, /awaiting Shiloh approval/);
+  assert.doesNotMatch(confirmed.reply, /confirmed/i);
   assert.equal(confirmed.appointment.proposedTime, '09:00');
   assert.deepEqual(requests, [{
     phone: '27820000000',
