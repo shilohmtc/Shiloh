@@ -43,3 +43,5 @@ module.exports.testMatch.push('rebook-action-style.spec.js');
 module.exports.testMatch.push('notification-clarity.spec.js');
 
 module.exports.testMatch.push('my-shiloh-assistant-upgrade.spec.js');
+
+module.exports.testMatch.push('booking-problems-ux.spec.js');

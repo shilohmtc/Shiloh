@@ -1,3 +1,4 @@
+const { bookingProblemsContent } = require('./bookingProblemsUx');
 const {appointmentDetailHref}=require('./calendarAppointmentDetailLinks');
 const {planningRequestContact,planningRequestCompletion,planningRequestCompletionScript}=require('./planningRequestCompletionUx');
 const { formatRand: generatedRand } = require('./currency');
@@ -254,7 +255,8 @@ function renderDashboardPage(model, { staffAccessScriptPath = '/calendar/staff/c
   const outcomeCount = awaitingFinalization.filter(item => todayKeys.has(visitKey(item))).length;
   const requestCount = bookingRequests.length + planningRequests.length + rescheduleRequests.length;
   const holidayCount = holidayDecisions.length;
-  const attentionCount = exceptionalFinalization.length + requestCount + holidayCount;
+  const bookingProblems = bookingProblemsContent(model.bookingProblems);
+  const attentionCount = exceptionalFinalization.length + requestCount + holidayCount + (Number(model.bookingProblems?.pendingCount) || 0);
   const actionableCount = exceptionalFinalization.filter((item) => item.canFinalize).length;
   const requestCards = bookingRequests.map(item => bookingRequestItem(item, model)).join('');
   const planningCards = planningRequests.map(planningRequestItem).join('');
@@ -265,8 +267,8 @@ function renderDashboardPage(model, { staffAccessScriptPath = '/calendar/staff/c
   const finalizationQueue = finalizationCards ? `<div class="attention-queue" data-dashboard-attention-queue>${finalizationCards}</div>` : '';
   const holidayCards = holidayDecisions.map(item => `<div class="booking-request" data-dashboard-holiday-decision><strong>${escapeHtml(item.holidayName)}</strong><p class="request-note">${escapeHtml(item.exceptionDate)} · Clinic hours decision needed</p><div class="request-actions"><a data-workspace-action="secondary" class="button" href="${escapeHtml(item.href)}">Set holiday hours</a></div></div>`).join('');
   const deposits = depositQueuePanel(model.depositQueue);
-  const hasAttention = Boolean(holidayCards || requestCards || planningCards || rescheduleCards || finalizationSummary || finalizationQueue);
-  const attention = hasAttention ? `${holidayCards}${requestCards}${planningCards}${rescheduleCards}${finalizationSummary}${finalizationQueue}` : '';
+  const hasAttention = Boolean(bookingProblems || holidayCards || requestCards || planningCards || rescheduleCards || finalizationSummary || finalizationQueue);
+  const attention = hasAttention ? `${bookingProblems}${holidayCards}${requestCards}${planningCards}${rescheduleCards}${finalizationSummary}${finalizationQueue}` : '';
   const carryOver = model.carryOver || [];
   const activity = (model.recentActivity || []).map((item) => activityItem(item, model)).join('') || '<div class="empty">No completed or no-show visits are recorded today yet.</div>';
   const attentionPanel = hasAttention ? `<section class="panel" data-dashboard-attention-panel><header class="panel-head"><div><span class="eyebrow">Action required</span><h2>Needs attention</h2></div>${attentionCount ? `<span class="summary-pill attention">${attentionCount}</span>` : ''}</header>${attention}</section>` : '';

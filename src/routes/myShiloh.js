@@ -4,6 +4,9 @@ const { confirmationClientScript, confirmationStyles } = require('../presentatio
 const path = require('path');
 const express = require('express');
 const { pool } = require('../db/pool');
+const { service: bookingIncidents, attemptContext } = require('../services/bookingSubmissionIncidents');
+const { reportConfirmationFailure } = require('../services/bookingIncidentReporting');
+
 const { getPublicServiceCatalogue } = require('../services/publicServiceCatalogue');
 const { normalizePublicServiceId } = require('../services/publicPresentation');
 const { resolveWhatsAppNumber } = require('../services/publicWhatsApp');
@@ -116,10 +119,24 @@ function createMyShilohRouter({
   multipleBookingService = createMyShilohMultipleBookingService({ db:pool, booking:bookingService }),
   couplesBookingService = createMyShilohMultipleBookingService({ db:pool, couples:true }),
   namedCouplesService = async id => (await pool.query("SELECT id FROM services WHERE id=$1 AND status='active' AND external_source='shiloh_special' AND external_id='couples-massage-v1'",[id])).rowCount===1,
+  incidentService = bookingIncidents,
   proposalService = bookingProposals,
   planningService = createClientPlanningRequestService({ db: pool }),
 } = {}) {
   const router = express.Router();
+  async function confirmationError(error, context, req, res, next) {
+    const known = error instanceof MyShilohBookingError || error instanceof BookingDepositPolicyError;
+    const incident = context && (!known || error.httpStatus >= 500)
+      ? await reportConfirmationFailure({ service:incidentService,context,error,req }) : {};
+    if (known) return res.status(error.httpStatus).json({ error:error.message,code:error.code,
+      resolution:error.resolution,requestId:req.id,...incident });
+    if (context) return res.status(500).json({ error:'Internal server error',requestId:req.id,...incident });
+    return next(error);
+  }
+  function confirmationContext(req, kind, payload) {
+    return attemptContext({ clientId:req.myShilohClientSession.crmV2ClientId,kind,
+      attemptKey:req.get('x-shiloh-booking-attempt') || payload.requestId,payload });
+  }
   const sameOrigin = sameOriginGuard({ env });
   const requireSession = requireClientSession({ service: sessionService, env });
   const optionalSession = optionalClientSession({ service: sessionService, env });
@@ -471,6 +488,7 @@ function createMyShilohRouter({
   });
 
   router.post('/my-shiloh/api/booking/confirm', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    let context;
     try {
       setNoStoreJson(res);
       const payload = req.body && typeof req.body === 'object' ? req.body : {};
@@ -478,6 +496,7 @@ function createMyShilohRouter({
       if (Object.keys(payload).some((key) => !allowed.has(key))) {
         return res.status(422).json({ error:'Please reload My Shiloh and try again', requestId:req.id });
       }
+      context = confirmationContext(req,'ordinary',payload);
       const result = await bookingService.createRequest({
         crmV2ClientId:req.myShilohClientSession.crmV2ClientId,
         serviceId:payload.serviceId,
@@ -487,15 +506,16 @@ function createMyShilohRouter({
         specialOccasion:payload.specialOccasion,
         occasionNote:payload.occasionNote,
       });
+      await incidentService.success(context,result).catch(() => false);
       return res.status(201).json(result);
     } catch (error) {
-      if (error instanceof MyShilohBookingError) return res.status(error.httpStatus).json({ error:error.message, code:error.code, resolution:error.resolution, requestId:req.id });
-      return next(error);
+      return confirmationError(error,context,req,res,next);
     }
   });
 
   for (const action of ['review', 'confirm']) {
     router.post(`/my-shiloh/api/booking/multiple/${action}`, sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+      let context;
       try {
         setNoStoreJson(res);
         const payload = req.body && typeof req.body === 'object' ? req.body : {};
@@ -505,13 +525,12 @@ function createMyShilohRouter({
           return res.status(422).json({ error:'Please review your appointments again.', requestId:req.id });
         }
         const input = { ...payload, crmV2ClientId:req.myShilohClientSession.crmV2ClientId };
+        if (action === 'confirm') context = confirmationContext(req,'multiple',payload);
         const result = await multipleBookingService[action === 'review' ? 'review' : 'createRequest'](input);
+        if (context) await incidentService.success(context,result).catch(() => false);
         return res.status(action === 'review' ? 200 : 201).json(result);
       } catch (error) {
-        if (error instanceof MyShilohBookingError || error instanceof BookingDepositPolicyError) {
-          return res.status(error.httpStatus).json({ error:error.message, code:error.code, resolution:error.resolution, requestId:req.id });
-        }
-        return next(error);
+        return confirmationError(error,context,req,res,next);
       }
     });
   }
@@ -523,6 +542,7 @@ function createMyShilohRouter({
 
   for (const action of ['availability','review','confirm']) {
     router.post(`/my-shiloh/api/booking/couples/${action}`, sameOrigin, requireSession, requireCsrf, async (req,res,next) => {
+      let context;
       try {
         setNoStoreJson(res);
         const payload = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
@@ -530,11 +550,12 @@ function createMyShilohRouter({
           : ['guest','treatments','quoteHash','requestId','policyAccepted','specialOccasion','occasionNote']);
         if (Object.keys(payload).some(key => !allowed.has(key))) return res.status(422).json({ error:'Please review your booking for two again.' });
         const input = { ...payload,crmV2ClientId:req.myShilohClientSession.crmV2ClientId };
+        if (action === 'confirm') context = confirmationContext(req,'couples',payload);
         const result = await couplesBookingService[action === 'confirm' ? 'createRequest' : action](input);
+        if (context) await incidentService.success(context,result).catch(() => false);
         return res.status(action === 'confirm' ? 201 : 200).json(result);
       } catch (error) {
-        if (error instanceof MyShilohBookingError || error instanceof BookingDepositPolicyError) return res.status(error.httpStatus).json({ error:error.message,code:error.code,requestId:req.id });
-        return next(error);
+        return confirmationError(error,context,req,res,next);
       }
     });
   }

@@ -25,10 +25,10 @@
     try {
       const response = await fetch('/my-shiloh/api/booking/couples/' + action, {
         method:'POST',credentials:'same-origin',cache:'no-store',signal:controller.signal,
-        headers:{ Accept:'application/json','Content-Type':'application/json','x-shiloh-csrf-token':root.dataset.csrf },body:JSON.stringify(body),
+        headers:{ Accept:'application/json','Content-Type':'application/json','x-shiloh-csrf-token':root.dataset.csrf,...(action === 'confirm' ? { 'x-shiloh-booking-attempt':state.requestId } : {}) },body:JSON.stringify(body),
       });
       const data = await response.json();
-      if (!response.ok) { const error = new Error(data.error || 'Please review your booking again.'); error.code = data.code; throw error; }
+      if (!response.ok) { const error = new Error(data.error || 'Please review your booking again.'); error.code = data.code; error.supportReference = data.supportReference; error.incidentLinkSaved = data.incidentLinkSaved; throw error; }
       return data;
     } catch (error) {
       if (error.name === 'AbortError') throw new Error('The check took too long. Please try again.');
@@ -123,7 +123,12 @@
       get('[data-couples-success]').textContent = data.message; step(5);
     } catch (error) {
       if (error.code === 'BOOKING_CART_QUOTE_CHANGED') { busy(false); await review(); status('[data-couples-confirm-status]',error.message,true); return; }
-      status('[data-couples-confirm-status]',error.code ? error.message : 'We could not verify the response. Check your bookings, or retry this same request safely.',true); busy(false);
+      const reference = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(error.supportReference || '') ? error.supportReference : null;
+      const message = reference ? 'We could not complete your request. ' + (error.incidentLinkSaved === true
+        ? 'We saved a support link in Shiloh. Quote this reference if you contact Reception. '
+        : 'We could not save a client support link. Please contact Reception. ') + 'Support reference: ' + reference
+        : error.code ? error.message : 'We could not verify the response. Check your bookings, or retry this same request safely.';
+      status('[data-couples-confirm-status]',message,true); busy(false);
     }
   });
 })();

@@ -1,3 +1,5 @@
+const { service:bookingIncidents, BookingIncidentError } = require('../services/bookingSubmissionIncidents');
+const { bookingProblemsContent, bookingProblemsClientScript } = require('../presentation/bookingProblemsUx');
 const {attachBookingNotePresence}=require('../services/workspaceAppointmentNotes');
 'use strict';
 
@@ -99,6 +101,7 @@ function createWorkspaceOperationalRouter({
   env = process.env,
   sessionService,
   dashboardService = workspaceDashboard,
+  incidentService = bookingIncidents,
   navigationService = workspaceNavigation,
   renderDashboard = renderDashboardPage,
   renderUnavailable = renderDashboardUnavailablePage,
@@ -124,7 +127,30 @@ function createWorkspaceOperationalRouter({
   router.use(requireSession);
 
   router.get('/client.js', (_req, res) => {
-    return res.status(200).type('application/javascript').send(dashboardClientScript() + '\n' + planningRequestClientScript() + '\n' + couplesEnquiryClientScript() + '\n' + depositQueueClientScript());
+    return res.status(200).type('application/javascript').send(dashboardClientScript() + '\n' + planningRequestClientScript() + '\n' + couplesEnquiryClientScript() + '\n' + depositQueueClientScript() + '\n' + bookingProblemsClientScript());
+  });
+
+  function incidentError(error,res) {
+    const known = error instanceof BookingIncidentError;
+    return res.status(known ? error.httpStatus : 503).json({ error:known ? error.message : 'Booking support links are temporarily unavailable.' });
+  }
+  router.get('/booking-problems',async (req,res) => {
+    try { return res.type('html').send(bookingProblemsContent(await incidentService.list({
+      adminId:req.staffBrowserSession.adminId,status:req.query.status,offset:req.query.offset,
+    }))); } catch(error) { return incidentError(error,res); }
+  });
+  router.get('/booking-problems/:reference/client',async (req,res) => {
+    try { const result=await incidentService.openClient({adminId:req.staffBrowserSession.adminId,reference:req.params.reference});
+      res.setHeader('Referrer-Policy','no-referrer');return res.redirect(303,result.href);
+    } catch(error) { return incidentError(error,res); }
+  });
+  router.post('/booking-problems/:reference/resolve',sameOrigin,requireCsrf,async (req,res) => {
+    if (!req.body || typeof req.body!=='object' || Array.isArray(req.body) || Object.keys(req.body).some(k=>k!=='revision')) {
+      return res.status(422).json({error:'Reload this booking problem before resolving it.'});
+    }
+    try { return res.json(await incidentService.resolve({adminId:req.staffBrowserSession.adminId,
+      reference:req.params.reference,revision:req.body.revision})); }
+    catch(error) { return incidentError(error,res); }
   });
 
   router.get('/navigation', async (req, res) => {
