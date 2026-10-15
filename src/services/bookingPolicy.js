@@ -59,7 +59,9 @@ async function recordAcceptance(phone, channel = POLICY_CHANNEL) {
     const updated = await client.query(`UPDATE booking_intents SET status = 'policy_accepted', policy_version = $2, policy_accepted_at = NOW(), policy_channel = $3, updated_at = NOW() WHERE phone = $1 AND status = 'awaiting_policy_acceptance' AND policy_version=$2 RETURNING *`, [phone, POLICY_VERSION, channel]);
     const intent = updated.rows[0];
     if (!intent) { await client.query("ROLLBACK"); return null; }
-    await client.query(`INSERT INTO booking_policy_acceptances (phone, policy_version, accepted_at, channel, service_text, preferred_date, preferred_time, therapist_text, policy_text_snapshot, crm_v2_client_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, (SELECT MIN(id) FROM crm_v2_clients WHERE normalized_mobile=$1 AND status='active' HAVING COUNT(*)=1))`, [phone, POLICY_VERSION, intent.policy_accepted_at, channel, intent.service_text, intent.preferred_date, intent.preferred_time, intent.therapist_text, POLICY_TEXT]);
+    // Keep the shared parameter TEXT for the CRM comparison and VARCHAR insert;
+    // assignment into phone still enforces its existing column length limit.
+    await client.query(`INSERT INTO booking_policy_acceptances (phone, policy_version, accepted_at, channel, service_text, preferred_date, preferred_time, therapist_text, policy_text_snapshot, crm_v2_client_id) VALUES ($1::text, $2, $3, $4, $5, $6, $7, $8, $9, (SELECT MIN(id) FROM crm_v2_clients WHERE normalized_mobile=$1::text AND status='active' HAVING COUNT(*)=1))`, [phone, POLICY_VERSION, intent.policy_accepted_at, channel, intent.service_text, intent.preferred_date, intent.preferred_time, intent.therapist_text, POLICY_TEXT]);
     await client.query("COMMIT"); return intent;
   } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
 }

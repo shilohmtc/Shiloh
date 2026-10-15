@@ -3358,6 +3358,7 @@ test('My Shiloh multiple bookings review, remove and safely retry one combined r
     failResponse = true;
     await page.setViewportSize(viewport);
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-native-booking&viewMode=story', { waitUntil:'networkidle' });
+    await expect(page.locator('[data-my-shiloh-booking]')).toBeVisible();
     await page.addScriptTag({ url:'/my-shiloh/assets/booking.js' });
     async function choose(id,date) {
       await page.locator(`[data-book-service][data-service-id="${id}"]`).click();
