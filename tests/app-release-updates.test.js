@@ -39,3 +39,13 @@ test('served client worker is executable JavaScript with the same release as its
   assert.equal(self.SHILOH_APP_RELEASE, appRelease());
   assert.ok(require('../src/presentation/myShilohPwa').renderMyShilohPage().includes(`app.js?v=${appRelease()}`));
 });
+test('Workspace public version endpoint exposes only release identity and never caches it', async t => {
+  const express = require('express');
+  const { createWorkspacePwaRouter } = require('../src/routes/workspacePwa');
+  const app = express(); app.use('/calendar/pwa', createWorkspacePwaRouter({ sessionService: {}, pushService: {} }));
+  const server = app.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/calendar/pwa/version`);
+  assert.equal(response.status, 200); assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await response.json(), { version: appRelease() });
+});

@@ -127,3 +127,30 @@ for (const app of ['workspace', 'client']) test(`${app} an update accepted in an
   await Promise.all([page.waitForEvent('domcontentloaded'), dialog.getByRole('button', { name: 'Update now' }).click()]);
   await expect(page).not.toHaveTitle('Unfinished synthetic work');
 });
+test('desktop Workspace checks releases without registering a worker or exposing install UI', async ({ page }) => {
+  let version = '2.1.0-local', checks = 0;
+  await page.route('**/calendar/pwa/version', r => { checks++; return r.fulfill({ json: { version } }); });
+  await page.route('**/desktop-update-fixture', r => r.fulfill({ contentType: 'text/html', body: appUpdatesHtml('workspace').replace("Object.defineProperty(navigator,'standalone',{configurable:true,value:true})", "Object.defineProperty(navigator,'standalone',{configurable:true,value:false})").replace('container.register=async()=>registration', "container.register=async()=>{throw Error('Desktop must not register a service worker');}") }));
+  await page.clock.install();
+  await page.goto('/desktop-update-fixture', { waitUntil: 'networkidle' });
+  await expect.poll(() => checks).toBeGreaterThanOrEqual(1);
+  await expect(page.locator('[data-workspace-app-update]')).toBeHidden();
+  version = '2.1.0-nextbuild'; await page.clock.fastForward(60001);
+  await expect(page.locator('[data-workspace-app-update]')).toBeVisible();
+  expect(checks).toBeGreaterThanOrEqual(2);
+  await expect(page.locator('[data-shiloh-browser-install],[data-shiloh-ios-install]')).toHaveCount(0);
+  await page.locator('[data-workspace-update-action]').click();
+  await expect(page.locator('[data-shiloh-confirm]')).toBeVisible();
+  await page.getByRole('button', { name: 'Keep working' }).click();
+  await expect(page.locator('[data-workspace-app-update]')).toBeVisible();
+});
+test('Workspace sign-in can show its own update confirmation without navigation code', async ({ page }) => {
+  const { workspacePwaClientScript } = require('../src/presentation/workspacePwa');
+  const { updateHarness } = require('../stories/fixtures/appUpdates');
+  await page.route('**/signin-update-fixture', r => r.fulfill({ contentType: 'text/html', body: `<!doctype html><html lang="en"><title>Synthetic sign-in</title><body><h1>Sign in</h1><script>${updateHarness()}${workspacePwaClientScript()}</script></body></html>` }));
+  await page.goto('/signin-update-fixture', { waitUntil: 'networkidle' });
+  await page.locator('[data-workspace-update-action]').click();
+  await expect(page.locator('[data-shiloh-confirm]')).toBeVisible();
+  await page.keyboard.press('Escape');
+  expect(await page.evaluate(() => syntheticUpdateMessages)).toEqual([]);
+});

@@ -3,6 +3,7 @@
 const { workspaceBadgeWorkerScript, workspaceBadgeClientScript } = require('./workspaceAppBadge');
 
 const { appRelease } = require('./appRelease');
+const { confirmationClientScript } = require('./workspaceConfirmation');
 const PWA_VERSION = 'official-brand-v2';
 const APP_RELEASE = appRelease();
 const PWA_BASE = '/calendar/pwa';
@@ -69,10 +70,11 @@ function workspacePwaHeadMarkup() {
   ].join('');
 }
 
-function decorateWorkspacePwaHtml(html) {
+function decorateWorkspacePwaHtml(html, { updatesOnly = false } = {}) {
   const source = String(html || '');
-  if (!source.includes('</head>') || source.includes(`${PWA_BASE}/manifest.webmanifest`)) return source;
-  return source.replace('</head>', `${workspacePwaHeadMarkup()}</head>`);
+  if (!source.includes('</head>') || source.includes(`${PWA_BASE}/client.js`)) return source;
+  const markup = updatesOnly ? `<script src="${PWA_BASE}/client.js?v=${PWA_VERSION}" defer></script>` : workspacePwaHeadMarkup();
+  return source.replace('</head>', `${markup}</head>`);
 }
 
 function workspaceInstallPage() {
@@ -121,8 +123,9 @@ button.addEventListener('click',async()=>{if(busy||checking)return;busy=true;but
 function workspacePwaClientScript() {
   const iosInstallStyles = JSON.stringify(workspaceIosInstallGuideStyles());
   const iosInstallMarkup = JSON.stringify(workspaceIosInstallGuideMarkup());
-  return `(()=>{'use strict';
+  return confirmationClientScript() + `(()=>{'use strict';
 const PWA_BASE=${JSON.stringify(PWA_BASE)};
+const APP_RELEASE=${JSON.stringify(APP_RELEASE)};
 const SW_URL=PWA_BASE+'/sw.js?v=${PWA_VERSION}';
 const SESSION_URL='/calendar/staff-auth/session';
 const STAFF_ENTRY='/calendar/staff';
@@ -147,8 +150,8 @@ function banner(){let node=document.querySelector('[data-shiloh-pwa-status]');if
 function status(message,action){const node=banner();node.textContent='';if(!message){node.hidden=true;return;}node.hidden=false;node.append(document.createTextNode(message));if(action){const button=document.createElement('button');button.type='button';button.textContent=action.label;button.style.cssText='margin-left:8px;border:1px solid #496b5a;border-radius:999px;padding:5px 9px;background:#496b5a;color:#fff;font:inherit;cursor:pointer';button.addEventListener('click',action.run);node.appendChild(button);}}
 function viewerPermitsWorkspace(viewer){return !!(viewer&&typeof viewer==='object'&&(viewer.calendarScope==='own_staff'||viewer.calendarScope==='business_all_staff'));}
 async function revalidate(){if(!standalone()||!protectedPath()||revalidating)return;const now=Date.now();if(now-lastRevalidation<15000)return;lastRevalidation=now;revalidating=true;try{const response=await fetch(SESSION_URL,{method:'GET',credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});if(response.status===401){location.replace(STAFF_ENTRY+'?reason=session');return;}if(!response.ok){status('Shiloh could not verify your live session. Retry when connected.');return;}const body=await response.json().catch(()=>({}));if(body.recoveryRequired===true){location.replace(STAFF_ENTRY+'?reason=session');return;}if(!viewerPermitsWorkspace(body.viewer)){location.replace(STAFF_ENTRY+'?reason=access');return;}status('');}catch(_error){status('Shiloh is offline. Protected Workspace data will refresh only after reconnection.');}finally{revalidating=false;}}
-function updateReady(registration){
-if(!registration||!registration.waiting||!navigator.serviceWorker.controller)return;
+function updateReady(registration,releaseUpdate=false){
+if(!registration||!registration.waiting||(!releaseUpdate&&!navigator.serviceWorker.controller))return;
 appRegistration=registration;
 let node=document.querySelector('[data-workspace-app-update]');
 if(node)return;
@@ -169,8 +172,9 @@ button.disabled=true;button.textContent='Updating…';reloadingForUpdate=true;
 try{worker.postMessage({type:'SHILOH_ACTIVATE_UPDATE'});updateTimer=setTimeout(()=>{reloadingForUpdate=false;button.disabled=false;button.textContent='Update now';error.textContent='The update did not finish. Please try again.';},12000);}catch(_error){reloadingForUpdate=false;button.disabled=false;button.textContent='Update now';error.textContent='The update could not start. Please try again.';}
 });
 }
-async function checkAppUpdate(){if(!appRegistration||checkingUpdate||navigator.onLine===false||document.visibilityState==='hidden')return;if(Date.now()-lastUpdateCheck<60000)return;checkingUpdate=true;lastUpdateCheck=Date.now();try{await appRegistration.update();updateReady(appRegistration);}catch(_error){/* Keep an available update visible through a temporary connection failure. */}finally{checkingUpdate=false;}}
-async function register(){if(!('serviceWorker'in navigator))return;try{const registration=await navigator.serviceWorker.register(SW_URL,{scope:'/calendar/',updateViaCache:'none'});appRegistration=registration;updateReady(registration);registration.addEventListener('updatefound',()=>{const installing=registration.installing;if(!installing)return;installing.addEventListener('statechange',()=>{if(installing.state==='installed'&&navigator.serviceWorker.controller)updateReady(registration);});});navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!reloadingForUpdate)return;clearTimeout(updateTimer);location.reload();});checkAppUpdate();}catch(_error){status('Shiloh app updates are temporarily unavailable. Workspace still requires the live server.');}}
+async function checkDesktopUpdate(){if(checkingUpdate||navigator.onLine===false||document.visibilityState==='hidden'||Date.now()-lastUpdateCheck<60000)return;checkingUpdate=true;lastUpdateCheck=Date.now();try{const response=await fetch(PWA_BASE+'/version',{cache:'no-store',credentials:'omit'});if(!response.ok)return;const release=await response.json();if(typeof release.version==='string'&&release.version!==APP_RELEASE)updateReady({waiting:{postMessage:()=>location.reload()}},true);}catch(_error){/* Keep the page and update notice available until the connection returns. */}finally{checkingUpdate=false;}}
+async function checkAppUpdate(){if(!iosDevice()&&!androidDevice()&&!standalone())return checkDesktopUpdate();if(!appRegistration||checkingUpdate||navigator.onLine===false||document.visibilityState==='hidden')return;if(Date.now()-lastUpdateCheck<60000)return;checkingUpdate=true;lastUpdateCheck=Date.now();try{await appRegistration.update();updateReady(appRegistration);}catch(_error){/* Keep an available update visible through a temporary connection failure. */}finally{checkingUpdate=false;}}
+async function register(){if(!iosDevice()&&!androidDevice()&&!standalone()){checkDesktopUpdate();return;}if(!('serviceWorker'in navigator))return;try{const registration=await navigator.serviceWorker.register(SW_URL,{scope:'/calendar/',updateViaCache:'none'});appRegistration=registration;updateReady(registration);registration.addEventListener('updatefound',()=>{const installing=registration.installing;if(!installing)return;installing.addEventListener('statechange',()=>{if(installing.state==='installed'&&navigator.serviceWorker.controller)updateReady(registration);});});navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!reloadingForUpdate)return;clearTimeout(updateTimer);location.reload();});checkAppUpdate();}catch(_error){status('Shiloh app updates are temporarily unavailable. Workspace still requires the live server.');}}
 addEventListener('pageshow',checkAppUpdate);addEventListener('online',checkAppUpdate);document.addEventListener('visibilitychange',checkAppUpdate);setInterval(checkAppUpdate,60000);
 if(standalone())document.documentElement.dataset.shilohPwaMode='standalone';
 addEventListener('beforeinstallprompt',event=>{if(!androidDevice()||standalone())return;event.preventDefault();deferredInstallPrompt=event;removeInstallCard('[data-shiloh-browser-install]');installAction();installDoorway();});

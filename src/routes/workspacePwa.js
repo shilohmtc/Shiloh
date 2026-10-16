@@ -1,6 +1,7 @@
 'use strict';
 
 const express = require('express');
+const { appRelease } = require('../presentation/appRelease');
 const path = require('path');
 const PWA_ICON_ASSET_DIR = path.join(__dirname, '../../public/assets/pwa');
 const { createOptionalCalendarSessionMiddleware } = require('../middleware/staffBrowserSession');
@@ -69,14 +70,15 @@ function isMobilePwaRequest(req) {
 
 function createWorkspacePwaHtmlMiddleware() {
   return function workspacePwaHtmlMiddleware(req, res, next) {
-    if (req.method !== 'GET' || !shouldDecoratePwaHtmlPath(req.path || req.url) || !isMobilePwaRequest(req)) return next();
+    if (req.method !== 'GET' || !shouldDecoratePwaHtmlPath(req.path || req.url)) return next();
     const originalSend = res.send.bind(res);
     res.send = function pwaAwareSend(body) {
       const type = String(res.getHeader('Content-Type') || '').toLowerCase();
       if (typeof body === 'string' && type.includes('text/html')) {
-        body = preferIosAppleTouchIcon(decorateWorkspacePwaHtml(body));
+        const mobile = isMobilePwaRequest(req);
+        body = mobile ? preferIosAppleTouchIcon(decorateWorkspacePwaHtml(body)) : decorateWorkspacePwaHtml(body, { updatesOnly: true });
         const csp = res.getHeader('Content-Security-Policy');
-        if (csp) res.setHeader('Content-Security-Policy', augmentWorkspacePwaCsp(csp));
+        if (csp && isMobilePwaRequest(req)) res.setHeader('Content-Security-Policy', augmentWorkspacePwaCsp(csp));
       }
       return originalSend(body);
     };
@@ -125,6 +127,11 @@ function createWorkspacePwaRouter({ sessionService, env = process.env, pushServi
   router.post('/push/pending', sameOrigin, requireSession, async (req,res,next) => {
     try { return res.json(await pushService.pending({adminId:req.staffBrowserSession.adminId,endpoint:req.body?.endpoint})); }
     catch (error) { return next(error); }
+  });
+
+  router.get('/version', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ version: appRelease() });
   });
 
   router.get('/manifest.webmanifest', (_req, res) => {
