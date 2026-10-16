@@ -163,7 +163,7 @@ function createFixture() {
   // notification authority, so keep it unavailable for this PWA install proof.
   const pushService = { config: () => ({ enabled: false }), permitted: async () => false };
   app.use('/calendar/pwa', createWorkspacePwaRouter({ sessionService, env: ENV, pushService }));
-  app.get('/proof-client.js', (_req, res) => res.type('application/javascript').send("addEventListener('load',async()=>{document.documentElement.dataset.rootOverflow=String(document.documentElement.scrollWidth>document.documentElement.clientWidth);document.documentElement.dataset.displayStandalone=String(!!(matchMedia&&matchMedia('(display-mode: standalone)').matches));try{await navigator.serviceWorker.ready;document.documentElement.dataset.swReady='true';}catch(_error){document.documentElement.dataset.swReady='false';}});"));
+  app.get('/proof-client.js', (_req, res) => res.type('application/javascript').send("addEventListener('load',async()=>{document.documentElement.dataset.rootOverflow=String(document.documentElement.scrollWidth>document.documentElement.clientWidth);const logos=[...document.querySelectorAll('.workspace-brand-icon,.workspace-menu-brand-icon')];document.documentElement.dataset.logoReady=String(logos.length>0&&logos.every(img=>img.complete&&img.naturalWidth>0));document.documentElement.dataset.displayStandalone=String(!!(matchMedia&&matchMedia('(display-mode: standalone)').matches));try{await navigator.serviceWorker.ready;document.documentElement.dataset.swReady='true';}catch(_error){document.documentElement.dataset.swReady='false';}});"));
   app.get('/proof-auth', (_req, res) => {
     state.valid = true;
     res.setHeader('Set-Cookie', serializeSessionCookie(SESSION_TOKEN, { env: ENV, maxAgeSeconds: 3600 }));
@@ -184,9 +184,10 @@ function createFixture() {
     res.setHeader('Cache-Control', 'private, no-store, max-age=0');
     return res.json({ viewer: req.staffBrowserSession.viewer, recoveryRequired: false });
   });
+  // Mirror the existing Workspace image policy in this synthetic fixture.
   app.get('/calendar/workspace', requireStaffSession({ service: sessionService, env: ENV }), (_req, res) => {
     res.setHeader('Cache-Control', 'private, no-store, max-age=0');
-    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
+    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
     return res.type('html').send(workspaceHtml());
   });
   app.get('/calendar/workspace/navigation', requireStaffSession({ service: sessionService, env: ENV }), (_req, res) => res.json({}));
@@ -240,6 +241,7 @@ async function main() {
     // 4000ms deadline. No additional warm-up/retry allowance is necessary.
     const phoneDom = await chromeRun(chrome, [`--user-data-dir=${phoneProfile}`, androidUa, '--window-size=390,844', '--virtual-time-budget=4000', '--dump-dom', `${origin}/proof-auth`]);
     assert.match(phoneDom, /data-authenticated-workspace/);
+    assert.match(phoneDom, /data-logo-ready="true"/);
     assert.match(phoneDom, /data-root-overflow="false"/);
     assert.match(phoneDom, /manifest\.webmanifest\?v=official-brand-v2/);
     assert.match(phoneDom, /data-sw-ready="true"/);
@@ -251,6 +253,7 @@ async function main() {
     await captureScreenshot(chrome, [`--user-data-dir=${desktopProfile}`, '--window-size=1440,900', `--screenshot=${desktopPng}`, `${origin}/proof-auth`], desktopPng);
     const desktopDom = await chromeRun(chrome, [`--user-data-dir=${desktopProfile}`, '--window-size=1440,900', '--virtual-time-budget=1600', '--dump-dom', `${origin}/proof-auth`]);
     assert.match(desktopDom, /data-authenticated-workspace/);
+    assert.match(desktopDom, /data-logo-ready="true"/);
     assert.match(desktopDom, /data-root-overflow="false"/);
     assert.match(desktopDom, /Synthetic Practitioner/);
     assert.doesNotMatch(desktopDom, /manifest\.webmanifest|\/calendar\/pwa\/client\.js|data-shiloh-browser-install|data-shiloh-ios-install/);
@@ -266,6 +269,7 @@ async function main() {
       issue: 791,
       syntheticOnly: true,
       productionCredentialMutation: false,
+      brandLogo: { phoneLoaded: true, desktopLoaded: true },
       manifest: { name: manifest.name, shortName: manifest.short_name, display: manifest.display, startUrl: manifest.start_url, scope: manifest.scope },
       installDoorway: { unauthenticated: true, screenshot: path.basename(installPng), sha256: sha256(installPng) },
       authenticatedPhone: { viewport: '390x844', rootHorizontalOverflow: false, screenshot: path.basename(phonePng), sha256: sha256(phonePng) },
