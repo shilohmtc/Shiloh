@@ -2,7 +2,7 @@
 const {test,expect}=require('@playwright/test');
 const AxeBuilder=require('@axe-core/playwright').default;
 const fs=require('node:fs');
-async function capture(page,info,name){await page.screenshot({path:info.outputPath(`${name}.png`),fullPage:true});fs.writeFileSync(info.outputPath(`${name}.html`),await page.content());}
+async function capture(page,info,name){await page.evaluate(()=>scrollTo(0,0));await page.waitForFunction(()=>scrollY===0);await page.screenshot({path:info.outputPath(`${name}.png`),fullPage:true});fs.writeFileSync(info.outputPath(`${name}.html`),await page.content());}
 async function surface(page,kind='ordinary'){
  await page.goto(`/iframe.html?id=client-payment-choice--${kind}&viewMode=story`,{waitUntil:'networkidle'});
  await page.addScriptTag({url:'/my-shiloh/assets/payment-choice.js'});
@@ -42,7 +42,7 @@ for(const width of [390,1440])test(`assistant renders exact selected payment car
  await page.setViewportSize({width,height:920});let submitted=0;
  await page.route('**/my-shiloh/api/payments/collect',route=>{submitted++;return route.abort();});
  await page.route('**/my-shiloh/api/shiloh/message',route=>route.fulfill({json:{reply:'Your payment options are ready to review. Nothing has been submitted or charged.',action:prepared.clientAction}}));
- await page.route('**/my-shiloh/api/experience',route=>route.fulfill({json:{home:{forms:[],payments:[],actions:[]},bookings:[],assistant:{}}}));
+ await page.route('**/my-shiloh/api/experience',route=>route.fulfill({json:require('../src/services/myShilohExperienceOrchestrator').buildClientExperience({client:{name:'Synthetic Client'},forms:[],rescheduleHistory:[],pendingRescheduleRequests:[]})}));
  await page.goto('/iframe.html?id=client-my-shiloh-pwa--authenticated-assistant-composer&viewMode=story#shiloh',{waitUntil:'networkidle'});
  // Storybook wraps the extracted body in a div. Restore the skip link's
  // production body-child position before the full-page accessibility check.
@@ -50,7 +50,8 @@ for(const width of [390,1440])test(`assistant renders exact selected payment car
  await page.locator('[data-shiloh-chat-input]').fill('Show payment choices for my selected treatment');await page.locator('[data-shiloh-chat-send]').click();
  const card=page.locator('[data-client-action-card]');await expect(card).toContainText('Synthetic selected treatment');await expect(card).toContainText('R500.00');await expect(card).toContainText('R1000.00');
  await expect(card.getByRole('link',{name:'Review secure payment'})).toHaveAttribute('href','/my-shiloh/payment?appointment=201');expect(submitted).toBe(0);
- await capture(page,info,`assistant-payment-${width}`);expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
+ await expect(page.locator('[data-assistant-request-current]')).not.toContainText('Checking your requests');
+ await capture(page,info,`assistant-payment-${width}`);await card.evaluate(el=>el.scrollIntoView({block:'center'}));await page.screenshot({path:info.outputPath(`assistant-payment-card-${width}.png`)});fs.writeFileSync(info.outputPath(`assistant-payment-card-${width}.html`),await page.content());expect((await new AxeBuilder({page}).analyze()).violations).toEqual([]);
 });
 
 test('mixed-client explicit payer keeps real service fixed continuation without full totals or guest details',async({page},info)=>{
