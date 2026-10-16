@@ -8,6 +8,27 @@ async function setup(t,provider={}) {
   const db={query,connect:async()=>({query,release(){}})};await install(db);return {db,service:serviceFor(db,provider)};
 }
 async function reviewed(service,extra={}) {const i=input(extra);const m=await service.getClientPaymentChoices(i);return {...i,review:m.review};}
+test('client references fit the existing 36-character provider envelope through the actual Ozow adapter and exact retry',async t=>{
+ const {createOzowPaymentProvider,canonicalHash}=require('../src/services/ozowPaymentProvider');
+ const env={OZOW_SITE_CODE:'SYNTHETIC_SITE',OZOW_PRIVATE_KEY:'synthetic-only-key',OZOW_API_KEY:'synthetic-only-api',SHILOH_PUBLIC_BASE_URL:'https://synthetic.example'};
+ const sent=[];
+ const provider=createOzowPaymentProvider({env,fetchImpl:async(url,options)=>{
+  const body=JSON.parse(options.body);sent.push(body);
+  assert.equal(url,'https://api.ozow.com/PostPaymentRequest');
+  assert.match(body.TransactionReference,/^cpc_[a-f0-9]{32}$/);
+  assert.equal(body.TransactionReference.length,36);
+  const {HashCheck,...fields}=body;assert.equal(HashCheck,canonicalHash(Object.values(fields),env.OZOW_PRIVATE_KEY));
+  return {ok:true,json:async()=>({requestId:'SYNTHETIC_REFERENCE',url:'https://pay.ozow.com/SYNTHETIC_REFERENCE'})};
+ }});
+ const {db,service}=await setup(t,provider);const i=await reviewed(service);
+ assert.equal(i.review.length,64);
+ const expected='cpc_'+require('crypto').createHash('sha256').update(JSON.stringify([i.crmV2ClientId,i.operationId])).digest('hex').slice(0,32);
+ const first=await service.collectClientPayment(i),retry=await service.collectClientPayment(i);
+ assert.equal(first.status,'ready');assert.deepEqual(retry,first);assert.equal(sent.length,1);
+ assert.equal(sent[0].TransactionReference,expected);assert.equal(sent[0].Amount,'1000.00');
+ assert.equal((await db.query('SELECT request_key FROM payment_requests')).rows[0].request_key,expected);
+ assert.equal(first.paymentPath,`/pay/${expected}`);
+});
 test('read-only choices use canonical money and already-applied allocations; GET never creates a provider request',async t=>{
   let calls=0;const {db,service}=await setup(t,{createPaymentLink:async()=>{calls++;throw Error('No GET call');}});
   let m=await service.getClientPaymentChoices(input());assert.deepEqual(m.choices.map(c=>[c.key,c.amount]),[['deposit','500.00'],['full','1000.00']]);

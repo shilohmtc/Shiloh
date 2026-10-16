@@ -109,7 +109,8 @@ function createClientPaymentChoice({ db, ozow, loadSubject, accountFor, position
     }
     if (!ozow.configured()) fail('PAYMENT_OZOW_NOT_CONFIGURED', 'Secure payment is unavailable. Ask Reception for help.');
     const client = await db.connect(); let acquired = false, row;
-    const key = `cpc_${digest([input.crmV2ClientId,input.operationId])}`;
+    // Match the existing 36-character staff reference envelope; keep the full review digest above.
+    const key = `cpc_${digest([input.crmV2ClientId,input.operationId]).slice(0,32)}`;
     try {
       acquired = (await client.query("SELECT pg_try_advisory_lock(hashtext('shiloh-prior-payments')) AS acquired")).rows[0]?.acquired === true;
       if (!acquired) fail('PAYMENT_CHOICE_BUSY', 'Another payment decision is in progress. Refresh before retrying.');
