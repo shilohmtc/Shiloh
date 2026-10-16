@@ -183,7 +183,7 @@ test('Shiloh details and optional passkey fit one phone column', async ({ page }
   const form = home.locator('[data-client-crm-form]');
   const smsChoice = home.locator('[data-client-sms-choice]');
   const help = home.locator('#home-recovery-help');
-  await expect(home.getByRole('button', { name:'Use a saved passkey' })).toBeVisible();
+  await expect(home.getByRole('button', { name:'Sign in with a passkey' })).toBeVisible();
   await expect(smsChoice).toHaveCount(0);
   await expect(form.getByRole('button', { name:'Continue', exact:true })).toBeVisible();
   const formBox = await form.boundingBox();
@@ -2185,7 +2185,7 @@ test('My Shiloh guest sign-in shows details and optional passkey choices without
     const appFrame = page.locator('[data-app-frame]');
     await expect(appFrame).toBeVisible();
     const home = appFrame.locator('[data-view="home"]');
-    await expect(home.getByRole('button', { name:'Use a saved passkey' })).toBeVisible();
+    await expect(home.getByRole('button', { name:'Sign in with a passkey' })).toBeVisible();
     await expect(home.locator('[data-client-sms-choice]')).toHaveCount(0);
     await expect(home.getByRole('button', { name:'Continue', exact:true })).toBeVisible();
     await expect(home.locator('[data-crm-mode]')).toHaveCount(0);
@@ -3974,7 +3974,10 @@ test('Home keeps required actions while Updates handles unread messages on this 
     const alert=page.locator('[data-home-critical-update]');
     await expect(alert).toContainText('Appointment changed');
     await expect(page.locator('nav [data-updates-badge]')).toHaveText('2');
-    await expect(page.locator('[data-view="home"]')).not.toContainText('Appointment reminder');
+    // The optional Appointment reminders setup heading is not a notification card.
+    const home = page.locator('[data-view="home"]');
+    await expect(home.getByText('Appointment reminder', { exact: true })).toHaveCount(0);
+    await expect(home).not.toContainText('Your appointment is coming up.');
     await alert.getByRole('link',{name:'View update'}).click();
     await expect(page.locator('[data-view="updates"]')).toBeVisible();
     await expect(centre.getByRole('link',{name:/Appointment reminder/})).toBeVisible();
