@@ -256,7 +256,8 @@ async function main() {
     assert.match(desktopDom, /data-logo-ready="true"/);
     assert.match(desktopDom, /data-root-overflow="false"/);
     assert.match(desktopDom, /Synthetic Practitioner/);
-    assert.doesNotMatch(desktopDom, /manifest\.webmanifest|\/calendar\/pwa\/client\.js|data-shiloh-browser-install|data-shiloh-ios-install/);
+    assert.match(desktopDom, /\/calendar\/pwa\/client\.js/);
+    assert.doesNotMatch(desktopDom, /manifest\.webmanifest|data-shiloh-browser-install|data-shiloh-ios-install/);
 
     const expiredProfile = path.join(temp, 'expired-profile');
     const expiredPng = path.join(OUT_DIR, 'expired-session.png');
@@ -273,7 +274,7 @@ async function main() {
       manifest: { name: manifest.name, shortName: manifest.short_name, display: manifest.display, startUrl: manifest.start_url, scope: manifest.scope },
       installDoorway: { unauthenticated: true, screenshot: path.basename(installPng), sha256: sha256(installPng) },
       authenticatedPhone: { viewport: '390x844', rootHorizontalOverflow: false, screenshot: path.basename(phonePng), sha256: sha256(phonePng) },
-      authenticatedDesktop: { viewport: '1440x900', rootHorizontalOverflow: false, pwaExposed: false, screenshot: path.basename(desktopPng), sha256: sha256(desktopPng) },
+      authenticatedDesktop: { viewport: '1440x900', rootHorizontalOverflow: false, pwaExposed: false, appUpdateCheckExposed: true, screenshot: path.basename(desktopPng), sha256: sha256(desktopPng) },
       expiredSession: { redirectedToCanonicalEntry: true, persistentStaleWarning: false, screenshot: path.basename(expiredPng), sha256: sha256(expiredPng) },
       installabilityPrerequisites: { raster192: true, raster512: true, maskable512: true, serviceWorkerReady: true, stableId: manifest.id, stableStartUrl: manifest.start_url, stableScope: manifest.scope },
       standaloneLimitation: 'Headless Chromium proves raster manifest prerequisites, service-worker readiness and standalone metadata, but cannot prove Android OS/WebAPK Home-screen installation. Real-device standalone launch remains the final acceptance check.',

@@ -9,7 +9,8 @@ const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 const { renderCouplesBookingChoice } = require('./myShilohBookingActions');
 
-const MY_SHILOH_ASSET_VERSION = '20261016-optional-invitations-v1';
+const { appRelease } = require('./appRelease');
+const MY_SHILOH_ASSET_VERSION = appRelease();
 
 function escapeHtml(value = '') {
   return String(value)
@@ -388,8 +389,8 @@ function renderMyShilohPage({
   <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}" data-client-auth-method="${escapeHtml(signInMethod || '')}" data-notification-client-id="${authenticated ? Number(client.id) : ''}" data-client-payment-whatsapp="${escapeHtml(String(whatsappNumber || '').replace(/\D/g, ''))}" hidden>
     <div class="network-banner" data-offline-banner hidden role="status">You are offline. My Shiloh will reconnect automatically.</div>
     <div class="app-update-banner" data-app-update hidden role="status" aria-live="polite">
-      <div><strong>A new My Shiloh update is ready.</strong><span>Update now to use the latest version.</span></div>
-      <button class="button button--primary" type="button" data-app-update-action>Update now</button>
+      <div><strong>A new My Shiloh update is ready.</strong><span>Finish your work, then update to the latest version.</span></div>
+      <button class="button button--primary" type="button" data-app-update-action>Update now</button><p class="app-update-status" data-app-update-status></p>
     </div>
 
     <main id="main-content" class="app-main">
@@ -515,7 +516,7 @@ function renderMyShilohPage({
       </section>` : ''}
 
       <section class="view" id="profile" data-view="profile" aria-labelledby="profile-title" hidden>
-        ${authenticated ? '<a class="button button--soft button--wide profile-updates-action" href="#updates" data-view-target="updates">View updates <span data-updates-badge hidden></span></a>' : ''}${profile}
+        ${authenticated ? '<a class="button button--soft button--wide profile-updates-action" href="#updates" data-view-target="updates">View updates <span data-updates-badge hidden></span></a>' : ''}${profile}<p class="problem-report-copy" data-app-version>Version ${escapeHtml(appRelease())}</p>
       </section>
     </main>
 

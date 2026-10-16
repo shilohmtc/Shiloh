@@ -2,6 +2,8 @@ const { confirmationClientScript, confirmationStyles } = require('../presentatio
 'use strict';
 
 const path = require('path');
+const fs = require('node:fs');
+const { appRelease } = require('../presentation/appRelease');
 const express = require('express');
 const { pool } = require('../db/pool');
 const { service: bookingIncidents, attemptContext } = require('../services/bookingSubmissionIncidents');
@@ -336,7 +338,7 @@ function createMyShilohRouter({
   router.get('/my-shiloh/sw.js', (_req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Service-Worker-Allowed', '/my-shiloh/');
-    return res.type('application/javascript').sendFile(path.join(ROOT, 'sw.js'));
+    return res.type('application/javascript').send(`self.SHILOH_APP_RELEASE=${JSON.stringify(appRelease())};\n` + fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8'));
   });
 
   router.get('/my-shiloh/offline.html', (_req, res) => {

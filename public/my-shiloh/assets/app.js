@@ -1485,17 +1485,47 @@
     refreshPushUi();
   }
 
+  const appUpdateStatus = document.querySelector('[data-app-update-status]');
+  let appUpdateTimer;
+  function updateProblem(message) { if (appUpdateStatus) appUpdateStatus.textContent = message; }
+  function resetAppUpdate(message) {
+    clearTimeout(appUpdateTimer);
+    updateReloadPending = false;
+    if (appUpdateAction) { appUpdateAction.disabled = false; appUpdateAction.textContent = 'Update now'; }
+    updateProblem(message);
+  }
   appUpdateAction?.addEventListener('click', async () => {
-    const registration = serviceWorkerRegistration || await pushRegistration();
-    if (!registration?.waiting) {
-      await registration?.update?.();
-      return;
-    }
-    updateReloadPending = true;
-    appUpdateAction.disabled = true;
-    appUpdateAction.textContent = 'Updating…';
-    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+    updateProblem('');
+    if (navigator.onLine === false) { updateProblem('You are offline. Reconnect, then try Update now again.'); return; }
+    if (!window.ShilohConfirm) { updateProblem('Finish your work, then refresh My Shiloh to update.'); return; }
+    if (!(await window.ShilohConfirm({ title: 'Update My Shiloh?', copy: 'This reloads My Shiloh. Save any unfinished changes before updating.', cancel: 'Keep working', action: 'Update now', danger: false, layout: 'refresh' }))) return;
+    if (navigator.onLine === false) { updateProblem('You are offline. Reconnect, then try Update now again.'); return; }
+    try {
+      const registration = serviceWorkerRegistration || await pushRegistration();
+      if (!registration?.waiting) {
+        window.location.reload();
+        return;
+      }
+      updateReloadPending = true;
+      appUpdateAction.disabled = true;
+      appUpdateAction.textContent = 'Updating…';
+      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      appUpdateTimer = setTimeout(() => resetAppUpdate('The update did not finish. Please try again.'), 12000);
+    } catch (_) { resetAppUpdate('The update could not start. Please try again.'); }
   });
+  let lastAppUpdateCheck = 0;
+  let checkingAppUpdate = false;
+  async function checkAppUpdate() {
+    if (!serviceWorkerRegistration || checkingAppUpdate || navigator.onLine === false || document.visibilityState === 'hidden' || Date.now() - lastAppUpdateCheck < 60000) return;
+    checkingAppUpdate = true;
+    lastAppUpdateCheck = Date.now();
+    try { await serviceWorkerRegistration.update(); revealAppUpdate(serviceWorkerRegistration); } catch (_) { /* Preserve the available update during a connection failure. */ }
+    finally { checkingAppUpdate = false; }
+  }
+  window.addEventListener('pageshow', checkAppUpdate);
+  window.addEventListener('online', checkAppUpdate);
+  document.addEventListener('visibilitychange', checkAppUpdate);
+  setInterval(checkAppUpdate, 60000);
 
   clientProfileForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -2195,6 +2225,7 @@
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!updateReloadPending) return;
+      clearTimeout(appUpdateTimer);
       updateReloadPending = false;
       window.location.reload();
     });
