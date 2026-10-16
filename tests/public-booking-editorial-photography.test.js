@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { renderBookingPage } = require('../src/services/publicBookingPageEditorial');
 
-test('booking page uses the neutral Inside Shiloh signature treatment', () => {
+test('booking page retains one neutral Inside Shiloh signature after services', () => {
   const catalogue = [
     { category: 'Massage', name: 'Massage 1', duration: '60 min', price: 'R500' },
     { category: 'Pedicures & Foot Care', name: 'Pedicure 1', duration: '60 min', price: 'R500' },
@@ -13,7 +13,7 @@ test('booking page uses the neutral Inside Shiloh signature treatment', () => {
   const html = renderBookingPage('+27823269871', catalogue);
   const signatures = html.match(/class="inside-shiloh-break"/g) || [];
   const artwork = html.match(/src="\/assets\/booking\/inside-shiloh-signature\.png"/g) || [];
-  assert.equal(signatures.length, 3);
+  assert.equal(signatures.length, 1);
   assert.equal(artwork.length, 0);
   assert.match(html, /Inside Shiloh/);
   assert.match(html, /Personal care\. Thoughtful touch\./);
@@ -26,13 +26,13 @@ test('booking page uses the neutral Inside Shiloh signature treatment', () => {
   assert.doesNotMatch(html, /<section class="clinic-gallery"/);
   const firstBreak = html.indexOf('class="inside-shiloh-break"');
   const massage = html.indexOf('id="category-0"');
-  assert.ok(firstBreak < massage);
+  assert.ok(firstBreak > massage);
 });
 
-test('Inside Shiloh signatures are omitted when Massage is not present', () => {
+test('a catalogue without Massage still has one closing brand signature', () => {
   const catalogue = [{ category: 'Facials', name: 'Facial', duration: '60 min', price: 'R500' }];
   const html = renderBookingPage('+27823269871', catalogue);
-  assert.doesNotMatch(html, /class="inside-shiloh-break"/);
+  assert.equal((html.match(/class="inside-shiloh-break"/g) || []).length, 1);
 });
 
 test('visual signatures do not change booking availability semantics', () => {
