@@ -49,3 +49,5 @@ module.exports.testMatch.push('booking-problems-ux.spec.js');
 module.exports.testMatch.push('calendar-appointment-details.spec.js');
 
 module.exports.testMatch.push('workspace-return-status-visits.spec.js');
+
+module.exports.testMatch.push('public-audit-followup.spec.js');
