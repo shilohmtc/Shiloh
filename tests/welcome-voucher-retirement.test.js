@@ -62,6 +62,8 @@ function redemptionDb(voucher) {
     async query(sql) {
       calls.push(sql);
       if (/^(BEGIN|COMMIT|ROLLBACK)/.test(sql)) return { rows: [] };
+      if(sql.startsWith('SELECT group_id FROM appointment_group_members'))return {rows:[]};
+      if(sql==='SELECT * FROM payment_requests WHERE payment_account_id=$1 ORDER BY id')return {rows:[]};
       if (sql.includes('FROM client_browser_sessions')) return { rows: [{ id: 13 }] };
       if (sql.includes('WHERE operation_key=')) return { rows: [] };
       if (sql.includes('FROM crm_v2_clients')) return { rows: [authority] };

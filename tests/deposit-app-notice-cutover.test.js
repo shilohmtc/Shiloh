@@ -11,11 +11,14 @@ function fixture({ accepted = 1, active = true, flag = true, metaFails = false, 
   };
   const calls = { push: 0, meta: 0, claims: 0 };
   const db = { async connect() { return {query:sql=>db.query(sql),release() {}}; }, async query(sql) {
+    if (['BEGIN','COMMIT','ROLLBACK'].includes(sql))return {rows:[],rowCount:0};
+    if(sql.includes('SELECT * FROM booking_payment_accounts'))return {rows:[{id:9}]};
+    if(sql.includes('SELECT * FROM booking_deposit_requirements'))return {rows:[{id:33,state:'awaiting',required_amount:125}]};
     if (sql.includes('pg_try_advisory_lock')) return {rows:[{acquired:true}],rowCount:1};
     if (sql.includes('pg_advisory_unlock')) return {rows:[],rowCount:0};
-    if (sql.includes('SELECT * FROM payment_requests')) return { rows: [row], rowCount: 1 };
+    if ((sql.includes('SELECT * FROM payment_requests')||sql.includes('AS unissued_provenance FROM payment_requests pr'))) return { rows: [row], rowCount: 1 };
     if (sql.includes('SELECT 1 FROM appointments a JOIN crm_v2_clients')) return { rows: active ? [{ '?column?': 1 }] : [], rowCount: active ? 1 : 0 };
-    if (sql.includes("deposit_notice_state='sending'" ) && sql.includes("state='link_issued'")) {
+    if (sql.includes("deposit_notice_state='sending'" ) && sql.includes("state IN ('created','link_issued')")) {
       calls.claims++;
       if (row.deposit_notice_state !== 'pending') return { rows: [], rowCount: 0 };
       row.deposit_notice_state = 'sending'; return { rows: [row], rowCount: 1 };
@@ -36,7 +39,7 @@ function fixture({ accepted = 1, active = true, flag = true, metaFails = false, 
   } };
   const member = { appointmentId: 22, crmV2ClientId: 12, clientMobile: '27820000000',
     clientName: 'Client', serviceName: 'Toe Gel Only', startsAt: new Date('2026-10-03T06:00:00Z') };
-  const position = { applicable: true, requirement: { id: 33, state: 'awaiting', required_amount: 125 },
+  const position = { applicable: true, requirement: { id: 33, state: 'awaiting', required_amount: 125,payment_account_id:9 },
     members: [{ appointment_id: 22, required_amount: 125 }], scope: { appointmentId: 22, members: [member] } };
   const service = createBookingPaymentService({
     db,

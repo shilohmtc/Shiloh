@@ -53,6 +53,8 @@ const { createClientPlanningRequestService, ClientPlanningRequestError } = requi
 const bookingProposals = require('../services/clientBookingApproval');
 const { BookingDepositPolicyError } = require('../services/bookingDepositPolicy');
 const { POLICY_TEXT } = require('../services/bookingPolicy');
+const { createBookingPaymentService, BookingPaymentError } = require('../services/bookingPayments');
+const { renderClientPaymentChoice } = require('../presentation/myShilohPaymentChoice');
 const {
   sameOriginGuard,
   requestFingerprintHash,
@@ -122,6 +124,7 @@ function createMyShilohRouter({
   incidentService = bookingIncidents,
   proposalService = bookingProposals,
   planningService = createClientPlanningRequestService({ db: pool }),
+  paymentService = createBookingPaymentService({ db:pool }),
 } = {}) {
   const router = express.Router();
   async function confirmationError(error, context, req, res, next) {
@@ -141,6 +144,25 @@ function createMyShilohRouter({
   const requireSession = requireClientSession({ service: sessionService, env });
   const optionalSession = optionalClientSession({ service: sessionService, env });
   const requireCsrf = clientCsrfGuard({ service: sessionService });
+
+  router.get('/my-shiloh/payment', requireSession, async(req,res,next)=>{
+    try {
+      const identity=req.myShilohClientSession;
+      const appointmentId=req.query.appointment;
+      const model=await paymentService.getClientPaymentChoices({appointmentId,sessionId:identity.sessionId,crmV2ClientId:identity.crmV2ClientId});
+      const rotated=await sessionService.rotateCsrfToken(identity.sessionId);
+      if(!rotated.ok)return res.status(401).type('text/plain').send('Sign in again.');
+      setMyShilohPageHeaders(res);return res.type('html').send(renderClientPaymentChoice({model,csrfToken:rotated.csrfToken,appointmentId:Number(req.query.appointment)}));
+    }catch(error){if(error instanceof BookingPaymentError)return res.status(error.httpStatus).type('text/plain').send(error.message);return next(error);}
+  });
+  router.post('/my-shiloh/api/payments/collect',sameOrigin,requireSession,requireCsrf,async(req,res,next)=>{
+    setNoStoreJson(res);
+    try {
+      const {appointmentId,choice,review,operationId,confirmed}=req.body||{};
+      const identity=req.myShilohClientSession;
+      return res.json(await paymentService.collectClientPayment({appointmentId,choice,review,operationId,confirmed,sessionId:identity.sessionId,crmV2ClientId:identity.crmV2ClientId}));
+    }catch(error){if(error instanceof BookingPaymentError)return res.status(error.httpStatus).json({error:error.message,code:error.code});return next(error);}
+  });
 
   function sendAuthenticatedClient(res, result, extraCookies = []) {
     const sessionSeconds = Math.max(

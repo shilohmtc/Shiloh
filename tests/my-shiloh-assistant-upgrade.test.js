@@ -187,3 +187,13 @@ test('bounded recent history never replaces an older canonical pending change in
   assert.match(script,/recent request\$\{waiting/);
   assert.doesNotMatch(script,/No request is waiting for your response or Shiloh approval\./);
 });
+
+test('payment preparation requires an exact unambiguous appointment and returns service/date without private targets',async()=>{
+ let reads=0;
+ const candidates=[{id:1,startsAt:'2026-11-02T08:00:00.000Z',services:['Synthetic first']},{id:2,startsAt:'2026-11-03T09:00:00.000Z',services:['Synthetic selected']}];
+ const preparation=createAssistantPreparation({contextService:{loadUpcomingAppointments:async()=>candidates},payments:{getClientPaymentChoices:async input=>{reads++;assert.equal(input.appointmentId,2);return {scopeLabel:'This appointment only',choices:[{label:'Pay remaining amount in full',amount:'1000.00'}],remaining:'1000.00',message:'Review the amounts.'};}}});
+ assert.equal((await preparation.preparePayment({appointmentStartsAt:null},55,1001)).modelResult.error,'choose_appointment');assert.equal(reads,0);
+ const result=await preparation.preparePayment({appointmentStartsAt:candidates[1].startsAt},55,1001);assert.deepEqual(result.modelResult.appointment.services,['Synthetic selected']);assert.match(result.clientAction.detail,/Synthetic selected/);assert.match(result.clientAction.detail,/2026/);
+ assert.doesNotMatch(JSON.stringify(result.modelResult),/appointment=|"id"|reviewToken|\/pay\//);
+ candidates.push({...candidates[1],id:3});assert.equal((await preparation.preparePayment({appointmentStartsAt:candidates[1].startsAt},55,1001)).modelResult.error,'choose_appointment');assert.equal(reads,1);
+});

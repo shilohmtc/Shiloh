@@ -53,6 +53,7 @@ test('web payment policy formats and reorders the canonical authority without ch
 test('payment links show the booking policy before redirecting to Ozow', async () => {
   const app = express();
   app.use('/pay', createPaymentLinkRouter({
+    paymentService: {validatePaymentCheckout:async()=>true},
     policySchema: async () => {},
     db: { query: async (sql) => String(sql).includes('FROM booking_policy_acceptances') ? { rows: [] } : ({ rows: [{
       provider: 'ozow',
@@ -95,6 +96,7 @@ test('terminal payment links lead to the status page and never redirect back to 
   for (const state of ['failed', 'paid']) {
     const app = express();
     app.use('/pay', createPaymentLinkRouter({
+    paymentService: {validatePaymentCheckout:async()=>true},
       policySchema: async () => { throw new Error('policy schema should not run'); },
       db: { query: async () => ({ rows: [{ state, amount: '125.00', payer_mobile: '27716742646' }] }) },
     }));
@@ -120,6 +122,7 @@ test('an expired issued link explains that payment is not confirmed', async () =
   const incidents = [];
   const app = express();
   app.use('/pay', createPaymentLinkRouter({
+    paymentService: {validatePaymentCheckout:async()=>true},
     monitor: { captureException(error, tags) { incidents.push({ error, tags }); } },
     db: { query: async () => ({ rows: [{ state: 'link_issued', amount: '125.00', payer_mobile: '27716742646', expires_at: '2020-01-01T00:00:00Z' }] }) },
   }));
@@ -143,6 +146,7 @@ test('an active payment link without a valid provider target reports a safe oper
   const incidents = [];
   const app = express();
   app.use('/pay', createPaymentLinkRouter({
+    paymentService: {validatePaymentCheckout:async()=>true},
     monitor: { captureException(error, tags) { incidents.push({ error, tags }); } },
     db: { query: async () => ({ rows: [{ state: 'link_issued', provider: 'ozow', provider_payment_url: 'https://other.example/private-key', payer_mobile: '27820000000' }] }) },
   }));
@@ -167,6 +171,7 @@ test('an active payment link without a valid provider target reports a safe oper
 test('cancelled booking payment links fail closed before policy acceptance or Ozow redirect', async () => {
   const app = express();
   app.use('/pay', createPaymentLinkRouter({
+    paymentService: {validatePaymentCheckout:async()=>true},
     policySchema: async () => { throw new Error('policy schema should not run'); },
     db: { query: async () => ({ rows: [{
       provider: 'ozow',
@@ -218,6 +223,7 @@ test('payment policy acceptance is recorded before redirecting to Ozow', async (
   const queries = [];
   const app = express();
   app.use('/pay', createPaymentLinkRouter({
+    paymentService: {validatePaymentCheckout:async()=>true},
     policySchema: async () => {},
     db: { query: async (sql) => {
       queries.push(sql);
@@ -262,6 +268,7 @@ test('appointment-linked current acceptance skips the second checkbox, with the 
   const queries = [];
   const app = express();
   app.use('/pay', createPaymentLinkRouter({
+    paymentService: {validatePaymentCheckout:async()=>true},
     policySchema: async () => {},
     db: { query: async (sql, params) => {
       queries.push({ sql: String(sql), params });
@@ -298,6 +305,7 @@ test('appointment-linked current acceptance skips the second checkbox, with the 
 test('payment without appointment-linked acceptance still requires an explicit checkbox', async () => {
   const app = express();
   app.use('/pay', createPaymentLinkRouter({
+    paymentService: {validatePaymentCheckout:async()=>true},
     policySchema: async () => {},
     db: { query: async sql => String(sql).includes('FROM booking_policy_acceptances') ? { rows: [] } : { rows: [{
       provider: 'ozow', state: 'link_issued', provider_payment_url: 'https://pay.ozow.com/request/test',

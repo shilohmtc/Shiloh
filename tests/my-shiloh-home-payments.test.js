@@ -72,7 +72,7 @@ test('client context loads later payment accounts with the same signed-in payer 
   assert.equal(data.appointmentPayments.length, 2);
   assert.deepEqual(formCalls.sort((a,b) => a[1]-b[1]), [[55,1],[55,2]]);
   assert.equal(buildClientExperience(data).home.forms[0].appointmentId, 2);
-  assert.equal(buildClientExperience(data).home.payments[0].href, '/pay/SWEDISH123');
+  assert.equal(buildClientExperience(data).home.payments[0].href, '/my-shiloh/payment?appointment=2');
 });
 
  test('next visit keeps its own payment and later forms have exact secure actions', () => {

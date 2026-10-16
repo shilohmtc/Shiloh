@@ -618,7 +618,7 @@ async function sendCustomerBookingConfirmationForAppointment(appointmentId,optio
           requests:(deposit.requests||[]).map(request=>({
             requestKey:request.request_key,
             amount:Number(request.amount).toFixed(2),
-            paymentPath:request.provider_payment_url?`/pay/${request.request_key}`:null,
+            paymentPath:request.provider_payment_url?`/pay/${request.request_key}`:require('./paymentCollectionGuard').deferredDeposit(request)?`/my-shiloh/payment?appointment=${appointmentId}`:null,
             notificationSent:Boolean(request.deposit_notification_sent_at),
           })),
         },

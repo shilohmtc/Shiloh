@@ -406,6 +406,7 @@ function createMyShilohClientContextService({
         ...paymentState({ amountDue, paid: 0, refunded: 0 }),
         state: amountDue == null ? 'unknown' : 'not_recorded',
         activePaymentPath: null,
+        paymentChoicesPath: amountDue != null && Number(amountDue) > 0 ? `/my-shiloh/payment?appointment=${Number(appointment.id)}` : null,
       };
     }
 
@@ -441,6 +442,7 @@ function createMyShilohClientContextService({
     return {
       ...base,
       accountId: Number(account.id),
+      paymentChoicesPath: Number(base.outstanding) > 0 ? `/my-shiloh/payment?appointment=${Number(appointment.id)}` : null,
       currency: String(account.currency || 'ZAR'),
       depositState: account.deposit_state ? String(account.deposit_state) : null,
       depositRequired: depositRequired == null ? null : depositRequired.toFixed(2),
