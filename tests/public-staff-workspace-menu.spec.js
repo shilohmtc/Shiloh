@@ -64,14 +64,18 @@ for (const device of [
   });
 }
 
-test('website menu stays within compact desktop and small phone widths', async ({ page }) => {
-  for (const width of [320, 768, 1024]) {
+test('website menu stays within compact desktop and small phone widths', async ({ page }, testInfo) => {
+  for (const width of [320, 768, 820, 900, 901, 1024]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/iframe.html?id=public-website-production-pages--home&viewMode=story', { waitUntil: 'networkidle' });
-    if (width < 761) await page.locator('.mobile-nav summary').click();
-    const nav = page.locator(width < 761 ? '.mobile-nav-links' : '.site-nav');
+    const collapsed = await page.locator('.mobile-nav').isVisible();
+    if (collapsed) await page.locator('.mobile-nav summary').click();
+    const nav = page.locator(collapsed ? '.mobile-nav-links' : '.site-nav');
     await expect(nav.getByRole('link', { name: 'Staff Workspace', exact: true })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Book', exact: true })).toBeVisible();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const book = await nav.getByRole('link', { name: 'Book', exact: true }).boundingBox();
+    expect(book.x + book.width, `${width}px Book must remain inside the viewport`).toBeLessThanOrEqual(width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), `${width}px document must not overflow`).toBeLessThanOrEqual(width);
+    if (width === 768 || width === 901) await page.screenshot({ path: testInfo.outputPath(`website-menu-${width}.png`) });
   }
 });
