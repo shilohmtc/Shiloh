@@ -52,7 +52,7 @@ for (const viewport of [
     await start(page);
     const home = page.locator('[data-view="home"]');
     const form = home.locator('[data-client-crm-form]');
-    await expect(home.getByRole('button', { name: 'Use a saved passkey' })).toBeVisible();
+    await expect(home.getByRole('button', { name: 'Sign in with a passkey' })).toBeVisible();
     await expect(form.locator('[data-crm-mode]')).toHaveCount(0);
     await expect(form.getByLabel('Date of birth')).toBeHidden();
     await expect(form.getByLabel('Gender', { exact: true })).toBeHidden();

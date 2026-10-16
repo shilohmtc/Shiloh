@@ -136,7 +136,7 @@
     if (clientSetup.hidden) return;
     clientSetup.dataset.step = passkeyStep ? (clientSetupCheckFailed ? 'check' : 'passkey') : 'notifications';
     clientSetupStep.textContent = passkeyStep ? 'Optional: save a passkey' : 'Optional notifications';
-    clientSetupTitle.textContent = passkeyStep ? 'Make next time easier.' : 'Stay in the know.';
+    clientSetupTitle.textContent = passkeyStep ? 'Make next time easier.' : 'Appointment reminders';
     clientSetupCopy.textContent = passkeyStep
       ? 'Save a passkey for quicker sign-in next time. You can keep using your Shiloh details.'
       : 'Get updates and reminders about your appointments.';
@@ -1964,9 +1964,42 @@
       bubble.appendChild(label);
     }
 
-    const copy = document.createElement('p');
-    copy.textContent = String(message || '');
-    bubble.appendChild(copy);
+    if (role === 'user') {
+      const copy = document.createElement('p');
+      copy.textContent = String(message || '');
+      bubble.appendChild(copy);
+    } else {
+      // Text nodes only: model output is never trusted as HTML or navigation.
+      const appendInline = (host, text) => {
+        for (const part of text.split(/(\*\*[^*\n]+\*\*|__[^_\n]+__)/g)) {
+          if (/^(?:\*\*[^*\n]+\*\*|__[^_\n]+__)$/.test(part)) {
+            const strong = document.createElement('strong');
+            strong.textContent = part.slice(2, -2);
+            host.appendChild(strong);
+          } else host.appendChild(document.createTextNode(part.replace(/`([^`]+)`/g, '$1')));
+        }
+      };
+      let paragraph = null, list = null;
+      for (const line of String(message || '').replace(/\r\n?/g, '\n').split('\n')) {
+        const text = line.trim().replace(/^#{1,6}\s+/, '');
+        if (!text) { paragraph = null; list = null; continue; }
+        const item = text.match(/^(?:[-*•]\s+|\d+[.)]\s+)(.+)$/);
+        if (item) {
+          const tag = /^\d/.test(text) ? 'OL' : 'UL';
+          if (!list || list.tagName !== tag) {
+            list = document.createElement(tag.toLowerCase());
+            bubble.appendChild(list);
+          }
+          const li = document.createElement('li');
+          appendInline(li, item[1]); list.appendChild(li); paragraph = null;
+        } else {
+          list = null;
+          if (!paragraph) { paragraph = document.createElement('p'); bubble.appendChild(paragraph); }
+          else paragraph.appendChild(document.createTextNode('\n'));
+          appendInline(paragraph, text);
+        }
+      }
+    }
     shilohMessages.appendChild(bubble);
     bubble.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
     return bubble;

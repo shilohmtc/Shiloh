@@ -61,3 +61,5 @@ module.exports.testMatch.push('app-update-versions.spec.js');
 module.exports.testMatch.push("my-shiloh-optional-invitations.spec.js");
 
 module.exports.testMatch.push("audit-form-return-labels.spec.js");
+
+module.exports.testMatch.push('owner-phone-polish.spec.js');

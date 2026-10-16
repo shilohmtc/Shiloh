@@ -60,7 +60,7 @@ test('separate optional passkey and notification invitations remain usable on ph
       await expect(setup).toHaveAttribute('data-step', step);
       await expect(setup.locator('[data-client-setup-action]')).toBeVisible();
       if (step === 'notifications') {
-        await expect(setup).toContainText('Stay in the know.');
+        await expect(setup).toContainText('Appointment reminders');
         await expect(setup).toContainText('Get updates and reminders about your appointments.');
       }
       if (step === 'notifications') await expect(setup.locator('[data-client-setup-later]')).toBeVisible();

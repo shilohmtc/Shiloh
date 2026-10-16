@@ -105,9 +105,11 @@ function renderMyShilohPage({
   const clientName = authenticated ? escapeHtml(client.name || client.firstName) : '';
   const firstName = authenticated ? escapeHtml(client.firstName) : '';
   const passkeySignInButton = passkeysAvailable
-    ? `<button class="button button--soft button--wide passkey-choice" type="button" data-passkey-sign-in>${renderShilohIcon('key', { size: 24 })}<span>${crmAvailable ? 'Use a saved passkey' : 'Sign in with a passkey'}</span></button>`
+    ? `<button class="button button--primary button--wide passkey-choice" type="button" data-passkey-sign-in>${renderShilohIcon('key', { size: 24 })}<span>Sign in with a passkey</span></button>`
     : '';
-  const passkeyRecovery = passkeysAvailable ? '<p>Can’t use your passkey? Sign in with your Shiloh details above.</p>' : '';
+  const passkeyRecovery = passkeysAvailable
+    ? `<p class="auth-alternative">Can’t use your passkey? ${crmAvailable ? 'Sign in with your Shiloh details below.' : 'Contact Reception for help.'}</p>`
+    : '';
   const recoveryHelp = (id) => `<details class="recovery-help" id="${id}">
     <summary class="auth-choice-summary">${renderShilohIcon('help', { size: 24, className: 'auth-choice-summary__icon' })}<span>Need help with your Shiloh details?</span>${renderShilohIcon('next', { size: 18, className: 'auth-choice-summary__chevron' })}</summary>
     <div class="recovery-help__body">
@@ -129,10 +131,9 @@ function renderMyShilohPage({
         ${crmAvailable ? '<h1 id="home-title">Welcome to My Shiloh</h1>' : '<p class="eyebrow">Welcome to My Shiloh</p><h1 id="home-title">Your Shiloh, all in one place.</h1>'}
         <p class="hero-copy">${crmAvailable ? 'Sign in with your Shiloh details, or use a saved passkey.' : passkeysAvailable ? 'Use your saved passkey to sign in.' : 'Sign-in is temporarily unavailable. Please contact Reception for help.'}</p>
         <div class="hero-actions${crmAvailable ? ' hero-actions--details' : ''}">
-          ${crmAvailable ? crmSignIn('home') : ''}
           ${passkeySignInButton}
-
           ${passkeyRecovery}
+          ${crmAvailable ? crmSignIn('home') : ''}
         </div>
         ${recoveryHelp('home-recovery-help')}
         <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
@@ -303,10 +304,9 @@ function renderMyShilohPage({
         <h1 id="profile-title">Your Shiloh, remembered.</h1>
         <p>${crmAvailable ? 'Sign in with your Shiloh details, or use a saved passkey.' : passkeysAvailable ? 'Use your saved passkey to sign in.' : 'Sign-in is temporarily unavailable. Please contact Reception for help.'}</p>
       </div>
-      ${crmAvailable ? crmSignIn('profile') : ''}
       ${passkeySignInButton}
-
       ${passkeyRecovery}
+      ${crmAvailable ? crmSignIn('profile') : ''}
       ${recoveryHelp('profile-recovery-help')}
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
       <aside class="privacy-note">
@@ -336,10 +336,9 @@ function renderMyShilohPage({
         <h1 id="wallet-title">Your Shiloh value, together.</h1>
         <p>Sign in to see your vouchers, rewards and payment shortcuts.</p>
       </div>
-      ${crmAvailable ? crmSignIn('wallet') : ''}
       ${passkeySignInButton}
-
       ${passkeyRecovery}
+      ${crmAvailable ? crmSignIn('wallet') : ''}
       ${recoveryHelp('wallet-recovery-help')}
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
       `;
@@ -397,7 +396,7 @@ function renderMyShilohPage({
       <section class="view is-active" id="home" data-view="home" aria-labelledby="home-title">
         ${authenticated ? `<section class="client-setup" data-client-setup hidden aria-labelledby="client-setup-title">
           <p class="eyebrow" data-client-setup-step>Optional notifications</p>
-          <h2 id="client-setup-title" data-client-setup-title>Stay in the know.</h2>
+          <h2 id="client-setup-title" data-client-setup-title>Appointment reminders</h2>
           <p data-client-setup-copy>Get updates and reminders about your appointments.</p>
           <button class="button button--primary button--wide" type="button" data-client-setup-action>Turn on notifications</button>
           <button class="client-setup__later" type="button" data-client-setup-later>Not now</button>
@@ -443,7 +442,7 @@ function renderMyShilohPage({
       <section class="view" id="shiloh" data-view="shiloh" aria-labelledby="shiloh-title" hidden>
         <div class="assistant-hero">
           <div class="assistant-orbit" aria-hidden="true"><span>S</span></div>
-          <p class="eyebrow">Your wellness assistant</p>
+          <p class="eyebrow">Your Shiloh assistant</p>
           <h1 id="shiloh-title">Shiloh, right where you need it.</h1>
           <p>${authenticated
             ? 'Ask naturally about your appointments, forms, payments or rewards.'
