@@ -1,3 +1,4 @@
+const { workspaceDashboardAttention } = require('../services/workspaceDashboardAttention');
 const { workspaceBookingStatus } = require('./workspaceBookingStatus');
 const { bookingProblemsContent } = require('./bookingProblemsUx');
 const {appointmentDetailHref}=require('./calendarAppointmentDetailLinks');
@@ -251,13 +252,11 @@ function renderDashboardPage(model, { staffAccessScriptPath = '/calendar/staff/c
   // visible if a future projection provides it outside Today or carry-over.
   const visitKey = item => `${item.id}|${item.operationalDateKey || model.operationalDateKey}`;
   const todayKeys = new Set(model.appointments.map(visitKey));
-  const carryOverKeys = new Set((model.carryOver || []).map(visitKey));
-  const exceptionalFinalization = awaitingFinalization.filter(item => !todayKeys.has(visitKey(item)) && !carryOverKeys.has(visitKey(item)));
+  const { exceptionalFinalization, count: attentionCount } = workspaceDashboardAttention(model);
   const outcomeCount = awaitingFinalization.filter(item => todayKeys.has(visitKey(item))).length;
   const requestCount = bookingRequests.length + planningRequests.length + rescheduleRequests.length;
   const holidayCount = holidayDecisions.length;
   const bookingProblems = bookingProblemsContent(model.bookingProblems);
-  const attentionCount = exceptionalFinalization.length + requestCount + holidayCount + (Number(model.bookingProblems?.pendingCount) || 0);
   const actionableCount = exceptionalFinalization.filter((item) => item.canFinalize).length;
   const requestCards = bookingRequests.map(item => bookingRequestItem(item, model)).join('');
   const planningCards = planningRequests.map(planningRequestItem).join('');
