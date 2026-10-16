@@ -7,6 +7,7 @@ const express = require('express');
 const {couplesEnquiryClientScript}=require('../presentation/couplesEnquiryUx');
 const { staffDetailAuthEnabled } = require('../services/staffDetailIdentity');
 const workspaceDashboard = require('../services/workspaceDashboard');
+const { workspaceDashboardAttention } = require('../services/workspaceDashboardAttention');
 const workspaceNavigation = require('../services/workspaceNavigation');
 const {
   renderDashboardPage,
@@ -165,6 +166,22 @@ function createWorkspaceOperationalRouter({
       });
     } catch (_error) {
       return res.status(403).json({ error: 'Workspace navigation is unavailable.' });
+    }
+  });
+
+  // Read-only projection; never consume /push/pending to calculate an app badge.
+  router.get('/attention-count', async (req, res) => {
+    try {
+      const model = await dashboardService.buildModel({
+        adminId: req.staffBrowserSession.adminId,
+        viewer: req.staffBrowserSession.viewer,
+        sessionPrincipal: req.staffBrowserSession.accountPrincipal || null,
+      });
+      // An unavailable queue cannot truthfully become zero (or a partial total).
+      if (model.bookingProblems?.unavailable) return res.sendStatus(503);
+      return res.json({ count: workspaceDashboardAttention(model).count });
+    } catch (error) {
+      return res.sendStatus(dashboardSafeError(error).status);
     }
   });
 

@@ -69,10 +69,10 @@ function workspaceNavigationOpenStory(notificationState = null) {
     button.setAttribute('aria-checked', String(notificationState === 'on'));
     button.dataset.enabled = String(notificationState === 'on');
     panel.querySelector('[data-workspace-push-state]').textContent = notificationState === 'on' ? 'On' : notificationState === 'unknown' ? 'Unknown' : 'Off';
-    button.title=notificationState==='on'?'Registered for this account. Delivery depends on phone settings.':'';
+    button.title=notificationState==='on'?'Registered for this account. Delivery depends on phone settings. App badge: Dashboard Needs attention count; a new alert requests a dot until refreshed. On iPhone, allow Badges in notification settings. Android uses notification dots; your phone controls the display.':'';
     button.setAttribute('aria-description',button.title);
     button.querySelector('.workspace-switch-track').hidden=notificationState==='unknown';
-    const guidance={on:'',off:'Tap Notifications to turn on alerts on this device.',blocked:'In phone settings, open Notifications → Shiloh Workspace and allow notifications.',stale:'Tap Notifications to reconnect this device to your account.',unknown:'Could not check notifications. Refresh Workspace when connected.'};
+    const guidance={on:'',off:'Tap Notifications to turn on alerts on this device.',blocked:'In phone settings, open Notifications → Shiloh Workspace and allow notifications and Badges.',stale:'Tap Notifications to reconnect this device to your account.',unknown:'Could not check notifications. Refresh Workspace when connected.'};
     panel.querySelector('[data-workspace-push-status]').textContent=guidance[notificationState]||'';
     const link = document.createElement('a');
     link.className = 'workspace-account-signout';
