@@ -32,7 +32,7 @@ function dashboardModel() {
     planningRequests:[1,2].map(id=>({id,request_kind:'flexible',client_name:'Synthetic Enquirer '+id,service_name:'Synthetic treatment',preferred_date:'2026-10-15',candidate_appointments:[]})),
     holidayDecisions:[{holidayName:'Synthetic holiday',exceptionDate:'2026-12-16',href:'/calendar/clinic-hours'}] };
 }
-function clientsModel() { return { manageAllowed:true,authority:{displayName:'Synthetic Reviewer',clientScope:{kind:'all_business'}},status:'active',query:'',offset:0,pageSize:24,hasMore:false,clients:[{id:12,name:'Synthetic Guest',normalized_mobile:'27820000010',status:'active',last_appointment_at:'2026-10-14T08:00:00Z'}] }; }
+function clientsModel() { return { manageAllowed:true,authority:{displayName:'Synthetic Reviewer',clientScope:{kind:'all_business'}},status:'active',query:'',offset:0,pageSize:24,hasMore:false,clients:[{id:12,name:'Synthetic Guest',normalized_mobile:'27820000010',status:'active',last_visit_at:'2026-10-14T08:00:00Z'}] }; }
 function clientsHtml(render = renderClientListPage, manage = injectClientListManagement) { return manage(render(clientsModel()), clientsModel()); }
 function rewardsModel() { return {policy:{earnRate:5,unlockThreshold:100},authority:{canManage:true},wallets:[{name:'Synthetic Guest',normalized_mobile:'27820000010',balance:12.5,latest_activity:'2026-10-14T08:00:00Z'}]}; }
 function rewardsHtml(render = renderWorkspaceRewardsPage) { return render({model:rewardsModel(),csrfToken:'synthetic',displayName:'Synthetic Reviewer'}); }

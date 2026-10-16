@@ -89,7 +89,12 @@ async function listClients({ q, status, limit, offset, scope }) {
               FROM appointments a_last
              WHERE a_last.crm_v2_client_id=c.id
                AND a_last.client_id IS NULL
-               ${appointmentScope ? `AND ${appointmentScope}` : ''}) AS last_appointment_at
+               AND a_last.status IN ('completed','no_charge') AND a_last.starts_at < NOW()
+               ${appointmentScope ? `AND ${appointmentScope}` : ''}) AS last_visit_at,
+           (SELECT MIN(a_last.starts_at) FROM appointments a_last
+             WHERE a_last.crm_v2_client_id=c.id AND a_last.client_id IS NULL
+               AND a_last.status IN ('scheduled','confirmed') AND a_last.starts_at >= NOW()
+               ${appointmentScope ? `AND ${appointmentScope}` : ''}) AS next_appointment_at
     FROM crm_v2_clients c
     ${scoped ? 'JOIN crm_v2_client_relationships relationship ON relationship.client_id=c.id' : ''}
     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
@@ -135,6 +140,8 @@ async function getClientAppointments(id, { limit, offset, scope }) {
   const result = await pool.query(`
     /* workspaceClients:history:crm_v2_xor */
     SELECT a.id, a.starts_at, a.ends_at, a.status, a.title,
+           (SELECT approval.status FROM appointment_booking_approvals approval
+             WHERE approval.appointment_id=a.id) AS "bookingRequestState",
            COALESCE((SELECT jsonb_agg(jsonb_build_object(
              'name', aps.service_name_snapshot, 'price', aps.price_snapshot, 'durationMinutes', aps.duration_minutes_snapshot)
              ORDER BY aps.position) FROM appointment_services aps WHERE aps.appointment_id = a.id), '[]'::jsonb) AS services,

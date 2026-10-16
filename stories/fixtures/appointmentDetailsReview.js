@@ -8,9 +8,9 @@ const {calendarAppointmentDetailsClientScript}=require('../../src/presentation/c
 const {calendarDesktopApprovedClientScript}=require('../../src/presentation/calendarDesktopApprovedUx');
 const {calendarDesktopFitCanvasClientScript}=require('../../src/presentation/calendarDesktopFitCanvasUx');
 const {calendarPaymentLinkClientScript}=require('../../src/presentation/calendarPaymentsUx');
-function detailsHtml({readOnly=false,pending=false,view='week',closure=false}={}){
- const staff=['Synthetic North','Synthetic South','Synthetic East','Synthetic West'].map((displayName,i)=>({id:51+i,displayName}));
- const model=fixtureModel({staff});if(closure)model.timeline.closures=[{date:DATE,reason:'Synthetic clinic closure'}];model.view=view;if(view==='day')model.period.dateKeys=[DATE];
+function detailsHtml({readOnly=false,pending=false,view='week',closure=false,staffIds=null,activeStaffId=null}={}){
+ const staff=['Synthetic North','Synthetic South','Synthetic East','Synthetic West'].map((displayName,i)=>({id:51+i,displayName})).filter(person=>!staffIds||staffIds.includes(person.id));
+ const model=fixtureModel({staff});if(activeStaffId)model.activeStaffId=activeStaffId;if(closure)model.timeline.closures=[{date:DATE,reason:'Synthetic clinic closure'}];model.view=view;if(view==='day')model.period.dateKeys=[DATE];
  model.timeline.appointments[0].clientName='Synthetic Client One';model.timeline.appointments[0].clientMobile='27810000101';
  if(pending)model.timeline.appointments[0].bookingRequestState='pending';if(readOnly)model.mutationCapability.enabled=false;
  let html=decoratePhoneCalendarV2(renderCalendarPage(model,{approvedPhonePresentation:true,desktopEnhancementEnabled:true}),{model});

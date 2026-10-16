@@ -1,3 +1,4 @@
+const { workspaceBookingStatus } = require('./workspaceBookingStatus');
 const { bookingProblemsContent } = require('./bookingProblemsUx');
 const {appointmentDetailHref}=require('./calendarAppointmentDetailLinks');
 const {planningRequestContact,planningRequestCompletion,planningRequestCompletionScript}=require('./planningRequestCompletionUx');
@@ -73,7 +74,7 @@ function practitionerNames(appointment, calendar) {
   );
 }
 
-function statusPresentation(status) {
+function statusPresentation(status, appointment = {}) {
   const value = String(status || '')
     .trim()
     .toLowerCase();
@@ -81,7 +82,7 @@ function statusPresentation(status) {
   if (value === 'no_show') return { label: 'No-show', className: ' no-show' };
   if (value === 'cancelled') return { label: 'Cancelled', className: ' no-show' };
   return {
-    label: value ? value.replace(/_/g, ' ') : 'Scheduled',
+    label: workspaceBookingStatus({ ...appointment, status }),
     className: ' pending',
   };
 }
@@ -91,7 +92,7 @@ function calendarHref(model, dateKey = model.operationalDateKey) {
 }
 
 function appointmentItem(item, model, { manageLabel = 'Open / manage', idPrefix = 'dashboard-appointment', attention = false } = {}) {
-  const status = statusPresentation(item.status);
+  const status = statusPresentation(item.status, item);
   const itemDateKey = item.operationalDateKey || model.operationalDateKey;
   const carryOver = itemDateKey !== model.operationalDateKey;
   const manageAction = `<a data-workspace-action="secondary" class="button" href="${calendarHref(model, itemDateKey)}">${escapeHtml(manageLabel)}</a>`;
@@ -107,7 +108,7 @@ function appointmentItem(item, model, { manageLabel = 'Open / manage', idPrefix 
 }
 
 function activityItem(item, model) {
-  const status = statusPresentation(item.status);
+  const status = statusPresentation(item.status, item);
   return `<div class="activity-item" data-dashboard-activity><div><strong>${escapeHtml(item.clientName || 'Client')}</strong><span>${escapeHtml(timeOnly(item.endsAt))} · ${escapeHtml(practitionerNames(item, model.calendar))}</span></div><span class="status-pill${status.className}">${escapeHtml(status.label)}</span></div>`;
 }
 
@@ -137,7 +138,7 @@ function bookingRequestItem(item, model) {
   const manageHref=appointmentDetailHref({appointmentId:item.appointmentId,startsAt:item.requestedStartsAt});
 
   const awaiting = item.effectiveStatus === 'awaiting_client_confirmation';
-  const status = awaiting ? 'Awaiting client response' : 'Requested · Awaiting confirmation';
+  const status = workspaceBookingStatus({status:'scheduled', effectiveStatus:item.effectiveStatus || item.status});
   const canChoosePractitioner = ['owner_overview', 'business_overview'].includes(model.mode) && item.canChangePractitioner !== false;
   const practitioners = Array.isArray(item.eligiblePractitioners) ? item.eligiblePractitioners : [];
   const noPractitioner = canChoosePractitioner && !practitioners.length;

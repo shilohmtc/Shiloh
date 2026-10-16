@@ -68,7 +68,7 @@ for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width
         await expect(page.locator('[data-dashboard-deposits]')).toContainText('Payment evidence needs review');
         await expect(page.locator('[data-dashboard-deposits] [data-workspace-action="create"]')).toHaveCount(0);
       }
-      if(name==='forms')await expect(page.getByRole('link',{name:'Back to Calendar',exact:true})).toHaveAttribute('href','/calendar?view=week&date=2026-10-07&appointment=901');
+      if(name==='forms')await expect(page.getByRole('link',{name:'Back to Calendar',exact:true})).toHaveAttribute('href','/calendar/read-only?view=week&date=2026-10-07&appointment=901');
     }
   });
 }

@@ -47,3 +47,5 @@ module.exports.testMatch.push('my-shiloh-assistant-upgrade.spec.js');
 module.exports.testMatch.push('booking-problems-ux.spec.js');
 
 module.exports.testMatch.push('calendar-appointment-details.spec.js');
+
+module.exports.testMatch.push('workspace-return-status-visits.spec.js');

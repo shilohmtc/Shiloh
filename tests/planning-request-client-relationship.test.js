@@ -33,7 +33,7 @@ test('clinic enquiries establish scoped client visibility without booking or exp
     CREATE TABLE staff(id bigint PRIMARY KEY);
     CREATE TABLE staff_admin_accounts(id bigint PRIMARY KEY);
     CREATE TABLE services(id bigint PRIMARY KEY);
-    CREATE TABLE appointments(id bigint PRIMARY KEY, crm_v2_client_id bigint, client_id bigint, starts_at timestamptz);
+    CREATE TABLE appointments(id bigint PRIMARY KEY, crm_v2_client_id bigint, client_id bigint, starts_at timestamptz, status text);
     CREATE TABLE appointment_services(appointment_id bigint,service_id bigint);
     CREATE TABLE service_visibility_policies(service_id bigint,visibility_scope text,owner_staff_id bigint);
     INSERT INTO staff VALUES(7),(8);

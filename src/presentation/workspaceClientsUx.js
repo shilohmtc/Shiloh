@@ -1,3 +1,4 @@
+const { workspaceBookingStatus } = require('./workspaceBookingStatus');
 const { displayPhone } = require('./southAfricanPhone');
 const {
   escapeHtml,
@@ -52,10 +53,10 @@ function maskMobile(value) {
   return digits.length >= 4 ? `Mobile ending ${digits.slice(-4)}` : 'Contact unavailable';
 }
 
-function statusPill(status) {
+function statusPill(status, label = null) {
   const value = String(status || 'unknown').toLowerCase();
   const tone = value === 'archived' || value === 'cancelled' ? ` ${value}` : '';
-  return `<span class="status-pill${tone}">${escapeHtml(value.replace(/_/g, ' '))}</span>`;
+  return `<span class="status-pill${tone}">${escapeHtml(label || value.replace(/_/g, ' '))}</span>`;
 }
 
 function listHref({ query = '', status = 'active', offset = 0 } = {}) {
@@ -77,8 +78,9 @@ function renderClientListPage(model, {
 } = {}) {
   const selectedStatus = model.status || 'all';
   const rows = (model.clients || []).map(client => {
-    const last = client.last_appointment_at ? formatDateTime(client.last_appointment_at).date : 'No appointment yet';
-    return `<a class="client-row" href="/calendar/clients/${escapeHtml(client.id)}"><span class="client-name">${escapeHtml(client.name || 'Unnamed client')}</span><span class="client-contact">${escapeHtml(maskMobile(client.normalized_mobile))}</span>${statusPill(client.status)}<span class="client-last">${client.last_appointment_at ? 'Last appointment: ' : ''}${escapeHtml(last)}</span><span class="row-arrow" aria-hidden="true">›</span></a>`;
+    const last = client.last_visit_at ? formatDateTime(client.last_visit_at).date : 'No completed visit yet';
+    const next = client.next_appointment_at ? formatDateTime(client.next_appointment_at) : null;
+    return `<a class="client-row" href="/calendar/clients/${escapeHtml(client.id)}"><span class="client-name">${escapeHtml(client.name || 'Unnamed client')}</span><span class="client-contact">${escapeHtml(maskMobile(client.normalized_mobile))}</span>${statusPill(client.status)}<span class="client-last">${next ? 'Next appointment: '+escapeHtml(next.date)+' · '+escapeHtml(next.time)+'<br>' : 'No upcoming appointment<br>'}Last visit: ${escapeHtml(last)}</span><span class="row-arrow" aria-hidden="true">›</span></a>`;
   }).join('');
   const statusOptions = [['active', 'Active'], ['archived', 'Archived'], ['all', 'All']]
     .map(([value, label]) => `<option value="${value}"${selectedStatus === value || (!model.status && value === 'all') ? ' selected' : ''}>${label}</option>`).join('');
@@ -111,7 +113,7 @@ function acceptanceChannelLabel(value) {
   return channel ? channel.replace(/_/g, ' ') : 'Recorded';
 }
 
-function readinessMarkup(readiness) {
+function readinessMarkup(readiness, appointment = {}) {
   if (!readiness) return '';
   const deposit = readiness.depositState === 'waived' ? ['Deposit waived','ok']
     : readiness.depositState === 'satisfied' ? ['Deposit received','ok']
@@ -121,7 +123,7 @@ function readinessMarkup(readiness) {
   return `<div class="booking-readiness" aria-label="Booking readiness">
     <span class="readiness-chip ${readiness.termsAccepted ? 'ok' : 'wait'}">${readiness.termsAccepted ? '✓ Terms accepted' : 'Terms awaiting'}</span>
     <span class="readiness-chip ${deposit[1]}">${escapeHtml(deposit[0])}</span>
-    <span class="readiness-chip ${readiness.confirmed ? 'ok' : 'wait'}">${readiness.confirmed ? '✓ Confirmed' : 'Confirmation awaiting'}</span>
+    ${['completed','no_charge','cancelled','no_show'].includes(String(appointment.status)) || ['pending','awaiting_client_confirmation'].includes(appointment.bookingRequestState) ? '' : `<span class="readiness-chip ${readiness.confirmed ? 'ok' : 'wait'}">${readiness.confirmed ? '✓ Confirmed' : 'Awaiting confirmation'}</span>`}
   </div>`;
 }
 
@@ -134,7 +136,7 @@ function renderClientDetailPage(model, {
     const start = formatDateTime(appointment.starts_at);
     const end = formatDateTime(appointment.ends_at);
     const cancelled = String(appointment.status).toLowerCase() === 'cancelled' ? ' cancelled' : '';
-    return `<article class="history-row${cancelled}"><div class="history-time"><strong>${escapeHtml(start.date)}</strong><small>${escapeHtml(start.time)}${end.time ? `–${escapeHtml(end.time)}` : ''}</small></div><div class="history-service"><span class="history-service-name">${escapeHtml(appointmentServices(appointment))}</span>${readinessMarkup(appointment.bookingReadiness)}</div><div class="history-staff">${escapeHtml(appointmentStaff(appointment))}</div>${statusPill(appointment.status)}</article>`;
+    return `<article class="history-row${cancelled}"><div class="history-time"><strong>${escapeHtml(start.date)}</strong><small>${escapeHtml(start.time)}${end.time ? `–${escapeHtml(end.time)}` : ''}</small></div><div class="history-service"><span class="history-service-name">${escapeHtml(appointmentServices(appointment))}</span>${readinessMarkup(appointment.bookingReadiness, appointment)}</div><div class="history-staff">${escapeHtml(appointmentStaff(appointment))}</div>${statusPill(appointment.status, workspaceBookingStatus(appointment))}</article>`;
   }).join('');
   const previousOffset = Math.max(0, model.historyOffset - model.pageSize);
   const historyBase = `/calendar/clients/${encodeURIComponent(String(client.id))}`;
