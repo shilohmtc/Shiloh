@@ -397,7 +397,14 @@ const METRICS_EXPRESSION = `(() => {
     attentionText:document.querySelector('[data-message-attention]')?.textContent.trim()||'',
     unknownVisible:Array.from(document.querySelectorAll('[data-message-status="unknown"]')).some(visible),
     dashboardMode:document.body.dataset.dashboardMode||'',
-    dashboardGreeting:document.querySelector('.brand h1')?.textContent.trim()||'',
+    dashboardGreeting:(document.querySelector('.dashboard-welcome-heading')||document.querySelector('.brand h1'))?.textContent.trim()||'',
+    dashboardVisibleHeading:document.querySelector('.brand h1')?.innerText.trim()||'',
+    dashboardTodayTop:document.querySelector('[data-dashboard-today]')?.getBoundingClientRect().top??null,
+    dashboardAttentionJumpVisible:visible(document.querySelector('.topbar a[href="#dashboard-attention"]')),
+    dashboardAttentionJumpHeight:document.querySelector('.topbar a[href="#dashboard-attention"]')?.getBoundingClientRect().height||0,
+    dashboardAttentionJumpCount:document.querySelector('.topbar a[href="#dashboard-attention"] .summary-pill')?.textContent.trim()||'',
+    dashboardAttentionCount:document.querySelector('[data-dashboard-attention-panel]>.panel-head .summary-pill')?.textContent.trim()||'',
+    dashboardTodayReturnHref:document.querySelector('[data-dashboard-attention-panel] .dashboard-phone-jump')?.getAttribute('href')||'',
     dashboardEyebrow:document.querySelector('[data-dashboard-today] .eyebrow')?.textContent.trim()||'',
     dashboardAppointments:document.querySelectorAll('[data-dashboard-appointment]').length,
     dashboardTeamGroups:document.querySelectorAll('[data-dashboard-team-group]').length,
@@ -566,7 +573,17 @@ async function main() {
           assert.equal(state.syntheticProposalRequests.at(-1).startsAt, '2026-09-14T08:00:00.000Z', `${name} did not interpret clinic time in Africa/Johannesburg`);
           assert.equal(await evaluate(cdp, `document.querySelector('[data-booking-request] [data-booking-action="propose"]').disabled`), false, `${name} did not restore proposal controls after an unavailable slot`);
         }
-        if (phone) assert.equal(metrics.dashboardAttentionBeforeToday, true, `${name} does not put Needs attention before the appointment list`);
+        if (phone) {
+          assert.equal(metrics.dashboardVisibleHeading, 'Dashboard', `${name} does not show the compact phone heading`);
+          assert.equal(metrics.dashboardAttentionBeforeToday, false, `${name} does not lead with Today`);
+          assert.ok(metrics.dashboardTodayTop >= 0 && metrics.dashboardTodayTop < 130, `${name} puts Today below the first screen`);
+          assert.equal(metrics.dashboardAttentionJumpVisible, true, `${name} hides the attention shortcut`);
+          assert.ok(metrics.dashboardAttentionJumpHeight >= 44, `${name} has an undersized attention shortcut`);
+          assert.equal(metrics.dashboardAttentionJumpCount, metrics.dashboardAttentionCount, `${name} changes the scoped attention count`);
+          assert.equal(metrics.dashboardTodayReturnHref, '#dashboard-today', `${name} loses the return to Today`);
+        } else {
+          assert.equal(metrics.dashboardVisibleHeading, metrics.dashboardGreeting, `${name} changes the desktop greeting`);
+        }
       }
       if (urlPath.startsWith('/calendar/services')) {
         assert.match(metrics.servicesCopy, /Manage services, pricing and practitioner assignments\./);
