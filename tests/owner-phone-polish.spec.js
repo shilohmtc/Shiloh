@@ -61,7 +61,7 @@ for (const width of [320, 390, 1440]) {
     let requests = 0;
     await page.route('**/my-shiloh/api/shiloh/message', route => {
       requests++;
-      return route.fulfill({ json: { reply: requests === 1 ? reply : '**Note:** <img src=x onerror="window.syntheticExecuted=true">\n\n1. Review your booking\n2. Confirm only when ready' } });
+      return route.fulfill({ json: { reply: requests === 1 ? reply : '**Note:** <img src=x onerror="window.syntheticExecuted=true">\n\n1. Review your booking\n2. Confirm only when ready\n\n**Keep this unfinished text' } });
     });
     await story(page, 'client-my-shiloh-pwa--authenticated-assistant-composer');
     await page.evaluate(() => {
@@ -85,6 +85,7 @@ for (const width of [320, 390, 1440]) {
     await expect(bubble.locator('ol li')).toHaveCount(2);
     await expect(bubble.locator('img,script,a')).toHaveCount(0);
     await expect(bubble).toContainText('<img src=x');
+    await expect(bubble).toContainText('**Keep this unfinished text');
     expect(await page.evaluate(() => window.syntheticExecuted)).toBeUndefined();
     await expect(page.locator('.chat-bubble--user').last()).toHaveText('**Keep my message literal**');
     expect(requests).toBe(2);

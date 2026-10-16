@@ -1972,7 +1972,7 @@
       // Text nodes only: model output is never trusted as HTML or navigation.
       const appendInline = (host, text) => {
         for (const part of text.split(/(\*\*[^*\n]+\*\*|__[^_\n]+__)/g)) {
-          if (/^(\*\*|__)/.test(part)) {
+          if (/^(?:\*\*[^*\n]+\*\*|__[^_\n]+__)$/.test(part)) {
             const strong = document.createElement('strong');
             strong.textContent = part.slice(2, -2);
             host.appendChild(strong);
