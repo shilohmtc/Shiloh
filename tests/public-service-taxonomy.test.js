@@ -34,6 +34,7 @@ test('public taxonomy hides administrative labels without rewriting canonical id
 
 test('awkward catalogue names become concise public labels while canonical names remain intact', () => {
   const cases = [
+    ['Young Guest Back &amp;!Neck Massage(age8–15)', 'Young Guest Back & Neck Massage (age 8–15)'],
     ['Plasma Fybroblast', 'Plasma Fibroblast Consultation'],
     ['Priced according to area', 'Plasma Fibroblast – By Area'],
     [
@@ -61,6 +62,11 @@ test('public prices use consistent rand spacing and range punctuation without ch
   assert.equal(publicServicePriceFor('1900 - 6500'), 'R1 900–R6 500');
   assert.equal(publicServicePriceFor(' R 1950 - R 2200'), 'R1 950–R2 200');
   assert.equal(publicServicePriceFor('R725.50'), 'R725.50');
+  assert.equal(publicServicePriceFor('650'), 'R650');
+  assert.equal(publicServicePriceFor('0'), 'R0');
+  assert.equal(publicServicePriceFor('650.50'), 'R650.50');
+  assert.equal(publicServicePriceFor('From 650'), 'From 650');
+  assert.equal(publicServicePriceFor('<script>650</script>'), '<script>650</script>');
   assert.equal(publicServicePriceFor('Price on consultation'), 'Price on consultation');
 
   const service = toPublicService({ name: 'Waxing', category: 'Facial Waxing', price: 'R80-R500' });
