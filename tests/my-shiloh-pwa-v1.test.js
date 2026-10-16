@@ -224,7 +224,7 @@ test('retired SMS never renders, while Shiloh details remain the primary install
   assert.doesNotMatch(doorway, /data-client-crm-form|data-passkey-sign-in/);
   assert.doesNotMatch(page, /data-client-sms|data-passkey-recovery/);
   assert.match(page, /data-client-crm-form/);
-  assert.match(page, /Use a saved passkey/);
+  assert.match(page, /Sign in with a passkey/);
 });
 
 test('service worker caches the shell only and leaves authentication and personal APIs network-only', () => {

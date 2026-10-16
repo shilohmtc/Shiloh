@@ -12,6 +12,10 @@ const action={type:'reschedule_appointment',token,title:'Request this new time?'
 const story='/iframe.html?id=client-my-shiloh-pwa--authenticated-assistant-composer&viewMode=story#shiloh';
 async function chat(page) {
   await page.goto(story,{waitUntil:'networkidle'});
+  await expect(page.locator('[data-app-frame]')).toBeVisible();
+  // Keep the production-rendered fixture stable when Storybook rerenders its preview.
+  const surface = await page.locator('#storybook-root').innerHTML();
+  await page.setContent(surface);
   await page.evaluate(() => Object.defineProperty(navigator,'standalone',{value:true,configurable:true}));
   await page.addScriptTag({url:'/my-shiloh/assets/app.js'});
 }

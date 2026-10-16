@@ -282,7 +282,7 @@ test('registration fields and lower assurance settings distinguish proof; featur
   for (const field of ['firstName', 'surname', 'dateOfBirth', 'mobile'])
     assert.match(html, new RegExp(`name="${field}"`));
   assert.match(html, /Prefer not to say/);
-  assert.match(html, /Use a saved passkey/);
+  assert.match(html, /Sign in with a passkey/);
   const signed = renderMyShilohPage({
     client: { id: 1, name: 'Synthetic Example', firstName: 'Synthetic' },
     crmAvailable: true,

@@ -224,3 +224,13 @@ test('shared AI pipeline accepts app surface and session conversation key withou
   assert.match(ai, /saveSession\(conversationKey, response\.id\)/);
   assert.match(ai, /surface === "whatsapp"/);
 });
+
+
+test('My Shiloh reply style is concise and grounded without changing WhatsApp tools', () => {
+  const instructions = buildInstructions({ surface: 'my_shiloh' });
+  assert.match(instructions, /Do not use Markdown headings/);
+  assert.match(instructions, /at most three relevant catalogue options/);
+  assert.match(instructions, /Do not invent treatment benefits, medical claims/);
+  assert.match(instructions, /exact current catalogue service names, prices and durations/);
+  assert.doesNotMatch(buildInstructions({ surface: 'whatsapp' }), /MY SHILOH RESPONSE PRESENTATION/);
+});
