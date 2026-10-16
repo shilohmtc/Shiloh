@@ -61,7 +61,7 @@ for(const width of [390,1440])test(`Storybook next appointment, last visit and a
  await page.setViewportSize({width,height:844});
  for(const story of ['next-appointment-and-last-visit','awaiting-confirmation-history']){
   await page.goto(base+'/storybook/iframe.html?id=workspace-clients--'+story+'&viewMode=story',{waitUntil:'networkidle'});
-  if(story.startsWith('next')){await expect(page.locator('.client-last').first()).toContainText('Next appointment:');await expect(page.locator('.client-last').first()).toContainText('Last visit:');await expect(page.locator('.client-last').last()).toContainText('No completed visit yet');}
+  if(story.startsWith('next')){await expect(page.locator('.client-last').first()).toBeVisible();await expect(page.locator('.client-last').last()).toBeVisible();await expect(page.locator('.client-last').first()).toContainText('Next appointment:');await expect(page.locator('.client-last').first()).toContainText('Last visit:');await expect(page.locator('.client-last').last()).toContainText('No completed visit yet');}
   else {await expect(page.locator('.history-panel:has(#appointment-history) .history-list')).toContainText('Awaiting confirmation');await expect(page.locator('.history-panel:has(#appointment-history) .history-list')).toContainText('Awaiting client response');await expect(page.locator('.history-panel:has(#appointment-history) .history-list')).toContainText('completed');}
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:info.outputPath(`${story}-${width}.png`),fullPage:true});
