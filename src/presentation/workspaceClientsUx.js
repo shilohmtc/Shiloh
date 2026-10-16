@@ -56,7 +56,7 @@ function maskMobile(value) {
 function statusPill(status, label = null) {
   const value = String(status || 'unknown').toLowerCase();
   const tone = value === 'archived' || value === 'cancelled' ? ` ${value}` : '';
-  return `<span class="status-pill${tone}">${escapeHtml(label || value.replace(/_/g, ' '))}</span>`;
+  return `<span class="status-pill${tone}"${label?.startsWith('Awaiting ') ? ' style="text-transform:none"' : ''}>${escapeHtml(label || value.replace(/_/g, ' '))}</span>`;
 }
 
 function listHref({ query = '', status = 'active', offset = 0 } = {}) {

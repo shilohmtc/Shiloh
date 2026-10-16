@@ -58,3 +58,14 @@ test('invalid contact URLs remain hidden and a shared contact names the selected
 });
 
 test('clinic closure stays across the mobile grid while personal leave remains column scoped',async({page})=>{await page.setViewportSize({width:390,height:844});await setup(page,{closure:true});await expect(page.locator('.phone-day-notices .closure-strip')).toContainText('Synthetic clinic closure');const closure=await page.locator('.phone-day-notices .closure-strip').boundingBox(),column=await page.locator('[data-phone-staff-column-id="54"]').boundingBox();expect(closure.width).toBeGreaterThan(column.width*3);});
+
+// Native close is queued: restoring twice must not steal focus before the next Enter.
+test('queued close cannot refocus the previous booking before keyboard reopening',async({page})=>{
+ await page.setViewportSize({width:390,height:844});await setup(page);
+ await page.locator('[data-event-id="appointment-3"]').first().press('Enter');
+ await page.getByRole('button',{name:'Done',exact:true}).click();
+ const next=page.locator('[data-event-id="appointment-1"]').first();await next.focus();
+ await page.locator('[data-appointment-details-dialog]').dispatchEvent('close');
+ await expect(next).toBeFocused();await page.keyboard.press('Enter');
+ await expect(page.locator('[data-details-title]')).toHaveText('Appointment #1');
+});
