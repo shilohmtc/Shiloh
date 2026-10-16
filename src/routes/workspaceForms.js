@@ -1,3 +1,4 @@
+const { calendarReturnHref } = require('../presentation/calendarReturnContext');
 const express = require('express');
 const workspaceForms = require('../services/workspaceForms');
 const workspaceFormSubmissions = require('../services/workspaceFormSubmissions');
@@ -85,7 +86,7 @@ function createWorkspaceFormsRouter({
       if(['week','month','day'].includes(String(req.query.returnView||'')))returnParams.set('view',req.query.returnView);
       if(/^\d{4}-\d{2}-\d{2}$/.test(String(req.query.returnDate||'')))returnParams.set('date',req.query.returnDate);
       if(appointmentId!==null)returnParams.set('appointment',appointmentId);
-      const returnHref='/calendar'+(returnParams.size?'?'+returnParams.toString():'');
+      const returnHref=calendarReturnHref(req.query.returnCalendar || '/calendar/read-only?'+returnParams.toString(),appointmentId);
       const [model, submissions, treatmentQueue] = await Promise.all([
         service.listForms({ adminId: req.staffBrowserSession?.adminId }),
         submissionService.listSubmissions({ adminId: req.staffBrowserSession?.adminId,appointmentId }),

@@ -119,14 +119,14 @@ const {calendarAppointmentDetailsClientScript}=require('../src/presentation/cale
 const {calendarPaymentLinkClientScript}=require('../src/presentation/calendarPaymentsUx');
 test('Calendar Forms follows keyboard, repeat and deep-linked appointments',async({page})=>{
   await page.route('http://synthetic.test/**',route=>route.fulfill({contentType:'text/html',body:'<html lang="en"><title>Calendar</title><main><div class="event-card" data-kind="appointment" data-canonical="true" data-event-id="appointment-42" data-appointment-management-target="true"><h4>Synthetic client</h4></div><div class="event-card" data-kind="appointment" data-canonical="true" data-event-id="appointment-43"><h4>Other synthetic client</h4></div></main></html>'}));
-  await page.goto('http://synthetic.test/calendar?view=week&date=2026-10-07&appointment=42');
+  await page.goto('http://synthetic.test/calendar/read-only?view=week&date=2026-10-07&appointment=42');
   await page.addScriptTag({content:calendarPaymentLinkClientScript()});
   await page.addScriptTag({content:calendarAppointmentDetailsClientScript()});
-  await expect(page.locator('[data-details-forms]')).toHaveAttribute('href','/calendar/forms?appointmentId=42&returnView=week&returnDate=2026-10-07#appointment-42');
+  await expect(page.locator('[data-details-forms]')).toHaveAttribute('href','/calendar/forms?appointmentId=42&returnCalendar=%2Fcalendar%2Fread-only%3Fview%3Dweek%26date%3D2026-10-07%26appointment%3D42&returnView=week&returnDate=2026-10-07#appointment-42');
   await page.getByRole('button',{name:'Done',exact:true}).click();
   await page.locator('[data-event-id="appointment-43"]').focus();await page.keyboard.press('Enter');
-  await expect(page.locator('[data-details-forms]')).toHaveAttribute('href','/calendar/forms?appointmentId=43&returnView=week&returnDate=2026-10-07#appointment-43');
-  await expect(page.locator('[data-details-payment]')).toHaveAttribute('href','/calendar/payments/appointments/43');
+  await expect(page.locator('[data-details-forms]')).toHaveAttribute('href','/calendar/forms?appointmentId=43&returnCalendar=%2Fcalendar%2Fread-only%3Fview%3Dweek%26date%3D2026-10-07%26appointment%3D43&returnView=week&returnDate=2026-10-07#appointment-43');
+  await expect(page.locator('[data-details-payment]')).toHaveAttribute('href','/calendar/payments/appointments/43?returnCalendar=%2Fcalendar%2Fread-only%3Fview%3Dweek%26date%3D2026-10-07%26appointment%3D43');
 });
 
 test('existing client DOB advisory acknowledges once with CSRF and stays dismissed on reload',async({page},testInfo)=>{

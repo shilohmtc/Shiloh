@@ -33,7 +33,7 @@ const clients = [
     profile_status: 'registered',
     mobile_verified_at: '2026-09-10T08:00:00.000Z',
     status: 'active',
-    last_appointment_at: '2026-09-14T08:00:00.000Z',
+    last_visit_at: '2026-09-14T08:00:00.000Z',
   },
   {
     id: 802,
@@ -44,7 +44,7 @@ const clients = [
     profile_status: 'registered',
     mobile_verified_at: '2026-09-12T09:00:00.000Z',
     status: 'active',
-    last_appointment_at: '2026-09-13T10:00:00.000Z',
+    last_visit_at: '2026-09-13T10:00:00.000Z',
   },
 ];
 
@@ -179,3 +179,20 @@ export const SignedConsultationRecord = { render: () => productionSurface(formsP
 }, { clientProfileId: 801 })) };
 
 export const ClinicClientDeletion = { render: () => productionSurface(detailHtml(true)) };
+
+// Fabricated next booking and completed visit are independent facts.
+export const NextAppointmentAndLastVisit = { render: () => productionSurface(renderClientListPage({
+  ...listModel(), clients: [
+    {...clients[0],next_appointment_at:'2030-11-08T08:00:00Z',last_visit_at:'2026-09-14T08:00:00Z'},
+    {...clients[1],next_appointment_at:'2030-11-09T09:00:00Z',last_visit_at:null},
+  ],
+}, options)) };
+export const AwaitingConfirmationHistory = { render: () => {
+  const model=detailModel();
+  model.appointments=[
+    {...model.appointments[0],status:'scheduled',bookingRequestState:'pending'},
+    {...model.appointments[0],status:'scheduled',bookingRequestState:'awaiting_client_confirmation'},
+    {...model.appointments[0],status:'completed',bookingRequestState:null},
+  ];
+  return productionSurface(renderClientDetailPageWithCommunications(model,options));
+} };

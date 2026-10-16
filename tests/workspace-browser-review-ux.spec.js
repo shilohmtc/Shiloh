@@ -68,7 +68,7 @@ for (const viewport of [{width:1180,height:757},{width:500,height:757},{width:32
         await page.evaluate(()=>document.documentElement.style.fontSize='16px');
       }
       if(name==='clients') {
-        await expect(page.locator('.client-last')).toContainText('Last appointment:');
+        await expect(page.locator('.client-last')).toContainText('Last visit:');
         if(viewport.width<=700) expect((await page.locator('.search-panel').boundingBox()).y).toBeLessThan((await page.locator('[data-client-create-panel]').boundingBox()).y);
       }
       if(name==='dashboard') {

@@ -270,7 +270,7 @@ function createFixture() {
         query: '', status: 'active', offset: 0, pageSize: 24, hasMore: false,
         clients: Array.from({ length: 8 }, (_, index) => ({
           id: 201 + index, name: `${['Aloe', 'Protea', 'Fynbos', 'Willow', 'Cedar', 'Amber', 'Sage', 'Olive'][index]} Client`,
-          normalized_mobile: `27820001${String(index).padStart(3, '0')}`, status: 'active', last_appointment_at: '2026-09-05T08:00:00.000Z',
+          normalized_mobile: `27820001${String(index).padStart(3, '0')}`, status: 'active', last_visit_at: '2026-09-05T08:00:00.000Z',
         })),
       };
     },
@@ -465,7 +465,10 @@ async function main() {
     await cdp.send('Network.enable');
 
     async function navigate(url) {
-      await cdp.send('Page.navigate', { url });
+      const navigation = await cdp.send('Page.navigate', { url });
+      assert.equal(navigation.errorText, undefined, 'Synthetic Workspace navigation must succeed');
+      // A same-URL navigation can otherwise read the old document as complete.
+      if (navigation.loaderId) await poll(() => cdp.send('Page.getFrameTree'), tree => tree.frameTree.frame.loaderId === navigation.loaderId);
       await poll(() => evaluate(cdp, 'document.readyState'), value => value === 'complete');
       await poll(() => evaluate(cdp, `Array.from(document.querySelectorAll('[data-workspace-destination]')).filter(n=>n.tagName==='A'||n.classList.contains('active')).length`), value => value === 8);
     }
@@ -542,7 +545,8 @@ async function main() {
         assert.equal(metrics.dashboardCommunicationText, '');
         if (metrics.dashboardActions) assert.ok(metrics.minDashboardActionHeight >= (phone ? 44 : 36), `${name} has undersized outcome actions`);
         assert.equal(metrics.bookingRequests, 2, `${name} does not project both unresolved booking-request states`);
-        assert.match(metrics.bookingRequestText, /Requested · Awaiting confirmation/);
+        assert.match(metrics.bookingRequestText, /Awaiting confirmation/);
+        assert.doesNotMatch(metrics.bookingRequestText, /Requested · Awaiting confirmation/);
         assert.match(metrics.bookingRequestText, /Awaiting client response/);
         assert.ok(metrics.bookingActionLabels.includes('Accept requested appointment'));
         assert.ok(metrics.bookingActionLabels.includes('Propose alternative'));
