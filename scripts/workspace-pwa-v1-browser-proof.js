@@ -217,7 +217,7 @@ async function main() {
     });
     const manifest = JSON.parse(manifestText);
     assert.equal(manifest.name, 'Shiloh Workspace');
-    assert.equal(manifest.short_name, 'Shiloh Workspace');
+    assert.equal(manifest.short_name, 'Workspace');
     assert.equal(manifest.id, '/calendar/pwa/launch');
     assert.equal(manifest.display, 'standalone');
     assert.equal(manifest.start_url, '/calendar/pwa/launch');
@@ -266,7 +266,7 @@ async function main() {
       issue: 791,
       syntheticOnly: true,
       productionCredentialMutation: false,
-      manifest: { name: manifest.name, display: manifest.display, startUrl: manifest.start_url, scope: manifest.scope },
+      manifest: { name: manifest.name, shortName: manifest.short_name, display: manifest.display, startUrl: manifest.start_url, scope: manifest.scope },
       installDoorway: { unauthenticated: true, screenshot: path.basename(installPng), sha256: sha256(installPng) },
       authenticatedPhone: { viewport: '390x844', rootHorizontalOverflow: false, screenshot: path.basename(phonePng), sha256: sha256(phonePng) },
       authenticatedDesktop: { viewport: '1440x900', rootHorizontalOverflow: false, pwaExposed: false, screenshot: path.basename(desktopPng), sha256: sha256(desktopPng) },

@@ -26,7 +26,7 @@ const { renderStaffCalendarAccessPage } = require('../src/presentation/staffCale
 test('#791 manifest installs one canonical Shiloh Workspace delivery shell', () => {
   const manifest = workspacePwaManifest();
   assert.equal(manifest.name, 'Shiloh Workspace');
-  assert.equal(manifest.short_name, 'Shiloh Workspace');
+  assert.equal(manifest.short_name, 'Workspace');
   assert.equal(manifest.id, '/calendar/pwa/launch');
   assert.equal(manifest.start_url, '/calendar/pwa/launch');
   assert.equal(manifest.scope, '/calendar/');
