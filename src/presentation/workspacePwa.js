@@ -17,7 +17,7 @@ const SVG_ICON_URLS = Object.freeze([
 function workspacePwaManifest() {
   return {
     name: 'Shiloh Workspace',
-    short_name: 'Shiloh Workspace',
+    short_name: 'Workspace',
     description: 'Shiloh Workspace for authorized clinic staff.',
     id: `${PWA_BASE}/launch`,
     start_url: `${PWA_BASE}/launch`,
