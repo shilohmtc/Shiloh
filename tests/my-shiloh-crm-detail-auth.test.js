@@ -291,7 +291,15 @@ test('registration fields and lower assurance settings distinguish proof; featur
   });
   assert.match(signed, /Signed in with your Shiloh details/);
   assert.doesNotMatch(signed, /data-client-sms|data-passkey-recovery|Your recovery code|CRM details/);
-  assert.doesNotMatch(signed, /data-client-setup hidden/);
+  assert.match(signed, /data-client-setup hidden/);
+  assert.match(signed, /Get updates and reminders about your appointments/);
+  const notificationsWithoutPasskeys = renderMyShilohPage({
+    client: { id: 2, name: 'Synthetic Registered', firstName: 'Synthetic' },
+    crmAvailable: true, passkeysAvailable: false, signInMethod: 'crm_details',
+  });
+  assert.match(notificationsWithoutPasskeys, /data-client-setup hidden/);
+  assert.match(notificationsWithoutPasskeys, /Get updates and reminders about your appointments/);
+  assert.doesNotMatch(notificationsWithoutPasskeys, /data-passkey-enroll/);
 });
 
 test('stored assurance/revocation is rechecked: pretending a CRM timestamp is verified cannot authorize security mutations', async (t) => {
