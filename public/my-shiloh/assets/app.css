@@ -426,3 +426,5 @@ h3{font-size:20px;line-height:1.12}
 /* Keep native date controls inside the sign-in card on narrow Safari screens. */
 .sms-auth-form input[type="date"] { -webkit-appearance: none; appearance: none; width: 100%; max-width: 100%; min-width: 0; overflow: hidden; text-align: left; }
 .sms-auth-form input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+
+.app-update-banner{flex-wrap:wrap;border:2px solid var(--leaf-dark)}.app-update-status{flex-basis:100%;margin:0;font-size:13px;line-height:1.5}.app-update-status:empty{display:none}.app-update-banner .button{min-height:48px}

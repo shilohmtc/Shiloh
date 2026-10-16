@@ -256,7 +256,7 @@ test('My Shiloh worker activation removes only its obsolete caches and preserves
   const deleted = [];
   let claimed = false;
   const worker = read('public/my-shiloh/sw.js');
-  const current = [...worker.matchAll(/const (?:SHELL|STATIC)_CACHE = '([^']+)'/g)].map(match => match[1]);
+  const current = Array.from(vm.runInNewContext(worker + ';[SHELL_CACHE, STATIC_CACHE]', { self: { addEventListener() {} } }));
   const otherCaches = ['shiloh-pwa-static-official-brand-v2', 'another-app-static-v1'];
   const keys = [...current, 'my-shiloh-shell-v1', 'my-shiloh-static-v1', ...otherCaches];
   vm.runInNewContext(worker, {
