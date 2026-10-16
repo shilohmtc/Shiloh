@@ -256,6 +256,7 @@ function createBookingDepositPolicyService({ db = pool } = {}) {
 
   async function loadScope(queryable, appointmentId, { lock = false } = {}) {
     const id = positiveId(appointmentId);
+    if(lock)await require('./paymentCollectionGuard').lockBookingPaymentScope(queryable,id,BookingDepositPolicyError);
     const seed = await queryable.query(
       `SELECT a.id,a.created_at,
               gm.group_id,

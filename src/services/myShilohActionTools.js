@@ -13,6 +13,7 @@ const {
 const { createAssistantPreparation } = require('./myShilohAssistantPreparation');
 
 const ACTION_TOOL_NAMES = Object.freeze({
+  PREPARE_PAYMENT: 'prepare_my_payment',
   PREPARE_BOOKING: 'prepare_my_booking',
   PREPARE_VISIT: 'prepare_my_visit',
   PREPARE_CANCELLATION: 'prepare_my_cancellation',
@@ -95,6 +96,9 @@ const PLANNING_REQUEST_TOOL_DEFINITION = Object.freeze({
 });
 
 const PREPARATION_TOOL_DEFINITIONS = [
+  {type:'function',name:ACTION_TOOL_NAMES.PREPARE_PAYMENT,strict:true,
+    description:'Read canonical payment options and prepare secure client review for an exact selected owned upcoming appointment. Pass its canonical startsAt; null is allowed only when exactly one upcoming appointment exists. Never creates a payment/provider request, submits payment or receives banking details. Historic unresolved or shared-payer scope may require Reception.',
+    parameters:{type:'object',properties:{appointmentStartsAt:{type:['string','null']}},required:['appointmentStartsAt'],additionalProperties:false}},
   { type:'function', name:ACTION_TOOL_NAMES.PREPARE_BOOKING, strict:true,
     description:'Prepare the existing booking flow from an exact canonical treatment and optional client-chosen practitioner and returned slot. Rechecks current service, price, eligibility and slot; never submits or holds a booking.',
     parameters:{ type:'object', properties:{ service:{type:'string'}, practitioner:{type:['string','null']}, startsAt:{type:['string','null']} }, required:['service','practitioner','startsAt'], additionalProperties:false } },
@@ -130,6 +134,7 @@ function createMyShilohActionTools({
     if (!handles(name)) return { modelResult: { ok: false, error: 'unknown_action_tool' }, clientAction: null };
     if (name === ACTION_TOOL_NAMES.PREPARE_BOOKING) return preparation.prepareBooking(args, crmV2ClientId);
     if (name === ACTION_TOOL_NAMES.PREPARE_VISIT) return preparation.checklist(args, crmV2ClientId);
+    if (name === ACTION_TOOL_NAMES.PREPARE_PAYMENT) return preparation.preparePayment(args, crmV2ClientId, sessionId);
     if (name === ACTION_TOOL_NAMES.OPEN_PLANNING_REQUEST) {
       const draft = {};
       for (const [key, max] of [['serviceDetail',160],['clientNote',500]]) {

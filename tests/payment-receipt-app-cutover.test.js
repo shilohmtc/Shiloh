@@ -18,6 +18,7 @@ function fixture({ accepted = 1, active = true, flag = true, metaFails = false, 
       const text = String(sql).replace(/\s+/g, ' ').trim();
       if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(text)) return { rows: [] };
       if (text === "SELECT pg_advisory_xact_lock(hashtext('shiloh-prior-payments'))") return { rows: [] };
+      const financial=require('./helpers/paymentCallbackMock').callbackFinancialRows(text,request);if(financial)return financial;
       if (text.includes('FROM payment_provider_events')) return { rows: [] };
       if (text.includes('FROM payment_requests pr') && text.includes('FOR UPDATE OF pr')) return { rows: [request] };
       if (text.startsWith('INSERT INTO payment_ledger_entries')) return { rows: [] };

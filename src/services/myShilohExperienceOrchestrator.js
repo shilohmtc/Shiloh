@@ -59,6 +59,11 @@ function formPosition(forms = []) {
 
 function paymentPosition(payment) {
   if (!payment) return { state: 'none', label: 'No payment position', actionPath: null };
+  if (payment.paymentChoicesPath && Number(payment.outstanding)>0) {
+    const projected=paymentPosition({...payment,paymentChoicesPath:null});
+    return {...projected,actionPath:payment.paymentChoicesPath,
+      label:payment.depositState==='exempt' ? `No deposit required · ${rand(payment.outstanding)} remaining` : projected.label};
+  }
   if (payment.depositState === 'waived') {
     // A deposit decision does not replace the actual treatment settlement or its payment route.
     const position = paymentPosition({
@@ -411,7 +416,7 @@ function buildClientExperience(context) {
     const position = paymentPosition(raw);
     booking.payment = position.label;
     booking.paymentState = position.state;
-    booking.paymentActionLabel = position.state === 'deposit_required' ? `Pay ${rand(raw.depositOutstanding) || rand(raw.depositRequired) || ''} deposit`.replace('  ', ' ') : 'Open payment';
+    booking.paymentActionLabel = raw.paymentChoicesPath ? 'Review payment options' : position.state === 'deposit_required' ? `Pay ${rand(raw.depositOutstanding) || rand(raw.depositRequired) || ''} deposit`.replace('  ', ' ') : 'Open payment';
     if (position.state === 'deposit_required') booking.readiness = 'Deposit required';
     else if (raw.depositState === 'satisfied' || raw.depositState === 'exempt' || raw.depositState === 'waived') booking.readiness = 'Confirmed';
     booking.readinessSummary = booking.readiness === 'Confirmed'

@@ -9,6 +9,8 @@ const {
 } = require('../config/bookingPolicyAuthority');
 const { ensurePolicySchema } = require('../services/bookingPolicy');
 const { resolveWhatsAppNumber } = require('../services/publicWhatsApp');
+const { createBookingPaymentService } = require('../services/bookingPayments');
+const { deferredDeposit, depositPreparationProvenance } = require('../services/paymentCollectionGuard');
 
 function safePaymentRequestKey(value) {
   const key = String(value || '').trim();
@@ -20,10 +22,11 @@ function paymentUnavailable(res, status, message) {
 }
 
 function paymentRequestQuery() {
-  return `SELECT pr.provider,pr.state,pr.provider_payment_url,pr.expires_at,pr.gift_voucher_order_id,
+  return `SELECT pr.id,pr.payment_account_id,pr.created_by_admin_id,pr.purpose,pr.deposit_requirement_id,pr.deposit_member_appointment_id,
+                  ${depositPreparationProvenance()} AS unissued_provenance,pr.request_key,pr.provider_request_id,pr.provider,pr.state,pr.provider_payment_url,pr.expires_at,pr.gift_voucher_order_id,
                   pr.amount,pr.payer_name,pr.payer_mobile,
                   COALESCE(pr.payer_crm_v2_client_id,payment_appointment.crm_v2_client_id) AS payer_crm_v2_client_id,
-                  COALESCE(pr.deposit_member_appointment_id,bpa.appointment_id) AS appointment_id,
+                  COALESCE(pr.deposit_member_appointment_id,bpa.appointment_id,(SELECT gm.appointment_id FROM appointment_group_members gm WHERE gm.group_id=bpa.appointment_group_id ORDER BY gm.guest_position,gm.appointment_id LIMIT 1)) AS appointment_id,
                   CASE WHEN EXISTS (
                     SELECT 1 FROM appointment_group_members gm JOIN appointment_groups g ON g.id=gm.group_id
                     JOIN appointments member ON member.id=gm.appointment_id
@@ -32,7 +35,7 @@ function paymentRequestQuery() {
              FROM payment_requests pr
              LEFT JOIN booking_payment_accounts bpa ON bpa.id=pr.payment_account_id
              LEFT JOIN appointments payment_appointment
-               ON payment_appointment.id=COALESCE(pr.deposit_member_appointment_id,bpa.appointment_id)
+               ON payment_appointment.id=COALESCE(pr.deposit_member_appointment_id,bpa.appointment_id,(SELECT gm.appointment_id FROM appointment_group_members gm WHERE gm.group_id=bpa.appointment_group_id ORDER BY gm.guest_position,gm.appointment_id LIMIT 1))
             WHERE pr.request_key=$1
             LIMIT 1`;
 }
@@ -59,7 +62,8 @@ async function acceptedPolicyForAppointment(db, request) {
   return result.rows.length > 0;
 }
 
-function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema, whatsappNumber = resolveWhatsAppNumber, monitor = observability } = {}) {
+function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema, whatsappNumber = resolveWhatsAppNumber, monitor = observability,
+  paymentService = createBookingPaymentService({ db }) } = {}) {
   const router = express.Router();
   router.use(express.urlencoded({ extended: false }));
 
@@ -116,6 +120,9 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema,
         return paymentUnavailable(res, 502, 'This payment link is unavailable.');
       }
 
+      if (!await paymentService.validatePaymentCheckout(requestKey)) return paymentUnavailable(res, 409,
+        'This payment amount or booking changed. Return to My Shiloh or ask Reception to review it before paying.');
+
       await policySchema();
       const alreadyAccepted = await acceptedPolicyForAppointment(db, request);
       if (!alreadyAccepted && req.body?.accept !== 'yes') {
@@ -157,6 +164,7 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema,
       const result = await db.query(paymentRequestQuery(), [requestKey]);
       const request = result.rows[0];
       if (!request) return paymentUnavailable(res, 404, 'Payment link not found.');
+      if (deferredDeposit(request) && request.appointment_id) return res.redirect(303, `/my-shiloh/payment?appointment=${Number(request.appointment_id)}`);
       if (cancelledBookingPaymentLink(request)) return paymentUnavailable(res, 410, 'This booking was cancelled. This payment link can no longer be used.');
       if (request.state === 'paid' && request.gift_voucher_order_id) {
         return res.redirect(303, `/gift-vouchers/${requestKey}`);
@@ -174,6 +182,9 @@ function createPaymentLinkRouter({ db = pool, policySchema = ensurePolicySchema,
         monitor.captureException(new Error('Active payment provider link unavailable'), { 'error.kind': 'payment_link_unavailable', 'error.code': 'PAYMENT_PROVIDER_TARGET_INVALID', 'http.method': 'GET', 'http.route': '/pay/:requestKey' });
         return paymentUnavailable(res, 409, 'This payment link is not ready yet.');
       }
+
+      if (!await paymentService.validatePaymentCheckout(requestKey)) return paymentUnavailable(res, 409,
+        'This payment amount or booking changed. Return to My Shiloh or ask Reception to review it before paying.');
 
       await policySchema();
       const alreadyAccepted = await acceptedPolicyForAppointment(db, request);

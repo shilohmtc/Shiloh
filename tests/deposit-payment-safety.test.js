@@ -103,6 +103,7 @@ test('verified Ozow payment after cancellation is recorded as payment truth but 
       queries.push({ text, params });
       if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK') return { rows: [], rowCount: 0 };
       if (text === "SELECT pg_advisory_xact_lock(hashtext('shiloh-prior-payments'))") return { rows: [], rowCount: 0 };
+      const financial=require('./helpers/paymentCallbackMock').callbackFinancialRows(text,request);if(financial)return financial;
       if (text.includes('FROM payment_provider_events')) return { rows: [], rowCount: 0 };
       if (text.includes('FROM payment_requests pr') && text.includes('FOR UPDATE OF pr')) return { rows: [request], rowCount: 1 };
       if (text.startsWith('INSERT INTO payment_ledger_entries')) return { rows: [], rowCount: 1 };

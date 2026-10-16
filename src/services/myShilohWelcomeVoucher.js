@@ -209,6 +209,7 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
       if (voucher.state !== 'available' || new Date(voucher.expires_at) <= now()) {
         throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_UNAVAILABLE', 'This welcome voucher is no longer available.', 409, ['Check the voucher status shown in My Shiloh.', 'Choose another payment method for this booking.']);
       }
+      await require('./paymentCollectionGuard').lockBookingPaymentScope(client,bookingId,MyShilohWelcomeVoucherError);
       const booking = (await client.query(
         `SELECT a.id,a.total_price,a.currency,a.updated_at,a.status,a.starts_at,a.crm_v2_client_id,
                 (EXISTS(
@@ -243,6 +244,7 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
         `INSERT INTO booking_payment_accounts(appointment_id,canonical_amount_due,currency,pricing_revision) VALUES($1,$2,$3,$4) RETURNING *`,
         [bookingId, booking.total_price, booking.currency || 'ZAR', booking.updated_at],
       )).rows[0];
+      await require('./paymentCollectionGuard').assertNoClientCollection(client,account.id,MyShilohWelcomeVoucherError);
       const totals = (await client.query(
         `SELECT COALESCE((SELECT SUM(CASE WHEN entry_type='payment' THEN amount ELSE -amount END) FROM payment_ledger_entries WHERE payment_account_id=$1),0) + ${priorPaymentSql('$1')} AS net_paid,
                 COALESCE((SELECT SUM(amount) FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1 AND state='applied'),0) AS rewards,
