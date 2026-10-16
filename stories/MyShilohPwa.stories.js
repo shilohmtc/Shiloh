@@ -131,6 +131,10 @@ export const FirstSignInPasskeySetup = {
     const setup = surface.querySelector('[data-client-setup]');
     setup.hidden = false;
     setup.dataset.step = 'passkey';
+    setup.querySelector('[data-client-setup-step]').textContent = 'Optional: save a passkey';
+    setup.querySelector('[data-client-setup-title]').textContent = 'Make next time easier.';
+    setup.querySelector('[data-client-setup-copy]').textContent = 'Save a passkey for quicker sign-in next time. You can keep using your Shiloh details.';
+    setup.querySelector('[data-client-setup-action]').textContent = 'Save a passkey';
     return surface;
   },
 };
@@ -140,9 +144,9 @@ export const FirstSignInNotificationSetup = {
     const surface = FirstSignInPasskeySetup.render();
     const setup = surface.querySelector('[data-client-setup]');
     setup.dataset.step = 'notifications';
-    setup.querySelector('[data-client-setup-step]').textContent = 'Next, stay in the know';
-    setup.querySelector('[data-client-setup-title]').textContent = 'Stay ready for every visit.';
-    setup.querySelector('[data-client-setup-copy]').textContent = 'Get appointment reminders and updates about your bookings, forms, payments, vouchers and Rewards on this phone. You can turn these off any time in Profile.';
+    setup.querySelector('[data-client-setup-step]').textContent = 'Optional notifications';
+    setup.querySelector('[data-client-setup-title]').textContent = 'Stay in the know.';
+    setup.querySelector('[data-client-setup-copy]').textContent = 'Get updates and reminders about your appointments.';
     setup.querySelector('[data-client-setup-action]').textContent = 'Turn on notifications';
     setup.querySelector('[data-client-setup-later]').hidden = false;
     return surface;
@@ -743,4 +747,9 @@ export const NamedCouplesMassage = {
     const body=source.match(/<body[^>]*>([\s\S]*?)<\/body>/)?.[1]||'';
     const root=document.createElement('div');root.innerHTML=`<style>${styles}</style><div data-story-surface>${body.replace(/<script[\s\S]*?<\/script>/g,'')}</div>`;return root;
   },
+};
+
+export const CrmOptionalInvitations = {
+  render: () => productionSurface({ id: '9012', name: 'Synthetic Client', firstName: 'Synthetic' },
+    { passkeysAvailable: true, signInMethod: 'crm_details' }),
 };

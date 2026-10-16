@@ -56,3 +56,5 @@ module.exports.testMatch.push('client-payment-choice.spec.js');
 module.exports.testMatch.push('public-staff-workspace-menu.spec.js');
 
 module.exports.testMatch.push('workspace-mobile-dashboard.spec.js');
+
+module.exports.testMatch.push("my-shiloh-optional-invitations.spec.js");

@@ -100,38 +100,51 @@
   let clientSetupChecking = Boolean(clientSetup);
   let clientSetupCheckFailed = false;
   let clientHasPasskey = false;
+  let clientSetupPushChecking = Boolean(pushToggle);
   let clientSetupPushReady = false;
   let clientSetupPushEnabled = false;
   let clientSetupProblem = '';
-  let passkeySetupDeferred = false;
-  let notificationSetupDeferred = false;
-  try { notificationSetupDeferred = Boolean(notificationSetupKey && localStorage.getItem(notificationSetupKey)); } catch (_) {}
+  const passkeySetupKey = appFrame?.dataset.notificationClientId
+    ? `my-shiloh-passkey-setup-later-v1:${appFrame.dataset.notificationClientId}` : null;
+  const notificationReminderKey = notificationSetupKey ? `${notificationSetupKey}:reminder-hidden` : null;
+  const notificationReminder = document.querySelector('[data-notification-reminder]');
+  function preference(key) {
+    try { return Boolean(key && localStorage.getItem(key)); } catch (_) { return false; }
+  }
+  function remember(key) {
+    try { if (key) localStorage.setItem(key, '1'); } catch (_) { /* Still defer for this visit. */ }
+  }
+  let passkeySetupDeferred = preference(passkeySetupKey);
+  let notificationSetupDeferred = preference(notificationSetupKey);
+  let notificationReminderDismissed = preference(notificationReminderKey);
+  let clientSetupPushGuidance = '';
 
   function renderClientSetup() {
     if (passkeyEnrollButton) {
       passkeyEnrollButton.hidden = !passkeySupported() || clientSetupChecking ||
         clientSetupCheckFailed || clientHasPasskey;
     }
+    const passkeyGuidance = document.querySelector('[data-passkey-support-guidance]');
+    if (passkeyGuidance) passkeyGuidance.hidden = passkeySupported();
+    const notificationStep = clientSetupPushReady && !clientSetupPushEnabled && !notificationSetupDeferred;
+    const passkeyStep = !notificationStep && !clientSetupPushChecking && !clientSetupChecking &&
+      Boolean(passkeyEnrollButton) && passkeySupported() && !clientHasPasskey && !passkeySetupDeferred;
+    if (notificationReminder) notificationReminder.hidden = !clientSetupPushReady || clientSetupPushEnabled ||
+      !notificationSetupDeferred || notificationReminderDismissed;
     if (!clientSetup) return;
-    const passkeyStep = !clientHasPasskey && !passkeySetupDeferred;
-    const notificationStep = !passkeyStep && clientSetupPushReady && !clientSetupPushEnabled
-      && !notificationSetupDeferred;
-    clientSetup.hidden = clientSetupChecking || (!passkeyStep && !notificationStep);
+    clientSetup.hidden = !notificationStep && !passkeyStep;
     if (clientSetup.hidden) return;
-    clientSetup.dataset.step = clientSetupCheckFailed && passkeyStep ? 'check'
-      : passkeyStep ? 'passkey' : 'notifications';
-    clientSetupStep.textContent = passkeyStep ? 'Optional: save a passkey' : 'Next, stay in the know';
-    clientSetupTitle.textContent = passkeyStep ? 'Save your Shiloh passkey.' : 'Stay ready for every visit.';
+    clientSetup.dataset.step = passkeyStep ? (clientSetupCheckFailed ? 'check' : 'passkey') : 'notifications';
+    clientSetupStep.textContent = passkeyStep ? 'Optional: save a passkey' : 'Optional notifications';
+    clientSetupTitle.textContent = passkeyStep ? 'Make next time easier.' : 'Stay in the know.';
     clientSetupCopy.textContent = passkeyStep
-      ? 'Use a saved passkey as an optional way to sign in next time.'
-      : 'Get appointment reminders and updates about your bookings, forms, payments, vouchers and Rewards on this phone. You can turn these off any time in Profile.';
-    clientSetupAction.textContent = clientSetupCheckFailed && passkeyStep ? 'Try again'
-      : passkeyStep ? 'Save my passkey' : 'Turn on notifications';
-    clientSetupAction.disabled = passkeyStep ? passkeyEnrollBusy || (!clientSetupCheckFailed && !passkeySupported()) : pushBusy;
+      ? 'Save a passkey for quicker sign-in next time. You can keep using your Shiloh details.'
+      : 'Get updates and reminders about your appointments.';
+    clientSetupAction.textContent = passkeyStep ? (clientSetupCheckFailed ? 'Try again' : 'Save a passkey')
+      : clientSetupPushGuidance ? 'View notification settings' : 'Turn on notifications';
+    clientSetupAction.disabled = passkeyStep ? passkeyEnrollBusy : pushBusy;
     clientSetupLater.hidden = false;
-    clientSetupStatus.textContent = passkeyStep
-      ? (clientSetupCheckFailed || passkeySupported() ? clientSetupProblem : 'Passkeys are unavailable on this device. You can keep using My Shiloh and try another supported device.')
-      : clientSetupProblem;
+    clientSetupStatus.textContent = passkeyStep ? clientSetupProblem : clientSetupPushGuidance || clientSetupProblem;
     if (pushInvite) pushInvite.hidden = true;
   }
 
@@ -1273,9 +1286,11 @@
 
   async function refreshPushUi() {
     if (!pushToggle) return;
+    clientSetupPushChecking = true;
     if (pushInvite) pushInvite.hidden = true;
     clientSetupPushReady = false;
     clientSetupPushEnabled = false;
+    clientSetupPushGuidance = '';
     if (!pushSupported()) {
       pushToggle.disabled = true;
       pushToggle.textContent = standalone()
@@ -1284,13 +1299,21 @@
       setPushStatus(standalone()
         ? 'This phone or browser does not currently support My Shiloh notifications.'
         : 'Notifications can be turned on from the installed My Shiloh app.');
+      clientSetupPushReady = true;
+      clientSetupPushGuidance = standalone()
+        ? 'This browser does not support notifications. You can keep using My Shiloh.'
+        : 'On iPhone, use Safari’s Share menu → Add to Home Screen, then open My Shiloh from your Home Screen. Notification permission is your choice.';
+      clientSetupPushChecking = false;
       renderClientSetup();
       return;
     }
     if (Notification.permission === 'denied') {
       pushToggle.disabled = true;
       pushToggle.textContent = 'Notifications blocked';
-      setPushStatus('Notifications are blocked in your phone settings.', 'error');
+      clientSetupPushReady = true;
+      clientSetupPushGuidance = 'Notifications are blocked. You can allow them in your phone or browser settings, then return here.';
+      setPushStatus(clientSetupPushGuidance, 'error');
+      clientSetupPushChecking = false;
       renderClientSetup();
       return;
     }
@@ -1300,6 +1323,7 @@
         pushToggle.disabled = true;
         pushToggle.textContent = 'Update My Shiloh first';
         setPushStatus('Install the ready My Shiloh update, then turn on notifications.');
+        clientSetupPushChecking = false;
         renderClientSetup();
         return;
       }
@@ -1311,23 +1335,27 @@
         pushToggle.disabled = true;
         pushToggle.textContent = 'Notifications unavailable';
         setPushStatus('My Shiloh notifications are not configured yet.');
+        clientSetupPushChecking = false;
         renderClientSetup();
         return;
       }
+      const enabled = Notification.permission === 'granted' && Boolean(subscription);
       pushToggle.disabled = false;
-      pushToggle.dataset.enabled = subscription ? 'true' : 'false';
-      pushToggle.textContent = subscription ? 'Turn off notifications' : 'Turn on notifications';
+      pushToggle.dataset.enabled = enabled ? 'true' : 'false';
+      pushToggle.textContent = enabled ? 'Turn off notifications' : 'Turn on notifications';
       clientSetupPushReady = true;
-      clientSetupPushEnabled = Boolean(subscription);
+      clientSetupPushEnabled = enabled;
       if (pushInvite) pushInvite.hidden = Boolean(subscription) || Boolean(clientSetup);
-      setPushStatus(subscription
+      setPushStatus(enabled
         ? 'Notifications are on for this phone.'
-        : 'Notifications are off. Turn them on when you’re ready.', subscription ? 'success' : '');
+        : 'Notifications are off. Turn them on when you’re ready.', enabled ? 'success' : '');
+      clientSetupPushChecking = false;
       renderClientSetup();
     } catch (_) {
       pushToggle.disabled = true;
       pushToggle.textContent = 'Notifications unavailable';
       setPushStatus('Notifications could not be checked right now.');
+      clientSetupPushChecking = false;
       renderClientSetup();
     }
   }
@@ -1406,17 +1434,31 @@
       renderClientSetup();
       loadPasskeyDevices();
     } else if (clientSetup.dataset.step === 'passkey') enrollClientPasskey();
-    else if (clientSetup.dataset.step === 'notifications') changePushNotifications();
+    else if (clientSetup.dataset.step === 'notifications') {
+      if (clientSetupPushGuidance) { window.location.hash = 'profile-notifications'; activateView('profile'); }
+      else changePushNotifications();
+    }
   });
   clientSetupLater?.addEventListener('click', () => {
     if (['passkey', 'check'].includes(clientSetup.dataset.step)) {
       passkeySetupDeferred = true;
+      remember(passkeySetupKey);
       clientSetupProblem = '';
       renderClientSetup();
       return;
     }
     notificationSetupDeferred = true;
-    try { if (notificationSetupKey) localStorage.setItem(notificationSetupKey, '1'); } catch (_) {}
+    remember(notificationSetupKey);
+    renderClientSetup();
+  });
+
+  document.querySelector('[data-notification-reminder-open]')?.addEventListener('click', () => {
+    window.location.hash = 'profile-notifications';
+    activateView('profile');
+  });
+  document.querySelector('[data-notification-reminder-dismiss]')?.addEventListener('click', () => {
+    notificationReminderDismissed = true;
+    remember(notificationReminderKey);
     renderClientSetup();
   });
 
@@ -2140,6 +2182,7 @@
   window.addEventListener('pageshow', refreshAuthenticatedClientState);
   window.addEventListener('focus', refreshAuthenticatedClientState);
   window.addEventListener('focus', clearHomeScreenAppBadge);
+  window.addEventListener('focus', refreshPushUi);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       refreshAuthenticatedClientState();
