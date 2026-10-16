@@ -1,3 +1,4 @@
+const { myShilohFormReturnProof } = require('../services/consultationFormReturn');
 const { confirmationClientScript, confirmationStyles } = require('../presentation/workspaceConfirmation');
 'use strict';
 
@@ -1099,7 +1100,7 @@ function createMyShilohRouter({
   });
 
   router.get('/my-shiloh/forms/complete', requireSession, async (req, res) => {
-    const unavailable = (status, message) => res.status(status).type('html').send(renderUnavailablePage({ message }));
+    const unavailable = (status, message) => res.status(status).type('html').send(renderUnavailablePage({ message, returnToMyShiloh: true }));
     try {
       if (!formService.isClientConsultationFormsEnabled(env)) {
         return unavailable(404, 'Consultation forms are not available in My Shiloh right now.');
@@ -1118,10 +1119,11 @@ function createMyShilohRouter({
             : 'There is no consultation form available for your secure client profile right now.';
         return unavailable(opened.code === 'CLIENT_FORM_SESSION_INVALID' ? 401 : 404, message);
       }
-      if (opened.model.completed) return res.status(200).type('html').send(renderCompletedPage());
+      if (opened.model.completed) return res.status(200).type('html').send(renderCompletedPage({ returnToMyShiloh: true }));
       return res.status(200).type('html').send(renderClientConsultationFormPage({
         ...opened.model,
         accessToken: opened.accessToken,
+        myShilohReturnProof: myShilohFormReturnProof(opened.accessToken, env),
         submissionProof: submissionProof(opened.accessToken, env),
       }));
     } catch (error) {

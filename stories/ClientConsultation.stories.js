@@ -8,3 +8,7 @@ function surface(html) {
 export default {title:'My Shiloh/Consultation completion',parameters:{layout:'fullscreen'}};
 export const Form = {render:()=>surface(ux.renderClientConsultationFormPage(model))};
 export const Received = {render:()=>surface(ux.renderCompletedPage())};
+
+export const ReceivedFromMyShiloh = {render:()=>surface(ux.renderCompletedPage({returnToMyShiloh:true}))};
+
+export const AppEntryUnavailable = {render:()=>surface(ux.renderUnavailablePage({returnToMyShiloh:true}))};

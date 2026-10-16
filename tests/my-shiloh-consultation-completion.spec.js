@@ -201,6 +201,7 @@ for(const viewport of [{width:390,height:844},{width:1280,height:900}]) {
       // Simulated foreground return while the POST's response remains interrupted.
       await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
       await expect(page.locator('[data-client-consultation-completed]')).toBeVisible();
+      await expect(page.getByRole('link',{name:'Back to My Shiloh'})).toHaveAttribute('href','/my-shiloh/#bookings');
       expect(page.url()).toBe(entry);
       expect(issued).toBe(1);
       expect(posts).toBe(1);
@@ -209,6 +210,7 @@ for(const viewport of [{width:390,height:844},{width:1280,height:900}]) {
       const reopened=await page.request.get(entry);
       expect(reopened.status()).toBe(404); // Pending selection is not the recovery authority.
       expect(await reopened.text()).toContain('Consultation form unavailable');
+      expect(await reopened.text()).toContain('data-my-shiloh-form-return');
       expect(await reopened.text()).not.toContain('ReferenceError');
       const canonical=await page.request.get(origin+'/forms/f/'+token);
       expect(canonical.status()).toBe(200);
