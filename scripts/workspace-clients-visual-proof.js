@@ -23,12 +23,12 @@ function chromeExecutable() {
 
 function clients() {
   return [
-    { id: 901, name: 'Naledi Mokoena', normalized_mobile: '27821234001', profile_status: 'registered', status: 'active', last_appointment_at: '2026-08-28T08:00:00.000Z' },
-    { id: 902, name: 'Amina Daniels', normalized_mobile: '27821234002', profile_status: 'minimal', status: 'active', last_appointment_at: null },
-    { id: 903, name: 'Thandi Ndlovu', normalized_mobile: '27821234003', profile_status: 'registered', status: 'active', last_appointment_at: '2026-08-24T12:00:00.000Z' },
-    { id: 904, name: 'Zinhle Khumalo', normalized_mobile: '27821234004', profile_status: 'registered', status: 'active', last_appointment_at: '2026-08-17T09:30:00.000Z' },
-    { id: 905, name: 'Mia Petersen', normalized_mobile: '27821234005', profile_status: 'registered', status: 'active', last_appointment_at: '2026-08-12T07:00:00.000Z' },
-    { id: 906, name: 'Lerato Molefe', normalized_mobile: '27821234006', profile_status: 'minimal', status: 'active', last_appointment_at: null },
+    { id: 901, name: 'Naledi Mokoena', normalized_mobile: '27821234001', profile_status: 'registered', status: 'active', last_visit_at: '2026-08-28T08:00:00.000Z' },
+    { id: 902, name: 'Amina Daniels', normalized_mobile: '27821234002', profile_status: 'minimal', status: 'active', last_visit_at: null },
+    { id: 903, name: 'Thandi Ndlovu', normalized_mobile: '27821234003', profile_status: 'registered', status: 'active', last_visit_at: '2026-08-24T12:00:00.000Z' },
+    { id: 904, name: 'Zinhle Khumalo', normalized_mobile: '27821234004', profile_status: 'registered', status: 'active', last_visit_at: '2026-08-17T09:30:00.000Z' },
+    { id: 905, name: 'Mia Petersen', normalized_mobile: '27821234005', profile_status: 'registered', status: 'active', last_visit_at: '2026-08-12T07:00:00.000Z' },
+    { id: 906, name: 'Lerato Molefe', normalized_mobile: '27821234006', profile_status: 'minimal', status: 'active', last_visit_at: null },
   ];
 }
 

@@ -50,7 +50,7 @@ function clientRows(state) {
       profile_status: 'registered',
       mobile_verified_at: '2026-09-10T08:00:00.000Z',
       status: state.relationshipStatus,
-      last_appointment_at: '2026-09-14T08:00:00.000Z',
+      last_visit_at: '2026-09-14T08:00:00.000Z',
     },
     {
       id: 702,
@@ -61,7 +61,7 @@ function clientRows(state) {
       profile_status: 'registered',
       mobile_verified_at: '2026-09-12T09:00:00.000Z',
       status: 'active',
-      last_appointment_at: '2026-09-13T10:00:00.000Z',
+      last_visit_at: '2026-09-13T10:00:00.000Z',
     },
   ];
 }

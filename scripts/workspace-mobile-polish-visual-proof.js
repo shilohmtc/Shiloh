@@ -29,9 +29,9 @@ function sha256(filePath) {
 function clientsListHtml() {
   return renderClientListPage({
     clients: [
-      { id: 901, name: 'Naledi Mokoena With A Deliberately Long Canonical Name', normalized_mobile: '27821234001', status: 'active', last_appointment_at: '2026-09-01T08:00:00.000Z' },
-      { id: 902, name: 'Amina Daniels', normalized_mobile: '27821234002', status: 'active', last_appointment_at: null },
-      { id: 903, name: 'Thandi Ndlovu', normalized_mobile: '27821234003', status: 'active', last_appointment_at: '2026-08-24T12:00:00.000Z' },
+      { id: 901, name: 'Naledi Mokoena With A Deliberately Long Canonical Name', normalized_mobile: '27821234001', status: 'active', last_visit_at: '2026-09-01T08:00:00.000Z' },
+      { id: 902, name: 'Amina Daniels', normalized_mobile: '27821234002', status: 'active', last_visit_at: null },
+      { id: 903, name: 'Thandi Ndlovu', normalized_mobile: '27821234003', status: 'active', last_visit_at: '2026-08-24T12:00:00.000Z' },
     ],
     hasMore: true, offset: 0, pageSize: 24, query: '', status: 'active',
   }, { calendarNavigationAllowed: true });
