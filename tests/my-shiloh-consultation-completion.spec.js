@@ -201,6 +201,7 @@ for(const viewport of [{width:390,height:844},{width:1280,height:900}]) {
       // Simulated foreground return while the POST's response remains interrupted.
       await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
       await expect(page.locator('[data-client-consultation-completed]')).toBeVisible();
+      await expect(page.getByRole('link',{name:'Back to My Shiloh'})).toHaveAttribute('href','/my-shiloh/#bookings');
       expect(page.url()).toBe(entry);
       expect(issued).toBe(1);
       expect(posts).toBe(1);

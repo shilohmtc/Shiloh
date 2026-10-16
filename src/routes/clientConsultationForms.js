@@ -1,3 +1,4 @@
+const { validMyShilohFormReturn } = require('../services/consultationFormReturn');
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
@@ -124,10 +125,11 @@ function createClientConsultationFormsRouter({
       const access = await clinicAccess(req,res);
       if (access.kiosk && !access.allowed) return;
       const model = await service.openForm(req.params.accessToken);
-      if (model.completed) return access.kiosk ? finishClinicForm(req,res) : res.status(200).type('html').send(renderCompleted());
+      if (model.completed) return access.kiosk ? finishClinicForm(req,res) : res.status(200).type('html').send(renderCompleted({ returnToMyShiloh: !access.kiosk && validMyShilohFormReturn(req.params.accessToken, req.query.myShilohReturn, env) }));
       return res.status(200).type('html').send(clinicFormMarkup(renderForm({
         ...model,
         accessToken: req.params.accessToken,
+        myShilohReturnProof: validMyShilohFormReturn(req.params.accessToken, req.query.myShilohReturn, env) ? req.query.myShilohReturn : null,
         submissionProof: submissionProof(req.params.accessToken, env),
       }),access));
     } catch (error) {
@@ -157,15 +159,18 @@ function createClientConsultationFormsRouter({
       const { submission_proof: _submissionProof, ...answers } = req.body || {};
       await service.submitForm(req.params.accessToken, answers);
       if (access.kiosk) return finishClinicForm(req,res);
-      return res.redirect(303, `/forms/f/${encodeURIComponent(req.params.accessToken)}`);
+      const returnQuery = validMyShilohFormReturn(req.params.accessToken, req.query.myShilohReturn, env)
+        ? `?myShilohReturn=${encodeURIComponent(req.query.myShilohReturn)}` : '';
+      return res.redirect(303, `/forms/f/${encodeURIComponent(req.params.accessToken)}${returnQuery}`);
     } catch (error) {
       if (Number(error?.httpStatus) === 422) {
         try {
           const model = await service.openForm(req.params.accessToken);
-          if (model.completed) return res.status(200).type('html').send(renderCompleted());
+          if (model.completed) return res.status(200).type('html').send(renderCompleted({ returnToMyShiloh: !access.kiosk && validMyShilohFormReturn(req.params.accessToken, req.query.myShilohReturn, env) }));
           return res.status(422).type('html').send(clinicFormMarkup(renderForm({
             ...model,
             accessToken: req.params.accessToken,
+            myShilohReturnProof: validMyShilohFormReturn(req.params.accessToken, req.query.myShilohReturn, env) ? req.query.myShilohReturn : null,
             submissionProof: submissionProof(req.params.accessToken, env),
             values: error.values || {},
             fieldErrors: error.fieldErrors || {},
