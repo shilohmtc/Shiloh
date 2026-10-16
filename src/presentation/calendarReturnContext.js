@@ -4,12 +4,7 @@ function calendarReturnHref(raw, appointmentId) {
   if (typeof raw === 'string' && raw.length <= 2000 && raw.startsWith('/calendar/read-only?')) {
     const source = new URL(raw, 'https://calendar.invalid').searchParams;
     for (const [key, value] of source) {
-      const valid = key === 'view' ? ['week', 'month', 'day', 'agenda'].includes(value)
-        : key === 'date' ? /^\d{4}-\d{2}-\d{2}$/.test(value)
-          : key === 'staff' ? /^(all|[1-9][0-9]*)$/.test(value)
-            : key === 'activeStaff' ? /^[1-9][0-9]*$/.test(value)
-              : key === 'phoneStaff' ? /^(all|none|default|[1-9][0-9]*(,[1-9][0-9]*)*)$/.test(value)
-                : key === 'phoneLayout' && ['compact', 'roomier'].includes(value);
+      const valid = key === 'view' ? ['week', 'month', 'day', 'agenda'].includes(value) : key === 'date' ? /^\d{4}-\d{2}-\d{2}$/.test(value) : key === 'staff' ? /^(all|[1-9][0-9]*)$/.test(value) : key === 'activeStaff' ? /^[1-9][0-9]*$/.test(value) : key === 'phoneStaff' ? /^(all|none|default|[1-9][0-9]*(,[1-9][0-9]*)*)$/.test(value) : key === 'phoneLayout' && ['compact', 'roomier'].includes(value);
       if (valid) params.append(key, value);
     }
   }
