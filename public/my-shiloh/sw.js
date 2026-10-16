@@ -1,8 +1,8 @@
 'use strict';
 
 const ASSET_VERSION = self.SHILOH_APP_RELEASE || '2.1.0-local';
-const SHELL_CACHE = `my-shiloh-shell-v64-${ASSET_VERSION}`;
-const STATIC_CACHE = `my-shiloh-static-v64-${ASSET_VERSION}`;
+const SHELL_CACHE = `my-shiloh-shell-v65-${ASSET_VERSION}`;
+const STATIC_CACHE = `my-shiloh-static-v65-${ASSET_VERSION}`;
 const SHELL = [
   '/my-shiloh/offline.html',
   '/my-shiloh/manifest.webmanifest',

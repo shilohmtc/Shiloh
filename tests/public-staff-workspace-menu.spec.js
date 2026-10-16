@@ -27,6 +27,7 @@ for (const device of [
         const icons = { 'icon-192.png': 'shiloh-pwa-192.png', 'icon-512.png': 'shiloh-pwa-512.png', 'icon-maskable-512.png': 'shiloh-pwa-maskable-512.png' };
         return route.fulfill({ path: path.join(process.cwd(), 'public/assets/pwa', icons[path.basename(pathname)]) });
       }
+      if (req.method() === 'GET' && pathname === '/calendar/pwa/version') return route.fulfill({ json: { version: require('../src/presentation/appRelease').appRelease() } });
       throw new Error(`Unexpected destination request: ${req.method()} ${pathname}`);
     });
     await page.goto(`${testInfo.project.use.baseURL}/iframe.html?id=public-website-production-pages--home&viewMode=story`, { waitUntil: 'networkidle' });

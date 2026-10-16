@@ -428,3 +428,6 @@ h3{font-size:20px;line-height:1.12}
 .sms-auth-form input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 
 .app-update-banner{flex-wrap:wrap;border:2px solid var(--leaf-dark)}.app-update-status{flex-basis:100%;margin:0;font-size:13px;line-height:1.5}.app-update-status:empty{display:none}.app-update-banner .button{min-height:48px}
+.client-setup-reminder{margin:12px 0;padding:12px 16px;border:1px solid var(--line);border-radius:16px;background:var(--cream)}
+.client-setup-reminder p{margin:0 0 8px;font-size:14px;color:var(--muted)}
+.client-setup-reminder .actions{flex-wrap:wrap}

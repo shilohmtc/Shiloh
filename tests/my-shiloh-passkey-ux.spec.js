@@ -44,7 +44,7 @@ test('passkey guest and profile paths remain usable on phone and desktop', async
   }
 });
 
-test('first sign-in setup leads with a passkey, then offers notifications on phone and desktop', async ({ page }, testInfo) => {
+test('separate optional passkey and notification invitations remain usable on phone and desktop', async ({ page }, testInfo) => {
   for (const viewport of [
     { name: 'phone', width: 390, height: 844 },
     { name: 'desktop', width: 1280, height: 900 },
@@ -60,8 +60,8 @@ test('first sign-in setup leads with a passkey, then offers notifications on pho
       await expect(setup).toHaveAttribute('data-step', step);
       await expect(setup.locator('[data-client-setup-action]')).toBeVisible();
       if (step === 'notifications') {
-        await expect(setup).toContainText('Stay ready for every visit.');
-        await expect(setup).toContainText('appointment reminders');
+        await expect(setup).toContainText('Stay in the know.');
+        await expect(setup).toContainText('Get updates and reminders about your appointments.');
       }
       if (step === 'notifications') await expect(setup.locator('[data-client-setup-later]')).toBeVisible();
       else await expect(setup.locator('[data-client-setup-later]')).toBeVisible();
@@ -90,8 +90,13 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
       return route.fulfill({ status: 409, json: { error: 'Your profile changed. Reload before saving.' } });
     });
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--first-sign-in-passkey-setup&viewMode=story', { waitUntil: 'networkidle' });
-    await page.evaluate(() => Object.defineProperty(navigator, 'standalone', { value: true, configurable: true }));
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
+      // Isolate the existing passkey lifecycle proof after the optional notification choice.
+      localStorage.setItem('my-shiloh-notification-setup-later-v1:9012', '1');
+    });
     await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
+    await page.evaluate(() => window.dispatchEvent(new Event('load')));
     const form = page.locator('[data-client-profile-form]');
     await expect(page.locator('[data-view="profile"]')).toBeVisible();
     await expect(form.locator('input[name="name"]')).toHaveValue(profile.name);
@@ -110,6 +115,7 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
     await captureStable(page, testInfo, `profile-confirmation-conflict-${viewport.name}.png`, page.locator('[data-client-profile-status]'));
     await page.locator('[data-view-target="home"]').click();
     const setup = page.locator('[data-client-setup]');
+    await expect(setup).toHaveAttribute('data-step', 'passkey');
     await expect(setup.getByRole('button', { name: 'Not now' })).toBeVisible();
     await captureStable(page, testInfo, `optional-passkey-not-now-${viewport.name}.png`, setup.getByRole('button', { name: 'Not now' }));
     await setup.getByRole('button', { name: 'Not now' }).click();

@@ -15,12 +15,12 @@ test('new client builds get distinct caches while preserving Workspace and unrel
   for (const version of ['2.1.0-aaaaaaa', '2.1.0-bbbbbbb']) {
     const handlers = new Map(), opened = [], deleted = [];
     const self = { SHILOH_APP_RELEASE: version, addEventListener: (event, handler) => handlers.set(event, handler), clients: { claim: async () => {} } };
-    vm.runInNewContext(worker, { self, caches: { open: async key => { opened.push(key); return { addAll: async urls => { assert.ok(urls.includes(`/my-shiloh/assets/app.js?v=${version}`)); } }; }, keys: async () => [`my-shiloh-shell-v64-${version}`, `my-shiloh-static-v64-${version}`, 'my-shiloh-shell-v64-old', 'shiloh-pwa-static-official-brand-v2', 'another-app'], delete: async key => deleted.push(key) } });
+    vm.runInNewContext(worker, { self, caches: { open: async key => { opened.push(key); return { addAll: async urls => { assert.ok(urls.includes(`/my-shiloh/assets/app.js?v=${version}`)); } }; }, keys: async () => [`my-shiloh-shell-v65-${version}`, `my-shiloh-static-v65-${version}`, 'my-shiloh-shell-v65-old', 'shiloh-pwa-static-official-brand-v2', 'another-app'], delete: async key => deleted.push(key) } });
     let pending;
     handlers.get('install')({ waitUntil: promise => { pending = promise; } }); await pending;
-    assert.deepEqual(opened, [`my-shiloh-shell-v64-${version}`]);
+    assert.deepEqual(opened, [`my-shiloh-shell-v65-${version}`]);
     handlers.get('activate')({ waitUntil: promise => { pending = promise; } }); await pending;
-    assert.deepEqual(deleted, ['my-shiloh-shell-v64-old']);
+    assert.deepEqual(deleted, ['my-shiloh-shell-v65-old']);
   }
 });
 test('served client worker is executable JavaScript with the same release as its HTML assets', async t => {

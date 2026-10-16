@@ -211,6 +211,7 @@ function renderMyShilohPage({
       </div>
       ${passkeysAvailable ? `<section class="profile-editor" aria-labelledby="passkey-title">
         <div class="profile-editor__heading"><div><p class="eyebrow">Sign-in</p><h2 id="passkey-title">Make next time easier.</h2></div></div>
+        <p data-passkey-support-guidance hidden>Passkeys are unavailable in this browser. You can keep signing in with your Shiloh details.</p>
         <p>A passkey is optional. It makes signing in quicker. If it stops working, use your Shiloh details.</p>
         <button class="button button--soft button--wide" type="button" data-passkey-enroll>Save a passkey</button>
         <p class="profile-editor__status" data-passkey-enroll-status role="status" aria-live="polite"></p>
@@ -394,14 +395,15 @@ function renderMyShilohPage({
 
     <main id="main-content" class="app-main">
       <section class="view is-active" id="home" data-view="home" aria-labelledby="home-title">
-        ${authenticated && passkeysAvailable && signInMethod !== 'crm_details' ? `<section class="client-setup" data-client-setup hidden aria-labelledby="client-setup-title">
-          <p class="eyebrow" data-client-setup-step>Optional: save a passkey</p>
-          <h2 id="client-setup-title" data-client-setup-title>Save your Shiloh passkey.</h2>
-          <p data-client-setup-copy>Use a saved passkey as an optional way to sign in next time.</p>
-          <button class="button button--primary button--wide" type="button" data-client-setup-action>Save my passkey</button>
+        ${authenticated ? `<section class="client-setup" data-client-setup hidden aria-labelledby="client-setup-title">
+          <p class="eyebrow" data-client-setup-step>Optional notifications</p>
+          <h2 id="client-setup-title" data-client-setup-title>Stay in the know.</h2>
+          <p data-client-setup-copy>Get updates and reminders about your appointments.</p>
+          <button class="button button--primary button--wide" type="button" data-client-setup-action>Turn on notifications</button>
           <button class="client-setup__later" type="button" data-client-setup-later>Not now</button>
           <p class="client-setup__status" role="status" aria-live="polite" data-client-setup-status></p>
-        </section>` : ''}
+        </section>
+        <aside class="client-setup-reminder" data-notification-reminder hidden aria-label="Optional appointment notifications"><p>Get updates and reminders about your appointments.</p><div class="actions"><button class="button button--soft" type="button" data-notification-reminder-open>Notification settings</button><button class="button" type="button" data-notification-reminder-dismiss>Dismiss reminder</button></div></aside>` : ''}
         ${authenticated ? `<aside class="client-setup" data-dob-request hidden aria-labelledby="dob-request-title"><h2 id="dob-request-title">Add your date of birth</h2><p data-dob-request-copy></p><p data-dob-request-status role="status"></p><div class="actions"><button type="button" class="button button--primary" data-dob-request-acknowledge>Open Profile</button><button type="button" class="button" data-dob-request-later>Not now</button></div></aside>` : ''}
         ${hero}
         ${authenticated ? '<section class="home-payments stack" data-client-home-payments aria-label="Payments needing attention" hidden></section><section class="home-forms stack" data-client-home-forms aria-label="Forms to complete before your visit" hidden></section>' : ''}
