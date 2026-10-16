@@ -5,7 +5,7 @@ const { buildClientExperience } = require('../src/services/myShilohExperienceOrc
 
 async function story(page, id) {
   await page.goto(`/iframe.html?id=${id}&viewMode=story`, { waitUntil: 'networkidle' });
-  await expect(page.locator('#storybook-root [data-app-frame], #storybook-root main').first()).toBeVisible();
+  await expect(page.locator(id.startsWith('public-') ? '#storybook-root #main-content' : '#storybook-root [data-app-frame]')).toBeVisible();
   const surface = await page.locator('#storybook-root').innerHTML();
   await page.setContent(surface);
 }
