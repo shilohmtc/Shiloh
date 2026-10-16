@@ -68,6 +68,6 @@ test('waived client context selects the existing treatment request rather than a
   assert.equal(context.payment.depositOutstanding, '0.00');
   assert.equal(context.payment.activePaymentPurpose, 'general');
   assert.equal(context.payment.activePaymentPath, '/pay/SYNTHETIC_TREATMENT');
-  assert.equal(paymentPosition(context.payment).actionPath, '/pay/SYNTHETIC_TREATMENT');
+  assert.equal(paymentPosition(context.payment).actionPath, '/my-shiloh/payment?appointment=201');
   assert.deepEqual((await requests.query('SELECT * FROM payment_requests ORDER BY id')).rows, before);
 });

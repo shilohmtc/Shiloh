@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { pool } = require('../db/pool');
 const { resolveCalendarAuthority, hasCapability, allowsAppointmentTarget } = require('./calendarAuthorization');
-const { createOzowPaymentProvider } = require('./ozowPaymentProvider');
+const { createOzowPaymentProvider, notificationField } = require('./ozowPaymentProvider');
 const { STATES, EVIDENCE, transitionPaymentState } = require('../domain/paymentState');
 const { formatRand, normalizePaymentMobile } = require('./paymentValues');
 const { issueVerifiedVoucher } = require('./giftVouchers');
@@ -13,6 +13,8 @@ const { priorPaymentIncomingSql, priorPaymentOutgoingSql } = require('../domain/
 const { createBookingPriorPaymentActions } = require('./bookingPriorPayments');
 const { createBookingNoChargeActions } = require('./bookingNoCharge');
 const { createBookingDepositWaiverActions } = require('./bookingDepositWaiver');
+const { deferredDeposit, assertNoClientCollection, lockBookingPaymentScope, depositPreparationProvenance, clientAttempt, provenUnissuedDeposit } = require('./paymentCollectionGuard');
+const { createClientPaymentChoice } = require('./myShilohPaymentChoice');
 
 const CAPABILITIES = Object.freeze({ VIEW: 'payment:view', COLLECT: 'payment:collect', REFUND: 'payment:refund' });
 
@@ -121,9 +123,21 @@ function createBookingPaymentService({
     const plans = depositRequestPlans(position);
     if (!plans.length) return { status:'not_required', deposit:position, requests:[] };
     const created = [];
+    const choiceScope = position.scope.members.length > 0 && position.scope.members.every(member =>
+      Number(member.crmV2ClientId) > 0 && Number(member.crmV2ClientId) === Number(position.scope.members[0].crmV2ClientId));
     for (const plan of plans) {
-      let row = (await queryable.query(
-        `SELECT * FROM payment_requests
+      let row, mixedUnissued=false;
+      try {
+      await queryable.query('BEGIN');
+      const lockedAccount=(await queryable.query('SELECT * FROM booking_payment_accounts WHERE id=$1 FOR UPDATE',[position.requirement.payment_account_id])).rows[0];
+      if(!lockedAccount)throw new BookingPaymentError('DEPOSIT_ACCOUNT_CHANGED','Review the current booking payment account before preparing its deposit.',409);
+      await assertNoClientCollection(queryable,lockedAccount.id,BookingPaymentError);
+      const currentRequirement=(await queryable.query('SELECT * FROM booking_deposit_requirements WHERE id=$1 FOR UPDATE',[position.requirement.id])).rows[0];
+      if(!currentRequirement||currentRequirement.state!=='awaiting'||Number(currentRequirement.required_amount)!==Number(position.requirement.required_amount)){
+        throw new BookingPaymentError('DEPOSIT_REQUIREMENT_CHANGED','The deposit changed. Review its current amount before preparing payment.',409);
+      }
+      row = (await queryable.query(
+        `SELECT pr.*,${depositPreparationProvenance()} AS unissued_provenance FROM payment_requests pr
           WHERE purpose='deposit'
             AND deposit_requirement_id=$1
             AND deposit_member_appointment_id=$2
@@ -131,7 +145,7 @@ function createBookingPaymentService({
         [position.requirement.id, plan.member.appointmentId],
       )).rows[0];
       if (!row) {
-        const key = `dep_${crypto.randomBytes(18).toString('base64url')}`;
+        const key = `${choiceScope ? 'dpc2' : 'dpm2'}_${crypto.randomBytes(18).toString('base64url')}`;
         row = (await queryable.query(
           `INSERT INTO payment_requests(
              payment_account_id,request_key,provider,amount,payer_name,payer_mobile,payer_crm_v2_client_id,
@@ -152,8 +166,24 @@ function createBookingPaymentService({
             plan.member.appointmentId,
           ],
         )).rows[0];
+        if(row.request_key===key){
+          const proof=await queryable.query(`INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
+            VALUES('payment.deposit_prepared_without_provider','payment_request',$1,$2::jsonb) RETURNING id`,[row.id,JSON.stringify({requestKey:row.request_key,amount:String(row.amount),requirementId:String(position.requirement.id),memberAppointmentId:String(plan.member.appointmentId),payerCrmV2ClientId:String(plan.member.crmV2ClientId)})]);
+          if(!proof.rows[0])throw new BookingPaymentError('DEPOSIT_PREPARATION_PROOF_REQUIRED','Deposit preparation could not be recorded safely.',409);
+          row.unissued_provenance=true;
+        }
       }
-      if (!row.provider_payment_url && ozow.configured()) {
+      // New all-owned deposits are local preparation only. Historic empty URLs
+      // cannot prove a provider call never happened. Mixed-payer deposits retain
+      // their existing bound flow with a durable one-time start claim.
+      mixedUnissued = /^dpm2_/.test(row.request_key) && provenUnissuedDeposit(row) && ozow.configured();
+      if(mixedUnissued){
+        const claim=await queryable.query("UPDATE payment_requests SET state='pending',updated_at=NOW() WHERE id=$1 AND state='created' RETURNING *",[row.id]);
+        mixedUnissued=claim.rowCount>0;row=claim.rows[0]||row;
+      }
+      await queryable.query('COMMIT');
+      }catch(error){await queryable.query('ROLLBACK').catch(()=>{});throw error;}
+      if (mixedUnissued) {
         const linked = await ozow.createPaymentLink({
           requestKey: row.request_key,
           amount: row.amount,
@@ -165,12 +195,12 @@ function createBookingPaymentService({
         row = (await queryable.query(
           `UPDATE payment_requests
               SET provider_request_id=$2,provider_payment_url=$3,state='link_issued',updated_at=NOW()
-            WHERE id=$1 AND state='created'
+            WHERE id=$1 AND state='pending'
             RETURNING *`,
           [row.id, linked.providerRequestId, linked.paymentUrl],
         )).rows[0] || row;
       }
-      if (row.provider_payment_url && String(row.state) === 'link_issued' && !row.deposit_notification_sent_at) {
+      if ((row.provider_payment_url && String(row.state) === 'link_issued' || deferredDeposit(row)) && !row.deposit_notification_sent_at) {
         const appOnlyEnabled = env.SHILOH_DEPOSIT_NOTICE_APP_ONLY_ENABLED === 'true' && Boolean(pushNotify)
           && Number(row.payer_crm_v2_client_id) > 0
           && Number(row.payer_crm_v2_client_id) === Number(plan.member.crmV2ClientId);
@@ -181,7 +211,7 @@ function createBookingPaymentService({
           [plan.member.appointmentId, row.payer_crm_v2_client_id]);
           if (identity.rowCount) {
             const claim = await queryable.query(`UPDATE payment_requests SET deposit_notice_state='sending',updated_at=NOW()
-              WHERE id=$1 AND state='link_issued' AND deposit_notice_state='pending'
+              WHERE id=$1 AND state IN ('created','link_issued') AND deposit_notice_state='pending'
                 AND deposit_notification_sent_at IS NULL RETURNING *`, [row.id]);
             if (!claim.rowCount) {
               created.push(row);
@@ -204,7 +234,7 @@ function createBookingPaymentService({
               const recorded = await queryable.query(`UPDATE payment_requests SET deposit_notice_state='sent',deposit_notice_channel='my_shiloh',
                 deposit_notification_sent_at=NOW(),updated_at=NOW() WHERE id=$1 AND deposit_notice_state='sending' RETURNING *`, [row.id]);
               if (!recorded.rowCount) throw new Error('Accepted deposit app notice requires a durable delivery record');
-              created.push(recorded.rows[0]);
+              created.push({...recorded.rows[0],unissued_provenance:row.unissued_provenance});
               continue;
             }
             await queryable.query(`UPDATE payment_requests SET deposit_notice_state='pending',updated_at=NOW()
@@ -227,7 +257,9 @@ function createBookingPaymentService({
       created.push(row);
     }
     return {
-      status: ozow.configured() ? 'deposit_requested' : 'deposit_awaiting_provider',
+      status: created.length && created.every(deferredDeposit) ? 'deposit_prepared'
+        : created.some(row=>row.provider_payment_url&&['link_issued','pending'].includes(row.state)) ? 'deposit_requested'
+          : ozow.configured() ? 'deposit_needs_review' : 'deposit_awaiting_provider',
       deposit: position,
       requests: created,
     };
@@ -261,6 +293,58 @@ function createBookingPaymentService({
     }
   }
 
+  async function validatePaymentCheckout(requestKeyValue) {
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('shiloh-prior-payments'))");
+      const seed = (await client.query('SELECT payment_account_id,gift_voucher_order_id FROM payment_requests WHERE request_key=$1', [requestKeyValue])).rows[0];
+      if (seed?.gift_voucher_order_id) { await client.query('COMMIT'); return true; }
+      const account = seed?.payment_account_id ? (await client.query('SELECT * FROM booking_payment_accounts WHERE id=$1 FOR UPDATE', [seed.payment_account_id])).rows[0] : null;
+      const request = (await client.query('SELECT * FROM payment_requests WHERE request_key=$1 FOR UPDATE', [requestKeyValue])).rows[0];
+      if (!account || !request || !['link_issued','pending'].includes(request.state) || !request.provider_payment_url
+        || request.expires_at && new Date(request.expires_at) <= now()) { await client.query('COMMIT'); return false; }
+      if (clientAttempt(request)) {
+        const valid = await clientChoice.validateRequest(client,request);
+        await client.query('COMMIT'); return valid;
+      }
+      const members = (await client.query(`SELECT a.id,a.updated_at,a.status,a.total_price,a.crm_v2_client_id,a.client_id,
+        to_jsonb(a)->>'financial_classification' AS classification,aba.status AS approval_status
+        FROM appointments a LEFT JOIN appointment_booking_approvals aba ON aba.appointment_id=a.id
+        WHERE a.id=$1 OR EXISTS(SELECT 1 FROM appointment_group_members gm WHERE gm.appointment_id=a.id AND gm.group_id=$2)`,
+      [account.appointment_id,account.appointment_group_id])).rows;
+      const total = account.appointment_group_id ? (await client.query('SELECT COALESCE(final_total,total_price) AS total FROM appointment_groups WHERE id=$1', [account.appointment_group_id])).rows[0]?.total : members[0]?.total_price;
+      const payment = await position(client,account,{});
+      const requirement = (await client.query('SELECT * FROM booking_deposit_requirements WHERE payment_account_id=$1', [account.id])).rows[0];
+      const netMoney=Math.max(0,Number(payment.paid)-Number(payment.refunded)+Number(payment.priorPaid)-Number(payment.transferredOut));
+      let depositCurrent=true;
+      if(request.purpose==='deposit'){
+        const member=request.deposit_member_appointment_id ? (await client.query('SELECT required_amount FROM booking_deposit_requirement_members WHERE requirement_id=$1 AND appointment_id=$2',[requirement?.id||null,request.deposit_member_appointment_id])).rows[0] : null;
+        const remainingDeposit=requirement&&!['waived','exempt'].includes(requirement.state)?Math.max(0,Number(requirement.required_amount)-netMoney):0;
+        const expected=member?Math.min(Number(member.required_amount),remainingDeposit):remainingDeposit;
+        // Historic links have no immutable chooser binding. Any subsequent
+        // money/credit/scope change requires Reception instead of guessing a
+        // new fixed amount or treating a local close as provider revocation.
+        const changes=(await client.query(`SELECT 1 WHERE EXISTS(SELECT 1 FROM payment_ledger_entries WHERE payment_account_id=$1 AND created_at>$2)
+          OR EXISTS(SELECT 1 FROM booking_prior_payment_entries WHERE booking_payment_account_id=$1 AND created_at>$2)
+          OR EXISTS(SELECT 1 FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1 AND state='applied')
+          OR EXISTS(SELECT 1 FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 AND state='applied')
+          OR EXISTS(SELECT 1 FROM treatment_credit_entries WHERE booking_payment_account_id=$1 AND entry_type IN ('apply','undo'))
+          OR EXISTS(SELECT 1 FROM booking_gift_voucher_allocations WHERE booking_payment_account_id=$1)`,[account.id,request.created_at])).rowCount;
+        depositCurrent=Boolean(requirement&&Number(request.deposit_requirement_id)===Number(requirement.id)&&expected>0
+          && Math.round(Number(request.amount)*100)===Math.round(expected*100)&&!changes&&request.created_at
+          && members.every(m=>new Date(m.updated_at)<=new Date(request.created_at)));
+      }
+      const valid = depositCurrent && members.length > 0 && members.every(m => !['cancelled','no_show'].includes(m.status) && m.classification !== 'no_charge'
+        && (!m.approval_status || m.approval_status === 'approved'))
+        && total != null && Math.round(Number(total)*100) === Math.round(Number(account.canonical_amount_due)*100)
+        && Math.round(Number(request.amount)*100) <= Math.round(Number(payment.outstanding)*100)
+        && !(request.purpose === 'deposit' && requirement?.state === 'waived')
+        && (!clientAttempt(request) || members.every(m => m.client_id == null && Number(m.crm_v2_client_id) === Number(request.payer_crm_v2_client_id)));
+      await client.query('COMMIT'); return valid;
+    } catch (error) { await client.query('ROLLBACK').catch(()=>{}); throw error; } finally { client.release(); }
+  }
+
   async function resolveOperator(queryable, adminId, capability) {
     const operator = await resolveCalendarAuthority(queryable, positiveId(adminId), { additionalCapabilities: Object.values(CAPABILITIES) });
     if (!operator || !hasCapability(operator.calendarAuthority, capability)) {
@@ -270,6 +354,7 @@ function createBookingPaymentService({
   }
 
   async function loadSubject(queryable, appointmentId, { lock = false } = {}) {
+    if(lock)await lockBookingPaymentScope(queryable,positiveId(appointmentId),BookingPaymentError);
     const result = await queryable.query(
       `/* bookingPayments:subject */
        SELECT a.id AS appointment_id,a.client_id AS legacy_client_id,a.crm_v2_client_id,a.status AS appointment_status,a.total_price AS appointment_total,
@@ -351,14 +436,14 @@ function createBookingPaymentService({
 
   async function position(queryable, account, subject) {
     if (!account) return { accountId:null,amountDue: subject.amountDue, paid: '0.00', refunded: '0.00', netPaid: '0.00', priorPaid:'0.00',transferredOut:'0.00',previouslyPaid:'0.00',receivedToday:'0.00',rewardsApplied: '0.00', welcomeVoucherApplied: '0.00', treatmentCreditApplied: '0.00', giftVoucherApplied: '0.00', noncashEntries: [], outstanding: subject.amountDue, state: 'unpaid', requests: [], entries: [] };
-    const [totals, rewardsApplied, welcomeVoucherApplied, requests, entries] = await Promise.all([
-      queryable.query(`SELECT COALESCE(SUM(amount) FILTER (WHERE entry_type='payment'),0) paid,COALESCE(SUM(amount) FILTER (WHERE entry_type='refund'),0) refunded,
+    const queries = [
+      () => queryable.query(`SELECT COALESCE(SUM(amount) FILTER (WHERE entry_type='payment'),0) paid,COALESCE(SUM(amount) FILTER (WHERE entry_type='refund'),0) refunded,
         ${priorPaymentIncomingSql('$1')} AS prior_paid,${priorPaymentOutgoingSql('$1')} AS transferred_out,
         COALESCE(SUM(amount) FILTER (WHERE entry_type='payment' AND (created_at AT TIME ZONE 'Africa/Johannesburg')::date=$2::date),0) AS received_today,
         COALESCE(SUM(CASE WHEN entry_type='payment' THEN amount ELSE -amount END) FILTER (WHERE (created_at AT TIME ZONE 'Africa/Johannesburg')::date<$2::date),0) AS received_before
         FROM payment_ledger_entries WHERE payment_account_id=$1`, [account.id,now().toLocaleDateString('en-CA',{timeZone:'Africa/Johannesburg'})]),
-      queryable.query(`SELECT COALESCE(SUM(amount),0) AS amount FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1 AND state='applied'`, [account.id]),
-      queryable.query(`SELECT COALESCE(SUM(amount),0) AS amount,COALESCE((SELECT -SUM(signed_amount) FROM treatment_credit_entries WHERE booking_payment_account_id=$1 AND entry_type IN ('apply','undo')),0) AS treatment_amount,
+      () => queryable.query(`SELECT COALESCE(SUM(amount),0) AS amount FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1 AND state='applied'`, [account.id]),
+      () => queryable.query(`SELECT COALESCE(SUM(amount),0) AS amount,COALESCE((SELECT -SUM(signed_amount) FROM treatment_credit_entries WHERE booking_payment_account_id=$1 AND entry_type IN ('apply','undo')),0) AS treatment_amount,
         COALESCE((SELECT SUM(amount) FROM booking_gift_voucher_allocations WHERE booking_payment_account_id=$1),0) AS gift_amount,
         COALESCE((SELECT jsonb_agg(history ORDER BY history->>'created_at' DESC) FROM (
           SELECT jsonb_build_object('kind','treatment_credit','id',e.id,'action',e.entry_type,'amount',-e.signed_amount,'reason',e.reason,'actor',a.display_name,'created_at',e.created_at,'sourceEntryId',e.source_entry_id) AS history
@@ -367,9 +452,14 @@ function createBookingPaymentService({
             FROM booking_gift_voucher_allocations allocation JOIN gift_voucher_ledger_entries ledger ON ledger.id=allocation.voucher_ledger_entry_id
             JOIN gift_vouchers v ON v.id=ledger.voucher_id JOIN staff_admin_accounts a ON a.id=allocation.actor_admin_id WHERE allocation.booking_payment_account_id=$1
         ) noncash_history),'[]'::jsonb) AS noncash_entries FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 AND state='applied'`, [account.id]),
-      queryable.query(`SELECT id,request_key,provider,provider_request_id,provider_payment_url,amount,state,purpose,deposit_requirement_id,deposit_member_appointment_id,payer_name,payer_mobile,expires_at,created_at FROM payment_requests WHERE payment_account_id=$1 ORDER BY id DESC`, [account.id]),
-      queryable.query(`SELECT id,entry_type,amount,method,evidence_kind,external_reference,notes,created_at FROM payment_ledger_entries WHERE payment_account_id=$1 ORDER BY id DESC`, [account.id]),
-    ]);
+      () => queryable.query(`SELECT id,request_key,provider,provider_request_id,provider_payment_url,amount,state,purpose,deposit_requirement_id,deposit_member_appointment_id,payer_name,payer_mobile,expires_at,created_at FROM payment_requests WHERE payment_account_id=$1 ORDER BY id DESC`, [account.id]),
+      () => queryable.query(`SELECT id,entry_type,amount,method,evidence_kind,external_reference,notes,created_at FROM payment_ledger_entries WHERE payment_account_id=$1 ORDER BY id DESC`, [account.id]),
+    ];
+    // One checked-out PostgreSQL client executes serially; avoid concurrent
+    // client.query calls while retaining one locked financial snapshot.
+    const results=[];
+    for(const query of queries)results.push(await query());
+    const [totals, rewardsApplied, welcomeVoucherApplied, requests, entries]=results;
     const priorPaid = Number(totals.rows[0].prior_paid || 0), transferredOut = Number(totals.rows[0].transferred_out || 0);
     const paid = Number(totals.rows[0].paid), refunded = Number(totals.rows[0].refunded), net = paid - refunded - transferredOut, loyalty = Number(rewardsApplied.rows[0].amount || 0), welcome = Number(welcomeVoucherApplied.rows[0].amount || 0), treatment = Number(welcomeVoucherApplied.rows[0].treatment_amount || 0), gift = Number(welcomeVoucherApplied.rows[0].gift_amount || 0);
     const due = Number(account.canonical_amount_due), settledCents = Math.round(net*100)+Math.round(priorPaid*100)+Math.round(loyalty*100)+Math.round(welcome*100)+Math.round(treatment*100)+Math.round(gift*100),outstanding = Math.max(0, Math.round(due*100)-settledCents)/100;
@@ -418,7 +508,7 @@ function createBookingPaymentService({
       const review = await db.query(
         `SELECT created_at,metadata
            FROM crm_audit_events
-          WHERE action IN ('payment.received_after_booking_cancelled','payment.received_after_prior_settlement','payment.received_after_no_charge','payment.received_after_deposit_waived')
+          WHERE action IN ('payment.received_after_booking_cancelled','payment.received_after_prior_settlement','payment.received_after_no_charge','payment.received_after_deposit_waived','payment.received_after_collection_changed')
             AND entity_type='booking_payment_account'
             AND entity_id=$1::bigint
           ORDER BY created_at DESC,id DESC
@@ -426,7 +516,7 @@ function createBookingPaymentService({
         [account.id],
       );
       if (review.rows[0]) paymentReview = {
-        kind: review.rows[0].metadata?.depositWaived ? 'waived_deposit_payment_received' : review.rows[0].metadata?.noCharge ? 'no_charge_payment_received' : review.rows[0].metadata?.priorPaymentEntryId ? 'prior_settlement_payment_received' : 'cancelled_booking_payment_received',
+        kind: review.rows[0].metadata?.previousState ? 'changed_collection_payment_received' : review.rows[0].metadata?.depositWaived ? 'waived_deposit_payment_received' : review.rows[0].metadata?.noCharge ? 'no_charge_payment_received' : review.rows[0].metadata?.priorPaymentEntryId ? 'prior_settlement_payment_received' : 'cancelled_booking_payment_received',
         createdAt: review.rows[0].created_at,
         metadata: review.rows[0].metadata || {},
       };
@@ -519,12 +609,15 @@ function createBookingPaymentService({
   async function createOzowRequest({ adminId, appointmentId, amount, payerName, payerMobile, payerConfirmed, operationId } = {}) {
     if (String(payerConfirmed || '').toLowerCase() !== 'true') throw new BookingPaymentError('PAYMENT_PAYER_CONFIRMATION_REQUIRED', 'Confirm the payer name and mobile number before creating a payment link.', 400);
     const normalizedAmount = money(amount, { positive: true }), key = requestKey(operationId);
+    if (/^(cpc|dpc|dpc2|dpm|dpm2)_/.test(key)) throw new BookingPaymentError('PAYMENT_RESERVED_REQUEST_KEY', 'Use a new operation identifier.', 400);
     const client = await db.connect(); let account; let subject; let row;
     try {
       await client.query('BEGIN'); const operator = await resolveOperator(client, adminId, CAPABILITIES.COLLECT);
+      if (!ozow.configured()) throw new BookingPaymentError('PAYMENT_OZOW_NOT_CONFIGURED', 'Secure payment is unavailable. Review the existing payment requests with Reception.',409);
       subject = await loadSubject(client, appointmentId, { lock: true }); assertTarget(operator, subject);
       if (subject.final) throw new BookingPaymentError('PAYMENT_BOOKING_FINAL', 'A payment link cannot be created for a cancelled booking.', 409);
       account = await accountFor(client, subject, { create: true }); const current = await position(client, account, subject);
+      await assertNoClientCollection(client, account.id,BookingPaymentError);
       if (Number(normalizedAmount) > Number(current.outstanding)) throw new BookingPaymentError('PAYMENT_EXCEEDS_OUTSTANDING', 'The requested amount is greater than the booking balance.', 409);
       const existing = await client.query(`SELECT * FROM payment_requests WHERE request_key=$1`, [key]); row = existing.rows[0];
       if (row && (Number(row.payment_account_id) !== Number(account.id) || Number(row.amount) !== Number(normalizedAmount))) throw new BookingPaymentError('PAYMENT_IDEMPOTENCY_MISMATCH', 'That operation identifier was already used for another payment request.', 409);
@@ -540,15 +633,18 @@ function createBookingPaymentService({
         if (active.rows.length) throw new BookingPaymentError('PAYMENT_LINK_ALREADY_ACTIVE', 'An active link for this payer and amount already exists. Copy that link from Payment requests instead.', 409);
         const payerClientId=await resolvePayer(client,subject,payerMobile||subject.clientMobile);
         if(subject.groupId&&!payerClientId)throw new BookingPaymentError('PAYMENT_PAYER_CLIENT_REQUIRED','Choose a payer whose mobile number matches an active Shiloh client before creating a group payment link.',409);
-        row = (await client.query(`INSERT INTO payment_requests(payment_account_id,request_key,provider,amount,payer_name,payer_mobile,created_by_admin_id,payer_crm_v2_client_id) VALUES($1,$2,'ozow',$3,$4,$5,$6,$7) RETURNING *`, [account.id,key,normalizedAmount,String(payerName || subject.clientName).trim() || null,String(payerMobile || subject.clientMobile).trim() || null,operator.id,payerClientId])).rows[0];
+        row = (await client.query(`INSERT INTO payment_requests(payment_account_id,request_key,provider,amount,payer_name,payer_mobile,created_by_admin_id,payer_crm_v2_client_id,state) VALUES($1,$2,'ozow',$3,$4,$5,$6,$7,'pending') RETURNING *`, [account.id,key,normalizedAmount,String(payerName || subject.clientName).trim() || null,String(payerMobile || subject.clientMobile).trim() || null,operator.id,payerClientId])).rows[0];
+      } else {
+        await client.query('COMMIT');
+        return { status:row.provider_payment_url ? 'idempotent_replay' : 'pending', request:row };
       }
       await client.query('COMMIT');
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
     if (row.provider_payment_url) return { status: 'idempotent_replay', request: row };
      const linked = await ozow.createPaymentLink({ requestKey:key, amount:normalizedAmount, bankReference:`SHILOH ${account.id}`, customerName:row.payer_name, customerMobile:row.payer_mobile });
      transitionPaymentState(STATES.CREATED, STATES.LINK_ISSUED);
-     const updated = await db.query(`UPDATE payment_requests SET provider_request_id=$2,provider_payment_url=$3,state='link_issued',updated_at=NOW() WHERE id=$1 AND state='created' RETURNING *`, [row.id,linked.providerRequestId,linked.paymentUrl]);
-     const request = updated.rows[0];
+     const updated = await db.query(`UPDATE payment_requests SET provider_request_id=$2,provider_payment_url=$3,updated_at=NOW() WHERE id=$1 AND state='pending' RETURNING *`, [row.id,linked.providerRequestId,linked.paymentUrl]);
+     const request = updated.rows[0] || (await db.query('SELECT * FROM payment_requests WHERE id=$1',[row.id])).rows[0];
      if (request?.payer_crm_v2_client_id && pushNotify) {
        await pushNotify({
          crmV2ClientId: Number(request.payer_crm_v2_client_id),
@@ -559,7 +655,7 @@ function createBookingPaymentService({
          targetPath: '/my-shiloh/#bookings',
        });
      }
-     return { status: 'link_issued', request: updated.rows[0] };
+     return { status: request?.state==='paid' ? 'paid' : request?.provider_payment_url ? 'link_issued' : 'pending', request };
   }
 
   async function recordRefund({ adminId, appointmentId, amount, method, reference, notes, payerMobile, operationId } = {}) {
@@ -595,11 +691,12 @@ function createBookingPaymentService({
 
   async function handleOzowNotification(payload = {}) {
     const raw = JSON.stringify(payload); const hash = crypto.createHash('sha256').update(raw).digest('hex');
-    const eventKey = String(payload.TransactionId || payload.transactionId || payload.PaymentRequestId || payload.requestId || '').trim();
-    const requestReference = String(payload.TransactionReference || payload.transactionReference || '').trim();
-    if (!eventKey || !requestReference || !ozow.verifyNotification(payload)) throw new BookingPaymentError('PAYMENT_PROVIDER_NOTIFICATION_REJECTED', 'Provider notification could not be verified.', 400);
-    const status = String(payload.Status || payload.status || '').trim().toLowerCase();
+    const transactionId = String(notificationField(payload,'TransactionId')).trim();
+    const requestReference = String(notificationField(payload,'TransactionReference')).trim();
+    if (!transactionId || !requestReference || !ozow.verifyNotification(payload)) throw new BookingPaymentError('PAYMENT_PROVIDER_NOTIFICATION_REJECTED', 'Provider notification could not be verified.', 400);
+    const status = String(notificationField(payload,'Status')).trim().toLowerCase();
     const paid = ['complete','completed','paid','successful','success'].includes(status);
+    const eventKey = `${transactionId}:${paid ? 'paid' : `status:${status}`}`;
     const cancelled = ['cancelled','canceled','abandoned'].includes(status);
     const notVerifiedOutcome = ['failed','error','cancelled','canceled','abandoned','expired','declined'].includes(status);
     const client = await db.connect();
@@ -609,6 +706,11 @@ function createBookingPaymentService({
       await client.query("SELECT pg_advisory_xact_lock(hashtext('shiloh-prior-payments'))");
       const duplicate = await client.query(`SELECT id FROM payment_provider_events WHERE provider='ozow' AND provider_event_key=$1`, [eventKey]);
       if (duplicate.rows[0]) { await client.query('COMMIT'); return { status:'duplicate' }; }
+      // Every manual/credit/prior/refund operation serializes on this account.
+      // Lock it BEFORE the request, matching account->request collection order.
+      const binding = (await client.query('SELECT payment_account_id FROM payment_requests WHERE request_key=$1', [requestReference])).rows[0];
+      const lockedAccount = binding?.payment_account_id
+        ? (await client.query('SELECT * FROM booking_payment_accounts WHERE id=$1 FOR UPDATE', [binding.payment_account_id])).rows[0] : null;
       const request = (await client.query(
         `SELECT pr.*,
                 COALESCE(pr.deposit_member_appointment_id,bpa.appointment_id,(
@@ -641,10 +743,17 @@ function createBookingPaymentService({
       )).rows[0];
       if (!request) { await client.query(`INSERT INTO payment_provider_events(provider,provider_event_key,signature_verified,payload_sha256,outcome) VALUES('ozow',$1,TRUE,$2,'unmatched')`, [eventKey,hash]); await client.query('COMMIT'); return { status:'unmatched' }; }
       if (paid) {
-        const notifiedAmount = String(payload.Amount ?? payload.amount ?? '').trim();
-        const notifiedCurrency = String(payload.CurrencyCode ?? payload.currencyCode ?? '').trim().toUpperCase();
+        const notifiedAmount = String(notificationField(payload,'Amount')).trim();
+        const notifiedCurrency = String(notificationField(payload,'CurrencyCode')).trim().toUpperCase();
         if (money(notifiedAmount) !== money(request.amount) || notifiedCurrency !== String(request.currency).toUpperCase()) {
           throw new BookingPaymentError('PAYMENT_PROVIDER_AMOUNT_MISMATCH', 'Provider payment amount or currency does not match the Shiloh payment request.', 400);
+        }
+      }
+      if(paid&&!request.gift_voucher_order_id){
+        const known=(await client.query("SELECT payment_request_id FROM payment_ledger_entries WHERE method='ozow' AND provider_transaction_id=$1 AND entry_type='payment'",[transactionId])).rows[0];
+        if(known){
+          if(Number(known.payment_request_id)!==Number(request.id))throw new BookingPaymentError('PAYMENT_PROVIDER_TRANSACTION_CONFLICT','This verified transaction is already recorded against a different payment request. Reception must review the provider evidence.',409);
+          await client.query('COMMIT');return {status:'duplicate'};
         }
       }
       let voucherIssued = null;
@@ -657,14 +766,21 @@ function createBookingPaymentService({
       const waivedRequirement = paid && request.purpose === 'deposit' && request.deposit_requirement_id && !request.gift_voucher_order_id
         ? (await client.query("SELECT id FROM booking_deposit_requirements WHERE id=$1 AND payment_account_id=$2 AND state='waived'", [request.deposit_requirement_id, request.payment_account_id])).rows[0] : null;
       const paidAfterDepositWaived = Boolean(waivedRequirement);
-      if (paid && request.state !== 'paid') {
-        if (!paidAfterBookingCancellation && !paidAfterPriorSettlement && !paidAfterNoCharge && !paidAfterDepositWaived) {
+      const beforePayment = paid && lockedAccount ? await position(client, lockedAccount, {}) : null;
+      const paidAfterCollectionClosed = paid && !['link_issued','pending'].includes(request.state) && !request.gift_voucher_order_id;
+      const exceedsRemaining = paid && beforePayment && Math.round(Number(request.amount)*100) > Math.round(Number(beforePayment.outstanding)*100);
+      const staleClientReceipt = paid && clientAttempt(request)
+        ? !await clientChoice.validateRequest(client,request) : false;
+      const collectionReview = Boolean(paidAfterCollectionClosed || exceedsRemaining || staleClientReceipt)
+        && !paidAfterBookingCancellation && !paidAfterPriorSettlement && !paidAfterNoCharge && !paidAfterDepositWaived;
+      if (paid && (request.state !== 'paid' || !request.gift_voucher_order_id)) {
+        if (!paidAfterBookingCancellation && !paidAfterPriorSettlement && !paidAfterNoCharge && !paidAfterDepositWaived && !collectionReview) {
           transitionPaymentState(request.state, STATES.PAID, { evidence:EVIDENCE.VERIFIED_PROVIDER });
         }
         if (request.gift_voucher_order_id) {
-          voucherIssued = await issueVerifiedVoucher(client, request, eventKey);
+          voucherIssued = await issueVerifiedVoucher(client, request, transactionId);
         } else {
-          await client.query(`INSERT INTO payment_ledger_entries(payment_account_id,payment_request_id,entry_type,amount,method,evidence_kind,provider_transaction_id,payer_crm_v2_client_id) VALUES($1,$2,'payment',$3,'ozow',$4,$5,$6) ON CONFLICT DO NOTHING`, [request.payment_account_id,request.id,request.amount,EVIDENCE.VERIFIED_PROVIDER,eventKey,request.payer_crm_v2_client_id]);
+          await client.query(`INSERT INTO payment_ledger_entries(payment_account_id,payment_request_id,entry_type,amount,method,evidence_kind,provider_transaction_id,payer_crm_v2_client_id) VALUES($1,$2,'payment',$3,'ozow',$4,$5,$6) ON CONFLICT DO NOTHING`, [request.payment_account_id,request.id,request.amount,EVIDENCE.VERIFIED_PROVIDER,transactionId,request.payer_crm_v2_client_id]);
         }
         await client.query(`UPDATE payment_requests SET state='paid',updated_at=NOW() WHERE id=$1`, [request.id]);
         if (!request.gift_voucher_order_id) {
@@ -679,9 +795,9 @@ function createBookingPaymentService({
           [request.payment_account_id],
           )).rows[0];
           paymentReceived = {
-            request, noCharge: Boolean(paidAfterNoCharge), depositWaived: paidAfterDepositWaived,
+            request, noCharge: Boolean(paidAfterNoCharge), depositWaived: paidAfterDepositWaived, collectionReview,
             remaining: Math.max(0, Number(balance?.canonical_amount_due || 0) - Number(balance?.net_paid || 0)),
-            reviewRequired: Boolean(paidAfterBookingCancellation || paidAfterPriorSettlement || paidAfterNoCharge || paidAfterDepositWaived),
+            reviewRequired: Boolean(paidAfterBookingCancellation || paidAfterPriorSettlement || paidAfterNoCharge || paidAfterDepositWaived || collectionReview),
           };
           if (paidAfterBookingCancellation) {
             await client.query(
@@ -704,6 +820,9 @@ function createBookingPaymentService({
           if (paidAfterNoCharge) await client.query(`INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata) VALUES('payment.received_after_no_charge','booking_payment_account',$1,$2::jsonb)`,[request.payment_account_id,JSON.stringify({appointmentId:Number(request.appointment_id),paymentRequestId:Number(request.id),noCharge:true,amount:Number(request.amount).toFixed(2),providerEventKey:eventKey,reviewRequired:true,automaticRefundIssued:false})]);
           if (paidAfterPriorSettlement) await client.query(`INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
             VALUES('payment.received_after_prior_settlement','booking_payment_account',$1,$2::jsonb)`,[request.payment_account_id,JSON.stringify({appointmentId:Number(request.appointment_id),paymentRequestId:Number(request.id),priorPaymentEntryId:Number(request.prior_payment_closed_by_entry_id),amount:Number(request.amount).toFixed(2),providerEventKey:eventKey,reviewRequired:true,automaticRefundIssued:false})]);
+          if (collectionReview) await client.query(`INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
+            VALUES('payment.received_after_collection_changed','booking_payment_account',$1,$2::jsonb)`,
+          [request.payment_account_id,JSON.stringify({paymentRequestId:Number(request.id),previousState:request.state,staleClientReceipt,exceedsRemaining:Boolean(exceedsRemaining),remainingBeforeReceipt:beforePayment?.outstanding || null,providerEventKey:eventKey,reviewRequired:true,automaticRefundIssued:false})]);
       } else if (!paid && notVerifiedOutcome && ['link_issued', 'pending'].includes(String(request.state))) {
         const nextState = cancelled ? STATES.CANCELLED : STATES.FAILED;
         transitionPaymentState(request.state, nextState);
@@ -775,7 +894,7 @@ function createBookingPaymentService({
           category: 'payment',
           title: paymentReceived.reviewRequired ? 'Payment needs review' : 'Payment received',
           body: paymentReceived.reviewRequired
-            ? paymentReceived.depositWaived ? 'A payment reached Shiloh on an earlier deposit link after the deposit was waived. Shiloh will review the actual payment. No automatic refund has been issued.' : paymentReceived.noCharge ? 'A payment reached Shiloh after this treatment was marked no charge. Shiloh will review the payment. No automatic refund has been issued.' : paymentReceived.request.prior_payment_closed_by_entry_id
+            ? paymentReceived.collectionReview ? 'An earlier payment reached Shiloh after the collection position changed. Shiloh will review the actual payment. No automatic refund has been issued.' : paymentReceived.depositWaived ? 'A payment reached Shiloh on an earlier deposit link after the deposit was waived. Shiloh will review the actual payment. No automatic refund has been issued.' : paymentReceived.noCharge ? 'A payment reached Shiloh after this treatment was marked no charge. Shiloh will review the payment. No automatic refund has been issued.' : paymentReceived.request.prior_payment_closed_by_entry_id
               ? 'A payment reached Shiloh after prior payment was recorded. Shiloh will review the payment. No automatic refund has been issued.'
               : 'A payment reached Shiloh after this booking was cancelled. The booking stays cancelled and Shiloh will review the payment. No automatic refund has been issued.'
             : 'Your Shiloh payment was received successfully.',
@@ -807,7 +926,9 @@ function createBookingPaymentService({
   const noCharge = createBookingNoChargeActions({db, ErrorType:BookingPaymentError,positiveId,requestKey,resolveOperator,loadSubject,assertTarget,accountFor,position,syncDepositAfterSettlement});
   const prior = createBookingPriorPaymentActions({ db,money,requestKey,positiveId,ErrorType:BookingPaymentError,resolveOperator,loadSubject,assertTarget,accountFor,position,syncDepositAfterSettlement,now });
   const getReview = ({ adminId, appointmentId } = {}) => get({ adminId, appointmentId }, { allowPriceReview: true });
-  return { get, getReview, getSummary, recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification,recordDepositWaiver,recordNoCharge:noCharge.record,recordPrior:prior.recordPrior,reversePrior:prior.reversePrior };
+  const clientChoice = createClientPaymentChoice({db,ozow,loadSubject,accountFor,position,PaymentError:BookingPaymentError,now});
+  return { get, getReview, getSummary, recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification,recordDepositWaiver,recordNoCharge:noCharge.record,recordPrior:prior.recordPrior,reversePrior:prior.reversePrior,
+    getClientPaymentChoices:clientChoice.get, collectClientPayment:clientChoice.collect, validatePaymentCheckout };
 }
 
 module.exports = { CAPABILITIES, BookingPaymentError, money, createBookingPaymentService };
