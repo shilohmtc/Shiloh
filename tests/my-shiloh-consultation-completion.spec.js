@@ -210,6 +210,7 @@ for(const viewport of [{width:390,height:844},{width:1280,height:900}]) {
       const reopened=await page.request.get(entry);
       expect(reopened.status()).toBe(404); // Pending selection is not the recovery authority.
       expect(await reopened.text()).toContain('Consultation form unavailable');
+      expect(await reopened.text()).toContain('data-my-shiloh-form-return');
       expect(await reopened.text()).not.toContain('ReferenceError');
       const canonical=await page.request.get(origin+'/forms/f/'+token);
       expect(canonical.status()).toBe(200);

@@ -10,3 +10,5 @@ export const Form = {render:()=>surface(ux.renderClientConsultationFormPage(mode
 export const Received = {render:()=>surface(ux.renderCompletedPage())};
 
 export const ReceivedFromMyShiloh = {render:()=>surface(ux.renderCompletedPage({returnToMyShiloh:true}))};
+
+export const AppEntryUnavailable = {render:()=>surface(ux.renderUnavailablePage({returnToMyShiloh:true}))};

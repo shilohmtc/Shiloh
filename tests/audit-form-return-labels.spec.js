@@ -48,5 +48,7 @@ for(const width of [320,390,1440]){
   await page.screenshot({path:testInfo.outputPath(`form-search-${width}.png`),fullPage:true});
   await page.goto('/iframe.html?id=my-shiloh-consultation-completion--received-from-my-shiloh&viewMode=story',{waitUntil:'networkidle'});
   await expect(page.getByRole('link',{name:'Back to My Shiloh'})).toBeVisible();
+  await page.goto('/iframe.html?id=my-shiloh-consultation-completion--app-entry-unavailable&viewMode=story',{waitUntil:'networkidle'});
+  await expect(page.getByRole('link',{name:'Back to My Shiloh'})).toHaveAttribute('href','/my-shiloh/#bookings');
  });
 }

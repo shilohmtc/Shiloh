@@ -1,7 +1,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {myShilohFormReturnProof,validMyShilohFormReturn}=require('../src/services/consultationFormReturn');
-const {renderCompletedPage}=require('../src/presentation/clientConsultationFormUx');
+const {renderCompletedPage,renderUnavailablePage}=require('../src/presentation/clientConsultationFormUx');
 const env={CONSULTATION_FORM_DATA_KEY:Buffer.alloc(32,19).toString('base64url')};
 const token=Buffer.alloc(32,18).toString('base64url');
 test('presentation return marker is bound to its form and cannot select a destination',()=>{
@@ -11,6 +11,8 @@ test('presentation return marker is bound to its form and cannot select a destin
  assert.equal(validMyShilohFormReturn(Buffer.alloc(32,17).toString('base64url'),proof,env),false);
  assert.equal(validMyShilohFormReturn(token,proof,{CONSULTATION_FORM_DATA_KEY:Buffer.alloc(32,20).toString('base64url')}),false);
  assert.doesNotMatch(renderCompletedPage(),/data-my-shiloh-form-return/);
+ assert.doesNotMatch(renderUnavailablePage(),/data-my-shiloh-form-return/);
+ assert.match(renderUnavailablePage({returnToMyShiloh:true}),/href="\/my-shiloh\/#bookings"/);
  assert.match(renderCompletedPage({returnToMyShiloh:true}),/href="\/my-shiloh\/#bookings"/);
  assert.doesNotMatch(renderCompletedPage({returnToMyShiloh:true}),new RegExp(token+'|'+proof));
 });

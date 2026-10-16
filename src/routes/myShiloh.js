@@ -1100,7 +1100,7 @@ function createMyShilohRouter({
   });
 
   router.get('/my-shiloh/forms/complete', requireSession, async (req, res) => {
-    const unavailable = (status, message) => res.status(status).type('html').send(renderUnavailablePage({ message }));
+    const unavailable = (status, message) => res.status(status).type('html').send(renderUnavailablePage({ message, returnToMyShiloh: true }));
     try {
       if (!formService.isClientConsultationFormsEnabled(env)) {
         return unavailable(404, 'Consultation forms are not available in My Shiloh right now.');
