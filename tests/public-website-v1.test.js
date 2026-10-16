@@ -387,3 +387,12 @@ test('public surfaces preserve approved descriptions while keeping booking notes
   assert.match(booking, /Neo Pelvic Session/);
   assert.match(booking, /Shiloh Massage &amp; Aesthetic Clinic/);
 });
+
+test('both public menus offer staff the existing Workspace install doorway', () => {
+  const html = renderSiteHeader('/');
+  const link = 'href="https://app.shilohmtc.co.za/calendar/pwa/install">Staff Workspace</a>';
+  assert.equal(html.split(link).length - 1, 2);
+  assert.doesNotMatch(html, /href="[^"]*calendar\/workspace/);
+  assert.match(html, /class="site-client"[^>]*>My Shiloh<\/a>/);
+  assert.match(html, /class="site-book"[^>]*>Book<\/a>/);
+});

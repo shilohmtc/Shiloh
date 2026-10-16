@@ -52,3 +52,5 @@ module.exports.testMatch.push('workspace-return-status-visits.spec.js');
 
 module.exports.testMatch.push('public-audit-followup.spec.js');
 module.exports.testMatch.push('client-payment-choice.spec.js');
+
+module.exports.testMatch.push('public-staff-workspace-menu.spec.js');
