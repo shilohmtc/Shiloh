@@ -61,14 +61,14 @@ function createOzowPaymentProvider({ env = process.env, fetchImpl = global.fetch
       signal: AbortSignal.timeout(15000),
     });
     if (!response.ok) {
-      const error = new Error('Ozow could not create the payment link. Nothing was charged.');
+      const error = new Error('The Ozow payment request could not be resolved. Review the existing attempt before trying another payment.');
       error.code = 'PAYMENT_OZOW_LINK_FAILED'; error.httpStatus = 502; throw error;
     }
     const body = await response.json();
     const url = String(body.url || body.paymentUrl || body.payment_url || '').trim();
     const id = String(body.requestId || body.paymentRequestId || body.id || '').trim();
     if (!url || !/^https:\/\//i.test(url) || !id) {
-      const error = new Error('Ozow returned an incomplete payment-link response. Nothing was charged.');
+      const error = new Error('Ozow returned an incomplete response. Review the existing payment attempt before trying again.');
       error.code = 'PAYMENT_OZOW_INVALID_RESPONSE'; error.httpStatus = 502; throw error;
     }
     return { providerRequestId: id, paymentUrl: url };
@@ -86,4 +86,4 @@ function createOzowPaymentProvider({ env = process.env, fetchImpl = global.fetch
   return { configured: () => configured(env), createPaymentLink, verifyNotification };
 }
 
-module.exports = { OzowConfigurationError, configured, canonicalHash, createOzowPaymentProvider, NOTIFICATION_HASH_FIELDS };
+module.exports = { OzowConfigurationError, configured, canonicalHash, createOzowPaymentProvider, NOTIFICATION_HASH_FIELDS, notificationField };

@@ -112,7 +112,7 @@ test('group payment waits for all approvals and refuses cancelled or missing mem
   }
   assert.equal((await clientGroupApprovalGate({ query:async () => ({ rows:[{ appointment_id:100,status:'scheduled',approval_status:'approved' },{ appointment_id:101,status:'cancelled',approval_status:'approved' }] }) },77)).ready,false);
 });
-test('pending group creates no provider link; approved group issues one combined deposit request', async () => {
+test('pending group creates no provider link; approved all-owned group prepares one unissued combined deposit for client choice', async () => {
   let approved = false, providerCalls = 0;
   const position = { applicable:true,scope:{ groupId:77,groupType:'multi_service_booking',groupSource:'shiloh_my_shiloh_multi',members:[
     { appointmentId:100,clientName:'Naledi',clientMobile:'27821234567',crmV2ClientId:55 },
@@ -121,12 +121,16 @@ test('pending group creates no provider link; approved group issues one combined
     { appointment_id:100,required_amount:'325.00' },{ appointment_id:101,required_amount:'325.00' },
   ] };
   let row;
-  const db = { async connect() { return {query:(sql,values)=>db.query(sql,values),release() {}}; }, async query(sql) {
+  const db = { async connect() { return {query:(sql,values)=>db.query(sql,values),release() {}}; }, async query(sql,values) {
+    if(['BEGIN','COMMIT','ROLLBACK'].includes(sql))return {rows:[]};
+    if(sql.includes('SELECT * FROM booking_payment_accounts'))return {rows:[{id:9}]};
+    if(sql.includes('SELECT * FROM booking_deposit_requirements'))return {rows:[position.requirement]};
     if (sql.includes('pg_try_advisory_lock')) return {rows:[{acquired:true}]};
     if (sql.includes('pg_advisory_unlock')) return {rows:[]};
     if (sql.includes('FROM appointment_group_members')) return { rows:[100,101].map(id => ({ appointment_id:id,status:'scheduled',approval_status:approved ? 'approved' : 'pending' })) };
-    if (sql.includes('SELECT * FROM payment_requests')) return { rows:row ? [row] : [] };
-    if (sql.includes('INSERT INTO payment_requests')) { row = { id:3,request_key:'dep_test_combined',amount:'650.00',state:'created' }; return { rows:[row] }; }
+    if ((sql.includes('SELECT * FROM payment_requests')||sql.includes('AS unissued_provenance FROM payment_requests pr'))) return { rows:row ? [row] : [] };
+    if(sql.includes("VALUES('payment.deposit_prepared_without_provider'"))return {rows:[{id:77}]};
+    if (sql.includes('INSERT INTO payment_requests')) { row = { id:3,request_key:values[1],amount:'650.00',state:'created',created_by_admin_id:null,purpose:'deposit',deposit_requirement_id:1,deposit_member_appointment_id:100 }; return { rows:[row] }; }
     if (sql.includes('UPDATE payment_requests')) { row = { ...row,provider_payment_url:'https://pay.ozow.com/combined',state:'link_issued',deposit_notification_sent_at:new Date() }; return { rows:[row] }; }
     throw new Error(sql);
   } };
@@ -136,8 +140,8 @@ test('pending group creates no provider link; approved group issues one combined
   assert.equal(providerCalls,0);
   approved = true;
   const result = await service.ensureDepositRequest({ appointmentId:100 });
-  assert.equal(result.requests.length,1); assert.equal(providerCalls,1);
-  await service.ensureDepositRequest({ appointmentId:100 }); assert.equal(providerCalls,1);
+  assert.equal(result.requests.length,1); assert.equal(providerCalls,0);
+  await service.ensureDepositRequest({ appointmentId:100 }); assert.equal(providerCalls,0);
 });
 
 test('multiple-booking routes enforce session, origin, CSRF and server-owned identity', async () => {

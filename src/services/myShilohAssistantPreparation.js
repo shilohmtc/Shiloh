@@ -4,11 +4,25 @@ const context = require('./myShilohClientContext');
 const { createMyShilohBookingService } = require('./myShilohBooking');
 const { localAppointmentDisplay } = require('./myShilohClientActions');
 const { publicPayment } = require('./myShilohReadTools');
+const { formatRand } = require('./paymentValues');
+const { createBookingPaymentService } = require('./bookingPayments');
 
 const text = (value, max) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const iso = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T.+(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
 
-function createAssistantPreparation({ contextService = context, booking = createMyShilohBookingService() } = {}) {
+function createAssistantPreparation({ contextService = context, booking = createMyShilohBookingService(), payments = createBookingPaymentService() } = {}) {
+  async function preparePayment(args, clientId, sessionId) {
+    const appointments=await contextService.loadUpcomingAppointments(clientId,{limit:10});
+    const matches=args.appointmentStartsAt!=null ? appointments.filter(a=>a.startsAt===args.appointmentStartsAt) : appointments;
+    if(matches.length!==1)return {modelResult:{ok:false,error:'choose_appointment'},clientAction:null};
+    const appointment=matches[0];
+    const when=localAppointmentDisplay(appointment.startsAt);
+    const selected={services:appointment.services,startsAt:appointment.startsAt,date:when.date,time:when.time};
+    const detail=`${appointment.services.join(' + ')} · ${when.date} · ${when.time}`;
+    const model=await payments.getClientPaymentChoices({appointmentId:appointment.id,crmV2ClientId:clientId,sessionId});
+    return {modelResult:{ok:true,appointment:selected,scope:model.scopeLabel||null,existingPayment:model.existingPayment?{amount:model.existingPayment.amount}:null,choices:(model.choices||[]).map(c=>({label:c.label,amount:c.amount})),remaining:model.remaining||null,depositRemaining:model.depositRemaining||null,message:model.message},
+      clientAction:{type:'payment_options',title:'Review payment options',detail:[detail,...(model.choices||[]).map(c=>`${c.label}: ${formatRand(c.amount)}`),...(model.existingPayment?[`Existing fixed payment: ${formatRand(model.existingPayment.amount)}`]:[]),model.message].join('\n'),note:'Review the exact amounts and booking on the secure page. Nothing has been submitted or charged.',label:'Review secure payment',href:`/my-shiloh/payment?appointment=${appointment.id}`}};
+  }
   async function prepareBooking(args, clientId) {
     const services = await booking.catalogue();
     const matches = services.filter(item => item.name.toLowerCase() === text(args.service, 160).toLowerCase());
@@ -64,9 +78,9 @@ function createAssistantPreparation({ contextService = context, booking = create
       clientAction: { type:'visit_checklist', title:'Before your visit', detail, note:'Open Bookings for secure forms and payments. Keep private health answers in the consultation form.', label:'View my visit', href:'#bookings',
         links: [
           ...forms.filter(item => item.actionRequired && item.canComplete === true && Number.isSafeInteger(item.id) && item.id > 0).map(item => ({ label:`Complete ${item.title}`, href:`/my-shiloh/forms/complete?assignmentId=${item.id}` })),
-          ...(/^\/pay\/[A-Za-z0-9_-]{8,100}$/.test(payment?.activePaymentPath || '') ? [{ label:'Open secure payment', href:payment.activePaymentPath }] : []),
+          ...((payment?.paymentChoicesPath || /^\/pay\/[A-Za-z0-9_-]{8,100}$/.test(payment?.activePaymentPath || '')) ? [{ label:payment.paymentChoicesPath ? 'Review payment options' : 'Open secure payment', href:payment.paymentChoicesPath || payment.activePaymentPath }] : []),
         ] } };
   }
-  return { prepareBooking, checklist };
+  return { prepareBooking, checklist, preparePayment };
 }
 module.exports = { createAssistantPreparation, iso };

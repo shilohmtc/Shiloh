@@ -1746,26 +1746,28 @@
   }
 
   function renderPreparedNavigation(action) {
-    const booking = action.type === 'booking_request';
+    const booking = action.type === 'booking_request', payment = action.type === 'payment_options';
+    const paymentPath = href => /^\/my-shiloh\/payment\?appointment=[1-9]\d*$/.test(href || '');
+    if (payment && !paymentPath(action.href)) return null;
     if (booking && !/^\/my-shiloh\/book\?(?:service|packageService)=[1-9]\d*(?:#[^\s]*)?$/.test(action.href || '')) return null;
-    if (!booking && action.href !== '#bookings') return null;
+    if (!booking && !payment && action.href !== '#bookings') return null;
     shilohMessages.querySelector('[data-client-action-card]')?.remove();
     const card = document.createElement('section'); card.className = 'client-action-card'; card.dataset.clientActionCard = '';
-    card.setAttribute('aria-label', booking ? 'Review booking preparation' : 'Pre-visit checklist');
+    card.setAttribute('aria-label', booking ? 'Review booking preparation' : payment ? 'Review payment options' : 'Pre-visit checklist');
     const title = document.createElement('h3'); title.textContent = action.title;
     const detail = document.createElement('p'); detail.className = 'client-action-card__detail'; detail.textContent = action.detail;
     detail.style.whiteSpace = 'pre-line';
     const note = document.createElement('p'); note.textContent = action.note;
     const actions = document.createElement('div'); actions.className = 'client-action-card__actions';
     for (const item of [{ href:action.href, label:action.label }, ...(booking ? [] : action.links || [])]) {
-      if (item.href !== action.href && !/^\/my-shiloh\/forms\/complete\?assignmentId=[1-9]\d*$/.test(item.href || '') && !/^\/pay\/[A-Za-z0-9_-]{8,100}$/.test(item.href || '')) continue;
+      if (item.href !== action.href && !paymentPath(item.href) && !/^\/my-shiloh\/forms\/complete\?assignmentId=[1-9]\d*$/.test(item.href || '') && !/^\/pay\/[A-Za-z0-9_-]{8,100}$/.test(item.href || '')) continue;
       const link = document.createElement('a'); link.className = 'button button--primary'; link.href = item.href; link.textContent = item.label; actions.append(link);
     }
     card.append(title, detail, note, actions); shilohMessages.append(card); return card;
   }
 
   function renderClientAction(action) {
-    if (['booking_request','visit_checklist'].includes(action?.type)) return renderPreparedNavigation(action);
+    if (['booking_request','visit_checklist','payment_options'].includes(action?.type)) return renderPreparedNavigation(action);
     if (!shilohMessages || !['cancel_appointment', 'reschedule_appointment', 'consultation_form', 'profile_details', 'planning_request'].includes(action?.type)) return null;
     if (!['consultation_form', 'profile_details', 'planning_request'].includes(action.type) && !/^[A-Za-z0-9_-]{43}$/.test(String(action.token || ''))) return null;
     if (action.type === 'consultation_form' && String(action.href || '') !== '/my-shiloh/forms/complete') return null;

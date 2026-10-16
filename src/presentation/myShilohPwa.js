@@ -9,7 +9,7 @@ const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 const { renderCouplesBookingChoice } = require('./myShilohBookingActions');
 
-const MY_SHILOH_ASSET_VERSION = '20261015-assistant-preparation-v1';
+const MY_SHILOH_ASSET_VERSION = '20261016-client-payment-choice-v1';
 
 function escapeHtml(value = '') {
   return String(value)

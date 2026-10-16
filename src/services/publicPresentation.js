@@ -19,6 +19,7 @@ const PUBLIC_SERVICE_CATEGORY_ORDER = [
 // public website. Canonical names stay attached to every service for booking
 // identity and internal use.
 const PUBLIC_SERVICE_NAME_ALIASES = new Map([
+  ['Young Guest Back &amp;!Neck Massage(age8–15)', 'Young Guest Back & Neck Massage (age 8–15)'],
   ['Sports Massage Full Body', 'Full-Body Sports Massage'],
   ['Quick Relief: Back & Neck (45 min)', 'Quick Relief – Back & Neck'],
   ['Cupping Area Specific', 'Area-Specific Cupping'],
@@ -74,7 +75,7 @@ function publicServicePriceFor(value = '') {
     if (minimum && maximum) return `R${minimum}–R${maximum}`;
   }
 
-  const fixed = price.match(/^R\s*([\d\s,.]+)$/i);
+  const fixed = price.match(/^R?\s*([\d\s,.]+)$/i);
   if (fixed) {
     const amount = formatRandAmount(fixed[1]);
     if (amount) return `R${amount}`;

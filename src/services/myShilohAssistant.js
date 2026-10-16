@@ -169,6 +169,7 @@ function createMyShilohAssistantService({
     }
     if (preparedAction?.type === 'booking_request') safeReply = 'Your booking is ready to review below. Nothing has been booked or reserved.';
     if (preparedAction?.type === 'visit_checklist') safeReply = 'Here is your visit checklist. Use Bookings for your secure forms and payment options.';
+    if (preparedAction?.type === 'payment_options') safeReply = 'Your payment options are ready to review below. Nothing has been submitted or charged.';
     if (!safeReply) {
       throw new MyShilohAssistantError(
         'MY_SHILOH_ASSISTANT_EMPTY',

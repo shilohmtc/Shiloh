@@ -37,7 +37,8 @@ const SOURCE_REMAINING_SQL = `e.signed_amount-COALESCE((SELECT SUM(CASE WHEN deb
   FROM treatment_credit_allocations alloc JOIN treatment_credit_entries debit ON debit.id=alloc.debit_entry_id WHERE alloc.issue_entry_id=e.id),0)`;
 
 async function lockCompletedTreatmentAccount(queryable, data) {
-  // Same order as canonical payments: appointment, group, account, wallet.
+  // Same order as canonical payments: group, members/appointments, account, wallet.
+  await require('./paymentCollectionGuard').lockBookingPaymentScope(queryable,data.appointmentId,TreatmentCreditError);
   const appointment = (await queryable.query('SELECT * FROM appointments WHERE id=$1 FOR UPDATE', [data.appointmentId])).rows[0];
   if (!appointment || Number(appointment.crm_v2_client_id) !== data.clientId || appointment.client_id != null) fail('CREDIT_BOOKING_FORBIDDEN', 'Choose a completed treatment for this client.', 403);
   if (appointment.status !== 'completed') fail('CREDIT_TREATMENT_INCOMPLETE', 'Use vouchers or client credit only after treatment is completed. Booking deposits need payment.');
@@ -56,6 +57,7 @@ async function lockCompletedTreatmentAccount(queryable, data) {
   if (!account) account = (await queryable.query(`INSERT INTO booking_payment_accounts(${column},canonical_amount_due,currency,pricing_revision)
     VALUES($1,$2,'ZAR',$3) RETURNING *`, [target, due, group?.updated_at || appointment.updated_at])).rows[0];
   if (Number(account.canonical_amount_due) !== Number(due) || account.currency !== 'ZAR') fail('CREDIT_PRICE_CHANGED', 'Review the payment account and changed treatment price before applying credit.');
+  await require('./paymentCollectionGuard').assertNoClientCollection(queryable,account.id,TreatmentCreditError);
   const pendingDeposit = await queryable.query("SELECT id FROM booking_deposit_requirements WHERE payment_account_id=$1 AND state='awaiting' FOR UPDATE", [account.id]);
   if (pendingDeposit.rowCount) fail('CREDIT_DEPOSIT_REQUIRED', 'The booking deposit remains due. Vouchers and client credit cannot pay a booking deposit.');
   const openRequest = await queryable.query("SELECT id FROM payment_requests WHERE payment_account_id=$1 AND state IN ('created','link_issued','pending') LIMIT 1", [account.id]);
@@ -157,7 +159,7 @@ function createClientTreatmentCreditService({ db = pool, authorityResolver = res
       }
       if (kind === 'undo') {
         // Restore against the recorded account, even after cancellation/refund; never create a cash entry.
-        await queryable.query('SELECT id FROM appointments WHERE id=$1 FOR UPDATE', [original.appointment_id]);
+        await require('./paymentCollectionGuard').lockBookingPaymentScope(queryable,original.appointment_id,TreatmentCreditError);
         const beforeLock = (await queryable.query('SELECT * FROM booking_payment_accounts WHERE id=$1', [original.booking_payment_account_id])).rows[0];
         if (!beforeLock) fail('CREDIT_ACCOUNT_UNAVAILABLE', 'Review the original treatment payment account before correction.');
         if (beforeLock.appointment_group_id) await queryable.query('SELECT id FROM appointment_groups WHERE id=$1 FOR UPDATE', [beforeLock.appointment_group_id]);
