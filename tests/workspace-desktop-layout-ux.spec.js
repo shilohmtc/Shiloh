@@ -31,6 +31,11 @@ for (const kind of ['sparse', 'busy']) for (const width of [1180, 1440, 390, 500
         expect(icon.display).toBe('block'); expect(icon.width).toBe('20px'); expect(icon.mask).toContain('svg');
         await expect(link).toHaveAccessibleName(key === 'vouchers' ? 'Gift vouchers' : 'Rewards');
       }
+    } else if (width <= 700) {
+      expect(today.y).toBeLessThan(attention.y); expect(attention.y).toBeLessThan(carry.y); expect(carry.y).toBeLessThan(activity.y);
+      expect(today.y).toBeLessThan(130);
+      await expect(page.locator('.topbar').getByRole('link', { name: 'Needs attention 2' })).toHaveAttribute('href', '#dashboard-attention');
+      await expect(page.locator('[data-dashboard-attention-panel]').getByRole('link', { name: 'Back to Today' })).toHaveAttribute('href', '#dashboard-today');
     } else {
       expect(attention.y).toBeLessThan(today.y); expect(today.y).toBeLessThan(carry.y); expect(carry.y).toBeLessThan(activity.y);
     }
