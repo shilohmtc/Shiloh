@@ -59,6 +59,19 @@ test('bad attestation and revoked approval cannot replace credentials or revoke 
   assert.equal((await h.db.query('SELECT * FROM staff_auth_passkey_credentials')).rows.length,0);
 });
 
+test('approved staff recovery still requires the recorded-phone code; administrator approval is not a lost-phone bypass',async t=>{
+  const h=await harness(t), input={...h.context,purpose:'recover'};
+  const intent=await h.service.requestSetup(input);
+  assert.equal((await h.service.approveSetup({intent:intent.intent,sessionId:h.operatorSession.sessionId,identityConfirmed:true})).ok,true);
+  // An approved intent is not a phone proof, WebAuthn grant or session.
+  assert.equal((await h.service.beginRegistration({grant:intent.intent,browserToken:input.browserToken})).ok,false);
+  assert.equal((await h.service.finishRegistration({grant:intent.intent,browserToken:input.browserToken,response:{}})).ok,false);
+  assert.equal((await h.service.verify({...input,request:intent.intent,code:'000000'})).ok,false);
+  assert.equal((await h.db.query("SELECT COUNT(*)::int AS n FROM workspace_whatsapp_records WHERE kind='grant'")).rows[0].n,0);
+  assert.equal((await h.db.query('SELECT COUNT(*)::int AS n FROM staff_browser_sessions')).rows[0].n,2);
+  assert.equal((await h.sessions.validateSessionToken(h.priorSession.sessionToken)).ok,true);
+});
+
 test('SQL transaction rolls back consumption and session insertion when audit fails',async t=>{
   const h=await harness(t);
   const r=await h.service.begin(h.context);

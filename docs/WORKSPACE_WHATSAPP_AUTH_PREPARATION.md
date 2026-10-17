@@ -18,9 +18,13 @@ This PR implements the **Workspace staging slice only**. The shared client
 architecture below is planned, not implemented or activated. Staff and client
 identities, sessions, authorization and recovery remain separate.
 
-The owner has not approved this PR's proposed administrator recovery authority,
-a mandatory cutover, retirement of existing details sessions, a financial spend
-cap, credential changes or any live send. Keeping current details-only entry
+The owner approved the staff replacement safeguard on 17 October: another
+authorized administrator approves the replacement and the staff member proves
+access to their recorded phone with a code. If that phone is lost, recovery goes
+through the owner or Christel after an identity check. This accepts the safeguard,
+not an automatic lost-phone bypass or production activation. The owner has not
+approved a mandatory cutover, retirement of existing details sessions, a financial
+spend cap, credential changes or any live send. Keeping current details-only entry
 working during preparation is a transition constraint, not a decision to retain
 it permanently as a bypass. Final cutover must address that bypass explicitly.
 
@@ -68,7 +72,12 @@ No files from PR #1475 are edited. Generic WhatsApp, client/bulk messaging and
 historical staff OTP sender remain retired. No environment flag alone can mount
 this flow or supply its missing live transport.
 
-## Proposed authority model — not owner-approved policy
+## Accepted replacement safeguard and draft enrollment policy
+
+The replacement safeguard and supervised owner/Christel lost-phone escalation
+are owner-approved. Applying the same administrator gate to ordinary additional
+passkey enrollment remains the conservative draft design; the approval of
+replacement must not be treated as approval for every enrollment-policy choice.
 
 | Purpose | Required proof | Result |
 | --- | --- | --- |
@@ -76,7 +85,7 @@ this flow or supply its missing live transport.
 | Add a passkey through this flow | Staff-created intent; different authorized administrator's recent passkey session and explicit identity confirmation; staff phone code; successful WebAuthn ceremony | Add credential, preserve previous credentials/sessions, issue passkey session |
 | Recover through this flow | Same separate administrator and phone proof, explicitly selecting recovery; successful revalidated WebAuthn ceremony | Replace old credentials and revoke old subject sessions only in the successful completion transaction; administrator session unaffected |
 
-The proposed approver needs active canonical identity, `staff_auth:reset`,
+The implementation maps an authorized approver to active canonical identity, `staff_auth:reset`,
 `all_business` calendar scope and `all_services` service scope. Self-approval,
 details-session approval and code-session approval are denied. At approval and
 code issuance the administrator must have a passkey authentication within the
@@ -135,7 +144,8 @@ Before live readiness, still required:
    shapes alone do not prevent timing enumeration, because provider I/O can
    differ by eligibility. HTTP quotas run before provider reads but are not a
    substitute for timing protection or a durable delivery queue.
-4. Approve final enrollment/recovery policy and cutover/session handling. Final
+4. Resolve ordinary enrollment policy and approve cutover/session handling.
+   Preserve the now-approved replacement safeguard. Final
    production composition must wire this router explicitly, provide the live
    sender securely and pass approved budget/configuration. Neither `app.js` nor
    any existing UI does so in this draft.
@@ -179,8 +189,10 @@ SMS fallback implementation/activation is not part of this Workspace slice.
 
 For a WhatsApp outage with phone/SIM access, SMS may help. SMS to the same number
 cannot solve a lost phone/number. Another enrolled passkey/device or preserved
-valid session may provide authorized access; otherwise an independently reviewed
-supervised identity-recovery process is needed. A new phone plus a code must
+valid session may provide authorized access; otherwise the accepted escalation
+is to the owner or Christel after an identity check. The exact evidence, audit
+and credential-rebinding procedure still needs review; this draft deliberately
+provides no lost-phone bypass. A new phone plus a code must
 never prove ownership of the old identity. Do not create an authentication bypass
 if all administrators lose access. Retain existing SMS settings until explicit
 retirement approval follows dependency/traffic/billing review, reliable device
@@ -227,7 +239,9 @@ by the shared architecture agreement alone.
 ## Approvals and bounded owner acceptance
 
 Security cutover must approve required authentication proof, handling of old
-details sessions and the candidate administrator recovery model. Separately
+details sessions and ordinary enrollment policy, while preserving the accepted
+replacement safeguard. Specify the supervised lost-phone identity-check and
+audit procedure before introducing a technical recovery path. Separately
 approve migration promotion/execution, exact credential/access configuration,
 deployment, and a named/time-limited live-send/spend budget. Never request secrets
 in chat. Business verification does not prove template approval or sending access.
