@@ -121,3 +121,16 @@ test('notification invitations recognize only this account subscription and neve
   await h.db.query('UPDATE my_shiloh_push_subscriptions SET revoked_at=NOW()');
   assert.equal((await invites.notificationStatus(session,'https://push.example.test/synthetic')).enabled,false);
 });
+
+test('registration through SMS records SMS evidence without claiming a WhatsApp interaction',async t=>{
+  const h=await clientHarness(t),input={...h.context,purpose:'register'};h.outcome('not_sent');
+  const r=await h.service.begin(input);await h.service.dispatchOne();await h.service.requestSmsFallback({...input,request:r.request});
+  h.advance(60000);h.outcome('accepted');await h.service.dispatchOne();assert.equal(h.sms.length,1);
+  const proof=await h.service.verify({...input,request:r.request,code:h.sms[0].code});assert.equal(proof.profileRequired,true);
+  const result=await h.service.completeRegistration({...input,grant:proof.grant,profile:{firstName:'Synthetic',surname:'Sms',dateOfBirth:'1990-01-01',gender:'female'}});
+  assert.equal(result.ok,true);
+  const row=(await h.db.query('SELECT source,provenance FROM crm_v2_clients')).rows[0];
+  assert.equal(row.source,'my_shiloh_crm');assert.equal(row.provenance.registrationCompleted.via,'sms_code');
+  assert.ok(row.provenance.lastVerifiedSmsCode);assert.equal(row.provenance.lastVerifiedWhatsAppInteraction,undefined);
+  assert.equal((await h.sessions.validateSessionToken(result.sessionToken)).authMethod,'sms_code');
+});

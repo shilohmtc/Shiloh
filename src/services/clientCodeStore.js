@@ -48,10 +48,10 @@ function createClientCodeStore({db,sessions}={}){
           const verified=!historical.length&&owner?.status==='active'&&owner.profile_status==='registered'&&!!owner.mobile_verified_at;
           return {empty:rows.length===0&&historical.length===0,verified,owner,revision:verified?revision(owner):null};
         },
-        async register({profile,mobile,current}){
+        async register({profile,mobile,current,channel}){
           const repository=new PostgresCrmV2ClientRepository(c);
           const crm=createCrmV2ClientService({repository,clock:()=>current});
-          const result=await crm.registerWhatsAppClient({senderMobile:mobile,name:profile.name,dateOfBirth:profile.dateOfBirth,gender:profile.gender,occurredAt:current});
+          const result=await (channel==='sms'?crm.registerSmsCodeClient:crm.registerWhatsAppClient)({senderMobile:mobile,name:profile.name,dateOfBirth:profile.dateOfBirth,gender:profile.gender,occurredAt:current});
           if(result.status!=='created')return null;
           // Canonical registration owns creation; retain explicitly supplied
           // first/surname fields without guessing splits of historical names.

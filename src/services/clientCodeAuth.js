@@ -48,7 +48,7 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
       const expired=row.codeExpiresAt&&new Date(row.codeExpiresAt)<=current;
       if(!['not_sent','claimed'].includes(row.state)&&!(expired&&['ready','uncertain'].includes(row.state)))return;
       row.fallbackRequested=true;
-      if(row.state!=='claimed'){row.state='queued';row.channel='sms';row.fallbackUsed=true;row.codeHash=null;row.sendBy=new Date(current.getTime()+300000);}
+      if(row.state!=='claimed'){row.state='queued';row.channel='sms';row.fallbackUsed=true;row.codeHash=null;row.deliveryStarted=false;row.sendBy=new Date(current.getTime()+300000);}
       await tx.save(row);
     });
     return {ok:true,accepted:true,request:input.request};
@@ -59,6 +59,7 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
     if(!row)return {ok:true,processed:false};
     const done={ok:true,processed:true},provider=row.channel==='sms'?smsDelivery:delivery;
     async function settle(outcome){await store.transaction(async tx=>{const r=await tx.get(row.hash);if(r?.state!=='claimed')return;r.state=outcome;
+      if(outcome==='not_sent')r.deliveryStarted=false;
       if(outcome==='not_sent'&&r.channel==='whatsapp'&&r.fallbackRequested&&!r.fallbackUsed){r.state='queued';r.channel='sms';r.fallbackUsed=true;r.sendBy=new Date(now().getTime()+300000);}
       await tx.save(r);});}
     let mobile,ready;
@@ -86,6 +87,7 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
     await store.transaction(async tx=>{const r=await tx.get(row.hash);if(r?.state!=='claimed')return;
       const accepted=sent?.ok===true&&typeof sent.providerMessageId==='string'&&sent.providerMessageId.startsWith(row.channel==='sms'?'sms.':'wamid.');
       r.state=accepted?'ready':sent?.outcome==='not_sent'?'not_sent':'uncertain';
+      if(r.state==='not_sent')r.deliveryStarted=false;
       if(['ready','uncertain'].includes(r.state))r.fallbackRequested=false;
       if(r.state==='not_sent'&&r.channel==='whatsapp'&&r.fallbackRequested&&!r.fallbackUsed){r.state='queued';r.channel='sms';r.fallbackUsed=true;r.codeHash=null;r.sendBy=new Date(now().getTime()+300000);}
       await tx.save(r);
@@ -127,7 +129,7 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
       if(!profile)return INVALID;
       if(!(await tx.identity(mobile)).empty){r.state='revoked';await tx.save(r);return INVALID;}
       r.state='consumed';await tx.save(r);
-      const owner=await tx.register({profile,mobile,current});
+      const owner=await tx.register({profile,mobile,current,channel:r.channel});
       if(!owner)throw Error('Client registration unavailable');
       const result=await tx.issueSession({owner,mobile,channel:r.channel,current});
       if(!result?.ok)throw Error('Client continuation unavailable');return result;
