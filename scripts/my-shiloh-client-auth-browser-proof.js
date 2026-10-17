@@ -489,11 +489,18 @@ async function proveGoogleAppInstallHandoff(browser) {
     await page.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
     await page.getByText('Open My Shiloh in Safari or Chrome first.', { exact: false }).waitFor();
     await page.getByRole('button', { name: 'Show iPhone steps', exact: true }).click();
-    await page.locator('[data-install-browser-note]').filter({ hasText: 'Open in your browser first.' }).waitFor();
+    await page.locator('[data-install-browser-note]').filter({ hasText: 'Open in your browser first' }).waitFor();
     const steps = page.locator('[data-install-steps] li:visible');
-    if (await steps.count() !== 4) throw new Error('Google iPhone install guide must show all four browser handoff steps');
+    if (await steps.count() !== 2) throw new Error('Google iPhone install guide must begin with the browser handoff and wrong-link safeguard');
     await page.getByText('If you see share.google, enter app.shilohmtc.co.za/my-shiloh/ in your browser.').waitFor();
-    await page.getByText('Check My Shiloh and app.shilohmtc.co.za. If either is wrong, cancel. Keep Open as Web App on if shown, then tap Add. Open the new My Shiloh icon.').waitFor();
+    const choice = page.getByRole('combobox', { name: 'iPhone browser' });
+    for (const [browserName, count] of [['chrome', 6], ['safari', 7]]) {
+      await choice.selectOption(browserName);
+      if (await steps.count() !== count) throw new Error(`${browserName} handoff must retain its safeguard and every installation action`);
+      await page.getByText('Tap View More, if shown', { exact: true }).waitFor();
+      await page.getByText('If you see Open as Web App, leave it switched on.', { exact: true }).waitFor();
+      await page.getByText('If you see share.google, enter app.shilohmtc.co.za/my-shiloh/ in your browser.').waitFor();
+    }
     await page.screenshot({ path: path.join(out, 'phone-google-install-guide.png'), fullPage: true });
   } finally {
     await context.close();

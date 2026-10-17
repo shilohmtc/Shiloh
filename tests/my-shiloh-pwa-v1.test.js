@@ -190,10 +190,12 @@ test('My Shiloh install client distinguishes iPhone Safari, iPhone Chrome and An
   assert.match(client, /function isIosSafari\(\)/);
   assert.match(client, /function isIosGoogleApp\(\)/);
   assert.match(client, /Open My Shiloh in Safari or Chrome first/);
-  assert.match(client, /address must say app\.shilohmtc\.co\.za, not share\.google/);
+  const guide = read('public/my-shiloh/assets/iphone-install-guide.js');
+  assert.match(guide, /If you see share\.google, enter app\.shilohmtc\.co\.za\/my-shiloh\//);
   assert.match(client, /crios\|fxios\|edgios\|opios/i);
   assert.match(client, /You’re in Chrome\. Use Share to add My Shiloh to your Home Screen\./);
-  assert.match(client, /In Chrome, look beside the address bar for Share/);
+  assert.match(guide, /Look beside the address bar/);
+  assert.match(guide, /Tap View More, if shown/);
   assert.match(client, /deferredInstallPrompt \? 'Install My Shiloh' : 'Show Android steps'/);
   assert.match(styles, /max-height:calc\(100dvh - 12px\)/);
 });

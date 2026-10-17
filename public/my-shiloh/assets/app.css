@@ -443,3 +443,15 @@ h3{font-size:20px;line-height:1.12}
 .install-step-copy-icon.install-share-highlight{vertical-align:middle}
 
 .install-browser-note{overflow-wrap:anywhere}
+
+/* Equal control slots keep every browser action aligned. Icons are illustrations. */
+.iphone-guide-steps{display:grid!important;gap:8px!important;margin:12px 0!important;padding:0!important;list-style:none!important;counter-reset:none!important}
+.iphone-guide-steps[hidden],.iphone-guide-finish[hidden]{display:none!important}.iphone-guide-steps>li{display:grid!important;grid-template-columns:22px 40px minmax(0,1fr)!important;gap:8px!important;align-items:start!important;padding:10px!important;margin:0!important;border:1px solid #dfe5df;border-radius:14px;background:#fffdf9}
+.iphone-guide-steps>li::before{display:none!important}
+.iphone-guide-steps .iphone-guide-number{display:grid!important;place-items:center;width:22px;height:22px;margin:9px 0 0!important;border-radius:50%;background:#e7eee9;color:#294c3c;font:800 11px/1 system-ui,sans-serif}
+.iphone-guide-steps .iphone-control-ring{display:grid!important;place-items:center;box-sizing:border-box;width:40px;height:40px;margin:0!important;padding:6px;border:2px solid #a33a32;border-radius:50%;color:#20322b;background:#fff}
+.iphone-control-icon{display:block;width:24px;height:24px;overflow:visible;fill:currentColor;flex:none}
+.iphone-control-page-menu{box-sizing:border-box;padding:3px;border-radius:6px;background:#20322b;color:#fff}
+.iphone-control-more{box-sizing:border-box;padding:3px;border-radius:50%;background:#526159;color:#fff}
+.iphone-guide-copy{min-width:0;padding-top:2px}.iphone-guide-copy>strong{display:block!important;margin:0 0 3px!important;color:#20322b;font-size:14px!important;line-height:1.35!important}.iphone-guide-copy>span{display:block;margin:0!important;color:#5e7067;font-size:12px!important;line-height:1.4!important;overflow-wrap:anywhere}
+.iphone-guide-finish{margin:10px 0 12px!important;color:#52675a;font-size:12px;line-height:1.4}
