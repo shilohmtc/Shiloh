@@ -5,6 +5,12 @@ Owner direction recorded 17 October 2026: prepare BOTH staff sign-in and passkey
 setup/recovery. Passkeys remain preferred; WhatsApp is an optional alternative.
 The owner subsequently agreed to include SMS as a proposed backup. This authorizes
 design and synthetic implementation, not SMS activation or any security cutover.
+The owner further explains that WhatsApp was the original desired code channel,
+SMS worked during Meta verification delays, and concern about repeated SMS costs
+led to details matching. The current desired direction is WhatsApp as the main
+code channel, passkeys for convenient strong sign-in, and bounded SMS fallback.
+Whether this should extend to My Shiloh clients is unresolved: this draft remains
+Workspace-only and does not introduce any client authentication changes.
 
 ## Evidence and boundaries
 
@@ -63,6 +69,13 @@ Existing details sign-in and optional own-account passkey enrollment retain
 their current rules. The new alternative does not require codes globally.
 Existing passkey sign-in remains preferred. A phone code proves possession of a
 channel at that time; it is not passkey assurance.
+Preserving details-only entry is a transition constraint, **not** a proposal to
+retain it permanently as a bypass around phone/passkey proof. Before cutover,
+the owner must explicitly decide whether ordinary entry requires a passkey or
+verified code, what happens to existing details sessions, and how every staff
+member retains a tested recovery route. The current core cannot enforce that
+future policy while the existing details route remains enabled. No details
+route or session is disabled in this preparation task.
 
 Codes use unbiased cryptographic six-digit generation and expire within five
 minutes, bounded by the explicitly reviewed template. Requests use 256-bit
@@ -163,6 +176,11 @@ Read-only source evidence on the base commit:
 
 Proposed hierarchy: passkey preferred; explicit WhatsApp alternative; SMS backup
 only after separate implementation, readiness tests and activation approval.
+WhatsApp is the main **code** method. The owner suggested SMS once or twice daily;
+the parent proposed two SMS sends per account per day, device/IP throttles and
+an overall spend cap. Those are draft limits, not approved settings or spending
+authority; the monetary cap remains undecided. Historical SMS success is
+owner-confirmed, not evidence that today's retired endpoints are enabled.
 Do not automatically send both channels or retry an uncertain send through SMS.
 Any fallback must invalidate the superseded challenge, share identity/purpose
 and combined rate/spend limits, and provide clear channel selection. No fallback
