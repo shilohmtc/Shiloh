@@ -43,7 +43,7 @@ test('staff can reach an install doorway before signing in, with a Samsung brows
   const route = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'workspacePwa.js'), 'utf8');
   const client = workspacePwaClientScript();
   assert.match(route, /router\.get\('\/install', \(_req, res\)/);
-  assert.match(html, /<h1>Install Shiloh Workspace<\/h1>/);
+  assert.match(html, /<h1 data-workspace-install-title>Install Shiloh Workspace<\/h1>/);
   assert.match(html, /\/calendar\/pwa\/manifest\.webmanifest/);
   assert.match(html, /data-workspace-install-doorway/);
   assert.match(html, /Open in Chrome/);
@@ -128,9 +128,9 @@ test('#960 iPhone install guidance is compact, scoped, dismissible and backed by
   const client = workspacePwaClientScript();
   assert.match(markup, /Keep Shiloh close/);
   assert.match(markup, /Show me how/);
-  assert.match(markup, /Tap Share/);
+  assert.match(markup, /Tap this Share icon/);
   assert.match(markup, /Choose Add to Home Screen/);
-  assert.match(markup, /Tap Add/);
+  assert.match(markup, /Turn on Open as Web App, then tap Add/);
   assert.match(markup, /role="dialog" aria-modal="true"/);
   assert.match(styles, /min-height:44px/);
   assert.match(styles, /safe-area-inset-bottom/);

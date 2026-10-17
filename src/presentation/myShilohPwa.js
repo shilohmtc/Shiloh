@@ -536,6 +536,8 @@ function renderMyShilohPage({
       <p class="eyebrow" data-install-eyebrow>Install My Shiloh</p>
       <h2 id="install-title" data-install-title>Add My Shiloh to your Home Screen.</h2>
       <p class="install-sheet__lead" data-install-lead>It only takes a moment, and you’ll be able to open My Shiloh like any other app.</p>
+      <label class="install-browser-choice" data-install-browser-choice hidden>Browser<select data-install-browser aria-label="iPhone browser"><option value="">Choose Safari or Chrome</option><option value="safari">Safari</option><option value="chrome">Chrome</option></select></label>
+      <p class="install-browser-note" data-install-browser-note hidden role="status" aria-live="polite"></p>
       <ol class="install-steps" data-install-steps>
         <li><span class="install-step__number">1</span><div><strong data-install-step-title="1">Open your browser menu or Share button</strong><span data-install-step-copy="1">Use your browser’s sharing or install menu.</span></div></li>
         <li><span class="install-step__number">2</span><div><strong data-install-step-title="2">Choose Add to Home Screen or Install app</strong><span data-install-step-copy="2">Your phone will show the installation option.</span></div></li>

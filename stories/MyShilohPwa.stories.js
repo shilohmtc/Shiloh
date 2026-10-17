@@ -48,7 +48,7 @@ function applyInstallStep(surface, index, title, copy) {
   const titleNode = surface.querySelector(`[data-install-step-title="${number}"]`);
   const copyNode = surface.querySelector(`[data-install-step-copy="${number}"]`);
   if (titleNode) {
-    if (/^Tap Share/.test(title)) titleNode.innerHTML = `${installShareIconMarkup()} Tap Share`;
+    if (/^Tap (?:Share|this Share icon)/.test(title)) titleNode.innerHTML = `${installShareIconMarkup().replace('class="install-share-icon"', 'class="install-share-icon install-share-highlight"')} ${title}`;
     else if (title === 'Open Safari’s page menu') titleNode.innerHTML = `${installGuideIconMarkup('page-menu')} ${title}`;
     else if (title === 'Choose Add to Home Screen') titleNode.innerHTML = `${installGuideIconMarkup('add-home')} ${title}`;
     else titleNode.textContent = title;
@@ -336,18 +336,22 @@ export const IPhoneInstallGuide = {
     const action = surface.querySelector('[data-install-gate-action]');
     const gateTitle = surface.querySelector('[data-install-gate-title]');
     const gateCopy = surface.querySelector('[data-install-gate-copy]');
-    if (action) action.textContent = 'Install My Shiloh';
+    if (action) action.textContent = 'Show iPhone steps';
     if (gateTitle) gateTitle.textContent = 'Add My Shiloh to your iPhone.';
     if (gateCopy) gateCopy.textContent = 'You’re in Safari. Add My Shiloh to your Home Screen in three quick steps.';
     const eyebrow = surface.querySelector('[data-install-eyebrow]');
     const title = surface.querySelector('[data-install-title]');
     const lead = surface.querySelector('[data-install-lead]');
-    if (eyebrow) eyebrow.textContent = 'Install My Shiloh on iPhone';
-    if (title) title.textContent = 'Three quick steps.';
-    if (lead) lead.textContent = 'Stay in Safari — no App Store download is needed.';
+    if (eyebrow) eyebrow.hidden = true;
+    if (title) title.textContent = 'Add My Shiloh to your iPhone.';
+    if (lead) lead.textContent = 'You won’t find it in the App Store. Simply open it in Safari or Chrome and follow the steps below to add it to your Home Screen.';
+    surface.querySelector('[data-install-browser-choice]').hidden = false;
+    surface.querySelector('[data-install-browser]').value = 'safari';
+    surface.querySelector('[data-install-browser-note]').hidden = false;
+    surface.querySelector('[data-install-browser-note]').textContent = 'Safari steps.';
     const steps = [
-      ['Open Safari’s page menu', 'At the bottom, tap the page menu, then Share. If you see a Share button directly, tap it.'],
-      ['Choose Add to Home Screen', 'Scroll down the Share list. If missing, use Edit Actions to add it.'],
+      ['Tap this Share icon', 'In Safari, open the page menu, then Share, or tap Share directly. This picture is a guide, not a button.'],
+      ['Choose Add to Home Screen', 'Scroll through the Share list. If missing, use Edit Actions to add it.'],
       ['Turn on Open as Web App, then tap Add', 'My Shiloh will appear on your Home Screen.'],
     ];
     steps.forEach(([stepTitle, stepCopy], index) => {
@@ -372,13 +376,14 @@ export const IPhoneChromeInstallGuide = {
     const lead = surface.querySelector('[data-install-lead]');
     if (gateTitle) gateTitle.textContent = 'Add My Shiloh to your iPhone.';
     if (gateCopy) gateCopy.textContent = 'You’re in Chrome. Use Share to add My Shiloh to your Home Screen.';
-    if (gateAction) gateAction.textContent = 'Install My Shiloh';
-    if (eyebrow) eyebrow.textContent = 'Install My Shiloh on iPhone';
-    if (title) title.textContent = 'Three quick steps.';
-    if (lead) lead.textContent = 'You can add My Shiloh straight from Chrome — no App Store download is needed.';
+    if (gateAction) gateAction.textContent = 'Show iPhone steps';
+    if (eyebrow) eyebrow.hidden = true;
+    if (title) title.textContent = 'Add My Shiloh to your iPhone.';
+    surface.querySelector('[data-install-browser]').value = 'chrome';
+    surface.querySelector('[data-install-browser-note]').textContent = 'Chrome steps.';
     const steps = [
-      ['Tap Share', 'Use the Share button beside the address bar.'],
-      ['Choose Add to Home Screen', 'Scroll if you do not see it straight away.'],
+      ['Tap this Share icon', 'In Chrome, look beside the address bar for Share. This picture is a guide, not a button.'],
+      ['Choose Add to Home Screen', 'Look through the sharing options, then select Add to Home Screen.'],
       ['Tap Add', 'My Shiloh will appear on your Home Screen.'],
     ];
     steps.forEach(([stepTitle, stepCopy], index) => {
@@ -396,13 +401,13 @@ export const IPhoneGoogleInstallGuide = {
     const title = surface.querySelector('[data-install-title]');
     const lead = surface.querySelector('[data-install-lead]');
     if (gateCopy) gateCopy.textContent = 'You’re in the Google app. Open My Shiloh in Safari or Chrome first. Check that the address says app.shilohmtc.co.za before adding it to your Home Screen.';
-    if (gateAction) gateAction.textContent = 'Install My Shiloh';
-    if (title) title.textContent = 'Open in your browser first.';
-    if (lead) lead.textContent = 'Use Safari or Chrome. The address must say app.shilohmtc.co.za, not share.google.';
+    if (gateAction) gateAction.textContent = 'Show iPhone steps';
+    surface.querySelector('[data-install-browser]').value = '';
+    surface.querySelector('[data-install-browser-note]').textContent = 'Open in your browser first. The address must say app.shilohmtc.co.za, not share.google.';
     const steps = [
       ['Open in Safari or Chrome', 'Use Open in browser in the Google app’s Share menu.'],
       ['Check the address', 'If you see share.google, enter app.shilohmtc.co.za/my-shiloh/ in your browser.'],
-      ['Tap Share', 'Choose Add to Home Screen in your browser’s Share menu.'],
+      ['Tap this Share icon', 'Choose Add to Home Screen in your browser’s Share menu. This picture is a guide, not a button.'],
       ['Tap Add', 'If offered, turn on Open as Web App. Then open the new My Shiloh icon.'],
     ];
     steps.forEach(([stepTitle, stepCopy], index) => applyInstallStep(surface, index + 1, stepTitle, stepCopy));
