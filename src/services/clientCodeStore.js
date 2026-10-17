@@ -3,7 +3,9 @@ const crypto=require('node:crypto');
 const {PostgresCrmV2ClientRepository}=require('../repositories/crmV2ClientRepository');
 const {createCrmV2ClientService}=require('./crmV2ClientService');
 const revision=row=>crypto.createHash('sha256').update(JSON.stringify([String(row.id),row.normalized_mobile,
-  new Date(row.mobile_verified_at).toISOString(),row.name,row.date_of_birth,row.gender,row.profile_status])).digest('hex');
+  new Date(row.mobile_verified_at).toISOString(),row.name,
+  row.date_of_birth instanceof Date?row.date_of_birth.toISOString().slice(0,10):String(row.date_of_birth||'').slice(0,10),
+  row.gender,row.profile_status])).digest('hex');
 function createClientCodeStore({db,sessions}={}){
   if(!db?.connect||!sessions?.issueVerifiedPhoneCodeSession)throw Error('Explicit client database and sessions required');
   async function transaction(fn){

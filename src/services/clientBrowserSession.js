@@ -186,7 +186,7 @@ function createClientBrowserSessionService({
       `SELECT s.id AS session_id, s.crm_v2_client_id, s.csrf_hash, s.issued_at, s.expires_at,
               s.revoked_at, s.auth_method, s.reauthenticated_at,
               to_jsonb(s)->>'code_identity_revision' AS code_identity_revision,
-              c.id, c.name, c.status,c.normalized_mobile,c.mobile_verified_at,c.date_of_birth,c.gender,c.profile_status
+              c.id, c.name, c.status,to_jsonb(c) AS code_identity
          FROM client_browser_sessions s
          JOIN crm_v2_clients c ON c.id = s.crm_v2_client_id
         WHERE s.token_hash = $1
@@ -197,8 +197,8 @@ function createClientBrowserSessionService({
     if (!row || row.revoked_at || row.status !== 'active' || !Number.isFinite(new Date(row.expires_at).getTime()) || new Date(row.expires_at).getTime() <= current.getTime()) {
       return { ok: false, code: 'CLIENT_SESSION_INVALID' };
     }
-    if(row.code_identity_revision && (!row.mobile_verified_at ||
-      require('./clientCodeStore').clientCodeRevision(row)!==row.code_identity_revision)) return {ok:false,code:'CLIENT_SESSION_INVALID'};
+    if(row.code_identity_revision && (!row.code_identity?.mobile_verified_at ||
+      require('./clientCodeStore').clientCodeRevision(row.code_identity)!==row.code_identity_revision)) return {ok:false,code:'CLIENT_SESSION_INVALID'};
     await db.query(
       `UPDATE client_browser_sessions
           SET last_used_at = $2
