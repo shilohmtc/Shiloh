@@ -471,3 +471,73 @@ for (const viewport of [
     await expect(page.getByRole('button', { name: 'Save passkey', exact: true })).toBeDisabled();
   });
 }
+
+for (const viewport of [
+  { width: 320, height: 844, mobile: true },
+  { width: 390, height: 844, mobile: true },
+  { width: 1440, height: 900, mobile: false },
+]) test(`Workspace favicon loads under the real sign-in policy at ${viewport.width}px`, async ({ browser }, testInfo) => {
+  const { createWorkspacePwaHtmlMiddleware, createWorkspacePwaRouter } = require('../src/routes/workspacePwa');
+  const { createStaffCalendarAccessRouter } = require('../src/routes/staffCalendarAccessUx');
+  const { renderDashboardPage } = require('../src/presentation/workspaceDashboardUx');
+  const { dashboardModel } = require('../stories/fixtures/workspaceBrowserReview');
+  const env = {
+    SHILOH_CALENDAR_READONLY_UX_ENABLED: 'true',
+    SHILOH_STAFF_BROWSER_SESSION_CALENDAR_BRIDGE_ENABLED: 'true',
+    SHILOH_STAFF_DETAIL_AUTH_ENABLED: 'true',
+    SHILOH_STAFF_DETAIL_AUTH_RATE_KEY: 'synthetic-favicon-fixture-key-not-a-credential',
+    SHILOH_STAFF_PASSKEY_AUTH_ENABLED: 'false',
+  };
+  const app = express(), router = express.Router();
+  router.use(createWorkspacePwaHtmlMiddleware());
+  router.use('/pwa', createWorkspacePwaRouter({ sessionService: {}, pushService: {}, env }));
+  router.use('/staff', createStaffCalendarAccessRouter({ env }));
+  router.get('/workspace', (_req, res) => res.type('html').send(renderDashboardPage(dashboardModel())));
+  app.use('/calendar', router);
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const context = await browser.newContext({
+    viewport: { width: viewport.width, height: viewport.height },
+    isMobile: viewport.mobile, serviceWorkers: 'block',
+    extraHTTPHeaders: { 'sec-ch-ua-mobile': viewport.mobile ? '?1' : '?0' },
+  });
+  try {
+    const page = await context.newPage(), failedIcons = [];
+    await page.route('**/*.js*', route => route.fulfill({ contentType: 'application/javascript', body: '' }));
+    page.on('requestfailed', request => { if (request.url().includes('/icon-192.png')) failedIcons.push(request.failure()?.errorText); });
+    const response = await page.goto(origin + '/calendar/staff', { waitUntil: 'networkidle' });
+    expect(response.status()).toBe(200);
+    const policy = response.headers()['content-security-policy'];
+    expect(policy).toContain("img-src 'self'");
+    for (const directive of ["default-src 'none'", "script-src 'self'", "connect-src 'self'", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'"]) expect(policy).toContain(directive);
+    const icon = page.locator('head link[rel="icon"]');
+    await expect(icon).toHaveCount(1);
+    await expect(icon).toHaveAttribute('href', '/calendar/pwa/icon-192.png?v=official-brand-v2');
+    await expect(page.locator('head link[rel="manifest"]')).toHaveCount(viewport.mobile ? 1 : 0);
+    const dimensions = await page.evaluate(() => new Promise(resolve => {
+      const image = new Image(); image.onload = () => resolve([image.naturalWidth, image.naturalHeight]); image.onerror = () => resolve([]);
+      image.src = document.querySelector('link[rel="icon"]').href;
+    }));
+    expect(dimensions).toEqual([192, 192]);
+    expect(failedIcons).toEqual([]);
+    const asset = await context.request.get(origin + '/calendar/pwa/icon-192.png?v=official-brand-v2');
+    expect(asset.status()).toBe(200);
+    expect(asset.headers()['content-type']).toBe('image/png');
+    const official = fs.readFileSync(require('node:path').resolve('public/assets/brand/shiloh-mark-192.png'));
+    expect(Buffer.compare(await asset.body(), official)).toBe(0);
+    await page.screenshot({ path: testInfo.outputPath(`staff-favicon-${viewport.width}.png`), fullPage: true });
+    const violation = await page.evaluate(() => new Promise(resolve => {
+      document.addEventListener('securitypolicyviolation', event => resolve({ directive: event.effectiveDirective, uri: event.blockedURI }), { once: true });
+      const image = new Image(); image.src = 'https://outside.invalid/not-allowed.png';
+    }));
+    expect(violation.directive).toBe('img-src');
+    expect(violation.uri).toContain('outside.invalid');
+    await page.goto(origin + '/calendar/workspace', { waitUntil: 'networkidle' });
+    await expect(page.locator('head link[rel="icon"]')).toHaveCount(1);
+    await expect(page.locator('head link[rel="manifest"]')).toHaveCount(viewport.mobile ? 1 : 0);
+  } finally {
+    await context.close();
+    await new Promise(resolve => server.close(resolve));
+  }
+});

@@ -14,6 +14,7 @@ const ICON_URLS = Object.freeze([
   `${PWA_BASE}/icon-512.png?v=${PWA_VERSION}`,
   `${PWA_BASE}/icon-maskable-512.png?v=${PWA_VERSION}`,
 ]);
+const FAVICON_LINK = `<link rel="icon" href="${ICON_URLS[0]}" type="image/png" sizes="192x192">`;
 const SVG_ICON_URLS = Object.freeze([
   `${PWA_BASE}/icon-192.svg?v=${PWA_VERSION}`,
   `${PWA_BASE}/icon-512.svg?v=${PWA_VERSION}`,
@@ -64,7 +65,7 @@ function workspacePwaHeadMarkup() {
     '<meta name="apple-mobile-web-app-capable" content="yes">',
     '<meta name="apple-mobile-web-app-status-bar-style" content="default">',
     '<meta name="apple-mobile-web-app-title" content="Shiloh Workspace">',
-    `<link rel="icon" href="${ICON_URLS[0]}" type="image/png" sizes="192x192">`,
+    FAVICON_LINK,
     `<link rel="apple-touch-icon" sizes="180x180" href="${PWA_BASE}/apple-touch-icon-180.png?v=${PWA_VERSION}">`,
     `<script src="${PWA_BASE}/client.js?v=${PWA_VERSION}" defer></script>`,
   ].join('');
@@ -73,7 +74,7 @@ function workspacePwaHeadMarkup() {
 function decorateWorkspacePwaHtml(html, { updatesOnly = false } = {}) {
   const source = String(html || '');
   if (!source.includes('</head>') || source.includes(`${PWA_BASE}/client.js`)) return source;
-  const markup = updatesOnly ? `<script src="${PWA_BASE}/client.js?v=${PWA_VERSION}" defer></script>` : workspacePwaHeadMarkup();
+  const markup = updatesOnly ? `${FAVICON_LINK}<script src="${PWA_BASE}/client.js?v=${PWA_VERSION}" defer></script>` : workspacePwaHeadMarkup();
   return source.replace('</head>', `${markup}</head>`);
 }
 
