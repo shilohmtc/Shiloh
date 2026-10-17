@@ -21,8 +21,6 @@
   const installSteps = document.querySelector('[data-install-steps]');
   const installTitle = document.querySelector('[data-install-title]');
   const installLead = document.querySelector('[data-install-lead]');
-  const installStepTitles = [...document.querySelectorAll('[data-install-step-title]')];
-  const installStepCopies = [...document.querySelectorAll('[data-install-step-copy]')];
   const installStepExtra = document.querySelector('[data-install-step-extra]');
   const installTip = document.querySelector('[data-install-tip]');
   const clientGreeting = document.querySelector('[data-client-greeting]');
@@ -279,7 +277,7 @@
         installGateCopy.textContent = isIosGoogleApp()
           ? 'You’re in the Google app. Open My Shiloh in Safari or Chrome first. Check that the address says app.shilohmtc.co.za before adding it to your Home Screen.'
           : isIosSafari()
-          ? 'You’re in Safari. Add My Shiloh to your Home Screen in three quick steps.'
+          ? 'You’re in Safari. Add My Shiloh to your Home Screen.'
           : isIosChrome()
             ? 'You’re in Chrome. Use Share to add My Shiloh to your Home Screen.'
             : 'Use your browser’s Share menu to add My Shiloh to your Home Screen.';
@@ -349,8 +347,8 @@
   }
 
   function setInstallStep(index, title, copy) {
-    const titleNode = installStepTitles.find((node) => node.dataset.installStepTitle === String(index));
-    const copyNode = installStepCopies.find((node) => node.dataset.installStepCopy === String(index));
+    const titleNode = document.querySelector(`[data-install-step-title="${index}"]`);
+    const copyNode = document.querySelector(`[data-install-step-copy="${index}"]`);
     if (titleNode) {
       titleNode.textContent = title;
       if (/^Tap (?:Share|this Share icon)/.test(title)) {
@@ -393,35 +391,28 @@
       const browserName = browser === 'chrome' ? 'Chrome' : 'Safari';
       if (installBrowser) installBrowser.value = browser;
       if (installTitle) installTitle.textContent = 'Add My Shiloh to your iPhone.';
-      if (installLead) installLead.textContent = 'You won’t find it in the App Store. Simply open it in Safari or Chrome and follow the steps below to add it to your Home Screen.';
-      if (installBrowserNote) installBrowserNote.textContent = browser
-        ? (browser === detected ? `${browserName} steps. Start at app.shilohmtc.co.za/my-shiloh/.` : `Open app.shilohmtc.co.za/my-shiloh/ in ${browserName} first.`)
-        : 'Choose Safari or Chrome to see the right steps.';
-
-      if (isIosGoogleApp()) {
-        if (installBrowserNote) installBrowserNote.textContent = 'Open in your browser first. The address must say app.shilohmtc.co.za, not share.google.';
-        setInstallStep(1, browser ? `Open in ${browserName}` : 'Open in Safari or Chrome', 'Use Open in browser in the Google app’s Share menu.');
-        setInstallStep(2, 'Check the address', 'If you see share.google, enter app.shilohmtc.co.za/my-shiloh/ in your browser.');
-        setInstallStep(3, browser === 'safari' ? 'Open Safari’s Page Menu' : 'Tap this Share icon', browser === 'safari'
-          ? 'Tap the Page Menu icon, then choose Share. If Share is already visible, tap it directly. Scroll down to Add to Home Screen.'
-          : browser === 'chrome' ? 'In Chrome, tap Share beside the address bar. If View More appears, tap it to expand the options. Scroll down to Add to Home Screen.'
-          : 'Choose Add to Home Screen in your browser’s Share menu. This picture is a guide, not a button.');
-        if (installStepExtra) installStepExtra.hidden = false;
-        setInstallStep(4, 'Check, then tap Add', 'Check My Shiloh and app.shilohmtc.co.za. If either is wrong, cancel. Keep Open as Web App on if shown, then tap Add. Open the new My Shiloh icon.');
-        return;
+      if (installLead) installLead.textContent = 'You won’t find it in the App Store. Add it from Safari or Chrome.';
+      if (installBrowserNote) installBrowserNote.textContent = isIosGoogleApp()
+        ? 'Open in your browser first, not in the Google app. Choose Safari or Chrome for the next steps.'
+        : browser ? (browser === detected ? `${browserName} steps. Pictures are guides, not buttons.` : `Open this page in ${browserName} first. Pictures are guides, not buttons.`)
+          : 'Choose Safari or Chrome to see the right steps.';
+      if (typeof window.ShilohIphoneInstallGuide === 'function') {
+        window.ShilohIphoneInstallGuide(installSteps, browser, { appName: 'My Shiloh', handoff: isIosGoogleApp() });
+        installSteps.hidden = !browser && !isIosGoogleApp();
+      } else {
+        // Retain basic browser help if the presentation asset could not load.
+        if (isIosGoogleApp()) {
+          setInstallStep(1, 'Open in Safari or Chrome', 'Use Open in browser in the Google app’s Share menu.');
+          setInstallStep(2, 'Open My Shiloh', 'If you see share.google, enter app.shilohmtc.co.za/my-shiloh/ in your browser.');
+          setInstallStep(3, 'Choose Add to Home Screen', 'Open Share in your browser. Use View More if shown, then scroll down.');
+          if (installStepExtra) installStepExtra.hidden = false;
+          setInstallStep(4, 'Tap Add', 'If you see Open as Web App, leave it switched on.');
+        } else {
+          setInstallStep(1, 'Open your browser’s Share menu', 'In Safari, open Page Menu first if needed.');
+          setInstallStep(2, 'Choose Add to Home Screen', 'Use View More if shown, then scroll down.');
+          setInstallStep(3, 'Tap Add', 'If you see Open as Web App, leave it switched on.');
+        }
       }
-
-      if (!browser) {
-        if (installSteps) installSteps.hidden = true;
-        return;
-      }
-      setInstallStep(1, browser === 'safari' ? 'Open Safari’s Page Menu' : 'Tap this Share icon', browser === 'safari'
-        ? 'Tap the Page Menu icon shown here, then choose Share. If Share is already visible, tap it directly. This picture is a guide, not a button.'
-        : 'In Chrome, look beside the address bar for Share. This picture is a guide, not a button.');
-      setInstallStep(2, 'Choose Add to Home Screen', browser === 'safari'
-        ? 'Scroll through the Share list. If missing, use Edit Actions to add it.'
-        : 'If View More appears, tap it to expand the options. Scroll down and choose Add to Home Screen.');
-      setInstallStep(3, 'Check, then tap Add', 'Check My Shiloh and app.shilohmtc.co.za. If either is wrong, cancel. Keep Open as Web App on if shown, then tap Add. Open the new My Shiloh icon.');
       return;
     }
 

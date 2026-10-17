@@ -551,6 +551,7 @@ function renderMyShilohPage({
 
   <link rel="stylesheet" href="/my-shiloh/assets/confirmation.css?v=${MY_SHILOH_ASSET_VERSION}">
   <script src="/my-shiloh/assets/confirmation.js?v=${MY_SHILOH_ASSET_VERSION}" defer></script>
+  <script src="/my-shiloh/assets/iphone-install-guide.js?v=${MY_SHILOH_ASSET_VERSION}" defer></script>
   <script src="/my-shiloh/assets/app.js?v=${MY_SHILOH_ASSET_VERSION}" defer></script>
 </body>
 </html>`;

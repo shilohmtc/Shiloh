@@ -128,9 +128,11 @@ test('#960 iPhone install guidance is compact, scoped, dismissible and backed by
   const client = workspacePwaClientScript();
   assert.match(markup, /Keep Shiloh close/);
   assert.match(markup, /Show me how/);
-  assert.match(markup, /Open Safari’s Page Menu/);
-  assert.match(markup, /Choose Add to Home Screen/);
-  assert.match(markup, /Keep Open as Web App on if shown, then tap Add/);
+  assert.match(client, /Open Safari’s Page Menu/);
+  assert.match(client, /Add to Home Screen/);
+  assert.match(client, /If you see Open as Web App, leave it switched on/);
+  assert.match(client, /Tap View More, if shown/);
+  assert.match(markup, /data-workspace-ios-browser-steps/);
   assert.match(markup, /role="dialog" aria-modal="true"/);
   assert.match(styles, /min-height:44px/);
   assert.match(styles, /safe-area-inset-bottom/);

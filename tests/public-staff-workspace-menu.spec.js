@@ -61,10 +61,6 @@ for (const device of [
     if (device.name.startsWith('iphone')) {
       const steps = page.locator('[data-workspace-ios-steps]');
       await expect(page.locator('[data-workspace-install-doorway]')).toBeHidden();
-      await expect(steps.locator('[data-workspace-ios-menu-icon]')).toHaveCount(1);
-      await expect(steps).toContainText('This picture is a guide, not a button.');
-      await expect(steps).toContainText('Choose Add to Home Screen');
-      await expect(steps).toContainText('Then open Shiloh Workspace');
       const choice = steps.getByRole('combobox', { name: 'iPhone browser' });
       await expect(choice).toHaveValue(device.name === 'iphone-chrome' ? 'chrome' : device.name === 'iphone-other' ? '' : 'safari');
       if (device.name === 'iphone-other') {
@@ -72,10 +68,16 @@ for (const device of [
         await expect(steps).toContainText('open this page in your chosen browser first');
       }
       await choice.selectOption('chrome');
-      await expect(steps.locator('[data-workspace-ios-final-title]')).toHaveText('Check, then tap Add');
-      await expect(steps).toContainText('In Chrome, look beside the address bar for Share.');
+      await expect(steps.locator('[data-iphone-guide-step="add"] strong')).toHaveText('Tap Add');
+      await expect(steps.locator('[data-iphone-guide-step="more"] strong')).toHaveText('Tap View More, if shown');
+      await expect(steps).toContainText('Look beside the address bar.');
+      await expect(steps.locator('[data-iphone-guide-step]')).toHaveCount(4);
       await choice.selectOption('safari');
-      await expect(steps.locator('[data-workspace-ios-final-title]')).toHaveText('Check, then tap Add');
+      await expect(steps.locator('.iphone-control-page-menu')).toBeVisible();
+      await expect(steps.locator('[data-iphone-guide-step]')).toHaveCount(5);
+      await expect(steps).toContainText('Open Shiloh Workspace from your Home Screen.');
+      await expect(steps.locator('[data-iphone-guide-step="add"] strong')).toHaveText('Tap Add');
+      await expect(steps.locator('[data-iphone-guide-step="more"] strong')).toHaveText('Tap View More, if shown');
       await expect(page.getByRole('button', { name: /^Install/ })).toHaveCount(0);
     }
     await page.screenshot({ path: testInfo.outputPath(`existing-install-${device.name}.png`) });
