@@ -38,7 +38,7 @@ function installShareIconMarkup() {
 
 function installGuideIconMarkup(kind) {
   const path = kind === 'page-menu'
-    ? 'M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 5h10M7 12h10M7 15h6'
+    ? 'M4 6h16M4 12h16M4 18h10.5'
     : 'M6 3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3Zm6 5v8m-4-4h8';
   return `<svg class="install-share-icon install-${kind}-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${path}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
@@ -49,12 +49,12 @@ function applyInstallStep(surface, index, title, copy) {
   const copyNode = surface.querySelector(`[data-install-step-copy="${number}"]`);
   if (titleNode) {
     if (/^Tap (?:Share|this Share icon)/.test(title)) titleNode.innerHTML = `${installShareIconMarkup().replace('class="install-share-icon"', 'class="install-share-icon install-share-highlight"')} ${title}`;
-    else if (title === 'Open Safari’s page menu') titleNode.innerHTML = `${installGuideIconMarkup('page-menu')} ${title}`;
+    else if (title === 'Open Safari’s Page Menu') titleNode.innerHTML = `${installGuideIconMarkup('page-menu')} ${title}`;
     else if (title === 'Choose Add to Home Screen') titleNode.innerHTML = `${installGuideIconMarkup('add-home')} ${title}`;
     else titleNode.textContent = title;
   }
   if (copyNode) {
-    if (title === 'Open Safari’s page menu') {
+    if (title === 'Open Safari’s Page Menu') {
       const splitAt = copy.indexOf('Share');
       const before = copy.slice(0, splitAt);
       const after = copy.slice(splitAt + 'Share'.length);
@@ -62,7 +62,7 @@ function applyInstallStep(surface, index, title, copy) {
       const icon = document.createElement('span');
       icon.innerHTML = installShareIconMarkup();
       const share = icon.firstElementChild;
-      share.classList.add('install-step-copy-icon');
+      share.classList.add('install-step-copy-icon', 'install-share-highlight');
       copyNode.append(share, document.createTextNode(`Share${after}`));
     } else copyNode.textContent = copy;
   }
@@ -348,11 +348,11 @@ export const IPhoneInstallGuide = {
     surface.querySelector('[data-install-browser-choice]').hidden = false;
     surface.querySelector('[data-install-browser]').value = 'safari';
     surface.querySelector('[data-install-browser-note]').hidden = false;
-    surface.querySelector('[data-install-browser-note]').textContent = 'Safari steps.';
+    surface.querySelector('[data-install-browser-note]').textContent = 'Safari steps. Start at app.shilohmtc.co.za/my-shiloh/.';
     const steps = [
-      ['Tap this Share icon', 'In Safari, open the page menu, then Share, or tap Share directly. This picture is a guide, not a button.'],
+      ['Open Safari’s Page Menu', 'Tap the Page Menu icon shown here, then choose Share. If Share is already visible, tap it directly. This picture is a guide, not a button.'],
       ['Choose Add to Home Screen', 'Scroll through the Share list. If missing, use Edit Actions to add it.'],
-      ['Turn on Open as Web App, then tap Add', 'My Shiloh will appear on your Home Screen.'],
+      ['Check, then tap Add', 'Check My Shiloh and app.shilohmtc.co.za. If either is wrong, cancel. Keep Open as Web App on if shown, then tap Add. Open the new My Shiloh icon.'],
     ];
     steps.forEach(([stepTitle, stepCopy], index) => {
       applyInstallStep(surface, index + 1, stepTitle, stepCopy);
@@ -380,11 +380,11 @@ export const IPhoneChromeInstallGuide = {
     if (eyebrow) eyebrow.hidden = true;
     if (title) title.textContent = 'Add My Shiloh to your iPhone.';
     surface.querySelector('[data-install-browser]').value = 'chrome';
-    surface.querySelector('[data-install-browser-note]').textContent = 'Chrome steps.';
+    surface.querySelector('[data-install-browser-note]').textContent = 'Chrome steps. Start at app.shilohmtc.co.za/my-shiloh/.';
     const steps = [
       ['Tap this Share icon', 'In Chrome, look beside the address bar for Share. This picture is a guide, not a button.'],
-      ['Choose Add to Home Screen', 'Look through the sharing options, then select Add to Home Screen.'],
-      ['Tap Add', 'My Shiloh will appear on your Home Screen.'],
+      ['Choose Add to Home Screen', 'If View More appears, tap it to expand the options. Scroll down and choose Add to Home Screen.'],
+      ['Check, then tap Add', 'Check My Shiloh and app.shilohmtc.co.za. If either is wrong, cancel. Keep Open as Web App on if shown, then tap Add. Open the new My Shiloh icon.'],
     ];
     steps.forEach(([stepTitle, stepCopy], index) => {
       applyInstallStep(surface, index + 1, stepTitle, stepCopy);
@@ -408,7 +408,7 @@ export const IPhoneGoogleInstallGuide = {
       ['Open in Safari or Chrome', 'Use Open in browser in the Google app’s Share menu.'],
       ['Check the address', 'If you see share.google, enter app.shilohmtc.co.za/my-shiloh/ in your browser.'],
       ['Tap this Share icon', 'Choose Add to Home Screen in your browser’s Share menu. This picture is a guide, not a button.'],
-      ['Tap Add', 'If offered, turn on Open as Web App. Then open the new My Shiloh icon.'],
+      ['Check, then tap Add', 'Check My Shiloh and app.shilohmtc.co.za. If either is wrong, cancel. Keep Open as Web App on if shown, then tap Add. Open the new My Shiloh icon.'],
     ];
     steps.forEach(([stepTitle, stepCopy], index) => applyInstallStep(surface, index + 1, stepTitle, stepCopy));
     const extra = surface.querySelector('[data-install-step-extra]');

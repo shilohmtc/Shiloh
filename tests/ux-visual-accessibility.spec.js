@@ -1737,7 +1737,7 @@ test('iPhone install invitation opens an accessible three-step guide without ove
   await expect(dialog).toBeHidden();
   await opener.click();
   await expect(dialog).toBeVisible();
-  for (const step of ['Tap this Share icon', 'Choose Add to Home Screen', 'Turn on Open as Web App, then tap Add']) {
+  for (const step of ['Open Safari’s Page Menu', 'Choose Add to Home Screen', 'Check, then tap Add']) {
     await expect(dialog.getByText(step, { exact: true })).toBeVisible();
   }
 
@@ -2271,13 +2271,13 @@ test('iPhone Safari install guide fits without scrolling and is accessible on Ph
     await expect(sheet).toContainText('You won’t find it in the App Store.');
     await expect(sheet.getByRole('combobox', { name: 'iPhone browser' })).toHaveValue('safari');
     const safariShareStep = sheet.locator('[data-install-step-title="1"]');
-    await expect(safariShareStep).toContainText('Tap this Share icon');
+    await expect(safariShareStep).toContainText('Open Safari’s Page Menu');
     await expect(sheet.locator('[data-install-eyebrow]')).toBeHidden();
-    await expect(safariShareStep.locator('svg.install-share-highlight[aria-hidden="true"]')).toHaveCount(1);
-    await expect(sheet.locator('[data-install-step-copy="1"]')).toContainText('In Safari, open the page menu, then Share, or tap Share directly. This picture is a guide, not a button.');
+    await expect(safariShareStep.locator('svg.install-page-menu-icon[aria-hidden="true"]')).toHaveCount(1);
+    await expect(sheet.locator('[data-install-step-copy="1"]')).toContainText('Tap the Page Menu icon shown here, then choose Share. If Share is already visible, tap it directly. This picture is a guide, not a button.');
     await expect(sheet.getByText('Choose Add to Home Screen', { exact: true })).toBeVisible();
     await expect(sheet.locator('[data-install-step-title="2"] svg.install-add-home-icon[aria-hidden="true"]')).toHaveCount(1);
-    await expect(sheet.getByText('Turn on Open as Web App, then tap Add', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('Check, then tap Add', { exact: true })).toBeVisible();
 
     const metrics = await panel.evaluate((node) => ({
       viewportWidth: window.innerWidth,
@@ -2329,7 +2329,7 @@ test('iPhone Chrome install guide adds My Shiloh directly without scrolling', as
     await expect(chromeShareStep).toContainText('Tap this Share icon');
     await expect(chromeShareStep.locator('svg.install-share-icon[aria-hidden="true"]')).toHaveCount(1);
     await expect(sheet.getByText('Choose Add to Home Screen', { exact: true })).toBeVisible();
-    await expect(sheet.getByText('Tap Add', { exact: true })).toBeVisible();
+    await expect(sheet.getByText('Check, then tap Add', { exact: true })).toBeVisible();
 
     const metrics = await panel.evaluate((node) => ({
       scrollHeight: node.scrollHeight,
@@ -4111,6 +4111,16 @@ test('real iPhone install help labels describe guidance and preserve browser-spe
     })).toBe(true);
     await expect(sheet).toContainText('Add to Home Screen');
     await expect(sheet).toContainText('tap Add', { ignoreCase: true });
+    if (agent.name === 'safari') {
+      await expectRecordingPageMenu(sheet.locator('.install-page-menu-icon'));
+      await expect(sheet).toContainText('If Share is already visible, tap it directly.');
+      await expect(sheet).toContainText('app.shilohmtc.co.za/my-shiloh/');
+    } else if (agent.name === 'chrome') {
+      await expect(sheet).toContainText('If View More appears, tap it to expand the options. Scroll down');
+    }
+    await expect(sheet).toContainText('Check My Shiloh and app.shilohmtc.co.za.');
+    await expect(sheet).toContainText('If either is wrong, cancel.');
+    await expect(sheet).toContainText('Keep Open as Web App on if shown');
     if (agent.name === 'google') {
       await expect(sheet).toContainText('Open in your browser first.');
       const choice = sheet.getByRole('combobox', { name: 'iPhone browser' });
@@ -4119,10 +4129,11 @@ test('real iPhone install help labels describe guidance and preserve browser-spe
       await choice.selectOption('chrome');
       await expect(sheet.locator('[data-install-step-title="1"]')).toHaveText('Open in Chrome');
       await expect(sheet.locator('[data-install-step-copy="3"]')).toContainText('In Chrome');
-      await expect(sheet.locator('[data-install-step-copy="4"]')).not.toContainText('Open as Web App');
+      await expect(sheet.locator('[data-install-step-copy="4"]')).toContainText('Open as Web App');
+      await expect(sheet.locator('[data-install-step-copy="3"]')).toContainText('View More');
       await expect(sheet).toContainText('not share.google');
       await choice.selectOption('safari');
-      await expect(sheet.locator('[data-install-step-copy="3"]')).toContainText('page menu');
+      await expect(sheet.locator('[data-install-step-copy="3"]')).toContainText('Page Menu');
       await expect(sheet.locator('[data-install-step-copy="4"]')).toContainText('Open as Web App');
       await choice.selectOption('');
     } else {
@@ -4131,8 +4142,8 @@ test('real iPhone install help labels describe guidance and preserve browser-spe
       const choice = sheet.getByRole('combobox', { name: 'iPhone browser' });
       await expect(choice).toHaveValue(agent.name);
       await choice.selectOption(agent.name === 'safari' ? 'chrome' : 'safari');
-      await expect(sheet.locator('[data-install-step-title="3"]')).toHaveText(agent.name === 'safari' ? 'Tap Add' : 'Turn on Open as Web App, then tap Add');
-      await expect(sheet.locator('[data-install-browser-note]')).toContainText('Open this page in');
+      await expect(sheet.locator('[data-install-step-title="3"]')).toHaveText('Check, then tap Add');
+      await expect(sheet.locator('[data-install-browser-note]')).toContainText('Open app.shilohmtc.co.za/my-shiloh/ in');
       await choice.selectOption(agent.name);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -4186,10 +4197,10 @@ test('unknown iPhone browser offers a short explicit choice and retains it when 
   await expect(sheet.locator('[data-install-steps]')).toBeHidden();
   await expect(sheet).toContainText('You won’t find it in the App Store.');
   await choice.selectOption('chrome');
-  await expect(sheet).toContainText('Open this page in Chrome first.');
-  await expect(sheet.locator('[data-install-step-title="3"]')).toHaveText('Tap Add');
+  await expect(sheet).toContainText('Open app.shilohmtc.co.za/my-shiloh/ in Chrome first.');
+  await expect(sheet.locator('[data-install-step-title="3"]')).toHaveText('Check, then tap Add');
   await choice.selectOption('safari');
-  await expect(sheet.locator('[data-install-step-title="3"]')).toHaveText('Turn on Open as Web App, then tap Add');
+  await expect(sheet.locator('[data-install-step-title="3"]')).toHaveText('Check, then tap Add');
   await sheet.getByRole('button', { name: 'Close', exact: true }).click();
   await opener.click();
   await expect(choice).toHaveValue('safari');
@@ -4197,3 +4208,63 @@ test('unknown iPhone browser offers a short explicit choice and retains it when 
   await page.screenshot({ path: testInfo.outputPath('iphone-browser-fallback-320.png'), fullPage: true, animations: 'disabled' });
   await context.close();
 });
+
+async function expectRecordingPageMenu(icon) {
+  await expect(icon).toBeVisible();
+  const geometry = await icon.evaluate(node => ({
+    strokes: [...node.querySelector('path').getAttribute('d').matchAll(/h([\d.]+)/g)].map(match => Number(match[1])),
+    color: getComputedStyle(node).color,
+    background: getComputedStyle(node).backgroundColor,
+    round: node.querySelector('path').getAttribute('stroke-linecap'),
+  }));
+  expect(geometry.strokes).toHaveLength(3);
+  expect(geometry.strokes[0]).toBe(geometry.strokes[1]);
+  expect(geometry.strokes[2] / geometry.strokes[0]).toBeCloseTo(2 / 3, 1);
+  expect(geometry.round).toBe('round');
+  expect(geometry.color).toBe('rgb(255, 255, 255)');
+  expect(geometry.background).toBe('rgb(32, 50, 43)');
+}
+
+for (const width of [320, 390, 1280]) {
+  test(`Workspace iPhone guides show the recorded menu before Share and optional Chrome steps at ${width}`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.route('**/calendar/pwa/icon-192.png*', route => route.fulfill({ path: require('node:path').resolve('public/assets/pwa/shiloh-pwa-192.png') }));
+    await page.goto('/iframe.html?id=workspace-production-surfaces--ios-install-guidance&viewMode=story', { waitUntil: 'networkidle' });
+    const opener = page.getByRole('button', { name: 'Show me how' });
+    await opener.click();
+    const sheet = page.getByRole('dialog', { name: 'Add Shiloh Workspace to your iPhone.' });
+    const choice = sheet.getByRole('combobox', { name: 'iPhone browser' });
+    for (const browser of ['safari', 'chrome']) {
+      await choice.selectOption(browser);
+      await expect(sheet).toContainText('app.shilohmtc.co.za/calendar/pwa/install');
+      await expect(sheet).toContainText('Check Shiloh Workspace and app.shilohmtc.co.za.');
+      await expect(sheet).toContainText('If either is wrong, cancel.');
+      await expect(sheet).toContainText('Keep Open as Web App on if shown');
+      const menu = sheet.locator('[data-workspace-ios-menu-icon]');
+      if (browser === 'safari') {
+        await expectRecordingPageMenu(menu);
+        await expect(sheet.locator('[data-workspace-ios-first-title]')).toHaveText('Open Safari’s Page Menu');
+        await expect(sheet).toContainText('If Share is already visible, tap it directly.');
+        await expect(sheet.locator('.shiloh-ios-inline-share')).toBeVisible();
+      } else {
+        await expect(menu).toBeHidden();
+        await expect(sheet.locator('[data-workspace-ios-share-icon]')).toBeVisible();
+        await expect(sheet).toContainText('If View More appears, tap it to expand the options. Scroll down');
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      const axe = await new AxeBuilder({ page }).include('[data-shiloh-ios-install-layer]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+      expect(axe.violations.filter(item => ['serious', 'critical'].includes(item.impact))).toEqual([]);
+      await sheet.evaluate(node => { node.scrollTop = 0; });
+      await page.screenshot({ path: testInfo.outputPath(`workspace-guide-${browser}-${width}.png`), fullPage: true, animations: 'disabled' });
+      await sheet.getByRole('button', { name: 'Got it', exact: true }).scrollIntoViewIfNeeded();
+      await expect(sheet.getByRole('button', { name: 'Got it', exact: true })).toBeInViewport();
+      await page.screenshot({ path: testInfo.outputPath(`workspace-guide-${browser}-${width}-end.png`), fullPage: true, animations: 'disabled' });
+      await sheet.getByRole('button', { name: 'Close installation guide', exact: true }).click();
+      await expect(sheet).toBeHidden();
+      await opener.click();
+      await expect(choice).toHaveValue(browser);
+    }
+    await sheet.getByRole('button', { name: 'Got it', exact: true }).click();
+    await expect(sheet).toHaveCount(0);
+  });
+}
