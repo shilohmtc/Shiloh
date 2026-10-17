@@ -2119,7 +2119,7 @@
         form.elements.namedItem(name).addEventListener('input', () => {
           delete form.dataset.completeProfile;
           delete form.dataset.profileIntent;
-          form.closest('section').querySelector('[data-crm-title]').textContent = 'Open My Shiloh';
+          form.closest('section').querySelector('[data-crm-title]').textContent = 'Sign in to My Shiloh';
           form.closest('section').querySelector('[data-crm-copy]').textContent = 'Enter your name and mobile number. We will check your Shiloh record and guide you from there.';
           for (const [field, selector] of [['dateOfBirth', '[data-crm-dob]'], ['gender', '[data-crm-gender]']]) {
             form.querySelector(selector).hidden = true;
