@@ -297,6 +297,19 @@ test('public pages include search and sharing metadata', () => {
   }
 });
 
+test('homepage publishes the approved Meta ownership tag exactly once in its initial HTML head', () => {
+  const tag = '<meta name="facebook-domain-verification" content="sy5n6aq2lojvyq0it8eoukz4d43qsy" />';
+  for (const html of [renderHome(catalogue), renderHome([])]) {
+    const head = html.match(/<head>([\s\S]*?)<\/head>/)[1];
+    assert.equal(head.split(tag).length - 1, 1);
+    assert.equal((html.match(/<meta\b[^>]*name="facebook-domain-verification"[^>]*>/g) || []).length, 1);
+    assert.doesNotMatch(html.slice(html.indexOf('</head>')), /facebook-domain-verification/);
+  }
+  for (const html of [renderTreatments(catalogue), renderAbout(), renderContact(), renderVisit(), renderPrivacy(), renderBookingPage(catalogue)]) {
+    assert.doesNotMatch(html, /facebook-domain-verification/);
+  }
+});
+
 test('public privacy policy is accessible, specific to Shiloh, and linked site-wide', () => {
   const privacy = renderPrivacy();
   assert.match(privacy, /<h1>Your information, handled with care\.<\/h1>/);
