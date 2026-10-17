@@ -352,3 +352,19 @@ test('expired intake and revoked setup approval cannot dispatch', async () => {
   g.state.approvals[0].revokedAt = new Date();
   await g.service.dispatchOne(); assert.equal(g.sent.length, 0);
 });
+
+test('accepted staff policy caps actual code dispatches at ten across purposes and restarts', async () => {
+  const f = fixture();
+  for (let i = 0; i < 10; i++) {
+    await f.start();
+    f.advance(11 * 60000);
+  }
+  assert.equal(f.sent.length,10);
+  // A fresh service instance shares the durable rate buckets, not a counter
+  // reset in application memory. New-purpose intake cannot reset the ceiling.
+  const restarted = createWorkspaceWhatsAppAuth({ enabled:true, store:f.store, delivery:f.delivery,
+    hmacKey:Buffer.alloc(32,7), now:()=>new Date('2026-10-17T14:00:00Z') });
+  await restarted.begin(f.input);
+  await restarted.dispatchOne();
+  assert.equal(f.sent.length,10);
+});

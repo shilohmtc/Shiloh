@@ -291,11 +291,13 @@ test('isolated runtime requires schema and budget, wires HTTP and worker, and ne
   assert.equal((await runtime.worker.runOnce()).code,'WORKER_DISABLED');assert.equal(requests.length,2);
 });
 
-test('explicit SMS choice before claim skips WhatsApp; choice during preflight waits for a proven no-send result',async t=>{
+test('SMS cannot bypass queued WhatsApp; choice during preflight waits for a proven no-send result',async t=>{
   const sms=smsFixture();let reads=0;
   const h=await harness(t,{budgets:syntheticBudgets,smsDelivery:sms.provider,delivery:{...offlineWhatsApp(),readiness:async()=>{reads++;return{ready:false};}}});
   const first=await h.service.begin(h.context);await h.service.requestSmsFallback({...h.context,request:first.request});await h.service.dispatchOne();
-  assert.equal(reads,0);assert.equal(sms.sent.length,1);
+  assert.equal(reads,1);assert.equal(sms.sent.length,0);
+  await h.service.requestSmsFallback({...h.context,request:first.request});await h.service.dispatchOne();
+  assert.equal(sms.sent.length,1);
   let release,entered;const waiting=new Promise(r=>{entered=r;});const secondSms=smsFixture();
   const g=await harness(t,{budgets:syntheticBudgets,smsDelivery:secondSms.provider,delivery:{...offlineWhatsApp(),readiness:()=>{entered();return new Promise(r=>{release=r;});}}});
   const second=await g.service.begin(g.context);const worker=g.service.dispatchOne();await waiting;

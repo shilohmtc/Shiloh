@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - 'src/services/workspaceWhatsApp*.js'
+      - 'src/services/codeSignInPolicy.js'
+      - 'tests/code-signin-policy.test.js'
+      - 'tests/workspace-meta-readback.test.js'
+      - 'tests/fixtures/workspace-meta-reviewed-2026-10-17.json'
       - 'src/services/staffBrowserSession.js'
       - 'src/services/clientSmsAuth.js'
       - 'src/routes/workspaceWhatsAppAuth.js'
@@ -41,7 +45,7 @@ jobs:
           node-version: 24.14.1
           cache: npm
       - run: npm ci
-      - run: node --test tests/workspace-whatsapp-auth-preparation.test.js tests/workspace-whatsapp-providers.test.js tests/workspace-whatsapp-integration.test.js tests/staff-detail-auth.test.js tests/staff-passkey-auth-v1.test.js tests/staff-details-device-retirement.test.js
+      - run: node --test tests/code-signin-policy.test.js tests/workspace-meta-readback.test.js tests/workspace-whatsapp-auth-preparation.test.js tests/workspace-whatsapp-providers.test.js tests/workspace-whatsapp-integration.test.js tests/staff-detail-auth.test.js tests/staff-passkey-auth-v1.test.js tests/staff-details-device-retirement.test.js
       - run: node --test tests/workspace-whatsapp-integration.test.js
         env:
           WORKSPACE_WHATSAPP_SYNTHETIC_DATABASE_URL: postgres://postgres:synthetic-only@127.0.0.1:5432/wa_synthetic

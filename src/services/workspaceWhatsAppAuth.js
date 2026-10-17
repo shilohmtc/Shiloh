@@ -5,6 +5,7 @@ const { normalizeMobile } = require('./crmV2ClientService');
 const { deriveCalendarViewer, safeHashEqual, sha256 } = require('./staffBrowserSession');
 const { strongRecentSession, passkeyPolicy, registrationUser, verifyRegistrationResponse, fromB64url } = require('./staffPasskeyAuth');
 const { workspaceWhatsAppRevision } = require('./workspaceWhatsAppIdentity');
+const { codeReservationBuckets } = require('./codeSignInPolicy');
 
 const PURPOSES = new Set(['signin', 'enroll', 'recover']);
 const INVALID = Object.freeze({ ok: false, code: 'WORKSPACE_WHATSAPP_INVALID' });
@@ -84,7 +85,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
         typeof network !== 'string' || !network || network.length > 120) return INVALID;
     await store.transaction(async tx => {
       const current = now(), row = await tx.dispatch(digest('request',request));
-      if (!row || !['queued','not_sent','claimed'].includes(row.state) || row.channel !== 'whatsapp' || row.fallbackUsed || row.fallbackRequested || !row.mobile ||
+      if (!row || !['not_sent','claimed'].includes(row.state) || row.channel !== 'whatsapp' || row.fallbackUsed || row.fallbackRequested || !row.mobile ||
           row.purpose !== purpose || row.browserHash !== digest('browser',browserToken) || new Date(row.expiresAt) <= current) return;
       if (!await tx.takeRate([
         {key:row.identityRateKey,limit:3,windowMs:WINDOW_MS},
@@ -162,11 +163,16 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
         if (!operator) return null;
         intent.state = 'consumed'; intent.consumedByRequestHash = requestHash; await tx.saveIntent(intent);
       }
-      if (budget && !await tx.takeRate([
+      if (!await tx.takeRate([
+        // The durable dispatch queue still needs a scheduled cooldown state;
+        // enforce the day ceilings now without dropping a queued fallback.
+        ...codeReservationBuckets({ audience:'staff', personKey:String(subject.id), channel, digest, current, includeCooldown:false }),
+        ...(budget ? [
         {key:digest('spend-day','all'),limit:budget.dailySpendMinor,amount:channel === 'sms' ? budget.smsCostMinor : budget.whatsappCostMinor,windowMs:DAY_MS},
         ...(channel === 'sms' ? [
           {key:digest('sms-account-day',subject.id),limit:budget.smsAccountDailyLimit,windowMs:DAY_MS},
           {key:digest('sms-clinic-day','all'),limit:budget.smsClinicDailyLimit,windowMs:DAY_MS},
+        ] : []),
         ] : []),
       ],current)) return null;
       const code = String(randomInt(0, 1000000)).padStart(6, '0');

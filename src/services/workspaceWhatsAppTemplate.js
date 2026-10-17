@@ -5,6 +5,25 @@ const { isDeepStrictEqual } = require('node:util');
 const TEMPLATE_NAME = 'shiloh_workspace_verification';
 const MAX_CODE_TTL_SECONDS = 300;
 
+// Meta's approved read form is a URL button. otp_type is not always repeated
+// as a button property, and the URL may carry the reviewed expiry.
+function copyCodeButton(button, footerMinutes) {
+  if (!button || !['OTP', 'URL'].includes(button.type) ||
+      (button.otp_type !== undefined && button.otp_type !== 'COPY_CODE')) return false;
+  if (button.type === 'OTP') return button.otp_type === 'COPY_CODE';
+  try {
+    const url = new URL(button.url);
+    if (url.origin !== 'https://www.whatsapp.com' || url.pathname !== '/otp/code/' ||
+        url.username || url.password || url.hash) return false;
+    const allowed = ['otp_type', 'code', 'code_expiration_minutes'];
+    const keys = [...url.searchParams.keys()];
+    if (keys.some(k => !allowed.includes(k)) || new Set(keys).size !== keys.length ||
+        url.searchParams.get('otp_type') !== 'COPY_CODE' || url.searchParams.get('code') !== 'otp{{1}}') return false;
+    const expiry = url.searchParams.get('code_expiration_minutes');
+    return expiry === null || (Number.isInteger(footerMinutes) && expiry === String(footerMinutes));
+  } catch (_) { return false; }
+}
+
 // No language or approved components are inferred from the owner-reported name.
 // Both arguments must come from a reviewed contract and a fresh authenticated
 // provider read. This module does not discover accounts or read credentials.
@@ -29,8 +48,7 @@ function inspectWorkspaceTemplate({ reviewed, inventory, wabaId } = {}) {
   const body = bodies[0];
   if (typeof body.text !== 'string' || (body.text.match(/\{\{[^}]+\}\}/g) || []).join(',') !== '{{1}}') return blocked;
   const button = groups[0].buttons[0];
-  if (!button || button.otp_type !== 'COPY_CODE' || !['OTP', 'URL'].includes(button.type)) return blocked;
-  if (button.type === 'URL' && button.url !== 'https://www.whatsapp.com/otp/code/?otp_type=COPY_CODE&code=otp{{1}}') return blocked;
+  if (!copyCodeButton(button, footers[0]?.code_expiration_minutes)) return blocked;
   const ttl = actual.message_send_ttl_seconds;
   const footerMinutes = footers[0]?.code_expiration_minutes;
   if ((ttl !== undefined && (!Number.isInteger(ttl) || ttl <= 0)) ||

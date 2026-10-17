@@ -1,5 +1,61 @@
 # Workspace WhatsApp authentication draft
 
+## Reconciled owner decisions — 17 October 2026, 21:35 SAST
+
+This section supersedes conflicting proposals and undecided-policy statements
+below. Those earlier sections describe the original draft implementation and its
+historical evidence; acceptance of a policy is not evidence of implementation.
+
+| Area | Accepted behavior |
+| --- | --- |
+| Primary channel | WhatsApp code; saved passkey is the convenient optional sign-in method. |
+| SMS | Explicit fallback after confirmed WhatsApp failure or expiry, never an automatic second send. Uncertain delivery must not duplicate an active attempt. Expired/superseded WhatsApp codes must be unusable before fallback. |
+| Staff ceiling | 10 codes per clinic per South African calendar day across WhatsApp and SMS, all staff purposes combined. At most 2 SMS per staff member per day. |
+| Client ceiling | Separate 50-code daily client allowance across both channels; at most 3 codes per client per day, of which at most 1 is SMS. Registration and recovery must count too. |
+| Resend | At least 60 seconds between code requests/sends for a person; channel or purpose changes cannot reset it. Passkey entry works when a code ceiling is exhausted. |
+| Invitations | After each successful sign-in, show optional passkey and notification invitations until the corresponding feature is enabled. Not now dismisses for that sign-in only. Never automatically open a credential or notification permission ceremony; blocked permission shows settings guidance. Do not prompt on every navigation or refresh. |
+| Staff enrollment | A valid current own-account session plus existing-passkey confirmation or a fresh code to the recorded number may add a passkey without administrator approval. Bind proof to account, session, browser and enrollment purpose; recheck canonical identity at completion. |
+| Staff recovery | Lost/stolen-phone replacement remains supervised by Christel/JP. Preserve administrator approval, recorded-phone proof where available, atomic replacement and revocation of old sessions. No-code lost-number recovery needs a separately reviewed identity-check procedure; no automatic bypass. |
+| Staff cutover | Keep current details entry during the pilot; retire it after successful code sign-in, passkey setup and recovery acceptance. Explicitly decide old details-session expiry/re-authentication before cutover; do not revive retired legacy SMS/setup endpoints. |
+| Client registration | Verify the number, collect existing required profile fields and create through canonical CRM registration after conflict checks. Never create public staff accounts. |
+| Client exceptions | Duplicate profiles, shared/changed numbers and lost-account recovery go to Reception, Christel or JP. No automatic CRM merge, record claiming by code alone, or extra email-recovery flow. |
+| Client sessions | Preserve the accepted fixed 30-day client session policy. Staff retain their separate existing session lifetime and permission model. |
+| Release | Build and draft review are authorized. This is not production migration, credential provisioning, deployment or live-message authorization. |
+
+### Current implementation checkpoint
+
+- Authenticated Graph API v26.0 readback verified WABA 1114297824590105,
+  sender ID 1310303435498156 (+27 83 683 5433), and approved template
+  2270342923759541 / shiloh_workspace_verification / language en.
+- The reviewed non-secret fixture preserves the returned BODY, FOOTER, URL
+  button, examples and 300-second message TTL. The returned URL carries
+  otp_type=COPY_CODE and code_expiration_minutes=5; the button has no separate
+  otp_type property. Exact inventory comparison remains mandatory.
+- This incremental build corrects that strict compatibility gate, adds the
+  shared staff/client policy, wires the staff daily ceilings into transactional
+  dispatch reservations, and prevents SMS from skipping a queued WhatsApp
+  attempt. Actual dispatch attempts count conservatively, including failures;
+  switching purpose, browser or process never refunds a reservation.
+- The shared policy defines the 60-second cooldown, but durable queue scheduling
+  for that cooldown is **not yet wired**. Do not silently drop a queued fallback
+  when its cooldown has not elapsed. Expiry-based fallback, self-service
+  enrollment and per-sign-in invitations still need their implementation slices.
+- Client policy constants are preparation only. Client code authentication,
+  canonical registration linkage, verified unique number binding, supervised
+  exceptions and client template review are **not implemented by this slice**.
+- Meta's official calculator displayed USD 0.0095 per delivered South African
+  authentication message. Rand costs vary by FX and applicable tax.
+  SMSMessenger's signed-in purchase dialog offered R0.29 per SMS for 50–499
+  credits, R0.27 for 500–1000 and R0.25 for 1001–5000; published prices exclude
+  15% VAT. The account showed 460 remaining credits, not their historical
+  purchase price. These reads did not send or purchase anything.
+- Daily count ceilings are the accepted primary cost control. The earlier R20
+  proposal is not a forecast or an activated monetary enforcement setting.
+  Do not use the approximate 17c WhatsApp conversion as an exact billing rate.
+- Production still has no Meta API credential entry in the inspected Render
+  service; no secrets were generated, copied or configured. The review runtime
+  remains unmounted, and review SQL stays outside automatic migrations.
+
 Status: implemented for isolated review and synthetic testing; **unmounted,
 not approved for production activation**. Injectable provider adapters and explicit runtime/worker composition are implemented;
 no live credentials, spending, automatic migration or deployment is included.
