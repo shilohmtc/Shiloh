@@ -53,6 +53,7 @@ for (const viewport of [
     const home = page.locator('[data-view="home"]');
     const form = home.locator('[data-client-crm-form]');
     await expect(home.getByRole('button', { name: 'Sign in with a passkey' })).toBeVisible();
+    await expect(home.locator('[data-crm-title]')).toHaveText('Sign in to My Shiloh');
     await expect(form.locator('[data-crm-mode]')).toHaveCount(0);
     await expect(form.getByLabel('Date of birth')).toBeHidden();
     await expect(form.getByLabel('Gender', { exact: true })).toBeHidden();
@@ -60,6 +61,7 @@ for (const viewport of [
     await form.getByLabel('First name', { exact: true }).fill('Synthetic');
     await form.getByLabel('Surname', { exact: true }).fill('Example');
     await form.getByLabel('Mobile number', { exact: true }).fill('0820000001');
+    await expect(home.locator('[data-crm-title]')).toHaveText('Sign in to My Shiloh');
     pending = new Promise(resolve => { release = resolve; });
     await form.getByRole('button', { name: 'Continue', exact: true }).evaluate(button => { button.click(); button.click(); });
     await expect.poll(() => submissions.length).toBe(1);
@@ -86,6 +88,7 @@ for (const viewport of [
     await stable(page, testInfo, `crm-generic-error-${viewport.name}.png`, form.locator('[data-crm-status]'));
     // Editing identity requires a fresh lookup and confirmation; typed DOB/gender remain on this page only.
     await form.getByLabel('First name', { exact: true }).fill('New');
+    await expect(home.locator('[data-crm-title]')).toHaveText('Sign in to My Shiloh');
     await expect(form.getByLabel('Date of birth')).toBeHidden();
     replyStatus = 200; reply = { next: 'new', requiredFields: ['dateOfBirth', 'gender'], missingFields: ['dateOfBirth', 'gender'] };
     await form.getByRole('button', { name: 'Continue', exact: true }).click();

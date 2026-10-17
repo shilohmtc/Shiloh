@@ -46,7 +46,7 @@ function serviceCards(catalogue = [], authenticated = false) {
 
 function crmSignIn(scope, reauthenticate = false) {
   return `<section class="sms-setup-choice" aria-labelledby="${scope}-crm-title">
-    <h2 id="${scope}-crm-title" data-crm-title>${reauthenticate ? 'Confirm your Shiloh details' : 'Open My Shiloh'}</h2>
+    <h2 id="${scope}-crm-title" data-crm-title>${reauthenticate ? 'Confirm your Shiloh details' : 'Sign in to My Shiloh'}</h2>
     <p data-crm-copy>${reauthenticate ? 'Re-enter your details to edit personal details, remove passkeys or sign out other sessions.' : 'Enter your name and mobile number. We will check your Shiloh record and guide you from there.'}</p>
     <form class="sms-auth-form" data-client-crm-form data-mode="${reauthenticate ? 'reauthenticate' : 'continue'}">
       <label>First name<input name="firstName" autocomplete="given-name" maxlength="100" required></label>
