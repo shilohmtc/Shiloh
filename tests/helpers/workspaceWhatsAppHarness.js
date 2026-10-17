@@ -60,8 +60,9 @@ async function harness(t) {
       if(!approval.ok)throw Error('synthetic approval failed');
     }
     const r=await service.begin(input);
+    await service.dispatchOne();
     return service.verify({...input,request:r.request,code:sent.at(-1).code});
   }
-  return {pg,db,service,sessions,context,operatorSession,priorSession,sent,code,env};
+  return {pg,db,service,sessions,context,operatorSession,priorSession,sent,code,env,store,delivery};
 }
 module.exports={harness};

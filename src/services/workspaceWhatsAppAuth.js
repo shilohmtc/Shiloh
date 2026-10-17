@@ -42,14 +42,12 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
     network, browserToken } = {}) {
     if (!enabledHere()) return DISABLED;
     if (!PURPOSES.has(purpose) || !tokenValid(browserToken) || typeof network !== 'string' || !network || network.length > 120) return INVALID;
-    const template = await delivery.readiness();
-    if (!template.ready || !Number.isInteger(template.codeTtlSeconds) || template.codeTtlSeconds <= 0 || template.codeTtlSeconds > 300) return DISABLED;
     const normalized = typeof mobile === 'string' && mobile.length <= 30 ? normalizeMobile(mobile) : null;
     const request = randomBytes(32).toString('base64url');
-    // Identical response for unknown, inactive, ambiguous, throttled, rejected or
-    // provider-failed requests. The decoy token is never persisted or usable.
     const accepted = { ok: true, accepted: true, request };
-    const prepared = await store.transaction(async tx => {
+    // No identity lookup or provider I/O on this public path. All account states
+    // take the same intake path; rate admission depends only on caller input.
+    await store.transaction(async tx => {
       const current = now();
       const buckets = [
         ['identity', normalized || 'invalid', 3, WINDOW_MS],
@@ -58,7 +56,41 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
         ['clinic', 'all', 100, WINDOW_MS],
         ['clinic-day', 'all', 500, 24 * 60 * 60 * 1000],
       ].map(([kind, value, limit, windowMs]) => ({ key: digest('issue-rate', kind, value), limit, windowMs }));
-      if (!await tx.takeRate(buckets, current)) return null;
+      if (!await tx.takeRate(buckets, current)) return;
+      const requestHash = digest('request', request);
+      const nonce = randomBytes(12);
+      const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(digest('intake-encryption'), 'hex'), nonce);
+      cipher.setAAD(Buffer.from(requestHash));
+      const encrypted = Buffer.concat([cipher.update(normalized || '', 'utf8'), cipher.final()]);
+      await tx.insertDispatch({ requestHash, purpose, browserHash: digest('browser', browserToken),
+        intentHash: tokenValid(setupIntent) ? sha256(setupIntent) : null,
+        mobile: Buffer.concat([nonce, cipher.getAuthTag(), encrypted]).toString('base64'),
+        issuedAt: current, expiresAt: new Date(current.getTime() + 300000), state: 'queued' });
+    });
+    return accepted;
+  }
+
+  // Explicit worker entry point only; never mounted or started by this draft.
+  // Claim commits BEFORE any provider call. A crash/uncertain send is never
+  // retried automatically, including after process restart.
+  async function dispatchOne() {
+    if (!enabledHere()) return DISABLED;
+    const intake = await store.transaction(tx => tx.claimDispatch(now()));
+    if (!intake) return { ok: true, processed: false };
+    const completed = { ok: true, processed: true };
+    let normalized, template;
+    try {
+      const packed = Buffer.from(intake.mobile, 'base64');
+      const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(digest('intake-encryption'), 'hex'), packed.subarray(0, 12));
+      decipher.setAAD(Buffer.from(intake.requestHash)); decipher.setAuthTag(packed.subarray(12, 28));
+      normalized = Buffer.concat([decipher.update(packed.subarray(28)), decipher.final()]).toString('utf8');
+      template = await delivery.readiness();
+    } catch (_) { return completed; }
+    if (!template.ready || !Number.isInteger(template.codeTtlSeconds) || template.codeTtlSeconds <= 0 || template.codeTtlSeconds > 300) return completed;
+    const { purpose, requestHash } = intake;
+    const prepared = await store.transaction(async tx => {
+      const current = now();
+      if (new Date(intake.expiresAt) <= current) return null;
       if (!normalized) return null;
       // Include inactive collisions; never copy or register a CRM identity.
       const matches = await tx.adminsByMobile(normalized);
@@ -67,25 +99,24 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       let operator = null;
       let approvalSessionId = null;
       if (purpose !== 'signin') {
-        if (!tokenValid(setupIntent)) return null;
-        const intent = await tx.intent(sha256(setupIntent));
+        if (!intake.intentHash) return null;
+        const intent = await tx.intent(intake.intentHash);
         if (!intent || intent.state !== 'approved' || intent.purpose !== purpose ||
             Number(intent.adminId) !== Number(subject.id) || new Date(intent.expiresAt) <= current ||
-            intent.identityRevision !== revision(subject) || intent.browserHash !== digest('browser', browserToken)) return null;
+            intent.identityRevision !== revision(subject) || intent.browserHash !== intake.browserHash) return null;
         approvalSessionId = intent.approvalSessionId;
         operator = await approval(tx, approvalSessionId, subject.id, current, true);
         if (!operator) return null;
         intent.state = 'consumed'; await tx.saveIntent(intent);
       }
       const code = String(randomInt(0, 1000000)).padStart(6, '0');
-      const requestHash = digest('request', request);
       const row = {
         requestHash, purpose, adminId: subject.id, operatorId: operator?.id || null,
         approvalSessionId: operator ? approvalSessionId : null,
-        identityRevision: revision(subject), browserHash: digest('browser', browserToken),
-        codeHash: digest('code', request, purpose, code), issuedAt: current,
-        expiresAt: new Date(current.getTime() + template.codeTtlSeconds * 1000),
-        attempts: 0, state: 'pending', providerMessageId: null,
+        identityRevision: revision(subject), browserHash: intake.browserHash,
+        codeHash: digest('code', requestHash, purpose, code), issuedAt: current,
+        expiresAt: new Date(Math.min(new Date(intake.expiresAt).getTime(), current.getTime() + template.codeTtlSeconds * 1000)),
+        attempts: 0, state: 'dispatching', providerMessageId: null,
       };
       await tx.revokeChallenges(subject.id, purpose, current);
       await tx.insertChallenge(row);
@@ -93,13 +124,13 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
         operatorId: operator?.id || null, purpose, at: current });
       return { requestHash, mobile: subject.normalized_whatsapp, code };
     });
-    if (!prepared) return accepted;
+    if (!prepared) return completed;
     let sent;
     try { sent = await delivery.deliver({ mobile: prepared.mobile, code: prepared.code, codeTtlSeconds: template.codeTtlSeconds }); }
     catch (_) { sent = { ok: false }; }
     await store.transaction(async tx => {
       const row = await tx.challenge(prepared.requestHash);
-      if (!row || row.state !== 'pending') return;
+      if (!row || row.state !== 'dispatching') return;
       const current = now();
       const success = sent?.ok === true && typeof sent.providerMessageId === 'string' && sent.providerMessageId.startsWith('wamid.') && new Date(row.expiresAt) > current;
       row.state = success ? 'ready' : 'revoked';
@@ -108,7 +139,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       await tx.audit({ event: success ? 'workspace_whatsapp_provider_accepted' : 'workspace_whatsapp_send_failed',
         adminId: row.adminId, operatorId: row.operatorId, purpose, at: current });
     });
-    return accepted;
+    return completed;
   }
 
   async function verify({ request, code, purpose, browserToken, network } = {}) {
@@ -129,7 +160,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       }
       // Invalid format counts too, but secrets never enter audit or rate keys.
       row.attempts += 1;
-      if (typeof code !== 'string' || !/^[0-9]{6}$/.test(code) || !safeHashEqual(row.codeHash, digest('code', request, purpose, code))) {
+      if (typeof code !== 'string' || !/^[0-9]{6}$/.test(code) || !safeHashEqual(row.codeHash, digest('code', row.requestHash, purpose, code))) {
         if (row.attempts >= MAX_ATTEMPTS) row.state = 'revoked';
         await tx.saveChallenge(row);
         return INVALID;
@@ -270,7 +301,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
     });
   }
 
-  return { enabled: enabledHere, begin, verify, requestSetup, inspectSetup, approveSetup, admitRequest, beginRegistration, finishRegistration };
+  return { enabled: enabledHere, begin, dispatchOne, verify, requestSetup, inspectSetup, approveSetup, admitRequest, beginRegistration, finishRegistration };
 }
 
 module.exports = { createWorkspaceWhatsAppAuth, MAX_ATTEMPTS };

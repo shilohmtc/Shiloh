@@ -32,13 +32,19 @@ function fixture({ purpose = 'signin', ...overrides } = {}) {
     permissions: { 'appointment:view': true, 'staff_auth:reset': true } };
   let state = { admins: [admin, operator], approvals: [{ sessionId: 99, adminId: 2, ok: true,
     authMethod: 'passkey', authenticatedAt: clock, expiresAt: new Date(clock.getTime() + 3600000) }],
-    challenges: [], intents: [], rates: {}, audits: [], sessions: [{ existing: true }], grants: [] };
+    dispatches: [], challenges: [], intents: [], rates: {}, audits: [], sessions: [{ existing: true }], grants: [] };
   let queue = Promise.resolve();
   let failEffect = false;
   const store = { transaction(fn) {
     const call = queue.then(async () => {
       const copy = structuredClone(state);
       const tx = {
+        async insertDispatch(row) { copy.dispatches.push(row); },
+        async claimDispatch(current) {
+          const row = copy.dispatches.find(r => r.state === 'queued' && new Date(r.expiresAt) > current);
+          if (!row) return null;
+          const claimed = structuredClone(row); row.state = 'claimed'; delete row.mobile; return claimed;
+        },
         async takeRate(buckets, current) {
           const blocked = buckets.some(b => copy.rates[b.key] && copy.rates[b.key].until > current.getTime() && copy.rates[b.key].count >= b.limit);
           if (blocked) return false;
@@ -51,7 +57,7 @@ function fixture({ purpose = 'signin', ...overrides } = {}) {
         async adminsByMobile(mobile) { return copy.admins.filter(a => a.normalized_whatsapp === mobile); },
         async admin(id) { return copy.admins.find(a => a.id === id); },
         async session(id) { return copy.approvals.find(s => s.sessionId === id); },
-        async revokeChallenges(id, p) { copy.challenges.filter(c => c.adminId === id && c.purpose === p && ['pending', 'ready'].includes(c.state)).forEach(c => { c.state = 'revoked'; }); },
+        async revokeChallenges(id, p) { copy.challenges.filter(c => c.adminId === id && c.purpose === p && ['pending', 'dispatching', 'ready'].includes(c.state)).forEach(c => { c.state = 'revoked'; }); },
         async insertChallenge(row) { copy.challenges.push(row); },
         async insertIntent(row) { copy.intents.push(row); },
         async intent(hash) { return copy.intents.find(r => r.hash === hash); },
@@ -96,7 +102,9 @@ function fixture({ purpose = 'signin', ...overrides } = {}) {
         await service.approveSetup({ intent: setup.intent, sessionId: options.approvalSessionId, identityConfirmed: options.identityConfirmed });
         options.setupIntent = setup.intent;
       }
-      return service.begin(options);
+      const result = await service.begin(options);
+      await service.dispatchOne();
+      return result;
     },
     verify(request, extra = {}) { return service.verify({ ...input, request,
       code: sent.at(-1)?.template.components[0].parameters[0].text, ...extra }); },
@@ -290,4 +298,50 @@ test('production entry points do not import preparation modules; generic transpo
     assert.doesNotMatch(fs.readFileSync(filename, 'utf8'), /workspaceWhatsApp(?:Auth|Template)/);
   }
   await assert.rejects(require('../src/services/whatsapp').sendWhatsAppSignInMessage(), /retired/);
+});
+
+// Structural timing regression: waiting on a provider is forbidden on the
+// request path; deterministic call counts avoid flaky elapsed-time thresholds.
+test('public intake never reads identities or waits for provider, for every account state', async () => {
+  for (const mobile of ['27821234567', '27820000000', 'invalid']) {
+    let reads = 0;
+    const f = fixture({ delivery: { configured: () => true,
+      readiness: () => { reads++; return new Promise(() => {}); },
+      deliver: () => { throw Error('unexpected provider call'); } } });
+    const original = f.store.transaction;
+    f.store.transaction = fn => original(tx => fn({ ...tx, adminsByMobile() { throw Error('public identity lookup'); } }));
+    const results = await Promise.all(Array.from({length: 5}, () => f.service.begin({...f.input,mobile})));
+    assert.ok(results.every(r => r.accepted)); assert.equal(reads, 0);
+    assert.equal(f.state.dispatches.length, 3);
+    const persisted = JSON.stringify(f.state.dispatches);
+    for (const secret of [mobile, f.input.browserToken, ...results.map(r => r.request)]) assert.ok(!persisted.includes(secret));
+  }
+});
+
+test('durable claims are single-use, provider stalls do not hold intake locks, and late sends cannot revive resends', async () => {
+  const f = fixture();
+  let release, entered;
+  const started = new Promise(r => { entered = r; });
+  f.setSend(() => { entered(); return new Promise(r => { release = r; }); });
+  await f.service.begin(f.input);
+  const worker = f.service.dispatchOne(); await started;
+  assert.equal((await f.service.dispatchOne()).processed, false);
+  const next = await f.service.begin(f.input); assert.equal(next.accepted, true);
+  f.setSend(async () => ({messages:[{id:'wamid.second'}]}));
+  await f.service.dispatchOne();
+  release({messages:[{id:'wamid.first'}]}); await worker;
+  assert.equal(f.state.challenges[0].state, 'revoked');
+  assert.equal(f.state.challenges[1].state, 'ready');
+  assert.equal((await f.service.dispatchOne()).processed, false);
+});
+
+test('expired intake and revoked setup approval cannot dispatch', async () => {
+  const f = fixture(); await f.service.begin(f.input); f.advance(300000);
+  assert.equal((await f.service.dispatchOne()).processed, false); assert.equal(f.sent.length, 0);
+  const g = fixture({purpose:'recover'});
+  const intent = await g.service.requestSetup(g.input);
+  await g.service.approveSetup({intent:intent.intent,sessionId:99,identityConfirmed:true});
+  await g.service.begin({...g.input,setupIntent:intent.intent});
+  g.state.approvals[0].revokedAt = new Date();
+  await g.service.dispatchOne(); assert.equal(g.sent.length, 0);
 });

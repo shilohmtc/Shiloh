@@ -75,6 +75,7 @@ test('approved staff recovery still requires the recorded-phone code; administra
 test('SQL transaction rolls back consumption and session insertion when audit fails',async t=>{
   const h=await harness(t);
   const r=await h.service.begin(h.context);
+  await h.service.dispatchOne();
   await h.db.query("ALTER TABLE staff_auth_security_events ADD CONSTRAINT test_fail_verified CHECK(event_type<>'workspace_whatsapp_verified')");
   await assert.rejects(h.service.verify({...h.context,request:r.request,code:h.sent[0].code}));
   assert.equal((await h.db.query('SELECT COUNT(*)::int AS n FROM staff_browser_sessions')).rows[0].n,2);
@@ -83,10 +84,13 @@ test('SQL transaction rolls back consumption and session insertion when audit fa
 
 test('concurrent verification issues exactly one session and concurrent requests honor durable identity quota',async t=>{
   const h=await harness(t);
-  const first=await h.service.begin(h.context), code=h.sent.at(-1).code;
+  const first=await h.service.begin(h.context);
+  await h.service.dispatchOne();
+  const code=h.sent.at(-1).code;
   const verified=await Promise.all(Array.from({length:6},()=>h.service.verify({...h.context,request:first.request,code})));
   assert.equal(verified.filter(r=>r.ok).length,1);
   await Promise.all(Array.from({length:8},()=>h.service.begin(h.context)));
+  while ((await h.service.dispatchOne()).processed) {}
   assert.equal(h.sent.length,3);
   assert.equal((await h.db.query("SELECT COUNT(*)::int AS n FROM workspace_whatsapp_records WHERE kind='challenge' AND payload->>'state'='ready'")).rows[0].n,1);
   assert.equal((await h.db.query('SELECT COUNT(*)::int AS n FROM staff_browser_sessions')).rows[0].n,3);
@@ -94,6 +98,7 @@ test('concurrent verification issues exactly one session and concurrent requests
 
 test('concurrent canonical mobile mutation wins before verification can issue a session',async t=>{
   const h=await harness(t), request=await h.service.begin(h.context);
+  await h.service.dispatchOne();
   const mutation=await h.db.connect();
   await mutation.query('BEGIN');
   await mutation.query('SELECT id FROM staff_admin_accounts WHERE id=1 FOR UPDATE');
@@ -118,6 +123,7 @@ test('HTTP flow sets protected cookies, refuses cross-origin and forged approval
   assert.equal((await post('/start',{purpose:'signin',mobile:'27820000001'},{Origin:'https://evil.example'})).status,403);
   assert.equal((await post('/setup/approve',{intent:'A'.repeat(43),sessionId:h.operatorSession.sessionId,identityConfirmed:true})).status,401);
   const start=await (await post('/start',{purpose:'signin',mobile:'27820000001'})).json();
+  await h.service.dispatchOne();
   const verified=await post('/verify',{purpose:'signin',request:start.request,code:h.sent.at(-1).code});
   const body=await verified.json();
   assert.equal(body.authenticated,true); assert.equal(body.sessionToken,undefined);
@@ -132,10 +138,40 @@ test('HTTP flow sets protected cookies, refuses cross-origin and forged approval
   assert.equal(reviewed.mobileEnding,'0001');
   assert.equal((await post('/setup/approve',{intent:intent.intent,identityConfirmed:true},operatorHeaders)).status,200);
   const setupStart=await (await post('/start',{purpose:'enroll',mobile:'27820000001',setupIntent:intent.intent})).json();
+  await h.service.dispatchOne();
   const phone=await (await post('/verify',{purpose:'enroll',request:setupStart.request,code:h.sent.at(-1).code})).json();
   const registration=await (await post('/passkey/start',{grant:phone.grant})).json();
   const saved=await post('/passkey/finish',{grant:phone.grant,
     response:registrationResponse(fixture(),{challenge:registration.options.challenge})});
   assert.equal((await saved.json()).authenticated,true);
   assert.match(saved.headers.get('set-cookie'),/shiloh_staff_session=/);
+});
+
+
+test('durable queue survives service restart; concurrent workers claim once and never replay uncertain delivery', async t => {
+  const h = await harness(t);
+  const {createWorkspaceWhatsAppAuth} = require('../src/services/workspaceWhatsAppAuth');
+  const input = await h.service.begin(h.context);
+  assert.equal(h.sent.length,0);
+  const rows=(await h.db.query('SELECT payload FROM workspace_whatsapp_dispatch')).rows;
+  assert.equal(rows.length,1);
+  for (const secret of [h.context.mobile,h.context.browserToken,input.request]) assert.ok(!JSON.stringify(rows).includes(secret));
+  let calls=0;
+  const restart = () => createWorkspaceWhatsAppAuth({enabled:true,store:h.store,hmacKey:Buffer.alloc(32,7),
+    delivery:{...h.delivery,deliver:async()=>{calls++;throw Error('synthetic uncertain acceptance');}}});
+  const results=await Promise.all([restart().dispatchOne(),restart().dispatchOne()]);
+  assert.equal(results.filter(r=>r.processed).length,1); assert.equal(calls,1);
+  assert.equal((await restart().dispatchOne()).processed,false);
+  assert.equal((await h.service.verify({...h.context,request:input.request,code:'123456'})).ok,false);
+  assert.equal((await h.db.query("SELECT payload->>'mobile' AS mobile FROM workspace_whatsapp_dispatch")).rows[0].mobile,null);
+});
+
+test('provider acceptance followed by a failed completion transaction cannot replay or authenticate', async t => {
+  const h = await harness(t), r = await h.service.begin(h.context);
+  await h.db.query("ALTER TABLE staff_auth_security_events ADD CONSTRAINT test_fail_accepted CHECK(event_type<>'workspace_whatsapp_provider_accepted')");
+  await assert.rejects(h.service.dispatchOne());
+  assert.equal(h.sent.length,1);
+  assert.equal((await h.service.dispatchOne()).processed,false);
+  assert.equal((await h.service.verify({...h.context,request:r.request,code:h.sent[0].code})).ok,false);
+  assert.equal((await h.db.query("SELECT payload->>'state' AS state FROM workspace_whatsapp_records WHERE kind='challenge'")).rows[0].state,'dispatching');
 });

@@ -26,6 +26,23 @@ function createWorkspaceWhatsAppStore({ db, randomBytes = crypto.randomBytes } =
       const adminSelect = `SELECT a.*, a.active AS admin_active, s.status AS staff_status
         FROM staff_admin_accounts a LEFT JOIN staff s ON s.id=a.staff_id`;
       const tx = {
+        async insertDispatch(row) {
+          await client.query(`INSERT INTO workspace_whatsapp_dispatch(request_hash,expires_at,payload)
+            VALUES($1,$2,$3::jsonb)`, [row.requestHash, row.expiresAt, JSON.stringify(row)]);
+        },
+        async claimDispatch(current) {
+          await client.query(`DELETE FROM workspace_whatsapp_dispatch WHERE request_hash IN
+            (SELECT request_hash FROM workspace_whatsapp_dispatch WHERE expires_at<=$1 ORDER BY expires_at LIMIT 100)`, [current]);
+          const result = await client.query(`SELECT request_hash,payload FROM workspace_whatsapp_dispatch
+            WHERE payload->>'state'='queued' AND expires_at>$1 ORDER BY queued_at,request_hash LIMIT 1 FOR UPDATE`, [current]);
+          const row = result.rows[0];
+          if (!row) return null;
+          // Retain a tombstone, but erase phone ciphertext once claimed. The
+          // in-memory worker copy alone can attempt delivery; no claim recovery.
+          await client.query(`UPDATE workspace_whatsapp_dispatch SET payload=(payload-'mobile') || '{"state":"claimed"}'::jsonb
+            WHERE request_hash=$1`, [row.request_hash]);
+          return row.payload;
+        },
         async takeRate(buckets, current) {
           const r = await client.query('SELECT * FROM workspace_whatsapp_rate_buckets WHERE bucket_key=ANY($1::text[]) FOR UPDATE', [buckets.map(b => b.key)]);
           const states = new Map(r.rows.map(row => [row.bucket_key, row]));
@@ -53,7 +70,7 @@ function createWorkspaceWhatsAppStore({ db, randomBytes = crypto.randomBytes } =
         },
         async revokeChallenges(id, purpose) {
           await client.query(`UPDATE workspace_whatsapp_records SET payload=jsonb_set(payload,'{state}','"revoked"')
-            WHERE kind='challenge' AND admin_id=$1 AND purpose=$2 AND payload->>'state' IN ('ready','pending')`, [id, purpose]);
+            WHERE kind='challenge' AND admin_id=$1 AND purpose=$2 AND payload->>'state' IN ('ready','pending','dispatching')`, [id, purpose]);
         },
         insertChallenge: row => save('challenge', row.requestHash, row, true),
         challenge: hash => get('challenge', hash),

@@ -140,10 +140,12 @@ Before live readiness, still required:
    mutation; assess additional legacy administration contention during release
    review. The global new-channel lock favors safety over throughput for this
    small staff population.
-3. Review response timing/queue design before public exposure: generic response
-   shapes alone do not prevent timing enumeration, because provider I/O can
-   differ by eligibility. HTTP quotas run before provider reads but are not a
-   substitute for timing protection or a durable delivery queue.
+3. Durable dispatch now repairs the confirmed provider-latency disclosure in this
+   unmounted draft. Public intake performs no identity lookup, inventory read or
+   send. Eligible, unknown, inactive and ambiguous identities use the same queue
+   insertion path, subject to input-based quotas. The worker alone resolves
+   eligibility and approval. Test operational contention before public exposure;
+   this is not a claim of constant-time database execution.
 4. Resolve ordinary enrollment policy and approve cutover/session handling.
    Preserve the now-approved replacement safeguard. Final
    production composition must wire this router explicitly, provide the live
@@ -256,3 +258,31 @@ recipient, unexpected charge, contract mismatch or access regression; disable
 only the new channel and verify rollback access. Record provider acceptance,
 delivery/read evidence and owner acceptance separately. No live SMS fallback
 send or shutdown is included.
+
+### Durable dispatch repair (17 October 2026, draft only)
+
+`begin` persists an intake ticket and returns generic acceptance before delivery.
+The separate `dispatchOne` worker is neither scheduled nor mounted. The proposed
+SQL adds a dedicated intake table outside the production migrations directory.
+Queued phone numbers use AES-256-GCM with a domain-separated key and request-hash
+associated data; browser and intent references are hashes. Neither plaintext
+phone numbers, request tokens nor OTPs are stored in this queue. The worker erases
+phone ciphertext when claiming. Queued work expires within five minutes and
+cleanup is bounded. Rate reservations include decoys and failed deliveries and
+remain conservative draft ceilings, not an approved monetary budget.
+
+A claim commits before provider I/O and cannot be reclaimed after restart. Codes
+are generated only in worker memory, persisted as keyed hashes bound to the
+request hash and purpose, and become usable only after confirmed provider
+acceptance. Unknown acceptance, worker crash or failed completion never triggers
+automatic retry or SMS fallback. A fresh owner request is required; this trades
+some delivery reliability for avoiding duplicate/uncertain sends. Existing codes
+superseded during delivery cannot be revived by a late provider response.
+
+Synthetic tests cover the public path with identity reads forbidden and provider
+readiness stalled, same acceptance under throttling, encrypted persistence,
+concurrent claims, restart after an uncertain send, queue expiry, approval
+revocation, superseded sends, and real PostgreSQL authentication transactions.
+Live transport timeouts, operational worker configuration, key provisioning and
+rotation, approved costs, account/template verification and production activation
+remain separate release prerequisites. No live transport or worker was activated.

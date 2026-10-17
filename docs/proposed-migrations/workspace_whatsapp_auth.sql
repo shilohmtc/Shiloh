@@ -20,3 +20,15 @@ CREATE TABLE workspace_whatsapp_rate_buckets (
   expires_at TIMESTAMPTZ NOT NULL
 );
 CREATE INDEX workspace_whatsapp_rate_expiry ON workspace_whatsapp_rate_buckets(expires_at);
+
+-- Durable intake includes decoys; it is deliberately not tied to an account.
+-- Mobile is authenticated ciphertext, references are hashes. No code is queued.
+CREATE TABLE workspace_whatsapp_dispatch (
+  request_hash TEXT PRIMARY KEY CHECK (request_hash ~ '^[a-f0-9]{64}$'),
+  queued_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  payload JSONB NOT NULL CHECK (jsonb_typeof(payload) = 'object')
+);
+CREATE INDEX workspace_whatsapp_dispatch_queue ON workspace_whatsapp_dispatch(queued_at)
+  WHERE payload->>'state'='queued';
+CREATE INDEX workspace_whatsapp_dispatch_expiry ON workspace_whatsapp_dispatch(expires_at);
