@@ -45,6 +45,7 @@ async function main(){
       await page.getByLabel('WhatsApp code',{exact:true}).fill('123456');
       await page.getByRole('button',{name:'Verify code',exact:true}).click();
       await page.getByRole('button',{name:'Save this passkey',exact:true}).waitFor();
+      assert.equal(await page.locator('#start').isVisible(),false);
       await page.screenshot({path:path.join(output,`${label}-phone-verified.png`),fullPage:true});
       await page.goto(origin+BASE+'/approve');
       await page.getByLabel('Staff setup reference').fill('I'.repeat(43));
