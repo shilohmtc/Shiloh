@@ -109,7 +109,7 @@ test('every normal browser is an installation doorway while standalone mode keep
   assert.match(client, /install-share-icon/);
   assert.match(client, /Tap this Share icon/);
   assert.match(client, /Choose Add to Home Screen/);
-  assert.match(client, /Open as Web App, then tap Add/);
+  assert.match(client, /Keep Open as Web App on if shown, then tap Add/);
   assert.match(client, /appinstalled[\s\S]*deferredInstallPrompt = null/);
   assert.match(client, /if \(!standalone\(\) \|\| appFrame\?\.dataset\.clientAuthenticated !== 'true'/);
   assert.doesNotMatch(client, /document\.cookie|sessionStorage|indexedDB/);

@@ -493,7 +493,7 @@ async function proveGoogleAppInstallHandoff(browser) {
     const steps = page.locator('[data-install-steps] li:visible');
     if (await steps.count() !== 4) throw new Error('Google iPhone install guide must show all four browser handoff steps');
     await page.getByText('If you see share.google, enter app.shilohmtc.co.za/my-shiloh/ in your browser.').waitFor();
-    await page.getByText('If offered, turn on Open as Web App. Then open the new My Shiloh icon.').waitFor();
+    await page.getByText('Check My Shiloh and app.shilohmtc.co.za. If either is wrong, cancel. Keep Open as Web App on if shown, then tap Add. Open the new My Shiloh icon.').waitFor();
     await page.screenshot({ path: path.join(out, 'phone-google-install-guide.png'), fullPage: true });
   } finally {
     await context.close();

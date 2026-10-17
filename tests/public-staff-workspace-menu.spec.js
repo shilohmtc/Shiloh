@@ -61,7 +61,7 @@ for (const device of [
     if (device.name.startsWith('iphone')) {
       const steps = page.locator('[data-workspace-ios-steps]');
       await expect(page.locator('[data-workspace-install-doorway]')).toBeHidden();
-      await expect(steps.locator('svg[aria-hidden="true"]')).toHaveCount(1);
+      await expect(steps.locator('[data-workspace-ios-menu-icon]')).toHaveCount(1);
       await expect(steps).toContainText('This picture is a guide, not a button.');
       await expect(steps).toContainText('Choose Add to Home Screen');
       await expect(steps).toContainText('Then open Shiloh Workspace');
@@ -72,10 +72,10 @@ for (const device of [
         await expect(steps).toContainText('open this page in your chosen browser first');
       }
       await choice.selectOption('chrome');
-      await expect(steps.locator('[data-workspace-ios-final-title]')).toHaveText('Tap Add');
+      await expect(steps.locator('[data-workspace-ios-final-title]')).toHaveText('Check, then tap Add');
       await expect(steps).toContainText('In Chrome, look beside the address bar for Share.');
       await choice.selectOption('safari');
-      await expect(steps.locator('[data-workspace-ios-final-title]')).toHaveText('Turn on Open as Web App, then tap Add');
+      await expect(steps.locator('[data-workspace-ios-final-title]')).toHaveText('Check, then tap Add');
       await expect(page.getByRole('button', { name: /^Install/ })).toHaveCount(0);
     }
     await page.screenshot({ path: testInfo.outputPath(`existing-install-${device.name}.png`) });
