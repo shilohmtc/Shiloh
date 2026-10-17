@@ -1,235 +1,244 @@
-# Workspace WhatsApp authentication preparation
+# Workspace WhatsApp authentication draft
 
-Status: isolated, unmounted implementation draft; not an activation-ready integration.
-Owner direction recorded 17 October 2026: prepare BOTH staff sign-in and passkey
-setup/recovery. Passkeys remain preferred; WhatsApp is an optional alternative.
-The owner subsequently agreed to include SMS as a proposed backup. This authorizes
-design and synthetic implementation, not SMS activation or any security cutover.
-The owner further explains that WhatsApp was the original desired code channel,
-SMS worked during Meta verification delays, and concern about repeated SMS costs
-led to details matching. The current desired direction is WhatsApp as the main
-code channel, passkeys for convenient strong sign-in, and bounded SMS fallback.
-Whether this should extend to My Shiloh clients is unresolved: this draft remains
-Workspace-only and does not introduce any client authentication changes.
+Status: implemented for isolated review and synthetic testing; **unmounted,
+not approved for production activation**. No live provider adapter, credentials,
+spending, automatic migration or deployment is included.
 
-## Evidence and boundaries
+## Accepted direction and open decisions
 
-- Base inspected: `91f34953415c28a19aba72bc5a344f140f316cc5` (main).
-- Owner reports Meta business verification complete and template
-  `shiloh_workspace_verification`, English, Copy code approved/live on 17 October.
-  These are owner reports, not authenticated provider readback. Exact language,
-  components, expiry/TTL, account ownership and status remain unverified.
-- `staffAuthTemplateDefinition.js` describes the historical
-  `shiloh_staff_auth_otp_v1/en_US`. It cannot supply this template's language or
-  component contract. Its historical send gate stays disabled.
-- `whatsapp.js` and `metaSignInOnly.js` reject generic sends; the mounted staff
-  browser session router supplies no challenge dispatcher. Those remain intact.
-- `RUNTIME_ENVIRONMENT_CONTRACT.md` records removal of automated Meta credentials.
-  This task has not inspected secret values or independently read production
-  environment configuration. No access, credentials, sends, spend, migrations,
-  deployments or UI changes are included.
+On 17 October 2026 the owner requested BOTH staff sign-in and passkey
+setup/recovery. WhatsApp was the original intended code channel; SMS worked
+while Meta verification was pending, and repeated-send cost concerns led to
+CRM/staff-details matching. The desired shared approach now covers both apps:
+WhatsApp as the main code method, passkeys as a convenient stronger option, and
+bounded SMS fallback. Client code sign-in must be obvious and understandable
+without knowing what a passkey is. Passkeys must not be a prerequisite.
 
-## Implemented preparation
+This PR implements the **Workspace staging slice only**. The shared client
+architecture below is planned, not implemented or activated. Staff and client
+identities, sessions, authorization and recovery remain separate.
 
-`workspaceWhatsAppTemplate.js` validates an explicitly reviewed, account-bound
-template against an injected provider inventory, requiring one exact approved
-language variant and exact components. Missing language has no default. It
-supports only a single Copy code button and a single body code parameter. The
-payload contains the same code in body and button. Unsupported/mismatched expiry
-fails closed. The sender rechecks inventory immediately before each attempt;
-provider exceptions and uncertain responses cannot leak raw request data or
-cause automatic retries. No HTTP client or credential lookup is supplied.
+The owner has not approved this PR's proposed administrator recovery authority,
+a mandatory cutover, retirement of existing details sessions, a financial spend
+cap, credential changes or any live send. Keeping current details-only entry
+working during preparation is a transition constraint, not a decision to retain
+it permanently as a bypass. Final cutover must address that bypass explicitly.
 
-`workspaceWhatsAppAuth.js` implements purpose-bound issuance and verification
-through a transactional store contract. Both modules require explicit dependency
-injection and opt-in; neither is imported by any production entry point. Setting
-an old or new environment flag cannot activate this draft.
+## Implementation
 
-Synthetic coverage exercises the actual core and payload builder, with a
-transactional in-memory test double. It is not proof of PostgreSQL locking,
-provider delivery, a browser ceremony or a real device. No test store is shipped
-as a production fallback.
+- `workspaceWhatsAppTemplate.js`: explicit reviewed name/language/components,
+  authenticated inventory dependency, exact approved-variant gate and Copy code
+  payload. No language fallback, credential lookup or built-in HTTP sender.
+  Rechecks the template before sending; never retries an uncertain send or exposes
+  raw provider exceptions. Accepted is not delivered/read.
+- `workspaceWhatsAppAuth.js`: separate sign-in/enrollment/recovery challenges;
+  browser-bound setup intents; authenticated administrator review/approval;
+  phone verification; grant-bound WebAuthn start/finish using the existing real
+  attestation verifier. Staff identity, mobile, active state, collisions,
+  administrator authority and session state are rechecked at each boundary.
+- `workspaceWhatsAppStore.js`: explicit PostgreSQL dependency, transactions,
+  canonical staff/session/credential records, durable hashed challenges and rate
+  buckets. New-channel advisory serialization plus canonical row locks prevent
+  concurrent mutation within the channel. Session issuance/credential changes,
+  one-use consumption and audit commit together. No in-memory production fallback.
+- `workspaceWhatsAppIdentity.js` and a narrowly scoped session-validator branch:
+  new `workspace_whatsapp` sessions use a canonical identity revision and fixed
+  eight-hour lifetime, preserve existing sessions and never qualify as recent
+  passkey authentication. Mobile/details changes invalidate the new session.
+  Existing session methods retain their behavior. Only the review migration
+  admits the new method; production code issues none today.
+- `workspaceWhatsAppAuth.js` router: unmounted, explicitly enabled composition;
+  same-origin JSON, server-issued HttpOnly/Strict browser cookie, persistent HTTP
+  quotas, canonical staff-session/CSRF checks for administrative approval,
+  no-store responses and sanitized errors. Client-supplied approval session IDs
+  are ignored. The staff browser creates the intent; the administrator approves
+  that intent through their own session. Grant/code tokens stay out of URLs.
+- `workspaceWhatsAppUx.js` and Storybook: staff sign-in, code entry, setup
+  reference, administrator identity review and passkey saving. No existing
+  sign-in screen or app navigation imports the new UI. Browser code stores
+  transient tokens only in memory; no localStorage persistence. Unsupported or
+  cancelled passkey creation preserves old access and needs fresh setup.
+- `docs/proposed-migrations/workspace_whatsapp_auth.sql`: review-only additive
+  records/rate schema and session-method constraint expansion. Deliberately
+  outside `migrations/`, so startup cannot apply it. Synthetic databases apply it
+  only after the real prerequisite migration files. Promotion/number assignment
+  and production execution require separate authorization.
 
-## Proposed authority model — requires cutover approval
+No files from PR #1475 are edited. Generic WhatsApp, client/bulk messaging and
+historical staff OTP sender remain retired. No environment flag alone can mount
+this flow or supply its missing live transport.
 
-| Purpose | Proof required | Permitted result |
+## Proposed authority model — not owner-approved policy
+
+| Purpose | Required proof | Result |
 | --- | --- | --- |
-| Ordinary sign-in | Single eligible existing staff account at the canonical recorded mobile, valid browser-bound WhatsApp code | Ordinary `whatsapp_otp` session, fixed eight hours; preserve other sessions and all capabilities/scopes; never recent passkey assurance |
-| Passkey enrollment through WhatsApp | A different active administrator with `staff_auth:reset`, `all_business` / `all_services` scopes and a live recent passkey session explicitly confirms identity, plus staff phone code | Five-minute, single-use, browser/identity/approval-bound `enroll` grant; later WebAuthn ceremony may add a credential, not replace existing ones |
-| Passkey recovery through WhatsApp | Same independent administrator proof and phone verification, explicitly selecting recovery | Separate `recover` grant; replacement may occur only after successful WebAuthn verification and final authority revalidation |
+| Sign-in | Unique eligible canonical staff identity at recorded mobile, valid browser-bound WhatsApp code | Ordinary Workspace session; existing capabilities/scopes; no passkey assurance |
+| Add a passkey through this flow | Staff-created intent; different authorized administrator's recent passkey session and explicit identity confirmation; staff phone code; successful WebAuthn ceremony | Add credential, preserve previous credentials/sessions, issue passkey session |
+| Recover through this flow | Same separate administrator and phone proof, explicitly selecting recovery; successful revalidated WebAuthn ceremony | Replace old credentials and revoke old subject sessions only in the successful completion transaction; administrator session unaffected |
 
-The administrator's canonical session is looked up by the store, not accepted
-from request JSON. At issuance it must be authenticated with a passkey within
-the existing ten-minute recent-auth window. It must remain live and authorized
-at code verification and at the future WebAuthn completion. A WhatsApp or details
-session cannot approve recovery. No public staff registration, CRM-to-staff
-binding, automatic role grants or mobile changes are allowed.
+The proposed approver needs active canonical identity, `staff_auth:reset`,
+`all_business` calendar scope and `all_services` service scope. Self-approval,
+details-session approval and code-session approval are denied. At approval and
+code issuance the administrator must have a passkey authentication within the
+existing ten-minute recent-auth window; their session and authority must remain
+valid through code verification and WebAuthn completion. Enrollment and recovery
+are not interchangeable. A code alone never replaces a credential.
 
-Existing details sign-in and optional own-account passkey enrollment retain
-their current rules. The new alternative does not require codes globally.
-Existing passkey sign-in remains preferred. A phone code proves possession of a
-channel at that time; it is not passkey assurance.
-Preserving details-only entry is a transition constraint, **not** a proposal to
-retain it permanently as a bypass around phone/passkey proof. Before cutover,
-the owner must explicitly decide whether ordinary entry requires a passkey or
-verified code, what happens to existing details sessions, and how every staff
-member retains a tested recovery route. The current core cannot enforce that
-future policy while the existing details route remains enabled. No details
-route or session is disabled in this preparation task.
+No public staff registration, copying CRM identities, permission grants or mobile
+changes occur. Existing details-based optional enrollment keeps its current
+rules until a separately approved cutover changes them. Losing access to the
+recorded number is outside this same-number phone-proof route.
 
-Codes use unbiased cryptographic six-digit generation and expire within five
-minutes, bounded by the explicitly reviewed template. Requests use 256-bit
-opaque tokens. Only keyed hashes bind request, code, purpose, browser and staff
-identity; no plaintext code/token/mobile enters challenge or audit storage.
-Five wrong attempts revoke a challenge. Reissue invalidates the previous code
-for the same purpose. Consumption and the resulting session/grant must commit
-atomically. Failed/uncertain delivery revokes the challenge; provider acceptance
-is not reported as delivery or reading.
+Codes are unbiased cryptographic six-digit values with at most five-minute
+validity, bounded by the reviewed template expiry. Opaque tokens carry 256 bits
+of randomness. Request/code/browser bindings are keyed hashes; persisted identity
+revisions are hashes of canonical staff fields. No plaintext code, request,
+grant or mobile enters challenge/audit records. Five wrong attempts revoke the
+challenge; reissue revokes the previous challenge for that purpose. Failed or
+uncertain delivery cannot yield a usable challenge. Failed attestation consumes
+the grant while preserving credentials/sessions; transaction failure rolls all
+changes back.
 
-Issue limits are shared across purposes: 3 per identity, 10 per browser, 30 per
-server-derived network and 100 clinic-wide per ten minutes, plus 500 per day.
-These are synthetic draft ceilings, **not an authorized spending budget**.
-Activation must set an owner-approved smaller testing cap. Verify limits also
-apply per network and clinic. Unknown, inactive, ambiguous and throttled targets
-return the same acceptance shape with unusable decoy tokens. An eventual HTTP
-boundary must prevent timing enumeration and apply request/body/IP limits before
-any authenticated provider inventory call.
+## Verification and remaining engineering gates
 
-## Transactional adapter contract and remaining implementation
+The synthetic suite exercises the core with both a transactional test double
+and the actual SQL adapter on PGlite and an isolated PostgreSQL 17 container,
+using real prerequisite migration files and the review SQL. Tests cover canonical sessions and identity-change invalidation,
+real WebAuthn attestation for add/recover, failed proof and revoked approver,
+rollback on audit failure, HTTP same-origin/CSRF/cookie protections and a full
+HTTP setup/approval/code/registration sequence. Existing details, passkey, SMS
+and Meta-retirement regressions remain required.
 
-No new schema or migration is included. Existing SMS tables must not be renamed
-or reused as WhatsApp records; legacy OTP rows lack purpose/approval bindings.
-A separately authorized migration/persistence implementation is required.
+The Playwright proof exercises phone/desktop code errors, setup references,
+verification, explicit administrator confirmation, Storybook and axe checks.
+The browser proof uses mocked transport and does not claim native physical-device
+passkey creation. SQL tests use real WebAuthn response verification. PGlite is
+single-connection. The same suite also runs against a local, synthetic-only
+PostgreSQL database with up to eight connections: concurrent verification
+issues one session, concurrent requests respect the shared send quota, and a
+locked canonical mobile change prevents stale verification. This does not prove
+every possible interaction with production administrative workflows. Exact-head workflow `Workspace WhatsApp draft proof` repeats the SQL,
+regression, Storybook and browser checks and uploads screenshots.
 
-`store.transaction(callback)` must provide a transaction-scoped adapter and
-rollback all writes if the callback throws. Operations below must use the same
-transaction; no external provider request may execute inside it:
+Before live readiness, still required:
 
-- `takeRate(buckets, current)`: atomically reserve all keyed limits, using a
-  deterministic lock order across workers; count failed sends conservatively.
-  Persist windows across restarts; bound expiry cleanup.
-- `adminsByMobile(mobile)`: canonical staff accounts including inactive
-  collisions, with current linked staff state and persisted permissions/scopes.
-- `admin(id)` and `session(id)`: lock/revalidate current staff and canonical
-  session state. Session results include `ok`, `adminId`, `authMethod`,
-  `authenticatedAt`, `expiresAt`, `revokedAt`, `recoveryRequired`.
-- `insertChallenge`, `challenge`, `saveChallenge`, `revokeChallenges`: unique
-  request hash; row/advisory locks must prevent concurrent resend, verify and
-  approval changes from racing. States are pending, ready, consumed, revoked;
-  a late send result must never revive a superseded challenge. Persist every
-  field supplied by the core, including identity revision and approval session.
-- `audit`: write only the explicit non-secret event fields to canonical staff
-  security audit, with operator and subject; never pass provider exceptions.
-- `issueSession`: issue canonical opaque HttpOnly/Strict staff credentials in the
-  same transaction, honoring `preserveExistingSessions`, eight-hour deadline,
-  current capabilities, and identity revision validation. Do not call the legacy
-  WhatsApp session helper unmodified: it rotates other sessions. Do not add
-  `whatsapp_otp` to strong-auth methods.
-- `issuePasskeyGrant`: persist a separate hashed one-time grant; it is **not** a
-  credential replacement or authenticated session. The later WebAuthn adapter
-  must verify origin/RP/user verification and challenge, recheck browser,
-  identity, approval/session and permissions, then consume atomically. Only
-  successful recovery completion revokes prior credentials/sessions and issues
-  a passkey session. Enrollment preserves them. Any failure preserves access.
+1. Authenticated template/account readback and current official Meta payload
+   documentation verification. Provider inventory/read/send composition must
+   enforce timeouts, exact account/phone binding and sanitized logging. The
+   public documentation fetch was rate-limited during initial inspection.
+2. Review query plans, bounded cleanup/retention and operational contention.
+   Multi-connection race tests cover consumption, quota and a canonical identity
+   mutation; assess additional legacy administration contention during release
+   review. The global new-channel lock favors safety over throughput for this
+   small staff population.
+3. Review response timing/queue design before public exposure: generic response
+   shapes alone do not prevent timing enumeration, because provider I/O can
+   differ by eligibility. HTTP quotas run before provider reads but are not a
+   substitute for timing protection or a durable delivery queue.
+4. Approve final enrollment/recovery policy and cutover/session handling. Final
+   production composition must wire this router explicitly, provide the live
+   sender securely and pass approved budget/configuration. Neither `app.js` nor
+   any existing UI does so in this draft.
+5. Review the interaction with existing SMS retirement gates: simply turning off
+   details authentication can make historical SMS-bootstrap conditions true.
+   A future cutover must deliberately preserve or replace that gate, not revive
+   old recovery implicitly.
+6. Physical-device acceptance, independent lost-number recovery, rollback and
+   reviewed deployment/migration execution authority. Do not merge as a shortcut
+   to activation.
 
-Still required before this can become a working end-to-end integration:
-PostgreSQL store/schema and real transactional concurrency tests; canonical
-session integration/revision invalidation; passkey grant consumption and actual
-WebAuthn completion; same-origin/CSRF/no-store routes; and reviewed UI. For
-setup/recovery, bind administrator approval to an intent created on the staff
-browser. Do not bind it to the administrator's browser or let a client supply
-an arbitrary approval session ID. None of these adapters are implied by the
-synthetic test results. They must preserve the authority model above and receive
-the required implementation/cutover approvals before production use.
+## SMS readiness and cost evidence
 
-## SMS readiness and fallback
+The owner confirms existing SMS setup and historical successful use, naming
+`sms1.smsmessenger`. The existing `clientSmsAuth.js` adapter verifies the actual
+host `sms1.smsmessenger.co.za` and contains send/balance calls. Reuse this adapter
+where suitable; no new provider account is presumed necessary. No endpoint was
+called during this task.
 
-Read-only source evidence on the base commit:
+Gateway configuration requires `SMSMESSENGER_ACCOUNT_EMAIL` and
+`SMSMESSENGER_API_TOKEN`; enablement separately requires
+`MY_SHILOH_SMS_AUTH_ENABLED`. Current `myShiloh.js` SMS start/complete routes
+return 410. `staffSmsDeviceSetup.js`, `staffPasskeyDeviceBootstrap.js` and their
+router disable/retire staff setup when details auth is enabled. Installed code,
+retained keys and historical success are not proof of currently active login.
 
-- `clientSmsAuth.js` still implements SMSMessenger send and balance HTTP calls.
-  The owner confirms SMS was already set up and identified `sms1.smsmessenger`;
-  the existing source verifies the full configured endpoint host as
-  `sms1.smsmessenger.co.za`. Reuse this existing provider integration where
-  suitable, rather than provision a new account. No endpoint was called here.
-  Gateway configuration requires `SMSMESSENGER_ACCOUNT_EMAIL` and
-  `SMSMESSENGER_API_TOKEN`; service enablement separately requires
-  `MY_SHILOH_SMS_AUTH_ENABLED`. Presence of code or historically retained keys
-  does not establish operational readiness or current billing.
-- `myShiloh.js` returns HTTP 410 from SMS start/complete endpoints. Older handbook
-  entries describing September SMS production success are historical, not proof
-  that current client SMS sign-in is active.
-- `staffSmsDeviceSetup.js` and `staffPasskeyDeviceBootstrap.js` explicitly disable
-  staff SMS bootstrap when details authentication is enabled. The bootstrap
-  router also returns 410 for the retired setup paths in that mode. This is
-  supervised device setup, not an enabled ordinary staff SMS login alternative.
-- Runtime documentation retains SMS configuration, but current non-secret key
-  presence, flag state, account balance and provider billing have not been read
-  back. No recurring charge or price is established by repository evidence.
-  The credit-balance API and quota code establish credit accounting, not whether
-  the account has monthly fees, minimum commitments or expiring credits. A
-  read-only billing statement/provider account review is needed; never fetch or
-  paste credential values for that review.
-  The owner believes the API key is already configured in Render. Available
-  Render tools expose no environment-key-name/presence-only read action, so this
-  task cannot safely verify that belief under the no-secret-read constraint.
-  No environment update/readback workaround or credential replacement was used.
+The owner believes the key is in Render. Available Render tools expose no
+key-name/presence-only read, so that belief remains unverified under the
+no-secret-read constraint. No workaround, replacement or settings change occurred.
+Actual balance, recurring fees, minimum commitments and credit expiry are unknown;
+credit accounting in code does not establish the billing contract. A non-secret
+billing/account review is needed before cost or cancellation recommendations.
 
-Proposed hierarchy: passkey preferred; explicit WhatsApp alternative; SMS backup
-only after separate implementation, readiness tests and activation approval.
-WhatsApp is the main **code** method. The owner suggested SMS once or twice daily;
-the parent proposed two SMS sends per account per day, device/IP throttles and
-an overall spend cap. Those are draft limits, not approved settings or spending
-authority; the monetary cap remains undecided. Historical SMS success is
-owner-confirmed, not evidence that today's retired endpoints are enabled.
-Do not automatically send both channels or retry an uncertain send through SMS.
-Any fallback must invalidate the superseded challenge, share identity/purpose
-and combined rate/spend limits, and provide clear channel selection. No fallback
-code is activated or implemented by this draft.
+Owner suggestion: SMS once or twice daily. Parent proposal: two sends per account
+per day plus device/IP throttles and an overall spend cap. These are not activated
+limits; the monetary cap is undecided. Draft WhatsApp test ceilings likewise are
+not spending authorization. Fallback must require explicit channel choice,
+invalidate the superseded challenge, share combined identity/purpose and budget
+limits, and avoid sending both channels or retrying uncertain delivery blindly.
+SMS fallback implementation/activation is not part of this Workspace slice.
 
-For a WhatsApp outage with phone/SIM access, approved SMS backup could help. For
-a lost phone or lost number, SMS to that same number is not independent recovery.
-Use another already enrolled passkey/device or preserved valid session where
-authorized. Otherwise require a separately reviewed supervised recovery process
-with independent identity proof and a different authorized passkey administrator;
-do not accept a new phone number plus a code as proof of the old identity. If no
-authorized administrator remains available, escalate to the owner through that
-controlled process; never bypass authentication. That lost-number process is
-not introduced here.
+For a WhatsApp outage with phone/SIM access, SMS may help. SMS to the same number
+cannot solve a lost phone/number. Another enrolled passkey/device or preserved
+valid session may provide authorized access; otherwise an independently reviewed
+supervised identity-recovery process is needed. A new phone plus a code must
+never prove ownership of the old identity. Do not create an authentication bypass
+if all administrators lose access. Retain existing SMS settings until explicit
+retirement approval follows dependency/traffic/billing review, reliable device
+and outage tests, and an independent recovery route.
 
-Retain existing SMS settings during transition. Decommission only after an
-explicit owner decision, current dependency/traffic audit, reliable physical
-device sign-in and recovery/outage tests, a proven independent recovery route,
-and review of actual fees, credits, cancellation and rollback consequences.
-Do not remove shared client/staff credentials based only on WhatsApp readiness.
+## Shared My Shiloh architecture — staged plan only
 
-## Release and bounded owner acceptance
+Clients should see a large, plain-language **Send me a WhatsApp code** action,
+readable instructions and six-digit code entry with paste/autofill. Offer saved
+passkeys as an optional quicker method, without jargon or a forced setup step.
+Keep accessible labels, 48px controls, clear errors and help for older or less
+experienced users. Do not show administrative staff recovery controls to clients.
 
-1. Obtain non-secret authenticated readback of the template/account and review
-   exact language/components. Business verification alone does not verify the
-   template contract or sending permissions. Pin the reviewed contract. The
-   public Meta documentation fetch was rate-limited during preparation; verify
-   the send payload against current official documentation before activation.
-2. Approve the proposed authority model, migration/persistence work and final
-   session/WebAuthn integration. Complete synthetic database, HTTP, enrollment
-   and recovery tests, including rollback, mobile changes and revoked approval.
-3. Review new UI in Storybook and desktop/phone Playwright with accessibility
-   evidence. Passkeys should be the preferred action; details access remains.
-4. Obtain explicit separate authority for exact credential/access configuration,
-   any migration execution, deployment and security cutover. Keep live transport
-   disabled until prerequisites and exact-head checks pass. Never request secrets
-   in chat. No historical generic/client/bulk sender may be re-enabled.
-5. Separately authorize one existing owner test identity, one intended recipient
-   and a time-limited send/spend cap (proposed maximum three WhatsApp messages:
-   sign-in, enrollment and supervised recovery). Another existing authorized
-   administrator must approve setup/recovery; no self-approval exception.
-   Use a disposable test passkey for replacement and confirm the implications
-   for that account before recovery. Verify existing details/passkey entry first.
-6. Check actual receipt, Copy code, successful sign-in, one-use rejection, add
-   behavior and supervised replacement on a physical device. Use synthetic
-   tests for abuse/expiry/provider-failure coverage rather than extra live sends.
-   Stop on wrong recipient, unexpected charge, mismatch or access regression.
-   Disable only the new channel and verify details/passkey access. Record
-   provider accepted/delivered/read and owner acceptance separately.
+Reuse transport contract validation, code lifecycle concepts and abuse controls,
+not staff tables/sessions/grants or permissions. Use a distinct client template
+contract/account-approved usage, purpose namespace, browser cookie, challenge
+store, session assurance and recovery policy. The Workspace template is not
+implicitly authorized for client sends.
 
-No implementation in this draft implies approval to send, spend, migrate, release,
-turn off SMS or change the production recovery policy.
+CRM remains canonical for record association, clinical data and booking authority;
+names/DOB are not sufficient authentication proof in the target design. Phone
+possession must not silently link arbitrary existing CRM records. Before client
+implementation, decide and test:
+
+- Existing clients with a verified, unambiguous current binding: preserve that
+  binding and require the new authentication proof without broadening data access.
+- Duplicate, archived, unverified, changed or potentially recycled numbers:
+  refuse automatic linkage and route to supervised identity resolution; never
+  expose another person's records based only on a code to a matching number.
+- First-time registration versus existing-record claiming: explicit separate
+  authority and conflict checks, with no accidental account/record merges.
+- Mobile change: independent proof of the existing account, new-number
+  verification, collision checks, pending challenge/session revocation and
+  an auditable notification/recovery policy.
+- Migration of existing details sessions: explicit expiry/re-authentication and
+  grace-period decision; do not silently preserve a permanent details-only bypass
+  or unexpectedly lock people out before a tested alternative exists.
+
+Implement a separate client draft after these binding/recovery decisions, with
+synthetic CRM conflict/recycled-number tests, HTTP and accessible phone/desktop
+proof, then bounded owner device testing. No live client change is authorized
+by the shared architecture agreement alone.
+
+## Approvals and bounded owner acceptance
+
+Security cutover must approve required authentication proof, handling of old
+details sessions and the candidate administrator recovery model. Separately
+approve migration promotion/execution, exact credential/access configuration,
+deployment, and a named/time-limited live-send/spend budget. Never request secrets
+in chat. Business verification does not prove template approval or sending access.
+
+After synthetic/CI and device prerequisites pass, propose one existing owner test
+identity and recipient, another authorized administrator, and no more than three
+WhatsApp messages (sign-in, enrollment, supervised recovery). Confirm recovery's
+credential/session consequences first; use a disposable test passkey. Verify
+existing access first, actual receipt/Copy code, one-use rejection, add behavior,
+then replacement. Use synthetic tests for expiry/abuse failures. Stop on wrong
+recipient, unexpected charge, contract mismatch or access regression; disable
+only the new channel and verify rollback access. Record provider acceptance,
+delivery/read evidence and owner acceptance separately. No live SMS fallback
+send or shutdown is included.

@@ -32,7 +32,7 @@ function fixture({ purpose = 'signin', ...overrides } = {}) {
     permissions: { 'appointment:view': true, 'staff_auth:reset': true } };
   let state = { admins: [admin, operator], approvals: [{ sessionId: 99, adminId: 2, ok: true,
     authMethod: 'passkey', authenticatedAt: clock, expiresAt: new Date(clock.getTime() + 3600000) }],
-    challenges: [], rates: {}, audits: [], sessions: [{ existing: true }], grants: [] };
+    challenges: [], intents: [], rates: {}, audits: [], sessions: [{ existing: true }], grants: [] };
   let queue = Promise.resolve();
   let failEffect = false;
   const store = { transaction(fn) {
@@ -53,6 +53,9 @@ function fixture({ purpose = 'signin', ...overrides } = {}) {
         async session(id) { return copy.approvals.find(s => s.sessionId === id); },
         async revokeChallenges(id, p) { copy.challenges.filter(c => c.adminId === id && c.purpose === p && ['pending', 'ready'].includes(c.state)).forEach(c => { c.state = 'revoked'; }); },
         async insertChallenge(row) { copy.challenges.push(row); },
+        async insertIntent(row) { copy.intents.push(row); },
+        async intent(hash) { return copy.intents.find(r => r.hash === hash); },
+        async saveIntent(row) { copy.intents[copy.intents.findIndex(r => r.hash === row.hash)] = row; },
         async challenge(hash) { return copy.challenges.find(c => c.requestHash === hash); },
         async saveChallenge(row) { copy.challenges[copy.challenges.findIndex(c => c.requestHash === row.requestHash)] = row; },
         async audit(event) { copy.audits.push(event); },
@@ -86,7 +89,15 @@ function fixture({ purpose = 'signin', ...overrides } = {}) {
     get state() { return state; }, get inventory() { return inventory; },
     setSend(fn) { sendHook = fn; }, setFailEffect(value) { failEffect = value; },
     advance(ms) { clock = new Date(clock.getTime() + ms); },
-    async start(extra = {}) { return service.begin({ ...input, ...extra }); },
+    async start(extra = {}) {
+      const options = { ...input, ...extra };
+      if (options.purpose !== 'signin') {
+        const setup = await service.requestSetup(options);
+        await service.approveSetup({ intent: setup.intent, sessionId: options.approvalSessionId, identityConfirmed: options.identityConfirmed });
+        options.setupIntent = setup.intent;
+      }
+      return service.begin(options);
+    },
     verify(request, extra = {}) { return service.verify({ ...input, request,
       code: sent.at(-1)?.template.components[0].parameters[0].text, ...extra }); },
   };
@@ -135,13 +146,13 @@ test('sign-in uses the pinned language and code in both parameters; preserves se
   assert.equal(f.sent[0].template.language.code, 'en');
   assert.equal(f.sent[0].template.components[0].parameters[0].text, f.sent[0].template.components[1].parameters[0].text);
   assert.equal(f.sent[0].to, f.input.mobile);
-  assert.equal((await f.verify(issued.request)).authMethod, 'whatsapp_otp');
+  assert.equal((await f.verify(issued.request)).authMethod, 'workspace_whatsapp');
   assert.equal(f.state.sessions.length, 2);
   assert.deepEqual(f.state.sessions[0], { existing: true });
   assert.equal(f.state.sessions[1].preserveExistingSessions, true);
   assert.equal(f.state.sessions[1].recentStrongAuth, false);
   assert.equal(f.state.sessions[1].expiresAt - f.state.sessions[1].current, 8 * 3600000);
-  assert.equal(strongRecentSession({ ok: true, authMethod: 'whatsapp_otp', authenticatedAt: new Date() }), false);
+  assert.equal(strongRecentSession({ ok: true, authMethod: 'workspace_whatsapp', authenticatedAt: new Date() }), false);
   assert.equal(f.state.grants.length, 0);
   assert.equal((await f.verify(issued.request)).ok, false);
 });

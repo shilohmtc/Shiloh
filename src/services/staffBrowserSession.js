@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { staffDetailRevision } = require('./staffDetailIdentity');
+const { workspaceWhatsAppRevision } = require('./workspaceWhatsAppIdentity');
 const {
   CALENDAR_CAPABILITIES,
   evaluateCalendarAuthority,
@@ -114,7 +115,7 @@ async function issueStaffBrowserSession({
 
   // Ordinary Workspace sign-ins are independent: phone and browser coexist.
   // Preserve account-wide rotation for legacy/recovery issuance.
-  const independent = !recoveryRequired && ['staff_details', 'passkey'].includes(authMethod);
+  const independent = !recoveryRequired && ['staff_details', 'passkey', 'workspace_whatsapp'].includes(authMethod);
   let previousSessionId = null;
   if (!independent) {
     const previousResult = await client.query(
@@ -369,6 +370,11 @@ function createStaffBrowserSessionService({
     }
 
     if (row.auth_method === 'staff_details' && (!row.detail_identity_revision || row.detail_identity_revision !== staffDetailRevision(row))) {
+      return { ok: false, code: 'STAFF_SESSION_INVALID' };
+    }
+    // Only the separately migrated, unmounted Workspace WhatsApp adapter can
+    // issue this method. Existing session methods keep their current behavior.
+    if (row.auth_method === 'workspace_whatsapp' && row.detail_identity_revision !== workspaceWhatsAppRevision(row)) {
       return { ok: false, code: 'STAFF_SESSION_INVALID' };
     }
 
