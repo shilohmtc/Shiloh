@@ -70,6 +70,11 @@ test('#791 PWA metadata decorates existing HTML idempotently and only expands CS
   assert.match(once, /apple-mobile-web-app-title" content="Shiloh Workspace"/);
   assert.match(once, /theme-color/);
   assert.match(once, /client\.js\?v=official-brand-v2/);
+  const desktop = decorateWorkspacePwaHtml(source, { updatesOnly: true });
+  assert.match(desktop, /rel="icon" href="\/calendar\/pwa\/icon-192\.png\?v=official-brand-v2" type="image\/png" sizes="192x192"/);
+  assert.equal(decorateWorkspacePwaHtml(desktop, { updatesOnly: true }), desktop);
+  assert.equal((desktop.match(/rel="icon"/g) || []).length, 1);
+  assert.doesNotMatch(desktop, /rel="manifest"|apple-touch-icon|apple-mobile-web-app-capable/);
 
   const original = "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
   const expanded = augmentWorkspacePwaCsp(original);

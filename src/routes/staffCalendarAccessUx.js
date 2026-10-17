@@ -18,13 +18,14 @@ function isStaffCalendarAccessUxEnabled(env = process.env) {
   return calendarEnabled && bridgeEnabled;
 }
 
-function setAccessSecurityHeaders(res) {
+function setAccessSecurityHeaders(res, { allowSameOriginImages = false } = {}) {
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
+  const imagePolicy = allowSameOriginImages ? "; img-src 'self'" : '';
+  res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'" + imagePolicy);
 }
 
 function normalizeReason(value) {
@@ -74,8 +75,9 @@ function bootstrapAwareSigninScript(env = process.env) {
 
 function createStaffCalendarAccessPageHandler({ env = process.env, renderPage = renderStaffCalendarAccessPage } = {}) {
   return function staffCalendarAccessPage(req, res) {
-    setAccessSecurityHeaders(res);
-    if (!isStaffCalendarAccessUxEnabled(env)) return res.status(404).type('text/plain').send('Not Found');
+    const enabled = isStaffCalendarAccessUxEnabled(env);
+    setAccessSecurityHeaders(res, { allowSameOriginImages: enabled });
+    if (!enabled) return res.status(404).type('text/plain').send('Not Found');
     const basePath = req.baseUrl || '/calendar/staff';
     const passkeyEnabled = passkeyPolicy(env).operational;
     const reason = normalizeReason(req.query?.reason);

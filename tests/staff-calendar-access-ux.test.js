@@ -82,6 +82,8 @@ test('staff Calendar access surface remains default-off and requires both existi
   assert.match(onRes.headers['cache-control'], /no-store/);
   assert.match(onRes.headers['content-security-policy'], /script-src 'self'/);
   assert.match(onRes.headers['content-security-policy'], /connect-src 'self'/);
+  assert.match(onRes.headers['content-security-policy'], /img-src 'self'/);
+  assert.equal(onRes.headers['content-security-policy'].replace("; img-src 'self'", ''), offRes.headers['content-security-policy']);
 });
 
 test('Workspace sign-in is human initiated and contains no retired fallback controls', () => {
