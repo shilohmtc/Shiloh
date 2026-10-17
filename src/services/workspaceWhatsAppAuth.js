@@ -11,6 +11,11 @@ const INVALID = Object.freeze({ ok: false, code: 'WORKSPACE_WHATSAPP_INVALID' })
 const DISABLED = Object.freeze({ ok: false, code: 'WORKSPACE_WHATSAPP_DISABLED' });
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 10 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+function validWorkspaceBudgets(b) {
+  return !!b && b.currency === 'ZAR' && ['dailySpendMinor','whatsappCostMinor','smsCostMinor','smsAccountDailyLimit','smsClinicDailyLimit'].every(k =>
+    Number.isSafeInteger(b[k]) && b[k] > 0 && b[k] <= 100000000);
+}
 const tokenValid = value => typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value);
 const active = row => row?.admin_active === true &&
   (row.staff_id == null || row.staff_status === 'active') && !!deriveCalendarViewer(row);
@@ -18,12 +23,14 @@ const active = row => row?.admin_active === true &&
 // Explicit composition only: no mounted production route or default sender.
 function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery = null,
   hmacKey = null, now = () => new Date(), randomBytes = crypto.randomBytes,
-  randomInt = crypto.randomInt, env = {} } = {}) {
+  randomInt = crypto.randomInt, env = {}, smsDelivery = null, budgets = null } = {}) {
   const key = Buffer.isBuffer(hmacKey) ? Buffer.from(hmacKey) : null;
   const enabledHere = () => enabled === true && key?.length >= 32 &&
     typeof store?.transaction === 'function' && typeof delivery?.configured === 'function' && delivery.configured();
   const digest = (...parts) => crypto.createHmac('sha256', key).update(JSON.stringify(parts)).digest('hex');
   const revision = workspaceWhatsAppRevision;
+  const budget = validWorkspaceBudgets(budgets) ? structuredClone(budgets) : null;
+  const fallbackEnabled = () => enabledHere() && !!budget && smsDelivery?.configured?.() === true;
 
   async function approval(tx, sessionId, subjectId, current, requireRecent) {
     const session = await tx.session(sessionId);
@@ -65,9 +72,43 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       await tx.insertDispatch({ requestHash, purpose, browserHash: digest('browser', browserToken),
         intentHash: tokenValid(setupIntent) ? sha256(setupIntent) : null,
         mobile: Buffer.concat([nonce, cipher.getAuthTag(), encrypted]).toString('base64'),
-        issuedAt: current, expiresAt: new Date(current.getTime() + 300000), state: 'queued' });
+        issuedAt: current, expiresAt: new Date(current.getTime() + 300000), state: 'queued', channel: 'whatsapp',
+        identityRateKey: digest('issue-rate', 'identity', normalized || 'invalid') });
     });
     return accepted;
+  }
+
+  async function requestSmsFallback({request,purpose,browserToken,network} = {}) {
+    if (!fallbackEnabled()) return DISABLED;
+    if (!tokenValid(request) || !PURPOSES.has(purpose) || !tokenValid(browserToken) ||
+        typeof network !== 'string' || !network || network.length > 120) return INVALID;
+    await store.transaction(async tx => {
+      const current = now(), row = await tx.dispatch(digest('request',request));
+      if (!row || !['queued','not_sent','claimed'].includes(row.state) || row.channel !== 'whatsapp' || row.fallbackUsed || row.fallbackRequested || !row.mobile ||
+          row.purpose !== purpose || row.browserHash !== digest('browser',browserToken) || new Date(row.expiresAt) <= current) return;
+      if (!await tx.takeRate([
+        {key:row.identityRateKey,limit:3,windowMs:WINDOW_MS},
+        {key:digest('issue-rate','browser',browserToken),limit:10,windowMs:WINDOW_MS},
+        {key:digest('issue-rate','network',network),limit:30,windowMs:WINDOW_MS},
+        {key:digest('issue-rate','clinic','all'),limit:100,windowMs:WINDOW_MS},
+        {key:digest('issue-rate','clinic-day','all'),limit:500,windowMs:DAY_MS},
+      ],current)) return;
+      row.fallbackRequested = true;
+      if (row.state !== 'claimed') { row.channel = 'sms'; row.fallbackUsed = true; row.state = 'queued'; }
+      const challenge = await tx.challenge(row.requestHash);
+      if (challenge && row.state !== 'claimed') { challenge.state = 'revoked'; await tx.saveChallenge(challenge); }
+      await tx.saveDispatch(row);
+    });
+    // Never disclose delivery status, eligibility, quota or approval state.
+    return {ok:true,accepted:true,request};
+  }
+
+  function settleDispatch(row, outcome) {
+    row.state = outcome;
+    if (outcome === 'not_sent' && row.channel === 'whatsapp' && row.fallbackRequested && !row.fallbackUsed) {
+      row.channel = 'sms'; row.fallbackUsed = true; row.state = 'queued';
+    }
+    if (outcome !== 'not_sent' || row.channel === 'sms' && row.state !== 'queued') delete row.mobile;
   }
 
   // Explicit worker entry point only; never mounted or started by this draft.
@@ -78,40 +119,59 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
     const intake = await store.transaction(tx => tx.claimDispatch(now()));
     if (!intake) return { ok: true, processed: false };
     const completed = { ok: true, processed: true };
+    const channel = intake.channel || 'whatsapp';
+    const provider = channel === 'sms' ? (fallbackEnabled() ? smsDelivery : null) : delivery;
+    const finish = outcome => store.transaction(async tx => {
+      const row = await tx.dispatch(intake.requestHash);
+      if (!row || row.state !== 'claimed') return;
+      settleDispatch(row, outcome);
+      await tx.saveDispatch(row);
+    });
     let normalized, template;
     try {
       const packed = Buffer.from(intake.mobile, 'base64');
       const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(digest('intake-encryption'), 'hex'), packed.subarray(0, 12));
       decipher.setAAD(Buffer.from(intake.requestHash)); decipher.setAuthTag(packed.subarray(12, 28));
       normalized = Buffer.concat([decipher.update(packed.subarray(28)), decipher.final()]).toString('utf8');
-      template = await delivery.readiness();
-    } catch (_) { return completed; }
-    if (!template.ready || !Number.isInteger(template.codeTtlSeconds) || template.codeTtlSeconds <= 0 || template.codeTtlSeconds > 300) return completed;
+      template = await provider?.readiness();
+    } catch (_) { await finish('not_sent'); return completed; }
+    if (!template?.ready || !Number.isInteger(template.codeTtlSeconds) || template.codeTtlSeconds <= 0 || template.codeTtlSeconds > 300) { await finish('not_sent'); return completed; }
     const { purpose, requestHash } = intake;
     const prepared = await store.transaction(async tx => {
       const current = now();
-      if (new Date(intake.expiresAt) <= current) return null;
+      // Leave room for the bounded inventory/send calls; never dispatch a nearly expired code.
+      if (new Date(intake.expiresAt).getTime() - current.getTime() < 60000) return null;
       if (!normalized) return null;
       // Include inactive collisions; never copy or register a CRM identity.
       const matches = await tx.adminsByMobile(normalized);
       if (matches.length !== 1 || !active(matches[0])) return null;
       const subject = matches[0];
+      // An unknown result for this staff phone blocks subsequent channel sends
+      // until expiry, including a different request/purpose and process restart.
+      if (await tx.hasUncertainDelivery(subject.id, current)) return null;
       let operator = null;
       let approvalSessionId = null;
       if (purpose !== 'signin') {
         if (!intake.intentHash) return null;
         const intent = await tx.intent(intake.intentHash);
-        if (!intent || intent.state !== 'approved' || intent.purpose !== purpose ||
+        if (!intent || !(intent.state === 'approved' || channel === 'sms' && intake.fallbackUsed && intent.state === 'consumed' && intent.consumedByRequestHash === requestHash) || intent.purpose !== purpose ||
             Number(intent.adminId) !== Number(subject.id) || new Date(intent.expiresAt) <= current ||
             intent.identityRevision !== revision(subject) || intent.browserHash !== intake.browserHash) return null;
         approvalSessionId = intent.approvalSessionId;
         operator = await approval(tx, approvalSessionId, subject.id, current, true);
         if (!operator) return null;
-        intent.state = 'consumed'; await tx.saveIntent(intent);
+        intent.state = 'consumed'; intent.consumedByRequestHash = requestHash; await tx.saveIntent(intent);
       }
+      if (budget && !await tx.takeRate([
+        {key:digest('spend-day','all'),limit:budget.dailySpendMinor,amount:channel === 'sms' ? budget.smsCostMinor : budget.whatsappCostMinor,windowMs:DAY_MS},
+        ...(channel === 'sms' ? [
+          {key:digest('sms-account-day',subject.id),limit:budget.smsAccountDailyLimit,windowMs:DAY_MS},
+          {key:digest('sms-clinic-day','all'),limit:budget.smsClinicDailyLimit,windowMs:DAY_MS},
+        ] : []),
+      ],current)) return null;
       const code = String(randomInt(0, 1000000)).padStart(6, '0');
       const row = {
-        requestHash, purpose, adminId: subject.id, operatorId: operator?.id || null,
+        requestHash, purpose, channel, adminId: subject.id, operatorId: operator?.id || null,
         approvalSessionId: operator ? approvalSessionId : null,
         identityRevision: revision(subject), browserHash: intake.browserHash,
         codeHash: digest('code', requestHash, purpose, code), issuedAt: current,
@@ -119,21 +179,27 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
         attempts: 0, state: 'dispatching', providerMessageId: null,
       };
       await tx.revokeChallenges(subject.id, purpose, current);
-      await tx.insertChallenge(row);
+      if (await tx.challenge(requestHash)) await tx.saveChallenge(row);
+      else await tx.insertChallenge(row);
       await tx.audit({ event: 'workspace_whatsapp_requested', adminId: subject.id,
         operatorId: operator?.id || null, purpose, at: current });
       return { requestHash, mobile: subject.normalized_whatsapp, code };
     });
-    if (!prepared) return completed;
+    if (!prepared) { await finish('not_sent'); return completed; }
     let sent;
-    try { sent = await delivery.deliver({ mobile: prepared.mobile, code: prepared.code, codeTtlSeconds: template.codeTtlSeconds }); }
+    try { sent = await provider.deliver({ mobile: prepared.mobile, code: prepared.code, codeTtlSeconds: template.codeTtlSeconds }); }
     catch (_) { sent = { ok: false }; }
     await store.transaction(async tx => {
+      const dispatch = await tx.dispatch(intake.requestHash);
+      if (dispatch?.state === 'claimed') {
+        settleDispatch(dispatch, sent?.ok === true ? 'accepted' : sent?.outcome === 'not_sent' ? 'not_sent' : 'uncertain');
+        await tx.saveDispatch(dispatch);
+      }
       const row = await tx.challenge(prepared.requestHash);
       if (!row || row.state !== 'dispatching') return;
       const current = now();
-      const success = sent?.ok === true && typeof sent.providerMessageId === 'string' && sent.providerMessageId.startsWith('wamid.') && new Date(row.expiresAt) > current;
-      row.state = success ? 'ready' : 'revoked';
+      const success = sent?.ok === true && typeof sent.providerMessageId === 'string' && sent.providerMessageId.startsWith(channel === 'sms' ? 'sms.' : 'wamid.') && new Date(row.expiresAt) > current;
+      row.state = success ? 'ready' : sent?.outcome === 'not_sent' ? 'revoked' : 'uncertain';
       row.providerMessageId = success ? sent.providerMessageId : null;
       await tx.saveChallenge(row);
       await tx.audit({ event: success ? 'workspace_whatsapp_provider_accepted' : 'workspace_whatsapp_send_failed',
@@ -178,7 +244,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       // A setup grant is not a session or a credential replacement. It binds the
       // later WebAuthn ceremony to this identity, approval, purpose and browser.
       const result = purpose === 'signin'
-        ? await tx.issueSession({ admin: subject, authMethod: 'workspace_whatsapp',
+        ? await tx.issueSession({ admin: subject, authMethod: row.channel === 'sms' ? 'workspace_sms' : 'workspace_whatsapp',
           preserveExistingSessions: true, recentStrongAuth: false, current,
           expiresAt: new Date(current.getTime() + 8 * 60 * 60 * 1000), identityRevision: row.identityRevision })
         : await tx.issuePasskeyGrant({ adminId: subject.id, operatorId: row.operatorId,
@@ -301,7 +367,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
     });
   }
 
-  return { enabled: enabledHere, begin, dispatchOne, verify, requestSetup, inspectSetup, approveSetup, admitRequest, beginRegistration, finishRegistration };
+  return { enabled: enabledHere, fallbackEnabled, begin, requestSmsFallback, dispatchOne, verify, requestSetup, inspectSetup, approveSetup, admitRequest, beginRegistration, finishRegistration };
 }
 
-module.exports = { createWorkspaceWhatsAppAuth, MAX_ATTEMPTS };
+module.exports = { createWorkspaceWhatsAppAuth, MAX_ATTEMPTS, validWorkspaceBudgets };

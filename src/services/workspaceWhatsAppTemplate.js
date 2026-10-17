@@ -75,16 +75,16 @@ function createWorkspaceOtpDelivery({ enabled = false, reviewed = null, wabaId =
   }
   async function deliver({ mobile, code, codeTtlSeconds } = {}) {
     const template = await readiness();
-    if (!template.ready || template.codeTtlSeconds !== codeTtlSeconds) return { ok: false };
+    if (!template.ready || template.codeTtlSeconds !== codeTtlSeconds) return { ok: false, outcome: 'not_sent' };
     try {
       const result = await send(buildWorkspaceOtpPayload({ template, mobile, code }));
       const id = result?.messages?.[0]?.id;
       return typeof id === 'string' && /^wamid\.[A-Za-z0-9_+/=.:-]{1,250}$/.test(id)
-        ? { ok: true, providerMessageId: id } : { ok: false };
+        ? { ok: true, outcome: 'accepted', providerMessageId: id } : { ok: false, outcome: 'uncertain' };
     } catch (_) {
       // Provider exceptions may include the request, recipient, OTP or token.
       // Never return or log the raw exception; never retry an uncertain send.
-      return { ok: false };
+      return { ok: false, outcome: 'uncertain' };
     }
   }
   return { configured, readiness, deliver };

@@ -8,7 +8,7 @@ const AxeBuilder=require('@axe-core/playwright').default;
 const {createWorkspaceWhatsAppRouter,BASE}=require('../src/routes/workspaceWhatsAppAuth');
 async function main(){
   const app=express(), actions=[];
-  const service={enabled:()=>true,admitRequest:async()=>true,
+  const service={enabled:()=>true,fallbackEnabled:()=>true,requestSmsFallback:async input=>{actions.push(['sms',input]);return{ok:true,accepted:true,request:input.request};},admitRequest:async()=>true,
     begin:async input=>{actions.push(['begin',input]);return{ok:true,accepted:true,request:'R'.repeat(43)};},
     verify:async input=>{actions.push(['verify',input]);return input.code==='123456'?{ok:true,grant:'G'.repeat(43)}:{ok:false};},
     requestSetup:async()=>({ok:true,intent:'I'.repeat(43)}),
@@ -32,17 +32,21 @@ async function main(){
       await page.goto(origin+BASE+'/');
       await page.getByLabel('Staff mobile number').fill('0820000001');
       await page.getByRole('button',{name:'Send WhatsApp code',exact:true}).click();
-      await page.getByLabel('WhatsApp code',{exact:true}).fill('000000');
+      await page.getByLabel('Verification code',{exact:true}).fill('000000');
       await page.getByRole('button',{name:'Verify code',exact:true}).click();
       await page.getByRole('status').filter({hasText:'could not be verified'}).waitFor();
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
       const axe=await new AxeBuilder({page}).analyze();assert.deepEqual(axe.violations,[]);
       await page.screenshot({path:path.join(output,`${label}-code-error.png`),fullPage:true});
+      await page.getByRole('button',{name:'Try an SMS code instead',exact:true}).click();
+      await page.getByRole('status').filter({hasText:'If SMS can be sent safely'}).waitFor();
+      assert.deepEqual((await new AxeBuilder({page}).analyze()).violations,[]);
+      await page.screenshot({path:path.join(output,`${label}-sms-fallback.png`),fullPage:true});
       await page.getByLabel('What would you like to do?').selectOption('recover');
       await page.getByRole('button',{name:'Get setup reference',exact:true}).click();
       await page.locator('#setup-reference').filter({hasText:'Setup reference:'}).waitFor();
       await page.getByRole('button',{name:'Send WhatsApp code',exact:true}).click();
-      await page.getByLabel('WhatsApp code',{exact:true}).fill('123456');
+      await page.getByLabel('Verification code',{exact:true}).fill('123456');
       await page.getByRole('button',{name:'Verify code',exact:true}).click();
       await page.getByRole('button',{name:'Save this passkey',exact:true}).waitFor();
       assert.equal(await page.locator('#start').isVisible(),false);
@@ -62,9 +66,14 @@ async function main(){
         await page.goto(origin+'/storybook/iframe.html?id=workspace-whatsapp-authentication-draft--sign-in&viewMode=story');
         await page.getByRole('heading',{name:'Welcome to Workspace'}).waitFor();
         await page.screenshot({path:path.join(output,`${label}-storybook.png`),fullPage:true});
+        await page.goto(origin+'/storybook/iframe.html?id=workspace-whatsapp-authentication-draft--sms-fallback-enabled&viewMode=story');
+        await page.getByRole('button',{name:'Try an SMS code instead',exact:true}).waitFor();
+        assert.deepEqual((await new AxeBuilder({page}).include('main').analyze()).violations,[]);
+        await page.screenshot({path:path.join(output,`${label}-storybook-sms.png`),fullPage:true});
       }
       assert.deepEqual(errors,[]);await context.close();
     }
+    assert.ok(actions.some(([type,input])=>type==='sms'&&input.request==='R'.repeat(43)));
     assert.ok(actions.some(([type,input])=>type==='begin'&&input.purpose==='recover'&&input.setupIntent==='I'.repeat(43)));
     fs.writeFileSync(path.join(output,'summary.json'),JSON.stringify({passed:true,viewports:['phone','desktop'],axeViolations:0,provider:'synthetic',webauthn:'covered separately by SQL integration'},null,2));
     console.log('Workspace WhatsApp phone/desktop, errors, approval, Storybook and accessibility proof passed.');

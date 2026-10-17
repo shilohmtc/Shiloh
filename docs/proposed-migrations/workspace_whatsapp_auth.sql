@@ -2,7 +2,7 @@
 -- Assign a migration number and obtain execution authority before promotion.
 ALTER TABLE staff_browser_sessions DROP CONSTRAINT staff_browser_session_auth_method_check;
 ALTER TABLE staff_browser_sessions ADD CONSTRAINT staff_browser_session_auth_method_check
-  CHECK (auth_method IN ('whatsapp_otp','totp','recovery_code','emergency_bootstrap','break_glass','passkey','staff_details','workspace_whatsapp'));
+  CHECK (auth_method IN ('whatsapp_otp','totp','recovery_code','emergency_bootstrap','break_glass','passkey','staff_details','workspace_whatsapp','workspace_sms'));
 
 CREATE TABLE workspace_whatsapp_records (
   record_hash TEXT PRIMARY KEY CHECK (record_hash ~ '^[a-f0-9]{64}$'),

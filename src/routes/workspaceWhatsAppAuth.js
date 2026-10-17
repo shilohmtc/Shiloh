@@ -17,9 +17,10 @@ function createWorkspaceWhatsAppRouter({ service, sessions, env = {}, enabled = 
     res.setHeader('Cache-Control','private, no-store, max-age=0');
     res.setHeader('Referrer-Policy','no-referrer');
     res.setHeader('X-Content-Type-Options','nosniff');
-    if (enabled !== true || !service?.enabled()) return res.sendStatus(404);
+    if (enabled !== true || !service?.enabled() || typeof sessions?.validateSessionToken !== 'function' || typeof sessions?.validateCsrfToken !== 'function') return res.sendStatus(404);
     next();
   });
+  if (!sessions || !service) return router;
   router.use(express.json({ limit:'32kb', strict:true }));
   function browser(req,res,create = false) {
     let token = parseCookieValue(req.headers.cookie, browserCookie);
@@ -32,7 +33,7 @@ function createWorkspaceWhatsAppRouter({ service, sessions, env = {}, enabled = 
   function page(req,res,admin = false) {
     browser(req,res,true);
     res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
-    return res.type('html').send(workspaceWhatsAppPage({ admin }));
+    return res.type('html').send(workspaceWhatsAppPage({ admin, smsFallback:service.fallbackEnabled?.() === true }));
   }
   const requireSession = requireStaffSession({ service:sessions, env });
   const csrf = csrfGuard({ service:sessions });
@@ -64,6 +65,7 @@ function createWorkspaceWhatsAppRouter({ service, sessions, env = {}, enabled = 
   }
   router.post('/start', action(req => service.begin({ ...req.workspaceOtpContext, mobile:req.body.mobile,
     purpose:req.body.purpose, setupIntent:req.body.setupIntent })));
+  router.post('/fallback/sms', action(req => service.requestSmsFallback({ ...req.workspaceOtpContext, request:req.body.request, purpose:req.body.purpose })));
   router.post('/verify', action(req => service.verify({ ...req.workspaceOtpContext, request:req.body.request,
     code:req.body.code, purpose:req.body.purpose }),true));
   router.post('/setup/request', action(req => service.requestSetup({ ...req.workspaceOtpContext,

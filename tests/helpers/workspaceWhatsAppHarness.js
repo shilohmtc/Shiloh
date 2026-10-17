@@ -5,7 +5,7 @@ const crypto = require('node:crypto');
 const { createWorkspaceWhatsAppStore } = require('../../src/services/workspaceWhatsAppStore');
 const { createWorkspaceWhatsAppAuth } = require('../../src/services/workspaceWhatsAppAuth');
 const { createStaffBrowserSessionService, issueStaffBrowserSession } = require('../../src/services/staffBrowserSession');
-async function harness(t) {
+async function harness(t, options = {}) {
   let pg, realPool = null;
   const syntheticUrl = process.env.WORKSPACE_WHATSAPP_SYNTHETIC_DATABASE_URL;
   if (syntheticUrl) {
@@ -49,7 +49,7 @@ async function harness(t) {
   const sent=[];
   const delivery={configured:()=>true,readiness:async()=>({ready:true,codeTtlSeconds:300}),deliver:async input=>{sent.push(input);return{ok:true,providerMessageId:'wamid.synthetic'};}};
   const store=createWorkspaceWhatsAppStore({db});
-  const service=createWorkspaceWhatsAppAuth({enabled:true,store,delivery,hmacKey:Buffer.alloc(32,7),env});
+  const service=createWorkspaceWhatsAppAuth({enabled:true,store,delivery,hmacKey:Buffer.alloc(32,7),env,...options});
   const sessions=createStaffBrowserSessionService({db});
   const context={browserToken:'B'.repeat(43),network:'192.0.2.0/24',mobile:'27820000001',purpose:'signin'};
   async function code(purpose='signin') {

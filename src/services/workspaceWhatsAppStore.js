@@ -21,7 +21,7 @@ function createWorkspaceWhatsAppStore({ db, randomBytes = crypto.randomBytes } =
       async function save(kind, hash, row, insert = false) {
         if (insert) await client.query(`INSERT INTO workspace_whatsapp_records(record_hash,kind,admin_id,purpose,expires_at,payload)
           VALUES($1,$2,$3,$4,$5,$6::jsonb)`, [hash, kind, row.adminId, row.purpose, row.expiresAt, JSON.stringify(row)]);
-        else await client.query('UPDATE workspace_whatsapp_records SET payload=$3::jsonb WHERE record_hash=$1 AND kind=$2', [hash, kind, JSON.stringify(row)]);
+        else await client.query('UPDATE workspace_whatsapp_records SET payload=$3::jsonb,expires_at=$4 WHERE record_hash=$1 AND kind=$2', [hash, kind, JSON.stringify(row), row.expiresAt]);
       }
       const adminSelect = `SELECT a.*, a.active AS admin_active, s.status AS staff_status
         FROM staff_admin_accounts a LEFT JOIN staff s ON s.id=a.staff_id`;
@@ -37,21 +37,32 @@ function createWorkspaceWhatsAppStore({ db, randomBytes = crypto.randomBytes } =
             WHERE payload->>'state'='queued' AND expires_at>$1 ORDER BY queued_at,request_hash LIMIT 1 FOR UPDATE`, [current]);
           const row = result.rows[0];
           if (!row) return null;
-          // Retain a tombstone, but erase phone ciphertext once claimed. The
-          // in-memory worker copy alone can attempt delivery; no claim recovery.
-          await client.query(`UPDATE workspace_whatsapp_dispatch SET payload=(payload-'mobile') || '{"state":"claimed"}'::jsonb
+          // Never reclaim a claimed attempt. Keep encrypted input only until
+          // completion, so a proven pre-send failure can permit explicit SMS.
+          await client.query(`UPDATE workspace_whatsapp_dispatch SET payload=payload || '{"state":"claimed"}'::jsonb
             WHERE request_hash=$1`, [row.request_hash]);
           return row.payload;
         },
+        async dispatch(hash) {
+          return (await client.query('SELECT payload FROM workspace_whatsapp_dispatch WHERE request_hash=$1 FOR UPDATE',[hash])).rows[0]?.payload || null;
+        },
+        async saveDispatch(row) {
+          await client.query('UPDATE workspace_whatsapp_dispatch SET payload=$2::jsonb WHERE request_hash=$1',[row.requestHash,JSON.stringify(row)]);
+        },
+        async hasUncertainDelivery(id, current) {
+          return (await client.query(`SELECT 1 FROM workspace_whatsapp_records WHERE kind='challenge' AND admin_id=$1
+            AND expires_at>$2 AND payload->>'state' IN ('dispatching','uncertain') LIMIT 1`,[id,current])).rows.length > 0;
+        },
         async takeRate(buckets, current) {
+          if (buckets.some(b => !Number.isSafeInteger(b.amount ?? 1) || (b.amount ?? 1) <= 0 || (b.amount ?? 1) > b.limit)) return false;
           const r = await client.query('SELECT * FROM workspace_whatsapp_rate_buckets WHERE bucket_key=ANY($1::text[]) FOR UPDATE', [buckets.map(b => b.key)]);
           const states = new Map(r.rows.map(row => [row.bucket_key, row]));
-          if (buckets.some(b => { const s = states.get(b.key); return s && new Date(s.expires_at) > current && s.attempts >= b.limit; })) return false;
+          if (buckets.some(b => { const s = states.get(b.key); return s && new Date(s.expires_at) > current && s.attempts + (b.amount ?? 1) > b.limit; })) return false;
           for (const b of buckets) {
             const s = states.get(b.key), fresh = s && new Date(s.expires_at) > current;
             await client.query(`INSERT INTO workspace_whatsapp_rate_buckets(bucket_key,attempts,expires_at) VALUES($1,$2,$3)
               ON CONFLICT(bucket_key) DO UPDATE SET attempts=$2,expires_at=$3`,
-            [b.key, fresh ? s.attempts + 1 : 1, fresh ? s.expires_at : new Date(current.getTime() + b.windowMs)]);
+            [b.key, fresh ? s.attempts + (b.amount ?? 1) : (b.amount ?? 1), fresh ? s.expires_at : new Date(current.getTime() + b.windowMs)]);
           }
           await client.query(`DELETE FROM workspace_whatsapp_rate_buckets WHERE bucket_key IN
             (SELECT bucket_key FROM workspace_whatsapp_rate_buckets WHERE expires_at<$1 ORDER BY expires_at LIMIT 100)`, [current]);
@@ -87,7 +98,7 @@ function createWorkspaceWhatsAppStore({ db, randomBytes = crypto.randomBytes } =
         },
         async issueSession({ admin, authMethod, current, identityRevision }) {
           const result = await issueStaffBrowserSession({ client, admin, authMethod, current, randomBytes });
-          if (authMethod === 'workspace_whatsapp') await client.query('UPDATE staff_browser_sessions SET detail_identity_revision=$2 WHERE id=$1', [result.sessionId, identityRevision]);
+          if (['workspace_whatsapp','workspace_sms'].includes(authMethod)) await client.query('UPDATE staff_browser_sessions SET detail_identity_revision=$2 WHERE id=$1', [result.sessionId, identityRevision]);
           return result;
         },
         async issuePasskeyGrant(options) {

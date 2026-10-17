@@ -175,3 +175,130 @@ test('provider acceptance followed by a failed completion transaction cannot rep
   assert.equal((await h.service.verify({...h.context,request:r.request,code:h.sent[0].code})).ok,false);
   assert.equal((await h.db.query("SELECT payload->>'state' AS state FROM workspace_whatsapp_records WHERE kind='challenge'")).rows[0].state,'dispatching');
 });
+
+const syntheticBudgets={currency:'ZAR',dailySpendMinor:100,whatsappCostMinor:2,smsCostMinor:3,smsAccountDailyLimit:2,smsClinicDailyLimit:20};
+function smsFixture(){const sent=[];return {sent,provider:{configured:()=>true,readiness:async()=>({ready:true,codeTtlSeconds:300}),deliver:async input=>{sent.push(input);return{ok:true,outcome:'accepted',providerMessageId:'sms.synthetic'};}}};}
+const offlineWhatsApp=()=>({configured:()=>true,readiness:async()=>({ready:false}),deliver:async()=>{throw Error('must not send');}});
+
+test('explicit SMS fallback consumes the same request once and creates an ordinary revision-bound session',async t=>{
+  const sms=smsFixture(),h=await harness(t,{delivery:offlineWhatsApp(),smsDelivery:sms.provider,budgets:syntheticBudgets});
+  const r=await h.service.begin(h.context);await h.service.dispatchOne();
+  await Promise.all(Array.from({length:4},()=>h.service.requestSmsFallback({...h.context,request:r.request})));
+  const workers=await Promise.all([h.service.dispatchOne(),h.service.dispatchOne()]);
+  assert.equal(workers.filter(r=>r.processed).length,1);assert.equal(sms.sent.length,1);
+  const result=await h.service.verify({...h.context,request:r.request,code:sms.sent[0].code});assert.equal(result.ok,true);
+  const session=await h.sessions.validateSessionToken(result.sessionToken);
+  assert.equal(session.authMethod,'workspace_sms');
+  assert.equal(require('../src/services/staffPasskeyAuth').strongRecentSession(session,new Date()),false);
+  assert.equal((await h.sessions.validateSessionToken(h.priorSession.sessionToken)).ok,true);
+  assert.equal((await h.service.verify({...h.context,request:r.request,code:sms.sent[0].code})).ok,false);
+  await h.db.query("UPDATE staff_admin_accounts SET normalized_whatsapp='27820000009' WHERE id=1");
+  assert.equal((await h.sessions.validateSessionToken(result.sessionToken)).ok,false);
+});
+
+test('accepted, in-flight and uncertain WhatsApp cannot trigger SMS, including through a different request',async t=>{
+  const sms=smsFixture(), delivery={...offlineWhatsApp(),readiness:async()=>({ready:true,codeTtlSeconds:300}),deliver:async()=>{throw Error('unknown acceptance');}};
+  const h=await harness(t,{delivery,smsDelivery:sms.provider,budgets:syntheticBudgets});
+  const first=await h.service.begin(h.context);await h.service.dispatchOne();
+  assert.equal((await h.service.requestSmsFallback({...h.context,request:first.request})).accepted,true);
+  assert.equal((await h.service.dispatchOne()).processed,false);assert.equal(sms.sent.length,0);
+  delivery.readiness=async()=>({ready:false});
+  const second=await h.service.begin(h.context);await h.service.dispatchOne();
+  await h.service.requestSmsFallback({...h.context,request:second.request});await h.service.dispatchOne();assert.equal(sms.sent.length,0);
+  assert.equal((await h.db.query("SELECT COUNT(*)::int AS n FROM workspace_whatsapp_records WHERE payload->>'state'='uncertain'")).rows[0].n,1);
+});
+
+test('accepted WhatsApp and a stalled send reject fallback without exposing delivery state',async t=>{
+  const sms=smsFixture();let release,entered;
+  const started=new Promise(r=>{entered=r;});
+  const delivery={...offlineWhatsApp(),readiness:async()=>({ready:true,codeTtlSeconds:300}),deliver:()=>{entered();return new Promise(r=>{release=r;});}};
+  const h=await harness(t,{delivery,smsDelivery:sms.provider,budgets:syntheticBudgets}), r=await h.service.begin(h.context);
+  const worker=h.service.dispatchOne();await started;
+  const expected={ok:true,accepted:true,request:r.request};
+  assert.deepEqual(await h.service.requestSmsFallback({...h.context,request:r.request}),expected);
+  release({ok:true,providerMessageId:'wamid.synthetic'});await worker;
+  assert.deepEqual(await h.service.requestSmsFallback({...h.context,request:r.request}),expected);
+  assert.equal((await h.service.dispatchOne()).processed,false);assert.equal(sms.sent.length,0);
+});
+
+test('SMS fallback is browser/purpose/expiry bound and refuses unknown references generically',async t=>{
+  let clock=new Date();const sms=smsFixture(), h=await harness(t,{delivery:offlineWhatsApp(),smsDelivery:sms.provider,budgets:syntheticBudgets,now:()=>new Date(clock)});
+  const r=await h.service.begin(h.context);await h.service.dispatchOne();
+  for (const extra of [{browserToken:'X'.repeat(43)},{purpose:'recover'},{request:'X'.repeat(43)}]) {
+    assert.equal((await h.service.requestSmsFallback({...h.context,request:r.request,...extra})).accepted,true);
+    assert.equal((await h.service.dispatchOne()).processed,false);
+  }
+  clock=new Date(clock.getTime()+300000);
+  assert.equal((await h.service.requestSmsFallback({...h.context,request:r.request})).accepted,true);
+  assert.equal((await h.service.dispatchOne()).processed,false);assert.equal(sms.sent.length,0);
+});
+
+test('proposed two-SMS daily account cap and shared monetary reservation fail closed',async t=>{
+  let clock=new Date();const sms=smsFixture(), h=await harness(t,{delivery:offlineWhatsApp(),smsDelivery:sms.provider,budgets:syntheticBudgets,now:()=>new Date(clock)});
+  for(let i=0;i<3;i++) {
+    const r=await h.service.begin(h.context);await h.service.dispatchOne();
+    await h.service.requestSmsFallback({...h.context,request:r.request});await h.service.dispatchOne();
+    clock=new Date(clock.getTime()+11*60000);
+  }
+  assert.equal(sms.sent.length,2);
+  const limitedSms=smsFixture(), limited=await harness(t,{delivery:offlineWhatsApp(),smsDelivery:limitedSms.provider,budgets:{...syntheticBudgets,dailySpendMinor:2}});
+  const r=await limited.service.begin(limited.context);await limited.service.dispatchOne();
+  await limited.service.requestSmsFallback({...limited.context,request:r.request});await limited.service.dispatchOne();assert.equal(limitedSms.sent.length,0);
+});
+
+test('concurrent subjects share the same clinic spend reservation',async t=>{
+  const h=await harness(t,{budgets:{...syntheticBudgets,dailySpendMinor:3}});
+  await h.service.begin(h.context);await h.service.begin({...h.context,mobile:'27820000002'});
+  await Promise.all([h.service.dispatchOne(),h.service.dispatchOne()]);assert.equal(h.sent.length,1);
+});
+
+test('recovery SMS reuses only its approved intent after a proven pre-send failure',async t=>{
+  const sms=smsFixture(), h=await harness(t,{smsDelivery:sms.provider,budgets:syntheticBudgets,
+    delivery:{...offlineWhatsApp(),readiness:async()=>({ready:true,codeTtlSeconds:300}),deliver:async()=>({ok:false,outcome:'not_sent'})}});
+  const input={...h.context,purpose:'recover'}, intent=await h.service.requestSetup(input);
+  await h.service.approveSetup({intent:intent.intent,sessionId:h.operatorSession.sessionId,identityConfirmed:true});
+  const r=await h.service.begin({...input,setupIntent:intent.intent});await h.service.dispatchOne();
+  await h.service.requestSmsFallback({...input,request:r.request});await h.service.dispatchOne();assert.equal(sms.sent.length,1);
+  const grant=await h.service.verify({...input,request:r.request,code:sms.sent[0].code});assert.equal(grant.purpose,'recover');assert.equal(grant.sessionToken,undefined);
+  const start=await h.service.beginRegistration({grant:grant.grant,browserToken:input.browserToken});assert.equal(start.ok,true);
+  await h.db.query('UPDATE staff_browser_sessions SET revoked_at=NOW() WHERE id=$1',[h.operatorSession.sessionId]);
+  const result=await h.service.finishRegistration({grant:grant.grant,browserToken:input.browserToken,response:registrationResponse(fixture(),{challenge:start.options.challenge})});
+  assert.equal(result.ok,false);assert.equal((await h.sessions.validateSessionToken(h.priorSession.sessionToken)).ok,true);
+});
+
+test('isolated runtime requires schema and budget, wires HTTP and worker, and never sends on public intake',async t=>{
+  const {createWorkspaceWhatsAppRuntime}=require('../src/services/workspaceWhatsAppRuntime');
+  const h=await harness(t), requests=[];
+  const template={id:'123',wabaId:'456',name:'shiloh_workspace_verification',language:'en_GB',category:'AUTHENTICATION',message_send_ttl_seconds:300,
+    components:[{type:'BODY',text:'{{1}} is your verification code.'},{type:'FOOTER',code_expiration_minutes:5},{type:'BUTTONS',buttons:[{type:'OTP',otp_type:'COPY_CODE',text:'Copy code'}]}]};
+  const runtime=createWorkspaceWhatsAppRuntime({enabled:true,db:h.db,sessions:h.sessions,hmacKey:Buffer.alloc(32,7),env:h.env,
+    config:{template,wabaId:'456',phoneNumberId:'789',apiVersion:'v99.0',smsFallbackEnabled:true,budgets:syntheticBudgets},
+    metaCredentials:{accessToken:'synthetic-token'},smsCredentials:{accountEmail:'synthetic@example.invalid',apiToken:'synthetic-token'},
+    fetchImpl:async(url,options)=>{requests.push({url,options});if(url.startsWith('https://graph.facebook.com/'))throw Error('synthetic pre-send outage');return new Response(JSON.stringify({messageId:'synthetic'}));}});
+  assert.equal(runtime.service.enabled(),false);assert.equal((await runtime.prepare()).ok,true);assert.equal(requests.length,0);
+  const app=express();app.use(BASE,runtime.router);const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));t.after(()=>new Promise(r=>server.close(r)));
+  const origin=`http://127.0.0.1:${server.address().port}`,page=await fetch(origin+BASE+'/'),cookie=page.headers.get('set-cookie').split(';')[0];
+  assert.match(await page.text(),/Try an SMS code instead/);
+  const post=(path,body)=>fetch(origin+BASE+path,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify(body)});
+  const r=await(await post('/start',{purpose:'signin',mobile:h.context.mobile})).json();assert.equal(requests.length,0);
+  assert.equal((await runtime.worker.runOnce()).processed,1);assert.equal(requests.length,1);
+  await post('/fallback/sms',{request:r.request,purpose:'signin'});assert.equal(requests.length,1);
+  assert.equal((await runtime.worker.runOnce()).processed,1);assert.equal(requests.length,2);
+  const code=JSON.parse(requests[1].options.body).message.match(/code: (\d{6})/)[1];
+  assert.equal((await(await post('/verify',{request:r.request,purpose:'signin',code})).json()).authenticated,true);
+  await h.db.query('DROP TABLE workspace_whatsapp_dispatch');
+  assert.equal((await runtime.prepare()).code,'RUNTIME_SCHEMA_UNREADY');assert.equal((await fetch(origin+BASE+'/')).status,404);
+  assert.equal((await runtime.worker.runOnce()).code,'WORKER_DISABLED');assert.equal(requests.length,2);
+});
+
+test('explicit SMS choice before claim skips WhatsApp; choice during preflight waits for a proven no-send result',async t=>{
+  const sms=smsFixture();let reads=0;
+  const h=await harness(t,{budgets:syntheticBudgets,smsDelivery:sms.provider,delivery:{...offlineWhatsApp(),readiness:async()=>{reads++;return{ready:false};}}});
+  const first=await h.service.begin(h.context);await h.service.requestSmsFallback({...h.context,request:first.request});await h.service.dispatchOne();
+  assert.equal(reads,0);assert.equal(sms.sent.length,1);
+  let release,entered;const waiting=new Promise(r=>{entered=r;});const secondSms=smsFixture();
+  const g=await harness(t,{budgets:syntheticBudgets,smsDelivery:secondSms.provider,delivery:{...offlineWhatsApp(),readiness:()=>{entered();return new Promise(r=>{release=r;});}}});
+  const second=await g.service.begin(g.context);const worker=g.service.dispatchOne();await waiting;
+  await g.service.requestSmsFallback({...g.context,request:second.request});assert.equal(secondSms.sent.length,0);
+  release({ready:false});await worker;await g.service.dispatchOne();assert.equal(secondSms.sent.length,1);
+});

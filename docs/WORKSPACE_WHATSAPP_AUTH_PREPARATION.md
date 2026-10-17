@@ -1,8 +1,8 @@
 # Workspace WhatsApp authentication draft
 
 Status: implemented for isolated review and synthetic testing; **unmounted,
-not approved for production activation**. No live provider adapter, credentials,
-spending, automatic migration or deployment is included.
+not approved for production activation**. Injectable provider adapters and explicit runtime/worker composition are implemented;
+no live credentials, spending, automatic migration or deployment is included.
 
 ## Accepted direction and open decisions
 
@@ -32,12 +32,21 @@ it permanently as a bypass. Final cutover must address that bypass explicitly.
 
 - `workspaceWhatsAppTemplate.js`: explicit reviewed name/language/components,
   authenticated inventory dependency, exact approved-variant gate and Copy code
-  payload. No language fallback, credential lookup or built-in HTTP sender.
+  payload. No language fallback or credential lookup; the separate provider adapter supplies bounded HTTP.
   Rechecks the template before sending; never retries an uncertain send or exposes
   raw provider exceptions. Accepted is not delivered/read.
+- `workspaceWhatsAppProviders.js`: fixed Meta/SMSMessenger HTTPS endpoints,
+  explicit API version, locale/components/account/sender contract, injected fetch
+  and credentials only; sender membership plus template inventory readback;
+  bounded response size/time; no redirects, pagination following, balance probe,
+  automatic send retry or raw provider exceptions. Uses the existing
+  SMSMessenger gateway through its additive five-minute Workspace-code method.
+- `workspaceWhatsAppRuntime.js`: explicit opt-in composition, read-only schema
+  readiness, inactive-until-prepared router, and bounded stoppable worker.
+  Import/construction never starts delivery. `app.js` does not import it.
 - `workspaceWhatsAppAuth.js`: separate sign-in/enrollment/recovery challenges;
   browser-bound setup intents; authenticated administrator review/approval;
-  phone verification; grant-bound WebAuthn start/finish using the existing real
+  phone verification; explicit safe SMS fallback; grant-bound WebAuthn start/finish using the existing real
   attestation verifier. Staff identity, mobile, active state, collisions,
   administrator authority and session state are rechecked at each boundary.
 - `workspaceWhatsAppStore.js`: explicit PostgreSQL dependency, transactions,
@@ -46,11 +55,11 @@ it permanently as a bypass. Final cutover must address that bypass explicitly.
   concurrent mutation within the channel. Session issuance/credential changes,
   one-use consumption and audit commit together. No in-memory production fallback.
 - `workspaceWhatsAppIdentity.js` and a narrowly scoped session-validator branch:
-  new `workspace_whatsapp` sessions use a canonical identity revision and fixed
+  new `workspace_whatsapp`/`workspace_sms` sessions use a canonical identity revision and fixed
   eight-hour lifetime, preserve existing sessions and never qualify as recent
   passkey authentication. Mobile/details changes invalidate the new session.
   Existing session methods retain their behavior. Only the review migration
-  admits the new method; production code issues none today.
+  admits the new methods; production code issues none today.
 - `workspaceWhatsAppAuth.js` router: unmounted, explicitly enabled composition;
   same-origin JSON, server-issued HttpOnly/Strict browser cookie, persistent HTTP
   quotas, canonical staff-session/CSRF checks for administrative approval,
@@ -70,7 +79,7 @@ it permanently as a bypass. Final cutover must address that bypass explicitly.
 
 No files from PR #1475 are edited. Generic WhatsApp, client/bulk messaging and
 historical staff OTP sender remain retired. No environment flag alone can mount
-this flow or supply its missing live transport.
+this flow or configure its provider/runtime dependencies.
 
 ## Accepted replacement safeguard and draft enrollment policy
 
@@ -81,7 +90,7 @@ replacement must not be treated as approval for every enrollment-policy choice.
 
 | Purpose | Required proof | Result |
 | --- | --- | --- |
-| Sign-in | Unique eligible canonical staff identity at recorded mobile, valid browser-bound WhatsApp code | Ordinary Workspace session; existing capabilities/scopes; no passkey assurance |
+| Sign-in | Unique eligible canonical staff identity at recorded mobile, valid browser-bound WhatsApp code or explicitly selected, safely admitted SMS fallback | Ordinary Workspace session; existing capabilities/scopes; no passkey assurance |
 | Add a passkey through this flow | Staff-created intent; different authorized administrator's recent passkey session and explicit identity confirmation; staff phone code; successful WebAuthn ceremony | Add credential, preserve previous credentials/sessions, issue passkey session |
 | Recover through this flow | Same separate administrator and phone proof, explicitly selecting recovery; successful revalidated WebAuthn ceremony | Replace old credentials and revoke old subject sessions only in the successful completion transaction; administrator session unaffected |
 
@@ -132,9 +141,10 @@ regression, Storybook and browser checks and uploads screenshots.
 Before live readiness, still required:
 
 1. Authenticated template/account readback and current official Meta payload
-   documentation verification. Provider inventory/read/send composition must
-   enforce timeouts, exact account/phone binding and sanitized logging. The
-   public documentation fetch was rate-limited during initial inspection.
+   documentation verification. Injectable transport now enforces bounded calls,
+   exact account/phone binding and sanitized outcomes synthetically. Official
+   Meta documentation retrieval still returned HTTP 429 on 17 October; live API
+   compatibility and exact locale remain unverified.
 2. Review query plans, bounded cleanup/retention and operational contention.
    Multi-connection race tests cover consumption, quota and a canonical identity
    mutation; assess additional legacy administration contention during release
@@ -148,9 +158,9 @@ Before live readiness, still required:
    this is not a claim of constant-time database execution.
 4. Resolve ordinary enrollment policy and approve cutover/session handling.
    Preserve the now-approved replacement safeguard. Final
-   production composition must wire this router explicitly, provide the live
-   sender securely and pass approved budget/configuration. Neither `app.js` nor
-   any existing UI does so in this draft.
+   production activation must explicitly mount the prepared composition and start
+   its worker with securely supplied, approved configuration and budgets. Neither
+   `app.js` nor any existing UI does so in this draft.
 5. Review the interaction with existing SMS retirement gates: simply turning off
    details authentication can make historical SMS-bootstrap conditions true.
    A future cutover must deliberately preserve or replace that gate, not revive
@@ -187,7 +197,8 @@ limits; the monetary cap is undecided. Draft WhatsApp test ceilings likewise are
 not spending authorization. Fallback must require explicit channel choice,
 invalidate the superseded challenge, share combined identity/purpose and budget
 limits, and avoid sending both channels or retrying uncertain delivery blindly.
-SMS fallback implementation/activation is not part of this Workspace slice.
+SMS fallback is now implemented and synthetically tested in this isolated
+Workspace slice. Its activation is not authorized; client fallback remains planned.
 
 For a WhatsApp outage with phone/SIM access, SMS may help. SMS to the same number
 cannot solve a lost phone/number. Another enrolled passkey/device or preserved
@@ -266,8 +277,10 @@ The separate `dispatchOne` worker is neither scheduled nor mounted. The proposed
 SQL adds a dedicated intake table outside the production migrations directory.
 Queued phone numbers use AES-256-GCM with a domain-separated key and request-hash
 associated data; browser and intent references are hashes. Neither plaintext
-phone numbers, request tokens nor OTPs are stored in this queue. The worker erases
-phone ciphertext when claiming. Queued work expires within five minutes and
+phone numbers, request tokens nor OTPs are stored in this queue. The worker keeps encrypted phone input through a claim so an explicit SMS
+request can follow a proven pre-send failure; it erases the ciphertext on
+accepted/uncertain completion or final SMS completion. Expired records are
+removed by bounded worker cleanup. Claimed records are never automatically reclaimed. Queued work expires within five minutes and
 cleanup is bounded. Rate reservations include decoys and failed deliveries and
 remain conservative draft ceilings, not an approved monetary budget.
 
@@ -275,7 +288,7 @@ A claim commits before provider I/O and cannot be reclaimed after restart. Codes
 are generated only in worker memory, persisted as keyed hashes bound to the
 request hash and purpose, and become usable only after confirmed provider
 acceptance. Unknown acceptance, worker crash or failed completion never triggers
-automatic retry or SMS fallback. A fresh owner request is required; this trades
+automatic retry or SMS fallback on uncertainty. A fresh owner request is required; this trades
 some delivery reliability for avoiding duplicate/uncertain sends. Existing codes
 superseded during delivery cannot be revived by a late provider response.
 
@@ -283,6 +296,58 @@ Synthetic tests cover the public path with identity reads forbidden and provider
 readiness stalled, same acceptance under throttling, encrypted persistence,
 concurrent claims, restart after an uncertain send, queue expiry, approval
 revocation, superseded sends, and real PostgreSQL authentication transactions.
-Live transport timeouts, operational worker configuration, key provisioning and
-rotation, approved costs, account/template verification and production activation
-remain separate release prerequisites. No live transport or worker was activated.
+Transport timeouts and an opt-in worker are implemented and synthetically tested.
+Operational worker configuration, key provisioning/rotation, approved costs,
+account/template verification and production activation remain release prerequisites.
+No live transport or worker was activated.
+
+### Provider, runtime and SMS phase (17 October 2026)
+
+Owner screenshots establish template `shiloh_workspace_verification`, ID
+`2270342923759541`, Authentication, Active – Quality pending, plain English,
+Copy code, security recommendation, and a displayed five-minute expiry. They do
+not establish exact API locale/components, delivery TTL, WABA/sender membership
+or successful delivery. None is inferred from the screenshots or historical
+`en_US` configuration. Test fixtures use fabricated IDs/version/locale only.
+
+The isolated runtime requires an explicit reviewed template, WABA and sending
+phone IDs, API version, injected credential values/fetch/database/session service,
+HMAC/encryption key, and budgets. Missing configuration or review schema leaves
+its router at 404 and worker disabled. `prepare()` only checks database readiness;
+it does not verify providers or send. `worker.runOnce()` processes a bounded batch;
+`worker.run({signal})` is explicitly started/stopped by a future reviewed host.
+No startup entrypoint, schedule, Render service or live configuration was added.
+
+SMS is requested explicitly from the existing browser-bound intake, never by
+supplying a new phone number. Before a worker claims WhatsApp, that choice can
+switch the queued attempt to SMS. During preflight it records the preference,
+which proceeds only after a confirmed no-send result. A claimed/accepted/uncertain
+send never causes a second-channel send. Pending or uncertain challenges also
+block other requests for the same staff account until expiry. Both channels
+share intake limits and atomic daily ZAR-minor-unit spend reservations; SMS adds
+per-account and clinic daily counts. Reservations are not refunded on failure.
+No monetary default is enabled: costs and cap must be explicitly supplied after
+owner/provider review. Two SMS per account per day appears only in synthetic
+configuration as the proposed policy, not an approved production default.
+
+Both channels preserve five-attempt, one-use, browser/purpose/identity binding,
+existing staff permissions, optional passkeys and administrator-supervised
+recovery. SMS sessions use `workspace_sms`, never recent strong authentication.
+Retired client/staff SMS routes and legacy generic WhatsApp senders stay retired.
+The additive SMSMessenger method does not change existing send methods.
+
+Tests cover provider contract drift/missing locale, sender membership, fixed
+hosts, redirects/pagination, response-size/time bounds, uncertain responses,
+explicit fallback races, cross-request uncertainty, shared monetary reservations,
+the proposed daily SMS cap, canonical SMS sessions and recovery revocation.
+Phone/desktop live-router and Storybook screenshots include the SMS choice and
+request acknowledgement; axe checks must remain clear. All provider fetches use
+synthetic responses; database integration uses isolated local PostgreSQL only.
+
+The smallest next client phase is a separate My Shiloh draft for existing clients
+with an already verified, unique canonical binding. First decide which records
+qualify, supervised handling of duplicate/unverified/recycled numbers, and the
+old details-session transition. Keep first-time registration, record claiming,
+mobile changes and lost-number recovery separately authorized. Reuse bounded
+transport mechanics, never staff sessions/entitlements/recovery controls. Client
+UI, client challenges/session assurance and client template usage remain unimplemented.
