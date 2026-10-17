@@ -9,6 +9,8 @@ for (const device of [
   { name: 'desktop', width: 1440 },
   { name: 'android', width: 390, userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36' },
   { name: 'iphone', width: 390, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1' },
+  { name: 'iphone-chrome', width: 390, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 CriOS/131.0.0.0 Mobile/15E148 Safari/604.1' },
+  { name: 'iphone-other', width: 320, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 FxiOS/130.0 Mobile/15E148 Safari/604.1' },
 ]) {
   test(`website Staff Workspace menu reaches existing install page on ${device.name}`, async ({ browser }, testInfo) => {
     const context = await browser.newContext({ viewport: { width: device.width, height: 900 }, ...(device.userAgent ? { userAgent: device.userAgent } : {}) });
@@ -53,9 +55,29 @@ for (const device of [
     await page.screenshot({ path: testInfo.outputPath(`website-menu-${device.name}.png`) });
     await staff.click();
     await expect(page).toHaveURL(installUrl);
-    await expect(page.getByRole('heading', { name: 'Install Shiloh Workspace' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: device.name.startsWith('iphone') ? 'Add Shiloh Workspace to your iPhone.' : 'Install Shiloh Workspace' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Already installed? Sign in' })).toHaveAttribute('href', '/calendar/staff');
-    await expect(page.locator(device.name === 'iphone' ? '[data-workspace-ios-steps]' : '[data-workspace-android-steps]')).toBeVisible();
+    await expect(page.locator(device.name.startsWith('iphone') ? '[data-workspace-ios-steps]' : '[data-workspace-android-steps]')).toBeVisible();
+    if (device.name.startsWith('iphone')) {
+      const steps = page.locator('[data-workspace-ios-steps]');
+      await expect(page.locator('[data-workspace-install-doorway]')).toBeHidden();
+      await expect(steps.locator('svg[aria-hidden="true"]')).toHaveCount(1);
+      await expect(steps).toContainText('This picture is a guide, not a button.');
+      await expect(steps).toContainText('Choose Add to Home Screen');
+      await expect(steps).toContainText('Then open Shiloh Workspace');
+      const choice = steps.getByRole('combobox', { name: 'iPhone browser' });
+      await expect(choice).toHaveValue(device.name === 'iphone-chrome' ? 'chrome' : device.name === 'iphone-other' ? '' : 'safari');
+      if (device.name === 'iphone-other') {
+        await expect(steps.locator('[data-workspace-ios-browser-steps]')).toBeHidden();
+        await expect(steps).toContainText('open this page in your chosen browser first');
+      }
+      await choice.selectOption('chrome');
+      await expect(steps.locator('[data-workspace-ios-final-title]')).toHaveText('Tap Add');
+      await expect(steps).toContainText('In Chrome, look beside the address bar for Share.');
+      await choice.selectOption('safari');
+      await expect(steps.locator('[data-workspace-ios-final-title]')).toHaveText('Turn on Open as Web App, then tap Add');
+      await expect(page.getByRole('button', { name: /^Install/ })).toHaveCount(0);
+    }
     await page.screenshot({ path: testInfo.outputPath(`existing-install-${device.name}.png`) });
     expect(requests.every(r => r.method === 'GET')).toBe(true);
     expect(requests.some(r => r.pathname.includes('staff-auth'))).toBe(false);

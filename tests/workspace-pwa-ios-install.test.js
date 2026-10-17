@@ -11,7 +11,7 @@ test('#794 iPhone browser install guidance is explicit and disappears in standal
   assert.match(client, /maxTouchPoints/);
   assert.match(client, /data-shiloh-ios-install/);
   assert.match(client, /Keep Shiloh close/);
-  assert.match(client, /Tap Share/);
+  assert.match(client, /Tap this Share icon/);
   assert.match(client, /Choose Add to Home Screen/);
   assert.match(client, /iosDevice\(\)&&!standalone\(\)/);
   assert.match(client, /display-mode: standalone/);

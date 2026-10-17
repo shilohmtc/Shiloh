@@ -193,7 +193,7 @@ test('My Shiloh install client distinguishes iPhone Safari, iPhone Chrome and An
   assert.match(client, /address must say app\.shilohmtc\.co\.za, not share\.google/);
   assert.match(client, /crios\|fxios\|edgios\|opios/i);
   assert.match(client, /You’re in Chrome\. Use Share to add My Shiloh to your Home Screen\./);
-  assert.match(client, /You can add My Shiloh straight from Chrome/);
+  assert.match(client, /In Chrome, look beside the address bar for Share/);
   assert.match(client, /deferredInstallPrompt \? 'Install My Shiloh' : 'Show Android steps'/);
   assert.match(styles, /max-height:calc\(100dvh - 12px\)/);
 });
