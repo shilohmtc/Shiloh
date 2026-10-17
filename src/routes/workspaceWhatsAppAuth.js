@@ -6,10 +6,11 @@ const { networkGroup } = require('../services/clientCrmDetailAuth');
 const { defaultDeviceLabel } = require('../services/staffPasskeyAuth');
 const { serializePasskeyHintCookie } = require('./staffPasskeyAuth');
 const { workspaceWhatsAppPage, workspaceWhatsAppScript } = require('../presentation/workspaceWhatsAppUx');
+const { authInvitationPage, authInvitationScript } = require('../presentation/authInvitations');
 
 const BASE = '/calendar/staff-auth/whatsapp';
 const validToken = value => /^[A-Za-z0-9_-]{43}$/.test(value || '');
-function createWorkspaceWhatsAppRouter({ service, sessions, env = {}, enabled = false } = {}) {
+function createWorkspaceWhatsAppRouter({ service, sessions, invitations, env = {}, enabled = false } = {}) {
   const router = express.Router();
   const production = env.NODE_ENV === 'production';
   const browserCookie = production ? '__Host-shiloh_workspace_otp_browser' : 'shiloh_workspace_otp_browser';
@@ -38,6 +39,13 @@ function createWorkspaceWhatsAppRouter({ service, sessions, env = {}, enabled = 
   const requireSession = requireStaffSession({ service:sessions, env });
   const csrf = csrfGuard({ service:sessions });
   router.get('/', (req,res) => page(req,res));
+  router.get('/enroll', requireSession, (req,res) => page(req,res));
+  router.get('/welcome', requireSession, (req,res) => {
+    browser(req,res,true);
+    res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'");
+    res.type('html').send(authInvitationPage({audience:'staff',base:BASE}));
+  });
+  router.get('/invitations.js',(_req,res)=>res.type('application/javascript').send(authInvitationScript({audience:'staff',base:BASE})));
   router.get('/approve', requireSession, (req,res) => page(req,res,true));
   router.get('/app.js', (_req,res) => res.type('application/javascript').send(workspaceWhatsAppScript()));
   router.use(sameOriginGuard({ env }));
@@ -70,6 +78,9 @@ function createWorkspaceWhatsAppRouter({ service, sessions, env = {}, enabled = 
     code:req.body.code, purpose:req.body.purpose }),true));
   router.post('/setup/request', action(req => service.requestSetup({ ...req.workspaceOtpContext,
     purpose:req.body.purpose, mobile:req.body.mobile })));
+  router.post('/enrollment/own', requireSession, csrf, action(req => service.requestOwnEnrollment({
+    ...req.workspaceOtpContext, sessionId:req.staffBrowserSession.sessionId, proof:req.body.proof })));
+  router.post('/invitations/visit',requireSession,csrf,action(req=>invitations?.visit(req.staffBrowserSession)));
   router.post('/setup/review', requireSession, csrf, action(req => service.inspectSetup({ intent:req.body.intent, sessionId:req.staffBrowserSession.sessionId })));
   router.post('/setup/approve', requireSession, csrf, action(req => service.approveSetup({ intent:req.body.intent,
     identityConfirmed:req.body.identityConfirmed, sessionId:req.staffBrowserSession.sessionId })));

@@ -44,6 +44,44 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
     return operator;
   }
 
+  async function ownSession(tx, sessionId, subjectId, current) {
+    const session = await tx.session(sessionId);
+    if (!session?.ok || session.revokedAt || session.recoveryRequired || Number(session.adminId) !== Number(subjectId) ||
+        !Number.isFinite(new Date(session.expiresAt).getTime()) || new Date(session.expiresAt) <= current) return null;
+    const subject = await tx.admin(subjectId);
+    return active(subject) ? session : null;
+  }
+  async function setupProof(tx, row, current, recent = false) {
+    if (row.purpose === 'enroll' && row.selfSessionId) return ownSession(tx,row.selfSessionId,row.adminId,current);
+    return approval(tx,row.approvalSessionId,row.adminId,current,recent);
+  }
+
+  // The HTTP adapter supplies sessionId only after session validation and CSRF.
+  // The recorded phone is read from the canonical account, never request JSON.
+  async function requestOwnEnrollment({sessionId,browserToken,network,proof='code'} = {}) {
+    if (!enabledHere()) return DISABLED;
+    if (!tokenValid(browserToken) || typeof network!=='string' || !network || network.length>120 || !['code','passkey'].includes(proof)) return INVALID;
+    const prepared = await store.transaction(async tx => {
+      const current=now(), session=await tx.session(sessionId);
+      if (!session || !await ownSession(tx,sessionId,session.adminId,current)) return null;
+      const subject=await tx.admin(session.adminId), matches=await tx.adminsByMobile(subject.normalized_whatsapp);
+      if(matches.length!==1 || Number(matches[0].id)!==Number(subject.id)) return null;
+      const binding={adminId:subject.id,purpose:'enroll',selfSessionId:sessionId,
+        browserHash:digest('browser',browserToken),identityRevision:revision(subject),current,
+        expiresAt:new Date(current.getTime()+300000)};
+      if(proof==='passkey') {
+        if(!strongRecentSession(session,current)) return null;
+        return {result:await tx.issuePasskeyGrant(binding)};
+      }
+      const intent=randomBytes(32).toString('base64url');
+      await tx.insertIntent({...binding,hash:sha256(intent),state:'approved',expiresAt:new Date(current.getTime()+WINDOW_MS)});
+      return {mobile:subject.normalized_whatsapp,intent};
+    });
+    if(!prepared) return INVALID;
+    if(prepared.result) return prepared.result;
+    return begin({purpose:'enroll',mobile:prepared.mobile,setupIntent:prepared.intent,browserToken,network});
+  }
+
   // network must be the server-derived network group, never request JSON.
   // browserToken must be a server-issued HttpOnly cookie (not UA/IP fingerprint).
   async function begin({ purpose, mobile, setupIntent = null,
@@ -85,7 +123,9 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
         typeof network !== 'string' || !network || network.length > 120) return INVALID;
     await store.transaction(async tx => {
       const current = now(), row = await tx.dispatch(digest('request',request));
-      if (!row || !['not_sent','claimed'].includes(row.state) || row.channel !== 'whatsapp' || row.fallbackUsed || row.fallbackRequested || !row.mobile ||
+      const prior = row ? await tx.challenge(row.requestHash) : null;
+      const expired = prior && new Date(prior.expiresAt) <= current && ['ready','uncertain','revoked'].includes(prior.state);
+      if (!row || !(['not_sent','claimed'].includes(row.state) || expired && ['accepted','uncertain'].includes(row.state)) || row.channel !== 'whatsapp' || row.fallbackUsed || row.fallbackRequested || !row.mobile ||
           row.purpose !== purpose || row.browserHash !== digest('browser',browserToken) || new Date(row.expiresAt) <= current) return;
       if (!await tx.takeRate([
         {key:row.identityRateKey,limit:3,windowMs:WINDOW_MS},
@@ -96,7 +136,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       ],current)) return;
       row.fallbackRequested = true;
       if (row.state !== 'claimed') { row.channel = 'sms'; row.fallbackUsed = true; row.state = 'queued'; }
-      const challenge = await tx.challenge(row.requestHash);
+      const challenge = prior;
       if (challenge && row.state !== 'claimed') { challenge.state = 'revoked'; await tx.saveChallenge(challenge); }
       await tx.saveDispatch(row);
     });
@@ -106,10 +146,12 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
 
   function settleDispatch(row, outcome) {
     row.state = outcome;
+    if(['accepted','uncertain'].includes(outcome)) row.fallbackRequested=false;
     if (outcome === 'not_sent' && row.channel === 'whatsapp' && row.fallbackRequested && !row.fallbackUsed) {
       row.channel = 'sms'; row.fallbackUsed = true; row.state = 'queued';
     }
-    if (outcome !== 'not_sent' || row.channel === 'sms' && row.state !== 'queued') delete row.mobile;
+    // Keep only encrypted input for a bounded expiry fallback window.
+    if (row.channel === 'sms' && row.state !== 'queued') delete row.mobile;
   }
 
   // Explicit worker entry point only; never mounted or started by this draft.
@@ -152,6 +194,8 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       if (await tx.hasUncertainDelivery(subject.id, current)) return null;
       let operator = null;
       let approvalSessionId = null;
+      let selfSessionId = null;
+      let setupIntentToConsume = null;
       if (purpose !== 'signin') {
         if (!intake.intentHash) return null;
         const intent = await tx.intent(intake.intentHash);
@@ -159,14 +203,20 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
             Number(intent.adminId) !== Number(subject.id) || new Date(intent.expiresAt) <= current ||
             intent.identityRevision !== revision(subject) || intent.browserHash !== intake.browserHash) return null;
         approvalSessionId = intent.approvalSessionId;
-        operator = await approval(tx, approvalSessionId, subject.id, current, true);
-        if (!operator) return null;
-        intent.state = 'consumed'; intent.consumedByRequestHash = requestHash; await tx.saveIntent(intent);
+        if(!await setupProof(tx,intent,current,true)) return null;
+        selfSessionId=intent.selfSessionId || null;
+        operator = selfSessionId ? null : await approval(tx, approvalSessionId, subject.id, current, true);
+        setupIntentToConsume=intent;
+      }
+      const cooldown = await tx.rateUntil(digest('code-resend','staff',String(subject.id)),current);
+      if(cooldown) {
+        const row=await tx.dispatch(requestHash);
+        row.state='queued'; row.notBefore=cooldown;
+        await tx.saveDispatch(row);
+        return {deferred:true};
       }
       if (!await tx.takeRate([
-        // The durable dispatch queue still needs a scheduled cooldown state;
-        // enforce the day ceilings now without dropping a queued fallback.
-        ...codeReservationBuckets({ audience:'staff', personKey:String(subject.id), channel, digest, current, includeCooldown:false }),
+        ...codeReservationBuckets({ audience:'staff', personKey:String(subject.id), channel, digest, current }),
         ...(budget ? [
         {key:digest('spend-day','all'),limit:budget.dailySpendMinor,amount:channel === 'sms' ? budget.smsCostMinor : budget.whatsappCostMinor,windowMs:DAY_MS},
         ...(channel === 'sms' ? [
@@ -175,10 +225,14 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
         ] : []),
         ] : []),
       ],current)) return null;
+      if(setupIntentToConsume) {
+        setupIntentToConsume.state='consumed'; setupIntentToConsume.consumedByRequestHash=requestHash;
+        await tx.saveIntent(setupIntentToConsume);
+      }
       const code = String(randomInt(0, 1000000)).padStart(6, '0');
       const row = {
         requestHash, purpose, channel, adminId: subject.id, operatorId: operator?.id || null,
-        approvalSessionId: operator ? approvalSessionId : null,
+        approvalSessionId: operator ? approvalSessionId : null, selfSessionId,
         identityRevision: revision(subject), browserHash: intake.browserHash,
         codeHash: digest('code', requestHash, purpose, code), issuedAt: current,
         expiresAt: new Date(Math.min(new Date(intake.expiresAt).getTime(), current.getTime() + template.codeTtlSeconds * 1000)),
@@ -191,6 +245,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
         operatorId: operator?.id || null, purpose, at: current });
       return { requestHash, mobile: subject.normalized_whatsapp, code };
     });
+    if (prepared?.deferred) return completed;
     if (!prepared) { await finish('not_sent'); return completed; }
     let sent;
     try { sent = await provider.deliver({ mobile: prepared.mobile, code: prepared.code, codeTtlSeconds: template.codeTtlSeconds }); }
@@ -199,6 +254,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       const dispatch = await tx.dispatch(intake.requestHash);
       if (dispatch?.state === 'claimed') {
         settleDispatch(dispatch, sent?.ok === true ? 'accepted' : sent?.outcome === 'not_sent' ? 'not_sent' : 'uncertain');
+        dispatch.expiresAt=new Date(now().getTime()+600000);
         await tx.saveDispatch(dispatch);
       }
       const row = await tx.challenge(prepared.requestHash);
@@ -241,7 +297,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       const owners = subject ? await tx.adminsByMobile(subject.normalized_whatsapp) : [];
       if (!active(subject) || owners.length !== 1 || Number(owners[0].id) !== Number(subject.id) ||
           !safeHashEqual(row.identityRevision, revision(subject)) ||
-          (purpose !== 'signin' && !await approval(tx, row.approvalSessionId, subject.id, current, false))) {
+          (purpose !== 'signin' && !await setupProof(tx, row, current))) {
         row.state = 'revoked'; await tx.saveChallenge(row); return INVALID;
       }
       row.state = 'consumed';
@@ -254,7 +310,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
           preserveExistingSessions: true, recentStrongAuth: false, current,
           expiresAt: new Date(current.getTime() + 8 * 60 * 60 * 1000), identityRevision: row.identityRevision })
         : await tx.issuePasskeyGrant({ adminId: subject.id, operatorId: row.operatorId,
-          approvalSessionId: row.approvalSessionId, purpose, browserHash: row.browserHash,
+          approvalSessionId: row.approvalSessionId, selfSessionId:row.selfSessionId, purpose, browserHash: row.browserHash,
           identityRevision: row.identityRevision, current,
           expiresAt: new Date(current.getTime() + 5 * 60 * 1000) });
       if (!result || result.ok !== true) throw new Error('Workspace authentication continuation failed');
@@ -329,7 +385,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
     const admin = await tx.admin(row.adminId);
     const matches = admin ? await tx.adminsByMobile(admin.normalized_whatsapp) : [];
     if (!active(admin) || matches.length !== 1 || Number(matches[0].id) !== Number(admin.id) ||
-        row.identityRevision !== revision(admin) || !await approval(tx, row.approvalSessionId, row.adminId, current, false)) return null;
+        row.identityRevision !== revision(admin) || !await setupProof(tx,row,current)) return null;
     return { row, admin };
   }
 
@@ -373,7 +429,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
     });
   }
 
-  return { enabled: enabledHere, fallbackEnabled, begin, requestSmsFallback, dispatchOne, verify, requestSetup, inspectSetup, approveSetup, admitRequest, beginRegistration, finishRegistration };
+  return { enabled: enabledHere, fallbackEnabled, begin, requestOwnEnrollment, requestSmsFallback, dispatchOne, verify, requestSetup, inspectSetup, approveSetup, admitRequest, beginRegistration, finishRegistration };
 }
 
 module.exports = { createWorkspaceWhatsAppAuth, MAX_ATTEMPTS, validWorkspaceBudgets };

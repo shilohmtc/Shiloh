@@ -32,3 +32,11 @@ CREATE TABLE workspace_whatsapp_dispatch (
 CREATE INDEX workspace_whatsapp_dispatch_queue ON workspace_whatsapp_dispatch(queued_at)
   WHERE payload->>'state'='queued';
 CREATE INDEX workspace_whatsapp_dispatch_expiry ON workspace_whatsapp_dispatch(expires_at);
+
+-- One invitation visit per issued session; a new sign-in gets a fresh visit.
+CREATE TABLE IF NOT EXISTS code_auth_invitation_visits (
+  audience TEXT NOT NULL CHECK(audience IN ('staff','client')),
+  session_id BIGINT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY(audience,session_id)
+);

@@ -34,7 +34,9 @@ function createWorkspaceWhatsAppStore({ db, randomBytes = crypto.randomBytes } =
           await client.query(`DELETE FROM workspace_whatsapp_dispatch WHERE request_hash IN
             (SELECT request_hash FROM workspace_whatsapp_dispatch WHERE expires_at<=$1 ORDER BY expires_at LIMIT 100)`, [current]);
           const result = await client.query(`SELECT request_hash,payload FROM workspace_whatsapp_dispatch
-            WHERE payload->>'state'='queued' AND expires_at>$1 ORDER BY queued_at,request_hash LIMIT 1 FOR UPDATE`, [current]);
+            WHERE payload->>'state'='queued' AND expires_at>$1
+              AND (payload->>'notBefore' IS NULL OR (payload->>'notBefore')::timestamptz <= $1)
+            ORDER BY queued_at,request_hash LIMIT 1 FOR UPDATE`, [current]);
           const row = result.rows[0];
           if (!row) return null;
           // Never reclaim a claimed attempt. Keep encrypted input only until
@@ -47,7 +49,11 @@ function createWorkspaceWhatsAppStore({ db, randomBytes = crypto.randomBytes } =
           return (await client.query('SELECT payload FROM workspace_whatsapp_dispatch WHERE request_hash=$1 FOR UPDATE',[hash])).rows[0]?.payload || null;
         },
         async saveDispatch(row) {
-          await client.query('UPDATE workspace_whatsapp_dispatch SET payload=$2::jsonb WHERE request_hash=$1',[row.requestHash,JSON.stringify(row)]);
+          await client.query('UPDATE workspace_whatsapp_dispatch SET payload=$2::jsonb,expires_at=$3 WHERE request_hash=$1',[row.requestHash,JSON.stringify(row),row.expiresAt]);
+        },
+        async rateUntil(key, current) {
+          const row = (await client.query('SELECT expires_at FROM workspace_whatsapp_rate_buckets WHERE bucket_key=$1 AND expires_at>$2 FOR UPDATE',[key,current])).rows[0];
+          return row ? new Date(row.expires_at) : null;
         },
         async hasUncertainDelivery(id, current) {
           return (await client.query(`SELECT 1 FROM workspace_whatsapp_records WHERE kind='challenge' AND admin_id=$1

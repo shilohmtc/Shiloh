@@ -31,6 +31,8 @@ async function harness(t, options = {}) {
     '156_staff_discoverable_passkey_handoff.sql','190_staff_detail_signin.sql']) await pg.exec(fs.readFileSync(`migrations/${file}`,'utf8'));
   await pg.exec(fs.readFileSync('docs/proposed-migrations/workspace_whatsapp_auth.sql','utf8'));
   const current = new Date();
+  let clock = new Date(current);
+  const advance = ms => { clock=new Date(clock.getTime()+ms); };
   let queue = Promise.resolve();
   const query = async (sql,args) => { const r=await pg.query(sql,args); return { rows:r.rows,rowCount:r.rowCount ?? r.affectedRows ?? r.rows.length }; };
   const db = { query, async connect() {
@@ -49,10 +51,11 @@ async function harness(t, options = {}) {
   const sent=[];
   const delivery={configured:()=>true,readiness:async()=>({ready:true,codeTtlSeconds:300}),deliver:async input=>{sent.push(input);return{ok:true,providerMessageId:'wamid.synthetic'};}};
   const store=createWorkspaceWhatsAppStore({db});
-  const service=createWorkspaceWhatsAppAuth({enabled:true,store,delivery,hmacKey:Buffer.alloc(32,7),env,...options});
+  const service=createWorkspaceWhatsAppAuth({enabled:true,store,delivery,hmacKey:Buffer.alloc(32,7),env,now:()=>new Date(clock),...options});
   const sessions=createStaffBrowserSessionService({db});
   const context={browserToken:'B'.repeat(43),network:'192.0.2.0/24',mobile:'27820000001',purpose:'signin'};
   async function code(purpose='signin') {
+    if(sent.length) advance(60000);
     const input={...context,purpose};
     if(purpose!=='signin') {
       const r=await service.requestSetup(input); input.setupIntent=r.intent;
@@ -63,6 +66,6 @@ async function harness(t, options = {}) {
     await service.dispatchOne();
     return service.verify({...input,request:r.request,code:sent.at(-1).code});
   }
-  return {pg,db,service,sessions,context,operatorSession,priorSession,sent,code,env,store,delivery};
+  return {pg,db,service,sessions,context,operatorSession,priorSession,sent,code,env,store,delivery,advance};
 }
 module.exports={harness};

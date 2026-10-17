@@ -4,6 +4,7 @@ const {createWorkspaceMetaProvider,createWorkspaceSmsProvider} = require('./work
 const {createWorkspaceWhatsAppAuth,validWorkspaceBudgets} = require('./workspaceWhatsAppAuth');
 const {createWorkspaceWhatsAppStore} = require('./workspaceWhatsAppStore');
 const {createWorkspaceWhatsAppRouter} = require('../routes/workspaceWhatsAppAuth');
+const {createAuthInvitations} = require('./authInvitations');
 
 function createWorkspaceWhatsAppWorker({service,enabled = false,pollMs = 1000,batchSize = 10} = {}) {
   let busy = false;
@@ -58,15 +59,17 @@ function createWorkspaceWhatsAppRuntime({enabled = false,config = {},db,sessions
     try {
       const tables = (await db.query(`SELECT to_regclass('workspace_whatsapp_dispatch') AS dispatch,
         to_regclass('workspace_whatsapp_records') AS records,to_regclass('workspace_whatsapp_rate_buckets') AS rates,
-        to_regclass('staff_auth_passkey_credentials') AS credentials`)).rows[0];
+        to_regclass('staff_auth_passkey_credentials') AS credentials,
+        to_regclass('code_auth_invitation_visits') AS invitations`)).rows[0];
       const constraint = (await db.query(`SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint
         WHERE conrelid='staff_browser_sessions'::regclass AND conname='staff_browser_session_auth_method_check'`)).rows[0]?.definition || '';
-      ready = !!tables?.dispatch && !!tables.records && !!tables.rates && !!tables.credentials &&
+      ready = !!tables?.dispatch && !!tables.records && !!tables.rates && !!tables.credentials && !!tables.invitations &&
         constraint.includes("'workspace_whatsapp'") && constraint.includes("'workspace_sms'");
       return ready ? {ok:true} : {ok:false,code:'RUNTIME_SCHEMA_UNREADY'};
     } catch (_) { return {ok:false,code:'RUNTIME_SCHEMA_UNREADY'}; }
   }
-  return {prepare,service,router:createWorkspaceWhatsAppRouter({service,sessions,env,enabled}),
+  return {prepare,service,router:createWorkspaceWhatsAppRouter({service,sessions,env,enabled,
+    invitations:configured ? createAuthInvitations({db,audience:'staff'}) : null}),
     worker:createWorkspaceWhatsAppWorker({service,enabled,...workerOptions})};
 }
 module.exports = {createWorkspaceWhatsAppRuntime,createWorkspaceWhatsAppWorker};

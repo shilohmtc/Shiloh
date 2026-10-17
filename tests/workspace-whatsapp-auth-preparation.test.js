@@ -41,13 +41,14 @@ function fixture({ purpose = 'signin', ...overrides } = {}) {
       const tx = {
         async insertDispatch(row) { copy.dispatches.push(row); },
         async claimDispatch(current) {
-          const row = copy.dispatches.find(r => r.state === 'queued' && new Date(r.expiresAt) > current);
+          const row = copy.dispatches.find(r => r.state === 'queued' && new Date(r.expiresAt) > current && (!r.notBefore || new Date(r.notBefore)<=current));
           if (!row) return null;
           const claimed = structuredClone(row); row.state = 'claimed'; return claimed;
         },
         async dispatch(hash) { return copy.dispatches.find(r => r.requestHash === hash); },
         async saveDispatch(row) { copy.dispatches[copy.dispatches.findIndex(r => r.requestHash === row.requestHash)] = row; },
         async hasUncertainDelivery(id,current) { return copy.challenges.some(c => c.adminId === id && ['dispatching','uncertain'].includes(c.state) && new Date(c.expiresAt) > current); },
+        async rateUntil(key,current) { const s=copy.rates[key];return s && s.until>current.getTime() ? new Date(s.until) : null; },
         async takeRate(buckets, current) {
           if (buckets.some(b => (b.amount ?? 1) > b.limit)) return false;
           const blocked = buckets.some(b => copy.rates[b.key] && copy.rates[b.key].until > current.getTime() && copy.rates[b.key].count + (b.amount ?? 1) > b.limit);
@@ -290,7 +291,7 @@ test('template changes between preflight and send prevent provider dispatch', as
 
 test('resend invalidates prior codes; challenge persistence and audit exclude raw secrets', async () => {
   const f = fixture({ randomInt: () => 123456 });
-  const first = await f.start(); const second = await f.start();
+  const first = await f.start(); f.advance(60000); const second = await f.start();
   assert.equal((await f.verify(first.request)).ok, false);
   assert.equal((await f.verify(second.request)).ok, true);
   const saved = JSON.stringify({ challenges: f.state.challenges, rates: f.state.rates, audit: f.state.audits });
@@ -337,6 +338,7 @@ test('durable claims are single-use, provider stalls do not hold intake locks, a
   await f.store.transaction(tx => tx.revokeChallenges(1,'signin'));
   release({messages:[{id:'wamid.first'}]}); await worker;
   assert.equal(f.state.challenges[0].state, 'revoked');
+  f.advance(60000);
   await f.service.begin(f.input); await f.service.dispatchOne();
   assert.equal(f.state.challenges[1].state, 'ready');
   assert.equal((await f.service.dispatchOne()).processed, false);

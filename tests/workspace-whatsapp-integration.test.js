@@ -91,7 +91,9 @@ test('concurrent verification issues exactly one session and concurrent requests
   assert.equal(verified.filter(r=>r.ok).length,1);
   await Promise.all(Array.from({length:8},()=>h.service.begin(h.context)));
   while ((await h.service.dispatchOne()).processed) {}
-  assert.equal(h.sent.length,3);
+  assert.equal(h.sent.length,1); // Same-person sends remain queued until cooldown.
+  assert.equal((await h.db.query("SELECT COUNT(*)::int AS n FROM workspace_whatsapp_records WHERE kind='challenge' AND payload->>'state'='ready'")).rows[0].n,0);
+  h.advance(60000);await h.service.dispatchOne();assert.equal(h.sent.length,2);
   assert.equal((await h.db.query("SELECT COUNT(*)::int AS n FROM workspace_whatsapp_records WHERE kind='challenge' AND payload->>'state'='ready'")).rows[0].n,1);
   assert.equal((await h.db.query('SELECT COUNT(*)::int AS n FROM staff_browser_sessions')).rows[0].n,3);
 });
@@ -138,6 +140,7 @@ test('HTTP flow sets protected cookies, refuses cross-origin and forged approval
   assert.equal(reviewed.mobileEnding,'0001');
   assert.equal((await post('/setup/approve',{intent:intent.intent,identityConfirmed:true},operatorHeaders)).status,200);
   const setupStart=await (await post('/start',{purpose:'enroll',mobile:'27820000001',setupIntent:intent.intent})).json();
+  h.advance(60000);
   await h.service.dispatchOne();
   const phone=await (await post('/verify',{purpose:'enroll',request:setupStart.request,code:h.sent.at(-1).code})).json();
   const registration=await (await post('/passkey/start',{grant:phone.grant})).json();
@@ -163,7 +166,7 @@ test('durable queue survives service restart; concurrent workers claim once and 
   assert.equal(results.filter(r=>r.processed).length,1); assert.equal(calls,1);
   assert.equal((await restart().dispatchOne()).processed,false);
   assert.equal((await h.service.verify({...h.context,request:input.request,code:'123456'})).ok,false);
-  assert.equal((await h.db.query("SELECT payload->>'mobile' AS mobile FROM workspace_whatsapp_dispatch")).rows[0].mobile,null);
+  assert.ok((await h.db.query("SELECT payload->>'mobile' AS mobile FROM workspace_whatsapp_dispatch")).rows[0].mobile); // Bounded ciphertext permits fallback only after expiry.
 });
 
 test('provider acceptance followed by a failed completion transaction cannot replay or authenticate', async t => {
@@ -258,7 +261,8 @@ test('recovery SMS reuses only its approved intent after a proven pre-send failu
   const input={...h.context,purpose:'recover'}, intent=await h.service.requestSetup(input);
   await h.service.approveSetup({intent:intent.intent,sessionId:h.operatorSession.sessionId,identityConfirmed:true});
   const r=await h.service.begin({...input,setupIntent:intent.intent});await h.service.dispatchOne();
-  await h.service.requestSmsFallback({...input,request:r.request});await h.service.dispatchOne();assert.equal(sms.sent.length,1);
+  await h.service.requestSmsFallback({...input,request:r.request});await h.service.dispatchOne();assert.equal(sms.sent.length,0);
+  h.advance(60000);await h.service.dispatchOne();assert.equal(sms.sent.length,1);
   const grant=await h.service.verify({...input,request:r.request,code:sms.sent[0].code});assert.equal(grant.purpose,'recover');assert.equal(grant.sessionToken,undefined);
   const start=await h.service.beginRegistration({grant:grant.grant,browserToken:input.browserToken});assert.equal(start.ok,true);
   await h.db.query('UPDATE staff_browser_sessions SET revoked_at=NOW() WHERE id=$1',[h.operatorSession.sessionId]);
@@ -303,4 +307,57 @@ test('SMS cannot bypass queued WhatsApp; choice during preflight waits for a pro
   const second=await g.service.begin(g.context);const worker=g.service.dispatchOne();await waiting;
   await g.service.requestSmsFallback({...g.context,request:second.request});assert.equal(secondSms.sent.length,0);
   release({ready:false});await worker;await g.service.dispatchOne();assert.equal(secondSms.sent.length,1);
+});
+
+test('own-account enrollment uses the canonical phone and a fresh code without an administrator',async t=>{
+  const h=await harness(t);
+  const request=await h.service.requestOwnEnrollment({...h.context,sessionId:h.priorSession.sessionId,proof:'code',mobile:'27820000002'});
+  assert.equal(request.accepted,true);await h.service.dispatchOne();
+  assert.equal(h.sent[0].mobile,h.context.mobile);
+  const grant=await h.service.verify({...h.context,purpose:'enroll',request:request.request,code:h.sent[0].code});
+  assert.equal(grant.ok,true);
+  const start=await h.service.beginRegistration({grant:grant.grant,browserToken:h.context.browserToken});
+  assert.equal(start.ok,true);
+  const result=await h.service.finishRegistration({grant:grant.grant,browserToken:h.context.browserToken,
+    response:registrationResponse(fixture(),{challenge:start.options.challenge})});
+  assert.equal(result.ok,true);
+  assert.equal((await h.sessions.validateSessionToken(h.priorSession.sessionToken)).ok,true);
+  assert.equal((await h.sessions.validateSessionToken(h.operatorSession.sessionToken)).ok,true);
+});
+
+test('recent own passkey proof can enroll without a code; revocation, browser change and recovery substitution fail',async t=>{
+  const h=await harness(t);
+  const grant=await h.service.requestOwnEnrollment({...h.context,sessionId:h.priorSession.sessionId,proof:'passkey'});
+  assert.equal(grant.ok,true);assert.equal(h.sent.length,0);assert.equal(grant.purpose,'enroll');
+  assert.equal((await h.service.beginRegistration({grant:grant.grant,browserToken:'X'.repeat(43)})).ok,false);
+  const start=await h.service.beginRegistration({grant:grant.grant,browserToken:h.context.browserToken});
+  await h.db.query('UPDATE staff_browser_sessions SET revoked_at=NOW() WHERE id=$1',[h.priorSession.sessionId]);
+  assert.equal((await h.service.finishRegistration({grant:grant.grant,browserToken:h.context.browserToken,
+    response:registrationResponse(fixture(),{challenge:start.options.challenge})})).ok,false);
+  assert.equal((await h.db.query('SELECT * FROM staff_auth_passkey_credentials')).rows.length,0);
+});
+
+test('cooldown survives restart and expiry fallback invalidates WhatsApp before SMS',async t=>{
+  const sms=smsFixture(),h=await harness(t,{smsDelivery:sms.provider,budgets:syntheticBudgets});
+  const first=await h.service.begin(h.context);await h.service.dispatchOne();
+  const oldCode=h.sent[0].code;
+  await h.service.requestSmsFallback({...h.context,request:first.request});
+  assert.equal((await h.service.dispatchOne()).processed,false);assert.equal(sms.sent.length,0);
+  h.advance(300000);
+  await h.service.requestSmsFallback({...h.context,request:first.request});
+  await h.service.dispatchOne();assert.equal(sms.sent.length,1);
+  assert.equal((await h.service.verify({...h.context,request:first.request,code:oldCode})).ok,false);
+  assert.equal((await h.service.verify({...h.context,request:first.request,code:sms.sent[0].code})).ok,true);
+  assert.equal((await h.service.requestSmsFallback({...h.context,request:first.request})).accepted,true);
+  assert.equal((await h.service.dispatchOne()).processed,false);
+});
+
+test('own enrollment permits explicit expiry fallback but still binds the current session',async t=>{
+  const sms=smsFixture(),h=await harness(t,{smsDelivery:sms.provider,budgets:syntheticBudgets});
+  const r=await h.service.requestOwnEnrollment({...h.context,sessionId:h.priorSession.sessionId,proof:'code'});await h.service.dispatchOne();
+  h.advance(300000);await h.service.requestSmsFallback({...h.context,purpose:'enroll',request:r.request});await h.service.dispatchOne();
+  assert.equal(sms.sent.length,1);
+  const grant=await h.service.verify({...h.context,purpose:'enroll',request:r.request,code:sms.sent[0].code});assert.equal(grant.ok,true);
+  await h.db.query('UPDATE staff_browser_sessions SET revoked_at=NOW() WHERE id=$1',[h.priorSession.sessionId]);
+  assert.equal((await h.service.beginRegistration({grant:grant.grant,browserToken:h.context.browserToken})).ok,false);
 });

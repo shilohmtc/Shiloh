@@ -27,12 +27,12 @@ function copyCodeButton(button, footerMinutes) {
 // No language or approved components are inferred from the owner-reported name.
 // Both arguments must come from a reviewed contract and a fresh authenticated
 // provider read. This module does not discover accounts or read credentials.
-function inspectWorkspaceTemplate({ reviewed, inventory, wabaId } = {}) {
+function inspectWorkspaceTemplate({ reviewed, inventory, wabaId, expectedName = TEMPLATE_NAME } = {}) {
   const blocked = { ready: false, reason: 'template_not_verified' };
   if (!reviewed || !Array.isArray(inventory) || !wabaId || reviewed.wabaId !== wabaId ||
-      reviewed.name !== TEMPLATE_NAME || !/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(reviewed.language || '') ||
+      reviewed.name !== expectedName || !/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(reviewed.language || '') ||
       reviewed.category !== 'AUTHENTICATION' || !reviewed.id) return blocked;
-  const matches = inventory.filter(item => item?.name === TEMPLATE_NAME && item.language === reviewed.language);
+  const matches = inventory.filter(item => item?.name === expectedName && item.language === reviewed.language);
   if (matches.length !== 1) return blocked;
   const actual = matches[0];
   if (actual.status !== 'APPROVED' || actual.id !== reviewed.id || actual.category !== reviewed.category ||
@@ -58,18 +58,18 @@ function inspectWorkspaceTemplate({ reviewed, inventory, wabaId } = {}) {
   const codeTtlSeconds = Math.min(MAX_CODE_TTL_SECONDS, ttl || MAX_CODE_TTL_SECONDS,
     (footerMinutes || MAX_CODE_TTL_SECONDS / 60) * 60);
   if (footerMinutes !== undefined && footerMinutes * 60 !== codeTtlSeconds) return blocked;
-  return { ready: true, name: TEMPLATE_NAME, language: reviewed.language, codeTtlSeconds };
+  return { ready: true, name: expectedName, language: reviewed.language, codeTtlSeconds };
 }
 
-function buildWorkspaceOtpPayload({ template, mobile, code } = {}) {
-  if (!template?.ready || template.name !== TEMPLATE_NAME || !template.language ||
+function buildWorkspaceOtpPayload({ template, mobile, code, expectedName = TEMPLATE_NAME } = {}) {
+  if (!template?.ready || template.name !== expectedName || !template.language ||
       !/^27[6-8][0-9]{8}$/.test(mobile || '') || !/^[0-9]{6}$/.test(code || '')) {
     throw new Error('Workspace authentication payload is not ready');
   }
   return {
     messaging_product: 'whatsapp', recipient_type: 'individual', to: mobile, type: 'template',
     template: {
-      name: TEMPLATE_NAME, language: { code: template.language },
+      name: expectedName, language: { code: template.language },
       components: [
         { type: 'body', parameters: [{ type: 'text', text: code }] },
         { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: code }] },
@@ -82,20 +82,20 @@ function buildWorkspaceOtpPayload({ template, mobile, code } = {}) {
 // lookup. A separately reviewed activation composition must supply the sender
 // and authenticated inventory reader. Existing generic WhatsApp stays retired.
 function createWorkspaceOtpDelivery({ enabled = false, reviewed = null, wabaId = null,
-  readInventory = null, send = null } = {}) {
+  readInventory = null, send = null, expectedName = TEMPLATE_NAME } = {}) {
   const pin = reviewed ? structuredClone(reviewed) : null;
   const configured = () => enabled === true && !!pin && !!wabaId &&
     typeof readInventory === 'function' && typeof send === 'function';
   async function readiness() {
     if (!configured()) return { ready: false, reason: 'delivery_disabled' };
-    try { return inspectWorkspaceTemplate({ reviewed: pin, wabaId, inventory: await readInventory() }); }
+    try { return inspectWorkspaceTemplate({ reviewed: pin, wabaId, expectedName, inventory: await readInventory() }); }
     catch (_) { return { ready: false, reason: 'template_not_verified' }; }
   }
   async function deliver({ mobile, code, codeTtlSeconds } = {}) {
     const template = await readiness();
     if (!template.ready || template.codeTtlSeconds !== codeTtlSeconds) return { ok: false, outcome: 'not_sent' };
     try {
-      const result = await send(buildWorkspaceOtpPayload({ template, mobile, code }));
+      const result = await send(buildWorkspaceOtpPayload({ template, mobile, code, expectedName }));
       const id = result?.messages?.[0]?.id;
       return typeof id === 'string' && /^wamid\.[A-Za-z0-9_+/=.:-]{1,250}$/.test(id)
         ? { ok: true, outcome: 'accepted', providerMessageId: id } : { ok: false, outcome: 'uncertain' };
