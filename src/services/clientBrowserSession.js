@@ -76,7 +76,7 @@ function createClientBrowserSessionService({
   // Called only inside the caller's transaction after its method-specific proof.
   // CRM details deliberately provide lower assurance, not verified phone ownership.
   async function insertVerifiedSession(client, owner, current, authMethod, fingerprint, passkeyCredentialId = null) {
-    if (!['passkey', 'passkey_recovery', 'sms_code', 'crm_details'].includes(authMethod)) throw new Error('invalid client session method');
+    if (!['passkey', 'passkey_recovery', 'sms_code', 'whatsapp_challenge', 'crm_details'].includes(authMethod)) throw new Error('invalid client session method');
     const sessionToken = randomOpaqueToken(randomBytes);
     const csrfToken = randomOpaqueToken(randomBytes);
     const expiresAt = new Date(current.getTime() + SESSION_TTL_MS);
@@ -155,6 +155,19 @@ function createClientBrowserSessionService({
     return result;
   }
 
+  // New isolated code flow only: caller consumes its bound one-use challenge in
+  // this transaction; verified canonical mobile and unique ownership are required.
+  async function issueVerifiedPhoneCodeSession({transaction,crmV2ClientId,normalizedMobile,channel}={}) {
+    if(!transaction?.query || !['whatsapp','sms'].includes(channel)) return {ok:false};
+    const rows=await transaction.query(`SELECT id,name FROM crm_v2_clients WHERE normalized_mobile=$1 FOR SHARE`,[normalizedMobile]);
+    if(rows.rows.length!==1 || Number(rows.rows[0].id)!==Number(crmV2ClientId)) return {ok:false};
+    const owner=(await transaction.query(`SELECT id,name FROM crm_v2_clients WHERE id=$1 AND status='active' AND mobile_verified_at IS NOT NULL FOR SHARE`,[crmV2ClientId])).rows[0];
+    if(!owner) return {ok:false};
+    const result=await insertVerifiedSession(transaction,owner,now(),channel==='sms'?'sms_code':'whatsapp_challenge',null);
+    await audit(transaction,'session_issued',{clientId:owner.id,sessionId:result.sessionId,metadata:{authMethod:channel==='sms'?'sms_code':'whatsapp_challenge'}});
+    return result;
+  }
+
   // CRM service must lock and match the complete canonical record in this transaction.
   async function issueCrmDetailSession({ transaction, owner, requestFingerprintHash = null } = {}) {
     if (!transaction || typeof transaction.query !== 'function' || !owner ||
@@ -172,7 +185,8 @@ function createClientBrowserSessionService({
     const result = await db.query(
       `SELECT s.id AS session_id, s.crm_v2_client_id, s.csrf_hash, s.issued_at, s.expires_at,
               s.revoked_at, s.auth_method, s.reauthenticated_at,
-              c.id, c.name, c.status
+              to_jsonb(s)->>'code_identity_revision' AS code_identity_revision,
+              c.id, c.name, c.status,to_jsonb(c) AS code_identity
          FROM client_browser_sessions s
          JOIN crm_v2_clients c ON c.id = s.crm_v2_client_id
         WHERE s.token_hash = $1
@@ -183,6 +197,8 @@ function createClientBrowserSessionService({
     if (!row || row.revoked_at || row.status !== 'active' || !Number.isFinite(new Date(row.expires_at).getTime()) || new Date(row.expires_at).getTime() <= current.getTime()) {
       return { ok: false, code: 'CLIENT_SESSION_INVALID' };
     }
+    if(row.code_identity_revision && (!row.code_identity?.mobile_verified_at ||
+      require('./clientCodeStore').clientCodeRevision(row.code_identity)!==row.code_identity_revision)) return {ok:false,code:'CLIENT_SESSION_INVALID'};
     await db.query(
       `UPDATE client_browser_sessions
           SET last_used_at = $2
@@ -304,6 +320,7 @@ function createClientBrowserSessionService({
     issueVerifiedPasskeySession,
     issueVerifiedRecoverySession,
     issueVerifiedSmsSession,
+    issueVerifiedPhoneCodeSession,
     issueCrmDetailSession,
     validateSessionToken,
     rotateCsrfToken,

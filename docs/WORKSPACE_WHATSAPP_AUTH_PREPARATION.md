@@ -1,0 +1,123 @@
+# Workspace WhatsApp authentication draft
+
+## Reconciled owner decisions — 17 October 2026, 21:35 SAST
+
+This section supersedes conflicting proposals and undecided-policy statements
+below. Those earlier sections describe the original draft implementation and its
+historical evidence; acceptance of a policy is not evidence of implementation.
+
+| Area | Accepted behavior |
+| --- | --- |
+| Primary channel | WhatsApp code; saved passkey is the convenient optional sign-in method. |
+| SMS | Explicit fallback after confirmed WhatsApp failure or expiry, never an automatic second send. Uncertain delivery must not duplicate an active attempt. Expired/superseded WhatsApp codes must be unusable before fallback. |
+| Staff ceiling | 10 codes per clinic per South African calendar day across WhatsApp and SMS, all staff purposes combined. At most 2 SMS per staff member per day. |
+| Client ceiling | Separate 50-code daily client allowance across both channels; at most 3 codes per client per day, of which at most 1 is SMS. Registration and recovery must count too. |
+| Resend | At least 60 seconds between code requests/sends for a person; channel or purpose changes cannot reset it. Passkey entry works when a code ceiling is exhausted. |
+| Invitations | After each successful sign-in, show optional passkey and notification invitations until the corresponding feature is enabled. Not now dismisses for that sign-in only. Never automatically open a credential or notification permission ceremony; blocked permission shows settings guidance. Do not prompt on every navigation or refresh. |
+| Staff enrollment | A valid current own-account session plus existing-passkey confirmation or a fresh code to the recorded number may add a passkey without administrator approval. Bind proof to account, session, browser and enrollment purpose; recheck canonical identity at completion. |
+| Staff recovery | Lost/stolen-phone replacement remains supervised by Christel/JP. Preserve administrator approval, recorded-phone proof where available, atomic replacement and revocation of old sessions. No-code lost-number recovery needs a separately reviewed identity-check procedure; no automatic bypass. |
+| Staff cutover | Keep current details entry during the pilot; retire it after successful code sign-in, passkey setup and recovery acceptance. Explicitly decide old details-session expiry/re-authentication before cutover; do not revive retired legacy SMS/setup endpoints. |
+| Client registration | Verify the number, collect existing required profile fields and create through canonical CRM registration after conflict checks. Never create public staff accounts. |
+| Client exceptions | Duplicate profiles, shared/changed numbers and lost-account recovery go to Reception, Christel or JP. No automatic CRM merge, record claiming by code alone, or extra email-recovery flow. |
+| Client sessions | Preserve the accepted fixed 30-day client session policy. Staff retain their separate existing session lifetime and permission model. |
+| Release | Build and draft review are authorized. This is not production migration, credential provisioning, deployment or live-message authorization. |
+
+### Implemented continuation — isolated draft only
+
+Staff self-service enrollment now requires a canonical current own-account session
+and either a recent own passkey session or a fresh code to the canonical recorded
+phone. The HTTP entry requires session validation and CSRF. The resulting grant
+binds account, session, browser, purpose and identity revision; the session and
+identity are rechecked through real WebAuthn completion. Ordinary enrollment adds
+a key and preserves access. Supervised recovery retains its independent recent
+passkey administrator, phone proof, atomic replacement and old-session revocation.
+No public staff registration or lost-number bypass exists.
+
+Code dispatch reserves the accepted audience/day/person/channel ceilings in SQL.
+Daily boundaries use Africa/Johannesburg. A durable notBefore schedule preserves
+queued requests through the 60-second cooldown; a restart does not reset it.
+An explicitly requested SMS follows a definite no-send result or an expired code.
+The old code is revoked before SMS dispatch, both sends count, and a pending or
+uncertain delivery cannot create a second active code. Claimed sends are never
+reclaimed. Provider calls are bounded and never automatically retried.
+
+Both staff and client code sign-ins lead to optional invitations. Invitation visits
+are keyed to the issued session: refreshing or navigating does not repeat them,
+while a new sign-in can show them again. Passkey state comes from canonical keys;
+notification state is checked for this account and browser subscription. No visit
+opens a native ceremony. Not now continues; blocked permission explains phone or
+browser settings. Existing app notification controls perform permission changes.
+The welcome endpoints can also be used as the success destination of existing
+passkey sign-in at activation; current production passkey navigation is unchanged.
+
+The separate client composition implements WhatsApp-first sign-in and new-client
+registration with its own cookie, HMAC namespace, encrypted queue, SQL records,
+quotas, sessions and authorization. Its public intake does no identity lookup or
+provider work. A code may sign in only an active registered canonical CRM client
+with one verified mobile owner. Unverified, archived, duplicate and historical
+contact collisions fail closed for Reception/Christel/JP resolution. Code possession
+never upgrades or claims those records.
+
+New-client registration verifies the phone first, then accepts the existing first
+name, surname, birth-date and gender fields. It rechecks all conflicts and creates
+through the canonical CRM registration service inside the same transaction as
+proof consumption and session issuance. It never updates/merges an existing
+profile. Profile grants are one-use and browser/purpose bound. Client sessions
+retain their fixed 30-day deadline; the new sessions bind a canonical identity
+revision so mobile/profile drift invalidates them. Existing sessions are preserved.
+
+`clientCodeRuntime.js` requires an explicitly reviewed distinct client template;
+the Workspace contract cannot silently authorize client sends. That client
+contract has not yet been supplied, so client live readiness remains blocked.
+Both compositions are unmounted and workers start only through explicit calls.
+No production entrypoint imports either runtime. SQL remains review-only in
+`docs/proposed-migrations/`, outside automatic migrations. PR #1475 files are
+untouched. No credentials, live messages, spending, migration or deployment occur.
+
+### Provider evidence and operational boundaries
+
+Authenticated Graph API v26.0 readback on 17 October verified WABA
+1114297824590105, sender 1310303435498156 (+27 83 683 5433), and APPROVED template
+2270342923759541 / shiloh_workspace_verification / exact language en. The non-secret
+fixture retains BODY, FOOTER, URL button, examples and 300-second message TTL.
+The URL carries otp_type=COPY_CODE and code_expiration_minutes=5; no separate
+button otp_type property is required. Every send rechecks exact authenticated
+inventory and sender membership. Fixed HTTPS hosts, bounded bodies/timeouts,
+no redirects and sanitized errors remain enforced. Acceptance is not delivery.
+
+Meta's calculator displayed USD 0.0095 per delivered South African authentication
+message, before tax/FX. SMSMessenger displayed 460 credits and purchase offers of
+R0.29 (50–499), R0.27 (500–1000), R0.25 (1001–5000), excluding 15% VAT; the price
+paid for existing credits was not shown. Daily count ceilings are the accepted
+primary cost control. R20 remains an earlier proposal, not a forecast or activated
+money cap. The old SMS credential entries remain; inspected Render configuration
+had no Meta API credential entry. No secrets were read, copied or provisioned.
+
+### Verification and release gates
+
+Synthetic tests cover transactional one-use consumption, real WebAuthn,
+canonical changes/revocation, concurrent requests, cooldown/restart/expiry,
+uncertain outcomes, shared ceilings, registration conflicts, cookie/CSRF/origin
+boundaries and session-scoped invitations. Both SQL suites run on isolated
+PostgreSQL 17 as well as PGlite; no production database is used. Storybook and
+phone/desktop Playwright/axe checks cover both audiences and invitation screens;
+actual screenshots must be inspected. Tests do not prove physical-device or live
+delivery acceptance. Exact published-head CI remains required before review.
+
+Before activation: review operational query plans/contention/cleanup and worker
+hosting; approve/configure the distinct client template; securely provision the
+reviewed provider/key configuration; promote/execute reviewed SQL; wire all
+successful sign-in destinations to invitations; approve details-session transition
+and supervised lost-number evidence/audit procedures; and authorize deployment
+with a rollback plan. Keeping current details entry during the pilot does not
+retain a permanent bypass. Do not revive retired SMS/bootstrap/generic senders.
+
+Proposed owner acceptance uses one designated staff identity and another authorized
+administrator, a disposable passkey, and at most three WhatsApp messages (sign-in,
+add, supervised recovery), after explicit recipient/time/spend authorization.
+Confirm existing access first and replacement consequences before recovery.
+SMS and client sends require separately bounded allowances. Verify actual receipt,
+Copy code, one-use rejection, passkey addition and supervised replacement. Stop
+on wrong recipient, contract mismatch, unexpected cost or access regression;
+disable the new channel and verify rollback access. Record provider acceptance,
+actual receipt and owner acceptance separately. No live send is authorized here.

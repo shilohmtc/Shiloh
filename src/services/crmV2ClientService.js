@@ -283,7 +283,7 @@ function createCrmV2ClientService({ repository = new PostgresCrmV2ClientReposito
     return recordVerifiedMobileInteraction({ ...options, channel: 'sms' });
   }
 
-  async function registerWhatsAppClient({ senderMobile, name, dateOfBirth, gender, occurredAt } = {}) {
+  async function registerVerifiedMobileClient({ senderMobile, name, dateOfBirth, gender, occurredAt, channel } = {}) {
     const normalizedMobile = normalizeMobile(senderMobile);
     const cleanName = normalizeName(name);
     if (!normalizedMobile) throw new CrmV2Error('CRM_V2_INVALID_MOBILE', 'Inbound sender mobile is not valid.');
@@ -309,8 +309,8 @@ function createCrmV2ClientService({ repository = new PostgresCrmV2ClientReposito
             mobileVerifiedAt: nextVerifiedAt,
             provenance: {
               ...(current.provenance || {}),
-              registrationCompleted: { via: 'whatsapp', at: verifiedAt },
-              lastVerifiedWhatsAppInteraction: { at: nextVerifiedAt },
+              registrationCompleted: { via: channel === 'sms' ? 'sms_code' : 'whatsapp', at: verifiedAt },
+              [channel === 'sms' ? 'lastVerifiedSmsCode' : 'lastVerifiedWhatsAppInteraction']: { at: nextVerifiedAt },
             },
           });
           return { status: current.profile_status === PROFILE_STATUS.MINIMAL ? 'registered' : 'updated', client: publicClient(updated) };
@@ -322,12 +322,12 @@ function createCrmV2ClientService({ repository = new PostgresCrmV2ClientReposito
           gender: normalizedGender,
           profileStatus: PROFILE_STATUS.REGISTERED,
           mobileVerifiedAt: verifiedAt,
-          source: 'whatsapp',
+          source: channel === 'sms' ? 'my_shiloh_crm' : 'whatsapp',
           status: CLIENT_STATUS.ACTIVE,
           provenance: {
-            createdVia: 'whatsapp',
-            registrationCompleted: { via: 'whatsapp', at: verifiedAt },
-            lastVerifiedWhatsAppInteraction: { at: verifiedAt },
+            createdVia: channel === 'sms' ? 'my_shiloh_sms_code' : 'whatsapp',
+            registrationCompleted: { via: channel === 'sms' ? 'sms_code' : 'whatsapp', at: verifiedAt },
+            [channel === 'sms' ? 'lastVerifiedSmsCode' : 'lastVerifiedWhatsAppInteraction']: { at: verifiedAt },
           },
         });
         return { status: 'created', client: publicClient(created) };
@@ -336,6 +336,14 @@ function createCrmV2ClientService({ repository = new PostgresCrmV2ClientReposito
       if (error?.code === '23505') return { status: 'conflict', normalizedMobile, clientIds: [] };
       throw error;
     }
+  }
+
+  async function registerWhatsAppClient(options = {}) {
+    return registerVerifiedMobileClient({ ...options, channel: 'whatsapp' });
+  }
+
+  async function registerSmsCodeClient(options = {}) {
+    return registerVerifiedMobileClient({ ...options, channel: 'sms' });
   }
 
   return {
@@ -349,6 +357,7 @@ function createCrmV2ClientService({ repository = new PostgresCrmV2ClientReposito
     recordVerifiedWhatsAppInteraction,
     recordVerifiedSmsInteraction,
     registerWhatsAppClient,
+    registerSmsCodeClient,
   };
 }
 
