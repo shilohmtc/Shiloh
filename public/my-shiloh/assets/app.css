@@ -63,8 +63,8 @@ button{color:inherit}
 .brand-mark svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
 .brand-mark--large{width:64px;height:64px;border-radius:20px}
 .network-banner{margin:10px 16px 0;padding:10px 13px;border-radius:12px;background:#fff2d8;color:#664b24;font-size:12px;font-weight:750}
-.app-update-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 16px 0;padding:12px 13px;border:1px solid rgba(70,87,70,.14);border-radius:15px;background:var(--sage-2);box-shadow:0 8px 22px rgba(48,61,52,.08)}
-.app-update-banner[hidden]{display:none!important}.app-update-banner div{min-width:0}.app-update-banner strong,.app-update-banner span{display:block}.app-update-banner strong{font-size:12px;color:var(--leaf-dark)}.app-update-banner span{margin-top:2px;font-size:11px;color:#4f5d56}.app-update-banner .button{flex:0 0 auto;min-height:42px;padding:8px 13px}
+.app-update-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 16px 0;padding:10px 12px;border:1px solid rgba(70,87,70,.14);border-radius:15px;background:var(--sage-2);box-shadow:0 8px 22px rgba(48,61,52,.08)}
+.app-update-banner[hidden]{display:none!important}.app-update-banner div{min-width:0;flex:1 1 9rem}.app-update-banner strong,.app-update-banner span{display:block}.app-update-banner strong{font-size:12px;color:var(--leaf-dark)}.app-update-banner span{margin-top:2px;font-size:11px;color:#4f5d56}.app-update-banner .button{flex:0 0 auto;min-height:42px;padding:8px 13px}
 .app-main{padding:10px 18px calc(112px + var(--safe-bottom))}
 .view{animation:viewIn .32s ease both}
 @keyframes viewIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
@@ -382,7 +382,7 @@ h3{font-size:20px;line-height:1.12}
 .notification-settings [data-push-status]:empty{display:none}
 .notification-centre{margin:24px 0}.notification-centre__list{display:grid;gap:10px}.notification-centre__item{display:grid;gap:4px;padding:14px 16px;border:1px solid #dfe6e1;border-radius:15px;background:#fff;text-decoration:none;box-shadow:0 5px 18px rgba(29,51,42,.05)}.notification-centre__item strong{color:var(--leaf-dark);font-size:14px}.notification-centre__item span{color:var(--muted);font-size:12px;line-height:1.45}.notification-centre__empty{margin:0;padding:14px 16px;border:1px dashed #c8d2cc;border-radius:15px;color:var(--muted);font-size:12px}
 .notification-centre__row{display:grid;gap:4px;padding:0 0 4px;border:1px solid #dfe6e1;border-radius:15px;background:#fff;box-shadow:0 5px 18px rgba(29,51,42,.05)}.notification-centre__row .notification-centre__item{border:0;box-shadow:none;padding-bottom:4px}.notification-centre__archive,.notification-centre__toggle{min-height:44px;padding:10px 16px;border:0;background:transparent;color:var(--leaf-dark);font:inherit;font-size:13px;font-weight:700;text-decoration:underline;cursor:pointer}.notification-centre__archive{justify-self:start}.notification-centre__toggle{margin-top:8px}.notification-centre__row a:focus-visible,.notification-centre__archive:focus-visible,.notification-centre__toggle:focus-visible{outline:3px solid var(--leaf-dark);outline-offset:2px}
-@media(max-width:480px){.app-update-banner{align-items:stretch;flex-direction:column}.app-update-banner .button{width:100%}}
+@media(max-width:360px){.app-update-banner{align-items:stretch;flex-direction:column}.app-update-banner div{flex-basis:auto}.app-update-banner .button{width:100%}}
 
 .booking-proposal-controls { grid-column: 1 / -1; min-width: 0; }
 .booking-proposal-controls p { margin: 0 0 12px; }
