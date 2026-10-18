@@ -270,8 +270,11 @@ and deployment settings must be rechecked at execution time.
 
 ### Owner inputs and distinct execution authority still needed
 
-- Name the staff tester and independent authorized administrator; confirm whether
-  the test subject can safely undergo full recovery revocation. Verify numbers
+- Owner selected **Christel as staff tester and JP as the separate recovery
+  administrator** on 18 October. Verify their canonical accounts, current access,
+  recorded number and JP's independent required permissions before the pilot;
+  names alone do not establish authorization in the application. Confirm whether
+  Christel can safely undergo full recovery revocation. Verify numbers
   through the application, not secret/code exchange in chat.
 - Agree a test window and total monetary cap, with at most three WhatsApp messages;
   keep SMS/client sends out unless separately bounded.
