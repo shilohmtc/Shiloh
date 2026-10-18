@@ -1,5 +1,62 @@
 # Workspace WhatsApp authentication
 
+## Accepted ongoing staff rollout — 18 October 2026
+
+This section supersedes the Christel-only pilot scope below. The owner confirmed
+saved-passkey sign-in and JP sign-in worked, then requested access for everyone.
+"Everyone" here means existing active Workspace accounts with their established
+permissions, active linked Staff when applicable, and a unique valid recorded
+South African mobile. It does not grant roles, provision accounts, or include CRM
+clients. Staff details, installed apps, saved passkeys and existing sessions stay
+working. SMS, recovery and administrator-mediated setup remain off; authenticated
+staff can add their own passkey using fresh bound proof.
+
+The owner chose **R5 estimated app allowance for the whole clinic per 24 hours**,
+reserving R1 per WhatsApp attempt. Preserve the existing anchored 24-hour spend
+bucket and its usage on cutover/restart; do not reset it or rotate the HMAC key.
+The existing ten codes per South African calendar day across the clinic and ten
+per person remain additional ceilings. Thus R5 permits at most five new reserved
+attempts in a fresh spend window; earlier pilot reservations count too. It is not
+a guarantee of Meta's invoiced charges. No automatic live test messages or retries.
+Saved-passkey sign-ins consume no WhatsApp allowance. Staff sessions currently
+expire eight hours after authentication, not 30 days; the 30-day setting belongs
+to My Shiloh client sessions. This release does not change session lifetimes.
+
+Implementation is default off. `SHILOH_WORKSPACE_WHATSAPP_STAFF_ENABLED=true`
+selects the strict `SHILOH_WORKSPACE_WHATSAPP_STAFF_MANIFEST`, containing `staff`
+with `audience: active_workspace_accounts`, a stable scope ID and an explicit
+zoned `startsAt`, plus the reviewed template, sender/API and budget fields.
+There is no pilot end time in this ongoing mode. Both pilot and staff flags true
+fail closed before database/provider work. Preserve the existing secret/token.
+Startup checks schema, canonical eligibility and fresh authenticated Meta template
+and sender inventory. Ineligible accounts are reported privately by ID/name/reason
+without full phones or authentication material; eligibility is revalidated for
+every send and continuation. New eligible canonical accounts need no static list.
+
+After exact-head checks and deployment, atomically save the staff manifest and
+staff flag true with pilot flag false, using a merging Render environment update.
+That API save can trigger its own deployment: follow it rather than triggering a
+duplicate. Verify deployed SHA, private startup readiness, unchanged migration
+ledger, health and preserved public entry paths. No migration is needed. Owner
+initiates any actual code/passkey check. Any blocked account needs correction of
+its existing canonical record by established authorities, never a new access grant.
+
+Records/queues/grants are bound to the selected mode's scope. Staff workers ignore
+pilot/legacy queue rows, and neither mode can complete the other's challenges or
+grants. Pilot mode alone accepts legacy unscoped pilot records. Daily quota,
+cooldown, uncertain-send and spending keys remain shared and unchanged. Rollback:
+disable staff flag to close only WhatsApp; retain schema migration 197, existing
+sessions/credentials, stable scopes and all counters. A reviewed pilot reversion
+must still satisfy its original expiry and lifetime caps; never replay staff
+queue rows through it or reset allowances.
+
+**Status:** implemented locally; 12 ongoing-staff regressions and 47 existing
+pilot/release/integration tests pass. Phone/desktop production-backed Storybook
+and navigation proof passed for two synthetic accounts with no automatic sends
+or ceremonies, and axe accessibility checks passed. Exact-head release checks
+are pending; wider staff access is not yet deployed or activated. Device acceptance above is owner-reported
+pilot evidence, not proof that all staff have completed enrollment.
+
 ## Authorized staff release — 18 October 2026
 
 This section supersedes earlier draft-only execution boundaries and readiness
@@ -156,7 +213,7 @@ untouched. No credentials, live messages, spending, migration or deployment occu
 ### Provider evidence and operational boundaries
 
 Authenticated Graph API v26.0 readback on 17 October verified WABA
-1114297824590105, sender 1310303435498156 (+27 83 683 5433), and APPROVED template
+1114297824590105, sender 1310303435498156 (canonical business sender; full number omitted), and APPROVED template
 2270342923759541 / shiloh_workspace_verification / exact language en. The non-secret
 fixture retains BODY, FOOTER, URL button, examples and 300-second message TTL.
 The URL carries otp_type=COPY_CODE and code_expiration_minutes=5; no separate

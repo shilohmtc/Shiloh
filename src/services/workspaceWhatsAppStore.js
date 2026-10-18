@@ -30,13 +30,15 @@ function createWorkspaceWhatsAppStore({ db, randomBytes = crypto.randomBytes } =
           await client.query(`INSERT INTO workspace_whatsapp_dispatch(request_hash,expires_at,payload)
             VALUES($1,$2,$3::jsonb)`, [row.requestHash, row.expiresAt, JSON.stringify(row)]);
         },
-        async claimDispatch(current) {
+        async claimDispatch(current,scope=null) {
+          if(scope && (typeof scope.id!=='string' || !/^[A-Za-z0-9_-]{16,80}$/.test(scope.id) || typeof scope.allowLegacy!=='boolean'))throw Error('Invalid dispatch scope');
           await client.query(`DELETE FROM workspace_whatsapp_dispatch WHERE request_hash IN
             (SELECT request_hash FROM workspace_whatsapp_dispatch WHERE expires_at<=$1 ORDER BY expires_at LIMIT 100)`, [current]);
           const result = await client.query(`SELECT request_hash,payload FROM workspace_whatsapp_dispatch
             WHERE payload->>'state'='queued' AND expires_at>$1
+              AND ($2::text IS NULL OR payload->>'accessScope'=$2 OR ($3::boolean AND payload->>'accessScope' IS NULL))
               AND (payload->>'notBefore' IS NULL OR (payload->>'notBefore')::timestamptz <= $1)
-            ORDER BY queued_at,request_hash LIMIT 1 FOR UPDATE`, [current]);
+            ORDER BY queued_at,request_hash LIMIT 1 FOR UPDATE`, [current,scope?.id||null,scope?.allowLegacy===true]);
           const row = result.rows[0];
           if (!row) return null;
           // Never reclaim a claimed attempt. Keep encrypted input only until

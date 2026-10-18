@@ -5,6 +5,7 @@ function render(admin=false,smsFallback=false,recoveryEnabled=true) {
   return `<style>${html.match(/<style>([\s\S]*?)<\/style>/)[1]}</style>${html.match(/<body>([\s\S]*?)<\/body>/)[1]}`;
 }
 export const SignIn={render:()=>render()};
+export const ActiveWorkspaceStaff={render:()=>render(false,false,false)};
 export const BoundedStaffPilot={render:()=>render(false,false,false)};
 export const AdministratorApproval={render:()=>render(true)};
 
