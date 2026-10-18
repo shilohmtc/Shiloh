@@ -96,3 +96,33 @@ test('staff navigation and enrollment use details instead of devices and SMS', (
   assert.doesNotMatch(onboarding, /SMS setup|Ready for device setup/);
   assert.doesNotMatch(bootstrapAwareSigninScript(env), /SMS device setup|Devices & sign-in|private setup link|fresh setup link/);
 });
+
+test('My passkeys navigates an active WhatsApp session to fresh-proof enrollment without opening legacy mutations', async t => {
+  let active = true, session = { ok:true,sessionId:17,adminId:42,authMethod:'workspace_whatsapp' }, lists = 0;
+  const app = express();
+  app.use(express.json());
+  app.use('/calendar/staff-auth/passkeys', createStaffPasskeyAuthRouter({env,
+    sessionService:{validateSessionToken:async()=>session,validateCsrfToken:()=>true},
+    bootstrapService:{},whatsappEnrollmentAvailable:()=>{if(active==='error')throw Error('unavailable');return active;},
+    passkeyService:{
+      listCredentials:async()=>{lists++;return ['staff_details','passkey'].includes(session.authMethod)?{ok:true,credentials:[]}:{ok:false,code:'STAFF_AUTH_FORBIDDEN'};},
+      beginRegistration:async()=>({ok:false,code:'STAFF_RECENT_STRONG_AUTH_REQUIRED'}),
+    },
+  }));
+  const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
+  t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const origin=`http://127.0.0.1:${server.address().port}`;
+  const get=()=>fetch(origin+'/calendar/staff-auth/passkeys/manage?next=https://other.example/',{redirect:'manual'});
+  const response=await get();assert.equal(response.status,302);
+  assert.equal(response.headers.get('location'),'/calendar/staff-auth/whatsapp/enroll');
+  assert.match(response.headers.get('cache-control'),/no-store/);assert.equal(lists,0);
+  const mutation=await fetch(origin+'/calendar/staff-auth/passkeys/registration/options',{method:'POST',
+    headers:{Origin:origin,'Content-Type':'application/json'},body:'{}'});
+  assert.equal(mutation.status,428);
+  for(const state of [false,'error']){active=state;assert.equal((await get()).status,403);}
+  active=true;
+  for(const method of ['staff_details','passkey']){session={...session,authMethod:method};assert.equal((await get()).status,200);}
+  session={...session,authMethod:'workspace_sms'};assert.equal((await get()).status,403);
+  session={...session,authMethod:'workspace_whatsapp',recoveryRequired:true};assert.equal((await get()).status,403);
+  session={ok:false};assert.equal((await get()).status,401);
+});

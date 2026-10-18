@@ -86,7 +86,8 @@ router.use(createWorkspacePwaHtmlMiddleware());
 router.use('/pwa', createWorkspacePwaRouter({ sessionService: staffBrowserSessionService }));
 router.use('/staff-auth/passkeys', createStaffPasskeyBootstrapRouter());
 router.use('/staff-auth/passkeys', createStaffPasskeyAuthRouter({ sessionService: staffBrowserSessionService,
-  successDestination:workspaceWhatsAppRelease.passkeySuccessDestination }));
+  successDestination:workspaceWhatsAppRelease.passkeySuccessDestination,
+  whatsappEnrollmentAvailable:()=>workspaceWhatsAppRelease.status().enabled }));
 router.use('/staff-auth/details', require('./staffDetailAuth').createStaffDetailAuthRouter());
 router.use('/staff-auth', createStaffBrowserSessionRouter({ service: staffBrowserSessionService }));
 router.use('/check-in', createClinicIpadSetupRouter({ sessionService:staffBrowserSessionService }));

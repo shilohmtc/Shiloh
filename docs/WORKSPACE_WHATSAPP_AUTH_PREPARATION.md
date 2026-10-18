@@ -420,3 +420,10 @@ and deployment settings must be rechecked at execution time.
 ### Workspace sign-in entry (18 October 2026)
 
 Owner requested the WhatsApp option inside Workspace after the bounded pilot opened. The normal `/calendar/staff` sign-in page now offers **Sign in with WhatsApp**, linking to the existing staff code page only when the production channel reports enabled at render time. The state is checked on each uncached page request; disabled, unavailable and expired channels omit the link. Navigation never starts the pilot or sends a code. Staff-details and saved-passkey entry remain available. The existing backend still owns participant eligibility, the original pilot window and durable limits. This interface change does not extend the pilot, activate clients, SMS or recovery, or establish physical-device acceptance.
+
+
+### WhatsApp-session passkey navigation correction (18 October 2026)
+
+Owner confirmed physical code delivery and successful WhatsApp sign-in, then reported Forbidden from My passkeys. Production request d2cbdc29-de2e-4dd7-8837-82595a4dff44 matches GET `/calendar/staff-auth/passkeys/manage` returning 403 at 13:06:22 UTC. The legacy optional-key authority intentionally accepts staff-details/passkey sessions, not the new code session; it must not be broadened to bypass fresh enrollment proof.
+
+While the live pilot reports enabled, My passkeys now redirects a valid, non-recovery WhatsApp session to the existing `/calendar/staff-auth/whatsapp/enroll` flow. The destination remains fixed, private and uncached. Disabled/expired pilots, unavailable lookups, invalid sessions, SMS sessions and recovery-required sessions retain existing guards. No legacy mutation authority changes. Enrollment still requires the canonical own session, CSRF, fresh proof, browser/purpose/identity binding and explicit native passkey ceremony, within the original current pilot allowance/window. No codes are sent on navigation. Existing keys and sessions remain intact. Passkey device acceptance remains pending; this fix does not extend the pilot or replenish codes.
