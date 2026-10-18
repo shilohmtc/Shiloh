@@ -33,19 +33,20 @@ function createWorkspaceWhatsAppPilotPolicy(input = {}, whatsappCostMinor) {
   });
 }
 
-// Inactive application adapter. No production entrypoint imports/mounts/starts
-// it. The release composition must inject all authorities and call mount/start.
+// Default-off application adapter. The production release composition injects
+// all authorities and explicitly owns mount/start/stop.
 // Constructing it performs no DB/provider I/O and installs no process listeners.
 function createWorkspaceWhatsAppPilot({enabled=false,pilot={},config={},env={},now=()=>new Date(),...dependencies}={}) {
   config=config && typeof config==='object' && !Array.isArray(config)?config:{};
   env=env && typeof env==='object' && !Array.isArray(env)?env:{};
   const policy=createWorkspaceWhatsAppPilotPolicy(pilot,config.budgets?.whatsappCostMinor);
   const configured=enabled===true && policy.valid && passkeyPolicy(env).operational;
-  let active=false,closed=false,mounted=false,state=configured?'idle':'disabled';
+  let active=false,closed=false,mounted=false,preflight=false,state=configured?'idle':'disabled';
   let controller,task,startPromise;
   const runtime=createWorkspaceWhatsAppRuntime({...dependencies,enabled:configured,
     config:{...config,smsFallbackEnabled:false},smsCredentials:{},env,now,accessPolicy:policy,
-    isEnabled:()=>active && !closed && policy.withinWindow(now())});
+    isEnabled:()=>active && !closed && policy.withinWindow(now()),
+    allowProviderRead:()=>preflight && !closed && policy.withinWindow(now())});
   const status=()=>({state:active && !policy.withinWindow(now())?'expired':state,
     enabled:runtime.service.enabled(),smsEnabled:false});
   function mount(app) {
@@ -63,6 +64,13 @@ function createWorkspaceWhatsAppPilot({enabled=false,pilot={},config={},env={},n
       const result=await runtime.prepare();
       if(!result.ok || closed) {state=closed?'stopped':'unavailable';return closed?{ok:false,code:'PILOT_STOPPED'}:result;}
       if(!policy.withinWindow(now())) {state='expired';return {ok:false,code:'PILOT_OUTSIDE_WINDOW'};}
+      preflight=true;
+      let provider;
+      try {provider=await runtime.checkProvider();} catch (_) {provider=null;}
+      finally {preflight=false;}
+      if(closed){state='stopped';return {ok:false,code:'PILOT_STOPPED'};}
+      if(!policy.withinWindow(now())) {state='expired';return {ok:false,code:'PILOT_OUTSIDE_WINDOW'};}
+      if(!provider?.ready){state='unavailable';return {ok:false,code:'PILOT_PROVIDER_UNREADY'};}
       controller=new AbortController();active=true;state='running';
       task=runtime.worker.run({signal:controller.signal}).then(result=>{
         active=false;state=closed?'stopped':!policy.withinWindow(now())?'expired':'unavailable';

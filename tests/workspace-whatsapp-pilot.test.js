@@ -28,7 +28,11 @@ function adapter(h,overrides={}) {
   return createWorkspaceWhatsAppPilot({enabled:true,pilot:pilotOptions(),db:h.db,sessions:h.sessions,hmacKey:Buffer.alloc(32,7),env:h.env,now:h.now,
     config:{template,wabaId:'456',phoneNumberId:'789',apiVersion:'v99.0',budgets,smsFallbackEnabled:true},
     metaCredentials:{accessToken:'synthetic-only'},workerOptions:{pollMs:100,batchSize:1},
-    fetchImpl:async()=>{throw Error('Unexpected synthetic provider call');},...overrides});
+    fetchImpl:async url=>{
+      if(url.includes('/phone_numbers'))return new Response(JSON.stringify({data:[{id:'789'}]}));
+      if(url.includes('/message_templates'))return new Response(JSON.stringify({data:[{...template,status:'APPROVED'}]}));
+      throw Error('Unexpected synthetic message call');
+    },...overrides});
 }
 async function serve(t,pilot) {
   const app=express();assert.equal(pilot.mount(app).ok,true);assert.equal(pilot.mount(app).ok,false);
@@ -218,7 +222,7 @@ test('stop during the final inventory read prevents a message POST from starting
     if(url.includes('/phone_numbers'))return new Response(JSON.stringify({data:[{id:'789'}]}));
     if(url.includes('/message_templates')) {
       inventories++;
-      if(inventories===2)await new Promise(r=>{release=r;});
+      if(inventories===3)await new Promise(r=>{release=r;});
       return new Response(JSON.stringify({data:[{...template,status:'APPROVED'}]}));
     }
     messages++;return new Response(JSON.stringify({messages:[{id:'wamid.synthetic'}]}));
@@ -226,6 +230,6 @@ test('stop during the final inventory read prevents a message POST from starting
   const http=await serve(t,p);await p.start();
   const page=await http.get(BASE+'/'),cookie=page.headers.get('set-cookie').split(';')[0];await page.text();
   assert.equal((await http.post('/start',{purpose:'signin',mobile:h.context.mobile},cookie)).status,200);
-  await eventually(()=>inventories===2);const stopping=p.stop();release();await stopping;
+  await eventually(()=>inventories===3);const stopping=p.stop();release();await stopping;
   assert.equal(messages,0);assert.equal(p.status().enabled,false);
 });

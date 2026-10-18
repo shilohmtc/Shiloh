@@ -15,10 +15,12 @@
   const treatmentCopyStatus = document.querySelector('[data-copy-treatment-status]');
   const websiteTreatmentForm = document.querySelector('[data-website-treatment-form]');
   const installEyebrow = document.querySelector('[data-install-eyebrow]');
+  const installBrowserChoice = document.querySelector('[data-install-browser-choice]');
+  const installBrowser = document.querySelector('[data-install-browser]');
+  const installBrowserNote = document.querySelector('[data-install-browser-note]');
+  const installSteps = document.querySelector('[data-install-steps]');
   const installTitle = document.querySelector('[data-install-title]');
   const installLead = document.querySelector('[data-install-lead]');
-  const installStepTitles = [...document.querySelectorAll('[data-install-step-title]')];
-  const installStepCopies = [...document.querySelectorAll('[data-install-step-copy]')];
   const installStepExtra = document.querySelector('[data-install-step-extra]');
   const installTip = document.querySelector('[data-install-tip]');
   const clientGreeting = document.querySelector('[data-client-greeting]');
@@ -86,6 +88,7 @@
       if (Array.isArray(stored)) archivedUpdateIds = new Set(stored.filter(id => typeof id === 'string').slice(-100));
     } catch (_) {}
   }
+  let chosenInstallBrowser = '';
   let deferredInstallPrompt = null;
   let authActionInFlight = false;
   let passkeyEnrollBusy = false;
@@ -274,12 +277,12 @@
         installGateCopy.textContent = isIosGoogleApp()
           ? 'You’re in the Google app. Open My Shiloh in Safari or Chrome first. Check that the address says app.shilohmtc.co.za before adding it to your Home Screen.'
           : isIosSafari()
-          ? 'You’re in Safari. Add My Shiloh to your Home Screen in three quick steps.'
+          ? 'You’re in Safari. Add My Shiloh to your Home Screen.'
           : isIosChrome()
             ? 'You’re in Chrome. Use Share to add My Shiloh to your Home Screen.'
             : 'Use your browser’s Share menu to add My Shiloh to your Home Screen.';
       }
-      if (installGateAction) installGateAction.textContent = 'Install My Shiloh';
+      if (installGateAction) installGateAction.textContent = 'Show iPhone steps';
       return;
     }
 
@@ -311,6 +314,7 @@
     icon.setAttribute('aria-hidden', 'true');
     icon.setAttribute('focusable', 'false');
     icon.classList.add('install-share-icon');
+    if (isIos()) icon.classList.add('install-share-highlight');
     path.setAttribute('d', 'M12 15V3m0 0-4 4m4-4 4 4M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8');
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke', 'currentColor');
@@ -331,7 +335,7 @@
     icon.setAttribute('focusable', 'false');
     icon.classList.add('install-share-icon', `install-${kind}-icon`);
     path.setAttribute('d', kind === 'page-menu'
-      ? 'M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 5h10M7 12h10M7 15h6'
+      ? 'M4 6h16M4 12h16M4 18h10.5'
       : 'M6 3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3Zm6 5v8m-4-4h8');
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke', 'currentColor');
@@ -343,21 +347,21 @@
   }
 
   function setInstallStep(index, title, copy) {
-    const titleNode = installStepTitles.find((node) => node.dataset.installStepTitle === String(index));
-    const copyNode = installStepCopies.find((node) => node.dataset.installStepCopy === String(index));
+    const titleNode = document.querySelector(`[data-install-step-title="${index}"]`);
+    const copyNode = document.querySelector(`[data-install-step-copy="${index}"]`);
     if (titleNode) {
       titleNode.textContent = title;
-      if (/^Tap Share/.test(title)) {
+      if (/^Tap (?:Share|this Share icon)/.test(title)) {
         titleNode.textContent = '';
-        titleNode.append(shareIcon(), document.createTextNode(' Tap Share'));
-      } else if (title === 'Open Safari’s page menu' || title === 'Choose Add to Home Screen') {
+        titleNode.append(shareIcon(), document.createTextNode(` ${title}`));
+      } else if (title === 'Open Safari’s Page Menu' || title === 'Choose Add to Home Screen') {
         titleNode.textContent = '';
-        titleNode.append(installGuideIcon(title === 'Open Safari’s page menu' ? 'page-menu' : 'add-home'), document.createTextNode(` ${title}`));
+        titleNode.append(installGuideIcon(title === 'Open Safari’s Page Menu' ? 'page-menu' : 'add-home'), document.createTextNode(` ${title}`));
       }
     }
     if (copyNode) {
       copyNode.textContent = copy;
-      if (title === 'Open Safari’s page menu') {
+      if (title === 'Open Safari’s Page Menu') {
         const splitAt = copy.indexOf('Share');
         const before = copy.slice(0, splitAt);
         const after = copy.slice(splitAt + 'Share'.length);
@@ -376,40 +380,39 @@
 
   function renderInstallGuide() {
     resetInstallGuideExtras();
+    if (installEyebrow) installEyebrow.hidden = isIos();
+    if (installBrowserChoice) installBrowserChoice.hidden = !isIos();
+    if (installBrowserNote) installBrowserNote.hidden = !isIos();
+    if (installSteps) installSteps.hidden = false;
 
-    if (isIosGoogleApp()) {
-      if (installEyebrow) installEyebrow.textContent = 'Install My Shiloh on iPhone';
-      if (installTitle) installTitle.textContent = 'Open in your browser first.';
-      if (installLead) installLead.textContent = 'Use Safari or Chrome. The address must say app.shilohmtc.co.za, not share.google.';
-      setInstallStep(1, 'Open in Safari or Chrome', 'Use Open in browser in the Google app’s Share menu.');
-      setInstallStep(2, 'Check the address', 'If you see share.google, enter app.shilohmtc.co.za/my-shiloh/ in your browser.');
-      setInstallStep(3, 'Tap Share', 'Choose Add to Home Screen in your browser’s Share menu.');
-      if (installStepExtra) installStepExtra.hidden = false;
-      setInstallStep(4, 'Tap Add', 'If offered, turn on Open as Web App. Then open the new My Shiloh icon.');
-      return;
-    }
-
-    if (isIos() && !isIosSafari()) {
-      if (installEyebrow) installEyebrow.textContent = 'Install My Shiloh on iPhone';
-      if (installTitle) installTitle.textContent = 'Three quick steps.';
-      if (installLead) {
-        installLead.textContent = isIosChrome()
-          ? 'You can add My Shiloh straight from Chrome — no App Store download is needed.'
-          : 'Use your browser’s Share menu — no App Store download is needed.';
+    if (isIos()) {
+      const detected = isIosChrome() ? 'chrome' : isIosSafari() ? 'safari' : '';
+      const browser = chosenInstallBrowser || detected;
+      const browserName = browser === 'chrome' ? 'Chrome' : 'Safari';
+      if (installBrowser) installBrowser.value = browser;
+      if (installTitle) installTitle.textContent = 'Add My Shiloh to your iPhone.';
+      if (installLead) installLead.textContent = 'You won’t find it in the App Store. Add it from Safari or Chrome.';
+      if (installBrowserNote) installBrowserNote.textContent = isIosGoogleApp()
+        ? 'Open in your browser first, not in the Google app. Choose Safari or Chrome for the next steps.'
+        : browser ? (browser === detected ? `${browserName} steps. Pictures are guides, not buttons.` : `Open this page in ${browserName} first. Pictures are guides, not buttons.`)
+          : 'Choose Safari or Chrome to see the right steps.';
+      if (typeof window.ShilohIphoneInstallGuide === 'function') {
+        window.ShilohIphoneInstallGuide(installSteps, browser, { appName: 'My Shiloh', handoff: isIosGoogleApp() });
+        installSteps.hidden = !browser && !isIosGoogleApp();
+      } else {
+        // Retain basic browser help if the presentation asset could not load.
+        if (isIosGoogleApp()) {
+          setInstallStep(1, 'Open in Safari or Chrome', 'Use Open in browser in the Google app’s Share menu.');
+          setInstallStep(2, 'Open My Shiloh', 'If you see share.google, enter app.shilohmtc.co.za/my-shiloh/ in your browser.');
+          setInstallStep(3, 'Choose Add to Home Screen', 'Open Share in your browser. Use View More if shown, then scroll down.');
+          if (installStepExtra) installStepExtra.hidden = false;
+          setInstallStep(4, 'Tap Add', 'If you see Open as Web App, leave it switched on.');
+        } else {
+          setInstallStep(1, 'Open your browser’s Share menu', 'In Safari, open Page Menu first if needed.');
+          setInstallStep(2, 'Choose Add to Home Screen', 'Use View More if shown, then scroll down.');
+          setInstallStep(3, 'Tap Add', 'If you see Open as Web App, leave it switched on.');
+        }
       }
-      setInstallStep(1, 'Tap Share', isIosChrome() ? 'Use the Share button beside the address bar.' : 'Use your browser’s Share button.');
-      setInstallStep(2, 'Choose Add to Home Screen', 'Scroll if you do not see it straight away.');
-      setInstallStep(3, 'Tap Add', 'My Shiloh will appear on your Home Screen.');
-      return;
-    }
-
-    if (isIosSafari()) {
-      if (installEyebrow) installEyebrow.textContent = 'Install My Shiloh on iPhone';
-      if (installTitle) installTitle.textContent = 'Three quick steps.';
-      if (installLead) installLead.textContent = 'Stay in Safari — no App Store download is needed.';
-      setInstallStep(1, 'Open Safari’s page menu', 'At the bottom, tap the page menu, then Share. If you see a Share button directly, tap it.');
-      setInstallStep(2, 'Choose Add to Home Screen', 'Scroll down the Share list. If missing, use Edit Actions to add it.');
-      setInstallStep(3, 'Turn on Open as Web App, then tap Add', 'My Shiloh will appear on your Home Screen.');
       return;
     }
 
@@ -430,6 +433,11 @@
     setInstallStep(2, 'Choose Add to Home Screen or Install app', 'Your browser will show the installation option.');
     setInstallStep(3, 'Open My Shiloh', 'Tap the new My Shiloh icon on your Home Screen.');
   }
+
+  installBrowser?.addEventListener('change', () => {
+    chosenInstallBrowser = ['safari', 'chrome'].includes(installBrowser.value) ? installBrowser.value : '';
+    renderInstallGuide();
+  });
 
   function openInstallGuide() {
     if (!installSheet) return;

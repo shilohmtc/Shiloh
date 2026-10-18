@@ -29,7 +29,7 @@ test('#837 installed and iPhone paths remain bounded', () => {
   const client = workspacePwaClientScript();
   assert.match(client, /Keep Shiloh close/);
   assert.match(client, /Tap Share/);
-  assert.match(client, /Choose Add to Home Screen/);
+  assert.match(client, /Add to Home Screen/);
   assert.match(client, /appinstalled[\s\S]*removeInstallCard\('\[data-shiloh-browser-install\]'\)[\s\S]*removeInstallCard\('\[data-shiloh-ios-install\]'\)/);
   assert.match(client, /document\.documentElement\.dataset\.shilohPwaMode='standalone'/);
   assert.match(client, /sessionStorage\.setItem\(INSTALL_DISMISS_KEY,'1'\)/);

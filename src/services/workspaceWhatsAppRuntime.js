@@ -38,15 +38,15 @@ function createWorkspaceWhatsAppWorker({service,enabled = false,pollMs = 1000,ba
   return {runOnce,run};
 }
 
-// Isolated composition only. app.js and all existing entrypoints do not import
-// this module. No process.env, global fetch, default database or automatic worker.
+// Explicit composition: no process.env, global fetch, default database or
+// automatic worker. Production supplies those authorities through its adapter.
 function createWorkspaceWhatsAppRuntime({enabled = false,config = {},db,sessions,hmacKey,
   metaCredentials = {},smsCredentials = {},fetchImpl,env = {},workerOptions = {},
-  accessPolicy = null,isEnabled = () => true,now} = {}) {
+  accessPolicy = null,isEnabled = () => true,allowProviderRead = () => false,now} = {}) {
   // Delivery rechecks inventory internally. Gate each actual HTTP request too,
   // so stopping during a read cannot begin a subsequent message POST.
   const gatedFetch=typeof fetchImpl==='function' ? (...args)=>{
-    if(isEnabled()!==true) return Promise.reject(Error('Provider unavailable'));
+    if(isEnabled()!==true && !(allowProviderRead()===true && args[1]?.method==='GET')) return Promise.reject(Error('Provider unavailable'));
     return fetchImpl(...args);
   } : fetchImpl;
   const meta = createWorkspaceMetaProvider({enabled,reviewed:config.template,wabaId:config.wabaId,
@@ -76,7 +76,7 @@ function createWorkspaceWhatsAppRuntime({enabled = false,config = {},db,sessions
       return ready ? {ok:true} : {ok:false,code:'RUNTIME_SCHEMA_UNREADY'};
     } catch (_) { return {ok:false,code:'RUNTIME_SCHEMA_UNREADY'}; }
   }
-  return {prepare,service,router:createWorkspaceWhatsAppRouter({service,sessions,env,enabled,
+  return {prepare,checkProvider:()=>meta.readiness(),service,router:createWorkspaceWhatsAppRouter({service,sessions,env,enabled,
     invitations:configured ? createAuthInvitations({db,audience:'staff'}) : null}),
     worker:createWorkspaceWhatsAppWorker({service,enabled,...workerOptions})};
 }

@@ -1,4 +1,83 @@
-# Workspace WhatsApp authentication draft
+# Workspace WhatsApp authentication
+
+## Authorized staff release — 18 October 2026
+
+This section supersedes earlier draft-only execution boundaries and readiness
+statements below. The owner instructed “please continue until live” and delegated
+the pilot window/cap with “sounds good just continue.” This authorizes necessary
+implementation, exact-head checks, merge, secure setup, controlled staff migration
+and deployment within the following scope. It is not production acceptance.
+
+- Christel is the staff tester; JP is the separate administrator. Canonical IDs,
+  active account status and Christel’s unique valid recorded phone must be read
+  from production before enabling. Names never grant permissions. No permissions
+  are added. Recovery and SMS are forcibly off in the production composition.
+- At most three WhatsApp attempts in one hour starting when activation is ready.
+  The stable scope survives restarts and purpose changes. R5 total estimated app
+  allowance, with R1 reservation per attempt, is a conservative operational bound,
+  not a Meta invoice guarantee. No automatic sends, retries, client/bulk/marketing
+  sends or new infrastructure purchase are authorized. Owner initiates the device
+  tests. Stop after allowance, expiry or any recipient/access/contract discrepancy.
+- Existing staff details, passkeys, sessions and client paths remain available.
+  Client code runtime/schema remain unmounted/unmigrated pending its own template.
+  Staff-details retirement and recovery revocation acceptance remain separate.
+
+The production adapter now shares canonical sessions and a small dedicated database
+pool. Its default is disabled. It mounts the bounded staff router, starts only
+after schema and fresh authenticated Meta inventory/sender checks, and drains its
+worker before shutdown. Missing configuration or failed readiness closes only the
+pilot. Successful saved-passkey entry offers optional invitations only for the
+pilot subject; a hook failure preserves ordinary Workspace entry.
+
+Protected Render keys (never record values here):
+`SHILOH_WORKSPACE_WHATSAPP_PILOT_ENABLED`,
+`SHILOH_WORKSPACE_WHATSAPP_PILOT_MANIFEST`,
+`SHILOH_WORKSPACE_WHATSAPP_META_ACCESS_TOKEN`, and
+`SHILOH_WORKSPACE_WHATSAPP_AUTH_KEY` (a dedicated random 32-byte hex key).
+The bounded manifest contains only pilot IDs/scope/window/caps, reviewed template,
+WABA/sender/API version and explicit ZAR budget reservations. Token/key values do
+not belong in the manifest or Git. The owner must enter the permanent Meta token
+securely in Render using Save only; connected tools cannot retrieve/provision a
+Meta production token. Never send a password, token or verification code in chat.
+
+The first deployment keeps the pilot disabled and temporarily enables
+`SHILOH_WORKSPACE_WHATSAPP_PILOT_INSPECT=true`. Its private deployment log selects
+only candidate canonical identities, active statuses/scopes and last four phone
+digits plus uniqueness count. It does not select credentials or full phones and
+does not grant account IDs. Set inspection false after resolving the explicit IDs.
+External Render database inspection failed because of its existing access policy;
+do not widen that policy. Use this bounded internal read-only diagnostic instead.
+
+Migration `197_workspace_whatsapp_pilot.sql` is the sole authorized pending
+migration. Before the tested merge, save
+`SHILOH_CONTROLLED_RELEASE_MIGRATION=197_workspace_whatsapp_pilot.sql` through
+Render’s merging environment update. API configuration saves do not deploy by
+themselves; main’s automatic deploy runs the existing controlled executor against
+this exact file. It transactionally preserves the old session constraint expression
+and adds staff proof/rate/queue and invitation tables, with five-second lock and
+thirty-second statement limits. Do not run the broad migrator or client SQL. Clear
+the flag after successful ledger verification. Unexpected pending/checksum state
+must fail startup and retain the previously running service.
+
+**Rollback must retain migration 197.** After its ledger row exists, the old
+7d3dec artifact cannot pass startup inventory verification because it lacks that
+file. Disable the pilot and redeploy this schema-compatible release; any reviewed
+forward revert must retain 197 and the additive auth methods. Do not delete ledger
+rows/tables or narrow constraints, replay claimed sends, reset scope/quota, or
+re-enable recovery to repair access. The old running process remains compatible
+with the additive migration, but it is not a restartable rollback artifact.
+
+Local release rehearsal: all 60 isolated PostgreSQL 18 tests and 26 focused
+release/pilot/retirement tests passed. Lint, Storybook, staff/client browser proofs
+and the saved-passkey pilot phone/desktop proof passed with zero axe violations;
+the resulting screenshots were inspected. The complete repository suite and
+exact published-head workflows must finish before merge. No production mutation
+or live message has occurred at this checkpoint. Synthetic tests and API
+acceptance never prove physical receipt, passkey device acceptance or recovery.
+The first owner acceptance uses sign-in and ordinary self-enrollment only; retain
+all existing keys/sessions. Leave the third attempt unused unless needed inside
+the same allowance. No recovery acceptance is implied.
+
 
 ## Reconciled owner decisions — 17 October 2026, 21:35 SAST
 

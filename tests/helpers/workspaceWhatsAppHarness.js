@@ -29,7 +29,8 @@ async function harness(t, options = {}) {
     '111_staff_passkey_auth_v1.sql','112_staff_passkey_auth_v1_production_schema_correction.sql',
     '113_staff_whatsapp_passkey_bootstrap_v1.sql','119_workspace_passkey_device_labels.sql',
     '156_staff_discoverable_passkey_handoff.sql','190_staff_detail_signin.sql']) await pg.exec(fs.readFileSync(`migrations/${file}`,'utf8'));
-  await pg.exec(fs.readFileSync('docs/proposed-migrations/workspace_whatsapp_auth.sql','utf8'));
+  if(options.beforeWorkspaceMigration)await options.beforeWorkspaceMigration(pg);
+  await pg.exec(fs.readFileSync('migrations/197_workspace_whatsapp_pilot.sql','utf8'));
   const current = new Date();
   let clock = new Date(current);
   const advance = ms => { clock=new Date(clock.getTime()+ms); };

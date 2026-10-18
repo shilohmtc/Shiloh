@@ -68,6 +68,9 @@ async function main(){
         await page.screenshot({path:path.join(output,`${label}-storybook.png`),fullPage:true});
         await page.goto(origin+'/storybook/iframe.html?id=workspace-whatsapp-authentication-draft--sms-fallback-enabled&viewMode=story');
         await page.getByRole('button',{name:'Try an SMS code instead',exact:true}).waitFor();
+        // Storybook's accessibility addon owns the same axe instance. Wait for
+        // its current scan before our independent assertions; never overlap runs.
+        await page.waitForFunction(()=>window.axe && !window.axe._running);
         assert.deepEqual((await new AxeBuilder({page}).include('main').analyze()).violations,[]);
         await page.screenshot({path:path.join(output,`${label}-storybook-sms.png`),fullPage:true});
       }

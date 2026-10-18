@@ -228,7 +228,7 @@ async function main() {
     const installPng = path.join(OUT_DIR, 'install-doorway-390x844.png');
     await captureScreenshot(chrome, [`--user-data-dir=${installProfile}`, androidUa, '--window-size=390,844', `--screenshot=${installPng}`, `${origin}/calendar/pwa/install`], installPng);
     const installDom = await chromeRun(chrome, [`--user-data-dir=${installProfile}`, androidUa, '--window-size=390,844', '--virtual-time-budget=1800', '--dump-dom', `${origin}/calendar/pwa/install`]);
-    assert.match(installDom, /<h1>Install Shiloh Workspace<\/h1>/);
+    assert.match(installDom, /<h1 data-workspace-install-title="">Install Shiloh Workspace<\/h1>/);
     assert.match(installDom, /data-workspace-install-doorway/);
     assert.match(installDom, /Open in Chrome/);
     assert.match(installDom, /manifest\.webmanifest\?v=official-brand-v2/);

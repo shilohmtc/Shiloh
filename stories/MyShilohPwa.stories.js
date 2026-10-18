@@ -1,3 +1,4 @@
+import renderIphoneInstallGuide from '../public/my-shiloh/assets/iphone-install-guide.js';
 import presentation from '../src/presentation/myShilohPwa.js';
 import bookingPresentation from '../src/presentation/myShilohBooking.js';
 import couplesBookingPresentation from '../src/presentation/myShilohCouplesBooking.js';
@@ -15,6 +16,7 @@ const catalogue = [
 ];
 
 function productionSurface(client = null, options = {}) {
+  window.ShilohIphoneInstallGuide = renderIphoneInstallGuide;
   const page = renderMyShilohPage({
     whatsappNumber: '27830000000',
     catalogue,
@@ -31,42 +33,6 @@ function productionSurface(client = null, options = {}) {
   return root;
 }
 
-
-function installShareIconMarkup() {
-  return '<svg class="install-share-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M12 15V3m0 0-4 4m4-4 4 4M5 11v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-}
-
-function installGuideIconMarkup(kind) {
-  const path = kind === 'page-menu'
-    ? 'M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm2 5h10M7 12h10M7 15h6'
-    : 'M6 3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3Zm6 5v8m-4-4h8';
-  return `<svg class="install-share-icon install-${kind}-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${path}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-}
-
-function applyInstallStep(surface, index, title, copy) {
-  const number = String(index);
-  const titleNode = surface.querySelector(`[data-install-step-title="${number}"]`);
-  const copyNode = surface.querySelector(`[data-install-step-copy="${number}"]`);
-  if (titleNode) {
-    if (/^Tap Share/.test(title)) titleNode.innerHTML = `${installShareIconMarkup()} Tap Share`;
-    else if (title === 'Open Safari’s page menu') titleNode.innerHTML = `${installGuideIconMarkup('page-menu')} ${title}`;
-    else if (title === 'Choose Add to Home Screen') titleNode.innerHTML = `${installGuideIconMarkup('add-home')} ${title}`;
-    else titleNode.textContent = title;
-  }
-  if (copyNode) {
-    if (title === 'Open Safari’s page menu') {
-      const splitAt = copy.indexOf('Share');
-      const before = copy.slice(0, splitAt);
-      const after = copy.slice(splitAt + 'Share'.length);
-      copyNode.replaceChildren(document.createTextNode(before));
-      const icon = document.createElement('span');
-      icon.innerHTML = installShareIconMarkup();
-      const share = icon.firstElementChild;
-      share.classList.add('install-step-copy-icon');
-      copyNode.append(share, document.createTextNode(`Share${after}`));
-    } else copyNode.textContent = copy;
-  }
-}
 
 function bookingSurface() {
   const page = renderMyShilohBookingPage({
@@ -336,25 +302,20 @@ export const IPhoneInstallGuide = {
     const action = surface.querySelector('[data-install-gate-action]');
     const gateTitle = surface.querySelector('[data-install-gate-title]');
     const gateCopy = surface.querySelector('[data-install-gate-copy]');
-    if (action) action.textContent = 'Install My Shiloh';
+    if (action) action.textContent = 'Show iPhone steps';
     if (gateTitle) gateTitle.textContent = 'Add My Shiloh to your iPhone.';
-    if (gateCopy) gateCopy.textContent = 'You’re in Safari. Add My Shiloh to your Home Screen in three quick steps.';
+    if (gateCopy) gateCopy.textContent = 'You’re in Safari. Add My Shiloh to your Home Screen.';
     const eyebrow = surface.querySelector('[data-install-eyebrow]');
     const title = surface.querySelector('[data-install-title]');
     const lead = surface.querySelector('[data-install-lead]');
-    if (eyebrow) eyebrow.textContent = 'Install My Shiloh on iPhone';
-    if (title) title.textContent = 'Three quick steps.';
-    if (lead) lead.textContent = 'Stay in Safari — no App Store download is needed.';
-    const steps = [
-      ['Open Safari’s page menu', 'At the bottom, tap the page menu, then Share. If you see a Share button directly, tap it.'],
-      ['Choose Add to Home Screen', 'Scroll down the Share list. If missing, use Edit Actions to add it.'],
-      ['Turn on Open as Web App, then tap Add', 'My Shiloh will appear on your Home Screen.'],
-    ];
-    steps.forEach(([stepTitle, stepCopy], index) => {
-      applyInstallStep(surface, index + 1, stepTitle, stepCopy);
-    });
-    const extra = surface.querySelector('[data-install-step-extra]');
-    if (extra) extra.hidden = true;
+    if (eyebrow) eyebrow.hidden = true;
+    if (title) title.textContent = 'Add My Shiloh to your iPhone.';
+    if (lead) lead.textContent = 'You won’t find it in the App Store. Add it from Safari or Chrome.';
+    surface.querySelector('[data-install-browser-choice]').hidden = false;
+    surface.querySelector('[data-install-browser]').value = 'safari';
+    surface.querySelector('[data-install-browser-note]').hidden = false;
+    surface.querySelector('[data-install-browser-note]').textContent = 'Safari steps. Pictures are guides, not buttons.';
+    renderIphoneInstallGuide(surface.querySelector('[data-install-steps]'), 'safari');
     const tip = surface.querySelector('[data-install-tip]');
     if (tip) tip.hidden = true;
     return surface;
@@ -372,18 +333,12 @@ export const IPhoneChromeInstallGuide = {
     const lead = surface.querySelector('[data-install-lead]');
     if (gateTitle) gateTitle.textContent = 'Add My Shiloh to your iPhone.';
     if (gateCopy) gateCopy.textContent = 'You’re in Chrome. Use Share to add My Shiloh to your Home Screen.';
-    if (gateAction) gateAction.textContent = 'Install My Shiloh';
-    if (eyebrow) eyebrow.textContent = 'Install My Shiloh on iPhone';
-    if (title) title.textContent = 'Three quick steps.';
-    if (lead) lead.textContent = 'You can add My Shiloh straight from Chrome — no App Store download is needed.';
-    const steps = [
-      ['Tap Share', 'Use the Share button beside the address bar.'],
-      ['Choose Add to Home Screen', 'Scroll if you do not see it straight away.'],
-      ['Tap Add', 'My Shiloh will appear on your Home Screen.'],
-    ];
-    steps.forEach(([stepTitle, stepCopy], index) => {
-      applyInstallStep(surface, index + 1, stepTitle, stepCopy);
-    });
+    if (gateAction) gateAction.textContent = 'Show iPhone steps';
+    if (eyebrow) eyebrow.hidden = true;
+    if (title) title.textContent = 'Add My Shiloh to your iPhone.';
+    surface.querySelector('[data-install-browser]').value = 'chrome';
+    surface.querySelector('[data-install-browser-note]').textContent = 'Chrome steps. Pictures are guides, not buttons.';
+    renderIphoneInstallGuide(surface.querySelector('[data-install-steps]'), 'chrome');
     return surface;
   },
 };
@@ -396,18 +351,10 @@ export const IPhoneGoogleInstallGuide = {
     const title = surface.querySelector('[data-install-title]');
     const lead = surface.querySelector('[data-install-lead]');
     if (gateCopy) gateCopy.textContent = 'You’re in the Google app. Open My Shiloh in Safari or Chrome first. Check that the address says app.shilohmtc.co.za before adding it to your Home Screen.';
-    if (gateAction) gateAction.textContent = 'Install My Shiloh';
-    if (title) title.textContent = 'Open in your browser first.';
-    if (lead) lead.textContent = 'Use Safari or Chrome. The address must say app.shilohmtc.co.za, not share.google.';
-    const steps = [
-      ['Open in Safari or Chrome', 'Use Open in browser in the Google app’s Share menu.'],
-      ['Check the address', 'If you see share.google, enter app.shilohmtc.co.za/my-shiloh/ in your browser.'],
-      ['Tap Share', 'Choose Add to Home Screen in your browser’s Share menu.'],
-      ['Tap Add', 'If offered, turn on Open as Web App. Then open the new My Shiloh icon.'],
-    ];
-    steps.forEach(([stepTitle, stepCopy], index) => applyInstallStep(surface, index + 1, stepTitle, stepCopy));
-    const extra = surface.querySelector('[data-install-step-extra]');
-    if (extra) extra.hidden = false;
+    if (gateAction) gateAction.textContent = 'Show iPhone steps';
+    surface.querySelector('[data-install-browser]').value = '';
+    surface.querySelector('[data-install-browser-note]').textContent = 'Open in your browser first, not in the Google app. Choose Safari or Chrome for the next steps.';
+    renderIphoneInstallGuide(surface.querySelector('[data-install-steps]'), '', { handoff: true });
     return surface;
   },
 };

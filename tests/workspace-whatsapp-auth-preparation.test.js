@@ -298,7 +298,7 @@ test('resend invalidates prior codes; challenge persistence and audit exclude ra
   for (const secret of [first.request, second.request, f.input.browserToken, f.input.mobile, '123456', f.input.network]) assert.ok(!saved.includes(secret));
 });
 
-test('production entry points do not import preparation modules; generic transport stays retired', async () => {
+test('production entry points use gated composition rather than direct auth adapters; generic transport stays retired', async () => {
   for (const filename of ['app.js', 'src/routes/staffBrowserSession.js', 'src/routes/staffPasskeyAuth.js', 'src/routes/staffPasskeyBootstrap.js']) {
     assert.doesNotMatch(fs.readFileSync(filename, 'utf8'), /workspaceWhatsApp(?:Auth|Template|Runtime|Pilot)/);
   }
