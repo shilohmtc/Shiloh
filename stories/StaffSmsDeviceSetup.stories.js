@@ -33,3 +33,15 @@ export const DetailsSignIn = {
     return `<style>${styles}</style>${body}`;
   },
 };
+
+export const RetiredDetails = {
+  render: () => {
+    const html = presentation.renderAccessDetailPage({
+      principal: { ...principal, displayName: 'Synthetic staff' }, copySources: [], detailsRetired: true,
+      authority: { displayName: 'Synthetic Client AN', operatorAdminId: 1 },
+    });
+    const styles = [...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(match => match[1]).join('\n');
+    const body = html.match(/<body[^>]*>([\s\S]*?)<\/body>/)?.[1] || '';
+    return `<style>${styles}</style>${body}`;
+  },
+};

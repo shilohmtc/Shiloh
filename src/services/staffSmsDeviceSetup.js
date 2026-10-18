@@ -6,7 +6,7 @@ const { sha256, normalizeWhatsapp, deriveCalendarViewer } = require('./staffBrow
 const { strongRecentSession } = require('./staffPasskeyAuth');
 const { createSmsMessengerGateway, safeGatewayFailure } = require('./clientSmsAuth');
 const { createStaffPasskeyDeviceBootstrapService } = require('./staffPasskeyDeviceBootstrap');
-const { staffDetailAuthEnabled } = require('./staffDetailIdentity');
+const { staffOwnPasskeysEnabled } = require('./staffDetailIdentity');
 
 const TTL_MS = 10 * 60 * 1000;
 const LIMIT = 3;
@@ -19,7 +19,7 @@ function createStaffSmsDeviceSetupService({
   bootstrapService = createStaffPasskeyDeviceBootstrapService({ db, env, now }),
   logger = console,
 } = {}) {
-  const enabled = () => !staffDetailAuthEnabled(env) && env.MY_SHILOH_SMS_AUTH_ENABLED === 'true' && gateway.enabled() && bootstrapService.policy().operational;
+  const enabled = () => !staffOwnPasskeysEnabled(env) && env.MY_SHILOH_SMS_AUTH_ENABLED === 'true' && gateway.enabled() && bootstrapService.policy().operational;
 
   async function audit(client, event, operator, subject, detail, fingerprint) {
     await client.query(`INSERT INTO staff_auth_security_events

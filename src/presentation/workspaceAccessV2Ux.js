@@ -52,8 +52,9 @@ function presetPanel(principal) {
   return `<section class="panel"><span class="eyebrow">Preset</span><h2>${escapeHtml(label)}</h2><p class="note">Presets are server-defined. Applying one changes only role, scopes and explicit capabilities; identity and credentials stay with this principal.</p><form data-access-preset-form data-principal-id="${escapeHtml(principal.id)}" data-principal-revision="${escapeHtml(principal.revision)}"><input type="hidden" name="preset" value="${preset}"><button data-workspace-action="primary" class="button primary" type="submit">${escapeHtml(label)}</button></form><p class="status" role="status" aria-live="polite" data-access-status></p></section>`;
 }
 
-function staffSmsSetupPanel(principal, operatorAdminId = null, detailSigninEnabled = false) {
+function staffSmsSetupPanel(principal, operatorAdminId = null, detailSigninEnabled = false, detailsRetired = false) {
   if (!principal.active) return '';
+  if (detailsRetired) return '<section class="panel"><h2>Staff sign-in</h2><p class="note">Staff can sign in with a saved passkey or a WhatsApp code sent to their recorded staff mobile. Each person can add their own passkey from Workspace → My passkeys.</p></section>';
   const detailLink = `<p><a class="button" href="/calendar/staff-auth/details/manage?target=${escapeHtml(principal.id)}">Staff sign-in details</a></p>`;
   if (detailSigninEnabled) return `<section class="panel"><h2>Staff sign-in</h2><p class="note">Record this person's name, surname and date of birth against their existing mobile. They can then sign in with those details. Only Reception, Christel and JP can edit sign-in details, using their signed-in Workspace session. Other protected administrator changes still require passkey confirmation.</p>${detailLink}</section>`;
   if (String(principal.id) === String(operatorAdminId)) return detailLink;
@@ -76,8 +77,8 @@ function lifecyclePanel(principal, operatorAdminId) {
 
 function renderAccessDetailPage(model = {}) {
   const p = model.principal;
-  const body = `<main><section class="panel"><span class="eyebrow">Workspace account</span><h2>${escapeHtml(p.displayName)}</h2>${summaryMarkup(p)}</section>${staffSmsSetupPanel(p, model.authority?.operatorAdminId, model.detailSigninEnabled)}<details class="panel"><summary>Current enabled access</summary>${capabilityMarkup(p)}</details><details class="panel"><summary>More access options</summary>${presetPanel(p)}${copyPanel(p, model.copySources || [])}${lifecyclePanel(p, model.authority?.operatorAdminId)}</details></main>`;
-  return shell({ title: 'Access detail', subtitle: model.detailSigninEnabled ? 'Staff sign-in and protected access options.' : 'Device setup and protected access options.', displayName: model.authority?.displayName, calendarNavigationAllowed: model.calendarNavigationAllowed, clientsNavigationAllowed: model.clientsNavigationAllowed, body, script: true });
+  const body = `<main><section class="panel"><span class="eyebrow">Workspace account</span><h2>${escapeHtml(p.displayName)}</h2>${summaryMarkup(p)}</section>${staffSmsSetupPanel(p, model.authority?.operatorAdminId, model.detailSigninEnabled, model.detailsRetired)}<details class="panel"><summary>Current enabled access</summary>${capabilityMarkup(p)}</details><details class="panel"><summary>More access options</summary>${presetPanel(p)}${copyPanel(p, model.copySources || [])}${lifecyclePanel(p, model.authority?.operatorAdminId)}</details></main>`;
+  return shell({ title: 'Access detail', subtitle: model.detailsRetired ? 'Staff sign-in and protected access options.' : model.detailSigninEnabled ? 'Staff sign-in and protected access options.' : 'Device setup and protected access options.', displayName: model.authority?.displayName, calendarNavigationAllowed: model.calendarNavigationAllowed, clientsNavigationAllowed: model.clientsNavigationAllowed, body, script: true });
 }
 
 function workspaceAccessV2ClientScript() {

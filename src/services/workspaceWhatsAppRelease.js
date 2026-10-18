@@ -2,6 +2,7 @@
 const {createWorkspaceWhatsAppPilot}=require('./workspaceWhatsAppPilot');
 const {createWorkspaceWhatsAppStaff}=require('./workspaceWhatsAppStaff');
 const {deriveCalendarViewer}=require('./staffBrowserSession');
+const {staffDetailsRetired}=require('./staffDetailIdentity');
 
 const ENABLED='SHILOH_WORKSPACE_WHATSAPP_PILOT_ENABLED';
 const MANIFEST='SHILOH_WORKSPACE_WHATSAPP_PILOT_MANIFEST';
@@ -32,7 +33,7 @@ function createWorkspaceWhatsAppRelease({env={},db,sessions,fetchImpl,close=asyn
   const channel=(staffRequested?createWorkspaceWhatsAppStaff:createWorkspaceWhatsAppPilot)({enabled:requested && !conflict && missing.length===0,
     ...(staffRequested?{staff:manifest?.staff}:{pilot:{...manifest?.pilot,recoveryEnabled:false}}),config:{...manifest,smsFallbackEnabled:false},
     env,db,sessions,fetchImpl,hmacKey:key,metaCredentials:{accessToken:token},...(now?{now}:{})});
-  const status=()=>({...channel.status(),mode,requested,missing:[...missing],...(conflict?{configurationError:'STAFF_PILOT_MODE_CONFLICT'}:{}),...(staffReadiness?{staffReadiness}: {})});
+  const status=()=>({...channel.status(),mode,requested,detailsSigninRetired:staffDetailsRetired(env),missing:[...missing],...(conflict?{configurationError:'STAFF_PILOT_MODE_CONFLICT'}:{}),...(staffReadiness?{staffReadiness}: {})});
   async function inspectParticipants() {
     if(env.SHILOH_WORKSPACE_WHATSAPP_PILOT_INSPECT!=='true')return {enabled:false};
     try {

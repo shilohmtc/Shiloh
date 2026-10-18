@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { staffDetailAuthEnabled, validOptionalPasskeySession } = require('./staffDetailIdentity');
+const { staffOwnPasskeysEnabled, validOptionalPasskeySession } = require('./staffDetailIdentity');
 const { sha256, issueStaffBrowserSession, isRecentAuthentication } = require('./staffBrowserSession');
 
 const FEATURE_FLAG = 'SHILOH_STAFF_PASSKEY_AUTH_ENABLED';
@@ -248,7 +248,7 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
   function unavailableCode() { const p = policy(); return p.enabled ? 'STAFF_PASSKEY_UNAVAILABLE' : 'STAFF_PASSKEY_DISABLED'; }
   async function listCredentials({ session, credentialIdHint = null } = {}) {
     const p = policy(); if (!p.operational) return { ok: false, code: unavailableCode() };
-    if (staffDetailAuthEnabled(env) && !await validOptionalPasskeySession(db, session, now(), env)) return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' };
+    if (staffOwnPasskeysEnabled(env) && !await validOptionalPasskeySession(db, session, now(), env)) return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' };
     const admin = await resolveAdmin(db, session?.adminId); if (!admin) return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' };
     const currentHint = normalizeCredentialHint(credentialIdHint);
     const result = await db.query(`SELECT id, credential_id, device_label, transports, backed_up, created_at, last_used_at, revoked_at
@@ -277,7 +277,7 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
     };
   }
   function detailEnrollmentSession(session) {
-    return staffDetailAuthEnabled(env) && session?.ok === true && ['staff_details','passkey'].includes(session.authMethod) && session.recoveryRequired !== true;
+    return staffOwnPasskeysEnabled(env) && session?.ok === true && ['staff_details','passkey'].includes(session.authMethod) && session.recoveryRequired !== true;
   }
   async function beginRegistration({ session, mode = 'add', requestFingerprintHash = null } = {}) {
     const p = policy(); const current = now();
@@ -289,7 +289,7 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
     const client = typeof db.connect === 'function' ? await db.connect() : db;
     try {
       await client.query('BEGIN');
-      if (staffDetailAuthEnabled(env) && !await validOptionalPasskeySession(client, session, current, env)) { await client.query('ROLLBACK'); return { ok:false,code:'STAFF_AUTH_FORBIDDEN' }; }
+      if (staffOwnPasskeysEnabled(env) && !await validOptionalPasskeySession(client, session, current, env)) { await client.query('ROLLBACK'); return { ok:false,code:'STAFF_AUTH_FORBIDDEN' }; }
       const admin = await resolveAdmin(client, session.adminId, true);
       if (!admin) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' }; }
       await client.query(`UPDATE staff_auth_webauthn_challenges SET consumed_at = $2
@@ -312,7 +312,7 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
     const client = typeof db.connect === 'function' ? await db.connect() : db;
     try {
       await client.query('BEGIN');
-      if (staffDetailAuthEnabled(env) && !await validOptionalPasskeySession(client, session, current, env)) { await client.query('ROLLBACK'); return { ok:false,code:'STAFF_AUTH_FORBIDDEN' }; }
+      if (staffOwnPasskeysEnabled(env) && !await validOptionalPasskeySession(client, session, current, env)) { await client.query('ROLLBACK'); return { ok:false,code:'STAFF_AUTH_FORBIDDEN' }; }
       const admin = await resolveAdmin(client, session.adminId, true);
       if (!admin) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' }; }
       const challengeResult = await client.query(`SELECT id, purpose, expires_at FROM staff_auth_webauthn_challenges
@@ -320,7 +320,7 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
       [sha256(cd.parsed.challenge), admin.id, session.sessionId]);
       const challenge = challengeResult.rows[0];
       if (!challenge || new Date(challenge.expires_at).getTime() <= current.getTime()) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_PASSKEY_INVALID' }; }
-      if (staffDetailAuthEnabled(env) && challenge.purpose !== REGISTRATION_PURPOSE) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_PASSKEY_INVALID' }; }
+      if (staffOwnPasskeysEnabled(env) && challenge.purpose !== REGISTRATION_PURPOSE) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_PASSKEY_INVALID' }; }
       await client.query(`UPDATE staff_auth_webauthn_challenges SET consumed_at = $2 WHERE id = $1`, [challenge.id, current]);
       let verified;
       try { verified = verifyRegistrationResponse(response, { expectedChallenge: cd.parsed.challenge, origin: p.origin, rpId: p.rpId }); }
@@ -425,7 +425,7 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
     const client = typeof db.connect === 'function' ? await db.connect() : db;
     try {
       await client.query('BEGIN');
-      const optional = staffDetailAuthEnabled(env);
+      const optional = staffOwnPasskeysEnabled(env);
       if (optional && !await validOptionalPasskeySession(client, session, current, env)) { await client.query('ROLLBACK'); return { ok:false,code:'STAFF_AUTH_FORBIDDEN' }; }
       const admin = await resolveAdmin(client, session.adminId, true);
       if (!admin) { await client.query('ROLLBACK'); return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' }; }

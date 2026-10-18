@@ -9,7 +9,7 @@ const {
   staffCalendarHandoffClientScript,
 } = require('../presentation/staffCalendarHandoffUx');
 const { passkeyPolicy } = require('../services/staffPasskeyAuth');
-const { staffDetailAuthEnabled } = require('../services/staffDetailIdentity');
+const { staffDetailAuthEnabled, staffDetailsRetired } = require('../services/staffDetailIdentity');
 const detailUx = require('../presentation/staffDetailSigninUx');
 const { signinPanel, signinScript } = require('../presentation/staffPasskeyUx');
 
@@ -65,6 +65,15 @@ function withAccessChangedGuidance(html, reason) {
 }
 
 function bootstrapAwareSigninScript(env = process.env) {
+  if (staffDetailsRetired(env)) return signinScript()
+    .replace(/var unlinked='[^']*';/, "var unlinked='Use a saved passkey, or request a WhatsApp code sent to your recorded staff mobile.';")
+    .replaceAll('Continue with device sign-in', 'Use a saved passkey')
+    .replaceAll('Use existing passkey', 'Use a saved passkey')
+    .replace('This browser is not linked yet. If this phone already has a Shiloh passkey, tap Use a saved passkey. If that does not work, use one fresh private setup link from Shiloh.', 'Use a saved passkey, or sign in with a WhatsApp code.')
+    .replace("msg('Use a saved passkey, or sign in with a WhatsApp code.','device-unlinked');", "msg('');")
+    .replace('This browser cannot use Shiloh device sign-in. Open Shiloh in Safari or Chrome. If you are signed in on another device, create a fresh setup link from Workspace → Devices & sign-in.', 'This browser cannot use passkeys. Open Workspace in Safari or Chrome, or use WhatsApp sign-in.')
+    .replace('No usable Shiloh passkey was found in this browser. Use one fresh private setup link from Shiloh to link this browser.', 'No saved Shiloh passkey was found. Use WhatsApp sign-in to continue.')
+    .replace('Device sign-in could not be verified. Try again. If this app was reinstalled, create a fresh setup link from another signed-in device.', 'Passkey sign-in could not be verified. Try again, or use WhatsApp sign-in.');
   if (!staffDetailAuthEnabled(env)) return signinScript();
   return signinScript().replaceAll('Use existing passkey', 'Use a saved passkey')
     .replace(/var unlinked='[^']*';/, "var unlinked='Use your recorded staff details to open Workspace. Saved passkeys remain available for protected administrator changes.';")
@@ -88,12 +97,14 @@ function createStaffCalendarAccessPageHandler({ env = process.env, renderPage = 
       html = html.replace('<main class="card">', `<main class="card">${detailUx.signinPanel()}<script src="/calendar/staff-auth/details/signin.js" defer></script>`);
       html = html.replace('Continue with device sign-in', 'Use a saved passkey').replace('Use existing passkey', 'Use a saved passkey');
     }
+    if (staffDetailsRetired(env)) html=html.replaceAll('Continue with device sign-in', 'Use a saved passkey').replaceAll('Use existing passkey', 'Use a saved passkey');
     html = retireBrowserWhatsAppGuidance(html);
     html = withAccessChangedGuidance(html, reason);
     // Read the live channel state per request; expiry and failed readiness must
     // not leave a sign-in link pointing to a closed pilot. Never start it here.
     let showWhatsApp = false;
     try { showWhatsApp = whatsappAvailable() === true; } catch (_) { /* Preserve existing sign-in. */ }
+    if (staffDetailsRetired(env) && !showWhatsApp) html=html.replace('<main class="card">','<main class="card"><section class="section"><p class="lead" role="status">WhatsApp sign-in is temporarily unavailable. Use a saved passkey, or try again shortly.</p></section>');
     if (showWhatsApp) html = html.replace('<main class="card">', `<main class="card">${workspaceWhatsAppSigninPanel()}`);
     return res.status(200).type('html').send(html);
   };

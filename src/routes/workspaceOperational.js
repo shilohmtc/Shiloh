@@ -5,7 +5,7 @@ const {attachBookingNotePresence}=require('../services/workspaceAppointmentNotes
 
 const express = require('express');
 const {couplesEnquiryClientScript}=require('../presentation/couplesEnquiryUx');
-const { staffDetailAuthEnabled } = require('../services/staffDetailIdentity');
+const { staffDetailAuthEnabled, staffDetailsRetired } = require('../services/staffDetailIdentity');
 const workspaceDashboard = require('../services/workspaceDashboard');
 const { workspaceDashboardAttention } = require('../services/workspaceDashboardAttention');
 const workspaceNavigation = require('../services/workspaceNavigation');
@@ -54,6 +54,7 @@ function accountNavigationMetadata({ viewer, passkeyEnabled = false } = {}) {
 }
 
 function passkeyNavigationClientScript(env = process.env) {
+  if (staffDetailsRetired(env)) return `(()=>{'use strict';const account=document.querySelector('[data-workspace-account-footer]');if(!account||account.querySelector('[data-workspace-passkey-security]'))return;const keys=document.createElement('a');keys.className='workspace-account-signout';keys.href='/calendar/staff-auth/passkeys/manage';keys.textContent='My passkeys';keys.dataset.workspacePasskeySecurity='true';account.appendChild(keys);})();`;
   if (staffDetailAuthEnabled(env)) return `(()=>{'use strict';const account=document.querySelector('[data-workspace-account-footer]');if(!account||account.querySelector('[data-workspace-staff-details]'))return;const link=document.createElement('a');link.className='workspace-account-signout';link.href='/calendar/staff-auth/details/manage';link.dataset.workspaceStaffDetails='true';link.textContent='My sign-in details';account.appendChild(link);const keys=document.createElement('a');keys.className='workspace-account-signout';keys.href='/calendar/staff-auth/passkeys/manage';keys.textContent='My passkeys';keys.dataset.workspacePasskeySecurity='true';account.appendChild(keys);})();`;
   if (!isStaffPasskeyAuthEnabled(env)) return '';
   return `(()=>{'use strict';const account=document.querySelector('[data-workspace-account-footer]');if(!account||account.querySelector('[data-workspace-passkey-security]'))return;const link=document.createElement('a');link.className='workspace-account-signout';link.href='/calendar/staff-auth/passkeys/manage';link.dataset.workspacePasskeySecurity='true';link.textContent='Devices & sign-in';const details=document.createElement('a');details.className='workspace-account-signout';details.href='/calendar/staff-auth/details/manage';details.textContent='My sign-in details';account.appendChild(details);const signout=account.querySelector('[data-shiloh-logout]');if(signout)account.insertBefore(link,signout);else account.appendChild(link);})();`;

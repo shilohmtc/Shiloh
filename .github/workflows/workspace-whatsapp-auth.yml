@@ -28,6 +28,7 @@ on:
       - 'src/presentation/staffPasskeyUx.js'
       - 'app.js'
       - 'tests/workspace-whatsapp*.test.js'
+      - 'tests/staff-detail-signin-retirement.test.js'
       - 'tests/helpers/workspaceWhatsApp*.js'
       - 'stories/WorkspaceWhatsAppAuth.stories.js'
       - 'scripts/workspace-whatsapp-browser-proof.js'
@@ -62,8 +63,8 @@ jobs:
           node-version: 24.14.1
           cache: npm
       - run: npm ci
-      - run: node --test tests/code-signin-policy.test.js tests/workspace-meta-readback.test.js tests/workspace-whatsapp-auth-preparation.test.js tests/workspace-whatsapp-providers.test.js tests/workspace-whatsapp-integration.test.js tests/staff-detail-auth.test.js tests/staff-passkey-auth-v1.test.js tests/staff-details-device-retirement.test.js tests/my-shiloh-remembered-session.test.js tests/my-shiloh-payment-choice-routes.test.js tests/crm-v2-foundation.test.js tests/whatsapp-clean-crm-v2-registration-activation-p0.test.js
-      - run: node --test tests/workspace-whatsapp-integration.test.js tests/workspace-whatsapp-pilot.test.js tests/workspace-whatsapp-release.test.js tests/workspace-whatsapp-staff.test.js tests/client-code-auth.test.js
+      - run: node --test tests/code-signin-policy.test.js tests/workspace-meta-readback.test.js tests/workspace-whatsapp-auth-preparation.test.js tests/workspace-whatsapp-providers.test.js tests/workspace-whatsapp-integration.test.js tests/staff-detail-auth.test.js tests/staff-passkey-auth-v1.test.js tests/staff-details-device-retirement.test.js tests/staff-detail-signin-retirement.test.js tests/my-shiloh-remembered-session.test.js tests/my-shiloh-payment-choice-routes.test.js tests/crm-v2-foundation.test.js tests/whatsapp-clean-crm-v2-registration-activation-p0.test.js
+      - run: node --test tests/workspace-whatsapp-integration.test.js tests/workspace-whatsapp-pilot.test.js tests/workspace-whatsapp-release.test.js tests/workspace-whatsapp-staff.test.js tests/staff-detail-signin-retirement.test.js tests/client-code-auth.test.js
         env:
           WORKSPACE_WHATSAPP_SYNTHETIC_DATABASE_URL: postgres://postgres:synthetic-only@127.0.0.1:5432/wa_synthetic
       - run: npm run build-storybook

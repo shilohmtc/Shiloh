@@ -1,5 +1,53 @@
 # Workspace WhatsApp authentication
 
+## Accepted staff-details retirement — 18 October 2026
+
+The owner requested retirement of name/surname/date-of-birth sign-in through
+implementation. After confirming only Christel and JP had tested their saved
+passkeys, the owner explicitly instructed: "but it doesn't matter you can continue
+with the retiring". This supersedes the earlier all-staff device-acceptance gate
+for this cutover. It does not claim the other four staff completed device testing.
+The existing six active accounts passed WhatsApp eligibility/readiness at rollout;
+recorded-mobile WhatsApp remains their alternative. Preserve the R5 shared
+staff-code app reservation allowance and counters, SMS/recovery off, existing
+passkeys and active sessions. A code allowance may run out; it is not a guarantee
+of provider billing. No extra messages, budget increase or lost-number bypass.
+
+`SHILOH_STAFF_DETAIL_AUTH_RETIRED=true` is a separate, explicit retirement switch.
+It overrides the old enabled/key settings, closes the complete details router
+(including cached JS, setup and sign-in POST) with private/no-store 410 responses,
+and stops service-level issuance before database work and again before issuing.
+Name/DOB fields and historical records are retained; no destructive data cleanup
+or migration is part of this release. Existing details sessions retain their
+original eight-hour deadline and identity/revocation checks. They retain their
+already-authorized own-account key rights until expiry; saving a key does not
+upgrade assurance or extend the session. Protected administrator changes continue
+to require their existing passkey confirmation.
+
+Own-passkey compatibility is independent of details issuance, so retirement
+cannot reopen legacy SMS, private bootstrap, replacement or rename endpoints,
+even if the old flag is disabled or absent. Existing saved-passkey owners no
+longer need obsolete biographical fields to manage their own keys. WhatsApp
+sessions retain the separate purpose/browser/session/identity-bound enrollment
+flow; they are not admitted to legacy mutation methods. Sign-in, account, Staff
+access and onboarding surfaces point to saved passkeys/recorded-mobile WhatsApp,
+with no obsolete details form, edit link, SMS or private-setup instructions.
+
+Release after exact-head gates: deploy source with retirement off, verify the
+six-account WhatsApp channel is healthy, then save only the retirement flag true
+through a merging Render environment update. Verify the same deployed source,
+private `detailsSigninRetired` readiness, unchanged migration ledger and health.
+Rollback is that one flag false, restoring only the prior details behavior;
+never reset counters, delete records, rotate credentials or revive SMS/recovery.
+Only Christel/JP physical device acceptance is confirmed. Additional-staff device
+checks remain outstanding under the owner's explicit cutover instruction.
+
+Status: implemented locally; 80 PostgreSQL integration regressions and the
+retirement phone/desktop browser and Storybook proof passed with zero axe
+violations. Repository-wide and exact-head release gates precede cutover;
+retirement is not live yet. Release evidence will be recorded on the dedicated
+retirement PR.
+
 ## Accepted ongoing staff rollout — 18 October 2026
 
 This section supersedes the Christel-only pilot scope below. The owner confirmed
