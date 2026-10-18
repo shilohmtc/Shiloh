@@ -238,7 +238,7 @@ test('Workspace Services route is GET-only and existing Calendar/Staff mounts ar
   const calendar = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'calendar.js'), 'utf8');
   assert.match(source, /requireStaffSession/);
   assert.doesNotMatch(source, /router\.(?:post|put|patch|delete)\s*\(/i);
-  assert.match(calendar, /router\.use\('\/staff', staffCalendarAccessUxRoutes\)/);
+  assert.match(calendar, /router\.use\('\/staff', staffCalendarAccessUxRoutes\.createStaffCalendarAccessRouter\(/);
   assert.match(calendar, /router\.use\('\/team', createWorkspaceStaffRouter/);
   assert.match(calendar, /router\.use\('\/services', createWorkspaceServicesRouter/);
 });

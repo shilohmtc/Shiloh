@@ -237,7 +237,7 @@ test('existing Calendar share ICS route remains separate and unchanged in author
   assert.match(calendarRoute, /appointment_calendar_share_tokens/);
   assert.match(calendarRoute, /METHOD:PUBLISH/);
   assert.match(calendarRoute, /router\.use\('\/staff-auth', createStaffBrowserSessionRouter/);
-  assert.match(calendarRoute, /router\.use\('\/staff', staffCalendarAccessUxRoutes\)/);
+  assert.match(calendarRoute, /router\.use\('\/staff', staffCalendarAccessUxRoutes\.createStaffCalendarAccessRouter\(/);
   assert.match(calendarRoute, /router\.use\('\/read-only', createOptionalCalendarSessionMiddleware/);
 });
 

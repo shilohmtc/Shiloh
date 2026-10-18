@@ -1,6 +1,7 @@
 const express = require('express');
 const {
   renderStaffCalendarAccessPage,
+  workspaceWhatsAppSigninPanel,
   staffCalendarAccessClientScript,
 } = require('../presentation/staffCalendarAccessUx');
 const {
@@ -73,7 +74,7 @@ function bootstrapAwareSigninScript(env = process.env) {
     .replace('Device sign-in could not be verified. Try again. If this app was reinstalled, create a fresh setup link from another signed-in device.', 'Passkey sign-in could not be verified. Try again, or use your staff details above.');
 }
 
-function createStaffCalendarAccessPageHandler({ env = process.env, renderPage = renderStaffCalendarAccessPage } = {}) {
+function createStaffCalendarAccessPageHandler({ env = process.env, renderPage = renderStaffCalendarAccessPage, whatsappAvailable = () => false } = {}) {
   return function staffCalendarAccessPage(req, res) {
     const enabled = isStaffCalendarAccessUxEnabled(env);
     setAccessSecurityHeaders(res, { allowSameOriginImages: enabled });
@@ -89,6 +90,11 @@ function createStaffCalendarAccessPageHandler({ env = process.env, renderPage = 
     }
     html = retireBrowserWhatsAppGuidance(html);
     html = withAccessChangedGuidance(html, reason);
+    // Read the live channel state per request; expiry and failed readiness must
+    // not leave a sign-in link pointing to a closed pilot. Never start it here.
+    let showWhatsApp = false;
+    try { showWhatsApp = whatsappAvailable() === true; } catch (_) { /* Preserve existing sign-in. */ }
+    if (showWhatsApp) html = html.replace('<main class="card">', `<main class="card">${workspaceWhatsAppSigninPanel()}`);
     return res.status(200).type('html').send(html);
   };
 }

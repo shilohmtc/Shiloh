@@ -33,6 +33,14 @@ function renderStaffCalendarAccessPage({ reason = null, clientScriptPath = '/cal
   </div></body></html>`;
 }
 
+function workspaceWhatsAppSigninPanel() {
+  return `<section class="section" data-shiloh-whatsapp-signin>
+    <h2>Sign in with WhatsApp</h2>
+    <p class="lead">Get a sign-in code on your recorded staff mobile.</p>
+    <div class="actions"><a class="button" href="/calendar/staff-auth/whatsapp/" style="text-decoration:none;min-height:44px;display:inline-flex;align-items:center;justify-content:center">Sign in with WhatsApp</a></div>
+  </section>`;
+}
+
 function allocateWeekOverlapLanes(rectangles = []) {
   const ordered = rectangles
     .map((entry, order) => ({
@@ -190,6 +198,7 @@ if(window.matchMedia){var weekDesktopMedia=window.matchMedia('(min-width: 701px)
 module.exports = {
   escapeHtml,
   messageForReason,
+  workspaceWhatsAppSigninPanel,
   renderStaffCalendarAccessPage,
   styles,
   allocateWeekOverlapLanes,

@@ -144,3 +144,27 @@ test('ordinary details entry stays disabled until configured; existing authentic
   });
   assert.equal(page.status, 200);
 });
+
+test('Workspace exposes WhatsApp navigation only while the channel is available', async (t) => {
+  let available = true;
+  const app = express();
+  app.get('/calendar/staff', createStaffCalendarAccessPageHandler({ env,
+    whatsappAvailable: () => { if (available === 'error') throw Error('unavailable'); return available; },
+  }));
+  const listening = await new Promise(resolve => {
+    const server = app.listen(0, '127.0.0.1', () => resolve(server));
+  });
+  t.after(() => new Promise(resolve => listening.close(resolve)));
+  const origin = `http://127.0.0.1:${listening.address().port}`;
+  for (const state of [true, false, 'error']) {
+    available = state;
+    const response = await fetch(origin + '/calendar/staff');
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('cache-control'), /no-store/);
+    const html = await response.text();
+    assert.equal(html.includes('href="/calendar/staff-auth/whatsapp/"'), state === true);
+    assert.match(html, /Use a saved passkey/);
+    assert.match(html, /data-staff-detail-form/);
+    assert.doesNotMatch(html, /Open from Shiloh WhatsApp/);
+  }
+});

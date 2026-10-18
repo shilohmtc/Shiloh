@@ -415,3 +415,8 @@ and deployment settings must be rechecked at execution time.
 - After successful pilot acceptance, separately decide details-session transition,
   lost-number evidence/audit procedure and wider staff rollout. Details retirement
   is not required to run this pilot safely and must not be bundled into it.
+
+
+### Workspace sign-in entry (18 October 2026)
+
+Owner requested the WhatsApp option inside Workspace after the bounded pilot opened. The normal `/calendar/staff` sign-in page now offers **Sign in with WhatsApp**, linking to the existing staff code page only when the production channel reports enabled at render time. The state is checked on each uncached page request; disabled, unavailable and expired channels omit the link. Navigation never starts the pilot or sends a code. Staff-details and saved-passkey entry remain available. The existing backend still owns participant eligibility, the original pilot window and durable limits. This interface change does not extend the pilot, activate clients, SMS or recovery, or establish physical-device acceptance.
