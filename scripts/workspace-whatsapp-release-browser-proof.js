@@ -74,7 +74,7 @@ async function main() {
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
       assert.deepEqual((await new AxeBuilder({page}).analyze()).violations,[]);
       await page.screenshot({path:`${out}/${label}-saved-passkey-pilot-welcome.png`,fullPage:true});
-      await page.getByRole('link',{name:'Not now — continue'}).click();await page.waitForURL('**/calendar/workspace');
+      await page.getByRole('link',{name:'Continue to Workspace'}).click();await page.waitForURL('**/calendar/workspace');
       const admin=(await h.db.query('SELECT *,active AS admin_active FROM staff_admin_accounts WHERE id=1')).rows[0];
       const codeSession=await issueStaffBrowserSession({client:h.db,admin,current:h.now(),authMethod:'workspace_whatsapp'});
       await h.db.query('UPDATE staff_browser_sessions SET detail_identity_revision=$2 WHERE token_hash=$1',
