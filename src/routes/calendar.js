@@ -90,7 +90,9 @@ router.use('/staff-auth/passkeys', createStaffPasskeyAuthRouter({ sessionService
 router.use('/staff-auth/details', require('./staffDetailAuth').createStaffDetailAuthRouter());
 router.use('/staff-auth', createStaffBrowserSessionRouter({ service: staffBrowserSessionService }));
 router.use('/check-in', createClinicIpadSetupRouter({ sessionService:staffBrowserSessionService }));
-router.use('/staff', staffCalendarAccessUxRoutes);
+router.use('/staff', staffCalendarAccessUxRoutes.createStaffCalendarAccessRouter({
+  whatsappAvailable: () => workspaceWhatsAppRelease.status().enabled,
+}));
 router.use('/client-authority', createOperatorContactAuthorityRouter({ sessionService: staffBrowserSessionService }));
 router.use('/book/past', createCalendarRetrospectiveBookingRouter({ sessionService: staffBrowserSessionService }));
 router.use('/book/couples', createCalendarCouplesBookingRouter({ sessionService: staffBrowserSessionService }));

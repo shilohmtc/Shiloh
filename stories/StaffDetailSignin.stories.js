@@ -1,8 +1,8 @@
 import accessUx from '../src/presentation/staffCalendarAccessUx.js';
 import detailUx from '../src/presentation/staffDetailSigninUx.js';
 import passkeyUx from '../src/presentation/staffPasskeyUx.js';
-function surface(setup = false) {
-  const html = setup
+function surface(setup = false, whatsapp = false) {
+  let html = setup
     ? detailUx.setupPage(
         {
           targetId: 900001,
@@ -20,6 +20,7 @@ function surface(setup = false) {
           passkeyUx.signinPanel().replace('Continue with device sign-in', 'Use a saved passkey'),
         )
         .replace('Use your saved Shiloh passkey to continue.', '');
+  if (whatsapp) html = html.replace('<main class="card">', `<main class="card">${accessUx.workspaceWhatsAppSigninPanel()}`);
   return (
     `<style>${[...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map((match) => match[1]).join('\n')}</style>` +
     html.match(/<body[^>]*>([\s\S]*?)<\/body>/)[1].replace(/<script[\s\S]*?<\/script>/g, '')
@@ -31,3 +32,5 @@ export default {
 };
 export const SignIn = { render: () => surface() };
 export const AccountSetup = { render: () => surface(true) };
+
+export const WhatsAppSignIn = { render: () => surface(false, true) };

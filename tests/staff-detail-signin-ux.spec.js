@@ -81,6 +81,27 @@ for (const viewport of [
     await form.getByRole('button', { name: 'Open Workspace' }).click();
     await expect(page).toHaveURL(/\/calendar\/workspace$/);
   });
+  test(`Workspace WhatsApp entry is accessible and navigates on ${viewport.name}`, async ({ page }, testInfo) => {
+    await page.setViewportSize(viewport);
+    await page.goto('/iframe.html?id=staff-detail-sign-in--whats-app-sign-in&viewMode=story', { waitUntil: 'networkidle' });
+    const link = page.getByRole('link', { name: 'Sign in with WhatsApp', exact: true });
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute('href', '/calendar/staff-auth/whatsapp/');
+    await expect(page.locator('[data-staff-detail-form]')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Use a saved passkey' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect((await link.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    await link.focus();
+    await expect(link).toBeFocused();
+    await page.screenshot({ path: testInfo.outputPath(`workspace-whatsapp-entry-${viewport.name}.png`), fullPage: true });
+    // Storybook's addon and the independent scan share axe in this frame.
+    await expect.poll(async () => page.evaluate(() => !window.axe?._running)).toBe(true);
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    await page.route('**/calendar/staff-auth/whatsapp/', route => route.fulfill({ contentType: 'text/html', body: '<h1>WhatsApp sign-in</h1>' }));
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/calendar\/staff-auth\/whatsapp\/$/);
+    await expect(page.getByRole('heading', { name: 'WhatsApp sign-in' })).toBeVisible();
+  });
   test(`staff account setup is accessible with recorded mobile on ${viewport.name}`, async ({
     page,
   }, testInfo) => {
