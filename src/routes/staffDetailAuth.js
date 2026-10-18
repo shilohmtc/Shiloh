@@ -4,7 +4,7 @@ const { pool } = require('../db/pool');
 const { createStaffDetailAuthService } = require('../services/staffDetailAuth');
 const { createStaffDetailSetupService } = require('../services/staffDetailSetup');
 const { createStaffBrowserSessionService } = require('../services/staffBrowserSession');
-const { staffDetailAuthEnabled } = require('../services/staffDetailIdentity');
+const { staffDetailAuthEnabled, staffDetailsRetired } = require('../services/staffDetailIdentity');
 const {
   sameOriginGuard,
   requireStaffSession,
@@ -28,6 +28,7 @@ function createStaffDetailAuthRouter({
     csrf = csrfGuard({ service: sessions });
   router.use((_req, res, next) => {
     setAccessSecurityHeaders(res);
+    if (staffDetailsRetired(env)) return res.status(410).type('text/plain').send('Staff details sign-in has been retired. Sign in with a saved passkey or a WhatsApp code at /calendar/staff.');
     if (['/sign-in', '/signin.js'].includes(_req.path) && !staffDetailAuthEnabled(env))
       return res.status(404).send('Not Found');
     next();

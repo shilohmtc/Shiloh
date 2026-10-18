@@ -34,3 +34,11 @@ export const SignIn = { render: () => surface() };
 export const AccountSetup = { render: () => surface(true) };
 
 export const WhatsAppSignIn = { render: () => surface(false, true) };
+
+export const RetiredDetails = { render: () => {
+  const html=accessUx.renderStaffCalendarAccessPage()
+    .replace(/<section class="section" data-shiloh-whatsapp-handoff-guidance>[\s\S]*?<\/section>/, passkeyUx.signinPanel().replace('Continue with device sign-in','Use a saved passkey'))
+    .replace('<main class="card">',`<main class="card">${accessUx.workspaceWhatsAppSigninPanel()}`)
+    .replace('Use your saved Shiloh passkey to continue.','');
+  return `<style>${[...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(m=>m[1]).join('\n')}</style>`+html.match(/<body[^>]*>([\s\S]*?)<\/body>/)[1].replace(/<script[\s\S]*?<\/script>/g,'');
+}};

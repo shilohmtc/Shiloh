@@ -117,7 +117,7 @@ function createStaffDetailAuthService({
           found.rows.length === 1 && staffDetailsMatch(found.rows[0], parsed)
             ? found.rows[0]
             : null;
-        if (owner && deriveCalendarViewer(owner)) {
+        if (owner && deriveCalendarViewer(owner) && enabled()) {
           result = await issueStaffBrowserSession({
             client,
             admin: owner,

@@ -1,5 +1,5 @@
 const express = require('express');
-const { staffDetailAuthEnabled } = require('../services/staffDetailIdentity');
+const { staffDetailAuthEnabled, staffDetailsRetired } = require('../services/staffDetailIdentity');
 const workspaceStaff = require('../services/workspaceStaff');
 const workspaceStaffAccess = require('../services/workspaceStaffAccess');
 const workspaceStaffAccessPolicy = require('../services/workspaceStaffAccessPolicy');
@@ -172,7 +172,7 @@ function createWorkspaceStaffRouter({ sessionService, ...options } = {}) {
     try {
       const authority = await service.resolveManageAccess(req.staffBrowserSession?.adminId);
       if (!authority) return res.sendStatus(403);
-      return res.status(200).type('application/javascript').send(workspaceStaffOnboardingClientScript({ detailSigninEnabled: staffDetailAuthEnabled(options.env || process.env) }));
+      return res.status(200).type('application/javascript').send(workspaceStaffOnboardingClientScript({ detailSigninEnabled: staffDetailAuthEnabled(options.env || process.env), detailsRetired: staffDetailsRetired(options.env || process.env) }));
     } catch (_error) { return res.sendStatus(403); }
   });
   router.get('/access-manage.js', async (req, res) => {
@@ -234,7 +234,7 @@ function createWorkspaceStaffRouter({ sessionService, ...options } = {}) {
       const model = await accessV2Service.getPrincipal({ adminId: req.staffBrowserSession?.adminId, principalId: req.params.id });
       model.authority = await accessService.requireManageAccess(req.staffBrowserSession?.adminId);
       Object.assign(model, await pageOptions(req, options.clientAccessService || workspaceClients, '/calendar/staff'));
-      return res.status(200).type('html').send(renderAccessDetailPage({ ...model, detailSigninEnabled: staffDetailAuthEnabled(options.env || process.env) }));
+      return res.status(200).type('html').send(renderAccessDetailPage({ ...model, detailSigninEnabled: staffDetailAuthEnabled(options.env || process.env), detailsRetired: staffDetailsRetired(options.env || process.env) }));
     } catch (error) {
       const safe = safeError(error);
       return res.status(safe.status).type('html').send(renderStaffUnavailablePage({ code: error?.code, message: safe.message }));

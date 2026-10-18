@@ -40,9 +40,17 @@ function staffDetailsMatch(row, input) {
     })
   );
 }
+function staffDetailsRetired(env = process.env) {
+  return env.SHILOH_STAFF_DETAIL_AUTH_RETIRED === 'true';
+}
+// This compatibility mode must outlive details issuance: disabling the old
+// method must never reopen retired SMS/private-link setup routes.
+function staffOwnPasskeysEnabled(env = process.env) {
+  return staffDetailsRetired(env) || staffDetailAuthEnabled(env);
+}
 function staffDetailAuthEnabled(env = process.env) {
   return (
-    env.SHILOH_STAFF_DETAIL_AUTH_ENABLED === 'true' &&
+    !staffDetailsRetired(env) && env.SHILOH_STAFF_DETAIL_AUTH_ENABLED === 'true' &&
     Buffer.byteLength(String(env.SHILOH_STAFF_DETAIL_AUTH_RATE_KEY || '')) >= 32
   );
 }
@@ -67,11 +75,11 @@ async function validDetailEnrollment(client, session, current, env) {
   );
 }
 
-// Optional own-account keys require a live Workspace session and a usable
-// details fallback. Saving a key never changes this session's assurance.
+// Preserve own-account keys for existing, bounded sessions during retirement.
+// Saving a key never changes this session's assurance or extends its expiry.
 async function validOptionalPasskeySession(client, session, current, env) {
   if (
-    !staffDetailAuthEnabled(env) ||
+    !staffOwnPasskeysEnabled(env) ||
     !session?.ok ||
     session.recoveryRequired ||
     !['staff_details', 'passkey'].includes(session.authMethod)
@@ -88,13 +96,15 @@ async function validOptionalPasskeySession(client, session, current, env) {
   const row = result.rows[0],
     revision = staffDetailRevision(row);
   return (
-    !!revision &&
+    (!!revision || staffDetailsRetired(env) && row?.auth_method === 'passkey') &&
     row.auth_method === session.authMethod &&
     (row.auth_method === 'passkey' || row.detail_identity_revision === revision)
   );
 }
 
 module.exports = {
+  staffDetailsRetired,
+  staffOwnPasskeysEnabled,
   staffDetailRevision,
   staffDetailsMatch,
   staffDetailAuthEnabled,

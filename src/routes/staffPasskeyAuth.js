@@ -4,7 +4,7 @@ const { pool } = require('../db/pool');
 const { createStaffBrowserSessionService } = require('../services/staffBrowserSession');
 const { createStaffPasskeyAuthService, normalizeCredentialHint, defaultDeviceLabel } = require('../services/staffPasskeyAuth');
 const { createStaffPasskeyDeviceBootstrapService } = require('../services/staffPasskeyDeviceBootstrap');
-const { staffDetailAuthEnabled } = require('../services/staffDetailIdentity');
+const { staffOwnPasskeysEnabled, staffDetailsRetired } = require('../services/staffDetailIdentity');
 const { managePage, manageScript } = require('../presentation/staffPasskeyUx');
 const {
   sameOriginGuard,
@@ -103,7 +103,7 @@ function createStaffPasskeyAuthRouter({
 
   // Reopen only optional own-account save/list/remove; obsolete setup stays retired.
   router.use((req, res, next) => {
-    if (!staffDetailAuthEnabled(env)) return next();
+    if (!staffOwnPasskeysEnabled(env)) return next();
     if (req.path === '/known-principal' || /^\/(?:re)?authentication\/(options|finish)$/.test(req.path)) return next();
     if (req.method === 'GET' && ['/', '/manage', '/manage.js'].includes(req.path)) return next();
     if (req.method === 'POST' && /^\/(registration\/(options|finish)|\d+\/revoke)$/.test(req.path)) {
@@ -111,7 +111,7 @@ function createStaffPasskeyAuthRouter({
       return next();
     }
     noStore(res);
-    return res.status(410).json({ error: 'Staff device setup has been retired. Use your recorded staff details to sign in.' });
+    return res.status(410).json({ error: staffDetailsRetired(env) ? 'Staff device setup has been retired. Use a saved passkey or a WhatsApp code to sign in.' : 'Staff device setup has been retired. Use your recorded staff details to sign in.' });
   });
 
   router.get('/known-principal', async (req, res, next) => {
@@ -178,7 +178,7 @@ function createStaffPasskeyAuthRouter({
       const result = await passkeyService.listCredentials({ session: req.staffBrowserSession, credentialIdHint: passkeyHintFromRequest(req, env) });
       if (!result.ok) return error(res, result);
       secure(res);
-      return res.status(200).type('html').send(managePage({ credentials: result.credentials, optionalPasskeys: staffDetailAuthEnabled(env) }));
+      return res.status(200).type('html').send(managePage({ credentials: result.credentials, optionalPasskeys: staffOwnPasskeysEnabled(env), detailsRetired: staffDetailsRetired(env) }));
     } catch (e) { return next(e); }
   });
   router.get('/manage.js', requireSession, async (req, res, next) => {
@@ -186,7 +186,7 @@ function createStaffPasskeyAuthRouter({
       const result = await passkeyService.listCredentials({ session: req.staffBrowserSession, credentialIdHint: passkeyHintFromRequest(req, env) });
       if (!result.ok) return error(res, result);
       secure(res);
-      return res.status(200).type('application/javascript').send(manageScript({ optionalPasskeys: staffDetailAuthEnabled(env) }));
+      return res.status(200).type('application/javascript').send(manageScript({ optionalPasskeys: staffOwnPasskeysEnabled(env), detailsRetired: staffDetailsRetired(env) }));
     } catch (e) { return next(e); }
   });
   router.get('/', requireSession, async (req, res, next) => {
@@ -252,7 +252,7 @@ function createStaffPasskeyAuthRouter({
       if (hintBefore && hintBefore === normalizeCredentialHint(result.credentialHint)) {
         res.setHeader('Set-Cookie', serializeExpiredPasskeyHintCookie({ env }));
       }
-      if (staffDetailAuthEnabled(env)) return res.status(200).json({ removed: true, signInRequired: result.signInRequired === true });
+      if (staffOwnPasskeysEnabled(env)) return res.status(200).json({ removed: true, signInRequired: result.signInRequired === true });
       return res.status(204).send();
     } catch (e) { return next(e); }
   });
