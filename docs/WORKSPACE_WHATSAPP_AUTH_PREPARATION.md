@@ -121,3 +121,163 @@ Copy code, one-use rejection, passkey addition and supervised replacement. Stop
 on wrong recipient, contract mismatch, unexpected cost or access regression;
 disable the new channel and verify rollback access. Record provider acceptance,
 actual receipt and owner acceptance separately. No live send is authorized here.
+
+## Staff pilot release plan — prepared 18 October 2026
+
+Status: proposed execution plan, not activation authority. Owner authorized this
+readiness work after the completed inactive draft. Work mode is appropriate.
+The client runtime, staff-details retirement and lost-number bypass are excluded
+from the first staff pilot. Accepted policies above remain authoritative.
+
+### Current readiness evidence
+
+- Connected GitHub inspection: PR #1476 remains open, draft and unmerged at
+  `0ff24924bd0e5a0d1fad96db6b06c885a29efae5`. Its exact implementation head passed
+  all fourteen workflows previously recorded; this plan does not replace those
+  tests with a claim of production acceptance.
+- Fresh read-only Render inspection in the owner-confirmed My Workspace:
+  service `srv-d9qbfmk9v7es73emgam0` is a single-instance Node web service,
+  `npm ci` / `npm start`, health path `/health`, automatic deployment on main
+  commits, and no PR previews. Latest deploy `dep-db9u4761egvs73d65e0g` is marked
+  live at `7d3dec8841be6f1f1edcb242f49ff1df77feacb2` (installation-guide PR #1478).
+  Fetched main matches that commit. No authenticated journey or direct health
+  response was verified in this inspection; Render live status alone is not proof.
+- Source inspection confirms explicit runtime construction and `prepare()`, no
+  production mounting/import, abortable worker, and proposed SQL outside migrations.
+  Merely merging the draft would not make the channel usable. An activation adapter
+  and its tests are still required. Main has advanced since the draft base, so
+  reconcile with current main and rerun required exact-head checks before release.
+- No credential values, environment-variable inventory, production database data,
+  account billing or provider send endpoints were accessed for this plan.
+
+### Implementation and operational prerequisites
+
+1. **Bound the pilot in the application.** Add a default-off activation adapter
+   around the existing runtime. Permit only the named canonical staff account and
+   its independently authorized recovery administrator. Enforce the subject bound
+   on the server before dispatch and grant completion, including alternate intake
+   paths; an unpublished URL or hidden button is insufficient. Keep generic public
+   responses and current identity/permission checks. Nonparticipants retain current
+   access. Keep the client runtime unmounted and all retired senders retired.
+2. **Wire the existing authorities.** Inject the canonical database/session/CSRF
+   services, verified origin and WebAuthn relying-party settings; mount only the
+   staff router. Connect successful pilot code/passkey entry to the welcome
+   invitations. Preserve existing production passkey routes and details entry.
+   Missing config/schema must disable only the new channel, not existing access.
+3. **Secure configuration manifest.** The explicit constructor requires reviewed
+   template components, WABA/sender IDs, API version, provider token, a dedicated
+   random key of at least 32 bytes, canonical database/session services and an
+   explicit enabled setting. SMS additionally requires its existing account/token
+   and a deliberate fallback enable setting. Use protected platform secret entry;
+   record only presence, owner and rotation date. Do not reuse a temporary Explorer
+   token, log secrets, or invent environment variable names as if already wired.
+   Decide production Meta credential ownership/lifecycle and minimum permissions
+   before provisioning. Re-read exact approved template/account/sender facts via
+   authenticated inventory immediately before activation.
+4. **Cost configuration.** Supply explicit positive integer ZAR minor-unit values
+   for `dailySpendMinor`, `whatsappCostMinor`, `smsCostMinor`,
+   `smsAccountDailyLimit` and `smsClinicDailyLimit`. These are constructor fields,
+   not established Render variable names. Reconfirm current rates/tax/FX and choose
+   conservative cost reservations with the owner. Staff ten-code/two-SMS limits
+   still apply. A configured estimate is not a guarantee of the provider invoice;
+   neither R20 nor a new purchase is authorized. Keep SMS disabled for the first
+   WhatsApp-only stage unless a separate bounded SMS test is authorized.
+5. **Review and rehearse the staff migration.** Assign a unique migration number
+   only after checking current main/schema. Review the existing staff-session
+   constraint, preserve every currently valid auth method, and apply the new tables,
+   indexes and invitation table transactionally through the controlled migration
+   authority. Rehearse old/new application compatibility, lock timeouts, failed
+   migration recovery and rollback in isolated PostgreSQL 17. Obtain backup/restore
+   readiness evidence from the authorized operator. Do not promote or execute either
+   proposed SQL file as part of this planning task; client SQL is not needed here.
+6. **Worker and retention.** Prefer evaluating one explicitly managed loop in the
+   existing web process for the small pilot, avoiding a new paid worker service.
+   Test this recommendation before choosing it: one start after successful prepare,
+   abort on shutdown, await bounded in-flight calls, no claimed-send replay after
+   restart, and no overlapping application loops. Record sanitized worker state,
+   queue age, uncertain outcomes and quota reservations without codes/numbers/tokens.
+   Review query plans and lock contention using synthetic representative data.
+   Dispatch cleanup occurs during claims; rates/records cleanup during reservations
+   is batched and records remain until at least a day past expiry. It is not a
+   guaranteed wall-clock retention service when idle. Agree a bounded cleanup/audit
+   retention schedule and test it before activation; never delete active proof or
+   reservations to regain quota. No new infrastructure purchase is assumed.
+
+### Ordered release and acceptance sequence
+
+| Stage | Required evidence before advancing |
+| --- | --- |
+| Synthetic activation rehearsal | Tester allowlist enforced across all purposes; disabled/misconfigured/schema-failure paths preserve old access; graceful shutdown/restart; migrations old/new compatibility; quota, expiry, uncertain dispatch, passkey and invitation regressions. Any UI change gets Storybook, phone/desktop Playwright, axe and actual screenshot review. |
+| Release review | Activation diff reconciled with current main; every applicable workflow passes on the exact published head; named release operator, test identity, independent administrator, test window, message/spend caps and rollback target recorded. Owner explicitly authorizes secure setup, staff-only migration and deployment. |
+| Disabled deployment | Capture current live commit/deploy and eligible rollback artifact immediately before release. Apply only authorized staff migration through the controlled runner. Deploy exact reviewed source with pilot disabled; verify migration checks, `/health`, existing staff-details/passkey access and critical client paths. Do not infer health from deploy status. |
+| Staff-only enablement | Secure configuration and fresh Meta contract readback verified; successful prepare; pilot subject bound enforced; worker observable. Owner explicitly authorizes bounded sends before the worker can deliver any queued request. Existing access is verified first. |
+| Device acceptance | Use the bounded sequence below; record actual receipt separately from API acceptance. Stop on any access, recipient, contract, duplicate-delivery or spend discrepancy. |
+| Pilot observation | Confirm no unexpected sends or accumulating queue, quotas survive restart, invitations follow sign-in policy and existing access remains available. Agree observation period and acceptance with owner before wider rollout. |
+
+Proposed live allowance: one designated staff account, another independently
+authorized administrator, at most **three WhatsApp messages total**, no automatic
+retries and no SMS/client messages. Recipient, time window and maximum monetary
+spend are still unset and must be explicitly approved; do not infer them from the
+clinic-wide daily ceiling. Stop once the allowance is consumed even if a test is
+incomplete. A failed/uncertain send must not trigger an extra message.
+
+1. Confirm both people's existing access and the tester's recorded number through
+   the authorized application. With the tester's device, request one sign-in code;
+   confirm actual recipient/receipt, Copy code, successful ordinary session and
+   rejection of re-use. Save only sanitized acceptance results, never the code.
+2. Request one fresh own-account enrollment code; add a disposable passkey, verify
+   the existing key still works, and sign in using the new key without another
+   message. Check optional invitations, Not now, refresh behavior and denied
+   notification guidance without forcing native permission prompts.
+3. Recovery is a separately acknowledged consequential step within the pilot:
+   replacement revokes all old keys/sessions for that subject, including existing
+   non-test credentials. Prefer a designated noncritical test staff identity with
+   the required real canonical permissions and recorded phone. Do not assume a
+   disposable key isolates recovery effects. If the owner accepts the named
+   subject's consequences, use the independent administrator and third code to
+   replace access, verify old keys/sessions fail and the replacement works. If not,
+   leave recovery acceptance pending; synthetic recovery is not device acceptance.
+
+SMS fallback remains synthetically verified until a separately approved recipient,
+time, one-SMS allowance and spend cap exist. Do not manufacture a production
+WhatsApp failure to test it. A client pilot requires its distinct approved template
+and a separate client acceptance/release plan.
+
+### Stop and rollback procedure
+
+On wrong recipient, unexpected/uncertain duplicate, contract drift, quota/spend
+breach, failed health or an existing-access regression: close new pilot intake and
+stop worker claims first. Let already-started bounded provider calls settle as
+accepted/uncertain; do not resend or reclaim them. Disable the new composition,
+verify no further dispatch, and preserve sanitized evidence and rate reservations.
+This kill-switch path must be implemented and rehearsed before enablement.
+
+If code rollback is needed, an authorized release operator deploys the captured
+compatible prior artifact or reviewed revert, monitors the resulting deploy to
+terminal live state, and independently verifies health and preserved access. Keep
+additive tables/new auth methods compatible with existing issued sessions; do not
+drop tables, narrow the session constraint or reset quotas as an automatic rollback.
+Messages, spend and recovery revocations cannot be reversed by a code rollback;
+recovery access repair must use an independently authorized supervised procedure.
+Inspect the resulting automatic-deploy setting and deliberately control subsequent
+main deployments so a rollback is not immediately replaced.
+
+Current Render references were checked using their HTML fallback after Markdown
+retrieval failed: [deployment behavior](https://render.com/docs/deploys),
+[health checks](https://render.com/docs/health-checks) and
+[rollback scope](https://render.com/docs/rollbacks). Rollback artifact availability
+and deployment settings must be rechecked at execution time.
+
+### Owner inputs and distinct execution authority still needed
+
+- Name the staff tester and independent authorized administrator; confirm whether
+  the test subject can safely undergo full recovery revocation. Verify numbers
+  through the application, not secret/code exchange in chat.
+- Agree a test window and total monetary cap, with at most three WhatsApp messages;
+  keep SMS/client sends out unless separately bounded.
+- Authorize the reviewed activation implementation and, after its evidence is
+  complete, protected credential configuration, controlled staff migration and
+  exact-source deployment. Approval of this plan alone is not those live actions.
+- After successful pilot acceptance, separately decide details-session transition,
+  lost-number evidence/audit procedure and wider staff rollout. Details retirement
+  is not required to run this pilot safely and must not be bundled into it.
