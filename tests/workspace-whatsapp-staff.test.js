@@ -46,13 +46,13 @@ test('all eligible canonical accounts can sign in; enrollment uses own session r
   for(const [id,sessionId] of [[1,h.priorSession.sessionId],[2,h.operatorSession.sessionId]]){
     const input={mobile:`2782000000${id}`,browserToken:String(id).repeat(43)},r=await issue(h,s,input);
     const verified=await s.verify({...h.context,...input,request:r.request,code:h.sent.at(-1).code});assert.equal(verified.ok,true);
-    const validated=await h.sessions.validateSessionToken(verified.sessionToken);assert.equal(validated.adminId,id);
+    const validated=await h.sessions.validateSessionToken(verified.sessionToken);assert.equal(Number(validated.adminId),id);
     assert.equal(+new Date(verified.expiresAt)-+h.now(),8*3600000);
     const grant=await s.requestOwnEnrollment({...h.context,...input,sessionId,proof:'passkey',adminId:3-id,mobile:`2782000000${3-id}`});
     assert.equal(grant.ok,true);const start=await s.beginRegistration({grant:grant.grant,browserToken:input.browserToken});
     const result=await s.finishRegistration({grant:grant.grant,browserToken:input.browserToken,
       response:registrationResponse(fixture(),{challenge:start.options.challenge}),deviceLabel:'Synthetic staff phone'});
-    assert.equal(result.ok,true);assert.equal((await h.sessions.validateSessionToken(result.sessionToken)).adminId,id);
+    assert.equal(result.ok,true);assert.equal(Number((await h.sessions.validateSessionToken(result.sessionToken)).adminId),id);
     assert.equal((await s.beginRegistration({grant:grant.grant,browserToken:input.browserToken})).ok,false);
   }
   assert.equal((await h.db.query('SELECT id FROM staff_auth_passkey_credentials WHERE revoked_at IS NULL')).rows.length,2);
@@ -154,7 +154,7 @@ test('staff readiness with no eligible account or rejected Meta stays closed',as
 test('staff WhatsApp session can enroll only its own account with a fresh code and real attestation',async t=>{
   const h=await harness(t),s=service(h),r=await issue(h,s,{mobile:'27820000002'});
   const verified=await s.verify({...h.context,request:r.request,code:h.sent[0].code});assert.equal(verified.ok,true);
-  const session=await h.sessions.validateSessionToken(verified.sessionToken);assert.equal(session.adminId,2);
+  const session=await h.sessions.validateSessionToken(verified.sessionToken);assert.equal(Number(session.adminId),2);
   h.advance(60000);
   const own=await s.requestOwnEnrollment({...h.context,sessionId:session.sessionId,proof:'code',mobile:'27820000001',adminId:1});
   assert.equal(own.accepted,true);await s.dispatchOne();assert.equal(h.sent.at(-1).mobile,'27820000002');
@@ -163,6 +163,6 @@ test('staff WhatsApp session can enroll only its own account with a fresh code a
   const start=await s.beginRegistration({grant:grant.grant,browserToken:h.context.browserToken});assert.equal(start.ok,true);
   const result=await s.finishRegistration({grant:grant.grant,browserToken:h.context.browserToken,
     response:registrationResponse(fixture(),{challenge:start.options.challenge}),deviceLabel:'Synthetic new staff'});
-  assert.equal(result.ok,true);assert.equal((await h.sessions.validateSessionToken(result.sessionToken)).adminId,2);
+  assert.equal(result.ok,true);assert.equal(Number((await h.sessions.validateSessionToken(result.sessionToken)).adminId),2);
   assert.equal((await h.sessions.validateSessionToken(verified.sessionToken)).ok,true);
 });
