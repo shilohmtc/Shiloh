@@ -2,6 +2,9 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const express=require('express');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const {EventEmitter}=require('node:events');
 const {harness}=require('./helpers/workspaceWhatsAppHarness');
 const {createWorkspaceWhatsAppRelease,parseManifest,ENABLED,MANIFEST,TOKEN,KEY}=require('../src/services/workspaceWhatsAppRelease');
 const {createStaffPasskeyAuthRouter}=require('../src/routes/staffPasskeyAuth');
@@ -33,6 +36,27 @@ async function serve(t,release,options={}) {
 test('release manifest is bounded and cannot carry arbitrary extra configuration',()=>{
   for(const value of [undefined,'[]','null','{','x'.repeat(32769),JSON.stringify({pilot:{},accessToken:'not-allowed'})])assert.equal(parseManifest(value),null);
   assert.deepEqual(parseManifest('{"pilot":{}}'),{pilot:{}});
+});
+
+test('production pool is lazy and bounded; idle errors cannot crash existing access or expose raw errors',async()=>{
+  const pools=[],warnings=[],canonical={};let composition;
+  class SyntheticPool extends EventEmitter {
+    constructor(options){super();this.options=options;this.ends=0;pools.push(this);}
+    async query(){return {rows:[]};}
+    async end(){this.ends++;}
+  }
+  const dependencies={pg:{Pool:SyntheticPool},'../lib/logger':{warn:value=>warnings.push(value)},
+    '../db/pool':{pool:canonical},'./staffBrowserSession':{createStaffBrowserSessionService:({db})=>{assert.equal(db,canonical);return {}; }},
+    './workspaceWhatsAppRelease':{createWorkspaceWhatsAppRelease:options=>{composition=options;return {};}}};
+  vm.runInNewContext(fs.readFileSync('src/services/workspaceWhatsAppProduction.js','utf8'),{
+    module:{exports:{}},process:{env:{DATABASE_URL:'postgres://synthetic.invalid/synthetic'}},globalThis:{fetch:()=>{throw Error('No I/O');}},
+    require:name=>{assert.ok(name in dependencies);return dependencies[name];},
+  });
+  assert.equal(pools.length,0);await composition.db.query('SELECT 1');assert.equal(pools.length,1);
+  assert.equal(pools[0].options.max,2);assert.equal(pools[0].options.statement_timeout,5000);
+  assert.doesNotThrow(()=>pools[0].emit('error',Error('synthetic-private-connection-detail')));
+  assert.deepEqual(warnings,['Workspace WhatsApp pilot database connection unavailable']);
+  await composition.close();assert.equal(pools[0].ends,1);
 });
 
 test('disabled production composition performs no I/O and leaves ordinary passkey authentication working',async t=>{
