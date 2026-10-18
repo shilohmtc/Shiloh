@@ -77,6 +77,7 @@ function createWorkspaceWhatsAppRuntime({enabled = false,config = {},db,sessions
     } catch (_) { return {ok:false,code:'RUNTIME_SCHEMA_UNREADY'}; }
   }
   return {prepare,checkProvider:()=>meta.readiness(),service,router:createWorkspaceWhatsAppRouter({service,sessions,env,enabled,
+    recoveryEnabled:accessPolicy ? accessPolicy.recoveryEnabled===true : true,
     invitations:configured ? createAuthInvitations({db,audience:'staff'}) : null}),
     worker:createWorkspaceWhatsAppWorker({service,enabled,...workerOptions})};
 }

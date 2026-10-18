@@ -23,6 +23,7 @@ async function main() {
     return new Response(JSON.stringify({data:url.includes('/phone_numbers')?[{id:'789'}]:[{...template,status:'APPROVED'}]}));
   }});
   release.mount(app);app.use(express.json());
+  app.use('/storybook',express.static('storybook-static'));
   app.get('/signin',(_req,res)=>res.type('html').send(`<!doctype html><html lang="en"><head><title>Staff passkey proof</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:18px system-ui;max-width:540px;margin:24px auto;padding:16px}button{font:inherit;min-height:48px;padding:12px}</style></head><body><h1>Workspace</h1>${ux.signinPanel()}<script src="/signin.js"></script></body></html>`));
   app.get('/signin.js',(_req,res)=>res.type('application/javascript').send(ux.signinScript()));
   app.get('/calendar/workspace',(_req,res)=>res.type('html').send('<h1>Existing Workspace</h1>'));
@@ -53,6 +54,15 @@ async function main() {
           response:{clientDataJSON:new Uint8Array([1]).buffer,authenticatorData:new Uint8Array([1]).buffer,signature:new Uint8Array([1]).buffer,userHandle:null}};};
         navigator.credentials.create=async()=>{await window.__recordCeremony('create');throw Error('No automatic enrollment');};
       });
+      for(const path of ['/calendar/staff-auth/whatsapp/',...(fs.existsSync('storybook-static/iframe.html')?
+        ['/storybook/iframe.html?id=workspace-whatsapp-authentication-draft--bounded-staff-pilot&viewMode=story']:[])]) {
+        await page.goto(origin+path);await page.getByRole('heading',{name:'Welcome to Workspace'}).waitFor();
+        assert.deepEqual(await page.locator('#purpose option').allTextContents(),['Sign in','Add a passkey']);
+        assert.equal(await page.getByRole('button',{name:'Try an SMS code instead',exact:true}).count(),0);
+        if(path.startsWith('/storybook'))await page.waitForFunction(()=>window.axe && !window.axe._running);
+        assert.deepEqual((await new AxeBuilder({page}).include('main').analyze()).violations,[]);
+        await page.screenshot({path:`${out}/${label}-pilot-${path.startsWith('/storybook')?'storybook':'entry'}.png`,fullPage:true});
+      }
       await page.goto(origin+'/signin');await page.getByRole('button',{name:'Continue as Synthetic pilot staff'}).waitFor();
       assert.equal(counts.get,0);await page.getByRole('button',{name:'Continue as Synthetic pilot staff'}).click();
       await page.waitForURL('**/calendar/staff-auth/whatsapp/welcome');

@@ -53,7 +53,9 @@ test('configured release verifies Meta before opening intake, keeps recovery/SMS
       return new Response(JSON.stringify({data:url.includes('/phone_numbers')?[{id:'789'}]:[{...template,status:'APPROVED'}]}));
     }});
   const http=await serve(t,release);assert.equal((await http.get(BASE+'/')).status,404);
-  assert.equal((await release.start()).ok,true);assert.equal(calls.length,2);assert.equal((await http.get(BASE+'/')).status,200);
+  assert.equal((await release.start()).ok,true);assert.equal(calls.length,2);const entry=await http.get(BASE+'/');assert.equal(entry.status,200);
+  assert.doesNotMatch(await entry.text(),/Replace lost passkeys|For lost-passkey replacement/);
+  assert.equal((await http.get(BASE+'/approve')).status,404);
   assert.equal(await release.passkeySuccessDestination(h.priorSession.sessionToken),BASE+'/welcome');
   assert.equal(await release.passkeySuccessDestination(h.operatorSession.sessionToken),'/calendar/workspace');
   assert.equal(await release.passkeySuccessDestination('invalid'),'/calendar/workspace');

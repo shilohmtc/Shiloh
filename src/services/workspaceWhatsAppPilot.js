@@ -22,7 +22,7 @@ function createWorkspaceWhatsAppPilotPolicy(input = {}, whatsappCostMinor) {
     positive(maxMessages) && maxMessages<=3 && positive(maxSpendMinor) && positive(whatsappCostMinor) &&
     maxSpendMinor>=whatsappCostMinor;
   const withinWindow=current=>valid && Number.isFinite(new Date(current).getTime()) && +new Date(current)>=start && +new Date(current)<end;
-  return Object.freeze({valid,withinWindow,
+  return Object.freeze({valid,withinWindow,recoveryEnabled,
     allowsSubject:(id,purpose,current)=>withinWindow(current) && accountId(id)===subjectId &&
       (purpose==='signin' || purpose==='enroll' || purpose==='recover' && recoveryEnabled),
     allowsOperator:(id,current)=>withinWindow(current) && accountId(id)===operatorId,

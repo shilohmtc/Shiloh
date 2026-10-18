@@ -10,7 +10,7 @@ const { authInvitationPage, authInvitationScript } = require('../presentation/au
 
 const BASE = '/calendar/staff-auth/whatsapp';
 const validToken = value => /^[A-Za-z0-9_-]{43}$/.test(value || '');
-function createWorkspaceWhatsAppRouter({ service, sessions, invitations, env = {}, enabled = false } = {}) {
+function createWorkspaceWhatsAppRouter({ service, sessions, invitations, env = {}, enabled = false, recoveryEnabled = true } = {}) {
   const router = express.Router();
   const production = env.NODE_ENV === 'production';
   const browserCookie = production ? '__Host-shiloh_workspace_otp_browser' : 'shiloh_workspace_otp_browser';
@@ -34,7 +34,7 @@ function createWorkspaceWhatsAppRouter({ service, sessions, invitations, env = {
   function page(req,res,admin = false) {
     browser(req,res,true);
     res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
-    return res.type('html').send(workspaceWhatsAppPage({ admin, smsFallback:service.fallbackEnabled?.() === true }));
+    return res.type('html').send(workspaceWhatsAppPage({ admin, recoveryEnabled, smsFallback:service.fallbackEnabled?.() === true }));
   }
   const requireSession = requireStaffSession({ service:sessions, env });
   const csrf = csrfGuard({ service:sessions });
@@ -46,7 +46,7 @@ function createWorkspaceWhatsAppRouter({ service, sessions, invitations, env = {
     res.type('html').send(authInvitationPage({audience:'staff',base:BASE}));
   });
   router.get('/invitations.js',(_req,res)=>res.type('application/javascript').send(authInvitationScript({audience:'staff',base:BASE})));
-  router.get('/approve', requireSession, (req,res) => page(req,res,true));
+  router.get('/approve', (_req,res,next) => recoveryEnabled ? next() : res.sendStatus(404), requireSession, (req,res) => page(req,res,true));
   router.get('/app.js', (_req,res) => res.type('application/javascript').send(workspaceWhatsAppScript()));
   router.use(sameOriginGuard({ env }));
   router.use(async (req,res,next) => {
