@@ -20,6 +20,7 @@ const customerExperienceService = require("./src/services/customerExperience");
 const clientIdentityService = require("./src/services/clientIdentityOnboarding");
 const clientDiscoveryService = require("./src/services/clientDiscoveryMenu");
 const { installClientNavigationPriority } = require("./src/services/clientNavigationPriority");
+const workspaceWhatsAppRelease = require('./src/services/workspaceWhatsAppProduction');
 
 observability.initialize();
 validateEnv();
@@ -68,8 +69,9 @@ const app = express();
 app.disable("x-powered-by");
 app.use(securityHeaders);
 app.use(canonicalHostRedirect);
-app.use(express.json({ limit: "2mb" }));
 app.use(requestContext);
+workspaceWhatsAppRelease.mount(app);
+app.use(express.json({ limit: "2mb" }));
 app.use("/assets/service-images", express.static(path.join(__dirname, "public", "service-images"), { maxAge: "30d", immutable: true }));
 app.use("/assets/brand", express.static(path.join(__dirname, "public", "assets", "brand"), { maxAge: "30d", immutable: true }));
 app.use("/assets/pwa", express.static(path.join(__dirname, "public", "assets", "pwa"), { maxAge: "30d", immutable: true }));
@@ -100,13 +102,24 @@ async function start() {
   try { logger.info(await require("./src/services/workspacePackages").readiness(), "Workspace package readiness verified"); } catch (error) { logger.warn({ err: error }, "Workspace package readiness check failed"); }
   await ensureBookingConfirmationDeliverySchema(); logger.info({ initialized: true, migrations: ['071_booking_confirmation_template_evidence.sql', '083_initial_booking_confirmation_guarantee.sql', '085_calendar_clean_crm_v2_cutover.sql'], migrationAppliedNow: false, checksumVerified: true, durableRetryColumns: true, crmV2RecipientSnapshots: true }, "Booking confirmation delivery evidence schema verified");
   try { await runConfiguredClientProvenanceAudit(logger); } catch (error) { logger.error({ err: error }, "Read-only CRM provenance audit failed"); }
+  logger.info(await workspaceWhatsAppRelease.inspectParticipants(), 'Workspace WhatsApp private participant inspection');
+  logger.info(await workspaceWhatsAppRelease.start(), 'Workspace WhatsApp pilot readiness');
   server = app.listen(PORT, () => { logger.info({ port: PORT }, "Shiloh started"); startConversationSessionCleanupScheduler(); startTemporarySessionCleanupScheduler(); startGoogleBusinessProfileSyncScheduler(); startAppointmentLifecycleScheduler(); startCustomerCareScheduler(); startBookingIntegrityScheduler(); startCustomerBookingConfirmationScheduler(); startConsultationFormDeliveryScheduler(); startMandatoryDemoCleanupScheduler(); setTimeout(logMyShilohCutoverCoverage, 15000).unref(); });
 }
 start().catch(async (error) => {
+  try {await workspaceWhatsAppRelease.stop();} catch (_) {}
   observability.captureException(error, { "error.kind": "startup", "error.code": error?.code, "runtime.phase": "startup" });
   await observability.flush();
   logger.fatal({ err: error }, "Shiloh failed during startup");
   process.exit(1);
 });
-function shutdown(signal) { logger.info({ signal }, "Shutting down Shiloh"); if (!server) return process.exit(0); server.close(() => { logger.info("HTTP server closed"); process.exit(0); }); setTimeout(() => { logger.error("Forced shutdown after timeout"); process.exit(1); }, 10000).unref(); }
+let shuttingDown=false;
+async function shutdown(signal) {
+  if(shuttingDown)return;shuttingDown=true;
+  logger.info({signal},'Shutting down Shiloh');
+  setTimeout(()=>{logger.error('Forced shutdown after timeout');process.exit(1);},25000).unref();
+  try {await workspaceWhatsAppRelease.stop();} catch (_) {logger.warn('Workspace WhatsApp pilot stop could not complete');}
+  if(!server)return process.exit(0);
+  server.close(()=>{logger.info('HTTP server closed');process.exit(0);});
+}
 process.on("SIGTERM", () => shutdown("SIGTERM")); process.on("SIGINT", () => shutdown("SIGINT"));

@@ -92,6 +92,20 @@ function createSmsMessengerGateway({ env = process.env, fetchImpl = globalThis.f
       }
       return String(body.messageId);
     },
+    // Isolated Workspace composition calls this explicitly; no retired route
+    // uses it. Keep a single ASCII SMS and the actual five-minute OTP expiry.
+    async sendWorkspaceCode({ mobile, code, audience = 'staff' }) {
+      if (!enabled() || !/^27[6-8][0-9]{8}$/.test(mobile || '') || !/^[0-9]{6}$/.test(code || '')) throw new Error('SMS gateway is not configured');
+      const response = await fetchImpl(SEND_URL, {
+        method:'POST', headers:{'Content-Type':'application/json',Accept:'application/json',...headers()},
+        body:JSON.stringify({recipientNumber:mobile,
+          message:`${audience === 'client' ? 'My Shiloh' : 'Shiloh Workspace'} code: ${code}. Expires in 5 minutes. Do not share it.`,campaign:audience === 'client' ? 'My Shiloh authentication' : 'Shiloh Workspace authentication'}),
+        signal:AbortSignal.timeout(8000),
+      });
+      let body; try { body = JSON.parse(await response.text()); } catch (_) { throw new Error('SMS gateway unavailable'); }
+      if (!response.ok || body.error || typeof body.messageId !== 'string' && typeof body.messageId !== 'number' || !body.messageId) throw new Error('SMS gateway unavailable');
+      return String(body.messageId);
+    },
     async sendStaffSetup({ mobile, code }) {
       if (!enabled()) throw new Error('SMS gateway is not configured');
       const response = await fetchImpl(SEND_URL, {

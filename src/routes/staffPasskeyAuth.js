@@ -58,6 +58,7 @@ function createStaffPasskeyAuthRouter({
   passkeyService = createStaffPasskeyAuthService({ db: pool, env }),
   bootstrapService = createStaffPasskeyDeviceBootstrapService({ db: pool, env }),
   qrCode = QRCode,
+  successDestination = null,
 } = {}) {
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
@@ -88,14 +89,15 @@ function createStaffPasskeyAuthRouter({
     if (result.code === 'STAFF_PASSKEY_LABEL_INVALID') return res.status(400).json({ error: 'Enter a device name between 1 and 48 characters', requestId: res.req?.id });
     return res.status(401).json({ error: fallback, requestId: res.req?.id });
   }
-  function sendSession(res, result) {
+  function sendSession(res, result, nextPath) {
     noStore(res);
     const cookies = [serializeSessionCookie(result.sessionToken, {
       env, maxAgeSeconds: Math.max(1, Math.floor((new Date(result.expiresAt).getTime() - Date.now()) / 1000)),
     })];
     if (result.credentialHint) cookies.push(serializePasskeyHintCookie(result.credentialHint, { env }));
     res.setHeader('Set-Cookie', cookies);
-    return res.status(200).json({ authenticated: true, csrfToken: result.csrfToken, viewer: result.viewer || null, recoveryRequired: false });
+    return res.status(200).json({ authenticated: true, csrfToken: result.csrfToken, viewer: result.viewer || null, recoveryRequired: false,
+      ...(nextPath==='/calendar/staff-auth/whatsapp/welcome'?{nextPath}:{}) });
   }
 
   // Reopen only optional own-account save/list/remove; obsolete setup stays retired.
@@ -138,7 +140,9 @@ function createStaffPasskeyAuthRouter({
         requestFingerprintHash: requestFingerprintHash(req),
       });
       if (!result.ok) return error(res, result);
-      return sendSession(res, result);
+      let nextPath;
+      try {if(typeof successDestination==='function')nextPath=await successDestination(result.sessionToken);} catch (_) {}
+      return sendSession(res, result, nextPath);
     } catch (e) { return next(e); }
   });
   // Verify the signed-in account without rotating other Workspace sessions.

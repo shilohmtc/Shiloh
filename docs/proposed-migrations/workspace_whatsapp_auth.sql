@@ -1,0 +1,4 @@
+-- Historical review draft promoted for the authorized staff pilot.
+-- Canonical executable schema: migrations/197_workspace_whatsapp_pilot.sql.
+-- Do not execute this pointer or apply the old review SQL separately.
+-- Client schema remains proposed and is not part of the staff release.

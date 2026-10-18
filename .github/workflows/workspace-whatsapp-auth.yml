@@ -1,0 +1,79 @@
+name: Workspace WhatsApp draft proof
+on:
+  pull_request:
+    paths:
+      - 'src/services/workspaceWhatsApp*.js'
+      - 'src/services/codeSignInPolicy.js'
+      - 'tests/code-signin-policy.test.js'
+      - 'tests/workspace-meta-readback.test.js'
+      - 'tests/fixtures/workspace-meta-reviewed-2026-10-17.json'
+      - 'src/services/staffBrowserSession.js'
+      - 'src/services/clientSmsAuth.js'
+      - 'src/services/clientCode*.js'
+      - 'src/services/clientBrowserSession.js'
+      - 'src/services/crmV2ClientService.js'
+      - 'src/services/authInvitations.js'
+      - 'src/routes/clientCodeAuth.js'
+      - 'src/presentation/clientCodeUx.js'
+      - 'src/presentation/authInvitations.js'
+      - 'docs/proposed-migrations/client_code_auth.sql'
+      - 'tests/client-code-auth.test.js'
+      - 'tests/helpers/clientCodeHarness.js'
+      - 'src/routes/workspaceWhatsAppAuth.js'
+      - 'src/presentation/workspaceWhatsAppUx.js'
+      - 'docs/proposed-migrations/workspace_whatsapp_auth.sql'
+      - 'migrations/197_workspace_whatsapp_pilot.sql'
+      - 'src/routes/calendar.js'
+      - 'src/routes/staffPasskeyAuth.js'
+      - 'src/presentation/staffPasskeyUx.js'
+      - 'app.js'
+      - 'tests/workspace-whatsapp*.test.js'
+      - 'tests/helpers/workspaceWhatsApp*.js'
+      - 'stories/WorkspaceWhatsAppAuth.stories.js'
+      - 'scripts/workspace-whatsapp-browser-proof.js'
+      - 'scripts/client-code-browser-proof.js'
+      - 'scripts/workspace-whatsapp-release-browser-proof.js'
+      - '.github/workflows/workspace-whatsapp-auth.yml'
+permissions:
+  contents: read
+jobs:
+  synthetic-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_PASSWORD: synthetic-only
+          POSTGRES_DB: wa_synthetic
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.14.1
+          cache: npm
+      - run: npm ci
+      - run: node --test tests/code-signin-policy.test.js tests/workspace-meta-readback.test.js tests/workspace-whatsapp-auth-preparation.test.js tests/workspace-whatsapp-providers.test.js tests/workspace-whatsapp-integration.test.js tests/staff-detail-auth.test.js tests/staff-passkey-auth-v1.test.js tests/staff-details-device-retirement.test.js tests/my-shiloh-remembered-session.test.js tests/my-shiloh-payment-choice-routes.test.js tests/crm-v2-foundation.test.js tests/whatsapp-clean-crm-v2-registration-activation-p0.test.js
+      - run: node --test tests/workspace-whatsapp-integration.test.js tests/workspace-whatsapp-pilot.test.js tests/workspace-whatsapp-release.test.js tests/client-code-auth.test.js
+        env:
+          WORKSPACE_WHATSAPP_SYNTHETIC_DATABASE_URL: postgres://postgres:synthetic-only@127.0.0.1:5432/wa_synthetic
+      - run: npm run build-storybook
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/workspace-whatsapp-browser-proof.js
+      - run: node scripts/client-code-browser-proof.js
+      - run: node scripts/workspace-whatsapp-release-browser-proof.js
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: workspace-whatsapp-draft-proof
+          path: artifacts/workspace-whatsapp
+          if-no-files-found: error
