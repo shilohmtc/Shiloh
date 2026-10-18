@@ -124,6 +124,58 @@ actual receipt and owner acceptance separately. No live send is authorized here.
 
 ## Staff pilot release plan — prepared 18 October 2026
 
+### Inactive pilot adapter implementation — 18 October continuation
+
+Owner's subsequent instruction to continue authorizes the staged adapter build.
+`workspaceWhatsAppPilot.js` now supplies explicit mount/start/stop composition;
+production entrypoints still do not import it. No environment variables, process
+listeners, provider requests or database queries are created by construction.
+Application call sites, protected configuration and authorized deployment remain
+release work. Earlier prerequisites below are the release sequence, not a claim
+that the pilot has been activated.
+
+Configuration must select Christel's verified canonical subject ID and JP's
+verified independent administrator ID; names are never matched automatically.
+An explicit stable scope ID, zoned start/end timestamps, at most three messages,
+and a positive conservative monetary reservation cap are required. Values are
+not supplied by this draft. Recovery defaults off and SMS is forcibly disabled
+for this WhatsApp-only adapter. Existing broader staff/client compositions are
+unchanged; the client runtime remains unmounted.
+
+The selected subject is enforced before provider reads, during reservation,
+verification, self-service enrollment, administrator approval and WebAuthn grant
+completion. JP must still have a current independent recent passkey session and
+the canonical recovery permissions. A configured name/ID cannot manufacture those
+permissions. The total pilot message/spend reservations use the existing locked
+SQL rate authority and expire only at the configured pilot end; process restarts,
+purpose changes and the daily reset cannot replenish them. Reservations are
+conservative attempts, not proof of delivery or the provider invoice. Keep the
+scope and dedicated key stable throughout the window; do not rotate either to
+regain allowance.
+
+Start coalesces concurrent callers, checks schema before opening intake, and
+manages one abortable worker. Stop synchronously closes the new HTTP channel and
+grant use, waits for bounded started work to settle, and cannot restart the same
+instance. A stop during preparation cannot reopen the channel. Window expiry or
+worker failure disables the new channel; existing session/passkey/details paths
+are untouched. Started provider calls may still settle, and are never replayed.
+The runtime gates each actual provider HTTP request, so stopping or expiring during
+an inventory read cannot start a subsequent message POST.
+Shutdown must stop/drain the adapter before closing the shared database pool;
+closing a pool does not reliably cancel an acquisition already in progress.
+`passkeySuccessDestination(token)` validates the canonical session and returns the
+welcome destination only for the selected subject's saved-passkey sign-in while
+the pilot is running; all other callers retain the calendar destination. Wiring
+that hook into the existing success call site is still part of activation.
+
+Synthetic regression coverage includes alternate participants/operators,
+canonical permission changes, a valid real WebAuthn response rejected under a
+different pilot subject, lifetime count/spend reservations across restart/day
+reset/purpose, expiry, stop during readiness/preparation/in-flight delivery,
+single-start behavior, default-off/missing-schema operation and worker failure.
+The same pilot tests are included in the isolated PostgreSQL 17 workflow. These
+checks do not authorize live sends, migration execution, configuration or cutover.
+
 Status: proposed execution plan, not activation authority. Owner authorized this
 readiness work after the completed inactive draft. Work mode is appropriate.
 The client runtime, staff-details retirement and lost-number bypass are excluded

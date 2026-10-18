@@ -300,7 +300,7 @@ test('resend invalidates prior codes; challenge persistence and audit exclude ra
 
 test('production entry points do not import preparation modules; generic transport stays retired', async () => {
   for (const filename of ['app.js', 'src/routes/staffBrowserSession.js', 'src/routes/staffPasskeyAuth.js', 'src/routes/staffPasskeyBootstrap.js']) {
-    assert.doesNotMatch(fs.readFileSync(filename, 'utf8'), /workspaceWhatsApp(?:Auth|Template)/);
+    assert.doesNotMatch(fs.readFileSync(filename, 'utf8'), /workspaceWhatsApp(?:Auth|Template|Runtime|Pilot)/);
   }
   await assert.rejects(require('../src/services/whatsapp').sendWhatsAppSignInMessage(), /retired/);
 });

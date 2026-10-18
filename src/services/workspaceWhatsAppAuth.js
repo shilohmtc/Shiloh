@@ -24,14 +24,17 @@ const active = row => row?.admin_active === true &&
 // Explicit composition only: no mounted production route or default sender.
 function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery = null,
   hmacKey = null, now = () => new Date(), randomBytes = crypto.randomBytes,
-  randomInt = crypto.randomInt, env = {}, smsDelivery = null, budgets = null } = {}) {
+  randomInt = crypto.randomInt, env = {}, smsDelivery = null, budgets = null,
+  accessPolicy = null, isEnabled = () => true } = {}) {
   const key = Buffer.isBuffer(hmacKey) ? Buffer.from(hmacKey) : null;
-  const enabledHere = () => enabled === true && key?.length >= 32 &&
+  const enabledHere = () => enabled === true && isEnabled() === true && key?.length >= 32 &&
     typeof store?.transaction === 'function' && typeof delivery?.configured === 'function' && delivery.configured();
   const digest = (...parts) => crypto.createHmac('sha256', key).update(JSON.stringify(parts)).digest('hex');
   const revision = workspaceWhatsAppRevision;
   const budget = validWorkspaceBudgets(budgets) ? structuredClone(budgets) : null;
   const fallbackEnabled = () => enabledHere() && !!budget && smsDelivery?.configured?.() === true;
+  const subjectAllowed = (id,purpose,current) => enabledHere() &&
+    (!accessPolicy || accessPolicy.allowsSubject(id,purpose,current) === true);
 
   async function approval(tx, sessionId, subjectId, current, requireRecent) {
     const session = await tx.session(sessionId);
@@ -39,7 +42,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
         !Number.isFinite(new Date(session.expiresAt).getTime()) || new Date(session.expiresAt) <= current ||
         (requireRecent && !strongRecentSession(session, current)) || Number(session.adminId) === Number(subjectId)) return null;
     const operator = await tx.admin(session.adminId);
-    if (!active(operator) || operator.calendar_scope !== 'all_business' || operator.service_scope !== 'all_services' ||
+    if (!active(operator) || !enabledHere() || accessPolicy && accessPolicy.allowsOperator(operator.id,current) !== true || operator.calendar_scope !== 'all_business' || operator.service_scope !== 'all_services' ||
         operator.permissions?.['staff_auth:reset'] !== true) return null;
     return operator;
   }
@@ -49,7 +52,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
     if (!session?.ok || session.revokedAt || session.recoveryRequired || Number(session.adminId) !== Number(subjectId) ||
         !Number.isFinite(new Date(session.expiresAt).getTime()) || new Date(session.expiresAt) <= current) return null;
     const subject = await tx.admin(subjectId);
-    return active(subject) ? session : null;
+    return active(subject) && subjectAllowed(subjectId,'enroll',current) ? session : null;
   }
   async function setupProof(tx, row, current, recent = false) {
     if (row.purpose === 'enroll' && row.selfSessionId) return ownSession(tx,row.selfSessionId,row.adminId,current);
@@ -65,7 +68,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       const current=now(), session=await tx.session(sessionId);
       if (!session || !await ownSession(tx,sessionId,session.adminId,current)) return null;
       const subject=await tx.admin(session.adminId), matches=await tx.adminsByMobile(subject.normalized_whatsapp);
-      if(matches.length!==1 || Number(matches[0].id)!==Number(subject.id)) return null;
+      if(matches.length!==1 || Number(matches[0].id)!==Number(subject.id) || !subjectAllowed(subject.id,'enroll',now())) return null;
       const binding={adminId:subject.id,purpose:'enroll',selfSessionId:sessionId,
         browserHash:digest('browser',browserToken),identityRevision:revision(subject),current,
         expiresAt:new Date(current.getTime()+300000)};
@@ -176,6 +179,12 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(digest('intake-encryption'), 'hex'), packed.subarray(0, 12));
       decipher.setAAD(Buffer.from(intake.requestHash)); decipher.setAuthTag(packed.subarray(12, 28));
       normalized = Buffer.concat([decipher.update(packed.subarray(28)), decipher.final()]).toString('utf8');
+      // A pilot must reject other subjects before any authenticated provider I/O.
+      // Recheck under the reservation transaction after bounded readiness below.
+      if (accessPolicy && !await store.transaction(async tx => {
+        const matches = await tx.adminsByMobile(normalized);
+        return matches.length === 1 && active(matches[0]) && subjectAllowed(matches[0].id,intake.purpose,now());
+      })) { await finish('not_sent'); return completed; }
       template = await provider?.readiness();
     } catch (_) { await finish('not_sent'); return completed; }
     if (!template?.ready || !Number.isInteger(template.codeTtlSeconds) || template.codeTtlSeconds <= 0 || template.codeTtlSeconds > 300) { await finish('not_sent'); return completed; }
@@ -189,6 +198,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       const matches = await tx.adminsByMobile(normalized);
       if (matches.length !== 1 || !active(matches[0])) return null;
       const subject = matches[0];
+      if (!subjectAllowed(subject.id,purpose,current)) return null;
       // An unknown result for this staff phone blocks subsequent channel sends
       // until expiry, including a different request/purpose and process restart.
       if (await tx.hasUncertainDelivery(subject.id, current)) return null;
@@ -215,8 +225,10 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
         await tx.saveDispatch(row);
         return {deferred:true};
       }
+      if (!subjectAllowed(subject.id,purpose,now())) return null;
       if (!await tx.takeRate([
         ...codeReservationBuckets({ audience:'staff', personKey:String(subject.id), channel, digest, current }),
+        ...(accessPolicy ? accessPolicy.reservationBuckets({digest,current,channel}) : []),
         ...(budget ? [
         {key:digest('spend-day','all'),limit:budget.dailySpendMinor,amount:channel === 'sms' ? budget.smsCostMinor : budget.whatsappCostMinor,windowMs:DAY_MS},
         ...(channel === 'sms' ? [
@@ -248,7 +260,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
     if (prepared?.deferred) return completed;
     if (!prepared) { await finish('not_sent'); return completed; }
     let sent;
-    try { sent = await provider.deliver({ mobile: prepared.mobile, code: prepared.code, codeTtlSeconds: template.codeTtlSeconds }); }
+    try { sent = enabledHere() ? await provider.deliver({ mobile: prepared.mobile, code: prepared.code, codeTtlSeconds: template.codeTtlSeconds }) : {ok:false,outcome:'not_sent'}; }
     catch (_) { sent = { ok: false }; }
     await store.transaction(async tx => {
       const dispatch = await tx.dispatch(intake.requestHash);
@@ -295,13 +307,14 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       }
       const subject = await tx.admin(row.adminId);
       const owners = subject ? await tx.adminsByMobile(subject.normalized_whatsapp) : [];
-      if (!active(subject) || owners.length !== 1 || Number(owners[0].id) !== Number(subject.id) ||
+      if (!active(subject) || !subjectAllowed(subject.id,purpose,current) || owners.length !== 1 || Number(owners[0].id) !== Number(subject.id) ||
           !safeHashEqual(row.identityRevision, revision(subject)) ||
           (purpose !== 'signin' && !await setupProof(tx, row, current))) {
         row.state = 'revoked'; await tx.saveChallenge(row); return INVALID;
       }
       row.state = 'consumed';
       await tx.saveChallenge(row);
+      if (!subjectAllowed(subject.id,purpose,now())) return INVALID;
       // The adapter MUST commit this effect, consumption and audit atomically.
       // A setup grant is not a session or a credential replacement. It binds the
       // later WebAuthn ceremony to this identity, approval, purpose and browser.
@@ -330,7 +343,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       if (!await tx.takeRate([{ key: digest('intent-network', network), limit: 20, windowMs: WINDOW_MS },
         { key: digest('intent-clinic','all'), limit: 100, windowMs: WINDOW_MS }], current) || !normalized) return;
       const rows = await tx.adminsByMobile(normalized);
-      if (rows.length !== 1 || !active(rows[0])) return;
+      if (rows.length !== 1 || !active(rows[0]) || !subjectAllowed(rows[0].id,purpose,current)) return;
       await tx.insertIntent({ hash: sha256(intent), adminId: rows[0].id, purpose, state: 'requested',
         browserHash: digest('browser', browserToken), identityRevision: revision(rows[0]),
         expiresAt: new Date(current.getTime() + WINDOW_MS) });
@@ -344,7 +357,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
     if (!tokenValid(intent) || identityConfirmed !== true) return INVALID;
     return store.transaction(async tx => {
       const current = now(), row = await tx.intent(sha256(intent));
-      if (!row || row.state !== 'requested' || new Date(row.expiresAt) <= current) return INVALID;
+      if (!row || row.state !== 'requested' || new Date(row.expiresAt) <= current || !subjectAllowed(row.adminId,row.purpose,current)) return INVALID;
       const admin = await tx.admin(row.adminId);
       const operator = await approval(tx, sessionId, row.adminId, current, true);
       if (!active(admin) || !operator || row.identityRevision !== revision(admin)) return INVALID;
@@ -360,7 +373,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
     if (!tokenValid(intent)) return INVALID;
     return store.transaction(async tx => {
       const current = now(), row = await tx.intent(sha256(intent));
-      if (!row || row.state !== 'requested' || new Date(row.expiresAt) <= current ||
+      if (!row || row.state !== 'requested' || new Date(row.expiresAt) <= current || !subjectAllowed(row.adminId,row.purpose,current) ||
           !await approval(tx, sessionId, row.adminId, current, true)) return INVALID;
       const admin = await tx.admin(row.adminId);
       if (!active(admin) || row.identityRevision !== revision(admin)) return INVALID;
@@ -384,9 +397,9 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
         new Date(row.expiresAt) <= current || row.browserHash !== digest('browser', browserToken)) return null;
     const admin = await tx.admin(row.adminId);
     const matches = admin ? await tx.adminsByMobile(admin.normalized_whatsapp) : [];
-    if (!active(admin) || matches.length !== 1 || Number(matches[0].id) !== Number(admin.id) ||
+    if (!active(admin) || !subjectAllowed(admin.id,row.purpose,current) || matches.length !== 1 || Number(matches[0].id) !== Number(admin.id) ||
         row.identityRevision !== revision(admin) || !await setupProof(tx,row,current)) return null;
-    return { row, admin };
+    return subjectAllowed(admin.id,row.purpose,now()) ? { row, admin } : null;
   }
 
   async function beginRegistration({ grant, browserToken } = {}) {
@@ -422,6 +435,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
         if (!tokenValid(data.challenge) || sha256(data.challenge) !== row.challengeHash) return INVALID;
         verified = verifyRegistrationResponse(response, { expectedChallenge:data.challenge, origin:policy.origin, rpId:policy.rpId });
       } catch (_) { return INVALID; }
+      if (!subjectAllowed(admin.id,row.purpose,now())) return INVALID;
       const result = await tx.completePasskey({ admin, verified, purpose:row.purpose, current, deviceLabel });
       if (!result?.ok) return INVALID;
       await tx.audit({ event:'workspace_whatsapp_passkey_completed', adminId:admin.id, operatorId:row.operatorId, purpose:row.purpose, at:current });

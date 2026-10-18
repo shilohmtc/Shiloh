@@ -66,6 +66,6 @@ async function harness(t, options = {}) {
     await service.dispatchOne();
     return service.verify({...input,request:r.request,code:sent.at(-1).code});
   }
-  return {pg,db,service,sessions,context,operatorSession,priorSession,sent,code,env,store,delivery,advance};
+  return {pg,db,service,sessions,context,operatorSession,priorSession,sent,code,env,store,delivery,advance,now:()=>new Date(clock)};
 }
 module.exports={harness};

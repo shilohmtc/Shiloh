@@ -57,7 +57,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node --test tests/code-signin-policy.test.js tests/workspace-meta-readback.test.js tests/workspace-whatsapp-auth-preparation.test.js tests/workspace-whatsapp-providers.test.js tests/workspace-whatsapp-integration.test.js tests/staff-detail-auth.test.js tests/staff-passkey-auth-v1.test.js tests/staff-details-device-retirement.test.js tests/my-shiloh-remembered-session.test.js tests/my-shiloh-payment-choice-routes.test.js tests/crm-v2-foundation.test.js tests/whatsapp-clean-crm-v2-registration-activation-p0.test.js
-      - run: node --test tests/workspace-whatsapp-integration.test.js tests/client-code-auth.test.js
+      - run: node --test tests/workspace-whatsapp-integration.test.js tests/workspace-whatsapp-pilot.test.js tests/client-code-auth.test.js
         env:
           WORKSPACE_WHATSAPP_SYNTHETIC_DATABASE_URL: postgres://postgres:synthetic-only@127.0.0.1:5432/wa_synthetic
       - run: npm run build-storybook

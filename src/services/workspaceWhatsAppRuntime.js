@@ -41,10 +41,17 @@ function createWorkspaceWhatsAppWorker({service,enabled = false,pollMs = 1000,ba
 // Isolated composition only. app.js and all existing entrypoints do not import
 // this module. No process.env, global fetch, default database or automatic worker.
 function createWorkspaceWhatsAppRuntime({enabled = false,config = {},db,sessions,hmacKey,
-  metaCredentials = {},smsCredentials = {},fetchImpl,env = {},workerOptions = {}} = {}) {
+  metaCredentials = {},smsCredentials = {},fetchImpl,env = {},workerOptions = {},
+  accessPolicy = null,isEnabled = () => true,now} = {}) {
+  // Delivery rechecks inventory internally. Gate each actual HTTP request too,
+  // so stopping during a read cannot begin a subsequent message POST.
+  const gatedFetch=typeof fetchImpl==='function' ? (...args)=>{
+    if(isEnabled()!==true) return Promise.reject(Error('Provider unavailable'));
+    return fetchImpl(...args);
+  } : fetchImpl;
   const meta = createWorkspaceMetaProvider({enabled,reviewed:config.template,wabaId:config.wabaId,
-    phoneNumberId:config.phoneNumberId,apiVersion:config.apiVersion,accessToken:metaCredentials.accessToken,fetchImpl});
-  const sms = createWorkspaceSmsProvider({enabled:enabled && config.smsFallbackEnabled === true,accountEmail:smsCredentials.accountEmail,apiToken:smsCredentials.apiToken,fetchImpl});
+    phoneNumberId:config.phoneNumberId,apiVersion:config.apiVersion,accessToken:metaCredentials.accessToken,fetchImpl:gatedFetch});
+  const sms = createWorkspaceSmsProvider({enabled:enabled && config.smsFallbackEnabled === true,accountEmail:smsCredentials.accountEmail,apiToken:smsCredentials.apiToken,fetchImpl:gatedFetch});
   let ready = false;
   const configured = enabled === true && validWorkspaceBudgets(config.budgets) && typeof db?.connect === 'function' && typeof db?.query === 'function' &&
     typeof sessions?.validateSessionToken === 'function' && typeof sessions?.validateCsrfToken === 'function' &&
@@ -52,7 +59,8 @@ function createWorkspaceWhatsAppRuntime({enabled = false,config = {},db,sessions
     (config.smsFallbackEnabled !== true || sms.configured());
   const store = configured ? createWorkspaceWhatsAppStore({db}) : null;
   const service = createWorkspaceWhatsAppAuth({enabled:!!configured,store,hmacKey,env,
-    delivery:{...meta,configured:()=>ready && meta.configured()},smsDelivery:sms,budgets:config.budgets});
+    delivery:{...meta,configured:()=>ready && meta.configured()},smsDelivery:sms,budgets:config.budgets,
+    accessPolicy,isEnabled,...(now ? {now} : {})});
   async function prepare() {
     ready = false;
     if (!configured) return {ok:false,code:'RUNTIME_UNCONFIGURED'};
