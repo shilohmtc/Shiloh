@@ -59,9 +59,14 @@ for (const app of ['workspace', 'client']) for (const width of [320, 390, 1440])
     await expect(page.locator('#synthetic-draft')).toHaveValue('Keep my unfinished work');
     if (app === 'workspace' && width <= 700) await page.locator('[data-workspace-drawer-toggle]').click();
     if (app === 'client') await page.locator('[data-view-target="profile"]').last().click();
-    await page.locator('[data-app-version]').scrollIntoViewIfNeeded();
-    await expect(page.locator('[data-app-version]')).toBeVisible();
-    await expect(page.locator('[data-app-version]')).toContainText('Version 2.1.0-local');
+    if (app === 'client') {
+      await page.locator('[data-app-version]').scrollIntoViewIfNeeded();
+      await expect(page.locator('[data-app-version]')).toBeVisible();
+      await expect(page.locator('[data-app-version]')).toContainText('Version 2.1.0-local');
+    } else {
+      await expect(page.locator('[data-app-version]')).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Refresh Workspace', exact: true })).toBeVisible();
+    }
     await page.screenshot({ path: info.outputPath(`${app}-${width}-version.png`) });
     fs.writeFileSync(info.outputPath(`${app}-${width}.html`), await page.content());
   });

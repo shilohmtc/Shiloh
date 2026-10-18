@@ -1,5 +1,4 @@
 const assert = require('node:assert/strict');
-const { appRelease } = require('../src/presentation/appRelease');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const https = require('node:https');
@@ -525,8 +524,8 @@ async function main() {
           assert.equal(metrics.moreOpen, false);
           assert.ok(metrics.minNavTargetHeight >= 44, `${name} has a drawer target below 44px`);
           assert.equal(metrics.accountFooterVisible, true, `${name} does not show the account footer in the open drawer`);
-          assert.ok(metrics.accountFooterText.includes('Version '+appRelease()));
-          assert.match(metrics.accountFooterText.replace('Version '+appRelease(), ''), /Signed in as\s*Clinic Owner\s*Refresh Workspace\s*Sign out/);
+          assert.doesNotMatch(metrics.accountFooterText, /\bVersion\b/);
+          assert.match(metrics.accountFooterText, /Signed in as\s*Clinic Owner\s*Refresh Workspace\s*Sign out/);
           assert.equal(metrics.hasNotificationsToggle,true, `${name} is missing the Workspace notifications control`);
         } else {
           assert.equal(metrics.drawerOpen, false);
