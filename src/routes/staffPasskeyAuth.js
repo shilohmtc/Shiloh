@@ -59,6 +59,7 @@ function createStaffPasskeyAuthRouter({
   bootstrapService = createStaffPasskeyDeviceBootstrapService({ db: pool, env }),
   qrCode = QRCode,
   successDestination = null,
+  whatsappEnrollmentAvailable = () => false,
 } = {}) {
   const router = express.Router();
   const sameOrigin = sameOriginGuard({ env });
@@ -165,6 +166,15 @@ function createStaffPasskeyAuthRouter({
   });
   router.get('/manage', requireSession, async (req, res, next) => {
     try {
+      // WhatsApp sessions use their own fresh-proof enrollment flow. Redirect
+      // navigation only; do not relax legacy list/register/remove authority.
+      const session = req.staffBrowserSession;
+      let enrollmentAvailable = false;
+      try { enrollmentAvailable = whatsappEnrollmentAvailable() === true; } catch (_) { /* Keep existing access checks. */ }
+      if (session.ok === true && session.authMethod === 'workspace_whatsapp' && session.recoveryRequired !== true && enrollmentAvailable) {
+        noStore(res);
+        return res.redirect(302, '/calendar/staff-auth/whatsapp/enroll');
+      }
       const result = await passkeyService.listCredentials({ session: req.staffBrowserSession, credentialIdHint: passkeyHintFromRequest(req, env) });
       if (!result.ok) return error(res, result);
       secure(res);

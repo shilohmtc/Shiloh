@@ -6,6 +6,7 @@ const {chromium}=require('@playwright/test');
 const AxeBuilder=require('@axe-core/playwright').default;
 const {harness}=require('../tests/helpers/workspaceWhatsAppHarness');
 const {issueStaffBrowserSession}=require('../src/services/staffBrowserSession');
+const {workspaceWhatsAppRevision}=require('../src/services/workspaceWhatsAppIdentity');
 const ux=require('../src/presentation/staffPasskeyUx');
 const {createStaffPasskeyAuthRouter}=require('../src/routes/staffPasskeyAuth');
 const {createWorkspaceWhatsAppRelease,ENABLED,MANIFEST,TOKEN,KEY}=require('../src/services/workspaceWhatsAppRelease');
@@ -14,7 +15,7 @@ async function main() {
   const template={id:'123',wabaId:'456',name:'shiloh_workspace_verification',language:'en',category:'AUTHENTICATION',message_send_ttl_seconds:300,
     components:[{type:'BODY',text:'{{1}} is your verification code.'},{type:'FOOTER',code_expiration_minutes:5},
       {type:'BUTTONS',buttons:[{type:'OTP',otp_type:'COPY_CODE',text:'Copy code'}]}]};
-  const env={...h.env,[ENABLED]:'true',[TOKEN]:'synthetic-only',[KEY]:'7a'.repeat(32),[MANIFEST]:JSON.stringify({
+  const env={...h.env,SHILOH_STAFF_DETAIL_AUTH_ENABLED:'true',SHILOH_STAFF_DETAIL_AUTH_RATE_KEY:'synthetic-rate-key'.repeat(3),[ENABLED]:'true',[TOKEN]:'synthetic-only',[KEY]:'7a'.repeat(32),[MANIFEST]:JSON.stringify({
     pilot:{subjectId:1,operatorId:2,scopeId:'synthetic_browser_pilot_01',startsAt:new Date(+h.now()-60000).toISOString(),endsAt:new Date(+h.now()+3600000).toISOString(),maxMessages:3,maxSpendMinor:500},
     template,wabaId:'456',phoneNumberId:'789',apiVersion:'v99.0',budgets:{currency:'ZAR',dailySpendMinor:500,whatsappCostMinor:100,smsCostMinor:100,smsAccountDailyLimit:2,smsClinicDailyLimit:2}})};
   let sends=0;
@@ -30,7 +31,8 @@ async function main() {
   let currentSession;
   app.post('/calendar/staff-auth/csrf',(_req,res)=>res.json({csrfToken:currentSession?.csrfToken}));
   app.use('/calendar/staff-auth/passkeys',createStaffPasskeyAuthRouter({env,sessionService:h.sessions,bootstrapService:{},
-    successDestination:release.passkeySuccessDestination,passkeyService:{
+    successDestination:release.passkeySuccessDestination,whatsappEnrollmentAvailable:()=>release.status().enabled,passkeyService:{
+      listCredentials:async()=>({ok:false,code:'STAFF_AUTH_FORBIDDEN'}),
       knownPrincipal:async()=>({ok:true,displayName:'Synthetic pilot staff'}),
       beginAuthentication:async()=>({ok:true,options:{challenge:'B'.repeat(43),allowCredentials:[],userVerification:'required',timeout:60000}}),
       finishAuthentication:async()=>{
@@ -73,10 +75,33 @@ async function main() {
       assert.deepEqual((await new AxeBuilder({page}).analyze()).violations,[]);
       await page.screenshot({path:`${out}/${label}-saved-passkey-pilot-welcome.png`,fullPage:true});
       await page.getByRole('link',{name:'Not now — continue'}).click();await page.waitForURL('**/calendar/workspace');
+      const admin=(await h.db.query('SELECT *,active AS admin_active FROM staff_admin_accounts WHERE id=1')).rows[0];
+      const codeSession=await issueStaffBrowserSession({client:h.db,admin,current:h.now(),authMethod:'workspace_whatsapp'});
+      await h.db.query('UPDATE staff_browser_sessions SET detail_identity_revision=$2 WHERE token_hash=$1',
+        [require('../src/services/staffBrowserSession').sha256(codeSession.sessionToken),workspaceWhatsAppRevision(admin)]);
+      await context.addCookies([{name:'shiloh_staff_session',value:codeSession.sessionToken,url:origin}]);
+      await page.goto(origin+'/calendar/staff-auth/passkeys/manage');
+      await page.waitForURL('**/calendar/staff-auth/whatsapp/enroll');
+      await page.getByRole('button',{name:'Send WhatsApp code',exact:true}).waitFor();
+      assert.equal(await page.locator('#purpose').inputValue(),'enroll');
+      assert.equal(await page.locator('#mobile').isVisible(),false);
+      assert.equal(counts.create,0);
+      assert.equal(Number((await h.db.query('SELECT count(*) AS n FROM workspace_whatsapp_dispatch')).rows[0].n),0);
+      assert.deepEqual((await new AxeBuilder({page}).analyze()).violations,[]);
+      await page.screenshot({path:`${out}/${label}-whatsapp-my-passkeys-enrollment.png`,fullPage:true});
+      if(fs.existsSync('storybook-static/iframe.html')) {
+        await page.goto(origin+'/storybook/iframe.html?id=workspace-whatsapp-authentication-draft--own-account-passkey-setup&viewMode=story');
+        await page.getByRole('heading',{name:'Welcome to Workspace'}).waitFor();
+        assert.equal(await page.locator('#purpose').inputValue(),'enroll');
+        assert.equal(await page.locator('#mobile').isVisible(),false);
+        await page.waitForFunction(()=>window.axe && !window.axe._running);
+        assert.deepEqual((await new AxeBuilder({page}).include('main').analyze()).violations,[]);
+        await page.screenshot({path:`${out}/${label}-own-passkey-storybook.png`,fullPage:true});
+      }
       await context.close();
     }
     assert.equal(sends,0);
-    console.log('Saved-passkey pilot welcome phone/desktop, explicit ceremony, optional invitations and accessibility proof passed. Synthetic only.');
+    console.log('Saved-passkey welcome and WhatsApp-session My passkeys enrollment navigation passed on phone/desktop, without automatic codes or ceremonies. Synthetic only.');
   } finally {
     await browser.close();await release.stop();await new Promise(r=>server.close(r));for(const fn of cleanups)await fn();
   }
