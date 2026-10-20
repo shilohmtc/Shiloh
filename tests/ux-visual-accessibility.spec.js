@@ -1965,7 +1965,13 @@ for (const viewport of [
       if (name === 'contact') {
         const entry = surface.locator('[data-my-shiloh-contact-entry]');
         await expect(entry.getByRole('link', { name: 'Open My Shiloh' })).toBeVisible();
-        await expect(entry.getByRole('link', { name: 'Message Reception' })).toHaveAttribute('href', /wa\.me\/27662399138\?text=Hi%20Shiloh%2C%20I%20would%20like%20to%20speak%20with%20Reception/);
+        await expect(entry.getByRole('link')).toHaveCount(1);
+        await expect(entry.getByRole('link', { name: 'Open My Shiloh', exact: true })).toHaveAttribute('href', 'https://app.shilohmtc.co.za/my-shiloh/');
+        await expect(entry).not.toContainText(/Reception|066 239 9138/);
+        const contact = surface.locator('.contact-panel');
+        await expect(contact.getByRole('link', { name: 'Call Reception', exact: true })).toHaveAttribute('href', 'tel:+27662399138');
+        await expect(contact.getByRole('link', { name: 'WhatsApp Reception', exact: true })).toHaveAttribute('href', 'https://wa.me/27662399138');
+        await expect(contact.getByRole('link', { name: 'info@shilohmtc.co.za', exact: true })).toHaveAttribute('href', 'mailto:info@shilohmtc.co.za');
       }
 
       if (name === 'home') {

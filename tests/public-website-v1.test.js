@@ -12,11 +12,17 @@ const {
 } = require('../src/services/publicWebsite');
 const { renderBookingPage } = require('../src/services/publicBookingPageEditorial');
 
-test('contact routes app visitors to My Shiloh and human WhatsApp messages to Reception', () => {
+test('contact separates the focused My Shiloh entry from Reception contact details', () => {
   const contact = renderContact();
-  const expected = `https://wa.me/27662399138?text=${encodeURIComponent('Hi Shiloh, I would like to speak with Reception.')}`.replaceAll('&', '&amp;');
-  assert.ok(contact.includes(`href="${expected}" rel="noopener" data-my-shiloh-reception-whatsapp`));
-  assert.match(contact, /Reception is still here to help on 066 239 9138/);
+  const portal = contact.match(/<section class="client-portal" data-my-shiloh-contact-entry>[\s\S]*?<\/section>/)?.[0];
+  assert.ok(portal);
+  assert.match(portal, /Keep your Shiloh details close/);
+  assert.match(portal, /href="https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/">Open My Shiloh/);
+  assert.doesNotMatch(portal, /Reception|066 239 9138|wa\.me|tel:/);
+  assert.equal((contact.match(/066 239 9138/g) || []).length, 1);
+  assert.match(contact, /href="tel:\+27662399138">Call Reception/);
+  assert.match(contact, /href="https:\/\/wa\.me\/27662399138"[^>]*>WhatsApp Reception/);
+  assert.match(contact, /href="mailto:info@shilohmtc.co.za"/);
   assert.doesNotMatch(contact, /BIRTHDAY ON|receive the introduction|Ask on WhatsApp/);
   assert.match(contact, /href="\/book"[^>]*>View services &amp; book/);
 });
