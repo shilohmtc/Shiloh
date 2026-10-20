@@ -32,10 +32,10 @@ function createClientCodeStore({db,sessions}={}){
         async takeRate(buckets,current){
           const rows=(await c.query('SELECT * FROM client_code_rates WHERE bucket_key=ANY($1::text[]) FOR UPDATE',[buckets.map(b=>b.key)])).rows;
           const states=new Map(rows.map(r=>[r.bucket_key,r]));
-          if(buckets.some(b=>{const s=states.get(b.key);return s&&new Date(s.expires_at)>current&&s.attempts+1>b.limit;}))return false;
+          if(buckets.some(b=>{const s=states.get(b.key);return s&&new Date(s.expires_at)>current&&s.attempts+(b.amount??1)>b.limit;}))return false;
           for(const b of buckets){const s=states.get(b.key),fresh=s&&new Date(s.expires_at)>current;
             await c.query(`INSERT INTO client_code_rates(bucket_key,attempts,expires_at) VALUES($1,$2,$3)
-              ON CONFLICT(bucket_key) DO UPDATE SET attempts=$2,expires_at=$3`,[b.key,fresh?s.attempts+1:1,fresh?s.expires_at:new Date(current.getTime()+b.windowMs)]);}
+              ON CONFLICT(bucket_key) DO UPDATE SET attempts=$2,expires_at=$3`,[b.key,fresh?s.attempts+(b.amount??1):(b.amount??1),fresh?s.expires_at:new Date(current.getTime()+b.windowMs)]);}
           await c.query('DELETE FROM client_code_rates WHERE bucket_key IN (SELECT bucket_key FROM client_code_rates WHERE expires_at<$1 LIMIT 100)',[current]);return true;
         },
         async identity(mobile){

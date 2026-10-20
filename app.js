@@ -104,6 +104,7 @@ async function start() {
   try { await runConfiguredClientProvenanceAudit(logger); } catch (error) { logger.error({ err: error }, "Read-only CRM provenance audit failed"); }
   logger.info(await workspaceWhatsAppRelease.inspectParticipants(), 'Workspace WhatsApp private participant inspection');
   logger.info(await workspaceWhatsAppRelease.start(), 'Workspace WhatsApp pilot readiness');
+  logger.info(await require('./src/services/clientAuthReadinessProduction')(), 'My Shiloh client authentication read-only preflight');
   server = app.listen(PORT, () => { logger.info({ port: PORT }, "Shiloh started"); startConversationSessionCleanupScheduler(); startTemporarySessionCleanupScheduler(); startGoogleBusinessProfileSyncScheduler(); startAppointmentLifecycleScheduler(); startCustomerCareScheduler(); startBookingIntegrityScheduler(); startCustomerBookingConfirmationScheduler(); startConsultationFormDeliveryScheduler(); startMandatoryDemoCleanupScheduler(); setTimeout(logMyShilohCutoverCoverage, 15000).unref(); });
 }
 start().catch(async (error) => {

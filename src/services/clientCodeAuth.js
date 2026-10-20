@@ -3,15 +3,16 @@ const crypto=require('node:crypto');
 const {normalizeMobile}=require('./crmV2ClientService');
 const {details}=require('./clientCrmDetailAuth');
 const {codeReservationBuckets}=require('./codeSignInPolicy');
+const {clientBudgetBuckets,validClientBudget}=require('./clientCodeReleasePolicy');
 const token=value=>typeof value==='string'&&/^[A-Za-z0-9_-]{43}$/.test(value);
 const INVALID=Object.freeze({ok:false,code:'CLIENT_CODE_INVALID'});
 const DISABLED=Object.freeze({ok:false,code:'CLIENT_CODE_DISABLED'});
 const equalHash=(a,b)=>typeof a==='string'&&typeof b==='string'&&a.length===b.length&&crypto.timingSafeEqual(Buffer.from(a),Buffer.from(b));
 // A separate client namespace, store and provider approval are mandatory.
 // Construction/import has no effects. Public intake never looks up an account.
-function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,now=()=>new Date(),randomBytes=crypto.randomBytes,randomInt=crypto.randomInt}={}) {
+function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,now=()=>new Date(),randomBytes=crypto.randomBytes,randomInt=crypto.randomInt,budget=null}={}) {
   const key=Buffer.isBuffer(hmacKey)?Buffer.from(hmacKey):null;
-  const operational=()=>enabled===true&&key?.length>=32&&store?.transaction&&delivery?.audience==='client'&&delivery.configured?.()===true;
+  const operational=()=>enabled===true&&(budget===null||validClientBudget(budget))&&key?.length>=32&&store?.transaction&&delivery?.audience==='client'&&delivery.configured?.()===true;
   const smsEnabled=()=>operational()&&smsDelivery?.audience==='client'&&smsDelivery.configured?.()===true;
   const hash=(...parts)=>crypto.createHmac('sha256',key).update(JSON.stringify(['my-shiloh-code',...parts])).digest('hex');
   const crypt=(mobile,id)=>{const nonce=randomBytes(12),c=crypto.createCipheriv('aes-256-gcm',Buffer.from(hash('encryption'),'hex'),nonce);c.setAAD(Buffer.from(id));const body=Buffer.concat([c.update(mobile),c.final()]);return Buffer.concat([nonce,c.getAuthTag(),body]).toString('base64');};
@@ -73,7 +74,7 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
       if(await tx.uncertain(row.personKey,current))return null;
       const until=await tx.rateUntil(hash('code-resend','client',row.personKey),current);
       if(until){r.state='queued';r.notBefore=until;await tx.save(r);return {deferred:true};}
-      if(!await tx.takeRate(codeReservationBuckets({audience:'client',personKey:row.personKey,channel:row.channel,digest:hash,current}),current))return null;
+      if(!await tx.takeRate([...codeReservationBuckets({audience:'client',personKey:row.personKey,channel:row.channel,digest:hash,current}),...clientBudgetBuckets({budget,channel:row.channel,digest:hash,current})],current))return null;
       const code=String(randomInt(0,1000000)).padStart(6,'0');
       r.codeHash=hash('code',r.hash,r.purpose,code);r.codeExpiresAt=new Date(current.getTime()+300000);
       r.clientId=identity.owner?.id||null;r.identityRevision=identity.revision||null;

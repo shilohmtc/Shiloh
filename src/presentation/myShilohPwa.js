@@ -83,9 +83,14 @@ function renderMyShilohPage({
   client = null,
   passkeysAvailable = false,
   crmAvailable = false,
+  detailsRetired = false,
+  codeAvailable = false,
   signInMethod = null,
   now = new Date(),
 } = {}) {
+  crmAvailable = crmAvailable && !detailsRetired;
+  const codeEntry=codeAvailable?'<a class="button button--primary button--wide" href="/my-shiloh/code-auth/" data-client-code-sign-in>Sign in with WhatsApp</a>':'';
+  const signInCopy=codeAvailable?'Sign in with a WhatsApp code, or use a saved passkey.':detailsRetired?'Use a saved passkey. WhatsApp sign-in is temporarily unavailable.':crmAvailable?'Sign in with your Shiloh details, or use a saved passkey.':passkeysAvailable?'Use your saved passkey to sign in.':'Sign-in is temporarily unavailable. Please contact Reception for help.';
   const suppliedHumanDigits = String(humanWhatsAppNumber || '').replace(/\D/g, '');
   const humanDigits = /^0[678]\d{8}$/.test(suppliedHumanDigits) ? `27${suppliedHumanDigits.slice(1)}`
     : /^27[678]\d{8}$/.test(suppliedHumanDigits) ? suppliedHumanDigits : '';
@@ -107,13 +112,13 @@ function renderMyShilohPage({
   const passkeySignInButton = passkeysAvailable
     ? `<button class="button button--primary button--wide passkey-choice" type="button" data-passkey-sign-in>${renderShilohIcon('key', { size: 24 })}<span>Sign in with a passkey</span></button>`
     : '';
-  const passkeyRecovery = passkeysAvailable
-    ? `<p class="auth-alternative">Can’t use your passkey? ${crmAvailable ? 'Sign in with your Shiloh details below.' : 'Contact Reception for help.'}</p>`
+  const passkeyRecovery = passkeysAvailable && !detailsRetired
+    ? `<p class="auth-alternative">Can’t use your passkey? ${codeAvailable ? 'Use a WhatsApp code instead.' : crmAvailable ? 'Sign in with your Shiloh details below.' : 'Contact Reception for help.'}</p>`
     : '';
   const recoveryHelp = (id) => `<details class="recovery-help" id="${id}">
-    <summary class="auth-choice-summary">${renderShilohIcon('help', { size: 24, className: 'auth-choice-summary__icon' })}<span>Need help with your Shiloh details?</span>${renderShilohIcon('next', { size: 18, className: 'auth-choice-summary__chevron' })}</summary>
+    <summary class="auth-choice-summary">${renderShilohIcon('help', { size: 24, className: 'auth-choice-summary__icon' })}<span>${detailsRetired ? 'Need help signing in?' : 'Need help with your Shiloh details?'}</span>${renderShilohIcon('next', { size: 18, className: 'auth-choice-summary__chevron' })}</summary>
     <div class="recovery-help__body">
-      <p>Contact Reception if your details do not match or need correcting.</p>
+      <p>${detailsRetired ? 'Contact Reception if your number has changed, is shared, or needs checking.' : 'Contact Reception if your details do not match or need correcting.'}</p>
       <div class="recovery-help__actions">
         <a class="button button--soft" href="tel:+${receptionPhone}">${renderShilohIcon('call', { size: 18 })}Call Reception</a>
         <a class="button button--soft" href="${escapeHtml(receptionRecoveryWhatsApp)}" rel="noopener noreferrer">${renderShilohIcon('message', { size: 18 })}WhatsApp Reception</a>
@@ -128,9 +133,10 @@ function renderMyShilohPage({
         <p class="hero-copy">Your appointments, payments and forms.</p>
       </div>`
     : `<div class="hero">
-        ${crmAvailable ? '<h1 id="home-title">Welcome to My Shiloh</h1>' : '<p class="eyebrow">Welcome to My Shiloh</p><h1 id="home-title">Your Shiloh, all in one place.</h1>'}
-        <p class="hero-copy">${crmAvailable ? 'Sign in with your Shiloh details, or use a saved passkey.' : passkeysAvailable ? 'Use your saved passkey to sign in.' : 'Sign-in is temporarily unavailable. Please contact Reception for help.'}</p>
-        <div class="hero-actions${crmAvailable ? ' hero-actions--details' : ''}">
+        ${crmAvailable || detailsRetired || codeAvailable ? '<h1 id="home-title">Welcome to My Shiloh</h1>' : '<p class="eyebrow">Welcome to My Shiloh</p><h1 id="home-title">Your Shiloh, all in one place.</h1>'}
+        <p class="hero-copy">${signInCopy}</p>
+        <div class="hero-actions${crmAvailable || codeAvailable || detailsRetired ? ' hero-actions--details' : ''}">
+          ${codeEntry}
           ${passkeySignInButton}
           ${passkeyRecovery}
           ${crmAvailable ? crmSignIn('home') : ''}
@@ -164,7 +170,7 @@ function renderMyShilohPage({
         </div>
         <ol class="booking-steps">
           <li><strong>Explore treatments</strong><span>See what feels right for you.</span></li>
-          <li><strong>${crmAvailable ? 'Open My Shiloh' : 'Confirm it’s you'}</strong><span>${crmAvailable ? 'Enter your Shiloh details or use a saved passkey.' : passkeysAvailable ? 'Use your saved passkey.' : 'Sign in securely.'}</span></li>
+          <li><strong>${crmAvailable ? 'Open My Shiloh' : 'Confirm it’s you'}</strong><span>${codeAvailable ? 'Use a WhatsApp code or saved passkey.' : crmAvailable ? 'Enter your Shiloh details or use a saved passkey.' : passkeysAvailable ? 'Use your saved passkey.' : 'Sign in securely.'}</span></li>
           <li><strong>Request a time</strong><span>Reception reviews your request. Pay any required deposit to confirm.</span></li>
         </ol>
       </section>`;
@@ -212,8 +218,8 @@ function renderMyShilohPage({
       </div>
       ${passkeysAvailable ? `<section class="profile-editor" aria-labelledby="passkey-title">
         <div class="profile-editor__heading"><div><p class="eyebrow">Sign-in</p><h2 id="passkey-title">Make next time easier.</h2></div></div>
-        <p data-passkey-support-guidance hidden>Passkeys are unavailable in this browser. You can keep signing in with your Shiloh details.</p>
-        <p>A passkey is optional. It makes signing in quicker. If it stops working, use your Shiloh details.</p>
+        <p data-passkey-support-guidance hidden>${detailsRetired ? 'Passkeys are unavailable in this browser. Use WhatsApp sign-in, or ask Reception for help.' : 'Passkeys are unavailable in this browser. You can keep signing in with your Shiloh details.'}</p>
+        <p>${detailsRetired ? 'A passkey is optional. It makes signing in quicker. You can also use a WhatsApp code.' : 'A passkey is optional. It makes signing in quicker. If it stops working, use your Shiloh details.'}</p>
         <button class="button button--soft button--wide" type="button" data-passkey-enroll>Save a passkey</button>
         <p class="profile-editor__status" data-passkey-enroll-status role="status" aria-live="polite"></p>
         <h3>Your saved passkeys</h3>
@@ -302,11 +308,11 @@ function renderMyShilohPage({
     : `<div class="page-intro">
         <p class="eyebrow">Profile</p>
         <h1 id="profile-title">Your Shiloh, remembered.</h1>
-        <p>${crmAvailable ? 'Sign in with your Shiloh details, or use a saved passkey.' : passkeysAvailable ? 'Use your saved passkey to sign in.' : 'Sign-in is temporarily unavailable. Please contact Reception for help.'}</p>
+        <p>${signInCopy}</p>
       </div>
       ${passkeySignInButton}
       ${passkeyRecovery}
-      ${crmAvailable ? crmSignIn('profile') : ''}
+      ${codeEntry}${crmAvailable ? crmSignIn('profile') : ''}
       ${recoveryHelp('profile-recovery-help')}
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
       <aside class="privacy-note">
@@ -338,7 +344,7 @@ function renderMyShilohPage({
       </div>
       ${passkeySignInButton}
       ${passkeyRecovery}
-      ${crmAvailable ? crmSignIn('wallet') : ''}
+      ${codeEntry}${crmAvailable ? crmSignIn('wallet') : ''}
       ${recoveryHelp('wallet-recovery-help')}
       <div class="auth-status" data-auth-status role="status" aria-live="polite"></div>
       `;
@@ -364,7 +370,7 @@ function renderMyShilohPage({
   <link rel="stylesheet" href="/my-shiloh/assets/app.css?v=${MY_SHILOH_ASSET_VERSION}">
   <title>My Shiloh</title>
 </head>
-<body>
+<body${detailsRetired ? ' data-client-details-retired="true"' : ''}>
   <a class="skip-link" href="#main-content">Skip to content</a>
   <main class="install-gate" data-install-gate hidden aria-labelledby="install-gate-title">
     <section class="install-gate__card">
@@ -380,7 +386,7 @@ function renderMyShilohPage({
         <p role="status" data-copy-treatment-status></p>
       </div>` : ''}
       <button class="button button--primary button--wide" type="button" data-install-gate-action>Install My Shiloh</button>
-      <p class="install-gate__sequence">After installing, open My Shiloh from your Home Screen. ${crmAvailable ? 'Sign in with your Shiloh details, or use your saved passkey.' : 'Sign-in is temporarily unavailable. Contact Reception for help.'}</p>
+      <p class="install-gate__sequence">After installing, open My Shiloh from your Home Screen. ${detailsRetired ? signInCopy : crmAvailable ? 'Sign in with your Shiloh details, or use your saved passkey.' : 'Sign-in is temporarily unavailable. Contact Reception for help.'}</p>
       <p class="install-gate__status" data-install-gate-status aria-live="polite"></p>
     </section>
   </main>

@@ -141,7 +141,7 @@
     clientSetupStep.textContent = passkeyStep ? 'Optional: save a passkey' : 'Optional notifications';
     clientSetupTitle.textContent = passkeyStep ? 'Make next time easier.' : 'Appointment reminders';
     clientSetupCopy.textContent = passkeyStep
-      ? 'Save a passkey for quicker sign-in next time. You can keep using your Shiloh details.'
+      ? (document.body.dataset.clientDetailsRetired==='true'?'Save a passkey for quicker sign-in next time. You can also use a WhatsApp code.':'Save a passkey for quicker sign-in next time. You can keep using your Shiloh details.')
       : 'Get updates and reminders about your appointments.';
     clientSetupAction.textContent = passkeyStep ? (clientSetupCheckFailed ? 'Try again' : 'Save a passkey')
       : clientSetupPushGuidance ? 'View notification settings' : 'Turn on notifications';
@@ -1239,7 +1239,7 @@
       const result = await finish.json().catch(() => ({}));
       if (!finish.ok || result.authenticated !== true) {
         const guidance = finish.status === 401
-          ? ' Sign in with your Shiloh details instead.'
+          ? (document.body.dataset.clientDetailsRetired==='true'?' Use WhatsApp sign-in, or contact Reception for help.':' Sign in with your Shiloh details instead.')
           : '';
         throw new Error(`${result.error || 'We could not verify this passkey.'}${guidance}`);
       }
@@ -1247,7 +1247,7 @@
       setAuthStatus('Welcome back. Opening My Shiloh…', 'success');
       window.location.replace(signedInLanding());
     } catch (error) {
-      setAuthStatus(passkeyError(error, 'Passkey sign-in could not be completed. Use your Shiloh details instead.'), 'error');
+      setAuthStatus(passkeyError(error, document.body.dataset.clientDetailsRetired==='true'?'Passkey sign-in could not be completed. Use WhatsApp sign-in, or contact Reception for help.':'Passkey sign-in could not be completed. Use your Shiloh details instead.'), 'error');
       authActionInFlight = false;
       setAuthControlsDisabled(false);
     }

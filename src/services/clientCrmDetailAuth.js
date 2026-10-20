@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const {clientDetailsRetired}=require('./clientCodeReleasePolicy');
 const net = require('node:net');
 const { pool } = require('../db/pool');
 const crm = require('./crmV2ClientService');
@@ -94,7 +95,7 @@ function createClientCrmDetailAuthService({
   logger = console,
 } = {}) {
   const enabled = () =>
-    env.MY_SHILOH_CRM_AUTH_ENABLED === 'true' &&
+    !clientDetailsRetired(env) && env.MY_SHILOH_CRM_AUTH_ENABLED === 'true' &&
     Buffer.byteLength(String(env.MY_SHILOH_CRM_AUTH_RATE_KEY || '')) >= 32 &&
     typeof sessionService?.issueCrmDetailSession === 'function';
   const key = (value) =>
@@ -198,7 +199,7 @@ function createClientCrmDetailAuthService({
           FROM client_browser_sessions WHERE id=$1 AND crm_v2_client_id=$2
           AND revoked_at IS NULL AND expires_at>$3 AND issued_at<$3 FOR UPDATE`,
           [reauthenticateSession.sessionId, reauthenticateSession.crmV2ClientId, current]) : null;
-        if (parsed && (!reauthenticateSession || authorizing.rowCount === 1)) {
+        if (enabled() && parsed && (!reauthenticateSession || authorizing.rowCount === 1)) {
           await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
             `crm-v2-mobile:${parsed.mobile}`,
           ]);
@@ -298,7 +299,7 @@ function createClientCrmDetailAuthService({
                 result = { ok: true, reauthenticated: true };
               }
             }
-          } else if (owner)
+          } else if (owner && enabled())
             result = await sessionService.issueCrmDetailSession({
               transaction: client,
               owner,

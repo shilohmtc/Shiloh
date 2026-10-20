@@ -3,6 +3,7 @@ const { confirmationClientScript, confirmationStyles } = require('../presentatio
 'use strict';
 
 const path = require('path');
+const {clientDetailsRetired}=require('../services/clientCodeReleasePolicy');
 const fs = require('node:fs');
 const { appRelease } = require('../presentation/appRelease');
 const express = require('express');
@@ -128,8 +129,12 @@ function createMyShilohRouter({
   proposalService = bookingProposals,
   planningService = createClientPlanningRequestService({ db: pool }),
   paymentService = createBookingPaymentService({ db:pool }),
+  clientCodeAvailable = () => false,
 } = {}) {
   const router = express.Router();
+  const detailsRetired=()=>clientDetailsRetired(env);
+  const codeAvailable=()=>{try{return clientCodeAvailable()===true;}catch(_){return false;}};
+  const signinAlternative=()=>detailsRetired()?'Use a saved passkey or WhatsApp sign-in. If you still need help, contact Reception.':'Sign in with your Shiloh details.';
   async function confirmationError(error, context, req, res, next) {
     const known = error instanceof MyShilohBookingError || error instanceof BookingDepositPolicyError;
     const incident = context && (!known || error.httpStatus >= 500)
@@ -668,7 +673,7 @@ function createMyShilohRouter({
       if (!result.ok) {
         const status = result.code === 'CLIENT_PASSKEY_DISABLED' ? 404 :
           result.code === 'CLIENT_PASSKEY_RATE_LIMITED' ? 429 : 503;
-        return res.status(status).json({ error: crmAuthService.enabled() ? 'Passkey sign-in is unavailable. You can sign in with your Shiloh details.' : 'Passkey sign-in is unavailable. Please sign in with your Shiloh details.', requestId: req.id });
+        return res.status(status).json({ error: detailsRetired()?'Passkey sign-in is unavailable. '+signinAlternative():crmAuthService.enabled()?'Passkey sign-in is unavailable. You can sign in with your Shiloh details.':'Passkey sign-in is unavailable. Please sign in with your Shiloh details.', requestId: req.id });
       }
       res.setHeader('Set-Cookie', serializeClientPasskeyAuthCookie(result.browserToken, {
         env, maxAgeSeconds: Math.max(1, Math.floor(CHALLENGE_TTL_MS / 1000)),
@@ -687,12 +692,17 @@ function createMyShilohRouter({
       });
       if (!result.ok) {
         return res.status(result.code === 'CLIENT_PASSKEY_DISABLED' ? 404 : 401).json({
-          error: crmAuthService.enabled() ? 'We could not verify this passkey. Try again or sign in with your Shiloh details.' : 'We could not verify this passkey. Try again or sign in with your Shiloh details.', requestId: req.id,
+          error: detailsRetired()?'We could not verify this passkey. '+signinAlternative():'We could not verify this passkey. Try again or sign in with your Shiloh details.', requestId: req.id,
         });
       }
       try { await voucherService.syncRecipientLinks({ crmV2ClientId: result.client.id }); } catch (_) {}
       return sendAuthenticatedClient(res, result);
     } catch (error) { return next(error); }
+  });
+
+  router.use('/my-shiloh/auth/crm',(_req,res,next)=>{
+    if(!detailsRetired())return next();setNoStoreJson(res);
+    return res.status(410).json({error:'Details sign-in has been retired. '+signinAlternative()});
   });
 
   for (const mode of ['sign-in', 'register', 'continue', 'reauthenticate']) {
@@ -751,7 +761,7 @@ function createMyShilohRouter({
   router.post(['/my-shiloh/auth/sms/start','/my-shiloh/auth/sms/complete',
     '/my-shiloh/auth/passkeys/recovery/create','/my-shiloh/auth/passkeys/recovery/use'], sameOrigin, (_req,res) => {
     setNoStoreJson(res);
-    return res.status(410).json({ error: 'Sign in with your Shiloh details instead.' });
+    return res.status(410).json({ error: detailsRetired()?signinAlternative():'Sign in with your Shiloh details instead.' });
   });
 
   router.get('/my-shiloh/auth/session', requireSession, async (req, res) => {
@@ -1164,6 +1174,8 @@ function createMyShilohRouter({
       passkeysAvailable: passkeyEnrollmentService.policy().operational,
       smsAvailable: false,
       crmAvailable: crmAuthService.enabled(),
+      detailsRetired: detailsRetired(),
+      codeAvailable: codeAvailable(),
       signInMethod: req.myShilohClientSession?.authMethod,
     }));
   });
