@@ -32,7 +32,8 @@ for (const width of [320, 390, 1440]) {
     await refresh.scrollIntoViewIfNeeded();
     await expect(refresh).toBeVisible();
     await expect(refresh).toHaveText('Refresh Workspace');
-    await expect(page.locator('[data-app-version]')).toHaveCount(0);
+    await expect(page.locator('[data-app-version]')).toBeVisible();
+    await expect(page.locator('[data-app-version]')).toHaveText('Version 2.1.0');
     await readable(page, '.workspace-nav');
     await page.screenshot({ path: info.outputPath(`account-menu-${width}.png`) });
     for (const state of ['opening-workspace', 'optional-invitations']) {

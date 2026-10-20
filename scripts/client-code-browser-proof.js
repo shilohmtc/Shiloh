@@ -31,7 +31,7 @@ async function main(){
     await page.getByRole('button',{name:'Complete registration',exact:true}).click();await page.getByRole('status').filter({hasText:'could not verify'}).waitFor();
     await page.goto(origin+BASE+'/');await page.getByLabel('Mobile number',{exact:true}).fill('0820000001');await page.getByRole('button',{name:'Continue with WhatsApp',exact:true}).click();
     await page.getByLabel('Verification code',{exact:true}).fill('222222');await page.getByRole('button',{name:'Verify code',exact:true}).click();
-    await page.getByRole('status').filter({hasText:'This code has not opened or changed any profile.'}).waitFor();assert.equal(await page.locator('#profile').isVisible(),false);assert.equal(await page.locator('#account-help').getAttribute('open'),'');
+    await page.getByRole('status').filter({hasText:'This code has not opened or changed any profile.'}).waitFor();assert.equal(await page.locator('#profile').isVisible(),false);assert.equal(await page.locator('#account-help').count(),0);assert.equal(await page.locator('#mobile').evaluate(el=>el===document.activeElement),true);
     assert.deepEqual((await new AxeBuilder({page}).analyze()).violations,[]);await page.screenshot({path:`${output}/${label}-client-account-help.png`,fullPage:true});
     await page.goto(origin+STAFF+'/enroll');await page.getByRole('button',{name:'Send WhatsApp code',exact:true}).click();await page.getByLabel('Verification code',{exact:true}).waitFor();
     await page.screenshot({path:`${output}/${label}-self-enrollment.png`,fullPage:true});

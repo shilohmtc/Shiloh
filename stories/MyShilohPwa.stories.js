@@ -97,9 +97,9 @@ export const FirstSignInPasskeySetup = {
     const setup = surface.querySelector('[data-client-setup]');
     setup.hidden = false;
     setup.dataset.step = 'passkey';
-    setup.querySelector('[data-client-setup-step]').textContent = 'Optional: save a passkey';
+    setup.querySelector('[data-client-setup-step]').textContent = 'Save a passkey';
     setup.querySelector('[data-client-setup-title]').textContent = 'Make next time easier.';
-    setup.querySelector('[data-client-setup-copy]').textContent = 'Save a passkey for quicker sign-in next time. You can keep using your Shiloh details.';
+    setup.querySelector('[data-client-setup-copy]').textContent = 'Save a passkey for quicker sign-in next time.';
     setup.querySelector('[data-client-setup-action]').textContent = 'Save a passkey';
     return surface;
   },
