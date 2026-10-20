@@ -4,7 +4,7 @@ const {createClientCodeRouter,BASE}=require('../src/routes/clientCodeAuth');
 const {createWorkspaceWhatsAppRouter,BASE:STAFF}=require('../src/routes/workspaceWhatsAppAuth');
 async function main(){
   const app=express(),actions=[];
-  const client={enabled:()=>true,admitRequest:async()=>true,smsEnabled:()=>true,begin:async input=>{actions.push(input);return {ok:true,request:'R'.repeat(43)};},requestSmsFallback:async()=>({ok:true,accepted:true}),
+  const client={enabled:()=>true,admitRequest:async()=>true,smsEnabled:()=>true,begin:async input=>{actions.push(input);await new Promise(resolve=>setTimeout(resolve,150));return {ok:true,request:'R'.repeat(43)};},requestSmsFallback:async()=>({ok:true,accepted:true}),
     verify:async input=>input.code==='222222'?{ok:true,accountAccessRequired:true}:input.code==='123456'?{ok:true,profileRequired:true,grant:'G'.repeat(43)}:{ok:false},completeRegistration:async input=>{actions.push(input);return {ok:false};}};
   const sessions={validateSessionToken:async()=>({ok:true,sessionId:1,adminId:1}),validateCsrfToken:()=>true};
   const invitations={visit:async()=>({ok:true,show:true,passkey:true})};
