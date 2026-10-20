@@ -281,7 +281,7 @@ function renderMyShilohPage({
       <details class="profile-editor profile-help" data-profile-help>
         <summary class="profile-help__summary"><span><span class="eyebrow">Help</span><strong id="report-problem-title">Report a problem</strong><small>Tell us when something in My Shiloh needs attention.</small></span><span class="profile-help__indicator" aria-hidden="true">+</span></summary>
         <div class="profile-help__content">
-        <p class="problem-report-copy">Tell us if something in My Shiloh looks wrong or does not work as expected. JP will see your report privately.</p>
+        <p class="problem-report-copy">Tell us if something in My Shiloh looks wrong or does not work as expected. The Shiloh team will review your report privately.</p>
         <div class="problem-report-list" data-client-problem-report-list aria-live="polite"><p class="problem-report-copy">Loading your reports…</p></div>
         <form data-client-problem-report-form>
           <div class="profile-fields">

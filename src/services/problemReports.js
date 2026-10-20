@@ -417,7 +417,7 @@ function createProblemReportService({ db = pool, clock = () => new Date(), rando
     if (trigger) {
       const identity = await whatsappIdentity(sender);
       if (!identity) {
-        return { handled: true, reply: 'I could not safely match this WhatsApp number to exactly one active Shiloh profile. Please use Report a problem in My Shiloh, or ask JP for help.' };
+        return { handled: true, reply: 'I could not safely match this WhatsApp number to exactly one active Shiloh profile. Please use Report a problem in My Shiloh, or contact Reception for help.' };
       }
       await db.query(
         `/* problemReports:startWhatsappIntent */

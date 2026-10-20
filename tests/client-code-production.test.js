@@ -40,7 +40,7 @@ test('production mount starts only after readiness; explicit HTTP request signs 
   assert.equal((await fetch(origin+'/my-shiloh/code-auth/')).status,404);
   assert.deepEqual(await inspectClientCodeHttp({fetchImpl:()=>{throw Error('Disabled proof I/O');}}),{enabled:false});
   const started=await release.start();assert.equal(started.ok,true);assert.equal(started.smsEnabled,false);assert.equal(started.detailsSigninRetired,true);assert.equal(sent.length,0);
-  const proof=await inspectClientCodeHttp({port:new URL(origin).port,requested:true,retired:true});assert.equal(proof.ok,true);assert.equal(sent.length,0);
+  const proof=await inspectClientCodeHttp({port:new URL(origin).port,requested:true,retired:true});assert.equal(proof.ok,true);assert.equal(proof.clientSupportRoleCopy,true);assert.equal(proof.clientRegistrationExplained,true);assert.equal(sent.length,0);
   const page=await fetch(origin+'/my-shiloh/code-auth/'),browserCookie=page.headers.get('set-cookie').split(';')[0];assert.equal(page.status,200);assert.match(page.headers.get('cache-control'),/no-store/);
   let html=await (await fetch(origin+'/my-shiloh/')).text();assert.match(html,/data-client-code-sign-in/);assert.doesNotMatch(html,/data-client-crm-form/);
   const response=await post('/my-shiloh/code-auth/start',{purpose:'signin',mobile:h.context.mobile},browserCookie),request=(await response.json()).request;assert.equal(response.status,200);

@@ -18,7 +18,7 @@ async function main(){
   const origin=`http://127.0.0.1:${server.address().port}`,output='artifacts/workspace-whatsapp';fs.mkdirSync(output,{recursive:true});
   try{for(const [label,width,height]of[['phone',390,844],['desktop',1280,900]]){
     const context=await browser.newContext({viewport:{width,height}}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
-    await page.goto(origin+BASE+'/');await page.getByLabel('Mobile number',{exact:true}).fill('0820000001');
+    await page.goto(origin+BASE+'/');await page.getByText('Already a Shiloh client?',{exact:false}).waitFor();assert.doesNotMatch(await page.locator('main').innerText(),/Christel|\bJP\b/);assert.equal(await page.locator('#purpose').getAttribute('aria-describedby'),'purpose-help');assert.deepEqual(await page.locator('#purpose option').evaluateAll(nodes=>nodes.map(n=>n.value)),['signin','register']);await page.screenshot({path:`${output}/${label}-client-support-copy.png`,fullPage:true});await page.getByLabel('Mobile number',{exact:true}).fill('0820000001');
     await page.getByRole('button',{name:'Send me a WhatsApp code',exact:true}).click();await page.getByLabel('Verification code',{exact:true}).fill('000000');
     await page.getByRole('button',{name:'Verify code',exact:true}).click();await page.getByRole('status').filter({hasText:'could not verify'}).waitFor();
     assert.deepEqual((await new AxeBuilder({page}).analyze()).violations,[]);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
