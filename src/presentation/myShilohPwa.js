@@ -9,7 +9,7 @@ const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 const { renderCouplesBookingChoice } = require('./myShilohBookingActions');
 
-const { appRelease } = require('./appRelease');
+const { APP_VERSION, appRelease } = require('./appRelease');
 const MY_SHILOH_ASSET_VERSION = appRelease();
 
 function escapeHtml(value = '') {
@@ -521,7 +521,7 @@ function renderMyShilohPage({
       </section>` : ''}
 
       <section class="view" id="profile" data-view="profile" aria-labelledby="profile-title" hidden>
-        ${authenticated ? '<a class="button button--soft button--wide profile-updates-action" href="#updates" data-view-target="updates">View updates <span data-updates-badge hidden></span></a>' : ''}${profile}<p class="problem-report-copy" data-app-version>Version ${escapeHtml(appRelease())}</p>
+        ${authenticated ? '<a class="button button--soft button--wide profile-updates-action" href="#updates" data-view-target="updates">View updates <span data-updates-badge hidden></span></a>' : ''}${profile}<p class="problem-report-copy" data-app-version>Version ${escapeHtml(APP_VERSION)}</p>
       </section>
     </main>
 

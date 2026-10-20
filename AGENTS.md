@@ -75,3 +75,6 @@ For a small documentation-only change, apply the same branch, tree, PR, exact-he
 - Public sign-in offers existing passkeys; creating one belongs in the signed-in account. Profile must allow adding another key when one already exists. A remembered Workspace key identifies an account, not an exclusive password manager; offer its other active keys while retaining account binding.
 - After own-account WhatsApp verification (including a fresh staff sign-in), passkey setup stays available for a fixed ten minutes for retries or reopening in that same browser/session. Do not extend that window on retry or reuse a completed native challenge. Replacement safeguards remain separate.
 - Synthetic proof and physical-device Google/Samsung acceptance are different milestones. Do not claim device compatibility solely from a mocked credential ceremony.
+
+- Passkey invitation copy uses “Save a passkey” without an “optional” label or a WhatsApp fallback sentence. Keep the changed/shared-number help section off the client sign-in page. These copy choices preserve Not now and the agreed authentication behavior.
+- Both apps display the shared release version (for example, Version 2.1.0) without a build suffix. Keep the deployment build identity in asset versions, caches and update detection. The displayed version changes only through an explicit release-version change.

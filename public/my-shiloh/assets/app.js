@@ -139,10 +139,10 @@
     clientSetup.hidden = !notificationStep && !passkeyStep;
     if (clientSetup.hidden) return;
     clientSetup.dataset.step = passkeyStep ? (clientSetupCheckFailed ? 'check' : 'passkey') : 'notifications';
-    clientSetupStep.textContent = passkeyStep ? 'Optional: save a passkey' : 'Optional notifications';
+    clientSetupStep.textContent = passkeyStep ? 'Save a passkey' : 'Optional notifications';
     clientSetupTitle.textContent = passkeyStep ? 'Make next time easier.' : 'Appointment reminders';
     clientSetupCopy.textContent = passkeyStep
-      ? (document.body.dataset.clientDetailsRetired==='true'?'Save a passkey for quicker sign-in next time. You can also use a WhatsApp code.':'Save a passkey for quicker sign-in next time. You can keep using your Shiloh details.')
+      ? 'Save a passkey for quicker sign-in next time.'
       : 'Get updates and reminders about your appointments.';
     clientSetupAction.textContent = passkeyStep ? (clientSetupCheckFailed ? 'Try again' : 'Save a passkey')
       : clientSetupPushGuidance ? 'View notification settings' : 'Turn on notifications';

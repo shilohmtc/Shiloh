@@ -62,9 +62,10 @@ for (const app of ['workspace', 'client']) for (const width of [320, 390, 1440])
     if (app === 'client') {
       await page.locator('[data-app-version]').scrollIntoViewIfNeeded();
       await expect(page.locator('[data-app-version]')).toBeVisible();
-      await expect(page.locator('[data-app-version]')).toContainText('Version 2.1.0-local');
+      await expect(page.locator('[data-app-version]')).toHaveText('Version 2.1.0');
     } else {
-      await expect(page.locator('[data-app-version]')).toHaveCount(0);
+      await expect(page.locator('[data-app-version]')).toBeVisible();
+      await expect(page.locator('[data-app-version]')).toHaveText('Version 2.1.0');
       await expect(page.getByRole('button', { name: 'Refresh Workspace', exact: true })).toBeVisible();
     }
     await page.screenshot({ path: info.outputPath(`${app}-${width}-version.png`) });

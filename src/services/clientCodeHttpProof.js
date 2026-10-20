@@ -18,7 +18,7 @@ async function inspectClientCodeHttp({port,requested=false,retired=false,fetchIm
     const result={enabled:true,entryStatus:entry.status,codeStatus:code.status,detailsStatus:details.status,
       detailsClosed:details.status===410&&details.private,detailsFormAbsent:!entry.html.includes('data-client-crm-form'),
       passkeyOffered:entry.html.includes('data-passkey-sign-in'),whatsappOffered:entry.html.includes('data-client-code-sign-in'),codePrivate:code.private,
-      clientSelfServiceHelp:code.html.includes('id="account-help"')&&!/Reception|Christel|\bJP\b/.test(code.html),
+      clientEntryHelpRemoved:!code.html.includes('id="account-help"')&&!code.html.includes('Changed your number or share a number?'),
       clientUnifiedEntry:code.html.includes('Continue with WhatsApp')&&!code.html.includes('id="purpose"')};
     return {...result,ok:entry.status===200&&(!retired||result.detailsClosed&&result.detailsFormAbsent)&&(!requested||code.status===200&&result.whatsappOffered&&result.codePrivate)&&result.passkeyOffered};
   }catch(_){return {enabled:true,ok:false,code:'CLIENT_HTTP_PROOF_UNAVAILABLE'};}
