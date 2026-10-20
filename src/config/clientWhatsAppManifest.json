@@ -1,0 +1,53 @@
+{
+  "reviewedForClients": true,
+  "template": {
+    "id": "1990004245004579",
+    "wabaId": "1114297824590105",
+    "name": "shiloh_client_verification",
+    "language": "en",
+    "status": "APPROVED",
+    "category": "AUTHENTICATION",
+    "components": [
+      {
+        "type": "BODY",
+        "text": "*{{1}}* is your verification code. For your security, do not share this code.",
+        "add_security_recommendation": true,
+        "example": {
+          "body_text": [
+            [
+              "123456"
+            ]
+          ]
+        }
+      },
+      {
+        "type": "FOOTER",
+        "text": "Expires in 5 minutes.",
+        "code_expiration_minutes": 5
+      },
+      {
+        "type": "BUTTONS",
+        "buttons": [
+          {
+            "type": "URL",
+            "text": "Copy code",
+            "url": "https://www.whatsapp.com/otp/code/?otp_type=COPY_CODE&code_expiration_minutes=5&code=otp{{1}}",
+            "example": [
+              "https://www.whatsapp.com/otp/code/?otp_type=COPY_CODE&code_expiration_minutes=5&code=otp123456"
+            ]
+          }
+        ]
+      }
+    ],
+    "message_send_ttl_seconds": 300
+  },
+  "wabaId": "1114297824590105",
+  "phoneNumberId": "1310303435498156",
+  "apiVersion": "v26.0",
+  "budget": {
+    "currency": "ZAR",
+    "dailyMinor": 500,
+    "whatsappCostMinor": 100
+  },
+  "smsFallbackEnabled": false
+}

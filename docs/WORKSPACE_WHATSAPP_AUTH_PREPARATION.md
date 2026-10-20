@@ -1,70 +1,106 @@
 # Workspace WhatsApp authentication
 
-## Accepted client rollout and details retirement — 20 October 2026
+## Accepted immediate client-details retirement — 20 October 2026
 
-The owner requested the same WhatsApp/passkey sign-in and retirement of
-name/surname/date-of-birth entry for My Shiloh clients. They approved a **separate
-R5 estimated daily client allowance**, with SMS and recovery off. Staff allowance,
-sender behavior, permissions and counters remain unchanged. Existing client
-sessions retain their fixed 30-day deadline; saving a passkey does not extend it.
-Profile/registration fields remain canonical client data, not sign-in secrets.
+After the read-only eligibility audit, the owner initially selected a phased
+transition, then explicitly changed the decision to: **“switch off details
+sign-in for all clients immediately, leaving WhatsApp and saved passkeys as the
+only ways in.”** This supersedes the phased transition and earlier details-first
+client standard. The owner was told that clients without either ready alternative
+may need Reception's help. Do not preserve a hidden biographical fallback or
+silently verify, claim, merge or overwrite those records to manufacture access.
+Keep SMS and recovery off and the approved **separate R5 estimated daily client
+allowance**. Staff configuration, proof keys, permissions and counters stay intact.
 
-The owner created `shiloh_client_verification` and supplied a Meta screenshot
-showing Active, English, Authentication, Copy code, security recommendation and
-five-minute expiry. The exact API language code, approved components and send TTL
-still require readback; English must not be guessed as `en`, `en_US` or `en_GB`.
-The existing Workspace contract never authorizes client sends.
+Existing client sessions retain their original fixed 30-day deadline. Existing
+saved keys stay valid; native first-key enrollment from a valid remembered session
+keeps its current own-account authority without extending expiry or upgrading
+phone verification. Registration still collects name, surname, birth date and
+gender as canonical profile data after phone proof, never as sign-in secrets.
 
-The release candidate adds an explicit `MY_SHILOH_CRM_AUTH_RETIRED=true` switch,
-which closes every old CRM sign-in/register/continue/reauthenticate endpoint
-before identity, session or database work, and disables the old issuing service.
-It removes obsolete forms and instructions from My Shiloh while retaining saved
-passkeys and a ready-only WhatsApp link. An unavailable provider never reopens
-details entry. Existing sessions and keys are retained. Legacy SMS and recovery
-remain closed. New clients must verify their phone before canonical registration;
-the actual profile still collects required name, surname, birth date and gender.
+### Verified client contract and runtime
 
-The isolated client composition requires a distinct reviewed template, separate
-HMAC key/namespace, explicit enabled setting and schema/inventory readiness.
-`client_code_rates` reserves money atomically with the existing 50-code clinic,
-three-code person and 60-second cooldown limits. Its money key is stable across
-purposes, people and process restarts, and rolls over at South African midnight.
-At the proposed conservative R1 reservation per attempt, R5 permits at most five
-attempts per day. Uncertain/failed charged attempts are not refunded. This is an
-app estimate/reservation ceiling, not a guarantee of Meta's invoice amount.
+PR #1485 deployed disabled preparation and a temporary read-only preflight. The
+private Meta API readback confirmed `shiloh_client_verification`, id
+`1990004245004579`, exact language **`en`**, `APPROVED`, `AUTHENTICATION`,
+`message_send_ttl_seconds:300`, security recommendation, five-minute footer and
+Copy code URL button. The reviewed contract is now versioned in
+`src/config/clientWhatsAppManifest.json`. Never substitute the Workspace template.
+Startup rechecks the WABA's sending-phone membership and exact live template;
+each delivery checks inventory again. Drift/unavailability closes the channel.
 
-Eligibility retains the accepted boundary: code possession alone cannot claim
-unverified, imported, shared, duplicate or conflicting historical CRM records.
-Reception/Christel/JP handle exceptions; do not mark records verified, merge,
-overwrite or expand permissions to make rollout pass. A valid remembered client
-session can save a native passkey under the existing own-account authority without
-changing phone verification. Client coverage must be understood before cutover.
+One production composition supplies mount, readiness, worker and graceful stop.
+It is inert unless explicitly enabled with the reviewed client manifest and a
+separate random 32-byte client HMAC key stored only in Render. An explicit
+`MY_SHILOH_CLIENT_WHATSAPP_CREDENTIAL_SOURCE=workspace_business` reference reuses
+the established business sender credential inside the process only when WABA,
+sending phone and API version exactly match both manifests. It neither reads
+secrets back into chat nor copies, rotates or alters staff credentials. Independent
+client credentials remain supported. Never log token/key values or customer data.
 
-Staged implementation/release sequence:
+`client_code_rates` atomically reserves the conservative R1 estimate per attempt
+against R5 per South African day, alongside the existing 50-code clinic,
+three-code person and 60-second cooldown limits. R5 therefore permits at most
+five estimated attempts daily, across people, purposes, concurrency and restarts.
+Uncertain attempts consume the reservation. These are app estimates, not a Meta
+invoice guarantee. No counter reset, automatic SMS fallback or recovery activation.
 
-1. Publish and test the disabled source and private read-only preflight. Only
-   `MY_SHILOH_CLIENT_AUTH_PREFLIGHT=true` may be enabled for that stage. It uses
-   the existing business credential for one bounded Meta GET and emits the exact
-   client template contract plus aggregate coverage counts, never client names,
-   mobiles, DOBs, credentials, session records or keys. No sender is mounted or
-   started; the old client sign-in stays available. No migration is executed.
-2. Reconcile the exact approved template and coverage, then review the isolated
-   client schema promotion, secure key configuration, production mount/lifecycle
-   and named owner-client acceptance test within the approved allowance. Keep
-   details retirement off until those prerequisites pass.
-3. Verify actual WhatsApp receipt/sign-in, native passkey save/re-entry and client
-   journey preservation; handle outstanding identity exceptions explicitly.
-4. After exact-head gates and production readiness, activate only the retirement
-   switch. Verify runtime state, old endpoint closure, preserved sessions/keys,
-   unchanged ledger and health. Roll back that switch only; never reset counters
-   or delete records. No client cutover is claimed by this preparation section.
+Codes admit only one active, registered, already phone-verified canonical client
+with unique phone ownership and no historical contact conflict. New numbers must
+prove possession before canonical registration. Imported, unverified, archived,
+shared or conflicting records require existing Reception/Christel/JP handling;
+code possession cannot upgrade them. Current account authority is rechecked at
+proof consumption; existing session/key checks and protected-action freshness stay.
 
-Status: candidate implemented; targeted PostgreSQL tests, remembered-session and
-native-passkey regressions, and phone/desktop production/Storybook checks passed
-with zero axe violations. Repository-wide and exact-head release checks precede
-staging. Client delivery remains unmounted; client details retirement and the
-read-only preflight flag are not live yet. Release evidence belongs on the
-dedicated client retirement PR.
+`MY_SHILOH_CRM_AUTH_RETIRED=true` closes the complete CRM entry subtree before
+session/identity/database work and disables issuing in the old service. Pages
+remove details forms and offer saved passkeys plus the ready WhatsApp channel.
+An unavailable provider omits WhatsApp and offers human help; no old fallback is
+restored. Cached old requests receive private/no-store 410 responses.
+
+### Controlled migration and cutover
+
+The current database is available on paid Render Postgres Basic, PostgreSQL 18;
+Render documents continuous managed PITR for paid instances, with a minimum
+three-day window depending on workspace plan. This is provider recovery
+availability, not a newly performed restore rehearsal or exported backup. The
+client migration is additive and its transaction rollback/forward recovery is
+rehearsed on isolated PostgreSQL 18. Never restore production as a rollout probe.
+
+Migration `198_my_shiloh_client_code_auth.sql` is additive: one nullable session
+revision field, client proof/queue and quota tables/indexes, and the shared
+invitation table only if absent. It changes no client verification, account,
+permission, session deadline, key, staff counter or invitation row. Five-second
+lock and thirty-second statement limits bound execution. Transaction rollback
+must leave both schema and ledger unchanged on failure.
+
+1. Freeze the exact reviewed source and migration inventory; verify the existing
+   paid Render Postgres recovery boundary and prior running source. Pass native
+   PostgreSQL, repository, Storybook, phone/desktop accessibility and every
+   applicable exact-head release workflow. Do not mistake green builds for a
+   handset receipt or authenticated production journey.
+2. Before the tested merge, save only
+   `SHILOH_CONTROLLED_RELEASE_MIGRATION=198_my_shiloh_client_code_auth.sql` and
+   disabled client settings. Main's automatic deployment invokes the established
+   controlled single-file executor. Unexpected pending files/checksum drift fail
+   closed. Verify 198 ledger/file checksums and physical readiness; clear the
+   temporary execution flag after success. Never invoke the broad migrator.
+3. Start the reviewed client runtime, check approved Meta readiness and preserved
+   staff/client paths, then activate client details retirement. Record exact
+   deployed commit, startup state and health after traffic moves. The owner's
+   immediate retirement decision replaces the earlier all-client readiness wait;
+   physical client receipt, native key save and re-entry remain human acceptance,
+   not implied by synthetic tests. Do not initiate a client message as a probe.
+
+Recovery after migration must retain file 198 and its ledger/schema in every
+restartable release. Disable only the new client channel or revert the retirement
+flag if a real release fault requires rollback; do not delete records, reset
+quotas, change verification or enable SMS/recovery. An older artifact lacking 198
+cannot pass migration verification after the additive migration commits.
+
+Status: production activation candidate under test. Client delivery and retirement
+remain off until this release's exact-head checks and runtime readiness pass.
+Release and remaining human acceptance evidence belong on its dedicated PR.
 
 ## Accepted staff-details retirement — 18 October 2026
 

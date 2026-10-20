@@ -115,7 +115,7 @@ test('a pre-cutover remembered client session can save a real passkey, keep its 
   assert.equal(new Date((await h.db.query('SELECT expires_at FROM client_browser_sessions WHERE id=$1',[issued.sessionId])).rows[0].expires_at).getTime(),original);
 });
 
-test('production preparation imports only read-only preflight; client sender and retirement are not silently activated',()=>{
-  const source=require('node:fs').readFileSync('app.js','utf8');assert.match(source,/clientAuthReadinessProduction/);assert.doesNotMatch(source,/clientCode(?:Runtime|Release)/);
+test('production uses one explicitly gated client composition without changing the staff lifecycle',()=>{
+  const source=require('node:fs').readFileSync('app.js','utf8');assert.match(source,/clientAuthReadinessProduction/);assert.match(source,/clientCodeProduction/);assert.match(source,/clientCodeRelease\.mount\(app\)/);assert.match(source,/await clientCodeRelease\.start\(\)/);assert.match(source,/clientCodeAvailable:\(\)=>clientCodeRelease\.status\(\)\.enabled/);
   assert.doesNotMatch(require('node:fs').readFileSync('src/routes/myShiloh.js','utf8'),/createClientCode(?:Runtime|Release)/);
 });

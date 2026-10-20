@@ -21,6 +21,7 @@ const clientIdentityService = require("./src/services/clientIdentityOnboarding")
 const clientDiscoveryService = require("./src/services/clientDiscoveryMenu");
 const { installClientNavigationPriority } = require("./src/services/clientNavigationPriority");
 const workspaceWhatsAppRelease = require('./src/services/workspaceWhatsAppProduction');
+const clientCodeRelease = require('./src/services/clientCodeProduction');
 
 observability.initialize();
 validateEnv();
@@ -44,7 +45,8 @@ const calendarRoutes = require("./src/routes/calendar");
 const { createClinicIpadPublicRouter } = require('./src/routes/clinicIpadCheckin');
 const walkinRoutes = require("./src/routes/walkin");
 const bookRoutes = require("./src/routes/book");
-const { router: myShilohRoutes } = require("./src/routes/myShiloh");
+const { createMyShilohRouter } = require("./src/routes/myShiloh");
+const myShilohRoutes = createMyShilohRouter({clientCodeAvailable:()=>clientCodeRelease.status().enabled});
 const publicWebsiteRoutes = require("./src/routes/publicWebsite");
 const serviceRoutes = require("./src/routes/services");
 const { createClientConsultationFormsRouter } = require("./src/routes/clientConsultationForms");
@@ -71,6 +73,7 @@ app.use(securityHeaders);
 app.use(canonicalHostRedirect);
 app.use(requestContext);
 workspaceWhatsAppRelease.mount(app);
+clientCodeRelease.mount(app);
 app.use(express.json({ limit: "2mb" }));
 app.use("/assets/service-images", express.static(path.join(__dirname, "public", "service-images"), { maxAge: "30d", immutable: true }));
 app.use("/assets/brand", express.static(path.join(__dirname, "public", "assets", "brand"), { maxAge: "30d", immutable: true }));
@@ -104,10 +107,15 @@ async function start() {
   try { await runConfiguredClientProvenanceAudit(logger); } catch (error) { logger.error({ err: error }, "Read-only CRM provenance audit failed"); }
   logger.info(await workspaceWhatsAppRelease.inspectParticipants(), 'Workspace WhatsApp private participant inspection');
   logger.info(await workspaceWhatsAppRelease.start(), 'Workspace WhatsApp pilot readiness');
+  logger.info(await clientCodeRelease.start(), 'My Shiloh client WhatsApp readiness');
   logger.info(await require('./src/services/clientAuthReadinessProduction')(), 'My Shiloh client authentication read-only preflight');
-  server = app.listen(PORT, () => { logger.info({ port: PORT }, "Shiloh started"); startConversationSessionCleanupScheduler(); startTemporarySessionCleanupScheduler(); startGoogleBusinessProfileSyncScheduler(); startAppointmentLifecycleScheduler(); startCustomerCareScheduler(); startBookingIntegrityScheduler(); startCustomerBookingConfirmationScheduler(); startConsultationFormDeliveryScheduler(); startMandatoryDemoCleanupScheduler(); setTimeout(logMyShilohCutoverCoverage, 15000).unref(); });
+  server = app.listen(PORT, () => { logger.info({ port: PORT }, "Shiloh started");
+    void require('./src/services/clientCodeHttpProof').inspectClientCodeHttp({port:PORT,requested:clientCodeRelease.status().enabled,retired:clientCodeRelease.status().detailsSigninRetired})
+      .then(result=>logger.info(result,'My Shiloh client authentication mounted HTTP proof'));
+    startConversationSessionCleanupScheduler(); startTemporarySessionCleanupScheduler(); startGoogleBusinessProfileSyncScheduler(); startAppointmentLifecycleScheduler(); startCustomerCareScheduler(); startBookingIntegrityScheduler(); startCustomerBookingConfirmationScheduler(); startConsultationFormDeliveryScheduler(); startMandatoryDemoCleanupScheduler(); setTimeout(logMyShilohCutoverCoverage, 15000).unref(); });
 }
 start().catch(async (error) => {
+  try {await clientCodeRelease.stop();} catch (_) {}
   try {await workspaceWhatsAppRelease.stop();} catch (_) {}
   observability.captureException(error, { "error.kind": "startup", "error.code": error?.code, "runtime.phase": "startup" });
   await observability.flush();
@@ -119,6 +127,7 @@ async function shutdown(signal) {
   if(shuttingDown)return;shuttingDown=true;
   logger.info({signal},'Shutting down Shiloh');
   setTimeout(()=>{logger.error('Forced shutdown after timeout');process.exit(1);},25000).unref();
+  try {await clientCodeRelease.stop();} catch (_) {logger.warn('My Shiloh WhatsApp stop could not complete');}
   try {await workspaceWhatsAppRelease.stop();} catch (_) {logger.warn('Workspace WhatsApp pilot stop could not complete');}
   if(!server)return process.exit(0);
   server.close(()=>{logger.info('HTTP server closed');process.exit(0);});

@@ -16,8 +16,8 @@ function parseClientManifest(value) {
   }catch(_){return null;}
 }
 
-// Prepared composition only: no default DB, process.env, timers or provider I/O.
-// Production mounting/activation waits for reviewed client Meta and eligibility.
+// Explicit composition: disabled construction performs no database/provider work.
+// The production adapter supplies credentials and starts this single lifecycle.
 function createClientCodeRelease({env={},db,sessions,fetchImpl,now}={}) {
   const requested=env[ENABLED]==='true',manifest=parseClientManifest(env[MANIFEST]);
   const key=typeof env[KEY]==='string'&&/^[a-f0-9]{64}$/i.test(env[KEY])?Buffer.from(env[KEY],'hex'):null;
