@@ -1,8 +1,10 @@
 import presentation from '../src/presentation/myShilohPwa.js';
 const { renderMyShilohPage } = presentation;
-function surface(signed = false) {
+function surface(signed = false, retired = false, available = false) {
   const html = renderMyShilohPage({
     crmAvailable: true,
+    detailsRetired: retired,
+    codeAvailable: available,
     smsAvailable: true,
     passkeysAvailable: true,
     whatsappNumber: '27830000000',
@@ -23,3 +25,7 @@ export default {
 };
 export const SignIn = { render: () => surface() };
 export const LowerAssuranceProfile = { render: () => surface(true) };
+
+export const RetiredDetails = { render: () => surface(false,true,true) };
+export const CodeUnavailable = { render: () => surface(false,true,false) };
+export const RetiredSignedIn = { render: () => surface(true,true,true) };
