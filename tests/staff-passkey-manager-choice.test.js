@@ -24,7 +24,7 @@ test('remembered staff account accepts either active password-manager key, never
     assert.deepEqual(start.options.allowCredentials.map(x=>x.id),[samsung.id,google.id]);
     const result=await s.finishAuthentication({response:assertion(selected,start.options.challenge)});
     assert.equal(result.ok,[samsung,google].includes(selected));
-    if(result.ok){assert.equal(result.credentialHint,selected.id);assert.equal((await h.sessions.validateSessionToken(result.sessionToken)).adminId,1);}
+    if(result.ok){assert.equal(result.credentialHint,selected.id);assert.equal(Number((await h.sessions.validateSessionToken(result.sessionToken)).adminId),1);}
   }
   const free=await s.beginAuthentication();assert.deepEqual(free.options.allowCredentials,[]);assert.equal(free.discoverable,true);
 });
