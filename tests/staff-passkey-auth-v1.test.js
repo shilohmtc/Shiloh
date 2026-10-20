@@ -121,7 +121,7 @@ test('staff passkeys are discoverable so an existing phone can recover across br
   assert.match(service, /requireResidentKey:\s*true/);
   assert.match(bootstrap, /residentKey:\s*'required'/);
   assert.match(bootstrap, /requireResidentKey:\s*true/);
-  assert.match(service, /allowCredentials:\s*credential[\s\S]*:\s*\[\]/);
+  assert.match(service, /allowCredentials:\s*permitted[\s\S]*:\s*\[\]/);
   assert.match(service, /credential \? credential\.admin_id : null/);
   assert.match(service, /challenge\.admin_id != null/);
   assert.match(ux, /Use existing passkey/);

@@ -4,7 +4,7 @@ const {sameOriginGuard,parseCookieValue}=require('../middleware/staffBrowserSess
 const {requireClientSession,clientCsrfGuard,serializeClientSessionCookie}=require('../middleware/clientBrowserSession');
 const {networkGroup}=require('../services/clientCrmDetailAuth');
 const {clientCodePage,clientCodeScript}=require('../presentation/clientCodeUx');
-const {authInvitationPage,authInvitationScript}=require('../presentation/authInvitations');
+const {authInvitationScript}=require('../presentation/authInvitations');
 const BASE='/my-shiloh/code-auth';
 function createClientCodeRouter({enabled=false,service,sessions,invitations,env={}}={}){
   const router=express.Router(),production=env.NODE_ENV==='production',cookie=production?'__Host-shiloh_client_code_browser':'shiloh_client_code_browser';
@@ -13,21 +13,21 @@ function createClientCodeRouter({enabled=false,service,sessions,invitations,env=
     if(enabled!==true||!service?.enabled()||!sessions?.validateSessionToken||!sessions?.validateCsrfToken)return res.sendStatus(404);next();});
   if(!service||!sessions)return router;
   const requireSession=requireClientSession({service:sessions,env}),csrf=clientCsrfGuard({service:sessions});
-  const page=(req,res,welcome=false)=>{browser(req,res,true);res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'");res.type('html').send(welcome?authInvitationPage({audience:'client',base:BASE}):clientCodePage({base:BASE,sms:service.smsEnabled()}));};
-  router.get('/',(req,res)=>page(req,res));router.get('/welcome',requireSession,(req,res)=>page(req,res,true));
+  const page=(req,res)=>{browser(req,res,true);res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'");res.type('html').send(clientCodePage({base:BASE,sms:service.smsEnabled()}));};
+  router.get('/',(req,res)=>page(req,res));router.get('/welcome',requireSession,(_req,res)=>res.redirect(303,'/my-shiloh/'));
   router.get('/app.js',(_req,res)=>res.type('application/javascript').send(clientCodeScript({base:BASE})));
   router.get('/invitations.js',(_req,res)=>res.type('application/javascript').send(authInvitationScript({audience:'client',base:BASE})));
   router.use(express.json({limit:'16kb',strict:true}),sameOriginGuard({env}));
   const action=(fn,sessionResult=false)=>async(req,res)=>{try{const browserToken=browser(req,res),network=networkGroup(req.ip||req.socket.remoteAddress);
     if(!browserToken||!network)return res.status(401).json({error:'Please reopen this page and try again.'});
     if(!await service.admitRequest?.({browserToken,network}))return res.status(429).json({error:'Please wait before trying again.'});
-    const r=await fn(req,{browserToken,network});if(!r?.ok)return res.status(401).json({error:'We could not verify this request. Please try again or ask Reception for help.'});
+    const r=await fn(req,{browserToken,network});if(!r?.ok)return res.status(401).json({error:'We could not verify this request. Check the code or request a fresh one.'});
     if(sessionResult&&r.sessionToken){res.append('Set-Cookie',serializeClientSessionCookie(r.sessionToken,{env,maxAgeSeconds:Math.max(1,Math.floor((new Date(r.expiresAt)-Date.now())/1000))}));return res.json({authenticated:true,client:r.client});}
     res.json(r);
   }catch(_){res.status(503).json({error:'Sign-in is temporarily unavailable. Please try again.'});}};
-  router.post('/start',action((req,c)=>service.begin({...c,purpose:req.body.purpose,mobile:req.body.mobile})));
-  router.post('/fallback/sms',action((req,c)=>service.requestSmsFallback({...c,request:req.body.request,purpose:req.body.purpose})));
-  router.post('/verify',action((req,c)=>service.verify({...c,request:req.body.request,purpose:req.body.purpose,code:req.body.code}),true));
+  router.post('/start',action((req,c)=>service.begin({...c,purpose:req.body.purpose??'continue',mobile:req.body.mobile})));
+  router.post('/fallback/sms',action((req,c)=>service.requestSmsFallback({...c,request:req.body.request,purpose:req.body.purpose??'continue'})));
+  router.post('/verify',action((req,c)=>service.verify({...c,request:req.body.request,purpose:req.body.purpose??'continue',code:req.body.code}),true));
   router.post('/register',action((req,c)=>service.completeRegistration({...c,grant:req.body.grant,profile:req.body.profile}),true));
   router.post('/invitations/visit',requireSession,csrf,action(req=>invitations?.visit(req.myShilohClientSession)));
   router.post('/notifications/status',requireSession,csrf,action(req=>invitations?.notificationStatus(req.myShilohClientSession,req.body.endpoint)));

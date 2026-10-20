@@ -66,7 +66,7 @@ async function main() {
       for(const path of ['/calendar/staff-auth/whatsapp/',...(fs.existsSync('storybook-static/iframe.html')?
         ['/storybook/iframe.html?id=workspace-whatsapp-authentication-draft--active-workspace-staff&viewMode=story']:[])]) {
         await page.goto(origin+path);await page.getByRole('heading',{name:'Welcome to Workspace'}).waitFor();
-        assert.deepEqual(await page.locator('#purpose option').allTextContents(),['Sign in','Add a passkey']);
+        assert.equal(await page.locator('select#purpose').count(),0);assert.equal(await page.locator('#purpose').inputValue(),'signin');assert.equal(await page.getByRole('option',{name:'Add a passkey',exact:true}).count(),0);
         assert.equal(await page.getByRole('button',{name:'Try an SMS code instead',exact:true}).count(),0);
         if(path.startsWith('/storybook'))await page.waitForFunction(()=>window.axe && !window.axe._running);
         assert.deepEqual((await new AxeBuilder({page}).include('main').analyze()).violations,[]);
@@ -98,7 +98,7 @@ async function main() {
       await page.screenshot({path:`${out}/${staffMode?'staff':'pilot'}-${label}-whatsapp-my-passkeys-enrollment.png`,fullPage:true});
       if(fs.existsSync('storybook-static/iframe.html')) {
         await page.goto(origin+'/storybook/iframe.html?id=workspace-whatsapp-authentication-draft--own-account-passkey-setup&viewMode=story');
-        await page.getByRole('heading',{name:'Welcome to Workspace'}).waitFor();
+        await page.getByRole('heading',{name:'Save a passkey',exact:true}).waitFor();
         assert.equal(await page.locator('#purpose').inputValue(),'enroll');
         assert.equal(await page.locator('#mobile').isVisible(),false);
         await page.waitForFunction(()=>window.axe && !window.axe._running);

@@ -34,7 +34,7 @@ function createWorkspaceWhatsAppRouter({ service, sessions, invitations, env = {
   function page(req,res,admin = false) {
     browser(req,res,true);
     res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
-    return res.type('html').send(workspaceWhatsAppPage({ admin, recoveryEnabled, smsFallback:service.fallbackEnabled?.() === true }));
+    return res.type('html').send(workspaceWhatsAppPage({ admin, enrollment:req.path==='/enroll', recoveryEnabled, smsFallback:service.fallbackEnabled?.() === true }));
   }
   const requireSession = requireStaffSession({ service:sessions, env });
   const csrf = csrfGuard({ service:sessions });

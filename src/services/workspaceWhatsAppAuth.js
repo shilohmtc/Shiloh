@@ -75,6 +75,10 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       const binding={...scopeBinding,adminId:subject.id,purpose:'enroll',selfSessionId:sessionId,
         browserHash:digest('browser',browserToken),identityRevision:revision(subject),current,
         expiresAt:new Date(current.getTime()+300000)};
+      if(proof==='code'&&tx.ownEnrollmentWindow){
+        const until=await tx.ownEnrollmentWindow({...binding,sessionId,current});
+        if(until)return {result:await tx.issuePasskeyGrant({...binding,reusable:true,expiresAt:until})};
+      }
       if(proof==='passkey') {
         if(!strongRecentSession(session,current)) return null;
         return {result:await tx.issuePasskeyGrant(binding)};
@@ -329,7 +333,8 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
         : await tx.issuePasskeyGrant({ ...(row.accessScope?{accessScope:row.accessScope}:{}),adminId: subject.id, operatorId: row.operatorId,
           approvalSessionId: row.approvalSessionId, selfSessionId:row.selfSessionId, purpose, browserHash: row.browserHash,
           identityRevision: row.identityRevision, current,
-          expiresAt: new Date(current.getTime() + 5 * 60 * 1000) });
+          reusable:purpose==='enroll'&&!!row.selfSessionId&&row.channel==='whatsapp',
+          expiresAt: new Date(current.getTime() + (purpose==='enroll'&&row.selfSessionId&&row.channel==='whatsapp'?10:5) * 60 * 1000) });
       if (!result || result.ok !== true) throw new Error('Workspace authentication continuation failed');
       await tx.audit({ event: 'workspace_whatsapp_verified', adminId: subject.id,
         operatorId: row.operatorId, purpose, at: current });
@@ -411,7 +416,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
     if (!enabledHere() || !policy.operational) return DISABLED;
     return store.transaction(async tx => {
       const current = now(), found = await authorizedGrant(tx, grant, browserToken, current);
-      if (!found || found.row.state !== 'issued') return INVALID;
+      if (!found || found.row.state !== 'issued' && !(found.row.reusable===true&&found.row.purpose==='enroll'&&found.row.selfSessionId&&found.row.state==='started')) return INVALID;
       const { row, admin } = found, challenge = randomBytes(32).toString('base64url');
       row.challengeHash = sha256(challenge); row.state = 'started';
       await tx.saveGrant(row);
@@ -432,7 +437,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       const current = now(), found = await authorizedGrant(tx, grant, browserToken, current);
       if (!found || found.row.state !== 'started') return INVALID;
       const { row, admin } = found;
-      row.state = 'consumed'; await tx.saveGrant(row);
+      row.state = row.reusable===true&&row.purpose==='enroll'&&row.selfSessionId?'issued':'consumed'; await tx.saveGrant(row);
       let verified;
       try {
         const data = JSON.parse(fromB64url(response?.response?.clientDataJSON,16384).toString('utf8'));

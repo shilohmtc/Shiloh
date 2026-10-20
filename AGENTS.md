@@ -65,3 +65,13 @@ For a small documentation-only change, apply the same branch, tree, PR, exact-he
 - Monitor Render’s automatic deployment through completion and verify the deployed commit.
 - Verify production behavior after deployment, including health, critical preserved paths and the requested outcome.
 - If an infrastructure prerequisite is incomplete, stage the application change safely and do not deploy behavior that would create an outage.
+
+
+## Accepted client entry and passkey experience — 20 October 2026
+
+- My Shiloh uses one WhatsApp entry: verify the recorded number, then open its unique active canonical profile or collect a genuinely new client's registration details. An earlier phone-verification flag is not a prerequisite. Do not merge profiles or open historical records by guessing ownership.
+- Client sign-in and number changes are self-service; do not route them through Reception approval. Existing passkeys and signed-in Profile remain alternatives when a number changes. An unrelated new number alone does not identify an old profile.
+- Successful client code entry opens the app directly. Reuse the optional Home card for notifications first, then passkey setup; preserve Not now and remembered choices.
+- Public sign-in offers existing passkeys; creating one belongs in the signed-in account. Profile must allow adding another key when one already exists. A remembered Workspace key identifies an account, not an exclusive password manager; offer its other active keys while retaining account binding.
+- After own-account WhatsApp verification, passkey setup stays available for a fixed ten minutes for retries or reopening in that same browser/session. Do not extend that window on retry or reuse a completed native challenge. Replacement safeguards remain separate.
+- Synthetic proof and physical-device Google/Samsung acceptance are different milestones. Do not claim device compatibility solely from a mocked credential ceremony.

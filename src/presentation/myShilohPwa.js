@@ -118,12 +118,12 @@ function renderMyShilohPage({
   const recoveryHelp = (id) => `<details class="recovery-help" id="${id}">
     <summary class="auth-choice-summary">${renderShilohIcon('help', { size: 24, className: 'auth-choice-summary__icon' })}<span>${detailsRetired ? 'Need help signing in?' : 'Need help with your Shiloh details?'}</span>${renderShilohIcon('next', { size: 18, className: 'auth-choice-summary__chevron' })}</summary>
     <div class="recovery-help__body">
-      <p>${detailsRetired ? 'Contact Reception if your number has changed, is shared, or needs checking.' : 'Contact Reception if your details do not match or need correcting.'}</p>
-      <div class="recovery-help__actions">
+      <p>${detailsRetired ? 'Verify your recorded mobile with a WhatsApp code, or use a saved passkey. If your number has changed, use a saved passkey or an already signed-in device to update it in Profile.' : 'Contact Reception if your details do not match or need correcting.'}</p>
+      ${detailsRetired ? '<p>Passkeys stay in the password manager where you saved them. After signing in, you can save another passkey in Profile.</p>' : `<div class="recovery-help__actions">
         <a class="button button--soft" href="tel:+${receptionPhone}">${renderShilohIcon('call', { size: 18 })}Call Reception</a>
         <a class="button button--soft" href="${escapeHtml(receptionRecoveryWhatsApp)}" rel="noopener noreferrer">${renderShilohIcon('message', { size: 18 })}WhatsApp Reception</a>
       </div>
-      <small>Reception will verify your identity before helping.</small>
+      <small>Reception will verify your identity before helping.</small>`}
     </div>
   </details>`;
 
@@ -218,7 +218,7 @@ function renderMyShilohPage({
       </div>
       ${passkeysAvailable ? `<section class="profile-editor" aria-labelledby="passkey-title">
         <div class="profile-editor__heading"><div><p class="eyebrow">Sign-in</p><h2 id="passkey-title">Make next time easier.</h2></div></div>
-        <p data-passkey-support-guidance hidden>${detailsRetired ? 'Passkeys are unavailable in this browser. Use WhatsApp sign-in, or ask Reception for help.' : 'Passkeys are unavailable in this browser. You can keep signing in with your Shiloh details.'}</p>
+        <p data-passkey-support-guidance hidden>${detailsRetired ? 'Passkeys are unavailable in this browser. Use WhatsApp sign-in.' : 'Passkeys are unavailable in this browser. You can keep signing in with your Shiloh details.'}</p>
         <p>${detailsRetired ? 'A passkey is optional. It makes signing in quicker. You can also use a WhatsApp code.' : 'A passkey is optional. It makes signing in quicker. If it stops working, use your Shiloh details.'}</p>
         <button class="button button--soft button--wide" type="button" data-passkey-enroll>Save a passkey</button>
         <p class="profile-editor__status" data-passkey-enroll-status role="status" aria-live="polite"></p>

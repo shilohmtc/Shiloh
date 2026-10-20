@@ -193,3 +193,20 @@ test('device preferences unavailable in storage still allow temporary dismissal'
   await page.locator('[data-notification-reminder-dismiss]').click();
   await expect(page.locator('[data-notification-reminder]')).toBeHidden();
 });
+
+
+test('an existing key hides the optional invitation but Profile can add a key in another password manager', async ({ page }) => {
+  await openClient(page, {keys:true,permission:'granted',subscription:true});
+  await expect(page.locator('[data-client-setup]')).toBeHidden();
+  await page.getByRole('link', {name:'Profile',exact:true}).click();
+  const save=page.locator('[data-passkey-enroll]');
+  await expect(save).toBeVisible();await expect(save).toHaveText('Save another passkey');
+  expect((await page.evaluate(()=>window.syntheticInvitations)).credentials).toBe(0);
+  await page.route('**/my-shiloh/auth/passkeys/registration/options', route=>route.fulfill({json:{options:{
+    challenge:'A'.repeat(43),user:{id:'B'.repeat(43)},excludeCredentials:[]
+  }}}));
+  await save.click();
+  await expect(page.locator('[data-passkey-enroll-status]')).toContainText('cancelled');
+  expect((await page.evaluate(()=>window.syntheticInvitations)).credentials).toBe(1);
+  await expect(save).toBeEnabled();
+});
