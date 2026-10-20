@@ -392,3 +392,15 @@ test('own setup window cannot survive identity change or authorizing-session rev
   assert.equal((await h.service.requestOwnEnrollment(input)).ok,false);
   assert.equal(h.sent.length,1);
 });
+
+test('fresh staff WhatsApp sign-in itself opens a fixed ten-minute own passkey window without another code',async t=>{
+  const h=await harness(t),r=await h.service.begin(h.context);await h.service.dispatchOne();
+  const signed=await h.service.verify({...h.context,request:r.request,code:h.sent[0].code});assert.equal(signed.ok,true);
+  const input={...h.context,sessionId:signed.sessionId,proof:'session'};
+  const grant=await h.service.requestOwnEnrollment(input);assert.equal(grant.ok,true);assert.ok(grant.grant);assert.equal(grant.request,undefined);assert.equal(h.sent.length,1);
+  const row=(await h.db.query("SELECT payload FROM workspace_whatsapp_records WHERE kind='grant' ORDER BY expires_at DESC LIMIT 1")).rows[0].payload;
+  assert.equal(new Date(row.expiresAt)-h.now(),600000);
+  h.advance(599999);assert.equal((await h.service.requestOwnEnrollment(input)).ok,true);
+  h.advance(1);assert.equal((await h.service.requestOwnEnrollment(input)).ok,false);assert.equal(h.sent.length,1);
+  assert.equal((await h.sessions.validateSessionToken(signed.sessionToken)).ok,true);
+});

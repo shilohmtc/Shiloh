@@ -6,7 +6,7 @@ const { networkGroup } = require('../services/clientCrmDetailAuth');
 const { defaultDeviceLabel } = require('../services/staffPasskeyAuth');
 const { serializePasskeyHintCookie } = require('./staffPasskeyAuth');
 const { workspaceWhatsAppPage, workspaceWhatsAppScript } = require('../presentation/workspaceWhatsAppUx');
-const { authInvitationPage, authInvitationScript } = require('../presentation/authInvitations');
+const { authInvitationScript } = require('../presentation/authInvitations');
 
 const BASE = '/calendar/staff-auth/whatsapp';
 const validToken = value => /^[A-Za-z0-9_-]{43}$/.test(value || '');
@@ -40,15 +40,21 @@ function createWorkspaceWhatsAppRouter({ service, sessions, invitations, env = {
   const csrf = csrfGuard({ service:sessions });
   router.get('/', (req,res) => page(req,res));
   router.get('/enroll', requireSession, (req,res) => page(req,res));
-  router.get('/welcome', requireSession, (req,res) => {
-    browser(req,res,true);
-    res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'");
-    res.type('html').send(authInvitationPage({audience:'staff',base:BASE}));
-  });
+  router.get('/welcome', requireSession, (_req,res) => res.redirect(303,'/calendar/workspace'));
   router.get('/invitations.js',(_req,res)=>res.type('application/javascript').send(authInvitationScript({audience:'staff',base:BASE})));
   router.get('/approve', (_req,res,next) => recoveryEnabled ? next() : res.sendStatus(404), requireSession, (req,res) => page(req,res,true));
   router.get('/app.js', (_req,res) => res.type('application/javascript').send(workspaceWhatsAppScript()));
   router.use(sameOriginGuard({ env }));
+  // In-app setup needs the authenticated own session and CSRF, including when
+  // the account signed in with an existing passkey and has no OTP cookie yet.
+  router.post('/invitations/visit',requireSession,csrf,async(req,res)=>{
+    try{
+      if(!await service.admitRequest({browserToken:browser(req,res,true),network:networkGroup(req.ip||req.socket.remoteAddress)}))return res.status(429).json({error:'Please wait before trying again.'});
+      const result=await invitations?.visit(req.staffBrowserSession);
+      if(!result?.ok)return res.status(503).json({error:'Setup choices are temporarily unavailable.'});
+      return res.json(result);
+    }catch(_){return res.status(503).json({error:'Setup choices are temporarily unavailable.'});}
+  });
   router.use(async (req,res,next) => {
     const browserToken = browser(req,res), network = networkGroup(req.ip || req.socket.remoteAddress);
     try {
@@ -80,7 +86,6 @@ function createWorkspaceWhatsAppRouter({ service, sessions, invitations, env = {
     purpose:req.body.purpose, mobile:req.body.mobile })));
   router.post('/enrollment/own', requireSession, csrf, action(req => service.requestOwnEnrollment({
     ...req.workspaceOtpContext, sessionId:req.staffBrowserSession.sessionId, proof:req.body.proof })));
-  router.post('/invitations/visit',requireSession,csrf,action(req=>invitations?.visit(req.staffBrowserSession)));
   router.post('/setup/review', requireSession, csrf, action(req => service.inspectSetup({ intent:req.body.intent, sessionId:req.staffBrowserSession.sessionId })));
   router.post('/setup/approve', requireSession, csrf, action(req => service.approveSetup({ intent:req.body.intent,
     identityConfirmed:req.body.identityConfirmed, sessionId:req.staffBrowserSession.sessionId })));

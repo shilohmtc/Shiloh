@@ -85,7 +85,7 @@ function createWorkspaceWhatsAppStore({ db, randomBytes = crypto.randomBytes } =
           const s = r.rows[0];
           return s ? { ok: true, adminId: Number(s.admin_id), authMethod: s.auth_method,
             authenticatedAt: s.reauthenticated_at || s.issued_at, expiresAt: s.expires_at,
-            revokedAt: s.revoked_at, recoveryRequired: s.recovery_required } : null;
+            revokedAt: s.revoked_at, recoveryRequired: s.recovery_required, identityRevision:s.detail_identity_revision } : null;
         },
         async revokeChallenges(id, purpose) {
           await client.query(`UPDATE workspace_whatsapp_records SET payload=jsonb_set(payload,'{state}','"revoked"')

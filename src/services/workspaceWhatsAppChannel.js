@@ -61,7 +61,7 @@ function createWorkspaceWhatsAppChannel({enabled=false,policy,codePrefix='PILOT'
     try {
       const session=await dependencies.sessions.validateSessionToken(sessionToken);
       return session?.ok && session.authMethod==='passkey' && runtime.service.enabled() &&
-        policy.allowsSubject(session.adminId,'signin',now()) ? `${BASE}/welcome` : '/calendar';
+        policy.allowsSubject(session.adminId,'signin',now()) ? '/calendar/workspace' : '/calendar';
     } catch (_) {return '/calendar';}
   }
   return {mount,start,stop,status,passkeySuccessDestination};

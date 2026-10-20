@@ -158,7 +158,7 @@ test('adapter starts once, restricts passkey destinations, closes intake during 
   }});
   const http=await serve(t,p);assert.equal((await http.get(BASE+'/')).status,404);
   const starts=await Promise.all([p.start(),p.start()]);assert.ok(starts.every(x=>x.ok));
-  assert.equal(await p.passkeySuccessDestination(h.priorSession.sessionToken),BASE+'/welcome');
+  assert.equal(await p.passkeySuccessDestination(h.priorSession.sessionToken),'/calendar/workspace');
   assert.equal(await p.passkeySuccessDestination(h.operatorSession.sessionToken),'/calendar');
   const page=await http.get(BASE+'/'),cookie=page.headers.get('set-cookie').split(';')[0];assert.doesNotMatch(await page.text(),/Try an SMS code instead/);
   const r=await http.post('/start',{purpose:'signin',mobile:h.context.mobile},cookie);assert.equal(r.status,200);

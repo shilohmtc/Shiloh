@@ -74,14 +74,9 @@ async function main() {
       }
       await page.goto(origin+'/signin');await page.getByRole('button',{name:'Continue as Synthetic pilot staff'}).waitFor();
       assert.equal(counts.get,0);await page.getByRole('button',{name:'Continue as Synthetic pilot staff'}).click();
-      await page.waitForURL('**/calendar/staff-auth/whatsapp/welcome');
-      await page.getByText('These choices are optional. You can continue now.').waitFor();
-      await page.getByRole('heading',{name:'Make next time easier'}).waitFor();
+      await page.waitForURL('**/calendar/workspace');await page.getByRole('heading',{name:'Existing Workspace',exact:true}).waitFor();
       assert.equal(counts.get,1);assert.equal(counts.create,0);
-      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-      assert.deepEqual((await new AxeBuilder({page}).analyze()).violations,[]);
-      await page.screenshot({path:`${out}/${staffMode?'staff':'pilot'}-${label}-saved-passkey-pilot-welcome.png`,fullPage:true});
-      await page.getByRole('link',{name:'Continue to Workspace'}).click();await page.waitForURL('**/calendar/workspace');
+      const oldWelcome=await page.request.get(origin+'/calendar/staff-auth/whatsapp/welcome',{maxRedirects:0});assert.equal(oldWelcome.status(),303);assert.equal(oldWelcome.headers().location,'/calendar/workspace');
       const admin=(await h.db.query('SELECT *,active AS admin_active FROM staff_admin_accounts WHERE id=$1',[subjectId])).rows[0];
       const codeSession=await issueStaffBrowserSession({client:h.db,admin,current:h.now(),authMethod:'workspace_whatsapp'});
       await h.db.query('UPDATE staff_browser_sessions SET detail_identity_revision=$2 WHERE token_hash=$1',

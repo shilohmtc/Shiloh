@@ -11,6 +11,7 @@ async function main(){
   const service={enabled:()=>true,admitRequest:async()=>true,fallbackEnabled:()=>false,requestOwnEnrollment:async input=>{actions.push(input);return {ok:true,request:'E'.repeat(43)};}};
   app.post('/calendar/staff-auth/csrf',(_req,res)=>res.json({csrfToken:'C'.repeat(43)}));
   app.use(BASE,createClientCodeRouter({enabled:true,service:client,sessions,invitations}));app.use(STAFF,createWorkspaceWhatsAppRouter({enabled:true,service,sessions,invitations}));
+  app.get('/calendar/workspace',(_req,res)=>res.type('html').send('<!doctype html><html lang="en"><head><title>Workspace</title></head><body><main><h1>Workspace</h1></main></body></html>'));
   app.use('/storybook',express.static('storybook-static'));
   const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));
   const executablePath=['/usr/bin/chromium','/usr/bin/google-chrome'].find(p=>fs.existsSync(p));
@@ -34,7 +35,7 @@ async function main(){
     assert.deepEqual((await new AxeBuilder({page}).analyze()).violations,[]);await page.screenshot({path:`${output}/${label}-client-account-help.png`,fullPage:true});
     await page.goto(origin+STAFF+'/enroll');await page.getByRole('button',{name:'Send WhatsApp code',exact:true}).click();await page.getByLabel('Verification code',{exact:true}).waitFor();
     await page.screenshot({path:`${output}/${label}-self-enrollment.png`,fullPage:true});
-    await page.goto(origin+STAFF+'/welcome');await page.getByRole('status').filter({hasText:'choices are optional'}).waitFor();
+    await page.goto(origin+STAFF+'/welcome');await page.getByRole('heading',{name:'Workspace',exact:true}).waitFor();assert.equal(new URL(page.url()).pathname,'/calendar/workspace');
     assert.deepEqual((await new AxeBuilder({page}).analyze()).violations,[]);await page.screenshot({path:`${output}/${label}-invitations.png`,fullPage:true});
     if(fs.existsSync('storybook-static/iframe.html'))for(const story of['client-code-sign-in','client-registration','client-account-help','optional-invitations']){
       await page.goto(origin+'/storybook/iframe.html?id=workspace-whatsapp-authentication-draft--'+story+'&viewMode=story');await page.locator('main').waitFor();await page.waitForFunction(()=>window.axe && !window.axe._running);

@@ -27,3 +27,9 @@ export const OwnAccountPasskeySetup={render:()=>render(false,false,false,true)
 export const OpeningWorkspace={render:()=>documentBody(invitation.authInvitationPage({audience:'staff',base:'/calendar/staff-auth/whatsapp'}))};
 
 export const ClientAccountHelp={render:()=>documentBody(client.clientCodePage()).replace('id="account-help"','id="account-help" open')};
+
+import setup from '../src/presentation/workspaceAccountSetup.js';
+const setupStory=passkey=>`<style>${setup.workspaceAccountSetupStyles()}</style><main><h1>Workspace</h1>${setup.workspaceAccountSetupCard().replace('data-workspace-setup hidden','data-workspace-setup').replace('data-workspace-setup-passkey hidden',passkey?'data-workspace-setup-passkey':'data-workspace-setup-passkey hidden').replace('data-workspace-setup-notifications>',passkey?'data-workspace-setup-notifications hidden>':'data-workspace-setup-notifications>')
+.replace('Workspace notifications</h2>',passkey?'Make next time easier.</h2>':'Workspace notifications</h2>').replace('Get updates from Workspace on this device.</p>',passkey?'Save a passkey for quicker sign-in next time.</p>':'Get updates from Workspace on this device.</p>')}</main>`;
+export const WorkspaceNotificationCard={render:()=>setupStory(false)};
+export const WorkspacePasskeyCard={render:()=>setupStory(true)};

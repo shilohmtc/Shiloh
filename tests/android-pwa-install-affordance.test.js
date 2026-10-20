@@ -2,9 +2,16 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { workspacePwaClientScript } = require('../src/presentation/workspacePwa');
+const { workspaceAccountSetupScript } = require('../src/presentation/workspaceAccountSetup');
+// These install-guide assertions exclude the separately tested signed-in setup card.
+function installClientScript() {
+  const client = workspacePwaClientScript(), setup = workspaceAccountSetupScript();
+  assert.ok(client.endsWith(setup));
+  return client.slice(0, -setup.length);
+}
 
 test('#810 Chromium install affordance is browser-owned, user-gesture driven, and non-authoritative', () => {
-  const client = workspacePwaClientScript();
+  const client = installClientScript();
 
   assert.match(client, /addEventListener\('beforeinstallprompt'/);
   assert.match(client, /event\.preventDefault\(\)/);

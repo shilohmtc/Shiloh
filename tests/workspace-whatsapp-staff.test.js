@@ -137,7 +137,7 @@ test('staff startup reports bounded canonical eligibility, rereads Meta and neve
   assert.equal(start.mode,'staff');assert.equal(start.staffReadiness.eligibleAccounts,1);
   assert.deepEqual(start.staffReadiness.blockedAccounts,[{id:2,displayName:'Synthetic Staff 2',reason:'recorded_mobile_missing_or_invalid'}]);
   assert.equal(JSON.stringify(start).includes('27820000001'),false);assert.equal(r.status().smsEnabled,false);
-  assert.equal(await r.passkeySuccessDestination(h.priorSession.sessionToken),'/calendar/staff-auth/whatsapp/welcome');
+  assert.equal(await r.passkeySuccessDestination(h.priorSession.sessionToken),'/calendar/workspace');
   await r.stop();assert.equal((await h.sessions.validateSessionToken(h.priorSession.sessionToken)).ok,true);
 });
 
@@ -151,11 +151,11 @@ test('staff readiness with no eligible account or rejected Meta stays closed',as
   assert.equal((await rejected.start()).code,'STAFF_PROVIDER_UNREADY');assert.equal(rejected.status().enabled,false);await rejected.stop();
 });
 
-test('staff WhatsApp session can enroll only its own account with a fresh code and real attestation',async t=>{
+test('staff WhatsApp session beyond its setup window can enroll only its own account with a fresh code and real attestation',async t=>{
   const h=await harness(t),s=service(h),r=await issue(h,s,{mobile:'27820000002'});
   const verified=await s.verify({...h.context,request:r.request,code:h.sent[0].code});assert.equal(verified.ok,true);
   const session=await h.sessions.validateSessionToken(verified.sessionToken);assert.equal(Number(session.adminId),2);
-  h.advance(60000);
+  h.advance(11*60000);
   const own=await s.requestOwnEnrollment({...h.context,sessionId:session.sessionId,proof:'code',mobile:'27820000001',adminId:1});
   assert.equal(own.accepted,true);await s.dispatchOne();assert.equal(h.sent.at(-1).mobile,'27820000002');
   const grant=await s.verify({...h.context,purpose:'enroll',request:own.request,code:h.sent.at(-1).code});assert.equal(grant.ok,true);
