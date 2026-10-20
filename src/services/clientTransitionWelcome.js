@@ -69,7 +69,7 @@ function buildUniversalWelcome(env = process.env) {
     '',
     '✅ *Making or managing your appointment* — book an appointment, manage an existing booking, and receive your appointment details right here on WhatsApp.',
     '',
-    '*And don’t worry — Christel and the Shiloh team are still here. 🌿*',
+    '*And don’t worry — the Shiloh team is still here. 🌿*',
     'If you need personal assistance or would prefer to speak to someone directly:',
     '',
     '📞 *Calls & SMS: 066 239 9138*',

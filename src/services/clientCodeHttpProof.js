@@ -17,7 +17,9 @@ async function inspectClientCodeHttp({port,requested=false,retired=false,fetchIm
     const entry=await read('/my-shiloh/'),details=await read('/my-shiloh/auth/crm/sign-in'),code=await read('/my-shiloh/code-auth/');
     const result={enabled:true,entryStatus:entry.status,codeStatus:code.status,detailsStatus:details.status,
       detailsClosed:details.status===410&&details.private,detailsFormAbsent:!entry.html.includes('data-client-crm-form'),
-      passkeyOffered:entry.html.includes('data-passkey-sign-in'),whatsappOffered:entry.html.includes('data-client-code-sign-in'),codePrivate:code.private};
+      passkeyOffered:entry.html.includes('data-passkey-sign-in'),whatsappOffered:entry.html.includes('data-client-code-sign-in'),codePrivate:code.private,
+      clientSupportRoleCopy:code.html.includes('Please contact Reception.')&&!/Christel|\bJP\b/.test(code.html),
+      clientRegistrationExplained:code.html.includes('Already a Shiloh client? Choose Sign in, even if this is your first time using My Shiloh. Register only if you are new to Shiloh.')};
     return {...result,ok:entry.status===200&&(!retired||result.detailsClosed&&result.detailsFormAbsent)&&(!requested||code.status===200&&result.whatsappOffered&&result.codePrivate)&&result.passkeyOffered};
   }catch(_){return {enabled:true,ok:false,code:'CLIENT_HTTP_PROOF_UNAVAILABLE'};}
 }

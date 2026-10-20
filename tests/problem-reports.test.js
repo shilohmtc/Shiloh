@@ -131,7 +131,8 @@ test('reporters see only their own safe status fields and can reopen a resolved 
 test('client and JP pages use friendly wording and keep support copy in JP Workspace', () => {
   const clientHtml = renderMyShilohPage({ client: { id: 501, name: 'Client One', firstName: 'Client' }, whatsappNumber: '27821234567' });
   assert.match(clientHtml, /Report a problem/);
-  assert.match(clientHtml, /JP will see your report privately/);
+  assert.match(clientHtml, /The Shiloh team will review your report privately/);
+  assert.doesNotMatch(clientHtml, /\bJP\b|Christel/);
   assert.doesNotMatch(clientHtml, /Codex|ChatGPT|Copy report details/);
   const workspaceHtml = renderProblemReportsPage({ model: { displayName: 'Jean-Pierre', canManage: true, reports: [{ reference: 'SH-260920-01020304', status: 'new', category: 'other', reporterType: 'client', reporterName: 'Client One', source: 'my_shiloh', description: 'A visible example problem.', expectedBehavior: null, relatedAppointmentId: null, pagePath: '/my-shiloh/', requestId: null, diagnosticContext: {}, hasScreenshot: false, screenshotMimeType: null, resolutionNote: null, createdAt: '2026-09-20T10:00:00Z', updatedAt: '2026-09-20T10:00:00Z', resolvedAt: null }] }, selectedStatus: 'open' });
   assert.doesNotMatch(workspaceHtml, /JP only|private report inbox|support conversation/);

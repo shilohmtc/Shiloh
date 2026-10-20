@@ -7,6 +7,7 @@ These instructions apply to the entire repository.
 - Treat Shiloh as one living clinic platform, not a collection of unrelated features.
 - At the start of each request, advise whether normal Chat or Work is appropriate.
 - Keep client-facing language warm, simple and non-technical.
+- Client-facing authentication, support and generic welcome copy refers to Reception or the Shiloh team, never individual staff names. Preserve actual client/practitioner names in records, booking choices and staff-only content.
 - State assumptions, blockers and release risk plainly. Never imply that an action was completed without direct evidence.
 - Minimise approval interruptions. Batch related routine checks, reuse already granted permissions where the platform supports them, and carry an authorised task through without asking again at each step. Explain the specific platform or repository requirement when an approval is unavoidable. Never bypass a denied approval or claim to have disabled platform controls.
 

@@ -23,6 +23,7 @@ const resolverSource = fs.readFileSync(
 
 test('legacy universal welcome derives its booking link from the deployed origin', () => {
   const reply = transition.buildUniversalWelcome({ RENDER_EXTERNAL_URL: 'https://shiloh.example.test' });
+  assert.doesNotMatch(reply, /Christel|\bJP\b/);
   assert.match(reply, /you’re in the right place/i);
   assert.match(reply, /Shiloh, our AI Assistant/i);
   assert.match(reply, /Choosing the right treatment/i);
