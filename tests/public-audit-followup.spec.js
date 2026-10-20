@@ -70,3 +70,27 @@ for (const width of [320, 390, 1440]) {
     await page.screenshot({ path: testInfo.outputPath(`catalogue-full-${width}.png`), fullPage: true });
   });
 }
+
+for (const width of [320, 390, 1440]) {
+  test(`Contact gives My Shiloh one focused action without repeating Reception at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/iframe.html?id=public-website-production-pages--contact&viewMode=story', { waitUntil: 'networkidle' });
+    const portal = page.locator('[data-my-shiloh-contact-entry]');
+    await expect(portal.getByRole('link')).toHaveCount(1);
+    await expect(portal.getByRole('link', { name: 'Open My Shiloh', exact: true })).toHaveAttribute('href', 'https://app.shilohmtc.co.za/my-shiloh/');
+    await expect(portal).not.toContainText(/Reception|066 239 9138/);
+    const contact = page.locator('.contact-panel');
+    await expect(contact.getByRole('link', { name: 'Call Reception', exact: true })).toHaveAttribute('href', 'tel:+27662399138');
+    await expect(contact.getByRole('link', { name: 'WhatsApp Reception', exact: true })).toHaveAttribute('href', 'https://wa.me/27662399138');
+    await expect(contact.getByRole('link', { name: 'info@shilohmtc.co.za', exact: true })).toHaveAttribute('href', 'mailto:info@shilohmtc.co.za');
+    await portal.scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(await portal.locator('a').evaluate(node => node.getBoundingClientRect().height)).toBeGreaterThanOrEqual(44);
+    const axe = await new AxeBuilder({ page }).include('[data-my-shiloh-contact-entry]').analyze();
+    expect(axe.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
+    await portal.screenshot({ path: testInfo.outputPath(`contact-portal-after-${width}.png`) });
+    await page.reload({ waitUntil: 'networkidle' });
+    await expect(portal.getByRole('link')).toHaveCount(1);
+    await expect(portal).not.toContainText('Reception');
+  });
+}
