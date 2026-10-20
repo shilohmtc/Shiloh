@@ -14,7 +14,7 @@ function createAuthInvitations({db,audience}={}) {
       VALUES($1,$2,NOW()+INTERVAL '31 days') ON CONFLICT DO NOTHING RETURNING session_id`,[audience,id]);
     await db.query(`DELETE FROM code_auth_invitation_visits WHERE (audience,session_id) IN
       (SELECT audience,session_id FROM code_auth_invitation_visits WHERE expires_at<NOW() LIMIT 100)`);
-    return {ok:true,show:inserted.rows.length===1,passkey:credentials.rows.length===0};
+    return {ok:true,show:inserted.rows.length===1,passkey:credentials.rows.length===0,...(audience==='staff'?{accountId:owner}:{})};
   }
   async function notificationStatus(session,endpoint) {
     if(!session?.ok || typeof endpoint!=='string' || endpoint.length>2048 || !endpoint.startsWith('https://'))return {ok:false};

@@ -66,7 +66,7 @@ async function main() {
       for(const path of ['/calendar/staff-auth/whatsapp/',...(fs.existsSync('storybook-static/iframe.html')?
         ['/storybook/iframe.html?id=workspace-whatsapp-authentication-draft--active-workspace-staff&viewMode=story']:[])]) {
         await page.goto(origin+path);await page.getByRole('heading',{name:'Welcome to Workspace'}).waitFor();
-        assert.deepEqual(await page.locator('#purpose option').allTextContents(),['Sign in','Add a passkey']);
+        assert.equal(await page.locator('select#purpose').count(),0);assert.equal(await page.locator('#purpose').inputValue(),'signin');assert.equal(await page.getByRole('option',{name:'Add a passkey',exact:true}).count(),0);
         assert.equal(await page.getByRole('button',{name:'Try an SMS code instead',exact:true}).count(),0);
         if(path.startsWith('/storybook'))await page.waitForFunction(()=>window.axe && !window.axe._running);
         assert.deepEqual((await new AxeBuilder({page}).include('main').analyze()).violations,[]);
@@ -74,14 +74,9 @@ async function main() {
       }
       await page.goto(origin+'/signin');await page.getByRole('button',{name:'Continue as Synthetic pilot staff'}).waitFor();
       assert.equal(counts.get,0);await page.getByRole('button',{name:'Continue as Synthetic pilot staff'}).click();
-      await page.waitForURL('**/calendar/staff-auth/whatsapp/welcome');
-      await page.getByText('These choices are optional. You can continue now.').waitFor();
-      await page.getByRole('heading',{name:'Make next time easier'}).waitFor();
+      await page.waitForURL('**/calendar/workspace');await page.getByRole('heading',{name:'Existing Workspace',exact:true}).waitFor();
       assert.equal(counts.get,1);assert.equal(counts.create,0);
-      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-      assert.deepEqual((await new AxeBuilder({page}).analyze()).violations,[]);
-      await page.screenshot({path:`${out}/${staffMode?'staff':'pilot'}-${label}-saved-passkey-pilot-welcome.png`,fullPage:true});
-      await page.getByRole('link',{name:'Continue to Workspace'}).click();await page.waitForURL('**/calendar/workspace');
+      const oldWelcome=await page.request.get(origin+'/calendar/staff-auth/whatsapp/welcome',{maxRedirects:0});assert.equal(oldWelcome.status(),303);assert.equal(oldWelcome.headers().location,'/calendar/workspace');
       const admin=(await h.db.query('SELECT *,active AS admin_active FROM staff_admin_accounts WHERE id=$1',[subjectId])).rows[0];
       const codeSession=await issueStaffBrowserSession({client:h.db,admin,current:h.now(),authMethod:'workspace_whatsapp'});
       await h.db.query('UPDATE staff_browser_sessions SET detail_identity_revision=$2 WHERE token_hash=$1',
@@ -98,7 +93,7 @@ async function main() {
       await page.screenshot({path:`${out}/${staffMode?'staff':'pilot'}-${label}-whatsapp-my-passkeys-enrollment.png`,fullPage:true});
       if(fs.existsSync('storybook-static/iframe.html')) {
         await page.goto(origin+'/storybook/iframe.html?id=workspace-whatsapp-authentication-draft--own-account-passkey-setup&viewMode=story');
-        await page.getByRole('heading',{name:'Welcome to Workspace'}).waitFor();
+        await page.getByRole('heading',{name:'Save a passkey',exact:true}).waitFor();
         assert.equal(await page.locator('#purpose').inputValue(),'enroll');
         assert.equal(await page.locator('#mobile').isVisible(),false);
         await page.waitForFunction(()=>window.axe && !window.axe._running);

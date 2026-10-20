@@ -2,6 +2,8 @@
 
 const { workspaceBadgeWorkerScript, workspaceBadgeClientScript } = require('./workspaceAppBadge');
 
+const { workspaceAccountSetupScript } = require('./workspaceAccountSetup');
+
 const { appRelease } = require('./appRelease');
 const renderIphoneInstallGuide = require('../../public/my-shiloh/assets/iphone-install-guide');
 const { confirmationClientScript } = require('./workspaceConfirmation');
@@ -220,7 +222,7 @@ addEventListener('online',()=>{status('Connection restored. Refreshing Shiloh…
 addEventListener('pageshow',()=>{installGuidance();installAction();installDoorway();lastRevalidation=0;revalidate();});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){installGuidance();installAction();installDoorway();revalidate();}});
 register();revalidate();
-})();` + workspacePushClientScript();
+})();` + workspacePushClientScript() + workspaceAccountSetupScript();
 }
 
 module.exports = {

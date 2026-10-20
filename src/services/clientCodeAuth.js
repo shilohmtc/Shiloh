@@ -26,7 +26,7 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
   }
   async function begin(input={}) {
     if(!operational())return DISABLED;
-    if(!context(input)||!['signin','register'].includes(input.purpose))return INVALID;
+    if(!context(input)||!['continue','signin','register'].includes(input.purpose))return INVALID;
     const request=randomBytes(32).toString('base64url'),mobile=typeof input.mobile==='string'&&input.mobile.length<=30?normalizeMobile(input.mobile):null;
     await store.transaction(async tx=>{
       const current=now();
@@ -70,14 +70,14 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
       const current=now(),r=await tx.get(row.hash);
       if(!r||r.state!=='claimed'||!mobile||new Date(r.sendBy)-current<60000)return null;
       const identity=await tx.identity(mobile);
-      if(row.purpose==='signin'?!identity.verified:!identity.empty)return null;
+      if(row.purpose!=='continue'&&(row.purpose==='signin'?!identity.verified:!identity.empty))return null;
       if(await tx.uncertain(row.personKey,current))return null;
       const until=await tx.rateUntil(hash('code-resend','client',row.personKey),current);
       if(until){r.state='queued';r.notBefore=until;await tx.save(r);return {deferred:true};}
       if(!await tx.takeRate([...codeReservationBuckets({audience:'client',personKey:row.personKey,channel:row.channel,digest:hash,current}),...clientBudgetBuckets({budget,channel:row.channel,digest:hash,current})],current))return null;
       const code=String(randomInt(0,1000000)).padStart(6,'0');
       r.codeHash=hash('code',r.hash,r.purpose,code);r.codeExpiresAt=new Date(current.getTime()+300000);
-      r.clientId=identity.owner?.id||null;r.identityRevision=identity.revision||null;
+      r.clientId=identity.owner?.id||null;r.identityRevision=identity.revision||null;r.identitySnapshot=identity.snapshot;
       r.attempts=0;r.deliveryStarted=true;
       await tx.revokeOthers(r.personKey,r.hash);await tx.save(r);
       return {code,mobile};
@@ -110,8 +110,18 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
       const mobile=decrypt(r);
       const identity=await tx.identity(mobile);
       if(r.purpose==='signin'&&(!identity.verified||Number(identity.owner.id)!==Number(r.clientId)||identity.revision!==r.identityRevision)||r.purpose==='register'&&!identity.empty){r.state='revoked';await tx.save(r);return INVALID;}
+      if(r.purpose==='continue'&&identity.snapshot!==r.identitySnapshot){r.state='revoked';await tx.save(r);return INVALID;}
       r.state='consumed';await tx.save(r);
-      if(r.purpose==='register'){
+      if(r.purpose==='continue'&&!identity.empty){
+        if(!identity.available)return {ok:true,accountAccessRequired:true};
+        // Record fresh phone evidence through the canonical CRM authority. No
+        // names, dates, registration status or historical relationships change.
+        const owner=identity.owner.mobile_verified_at?identity.owner:await tx.verifyMobile({mobile,current,channel:r.channel});
+        if(!owner)throw Error('Client phone verification unavailable');
+        const result=await tx.issueSession({owner,mobile,channel:r.channel,current});
+        if(!result?.ok)throw Error('Client continuation unavailable');return result;
+      }
+      if(r.purpose==='register'||r.purpose==='continue'){
         const grant=randomBytes(32).toString('base64url');
         await tx.insert({...r,hash:hash('registration',grant),state:'profile',mobile:crypt(mobile,hash('registration',grant)),expiresAt:new Date(current.getTime()+300000)});
         return {ok:true,grant,profileRequired:true};

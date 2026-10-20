@@ -18,8 +18,8 @@ async function inspectClientCodeHttp({port,requested=false,retired=false,fetchIm
     const result={enabled:true,entryStatus:entry.status,codeStatus:code.status,detailsStatus:details.status,
       detailsClosed:details.status===410&&details.private,detailsFormAbsent:!entry.html.includes('data-client-crm-form'),
       passkeyOffered:entry.html.includes('data-passkey-sign-in'),whatsappOffered:entry.html.includes('data-client-code-sign-in'),codePrivate:code.private,
-      clientSupportRoleCopy:code.html.includes('Please contact Reception.')&&!/Christel|\bJP\b/.test(code.html),
-      clientRegistrationExplained:code.html.includes('Already a Shiloh client? Choose Sign in, even if this is your first time using My Shiloh. Register only if you are new to Shiloh.')};
+      clientSelfServiceHelp:code.html.includes('id="account-help"')&&!/Reception|Christel|\bJP\b/.test(code.html),
+      clientUnifiedEntry:code.html.includes('Continue with WhatsApp')&&!code.html.includes('id="purpose"')};
     return {...result,ok:entry.status===200&&(!retired||result.detailsClosed&&result.detailsFormAbsent)&&(!requested||code.status===200&&result.whatsappOffered&&result.codePrivate)&&result.passkeyOffered};
   }catch(_){return {enabled:true,ok:false,code:'CLIENT_HTTP_PROOF_UNAVAILABLE'};}
 }

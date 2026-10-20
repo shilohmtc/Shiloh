@@ -355,8 +355,12 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
     const credential = session ? null : await resolveCredentialHint(db, credentialIdHint);
     const admin = session ? await resolveAdmin(db, session.adminId) : null;
     if (session && (!admin || !Number.isSafeInteger(Number(session.sessionId)))) return { ok: false, code: 'STAFF_AUTH_FORBIDDEN' };
-    const permitted = session ? await db.query(`SELECT credential_id, transports FROM staff_auth_passkey_credentials
-      WHERE admin_id = $1 AND revoked_at IS NULL ORDER BY id`, [admin.id]) : null;
+    // A remembered credential identifies the account, not the password manager.
+    // Offer all of that account’s current keys; finish still binds the signed
+    // assertion to this exact principal and rejects revoked/foreign keys.
+    const principalId=admin?.id??credential?.admin_id;
+    const permitted = principalId ? await db.query(`SELECT credential_id, transports FROM staff_auth_passkey_credentials
+      WHERE admin_id = $1 AND revoked_at IS NULL ORDER BY id`, [principalId]) : null;
     if (session && !permitted.rows.length) return { ok: false, code: 'STAFF_PASSKEY_NOT_FOUND' };
     const current = now(); const challenge = randomChallenge(randomBytes); const expiresAt = new Date(current.getTime() + CHALLENGE_TTL_MS);
     await db.query(`INSERT INTO staff_auth_webauthn_challenges (challenge_hash, purpose, admin_id, request_fingerprint_hash, expires_at)
@@ -368,9 +372,7 @@ function createStaffPasskeyAuthService({ db, env = process.env, now = () => new 
         rpId: p.rpId,
         timeout: CHALLENGE_TTL_MS,
         userVerification: 'required',
-        allowCredentials: credential
-          ? [{ type: 'public-key', id: credential.credential_id, transports: Array.isArray(credential.transports) ? credential.transports : [] }]
-          : session ? permitted.rows.map(row => ({ type: 'public-key', id: row.credential_id, transports: Array.isArray(row.transports) ? row.transports : [] })) : [],
+        allowCredentials: permitted ? permitted.rows.map(row => ({ type: 'public-key', id: row.credential_id, transports: Array.isArray(row.transports) ? row.transports : [] })) : [],
       },
       expiresAt,
       displayName: credential ? cleanDisplayName(credential.display_name) : null,

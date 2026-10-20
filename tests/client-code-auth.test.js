@@ -21,7 +21,7 @@ test('registration requires phone proof and creates through canonical CRM only a
   const owner=(await h.db.query('SELECT * FROM crm_v2_clients')).rows[0];assert.equal(owner.normalized_mobile,input.mobile);assert.ok(owner.mobile_verified_at);assert.equal(owner.first_name,'Synthetic');
   assert.equal((await h.service.completeRegistration({...input,grant:proof.grant,profile})).ok,false);
 });
-test('unverified, archived and historical/shared records never become claims through a code',async t=>{
+test('legacy signin/register purposes keep their original eligibility during queued-code compatibility',async t=>{
   const h=await clientHarness(t);await h.owner({mobile_verified_at:null});
   for(const purpose of ['signin','register']){await h.service.begin({...h.context,purpose});await h.service.dispatchOne();}assert.equal(h.sent.length,0);
   await h.db.query("UPDATE crm_v2_clients SET status='archived',mobile_verified_at=NOW()");await h.service.begin({...h.context,purpose:'register'});await h.service.dispatchOne();assert.equal(h.sent.length,0);
@@ -133,4 +133,77 @@ test('registration through SMS records SMS evidence without claiming a WhatsApp 
   assert.equal(row.source,'my_shiloh_crm');assert.equal(row.provenance.registrationCompleted.via,'sms_code');
   assert.ok(row.provenance.lastVerifiedSmsCode);assert.equal(row.provenance.lastVerifiedWhatsAppInteraction,undefined);
   assert.equal((await h.sessions.validateSessionToken(result.sessionToken)).authMethod,'sms_code');
+});
+
+
+test('one client entry verifies an existing unverified/minimal owner without changing profile details',async t=>{
+  const h=await clientHarness(t),before=await h.owner({mobile_verified_at:null,profile_status:'minimal',date_of_birth:null,gender:null});
+  const input={...h.context,purpose:'continue'},r=await h.service.begin(input);
+  assert.equal((await h.db.query('SELECT mobile_verified_at FROM crm_v2_clients')).rows[0].mobile_verified_at,null);
+  await h.service.dispatchOne();assert.equal(h.sent.length,1);
+  assert.equal((await h.service.verify({...input,request:r.request,code:'wrong'})).ok,false);
+  assert.equal((await h.db.query('SELECT mobile_verified_at FROM crm_v2_clients')).rows[0].mobile_verified_at,null);
+  const result=await h.service.verify({...input,request:r.request,code:h.sent[0].code});assert.equal(result.ok,true);
+  const after=(await h.db.query('SELECT * FROM crm_v2_clients')).rows[0];
+  for(const key of ['id','name','first_name','surname','date_of_birth','gender','profile_status','source','normalized_mobile'])assert.deepEqual(after[key],before[key]);
+  assert.ok(after.mobile_verified_at);assert.ok(after.provenance.lastVerifiedWhatsAppInteraction);
+  assert.equal((await h.sessions.validateSessionToken(result.sessionToken)).ok,true);
+  assert.equal((await h.service.verify({...input,request:r.request,code:h.sent[0].code})).ok,false);
+});
+
+test('one client entry reveals registration only after proof and cannot create a duplicate after ownership drift',async t=>{
+  const h=await clientHarness(t),input={...h.context,purpose:'continue'},r=await h.service.begin(input);await h.service.dispatchOne();
+  assert.equal((await h.db.query('SELECT * FROM crm_v2_clients')).rows.length,0);
+  const proof=await h.service.verify({...input,request:r.request,code:h.sent[0].code});assert.equal(proof.profileRequired,true);
+  const result=await h.service.completeRegistration({...input,grant:proof.grant,profile:{firstName:'New',surname:'Client',dateOfBirth:'1990-01-01',gender:'female'}});
+  assert.equal(result.ok,true);assert.equal((await h.db.query('SELECT * FROM crm_v2_clients')).rows.length,1);
+});
+
+for(const kind of ['historical','archived','multiple'])test(`verified phone does not choose or expose a ${kind} profile`,async t=>{
+  const h=await clientHarness(t),input={...h.context,purpose:'continue'};
+  if(kind==='historical'){await h.db.query("INSERT INTO client_contacts(normalized_value,contact_type) VALUES($1,'mobile')",[input.mobile]);}
+  if(kind==='archived')await h.owner({status:'archived'});
+  if(kind==='multiple'){await h.owner({status:'archived'});await h.owner();}
+  const r=await h.service.begin(input);await h.service.dispatchOne();assert.equal(h.sent.length,1);
+  const before=(await h.db.query('SELECT * FROM crm_v2_clients ORDER BY id')).rows;
+  const proof=await h.service.verify({...input,request:r.request,code:h.sent[0].code});assert.deepEqual(proof,{ok:true,accountAccessRequired:true});
+  assert.deepEqual((await h.db.query('SELECT * FROM crm_v2_clients ORDER BY id')).rows,before);
+  assert.equal((await h.db.query('SELECT * FROM client_browser_sessions')).rows.length,0);
+  assert.equal((await h.service.completeRegistration({...input,grant:r.request,profile:{}})).ok,false);
+});
+
+for(const drift of ['owner','status','history'])test(`unified proof rejects ${drift} drift between dispatch and verification`,async t=>{
+  const h=await clientHarness(t),input={...h.context,purpose:'continue'};if(drift!=='owner')await h.owner();
+  const r=await h.service.begin(input);await h.service.dispatchOne();
+  if(drift==='owner')await h.owner();
+  if(drift==='status')await h.db.query("UPDATE crm_v2_clients SET status='archived'");
+  if(drift==='history')await h.db.query("INSERT INTO client_contacts(normalized_value,contact_type) VALUES($1,'mobile')",[input.mobile]);
+  assert.equal((await h.service.verify({...input,request:r.request,code:h.sent[0].code})).ok,false);
+  assert.equal((await h.db.query('SELECT * FROM client_browser_sessions')).rows.length,0);
+});
+
+test('unified entry retains previous verified session revisions and supports one concurrent continuation',async t=>{
+  const h=await clientHarness(t);await h.owner();
+  const first=await h.service.begin(h.context);await h.service.dispatchOne();const old=await h.service.verify({...h.context,request:first.request,code:h.sent[0].code});
+  h.advance(60000);const input={...h.context,purpose:'continue'},r=await h.service.begin(input);await h.service.dispatchOne();
+  const results=await Promise.all([1,2].map(()=>h.service.verify({...input,request:r.request,code:h.sent.at(-1).code})));
+  assert.equal(results.filter(r=>r.ok).length,1);assert.equal((await h.sessions.validateSessionToken(old.sessionToken)).ok,true);
+});
+
+
+test('a legacy contact does not block the unique current canonical owner or grant access to legacy records',async t=>{
+  const h=await clientHarness(t),owner=await h.owner({mobile_verified_at:null}),input={...h.context,purpose:'continue'};
+  await h.db.query("INSERT INTO client_contacts(normalized_value,contact_type) VALUES($1,'mobile')",[input.mobile]);
+  const r=await h.service.begin(input);await h.service.dispatchOne();const result=await h.service.verify({...input,request:r.request,code:h.sent[0].code});
+  assert.equal(result.ok,true);assert.equal((await h.sessions.validateSessionToken(result.sessionToken)).crmV2ClientId,Number(owner.id));
+  assert.equal((await h.db.query('SELECT * FROM client_contacts')).rows.length,1);
+});
+
+
+test('unified requests share the durable R5 daily allowance with legacy purposes across service restarts',async t=>{
+  const h=await clientHarness(t),budget={currency:'ZAR',dailyMinor:500,whatsappCostMinor:100};
+  for(let i=0;i<6;i++){
+    const s=h.make({budget});await s.begin({...h.context,purpose:i%2?'continue':'register',mobile:'2782000000'+i});await s.dispatchOne();
+  }
+  assert.equal(h.sent.length,5);assert.equal((await h.db.query('SELECT * FROM crm_v2_clients')).rows.length,0);
 });

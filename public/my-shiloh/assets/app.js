@@ -125,7 +125,8 @@
   function renderClientSetup() {
     if (passkeyEnrollButton) {
       passkeyEnrollButton.hidden = !passkeySupported() || clientSetupChecking ||
-        clientSetupCheckFailed || clientHasPasskey;
+        clientSetupCheckFailed;
+      passkeyEnrollButton.textContent = clientHasPasskey ? 'Save another passkey' : 'Save a passkey';
     }
     const passkeyGuidance = document.querySelector('[data-passkey-support-guidance]');
     if (passkeyGuidance) passkeyGuidance.hidden = passkeySupported();
@@ -1247,7 +1248,7 @@
       setAuthStatus('Welcome back. Opening My Shiloh…', 'success');
       window.location.replace(signedInLanding());
     } catch (error) {
-      setAuthStatus(passkeyError(error, document.body.dataset.clientDetailsRetired==='true'?'Passkey sign-in could not be completed. Use WhatsApp sign-in, or contact Reception for help.':'Passkey sign-in could not be completed. Use your Shiloh details instead.'), 'error');
+      setAuthStatus(passkeyError(error, document.body.dataset.clientDetailsRetired==='true'?'Passkey sign-in could not be completed. Use WhatsApp to sign in, then save a passkey in Profile.':'Passkey sign-in could not be completed. Use your Shiloh details instead.'), 'error');
       authActionInFlight = false;
       setAuthControlsDisabled(false);
     }

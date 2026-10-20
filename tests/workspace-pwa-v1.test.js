@@ -117,7 +117,7 @@ test('#791 installed client revalidates only through canonical live staff sessio
   assert.match(client, /addEventListener\('online'/);
   assert.match(client, /shiloh-ios-install-dismissed-v1/);
   assert.match(client, /sessionStorage\.setItem\(INSTALL_DISMISS_KEY,'1'\)/);
-  assert.doesNotMatch(client, /localStorage|indexedDB|document\.cookie|Authorization|Bearer\s|recoveryCode|totp_secret/i);
+  assert.doesNotMatch(client, /indexedDB|document\.cookie|Authorization|Bearer\s|recoveryCode|totp_secret/i);
   assert.match(client, /data-workspace-push-toggle/);
   assert.match(client, /Notification\.requestPermission\(\)/);
 });

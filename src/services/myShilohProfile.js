@@ -180,7 +180,7 @@ function createMyShilohProfileService({ db = pool, now = () => new Date() } = {}
         await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`crm-v2-mobile:${nextMobile}`]);
         const owners = await client.query("SELECT id FROM crm_v2_clients WHERE normalized_mobile=$1 AND id<>$2", [nextMobile, clientId]);
         if (owners.rowCount) throw new MyShilohProfileError('MY_SHILOH_PROFILE_MOBILE_CONFLICT',
-          'This number cannot be used for your profile. Please contact Reception.', 409);
+          'This number cannot be used for your profile. Check it or use a different number.', 409);
       }
       if (mobileChanged) await client.query('SELECT id FROM client_browser_sessions WHERE crm_v2_client_id=$1 AND id<>$2 AND revoked_at IS NULL FOR UPDATE', [clientId, session]);
       // A transaction/identity lock wait cannot extend the authorizing session.

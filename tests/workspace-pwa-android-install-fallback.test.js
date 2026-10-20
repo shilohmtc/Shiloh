@@ -4,9 +4,16 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { workspacePwaClientScript } = require('../src/presentation/workspacePwa');
+const { workspaceAccountSetupScript } = require('../src/presentation/workspaceAccountSetup');
+// These install-guide assertions exclude the separately tested signed-in setup card.
+function installClientScript() {
+  const client = workspacePwaClientScript(), setup = workspaceAccountSetupScript();
+  assert.ok(client.endsWith(setup));
+  return client.slice(0, -setup.length);
+}
 
 test('#837 Android install UI waits for a genuine Chromium install prompt', () => {
-  const client = workspacePwaClientScript();
+  const client = installClientScript();
   assert.match(client, /function androidDevice\(\).*Android/s);
   assert.match(client, /function installAction\(\)\{if\(!androidDevice\(\)\|\|standalone\(\)\|\|!deferredInstallPrompt\)/);
   assert.match(client, /Install Shiloh Workspace on this Android phone/);
@@ -15,7 +22,7 @@ test('#837 Android install UI waits for a genuine Chromium install prompt', () =
 });
 
 test('#837 native Chromium prompt enables the single Android install control', () => {
-  const client = workspacePwaClientScript();
+  const client = installClientScript();
   const listenerAt = client.indexOf("addEventListener('beforeinstallprompt'");
   const initialRenderAt = client.indexOf('installGuidance();installAction();');
   assert.ok(listenerAt >= 0 && initialRenderAt > listenerAt, 'capture listener must be installed before initial install UI evaluation');
@@ -26,7 +33,7 @@ test('#837 native Chromium prompt enables the single Android install control', (
 });
 
 test('#837 installed and iPhone paths remain bounded', () => {
-  const client = workspacePwaClientScript();
+  const client = installClientScript();
   assert.match(client, /Keep Shiloh close/);
   assert.match(client, /Tap Share/);
   assert.match(client, /Add to Home Screen/);

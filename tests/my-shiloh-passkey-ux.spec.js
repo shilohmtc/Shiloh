@@ -90,6 +90,8 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
       return route.fulfill({ status: 409, json: { error: 'Your profile changed. Reload before saving.' } });
     });
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--first-sign-in-passkey-setup&viewMode=story', { waitUntil: 'networkidle' });
+    await page.locator('[data-client-profile-form]').waitFor({ state: 'attached' });
+    await page.waitForFunction(() => window.axe && !window.axe._running);
     await page.evaluate(() => {
       Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
       // Isolate the existing passkey lifecycle proof after the optional notification choice.
@@ -98,6 +100,8 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
     await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
     await page.evaluate(() => window.dispatchEvent(new Event('load')));
     const form = page.locator('[data-client-profile-form]');
+    await expect(form.locator('input[name="name"]')).toHaveValue(profile.name);
+    await page.locator('[data-view-target="profile"]').click();
     await expect(page.locator('[data-view="profile"]')).toBeVisible();
     await expect(form.locator('input[name="name"]')).toHaveValue(profile.name);
     await expect(form.locator('input[name="dateOfBirth"]')).toHaveValue(profile.dateOfBirth);
@@ -146,7 +150,8 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
     }); });
     await page.locator('[data-passkey-enroll]').click();
     await expect(page.locator('[data-passkey-enroll-status]')).toContainText('Your passkey is ready');
-    await expect(page.locator('[data-passkey-enroll]')).toBeHidden();
+    await expect(page.locator('[data-passkey-enroll]')).toBeEnabled();
+    await expect(page.locator('[data-passkey-enroll]')).toHaveText('Save another passkey');
     expect(registrations).toBe(1); expect(confirmations).toBe(0);
     await captureStable(page, testInfo, `first-passkey-saved-${viewport.name}.png`, page.locator('[data-passkey-enroll-status]'));
 

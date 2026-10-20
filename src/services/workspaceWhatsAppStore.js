@@ -85,7 +85,7 @@ function createWorkspaceWhatsAppStore({ db, randomBytes = crypto.randomBytes } =
           const s = r.rows[0];
           return s ? { ok: true, adminId: Number(s.admin_id), authMethod: s.auth_method,
             authenticatedAt: s.reauthenticated_at || s.issued_at, expiresAt: s.expires_at,
-            revokedAt: s.revoked_at, recoveryRequired: s.recovery_required } : null;
+            revokedAt: s.revoked_at, recoveryRequired: s.recovery_required, identityRevision:s.detail_identity_revision } : null;
         },
         async revokeChallenges(id, purpose) {
           await client.query(`UPDATE workspace_whatsapp_records SET payload=jsonb_set(payload,'{state}','"revoked"')
@@ -97,6 +97,15 @@ function createWorkspaceWhatsAppStore({ db, randomBytes = crypto.randomBytes } =
         insertIntent: row => save('intent', row.hash, row, true),
         intent: hash => get('intent', hash),
         saveIntent: row => save('intent', row.hash, row),
+        async ownEnrollmentWindow({adminId,sessionId,browserHash,identityRevision,accessScope,current}) {
+          const r=await client.query(`SELECT expires_at FROM workspace_whatsapp_records WHERE kind='grant' AND admin_id=$1
+            AND purpose='enroll' AND expires_at>$2 AND payload->>'selfSessionId'=$3
+            AND payload->>'browserHash'=$4 AND payload->>'identityRevision'=$5
+            AND COALESCE(payload->>'accessScope','')=$6 AND payload->>'reusable'='true'
+            AND payload->>'state' IN ('issued','started') ORDER BY expires_at DESC LIMIT 1`,
+          [adminId,current,String(sessionId),browserHash,identityRevision,accessScope||'']);
+          return r.rows[0]?new Date(r.rows[0].expires_at):null;
+        },
         grant: hash => get('grant', hash),
         saveGrant: row => save('grant', row.hash, row),
         async audit(event) {

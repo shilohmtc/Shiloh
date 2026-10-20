@@ -35,9 +35,9 @@ async function main(){
       await page.screenshot({path:`${out}/${label}-entry.png`,fullPage:true});
       await home.getByRole('button',{name:'Sign in with a passkey',exact:true}).click();
       await page.locator('[data-auth-status]').filter({hasText:/cancel|WhatsApp/i}).first().waitFor();assert.equal(native,1);assert.equal(starts,prior);
-      await home.getByRole('link',{name:'Sign in with WhatsApp',exact:true}).click();await page.getByRole('button',{name:'Send me a WhatsApp code',exact:true}).waitFor();
+      await home.getByRole('link',{name:'Sign in with WhatsApp',exact:true}).click();await page.getByRole('button',{name:'Continue with WhatsApp',exact:true}).waitFor();
       assert.equal(starts,prior);assert.equal(await page.locator('#sms').count(),0);
-      await page.getByLabel('Mobile number',{exact:true}).fill('0820000001');await page.getByRole('button',{name:'Send me a WhatsApp code',exact:true}).click();
+      await page.getByLabel('Mobile number',{exact:true}).fill('0820000001');await page.getByRole('button',{name:'Continue with WhatsApp',exact:true}).click();
       await page.getByLabel('Verification code',{exact:true}).waitFor();assert.equal(starts,prior+1);
       assert.deepEqual((await new AxeBuilder({page}).analyze()).violations,[]);await page.screenshot({path:`${out}/${label}-explicit-code-request.png`,fullPage:true});
       available=false;await page.goto(origin+'/my-shiloh/');await home.getByRole('button',{name:'Sign in with a passkey',exact:true}).waitFor();

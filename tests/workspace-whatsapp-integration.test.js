@@ -361,3 +361,46 @@ test('own enrollment permits explicit expiry fallback but still binds the curren
   await h.db.query('UPDATE staff_browser_sessions SET revoked_at=NOW() WHERE id=$1',[h.priorSession.sessionId]);
   assert.equal((await h.service.beginRegistration({grant:grant.grant,browserToken:h.context.browserToken})).ok,false);
 });
+
+test('own WhatsApp passkey setup survives cancellation and restart for a fixed ten minutes without another send',async t=>{
+  const h=await harness(t),input={...h.context,sessionId:h.priorSession.sessionId,proof:'code'};
+  const request=await h.service.requestOwnEnrollment(input);await h.service.dispatchOne();
+  const proof=await h.service.verify({...h.context,purpose:'enroll',request:request.request,code:h.sent[0].code});assert.equal(proof.ok,true);
+  const begin=()=>h.service.beginRegistration({grant:proof.grant,browserToken:h.context.browserToken});
+  const canceled=await begin(),retry=await begin();assert.equal(retry.ok,true);assert.notEqual(retry.options.challenge,canceled.options.challenge);
+  const stale=await h.service.finishRegistration({grant:proof.grant,browserToken:h.context.browserToken,response:registrationResponse(fixture(),{challenge:canceled.options.challenge})});assert.equal(stale.ok,false);
+  const fresh=await begin();const response=registrationResponse(fixture(),{challenge:fresh.options.challenge});
+  const added=await h.service.finishRegistration({grant:proof.grant,browserToken:h.context.browserToken,response});assert.equal(added.ok,true);
+  assert.equal((await h.service.finishRegistration({grant:proof.grant,browserToken:h.context.browserToken,response})).ok,false);
+  const restarted=require('../src/services/workspaceWhatsAppAuth').createWorkspaceWhatsAppAuth({enabled:true,store:h.store,delivery:h.delivery,hmacKey:Buffer.alloc(32,7),env:h.env,now:h.now});
+  h.advance(599999);const reopened=await restarted.requestOwnEnrollment(input);assert.equal(reopened.ok,true);assert.ok(reopened.grant);assert.equal(reopened.request,undefined);assert.equal(h.sent.length,1);
+  const otherBrowser=await restarted.requestOwnEnrollment({...input,browserToken:'X'.repeat(43)});assert.equal(otherBrowser.grant,undefined);
+  h.advance(1);assert.equal((await begin()).ok,false);
+  assert.equal((await restarted.beginRegistration({grant:reopened.grant,browserToken:h.context.browserToken})).ok,false);
+  const expired=await restarted.requestOwnEnrollment(input);assert.equal(expired.grant,undefined);assert.ok(expired.request);
+  assert.equal((await h.sessions.validateSessionToken(h.priorSession.sessionToken)).ok,true);
+});
+
+test('own setup window cannot survive identity change or authorizing-session revocation',async t=>{
+  const h=await harness(t),input={...h.context,sessionId:h.priorSession.sessionId,proof:'code'};
+  const request=await h.service.requestOwnEnrollment(input);await h.service.dispatchOne();
+  const proof=await h.service.verify({...h.context,purpose:'enroll',request:request.request,code:h.sent[0].code});
+  await h.db.query("UPDATE staff_admin_accounts SET normalized_whatsapp='27820000009' WHERE id=1");
+  assert.equal((await h.service.beginRegistration({grant:proof.grant,browserToken:h.context.browserToken})).ok,false);
+  assert.equal((await h.service.requestOwnEnrollment(input)).grant,undefined);
+  await h.db.query('UPDATE staff_browser_sessions SET revoked_at=NOW() WHERE id=$1',[h.priorSession.sessionId]);
+  assert.equal((await h.service.requestOwnEnrollment(input)).ok,false);
+  assert.equal(h.sent.length,1);
+});
+
+test('fresh staff WhatsApp sign-in itself opens a fixed ten-minute own passkey window without another code',async t=>{
+  const h=await harness(t),r=await h.service.begin(h.context);await h.service.dispatchOne();
+  const signed=await h.service.verify({...h.context,request:r.request,code:h.sent[0].code});assert.equal(signed.ok,true);
+  const input={...h.context,sessionId:signed.sessionId,proof:'session'};
+  const grant=await h.service.requestOwnEnrollment(input);assert.equal(grant.ok,true);assert.ok(grant.grant);assert.equal(grant.request,undefined);assert.equal(h.sent.length,1);
+  const row=(await h.db.query("SELECT payload FROM workspace_whatsapp_records WHERE kind='grant' ORDER BY expires_at DESC LIMIT 1")).rows[0].payload;
+  assert.equal(new Date(row.expiresAt)-h.now(),600000);
+  h.advance(599999);assert.equal((await h.service.requestOwnEnrollment(input)).ok,true);
+  h.advance(1);assert.equal((await h.service.requestOwnEnrollment(input)).ok,false);assert.equal(h.sent.length,1);
+  assert.equal((await h.sessions.validateSessionToken(signed.sessionToken)).ok,true);
+});

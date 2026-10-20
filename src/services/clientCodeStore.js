@@ -3,7 +3,7 @@ const crypto=require('node:crypto');
 const {PostgresCrmV2ClientRepository}=require('../repositories/crmV2ClientRepository');
 const {createCrmV2ClientService}=require('./crmV2ClientService');
 const revision=row=>crypto.createHash('sha256').update(JSON.stringify([String(row.id),row.normalized_mobile,
-  new Date(row.mobile_verified_at).toISOString(),row.name,
+  row.mobile_verified_at?new Date(row.mobile_verified_at).toISOString():null,row.name,
   row.date_of_birth instanceof Date?row.date_of_birth.toISOString().slice(0,10):String(row.date_of_birth||'').slice(0,10),
   row.gender,row.profile_status])).digest('hex');
 function createClientCodeStore({db,sessions}={}){
@@ -41,12 +41,24 @@ function createClientCodeStore({db,sessions}={}){
         async identity(mobile){
           await c.query('SELECT pg_advisory_xact_lock(hashtext($1))',[`crm-v2-mobile:${mobile}`]);
           const rows=(await c.query('SELECT * FROM crm_v2_clients WHERE normalized_mobile=$1 ORDER BY id FOR UPDATE',[mobile])).rows;
-          // Historical/shared contacts must be reconciled by Reception. This
-          // flow never upgrades an imported record or claims a legacy profile.
-          const historical=(await c.query("SELECT id FROM client_contacts WHERE normalized_value=$1 AND contact_type IN ('whatsapp','mobile') LIMIT 1",[mobile])).rows;
+          // Phone proof never chooses between owners or crosses identity models.
+          const historical=(await c.query("SELECT id FROM client_contacts WHERE normalized_value=$1 AND contact_type IN ('whatsapp','mobile') ORDER BY id FOR SHARE",[mobile])).rows;
           const owner=rows.length===1?rows[0]:null;
           const verified=!historical.length&&owner?.status==='active'&&owner.profile_status==='registered'&&!!owner.mobile_verified_at;
-          return {empty:rows.length===0&&historical.length===0,verified,owner,revision:verified?revision(owner):null};
+          // Current canonical ownership controls My Shiloh. Legacy contacts do
+          // not block that one active owner, and are never opened or linked.
+          const available=owner?.status==='active';
+          const snapshot=crypto.createHash('sha256').update(JSON.stringify([rows.map(r=>[String(r.id),revision(r),r.status,r.first_name,r.surname]),historical.map(r=>String(r.id))])).digest('hex');
+          return {empty:rows.length===0&&historical.length===0,verified,available,owner,revision:verified?revision(owner):null,snapshot};
+        },
+        async verifyMobile({mobile,current,channel}){
+          // Called only after consuming fresh browser-bound phone proof, under
+          // the exact-owner locks and snapshot check in this transaction.
+          const repository=new PostgresCrmV2ClientRepository(c);
+          const crm=createCrmV2ClientService({repository,clock:()=>current});
+          const result=await (channel==='sms'?crm.recordVerifiedSmsInteraction:crm.recordVerifiedWhatsAppInteraction)({mobile,occurredAt:current});
+          if(result.status!=='verified')return null;
+          return (await c.query('SELECT * FROM crm_v2_clients WHERE id=$1 FOR UPDATE',[result.client.id])).rows[0];
         },
         async register({profile,mobile,current,channel}){
           const repository=new PostgresCrmV2ClientRepository(c);
