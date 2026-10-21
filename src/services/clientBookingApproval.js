@@ -1,3 +1,4 @@
+const { validFamilyWindows } = require('./clientFamilyBookingTiming');
 const { pool } = require('../db/pool');
 const { normalizeMobile } = require('./crmV2ClientService');
 const { checkAssistantBookingHours: checkClinicHours } = require('./assistantBookingHours');
@@ -123,7 +124,7 @@ function requestQuery({ lock = false } = {}) {
   return `
     SELECT aba.*,
            (SELECT g.id FROM appointment_group_members gm JOIN appointment_groups g ON g.id=gm.group_id
-             WHERE gm.appointment_id=a.id AND g.group_type='couples_massage' AND g.source='shiloh_my_shiloh_couples') AS couples_group_id,
+             WHERE gm.appointment_id=a.id AND g.group_type IN ('couples_massage','group_booking') AND g.source='shiloh_my_shiloh_couples') AS couples_group_id,
            a.client_id AS current_client_id,a.crm_v2_client_id AS current_crm_v2_client_id,
            v2.id AS current_active_crm_v2_client_id,a.location_id AS current_location_id,a.starts_at AS current_starts_at,a.ends_at AS current_ends_at,
            a.status AS appointment_status,a.updated_at AS current_revision,
@@ -603,7 +604,7 @@ async function proposeAlternative(input) { return routeCouples(input, 'propose',
 async function requestAnotherOption(input) { return routeCouples(input, 'another', singleRequestAnotherOption); }
 async function acceptProposedAlternative(input) { return routeCouples(input, 'client_accept', singleAcceptProposedAlternative); }
 
-// Two appointment children retain their own clinical identities; decisions are atomic.
+// Every linked guest retains their own clinical identity; decisions are atomic.
 async function resolveCouplesRequest({ dbPool=pool, groupId, action, principal, appointmentId, expectedRevision,
   startsAt, staffIds=null, staffId=null, serviceId=null, sender, crmV2ClientId=null, proposalVersion,
   now=new Date(), validateWindow=canonicalWindowAvailable, sendProposal=defaultSendProposal,
@@ -614,9 +615,11 @@ async function resolveCouplesRequest({ dbPool=pool, groupId, action, principal, 
     const group = (await db.query(`SELECT * FROM appointment_groups WHERE id=$1 FOR UPDATE`, [groupId])).rows[0];
     const members = (await db.query(`SELECT appointment_id,guest_position FROM appointment_group_members
       WHERE group_id=$1 ORDER BY guest_position,appointment_id`, [groupId])).rows;
-    if (!group || group.source!=='shiloh_my_shiloh_couples' || group.group_type!=='couples_massage'
-      || !['scheduled','confirmed'].includes(group.status) || members.length!==2) {
-      throw new BookingRequestError('BOOKING_COUPLES_CHANGED', 'This linked booking changed. Reception must review both appointments.', 409);
+    if (!group || group.source!=='shiloh_my_shiloh_couples' || !['couples_massage','group_booking'].includes(group.group_type)
+      || !['scheduled','confirmed'].includes(group.status) || members.length<2 || members.length>10
+      || members.some((member,index)=>Number(member.guest_position)!==index+1)
+      || (group.group_type==='couples_massage' && members.length!==2)) {
+      throw new BookingRequestError('BOOKING_COUPLES_CHANGED', 'This linked booking changed. Reception must review every appointment.', 409);
     }
     const rows=[];
     for (const member of members) rows.push(await loadRequest(db, member.appointment_id, true));
@@ -625,23 +628,23 @@ async function resolveCouplesRequest({ dbPool=pool, groupId, action, principal, 
       || Number(row.current_active_crm_v2_client_id)!==Number(row.current_crm_v2_client_id) || row.current_client_id!=null
       || !['scheduled','confirmed'].includes(row.appointment_status) || canonicalIds(row.current_staff_ids).length!==1
       || canonicalIds(row.current_service_ids).length!==1 || Number(row.current_location_id)!==Number(group.location_id))
-      || new Set(rows.map(row => Number(row.current_staff_id))).size!==2
-      || new Set(rows.map(row => new Date(row.current_starts_at).getTime())).size!==1
-      || new Set(rows.map(row=>Number(row.current_crm_v2_client_id))).size!==2
+      || !validFamilyWindows(rows.map(row=>({staffId:row.current_staff_id,startsAt:row.current_starts_at,endsAt:row.current_ends_at})))
+      || (group.group_type==='couples_massage' && new Set(rows.map(row=>new Date(row.current_starts_at).getTime())).size!==1)
+      || new Set(rows.map(row=>Number(row.current_crm_v2_client_id))).size!==members.length
       || new Date(group.starts_at).getTime()!==new Date(lead.current_starts_at).getTime()
       || new Date(group.ends_at).getTime()!==Math.max(...rows.map(row=>new Date(row.current_ends_at).getTime()))) {
-      throw new BookingRequestError('BOOKING_COUPLES_CHANGED', 'Both appointments must still match the requested shared time and practitioners.', 409);
+      throw new BookingRequestError('BOOKING_COUPLES_CHANGED', 'Every appointment must still match the requested times and practitioners.', 409);
     }
     const operator=action==='accept'||action==='propose';
     if (operator) {
       for (const row of rows) requireResolvable(principal, row, Number(row.appointment_id)===Number(appointmentId) ? expectedRevision : null);
-      if (!expectedRevision) throw new BookingRequestError('BOOKING_REQUEST_STALE', 'Refresh this request before confirming both appointments.',409);
+      if (!expectedRevision) throw new BookingRequestError('BOOKING_REQUEST_STALE', 'Refresh this request before confirming every appointment.',409);
     } else {
       // Only the organiser can accept for the booking they arranged. A guest cannot act for the organiser.
       if (Number(appointmentId)!==Number(lead.appointment_id) || !(await clientIdentityMatches(lead,sender,crmV2ClientId)))
-        throw new BookingRequestError('BOOKING_PROPOSAL_IDENTITY','Only the person who requested this booking can respond for both people.',403);
+        throw new BookingRequestError('BOOKING_PROPOSAL_IDENTITY','Only the person who requested this booking can respond for everyone.',403);
       if (rows.some(row => row.status!=='awaiting_client_confirmation' || Number(row.proposal_version)!==Number(proposalVersion)))
-        throw new BookingRequestError('BOOKING_PROPOSAL_STALE','That proposed option is no longer active for both people.',409);
+        throw new BookingRequestError('BOOKING_PROPOSAL_STALE','That proposed option is no longer active for everyone.',409);
     }
     async function clear(reason) {
       for (const row of rows) {
@@ -649,40 +652,43 @@ async function resolveCouplesRequest({ dbPool=pool, groupId, action, principal, 
         await audit(db,operator ? principal : null,reason,row.appointment_id,{groupId,atomic:true});
       }
     }
-    if (action==='another') { await clear('client.couples_booking.another_option_requested'); return {status:'pending',reply:'Reception will review another option for both of you. Your booking is not confirmed yet.'}; }
+    if (action==='another') { await clear('client.couples_booking.another_option_requested'); return {status:'pending',reply:'Reception will review another option for everyone. Your booking is not confirmed yet.'}; }
     if (action==='accept' && rows.some(row => row.status==='awaiting_client_confirmation' && new Date(row.proposal_expires_at)>now))
-      throw new BookingRequestError('BOOKING_REQUEST_AWAITING_CLIENT','The organiser must respond to the alternative for both appointments.',409);
+      throw new BookingRequestError('BOOKING_REQUEST_AWAITING_CLIENT','The organiser must respond to the alternative for every appointment.',409);
     if (action==='client_accept' && rows.some(row => !row.proposed_starts_at || !row.proposed_ends_at
       || new Date(row.proposal_expires_at)<=now || new Date(row.proposed_starts_at)<=now)) {
       await clear('client.couples_booking.proposal_expired'); return {status:'pending',reply:'That option expired. Reception will review another shared time.'};
     }
     const start=action==='propose' ? exactDate(startsAt) : new Date(action==='client_accept' ? lead.proposed_starts_at : lead.current_starts_at);
-    if (start<=now) throw new BookingRequestError('BOOKING_REQUEST_PAST_TIME','Choose a future shared time.',422);
-    if (action==='client_accept' && (new Set(rows.map(row => new Date(row.proposed_starts_at).getTime())).size!==1
+    if (start<=now) throw new BookingRequestError('BOOKING_REQUEST_PAST_TIME','Choose a future start time for this booking.',422);
+    if (action==='client_accept' && (!validFamilyWindows(rows.map(row=>({staffId:row.proposed_staff_id,startsAt:row.proposed_starts_at,endsAt:row.proposed_ends_at})))
+      || rows.some(row=>new Date(row.proposed_starts_at)-new Date(lead.proposed_starts_at)!==new Date(row.current_starts_at)-new Date(lead.current_starts_at)
+        || new Date(row.proposed_ends_at)-new Date(row.proposed_starts_at)!==new Date(row.current_ends_at)-new Date(row.current_starts_at))
       || rows.some(row=>Number(row.proposed_location_id)!==Number(group.location_id) || Number(row.proposed_service_id)!==Number(row.current_service_id)
         || !sameIds(row.proposed_staff_ids,[Number(row.proposed_staff_id)]))))
       throw new BookingRequestError('BOOKING_COUPLES_CHANGED','The proposed times no longer match. Reception must review them.',409);
     if (action==='propose' && serviceId!=null && rows.some(row => Number(row.current_service_id)!==Number(serviceId)))
       throw new BookingRequestError('BOOKING_REQUEST_SERVICE_CHANGE_UNSUPPORTED','Keep the requested treatments when proposing an alternative.',422);
     if (action==='propose' && staffId!=null) throw new BookingRequestError('BOOKING_COUPLES_SELECTION','Choose the practitioner for each person together.',422);
-    if (staffIds!=null && (!Array.isArray(staffIds)||staffIds.length!==2||staffIds.some(id => !Number.isSafeInteger(Number(id)) || Number(id)<=0)))
-      throw new BookingRequestError('BOOKING_COUPLES_SELECTION','Choose two eligible practitioners.',422);
+    if (staffIds!=null && (!Array.isArray(staffIds)||staffIds.length!==rows.length||staffIds.some(id => !Number.isSafeInteger(Number(id)) || Number(id)<=0)))
+      throw new BookingRequestError('BOOKING_COUPLES_SELECTION','Choose an eligible practitioner for every person.',422);
     const targets=rows.map((row,index) => action==='client_accept' ? Number(row.proposed_staff_id)
       : action==='propose' && staffIds ? Number(staffIds[index]) : Number(row.current_staff_id));
-    if (new Set(targets).size!==2 || targets.some(id=>!Number.isSafeInteger(id)||id<=0)) throw new BookingRequestError('BOOKING_COUPLES_SELECTION','Choose two different practitioners.',422);
+    if ((rows.every(row=>new Date(row.current_starts_at).getTime()===new Date(lead.current_starts_at).getTime()) && new Set(targets).size!==rows.length) || targets.some(id=>!Number.isSafeInteger(id)||id<=0)) throw new BookingRequestError('BOOKING_COUPLES_SELECTION','Choose a different practitioner for everyone starting together.',422);
     await lockStaffIds(db,[...targets,...rows.flatMap(row=>row.current_staff_ids)]);
     const windows=[];
     for (const [index,row] of rows.entries()) {
-      const end=new Date(start.getTime()+new Date(row.current_ends_at).getTime()-new Date(row.current_starts_at).getTime());
+      const memberStart=new Date(start.getTime()+new Date(row.current_starts_at).getTime()-new Date(lead.current_starts_at).getTime());
+      const end=new Date(memberStart.getTime()+new Date(row.current_ends_at).getTime()-new Date(row.current_starts_at).getTime());
       const available=await validateWindow(db,{appointmentId:Number(row.appointment_id),staffId:targets[index],serviceId:Number(row.current_service_id),
-        locationId:Number(group.location_id),startsAt:start,endsAt:end,excludeProposalAppointmentId:Number(row.appointment_id),excludeAppointmentIds:ids});
+        locationId:Number(group.location_id),startsAt:memberStart,endsAt:end,excludeProposalAppointmentId:Number(row.appointment_id),excludeAppointmentIds:ids});
       const own=await db.query(`SELECT id FROM appointments WHERE crm_v2_client_id=$1 AND NOT(id=ANY($2::bigint[]))
-        AND status NOT IN ('cancelled','no_show') AND starts_at<$4 AND ends_at>$3 LIMIT 1`,[row.current_crm_v2_client_id,ids,start,end]);
+        AND status NOT IN ('cancelled','no_show') AND starts_at<$4 AND ends_at>$3 LIMIT 1`,[row.current_crm_v2_client_id,ids,memberStart,end]);
       if (!available.ok||own.rowCount) {
-        if(action==='client_accept'){await clear('client.couples_booking.proposal_unavailable');return {status:'pending',reply:'That time is no longer available for both people. Reception will review another option.'};}
-        throw new BookingRequestError('BOOKING_REQUEST_ALTERNATIVE_UNAVAILABLE','This time is not available for both clients and practitioners. Choose another shared time.',409);
+        if(action==='client_accept'){await clear('client.couples_booking.proposal_unavailable');return {status:'pending',reply:'That time is no longer available for everyone. Reception will review another option.'};}
+        throw new BookingRequestError('BOOKING_REQUEST_ALTERNATIVE_UNAVAILABLE','This time is not available for every client and practitioner. Choose another shared time.',409);
       }
-      windows.push({start,end,staffId:targets[index],name:available.canonical?.display_name});
+      windows.push({start:memberStart,end,staffId:targets[index],name:available.canonical?.display_name});
     }
     if(action==='propose') {
       if(!lead.current_active_crm_v2_client_id) throw new BookingRequestError('BOOKING_REQUEST_APP_IDENTITY_REQUIRED','The organiser needs an active My Shiloh profile to respond.',409);
@@ -693,7 +699,7 @@ async function resolveCouplesRequest({ dbPool=pool, groupId, action, principal, 
         await db.query(`UPDATE appointment_booking_approvals SET status='awaiting_client_confirmation',proposed_location_id=$2,
           proposed_staff_id=$3,proposed_staff_ids=ARRAY[$3::bigint],proposed_service_id=$4,proposed_starts_at=$5,proposed_ends_at=$6,
           proposal_version=$7,proposal_expires_at=$8,proposed_by_admin_id=$9,decision_note=NULL,updated_at=NOW() WHERE appointment_id=$1`,
-        [row.appointment_id,group.location_id,window.staffId,row.current_service_id,start,window.end,version,expiry,principal.id]);
+        [row.appointment_id,group.location_id,window.staffId,row.current_service_id,window.start,window.end,version,expiry,principal.id]);
         await audit(db,principal,'client.booking_request.alternative_proposed',row.appointment_id,{groupId,proposalVersion:version,atomic:true});
       }
       deliveryRow={...lead,proposed_starts_at:start,proposed_ends_at:windows[0].end,groupId};
@@ -707,10 +713,10 @@ async function resolveCouplesRequest({ dbPool=pool, groupId, action, principal, 
         proposal_expires_at=NULL,decision_note=$4,updated_at=NOW() WHERE appointment_id=$1`,
       [row.appointment_id,principal?.id||null,action==='client_accept',action==='client_accept'?'client_accepted_workspace_alternative':'workspace_accept_requested']);
       if(action==='client_accept') {
-        await db.query(`UPDATE appointments SET starts_at=$2,ends_at=$3,updated_at=NOW() WHERE id=$1`,[row.appointment_id,start,window.end]);
+        await db.query(`UPDATE appointments SET starts_at=$2,ends_at=$3,updated_at=NOW() WHERE id=$1`,[row.appointment_id,window.start,window.end]);
         await db.query(`UPDATE appointment_staff SET staff_id=$2,staff_name_snapshot=$3 WHERE appointment_id=$1 AND position=1`,[row.appointment_id,window.staffId,window.name]);
         await db.query(`UPDATE appointment_lifecycle SET appointment_at=$2,appointment_ends_at=$3,
-          therapist_text=$4,reminder_sent_at=NULL,updated_at=NOW() WHERE appointment_id=$1`,[row.appointment_id,start,window.end,window.name]);
+          therapist_text=$4,reminder_sent_at=NULL,updated_at=NOW() WHERE appointment_id=$1`,[row.appointment_id,window.start,window.end,window.name]);
         await db.query(`INSERT INTO appointment_status_history(appointment_id,from_status,to_status,changed_by,reason)
           VALUES($1,$2,$2,$3,'Organiser accepted shared couples alternative after canonical revalidation')`,
         [row.appointment_id,row.appointment_status,`crm_v2_client:${lead.current_crm_v2_client_id}`]);

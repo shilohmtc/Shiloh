@@ -637,7 +637,7 @@
       if (primary) {
         experienceBookings.querySelectorAll('[data-experience-extra-booking]').forEach((card) => card.remove());
         const renderBooking = (card, booking, index) => {
-          card.querySelectorAll('[data-booking-proposal-controls], [data-booking-details], [data-booking-status]').forEach(node => node.remove());
+          card.querySelectorAll('[data-booking-proposal-controls], [data-booking-details], [data-booking-status], [data-family-appointments]').forEach(node => node.remove());
           const number = card.querySelector('.action-number');
           const heading = card.querySelector('h2');
           const copy = card.querySelector('p');
@@ -648,6 +648,15 @@
           if (copy) copy.textContent = isRequest
             ? [[booking.service, booking.date, booking.time, booking.practitioner].filter(Boolean).join(' · '), booking.nextAction].filter(Boolean).join(' — ')
             : [booking.date, booking.time, booking.practitioner].filter(Boolean).join(' · ');
+          if (Array.isArray(booking.familyAppointments) && booking.familyAppointments.length) {
+            const list = document.createElement('ul'); list.dataset.familyAppointments = '';
+            for (const person of booking.familyAppointments) {
+              const line = document.createElement('li');
+              line.textContent = [person.name, person.service, person.practitioner, person.date, `${person.time}–${person.endTime}`].filter(Boolean).join(' · ');
+              list.append(line);
+            }
+            copy?.after(list);
+          }
           if (action) {
             const clinicNumber = String(appFrame?.dataset.clientPaymentWhatsapp || '').replace(/\D/g, '');
             const canAskForLink = !isRequest && booking.paymentHelpNeeded === true && Number.isSafeInteger(Number(booking.id)) && Number(booking.id) > 0 && clinicNumber;
@@ -721,7 +730,7 @@
             precedingCard = card;
           });
         } else {
-          primary.querySelectorAll('[data-booking-details], [data-booking-status], [data-booking-proposal-controls]').forEach(node => node.remove());
+          primary.querySelectorAll('[data-booking-details], [data-booking-status], [data-booking-proposal-controls], [data-family-appointments]').forEach(node => node.remove());
           const heading = primary.querySelector('h2');
           const copy = primary.querySelector('p');
           const action = primary.querySelector('.button');

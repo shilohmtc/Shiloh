@@ -16,6 +16,7 @@ const logger = require('../lib/logger');
 const { sendCustomerBookingConfirmationForAppointment } = require('./customerBookingConfirmation');
 const { assertApprovalReady } = require('./bookingDepositPolicy');
 const { normalizeName, normalizeMobile } = require('./crmV2ClientService');
+const { validFamilyWindows } = require('./clientFamilyBookingTiming');
 
 const SOURCE = 'shiloh_my_shiloh_multi';
 const MAX_BOOKINGS = 10;
@@ -31,6 +32,27 @@ function normalizeGuest(guest) {
 function assertPair(items) {
   if (items.length !== 2 || items[0].staffId === items[1].staffId || items[0].startsAt !== items[1].startsAt) {
     fail('BOOKING_COUPLES_SELECTION', 'Choose two different therapists and one shared start time.', 422);
+  }
+}
+
+function normalizeGuests(guests, guest, count) {
+  if (guests != null && guest != null) fail('BOOKING_GUEST_INVALID', 'Review the guest details again.', 422);
+  const entries = guests ?? (guest ? [guest] : []);
+  if (!Array.isArray(entries) || entries.length !== count - 1) fail('BOOKING_GUEST_INVALID', 'Add details and agreement for every guest.', 422);
+  const result = entries.map(normalizeGuest);
+  if (new Set(result.map(person => person.mobile)).size !== result.length) fail('BOOKING_GUEST_INVALID', 'Each guest needs their own mobile number.', 422);
+  return result;
+}
+
+function familyTiming(value = 'together') {
+  if (!['together','in_turn'].includes(value)) fail('BOOKING_COUPLES_SELECTION', 'Choose Start together or Take turns.', 422);
+  return value;
+}
+
+function assertFamilySelection(items, timing) {
+  familyTiming(timing);
+  if (timing === 'together' && (new Set(items.map(item => item.staffId)).size !== items.length || new Set(items.map(item => item.startsAt)).size !== 1)) {
+    fail('BOOKING_COUPLES_SELECTION', 'Choose different therapists and one shared start time for everyone.', 422);
   }
 }
 
@@ -96,9 +118,10 @@ function createMyShilohMultipleBookingService({
 } = {}) {
   const source = couples ? COUPLES_SOURCE : SOURCE;
   const auditAction = couples ? 'client.couples_booking_created' : 'client.multiple_booking_created';
-  async function buildQuote(queryable, crmV2ClientId, raw, { checkSlots = true, guest = null } = {}) {
+  async function buildQuote(queryable, crmV2ClientId, raw, { checkSlots = true, guest = null, guests = null, timing = 'together' } = {}) {
     const items = selections(raw);
-    if (couples) assertPair(items);
+    const companions = couples ? normalizeGuests(guests, guest, items.length) : [];
+    if (couples) assertFamilySelection(items, timing);
     const policy = await deposits.loadPolicy(queryable);
     const treatments = [];
     for (const item of items) {
@@ -119,7 +142,7 @@ function createMyShilohMultipleBookingService({
       let priceCents = Math.round(Number(row.price) * 100);
       const namedCouples = couples && row.external_source === 'shiloh_special' && row.external_id === 'couples-massage-v1';
       if (namedCouples) {
-        if (items.some(other => other.serviceId !== item.serviceId)) fail('BOOKING_COUPLES_NAMED_PAIR', 'Couples Massage is one treatment for both people. Choose it for both, or choose two individual treatments.', 422);
+        if (items.length !== 2 || timing !== 'together' || items.some(other => other.serviceId !== item.serviceId)) fail('BOOKING_COUPLES_NAMED_PAIR', 'Couples Massage is for two people starting together. Choose individual treatments for a larger family or to take turns.', 422);
         const totalCents = priceCents;
         priceCents = treatments.length === 0 ? Math.floor(totalCents / 2) : totalCents - Math.floor(totalCents / 2);
       }
@@ -139,24 +162,27 @@ function createMyShilohMultipleBookingService({
         ...(namedCouples ? { couplesService:true } : {}), price:(priceCents / 100).toFixed(2), deposit:exempt ? '0.00' : percentAmount(priceCents / 100, policy.rateBasisPoints).toFixed(2) });
     }
     if (!couples) assertClientWindows(treatments);
+    if (couples && (!validFamilyWindows(treatments) || (timing === 'in_turn' && treatments.some((item,index) => index > 0 && new Date(item.startsAt) < new Date(treatments[index-1].endsAt)))
+      || new Set(treatments.map(item => localDate(item.startsAt))).size !== 1)) fail('BOOKING_COUPLES_SELECTION', 'Choose available times for everyone in the selected order on the same day.', 422);
     return {
       crmV2ClientId:positiveId(crmV2ClientId), policyVersion:POLICY_VERSION, treatments,
-      ...(couples ? { guest:normalizeGuest(guest) } : {}),
+      ...(couples ? (companions.length === 1 ? { guest:companions[0] } : { guests:companions }) : {}),
+      ...(couples && timing !== 'together' ? { timing } : {}),
       total:(treatments.reduce((sum, item) => sum + Math.round(Number(item.price) * 100), 0) / 100).toFixed(2),
       deposit:(treatments.reduce((sum, item) => sum + Math.round(Number(item.deposit) * 100), 0) / 100).toFixed(2),
     };
   }
 
-  async function review({ crmV2ClientId, treatments, guest } = {}) {
-    const quote = await buildQuote(db, crmV2ClientId, treatments, { guest });
+  async function review({ crmV2ClientId, treatments, guest, guests, timing } = {}) {
+    const quote = await buildQuote(db, crmV2ClientId, treatments, { guest, guests, timing });
     return { ...quote, quoteHash:quoteHash(quote) };
   }
 
-  async function createRequest({ crmV2ClientId, treatments, quoteHash:reviewHash, requestId, policyAccepted, specialOccasion, occasionNote, guest, _reception=null } = {}) {
+  async function createRequest({ crmV2ClientId, treatments, quoteHash:reviewHash, requestId, policyAccepted, specialOccasion, occasionNote, guest, guests, timing = 'together', _reception=null } = {}) {
     const items = selections(treatments);
     const clientId = positiveId(crmV2ClientId);
-    const companion = couples ? normalizeGuest(guest) : null;
-    if (couples) assertPair(items);
+    const companions = couples ? normalizeGuests(guests, guest, items.length) : [];
+    if (couples) assertFamilySelection(items, timing);
     if (!/^[A-Za-z0-9_-]{16,100}$/.test(String(requestId || '')) || !/^[a-f0-9]{64}$/.test(String(reviewHash || ''))) {
       fail('BOOKING_CART_REVIEW_REQUIRED', 'Review your appointments before sending them.', 422);
     }
@@ -165,7 +191,7 @@ function createMyShilohMultipleBookingService({
     if (typeof specialOccasion !== 'boolean' || (specialOccasion && !note) || (!specialOccasion && note)) {
       fail('BOOKING_OCCASION_REQUIRED', 'Please check your special occasion answer and details.', 422);
     }
-    const fingerprint = quoteHash({ items, reviewHash, specialOccasion, note, ...(_reception ? { reception:_reception } : {}), ...(couples ? { guest:companion } : {}) });
+    const fingerprint = quoteHash({ items, reviewHash, specialOccasion, note, ...(_reception ? { reception:_reception } : {}), ...(couples ? (companions.length === 1 ? { guest:companions[0] } : { guests:companions }) : {}), ...(couples && timing !== 'together' ? { timing } : {}) });
     await ensureApproval(db);
     const connection = await db.connect();
     let result;
@@ -197,14 +223,19 @@ function createMyShilohMultipleBookingService({
           || String(request.service_detail||'').trim().toLowerCase()!=='couples massage')
           fail('PLANNING_ALREADY_RESOLVED','This enquiry changed or was already arranged. Refresh Dashboard.',409);
       }
-      const quote = await buildQuote(connection, clientId, items, { guest:companion });
+      const quote = await buildQuote(connection, clientId, items, { guests:couples ? companions : null, timing });
       if (quoteHash(quote) !== reviewHash) fail('BOOKING_CART_QUOTE_CHANGED', 'A price, duration or deposit changed. Review the updated totals before sending.');
-      let guestClient = null;
+      const guestClients = [];
       if (couples) {
+        // Lock every guest mobile in a stable order before resolving or creating profiles.
+        for (const mobile of companions.map(person => person.mobile).sort()) {
+          await connection.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`crm-v2-mobile:${mobile}`]);
+        }
+        for (const companion of companions) {
         if (companion.mobile === client.normalized_mobile) fail('BOOKING_GUEST_INVALID', 'Use a different mobile number for your guest.', 422);
-        await connection.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`crm-v2-mobile:${companion.mobile}`]);
         const found = await connection.query(`SELECT id,name,status FROM crm_v2_clients WHERE normalized_mobile=$1 AND status='active' FOR UPDATE`, [companion.mobile]);
-        guestClient = found.rows[0];
+        if (found.rows.length > 1) fail('BOOKING_GUEST_REVIEW', 'Reception needs to confirm your guest’s details. Please contact Reception to arrange this booking.');
+        let guestClient = found.rows[0];
         if (guestClient && guestClient.name.trim().toLocaleLowerCase('en-ZA') !== companion.name.toLocaleLowerCase('en-ZA')) {
           fail('BOOKING_GUEST_REVIEW', 'Reception needs to confirm your guest’s details. Please contact Reception to arrange this booking.');
         }
@@ -215,6 +246,8 @@ function createMyShilohMultipleBookingService({
         }
         if (!guestClient || Number(guestClient.id) === clientId) fail('BOOKING_GUEST_INVALID', 'Choose a different guest.', 422);
         await connection.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`crm-v2-client:${guestClient.id}`]);
+        guestClients.push(guestClient);
+        }
       }
       const location = await locationProvider(connection);
       if (!location?.id) fail('BOOKING_LOCATION_UNRESOLVED', 'Shiloh needs to check the clinic location before booking.');
@@ -226,7 +259,7 @@ function createMyShilohMultipleBookingService({
         const schedule = await checkSchedule(input);
         const existing = await conflicts(input);
         const own = await connection.query(`SELECT id FROM appointments WHERE crm_v2_client_id=$1
-          AND status NOT IN ('cancelled','no_show') AND starts_at<$3 AND ends_at>$2 LIMIT 1`, [couples && index === 1 ? guestClient.id : clientId,item.startsAt,item.endsAt]);
+          AND status NOT IN ('cancelled','no_show') AND starts_at<$3 AND ends_at>$2 LIMIT 1`, [couples && index > 0 ? guestClients[index-1].id : clientId,item.startsAt,item.endsAt]);
         if (!clinic.covered || !schedule.covered || schedule.partialUnavailable
           || (schedule.allDayUnavailable && !schedule.insideAvailableException) || existing.length || own.rowCount) {
           fail('BOOKING_CART_CONFLICT', 'An appointment overlaps an existing booking or is no longer available. Nothing was booked; review your times.');
@@ -235,12 +268,12 @@ function createMyShilohMultipleBookingService({
       const startsAt = new Date(Math.min(...quote.treatments.map(item => new Date(item.startsAt).getTime()))).toISOString();
       const endsAt = new Date(Math.max(...quote.treatments.map(item => new Date(item.endsAt).getTime()))).toISOString();
       const group = await connection.query(`INSERT INTO appointment_groups(group_type,location_id,starts_at,ends_at,status,total_price,currency,source,canonical_subtotal,discount_amount,final_total)
-        VALUES('${couples ? 'couples_massage' : 'multi_service_booking'}',$1,$2,$3,'scheduled',$4,'ZAR',$5,$4,0,$4) RETURNING id`, [location.id,startsAt,endsAt,quote.total,source]);
+        VALUES('${couples ? (items.length === 2 && timing === 'together' ? 'couples_massage' : 'group_booking') : 'multi_service_booking'}',$1,$2,$3,'scheduled',$4,'ZAR',$5,$4,0,$4) RETURNING id`, [location.id,startsAt,endsAt,quote.total,source]);
       const groupId = Number(group.rows[0].id);
       const appointmentIds = [];
       for (const [index, item] of quote.treatments.entries()) {
         const appointment = await insertOrdinaryClientAppointment(connection,
-          { clientId:null, crmV2ClientId:couples && index === 1 ? guestClient.id : clientId, sourceClientName:couples && index === 1 ? companion.name : client.name }, location.id, item.startsAt,item.endsAt,item.service,item.price);
+          { clientId:null, crmV2ClientId:couples && index > 0 ? guestClients[index-1].id : clientId, sourceClientName:couples && index > 0 ? companions[index-1].name : client.name }, location.id, item.startsAt,item.endsAt,item.service,item.price);
         const id = Number(appointment.id);
         appointmentIds.push(id);
         await connection.query(`INSERT INTO appointment_services(appointment_id,service_id,position,service_name_snapshot,price_snapshot,duration_minutes_snapshot)
@@ -265,9 +298,9 @@ function createMyShilohMultipleBookingService({
           decided_at=NOW(),decided_by_admin_id=$3,updated_at=NOW() WHERE id=$1`,[_reception.requestId,appointmentIds[0],_reception.adminId]);
       }
       result = { status:_reception ? 'approved' : 'pending_resolution', groupId, appointmentIds, total:quote.total, deposit:quote.deposit,
-        message:_reception ? 'Both appointments are arranged. Any required deposit follows Shiloh’s existing payment process.' : couples ? 'Your booking for two is in. Both times are held while Shiloh reviews the appointments. You can pay one combined deposit from My Shiloh after both are approved.' : 'Your booking requests are in. All selected times are being held while Shiloh reviews them. Once every appointment is approved, you can pay the combined deposit in one payment from My Shiloh.' };
+        message:_reception ? 'Both appointments are arranged. Any required deposit follows Shiloh’s existing payment process.' : couples ? 'Your booking request is in. Everyone’s times are held while Shiloh reviews the appointments. You can pay one combined deposit from My Shiloh after every appointment is approved.' : 'Your booking requests are in. All selected times are being held while Shiloh reviews them. Once every appointment is approved, you can pay the combined deposit in one payment from My Shiloh.' };
       await connection.query(`INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
-        VALUES('${auditAction}','appointment_group',$1,$2::jsonb)`, [groupId,JSON.stringify({ crmV2ClientId:clientId,requestId,fingerprint,result,atomic:true,...(_reception ? { reception:_reception,clientAgreementRecordedBy:_reception.adminId } : {}),...(couples ? { guestCrmV2ClientId:Number(guestClient.id),guestConsent:true,bookingOnly:true } : {}) })]);
+        VALUES('${auditAction}','appointment_group',$1,$2::jsonb)`, [groupId,JSON.stringify({ crmV2ClientId:clientId,requestId,fingerprint,result,atomic:true,...(_reception ? { reception:_reception,clientAgreementRecordedBy:_reception.adminId } : {}),...(couples ? { ...(guestClients.length === 1 ? { guestCrmV2ClientId:Number(guestClients[0].id) } : { guestCrmV2ClientIds:guestClients.map(person=>Number(person.id)) }),guestConsent:true,bookingOnly:true,timing } : {}) })]);
       await connection.query('COMMIT');
     } catch (error) {
       await connection.query('ROLLBACK').catch(() => {});
@@ -280,15 +313,29 @@ function createMyShilohMultipleBookingService({
     }
     return result;
   }
-  async function availability({ serviceIds, staffIds, date } = {}) {
-    if (!couples || !Array.isArray(serviceIds) || !Array.isArray(staffIds) || serviceIds.length !== 2 || staffIds.length !== 2) fail('BOOKING_COUPLES_SELECTION', 'Choose one treatment and therapist for each person.', 422);
+  async function availability({ serviceIds, staffIds, date, timing = 'together' } = {}) {
+    familyTiming(timing);
+    if (!couples || !Array.isArray(serviceIds) || !Array.isArray(staffIds) || serviceIds.length < 2 || serviceIds.length > MAX_BOOKINGS || staffIds.length !== serviceIds.length) fail('BOOKING_COUPLES_SELECTION', 'Choose one treatment and therapist for each person.', 422);
     const services = serviceIds.map(value => positiveId(value)), staff = staffIds.map(value => positiveId(value));
-    if (staff[0] === staff[1]) fail('BOOKING_COUPLES_SELECTION', 'Choose two different therapists.', 422);
+    if (timing === 'together' && new Set(staff).size !== staff.length) fail('BOOKING_COUPLES_SELECTION', 'Choose a different therapist for each person, or choose Take turns.', 422);
     const results = await Promise.all(services.map((serviceId,index) => booking.slots({ serviceId,staffId:staff[index],date })));
-    const second = new Map(results[1].slots.map(slot => [new Date(slot.startsAt).toISOString(),slot]));
-    return { slots:results[0].slots.filter(slot => second.has(new Date(slot.startsAt).toISOString())).map(slot => ({ ...slot,guestEndTime:second.get(new Date(slot.startsAt).toISOString()).endTime })) };
+    const lists = results.map(result => [...result.slots].sort((a,b)=>new Date(a.startsAt)-new Date(b.startsAt)));
+    const slots = [];
+    for (const first of lists[0]) {
+      const chosen = [first];
+      for (let index=1;index<lists.length;index++) {
+        const previous = chosen[index-1];
+        const next = lists[index].find(slot => timing === 'together' ? new Date(slot.startsAt).getTime() === new Date(first.startsAt).getTime()
+          : previous.endsAt && new Date(slot.startsAt) >= new Date(previous.endsAt));
+        if (!next) break;
+        chosen.push(next);
+      }
+      if (chosen.length === services.length) slots.push({ ...first,guestEndTime:chosen[1].endTime,
+        appointmentStartsAt:chosen.map(slot=>slot.startsAt),endTimes:chosen.map(slot=>slot.endTime) });
+    }
+    return { slots };
   }
   return { review, createRequest, availability, catalogue:() => booking.couplesCatalogue(), practitioners:input => booking.practitioners(input) };
 }
 
-module.exports = { SOURCE, COUPLES_SOURCE, normalizeGuest, assertPair, MAX_BOOKINGS, selections, assertClientWindows, quoteHash, clientGroupApprovalGate, createMyShilohMultipleBookingService };
+module.exports = { SOURCE, COUPLES_SOURCE, normalizeGuest, normalizeGuests, assertPair, MAX_BOOKINGS, selections, assertClientWindows, quoteHash, clientGroupApprovalGate, createMyShilohMultipleBookingService };
