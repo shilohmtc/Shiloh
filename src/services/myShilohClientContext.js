@@ -234,7 +234,7 @@ function createMyShilohClientContextService({
     const result = await db.query(
       `/* myShilohClientContext:active-booking-request */
        SELECT a.id,a.crm_v2_client_id,a.starts_at,a.ends_at,a.status,
-              (linked_group.id IS NULL OR group_seed.guest_position=1) AS can_respond_to_proposal,
+              (response_group.id IS NULL OR group_seed.guest_position=1) AS can_respond_to_proposal,
               ${familyAppointmentsSql()},
               aba.status AS booking_request_status,aba.planning_started_at,aba.proposed_starts_at,aba.proposed_ends_at,aba.proposal_expires_at,aba.proposal_version,
               COALESCE((SELECT jsonb_agg(jsonb_build_object('name',pair_staff.display_name) ORDER BY gm.guest_position)
@@ -255,7 +255,9 @@ function createMyShilohClientContextService({
          FROM appointment_booking_approvals aba
          JOIN appointments a ON a.id=aba.appointment_id
          LEFT JOIN appointment_group_members group_seed ON group_seed.appointment_id=a.id
-         LEFT JOIN appointment_groups linked_group ON linked_group.id=group_seed.group_id AND linked_group.source='shiloh_my_shiloh_couples'
+         LEFT JOIN appointment_groups response_group ON response_group.id=group_seed.group_id AND response_group.source='shiloh_my_shiloh_couples'
+         LEFT JOIN appointment_groups linked_group ON linked_group.id=response_group.id
+           AND (linked_group.group_type IS DISTINCT FROM 'group_booking' OR group_seed.guest_position=1)
         WHERE a.crm_v2_client_id=$1 AND a.client_id IS NULL
           AND a.status NOT IN ('cancelled','no_show')
           AND aba.status IN ('pending','awaiting_client_confirmation')

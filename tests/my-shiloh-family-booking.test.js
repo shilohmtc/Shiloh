@@ -58,11 +58,15 @@ for(const timing of ['together','in_turn']) test(`three-person ${timing} request
   await assert.rejects(service.createRequest({...input,timing:timing==='together'?'in_turn':'together'}));
   const context=createMyShilohClientContextService({db});
   const requests=await context.loadActiveBookingRequests(55);assert.equal(requests[0].familyAppointments.length,3);
+  assert.equal(requests[0].services.length,3);assert.equal(requests[0].totalPrice,'1800.00');
   await query("UPDATE appointment_groups SET source='shiloh_calendar_group' WHERE id=$1",[result.groupId]);
   assert.deepEqual((await context.loadActiveBookingRequests(55))[0].familyAppointments,[],'a staff-created group does not grant first-guest access to everyone’s details');
   await query("UPDATE appointment_groups SET source='shiloh_my_shiloh_couples' WHERE id=$1",[result.groupId]);
   const otherClient=(await snapshot()).clients.find(row=>row.id!==55);
   const guestRequests=await context.loadActiveBookingRequests(otherClient.id);assert.deepEqual(guestRequests[0].familyAppointments,[]);assert.equal(guestRequests[0].canRespondToProposal,false);
+  assert.deepEqual(guestRequests[0].services,['Ordinary Massage'],'a family guest sees only their own treatment');
+  assert.deepEqual(guestRequests[0].practitioners,['Practitioner B'],'a family guest sees only their own practitioner');
+  assert.equal(guestRequests[0].totalPrice,'600.00','a family guest does not receive the organiser’s combined price');
   const current=(await query('SELECT requested_revision FROM appointment_booking_approvals WHERE appointment_id=$1',[result.appointmentIds[0]])).rows[0];
   const action={dbPool:db,principal:OWNER,appointmentId:result.appointmentIds[0],expectedRevision:current.requested_revision,now:NOW,
     validateWindow:async()=>({ok:true,canonical:{display_name:'Synthetic practitioner'}}),sendConfirmation:async()=>{},depositPreflight:async()=>{}};
