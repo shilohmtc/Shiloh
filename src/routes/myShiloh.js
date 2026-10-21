@@ -576,9 +576,9 @@ function createMyShilohRouter({
       try {
         setNoStoreJson(res);
         const payload = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
-        const allowed = new Set(action === 'availability' ? ['serviceIds','staffIds','date'] : action === 'review' ? ['guest','treatments']
-          : ['guest','treatments','quoteHash','requestId','policyAccepted','specialOccasion','occasionNote']);
-        if (Object.keys(payload).some(key => !allowed.has(key))) return res.status(422).json({ error:'Please review your booking for two again.' });
+        const allowed = new Set(action === 'availability' ? ['serviceIds','staffIds','date','timing'] : action === 'review' ? ['guest','guests','treatments','timing']
+          : ['guest','guests','treatments','timing','quoteHash','requestId','policyAccepted','specialOccasion','occasionNote']);
+        if (Object.keys(payload).some(key => !allowed.has(key))) return res.status(422).json({ error:'Please review your family or friends booking again.' });
         const input = { ...payload,crmV2ClientId:req.myShilohClientSession.crmV2ClientId };
         if (action === 'confirm') context = confirmationContext(req,'couples',payload);
         const result = await couplesBookingService[action === 'confirm' ? 'createRequest' : action](input);

@@ -44,20 +44,21 @@ test('couples endpoints preserve session, origin, CSRF, server identity and unkn
     assert.equal(received[1].crmV2ClientId,55);
   } finally { await new Promise(r => server.close(r)); }
 });
-for (const primaryExempt of [false,true]) test(`one combined deposit belongs to organiser even with primary exemption=${primaryExempt}`, async () => {
-  let approved=false,row=null,providerCalls=0;
+for (const guestCount of [2,3]) for (const primaryExempt of [false,true]) test(`one combined deposit for ${guestCount} people belongs to organiser even with primary exemption=${primaryExempt}`, async () => {
+  let approved=0,row=null,providerCalls=0;
   const position={ applicable:true,scope:{ groupId:77,groupType:'couples_massage',groupSource:'shiloh_my_shiloh_couples',members:[
     { appointmentId:100,clientName:'Organiser',clientMobile:'27821234567',crmV2ClientId:55 },{ appointmentId:101,clientName:'Guest',clientMobile:'27822345678',crmV2ClientId:56 },
   ] },requirement:{ id:1,state:'awaiting',required_amount:primaryExempt ? '295.00' : '590.00',payment_account_id:9 },members:[
     { appointment_id:100,required_amount:primaryExempt ? '0.00' : '295.00' },{ appointment_id:101,required_amount:'295.00' },
   ] };
+  if (guestCount===3) { position.scope.groupType='group_booking'; position.scope.members.push({appointmentId:102,clientName:'Family Guest',clientMobile:'27824445678',crmV2ClientId:57}); position.members.push({appointment_id:102,required_amount:'295.00'}); position.requirement.required_amount=(Number(position.requirement.required_amount)+295).toFixed(2); }
   const db={ async connect() { return {query:(sql,values)=>db.query(sql,values),release() {}}; }, async query(sql,values) {
     if(['BEGIN','COMMIT','ROLLBACK'].includes(sql))return {rows:[]};
     if(sql.includes('SELECT * FROM booking_payment_accounts'))return {rows:[{id:9}]};
     if(sql.includes('SELECT * FROM booking_deposit_requirements'))return {rows:[position.requirement]};
     if (sql.includes('pg_try_advisory_lock')) return {rows:[{acquired:true}]};
     if (sql.includes('pg_advisory_unlock')) return {rows:[]};
-    if(sql.includes('FROM appointment_group_members')) return { rows:[100,101].map(id => ({ appointment_id:id,status:'scheduled',approval_status:approved ? 'approved' : 'pending' })) };
+    if(sql.includes('FROM appointment_group_members')) return { rows:position.scope.members.map((member,index) => ({ appointment_id:member.appointmentId,status:'scheduled',approval_status:index<approved ? 'approved' : 'pending' })) };
     if((sql.includes('SELECT * FROM payment_requests')||sql.includes('AS unissued_provenance FROM payment_requests pr')))return { rows:row ? [row] : [] };
     if(sql.includes("VALUES('payment.deposit_prepared_without_provider'"))return {rows:[{id:77}]};
     if(sql.includes('INSERT INTO payment_requests')) { assert.equal(values[3],'Organiser'); assert.equal(values[4],'27821234567'); assert.equal(values[5],55); assert.equal(values[7],100); row={ id:3,request_key:values[1],amount:values[2],state:'created',created_by_admin_id:null,purpose:'deposit',deposit_requirement_id:1,deposit_member_appointment_id:100 }; return { rows:[row] }; }
@@ -67,7 +68,9 @@ for (const primaryExempt of [false,true]) test(`one combined deposit belongs to 
   } };
   const service=createBookingPaymentService({ db,deposits:{ ensureRequirement:async () => position },ozow:{ configured:() => true,createPaymentLink:async input => { providerCalls++; assert.equal(input.amount,position.requirement.required_amount); return { providerRequestId:'test',paymentUrl:'https://pay.ozow.com/test' }; } },notifyClient:null });
   assert.equal((await service.ensureDepositRequest({ appointmentId:100 })).status,'awaiting_group_approval'); assert.equal(providerCalls,0);
-  approved=true;
+  approved=guestCount-1;
+  assert.equal((await service.ensureDepositRequest({appointmentId:100})).status,'awaiting_group_approval'); assert.equal(providerCalls,0);
+  approved=guestCount;
   assert.equal((await service.ensureDepositRequest({ appointmentId:101 })).status,'deposit_waiting_on_group');
   assert.equal((await service.ensureDepositRequest({ appointmentId:100 })).requests.length,1);
   await service.ensureDepositRequest({ appointmentId:100 }); assert.equal(providerCalls,1);

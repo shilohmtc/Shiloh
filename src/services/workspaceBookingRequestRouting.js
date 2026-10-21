@@ -99,7 +99,7 @@ function rowVisibleToScope(row, principal, scope) {
 async function rawUnresolvedRows(db, scope) {
   const result = await db.query(`
     SELECT (SELECT g.id FROM appointment_group_members gm JOIN appointment_groups g ON g.id=gm.group_id
-             WHERE gm.appointment_id=a.id AND g.source='shiloh_my_shiloh_couples' AND g.group_type='couples_massage') AS couples_group_id,
+             WHERE gm.appointment_id=a.id AND g.source='shiloh_my_shiloh_couples' AND g.group_type IN ('couples_massage','group_booking')) AS couples_group_id,
            (SELECT gm.guest_position FROM appointment_group_members gm WHERE gm.appointment_id=a.id) AS guest_position,
            (SELECT g.final_total FROM appointment_group_members gm JOIN appointment_groups g ON g.id=gm.group_id WHERE gm.appointment_id=a.id) AS group_total,
            aba.appointment_id,aba.approver_staff_id,aba.status,aba.requested_at,aba.planning_started_at,aba.client_occasion_note,aba.client_special_occasion,
@@ -196,7 +196,7 @@ async function listUnresolvedBookingRequests({ db = pool, principal, now = new D
     return {...lead,members,canChangePractitioner:false,eligiblePractitioners:[],
       clientName:members.map(member=>member.clientName).join(' & '),staffName:members.map(member=>member.practitionerName).join(' & '),
       proposedStaffName:members.map(member=>member.proposedStaffName).join(' & '),
-      serviceName:'Booking for two',
+      serviceName:members.length===2 ? 'Booking for two' : `Family or friends · ${members.length} people`,
       effectiveStatus:members.some(member=>member.effectiveStatus==='awaiting_client_confirmation') ? 'awaiting_client_confirmation' : 'pending'};
   }));
 }

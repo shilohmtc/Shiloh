@@ -55,6 +55,6 @@ async function setup(t,{db:externalDb=null}={}) {
     approvals:(await query('SELECT * FROM appointment_booking_approvals ORDER BY appointment_id')).rows,
     groups:(await query('SELECT * FROM appointment_groups ORDER BY id')).rows,clients:(await query('SELECT * FROM crm_v2_clients ORDER BY id')).rows,
     enquiries:(await query('SELECT * FROM client_planning_requests ORDER BY id')).rows});
-  return {pg,db,state,service,enquiry,input,snapshot,query};
+  return {pg,db,state,service,enquiry,input,snapshot,query,booking};
 }
 module.exports={setup,START,NOW,OWNER,GUEST};

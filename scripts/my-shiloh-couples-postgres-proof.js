@@ -50,7 +50,25 @@ async function main() {
     // Existing guest appointments also block a new pair atomically.
     const third=await request(); third.requestId='third_couples_request';
     await assert.rejects(service.createRequest(third),{ code:'BOOKING_CART_CONFLICT' }); assert.equal(await count('appointment_groups'),2);
-    console.log('Couples PostgreSQL proof passed: consent, distinct identities, atomic guest/appointment rollback, profile reuse, conflicts and concurrent replay.');
+    // A larger family reuses the existing group ledger; the last guest must roll back the whole request.
+    await db.query("UPDATE appointments SET status='cancelled'");
+    const familySlots=[0,1,2].map(index=>({startsAt:new Date(new Date(pair[0].startsAt).getTime()+index*3600000).toISOString()}));
+    const familyService=createMyShilohMultipleBookingService({db,couples:true,booking:{slots:async()=>({slots:familySlots})},
+      deposits:{loadPolicy:async()=>({rateBasisPoints:5000,exemptStaffId:null})},ensureApproval:async()=>{},
+      stageApproval:async(tx,{appointmentId})=>{if(failApproval)return null;await tx.query("INSERT INTO appointment_booking_approvals VALUES($1,'pending')",[appointmentId]);return {};},
+      alert:async()=>{},locationProvider:async()=>({id:1}),checkClinic:async()=>({covered:true}),
+      checkSchedule:async()=>({covered:true}),conflicts:async()=>[],now:()=>new Date('2026-10-01')});
+    const family={crmV2ClientId:55,timing:'in_turn',guests:[guest,{name:'Synthetic Family Guest',mobile:'0824445678',consent:true}],
+      treatments:familySlots.map((slot,index)=>({serviceId:2,staffId:index===2?12:11,startsAt:slot.startsAt}))};
+    const familyQuote=await familyService.review(family);
+    const familyInput={...family,quoteHash:familyQuote.quoteHash,requestId:'family_native_request_123',policyAccepted:true,specialOccasion:false};
+    failApproval=true;await assert.rejects(familyService.createRequest(familyInput),{code:'BOOKING_CART_APPROVAL_FAILED'});failApproval=false;
+    assert.equal(await count('crm_v2_clients'),2);assert.equal(await count('appointment_groups'),2);
+    const familyRace=await Promise.all([familyService.createRequest(familyInput),familyService.createRequest(familyInput)]);
+    assert.deepEqual(familyRace[0].appointmentIds,familyRace[1].appointmentIds);assert.equal(familyRace.filter(row=>row.replay).length,1);
+    assert.equal(familyRace[0].appointmentIds.length,3);assert.equal(await count('crm_v2_clients'),3);assert.equal(await count('appointment_groups'),3);
+    assert.equal((await db.query('SELECT group_type FROM appointment_groups ORDER BY id DESC LIMIT 1')).rows[0].group_type,'group_booking');
+    console.log('Couples and family PostgreSQL proof passed: separate consented identities, whole-group rollback, profile reuse, conflicts, sequential therapist reuse and concurrent replay.');
   } finally { await db.end(); await admin.query('DROP SCHEMA IF EXISTS couples_proof CASCADE'); await admin.end(); }
 }
 main().catch(error => { console.error(error); process.exitCode=1; });
