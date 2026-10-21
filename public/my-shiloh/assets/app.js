@@ -1037,7 +1037,13 @@
   }
 
   function setAuthControlsDisabled(disabled) {
-    for (const button of [...passkeySignInButtons, ...authLogoutButtons]) button.disabled = Boolean(disabled);
+    for (const button of [...passkeySignInButtons, ...authLogoutButtons]) {
+      button.disabled = Boolean(disabled);
+      if (button.matches('a')) button.setAttribute('aria-disabled', String(Boolean(disabled)));
+    }
+    if (document.body.hasAttribute('data-client-code-entry')) {
+      document.querySelectorAll('form button, form input, form select').forEach(control => { control.disabled = Boolean(disabled); });
+    }
 
   }
 
@@ -1225,7 +1231,11 @@
   }
 
   async function signInWithPasskey() {
-    if (!passkeySupported() || authActionInFlight) return;
+    if (authActionInFlight) return;
+    if (!passkeySupported()) {
+      setAuthStatus('Passkeys are unavailable on this device. Continue with WhatsApp instead.', 'error');
+      return;
+    }
     authActionInFlight = true;
     setAuthControlsDisabled(true);
     setAuthStatus('Opening your passkey…', 'working');
@@ -2245,9 +2255,12 @@
     }
   }
 
-  if (!passkeySupported()) passkeySignInButtons.forEach((button) => { button.hidden = true; });
+  if (!passkeySupported()) passkeySignInButtons.forEach((button) => { if (!button.matches('a')) button.hidden = true; });
   if (!passkeySupported() && passkeyEnrollButton) passkeyEnrollButton.hidden = true;
-  passkeySignInButtons.forEach((button) => button.addEventListener('click', signInWithPasskey));
+  passkeySignInButtons.forEach((button) => button.addEventListener('click', event => {
+    event.preventDefault();
+    if (button.getAttribute('aria-disabled') !== 'true') signInWithPasskey();
+  }));
   passkeyEnrollButton?.addEventListener('click', enrollClientPasskey);
   loadPasskeyDevices();
   authLogoutButtons.forEach((button) => button.addEventListener('click', logoutClient));
