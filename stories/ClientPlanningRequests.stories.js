@@ -100,3 +100,16 @@ export const CouplesAppointmentRequest = {
       members:[{currentStaffId:11,eligiblePractitioners:[{id:11,displayName:'Practitioner A'},{id:12,displayName:'Practitioner B'}],clientName:'Synthetic Organiser',serviceName:'Couples Massage',practitionerName:'Practitioner A',requestedStartsAt:'2030-11-02T08:00:00Z'},
         {currentStaffId:12,eligiblePractitioners:[{id:11,displayName:'Practitioner A'},{id:12,displayName:'Practitioner B'}],clientName:'Synthetic Guest',serviceName:'Couples Massage',practitionerName:'Practitioner B',requestedStartsAt:'2030-11-02T08:00:00Z'}]}]})),
 };
+
+export const FamilyAppointmentRequest = {
+  render:()=>surface(dashboard.renderDashboardPage({requestedDateKey:'2030-11-02',operationalDateKey:'2030-11-02',
+    displayName:'Synthetic Reception',mode:'owner_overview',appointments:[],carryOver:[],teamGroups:[],awaitingFinalization:[],
+    planningRequests:[],rescheduleRequests:[],holidayDecisions:[],calendar:{timeline:{staff:[]}},
+    bookingRequests:[{appointmentId:801,groupId:55,groupTotal:'1800.00',clientName:'Synthetic family',
+      staffName:'Practitioner A & Practitioner B',serviceName:'Family or friends · 3 people',requestedStartsAt:'2030-11-02T08:00:00Z',
+      requestedRevision:'2030-10-01T08:00:00Z',effectiveStatus:'pending',canChangePractitioner:false,
+      members:[0,1,2].map(index=>({currentStaffId:index===2?12:11,
+        eligiblePractitioners:[{id:11,displayName:'Practitioner A'},{id:12,displayName:'Practitioner B'}],
+        clientName:index?'Synthetic guest '+index:'Synthetic Organiser',serviceName:'Ordinary Massage',
+        practitionerName:index===2?'Practitioner B':'Practitioner A',requestedStartsAt:`2030-11-02T${8+index<10?'0':''}${8+index}:00:00Z`}))}]})),
+};

@@ -51,6 +51,21 @@ function paymentState({ amountDue, paid, refunded, rewardsApplied = 0, welcomeVo
   };
 }
 
+function familyAppointmentsSql() {
+  return `CASE WHEN group_seed.guest_position=1 AND linked_group.group_type='group_booking'
+                AND linked_group.source='shiloh_my_shiloh_couples' THEN
+                (SELECT jsonb_agg(jsonb_build_object('name',child.source_client_name,'service',svc.service_name_snapshot,
+                  'practitioner',worker.staff_name_snapshot,'startsAt',child.starts_at,'endsAt',child.ends_at,
+                  'proposedStartsAt',child_approval.proposed_starts_at,'proposedEndsAt',child_approval.proposed_ends_at,
+                  'proposedPractitioner',offered_worker.display_name) ORDER BY member.guest_position)
+                 FROM appointment_group_members member JOIN appointments child ON child.id=member.appointment_id
+                 JOIN appointment_services svc ON svc.appointment_id=child.id AND svc.position=1
+                 JOIN appointment_staff worker ON worker.appointment_id=child.id AND worker.position=1
+                 JOIN appointment_booking_approvals child_approval ON child_approval.appointment_id=child.id
+                 LEFT JOIN staff offered_worker ON offered_worker.id=child_approval.proposed_staff_id
+                 WHERE member.group_id=linked_group.id) ELSE '[]'::jsonb END AS family_appointments`;
+}
+
 function appointmentFromRow(row) {
   if (!row) return null;
   return {
@@ -61,6 +76,7 @@ function appointmentFromRow(row) {
     status: String(row.status || ''),
     bookingRequestStatus: row.booking_request_status ? String(row.booking_request_status) : null,
     canRespondToProposal:row.can_respond_to_proposal!==false,
+    familyAppointments: row.can_respond_to_proposal !== false && Array.isArray(row.family_appointments) ? row.family_appointments : [],
     planningStartedAt: row.planning_started_at ? new Date(row.planning_started_at).toISOString() : null,
     proposedStartsAt: row.proposed_starts_at ? new Date(row.proposed_starts_at).toISOString() : null,
     proposalExpiresAt: row.proposal_expires_at ? new Date(row.proposal_expires_at).toISOString() : null,
@@ -105,6 +121,7 @@ function createMyShilohClientContextService({
     const result = await db.query(
       `/* myShilohClientContext:next-appointment */
        SELECT a.id,a.crm_v2_client_id,
+              ${familyAppointmentsSql()},
               COALESCE(linked_group.starts_at,a.starts_at) AS starts_at,
               COALESCE(linked_group.ends_at,a.ends_at) AS ends_at,
               a.status,aba.status AS booking_request_status,
@@ -161,6 +178,7 @@ function createMyShilohClientContextService({
     const result = await db.query(
       `/* myShilohClientContext:upcoming-appointments */
        SELECT a.id,a.crm_v2_client_id,
+              ${familyAppointmentsSql()},
               COALESCE(linked_group.starts_at,a.starts_at) AS starts_at,
               COALESCE(linked_group.ends_at,a.ends_at) AS ends_at,
               a.status,aba.status AS booking_request_status,
@@ -216,7 +234,8 @@ function createMyShilohClientContextService({
     const result = await db.query(
       `/* myShilohClientContext:active-booking-request */
        SELECT a.id,a.crm_v2_client_id,a.starts_at,a.ends_at,a.status,
-              (linked_group.id IS NULL OR group_seed.guest_position=1) AS can_respond_to_proposal,
+              (response_group.id IS NULL OR group_seed.guest_position=1) AS can_respond_to_proposal,
+              ${familyAppointmentsSql()},
               aba.status AS booking_request_status,aba.planning_started_at,aba.proposed_starts_at,aba.proposed_ends_at,aba.proposal_expires_at,aba.proposal_version,
               COALESCE((SELECT jsonb_agg(jsonb_build_object('name',pair_staff.display_name) ORDER BY gm.guest_position)
                 FROM appointment_group_members gm JOIN appointment_booking_approvals pair_approval ON pair_approval.appointment_id=gm.appointment_id
@@ -236,7 +255,9 @@ function createMyShilohClientContextService({
          FROM appointment_booking_approvals aba
          JOIN appointments a ON a.id=aba.appointment_id
          LEFT JOIN appointment_group_members group_seed ON group_seed.appointment_id=a.id
-         LEFT JOIN appointment_groups linked_group ON linked_group.id=group_seed.group_id AND linked_group.source='shiloh_my_shiloh_couples'
+         LEFT JOIN appointment_groups response_group ON response_group.id=group_seed.group_id AND response_group.source='shiloh_my_shiloh_couples'
+         LEFT JOIN appointment_groups linked_group ON linked_group.id=response_group.id
+           AND (linked_group.group_type IS DISTINCT FROM 'group_booking' OR group_seed.guest_position=1)
         WHERE a.crm_v2_client_id=$1 AND a.client_id IS NULL
           AND a.status NOT IN ('cancelled','no_show')
           AND aba.status IN ('pending','awaiting_client_confirmation')

@@ -1,5 +1,15 @@
 'use strict';
 
+function familyAppointmentsDisplay(members = [], proposed = false) {
+  return members.map(member => {
+    const display = localAppointmentDisplay(proposed ? member.proposedStartsAt : member.startsAt);
+    const end = localAppointmentDisplay(proposed ? member.proposedEndsAt : member.endsAt);
+    return { name:member.name, service:member.service, practitioner:proposed ? member.proposedPractitioner : member.practitioner,
+      date:display.date, time:display.time, endTime:end.time };
+  });
+}
+
+
 const clientContext = require('./myShilohClientContext');
 const { localAppointmentDisplay } = require('./myShilohClientActions');
 const { requiredFormsReadiness } = require('./consultationFormReadiness');
@@ -325,15 +335,19 @@ function buildClientExperience(context) {
           const activeProposal = item.bookingRequestStatus === 'awaiting_client_confirmation'
             && item.proposedStartsAt && item.proposalExpiresAt
             && new Date(item.proposalExpiresAt).getTime() > new Date(context.generatedAt || Date.now()).getTime();
-          const offered = activeProposal ? appointmentDisplay({ ...item, startsAt: item.proposedStartsAt }) : null;
+          const familyProposalReady = !(item.familyAppointments || []).some(member => !member.proposedStartsAt || !member.proposedEndsAt
+            || !Number.isFinite(new Date(member.proposedStartsAt).getTime()) || !Number.isFinite(new Date(member.proposedEndsAt).getTime())
+            || new Date(member.proposedEndsAt) <= new Date(member.proposedStartsAt));
+          const offered = activeProposal && familyProposalReady ? appointmentDisplay({ ...item, startsAt: item.proposedStartsAt }) : null;
           return {
             id: item.id, service: requested?.service || 'Shiloh appointment',
             practitioner: offered && item.proposedPractitioners?.length ? item.proposedPractitioners.join(' + ') : requested?.practitioner || 'Shiloh',
             proposal: offered && item.canRespondToProposal!==false && Number(item.proposalVersion) > 0 ? { version: Number(item.proposalVersion), expiresAt: item.proposalExpiresAt } : null,
             date: offered?.date || requested?.date,
             time: offered?.time || requested?.time,
+            familyAppointments: familyAppointmentsDisplay(item.familyAppointments,Boolean(offered)),
             status: offered ? item.canRespondToProposal===false ? 'Awaiting organiser response' : 'Awaiting your response' : item.planningStartedAt ? 'Planning' : 'Requested',
-            nextAction: offered && item.canRespondToProposal===false ? 'The person who requested your booking must respond to the shared alternative. Both appointments stay together.' : offered
+            nextAction: offered && item.canRespondToProposal===false ? 'The person who requested your booking must respond to the shared alternative. Everyone’s appointments stay together.' : offered
               ? 'Review this proposed time before accepting. Availability and any required deposit will be checked again.'
               : 'Reception is reviewing your request. The appointment has not been confirmed. After approval, pay any required deposit to confirm.',
           };
@@ -343,6 +357,7 @@ function buildClientExperience(context) {
           id: context.nextAppointment.id, service: appointment.service, practitioner: appointment.practitioner,
           date: appointment.date, time: appointment.time,
           status: context.nextAppointment.status,
+        familyAppointments: familyAppointmentsDisplay(context.nextAppointment.familyAppointments),
           nextAction: payment.state === 'deposit_required' ? payment.label : 'Your appointment details are available here.',
           paymentHelpNeeded: payment.state === 'deposit_required' && !payment.actionPath,
         }] : []),
@@ -353,6 +368,7 @@ function buildClientExperience(context) {
         date: appointment.date,
         time: appointment.time,
         status: context.nextAppointment.status,
+        familyAppointments: familyAppointmentsDisplay(context.nextAppointment.familyAppointments),
         nextAction: payment.state === 'deposit_required' ? payment.label : 'Your appointment details are available here.',
         paymentHelpNeeded: payment.state === 'deposit_required' && !payment.actionPath,
         forms: forms.label,
@@ -380,6 +396,7 @@ function buildClientExperience(context) {
     experience.bookings.upcoming.push({
       id: item.id, service: display.service, practitioner: display.practitioner,
       date: display.date, time: display.time, status: item.status,
+      familyAppointments: familyAppointmentsDisplay(item.familyAppointments),
       nextAction: 'Your appointment details are available here.',
     });
     shownIds.add(item.id);

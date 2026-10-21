@@ -10,6 +10,20 @@ for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     await page.screenshot({path:testInfo.outputPath(`couples-flow-${name}-${viewport.name}.png`),fullPage:true,animations:'disabled'});
   }
+  test(`Reception reviews all family members and keeps sequential practitioner reuse on ${viewport.name}`,async({page},testInfo)=>{
+    await page.setViewportSize(viewport);const sent=[];
+    await page.route('**/calendar/staff-auth/csrf',route=>route.fulfill({json:{csrfToken:'secure-csrf'}}));
+    await page.route('**/calendar/workspace/booking-requests/801/propose',route=>{sent.push(route.request().postDataJSON());return route.fulfill({json:{status:'awaiting_client_confirmation'}});});
+    await page.goto('/iframe.html?id=client-planning-requests--family-appointment-request&viewMode=story',{waitUntil:'networkidle'});
+    const card=page.locator('[data-booking-request="801"]');await expect(card).toBeVisible();await page.addScriptTag({content:dashboardClientScript()});
+    await expect(card).toContainText('Synthetic guest 2');await expect(card).toContainText('Total for everyone:');
+    await expect(card.getByRole('button',{name:'Confirm everyone’s appointments'})).toBeEnabled();
+    await expect(card.locator('[data-proposal-pair-staff]')).toHaveCount(3);
+    await card.locator('[data-proposal-date]').fill('2030-11-03');await card.locator('[data-proposal-time]').fill('10:00');
+    await evidence(page,testInfo,'family-approval');await card.getByRole('button',{name:'Propose alternative'}).click();
+    await expect(card.locator('[data-booking-request-status]')).toContainText('Alternative is available');
+    expect(sent).toEqual([{expectedRevision:'2030-10-01T08:00:00Z',startsAt:'2030-11-03T08:00:00.000Z',staffIds:[11,11,12]}]);
+  });
   test(`older couples enquiry is completed in place, with explicit agreement and safe retry on ${viewport.name}`,async({page},testInfo)=>{
     await page.setViewportSize(viewport);let availability=0;const confirmed=[];
     await page.route('**/calendar/staff-auth/csrf',route=>{expect(route.request().method()).toBe('POST');return route.fulfill({json:{csrfToken:'secure-csrf'}});});
@@ -54,6 +68,7 @@ for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width
     await page.setViewportSize(viewport);
     await page.route('**/my-shiloh/api/booking/couples/practitioners?*',route=>route.fulfill({json:{practitioners:[{id:11,name:'Practitioner A'},{id:12,name:'Practitioner B'}]}}));
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--named-couples-massage&viewMode=story',{waitUntil:'networkidle'});
+    await expect(page.locator('[data-my-shiloh-couples]')).toBeVisible();
     await page.addScriptTag({path:path.join(__dirname,'../public/my-shiloh/assets/couples-booking.js')});
     const root=page.locator('[data-my-shiloh-couples]');await root.getByLabel('Guest’s first name and surname').fill('Synthetic Guest');await root.getByLabel('Guest’s mobile number').fill('0822345678');await root.locator('[name="consent"]').check();
     await root.getByRole('button',{name:'Choose our treatments'}).click();
