@@ -28,7 +28,32 @@ Independent transport activation and retention, GitHub metadata export, Render d
 
 The owner selected a private Google Drive destination on 1 October 2026: [Shiloh System Backups](https://drive.google.com/drive/folders/1xP2cvE3sgR7I1PBT0hrAnGFG3WbcVLWh). Code snapshots and their checksum manifests may be copied there through the connected Drive tool and verified by download/restore. This selection does not configure recurring GitHub-to-Drive credentials or authorize public sharing; scheduled independent backup status remains unconfigured until the dedicated transport credentials below are configured and its copies are read back. Clinic-data exports require separate encrypted export and restore evidence. Both production-only and all-package npm audits are reported, so development-tool vulnerabilities remain visible.
 
+### Security maintenance review — 21 October 2026, prepared for review
+
+Reviewed main `05d965752855300e886a870931cf28119141e9b0`, also reported live by Render deployment `dep-dbbta5ijnfac738c79c0`. The [21 October maintenance run](https://github.com/shilohmtc/Shiloh/actions/runs/39603600112) succeeded, but reported six high and five moderate package findings; a successful report is not a clean audit.
+
+The proposed lockfile-only updates stay within existing dependency ranges:
+
+| Package | Before | Proposed |
+| --- | --- | --- |
+| multer | 2.3.0 | 2.4.0 |
+| brace-expansion | 5.0.9 | 5.0.12 |
+| smol-toml | 1.8.0 | 1.9.1 |
+| source-map-js | 1.2.1 | 1.2.2 |
+| vite | 8.3.0 | 8.3.5 |
+
+Vite's compatible bundler/PostCSS dependency updates and Multer's removed dependencies accompany these changes. Fresh local npm audit reports three high and three moderate findings after the updates, with no high or critical production findings. These counts can change as advisories are published. Package ranges, Node/runtime pins, application behavior and deployment configuration are unchanged; release remains pending exact-head checks and authorization.
+
+Remaining findings require a separate dependency decision, not `npm audit fix --force`:
+
+- Development only: `nodemon → chokidar → braces`, three high audit entries for one dependency chain. [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) lists no patched braces version. Nodemon is used by `npm run dev`, not the production start command. A watcher replacement needs its own development-workflow review; do not treat this as a production high finding or suppress it.
+- Production: `mammoth → argparse → sprintf-js`, three moderate audit entries for one dependency chain. [GHSA-hp3w-g68c-fv3c](https://github.com/advisories/GHSA-hp3w-g68c-fv3c) lists no patched sprintf-js version. Shiloh calls Mammoth's `extractRawText` API; this inspection does not prove the advisory unreachable. npm's suggested Mammoth 0.3.29 downgrade is not an approved fix.
+
+The existing unused-code check remains advisory and reports Mammoth, Multer and pdf-parse as unused plus an unlisted pngjs import; inspect actual runtime imports before removing packages. Synthetic upload regression checks cover in-memory handling, size limits, unsupported extensions, extra files and unexpected fields for both document and CSV middleware. Browser installation may require GitHub's clean runner when the local CDN download fails; do not waive the applicable CI checks.
+
 ### Recurring independent code backups
+
+**Owner direction — 21 October 2026:** Defer new backup configuration and recovery exercises during the current software-maintenance follow-up. Leave existing backup behavior unchanged and keep independent backup/recovery status unconfigured or unverified where evidence is absent. Continue the dependency review and tested fixes; no clinic-data export, restore, new backup credentials or paid backup infrastructure is part of this follow-up.
 
 The same maintenance workflow now runs daily at **09:17 SAST** and supports **Run workflow**. After creating its GitHub checkpoint, `npm run system:backup:code` copies the current source bundle into the existing owner-selected private Drive folder. It checks owner-only access, streams a resumable upload, reads back file size/name/parent/access, downloads the actual Drive copy, compares SHA-256, restores all included refs into an isolated bare repository, runs strict fsck and confirms the source commit. It then saves and reads back a dated restore receipt beside the bundle. Only this completed chain produces `download-restore-verified`. Its local receipt is consumed by the maintenance report only for the current commit, with all proof fields and a timestamp no older than 36 hours. A saved receipt is tooling evidence from that run, not a fresh independent Drive inspection by the report.
 

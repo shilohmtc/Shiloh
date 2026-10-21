@@ -120,7 +120,15 @@ for (const app of ['workspace', 'client']) test(`${app} real worker waits betwee
     await second.waitForFunction(count => activationCount > count, before);
     for (const page of [first, second]) await expect(page.getByRole('textbox')).toHaveValue('Synthetic draft');
     expect(await first.evaluate(async () => Boolean((await navigator.serviceWorker.ready).waiting))).toBe(false);
-  } finally { await first.close(); await second.close(); await new Promise(resolve => server.close(resolve)); }
+  } finally {
+    await first.close();
+    await second.close();
+    await new Promise(resolve => {
+      server.close(resolve);
+      // The context's worker can retain connections after both pages close.
+      server.closeAllConnections();
+    });
+  }
 });
 for (const app of ['workspace', 'client']) test(`${app} an update accepted in another window waits for this window's consent to reload`, async ({ page }) => {
   await open(page, app);
