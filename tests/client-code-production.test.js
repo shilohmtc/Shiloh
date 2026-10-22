@@ -62,6 +62,30 @@ test('paused approved-contract inventory cannot open production sender or resurr
   assert.equal((await release.start()).ok,false);assert.equal(release.status().enabled,false);assert.equal(release.status().detailsSigninRetired,true);assert.equal(sent.length,0);
 });
 
+test('My Shiloh production worker survives temporary database failure without hiding sign-in',async t=>{
+  const h=await clientHarness(t),owner=await h.owner(),sent=[],events=[];let fail=false;
+  const Base=fakePool(h);class FlakyPool extends Base {async connect(){if(fail)throw Error('synthetic private DB failure');return super.connect();}}
+  const log={warn:event=>events.push(event),info:event=>events.push(event)};
+  const release=createProductionClientCode({env:settings(),canonicalDb:h.db,PoolClass:FlakyPool,fetchImpl:provider(sent),now:h.now,log});
+  t.after(()=>release.stop());const app=express();release.mount(app);const origin=await serve(t,app);
+  assert.equal((await release.start()).ok,true);fail=true;
+  await waitUntil(()=>events.some(e=>e.event==='worker_recovering'));
+  assert.equal(release.status().enabled,true);assert.equal(release.status().worker.state,'recovering');
+  const page=await fetch(origin+'/my-shiloh/code-auth/');assert.equal(page.status,200);
+  const cookie=page.headers.get('set-cookie').split(';')[0];
+  const post=(path,body)=>fetch(origin+path,{method:'POST',headers:{Origin:origin,Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify(body)});
+  fail=false;
+  await waitUntil(()=>events.some(e=>e.event==='worker_recovered'));
+  assert.equal(release.status().enabled,true);assert.equal(release.status().worker.state,'running');
+  assert.equal(sent.length,0);assert.doesNotMatch(JSON.stringify(events),/private DB|synthetic-only-token/);
+  const start=await post('/my-shiloh/code-auth/start',{mobile:h.context.mobile});assert.equal(start.status,200);
+  const request=(await start.json()).request;await waitUntil(()=>sent.length===1);
+  const code=sent[0].template.components.find(c=>c.type==='body').parameters[0].text;
+  let verified;await waitUntil(async()=>{verified=await post('/my-shiloh/code-auth/verify',{request,code});return verified.status===200;});
+  assert.equal(String((await verified.json()).client.id),String(owner.id));assert.equal(sent.length,1);
+  await release.stop();assert.equal(release.status().enabled,false);assert.equal(release.status().worker.state,'stopped');
+});
+
 test('migration 198 is additive and transactionally preserves existing sessions, credentials and invitation visits',async t=>{
   const h=await clientHarness(t,{applyClientMigration:false}),owner=await h.owner({mobile_verified_at:null});
   const issued=await h.sessions.issueCrmDetailSession({transaction:h.db,owner});

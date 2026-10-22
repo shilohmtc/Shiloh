@@ -191,17 +191,23 @@ test('stop during schema preparation cannot reopen intake or start a worker',asy
   }}});t.after(()=>p.stop());
   const starting=p.start();await waiting;const stopping=p.stop();release();
   assert.equal((await starting).code,'PILOT_STOPPED');await stopping;
-  assert.deepEqual(p.status(),{state:'stopped',enabled:false,smsEnabled:false});
+  assert.deepEqual(p.status(),{state:'stopped',enabled:false,smsEnabled:false,
+    worker:{state:'idle',consecutiveFailures:0,retryDelayMs:0}});
   assert.equal((await p.start()).code,'PILOT_STOPPED');
 });
 
-test('worker database failure disables only the pilot and exposes no raw failure',async t=>{
+test('worker database failure stays retryable without exposing raw failure; expiry still closes the pilot',async t=>{
   const h=await harness(t),p=adapter(h,{db:{...h.db,connect:async()=>{throw Error('synthetic private failure');}}});
-  const http=await serve(t,p);await p.start();await eventually(()=>p.status().state==='unavailable');
+  const http=await serve(t,p);await p.start();await eventually(()=>p.status().worker.state==='recovering');
+  assert.equal((await http.get(BASE+'/')).status,200);
+  assert.equal((await http.get('/existing')).status,200);
+  assert.equal(p.status().enabled,true);assert.equal(p.status().smsEnabled,false);
+  assert.ok(p.status().worker.consecutiveFailures>=1);
+  assert.doesNotMatch(JSON.stringify(p.status()),/synthetic private failure/);
+  h.advance(2*3600000);await eventually(()=>p.status().worker.state==='disabled');
+  assert.equal(p.status().state,'expired');assert.equal(p.status().enabled,false);
   assert.equal((await http.get(BASE+'/')).status,404);
   assert.equal((await http.get('/existing')).status,200);
-  assert.deepEqual(p.status(),{state:'unavailable',enabled:false,smsEnabled:false});
-  assert.equal((await p.start()).code,'PILOT_UNAVAILABLE');
 });
 
 test('a window that expires while preparing never opens intake or starts dispatch',async t=>{

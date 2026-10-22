@@ -443,10 +443,47 @@ Start coalesces concurrent callers, checks schema before opening intake, and
 manages one abortable worker. Stop synchronously closes the new HTTP channel and
 grant use, waits for bounded started work to settle, and cannot restart the same
 instance. A stop during preparation cannot reopen the channel. Window expiry or
-worker failure disables the new channel; existing session/passkey/details paths
-are untouched. Started provider calls may still settle, and are never replayed.
+loss of eligibility disables the new channel; existing session/passkey/details paths
+are untouched. Temporary queue/transaction failures resume polling automatically
+under the 22 October reliability standard below. Started provider calls may still
+settle, and are never replayed.
 The runtime gates each actual provider HTTP request, so stopping or expiring during
 an inventory read cannot start a subsequent message POST.
+
+### Accepted 22 October 2026 — automatic worker continuity in both apps
+
+Workspace and My Shiloh share one worker implementation. A failed queue poll must
+not permanently remove either app's WhatsApp sign-in. Keep the existing entry and
+queue, expiry, eligibility, rate and spend authorities. Resume queue polling with
+abortable exponential backoff (one second initially, capped at thirty seconds in
+production), without requiring a manual restart or a new user recovery flow.
+Only one worker loop and one dispatch may run at a time. Disabled configuration,
+lost eligibility, expired pilot windows and explicit shutdown still close intake;
+automatic polling must never reopen them or bypass readiness.
+
+This resumes normal claims, never a failed message send. A committed claim or an
+uncertain/started provider call remains ineligible for replay. Existing reserved
+allowances are not reset and no SMS fallback is added. A request already expired
+retains the existing fresh-code action. Provider outages may prevent delivery;
+the application must recover when the dependency recovers rather than stay stuck.
+
+Private production logs record sanitized worker_recovering, worker_recovered and
+worker_disabled transitions for both apps, with counters and bounded retry delay.
+Persistent failures report at each tenth failed poll. Release status includes the
+worker state; overall HTTP/database health alone is not proof of sign-in readiness.
+Never log underlying exceptions, numbers, tokens or code material in these events.
+Synthetic acceptance covers repeated failures, capped backoff, shutdown, lost
+eligibility, independent staff/client production compositions and a SQL-proven
+post-acceptance transaction failure that cannot replay a send. Release and actual
+device/provider acceptance remain separate milestones.
+
+Clean Change: reuse the existing shared worker, SQL claims, account eligibility,
+provider contracts and bounded production pools. Extend the worker loop rather
+than add a queue, sender, scheduler, service or user-facing recovery screen. Source,
+regressions and this standard are permanent; diagnostic logs/screenshots stay out
+of the release tree. This small lifecycle policy is worth maintaining to prevent
+both apps losing entry after one failed poll. **REPLACES NOW:** the exit-on-first-
+queue-error branch; no identity, message or provider authority is replaced.
 Shutdown must stop/drain the adapter before closing the shared database pool;
 closing a pool does not reliably cancel an acquisition already in progress.
 `passkeySuccessDestination(token)` validates the canonical session and returns the
