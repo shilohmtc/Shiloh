@@ -7,8 +7,8 @@ const { createCalendarCouplesBookingRouter } = require('../src/routes/calendarCo
 const { createCalendarGroupBookingRouter } = require('../src/routes/calendarGroupBooking');
 
 let fixture, server, origin;
-test.beforeEach(async ({ context }) => {
-  fixture = await createFixture({ nativeUrl: null });
+test.beforeEach(async ({ context }, testInfo) => {
+  fixture = await createFixture({ nativeUrl: null, morningOffer:testInfo.title.includes('Morning Welcome Offer') });
   const app = express(); app.use(express.json());
   const sessionService = {
     validateSessionToken: async token => token === 'synthetic-staff' ? { ok: true, adminId: 7 } : { ok: false },
@@ -32,7 +32,7 @@ test.afterEach(async () => {
   if (fixture) await fixture.close();
 });
 
-async function fillBooking(page, discount) {
+async function fillBooking(page, discount, date = '2099-10-24') {
   await page.goto(`${origin}/calendar/book/couples`);
   for (let position = 1; position <= 2; position++) {
     await page.locator(`[data-name="${position}"]`).fill(`Synthetic Guest ${position === 1 ? 'Alpha' : 'Beta'}`);
@@ -40,7 +40,7 @@ async function fillBooking(page, discount) {
     await page.locator(`[data-service="${position}"]`).selectOption('81');
     await page.locator(`[data-staff="${position}"]`).selectOption(String(position + 10));
   }
-  await page.locator('#couples-date').fill('2099-10-24');
+  await page.locator('#couples-date').fill(date);
   await page.locator('#couples-time').fill('08:30');
   if (discount) {
     await page.locator('[data-discount-type]').selectOption('amount');
@@ -110,5 +110,28 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
     await expect(page).toHaveURL(/\/calendar\/read-only\?/);
     expect((await fixture.db.query('SELECT count(*)::int AS n FROM appointments')).rows[0].n).toBe(3);
     expect((await fixture.db.query('SELECT count(*)::int AS n FROM crm_v2_clients')).rows[0].n).toBe(3);
+  });
+}
+
+for (const width of [390,1440]) {
+  test(`Morning Welcome Offer review, opt-out and exact confirmed prices at ${width}px`,async ({page},testInfo)=>{
+    await page.setViewportSize({width,height:900});
+    await fillBooking(page,false,'2099-10-26');
+    await expect(page.locator('[data-review-rows]')).toContainText('Morning Welcome Offer saving');
+    const offer=page.getByRole('checkbox',{name:/Apply Morning Welcome Offer/});
+    await expect(offer).toBeChecked();
+    await offer.uncheck();
+    await expect(page.locator('[data-couples-review]')).toBeVisible();
+    await expect(page.locator('[data-review-rows]')).toContainText('1 180');
+    await page.getByRole('checkbox',{name:/Apply Morning Welcome Offer/}).check();
+    await expect(page.locator('[data-couples-review]')).toBeVisible();
+    await expect(page.locator('[data-review-rows]')).toContainText('944');
+    expect((await new AxeBuilder({page}).include('[data-couples-review]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);
+    await page.locator('[data-couples-review]').screenshot({path:testInfo.outputPath(`morning-workspace-review-${width}.png`)});
+    const request=page.waitForRequest(r=>r.url().endsWith('/couples/confirm'));
+    await page.getByRole('button',{name:'Create linked booking'}).click();
+    expect((await request).postDataJSON().quoteHash).toMatch(/^[a-f0-9]{64}$/);
+    await expect(page).toHaveURL(/\/calendar\/read-only\?/);
+    expect((await fixture.db.query('SELECT total_price FROM appointments ORDER BY id')).rows.map(a=>Number(a.total_price))).toEqual([472,472]);
   });
 }

@@ -118,6 +118,7 @@ router.use('/forms', createWorkspaceFormClinicalMutationRouter({ sessionService:
 router.use('/reports', createWorkspaceReportsRouter({ sessionService: staffBrowserSessionService }));
 router.use('/clinic-hours', createWorkspaceClinicHoursRouter({ sessionService: staffBrowserSessionService }));
 router.use('/vouchers', createWorkspaceGiftVoucherRouter({ sessionService: staffBrowserSessionService }));
+router.use('/website', require('./workspaceWebsite').createWorkspaceWebsiteRouter({sessionService:staffBrowserSessionService}));
 router.use('/rewards', createWorkspaceRewardsRouter({ sessionService: staffBrowserSessionService }));
 router.use('/treatment-credit', createWorkspaceTreatmentCreditRouter({ sessionService: staffBrowserSessionService }));
 router.use('/problem-reports', createWorkspaceProblemReportsRouter({ sessionService: staffBrowserSessionService }));

@@ -53,7 +53,7 @@ test('create flow persists notes through the canonical appointment row without p
   const route = fs.readFileSync(require.resolve('../src/routes/calendarCreateBooking'), 'utf8');
 
   assert.match(create, /normalizeAppointmentNotes\(notes\)/);
-  assert.match(create, /confirmBooking\(admin, \{ source: 'shiloh_calendar', notes: normalizedNotes \}\)/);
+  assert.match(create, /confirmBooking\(admin, \{ source: 'shiloh_calendar', notes: normalizedNotes,/);
   assert.match(direct, /title, notes, total_price/);
   assert.match(direct, /appointmentNotes/);
   assert.match(direct, /queueCustomerBookingConfirmation\(appointment\.id, \{ db \}\)/);

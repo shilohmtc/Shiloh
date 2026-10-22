@@ -68,3 +68,5 @@ module.exports.testMatch.push("workspace-account-finish.spec.js");
 
 module.exports.testMatch.push('workspace-passkey-enrollment.spec.js');
 module.exports.testMatch.push('calendar-couples-creation.spec.js');
+
+module.exports.testMatch.push("website-publishing-ux.spec.js");

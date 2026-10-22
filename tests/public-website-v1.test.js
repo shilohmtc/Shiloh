@@ -428,12 +428,12 @@ test('public pages retain app navigation without the repeated app banner', () =>
   }
 });
 
-test('public sitemap and robots serve canonical marketing URLs without database access', async t => {
+test('public sitemap includes published stories while robots stays independent of database access', async t => {
   const express = require('express');
   const app = express();
   const { canonicalHostRedirect } = require('../src/middleware/canonicalHostRedirect');
   app.use(canonicalHostRedirect);
-  app.use(require('../src/routes/publicWebsite'));
+  app.use(require('../src/routes/publicWebsite').createPublicWebsiteRouter({ contentService: { publicPosts:async()=>[{kind:'episode',slug:'no-two-bodies-are-the-same'}] } }));
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   t.after(() => { server.closeAllConnections(); server.close(); });
@@ -447,7 +447,7 @@ test('public sitemap and robots serve canonical marketing URLs without database 
   assert.match(sitemap.headers.get('content-type'), /application\/xml/);
   const xml = await sitemap.text();
   const urls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]);
-  assert.deepEqual(urls, ['/', '/treatments', '/about', '/contact', '/visit', '/privacy', '/book'].map(path => `https://shilohmtc.co.za${path}`));
+  assert.deepEqual(urls, ['/', '/treatments', '/about', '/contact', '/visit', '/privacy', '/book', '/discover', '/offers', '/discover/no-two-bodies-are-the-same'].map(path => `https://shilohmtc.co.za${path}`));
   assert.doesNotMatch(urls.join(' '), /my-shiloh|calendar|forms|payments|\?/);
   assert.doesNotMatch(xml, /<lastmod>/);
   for (const path of ['/robots.txt', '/sitemap.xml']) {

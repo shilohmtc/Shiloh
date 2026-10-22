@@ -1,3 +1,4 @@
+const { MorningOfferError } = require('../services/morningWelcomeOffer');
 const { myShilohFormReturnProof } = require('../services/consultationFormReturn');
 const { confirmationClientScript, confirmationStyles } = require('../presentation/workspaceConfirmation');
 'use strict';
@@ -136,7 +137,7 @@ function createMyShilohRouter({
   const codeAvailable=()=>{try{return clientCodeAvailable()===true;}catch(_){return false;}};
   const signinAlternative=()=>detailsRetired()?'Use a saved passkey or WhatsApp sign-in. If you still need help, contact Reception.':'Sign in with your Shiloh details.';
   async function confirmationError(error, context, req, res, next) {
-    const known = error instanceof MyShilohBookingError || error instanceof BookingDepositPolicyError;
+    const known = error instanceof MyShilohBookingError || error instanceof BookingDepositPolicyError || error instanceof MorningOfferError;
     const incident = context && (!known || error.httpStatus >= 500)
       ? await reportConfirmationFailure({ service:incidentService,context,error,req }) : {};
     if (known) return res.status(error.httpStatus).json({ error:error.message,code:error.code,
@@ -407,6 +408,7 @@ function createMyShilohRouter({
         depositPolicy,
         welcomeVoucherMode,
         prepaidPackageMode: Boolean(packageServiceId),
+        pricingReviewAvailable:typeof bookingService.review === 'function',
         minimumBookingValue: voucher?.minimumBookingValue || 450,
         selectedServiceId: packageServiceId || normalizePublicServiceId(req.query?.service),
       }));
@@ -517,12 +519,22 @@ function createMyShilohRouter({
     }
   });
 
+  router.post('/my-shiloh/api/booking/review',sameOrigin,requireSession,requireCsrf,async(req,res,next)=>{
+    try {
+      setNoStoreJson(res);
+      const payload=req.body;
+      const allowed=new Set(['serviceId','staffId','startsAt','useMorningOffer']);
+      if(!payload || Array.isArray(payload) || Object.keys(payload).some(key=>!allowed.has(key)) || (payload.useMorningOffer!==undefined && typeof payload.useMorningOffer!=='boolean'))return res.status(422).json({error:'Review your booking price again.'});
+      return res.json(await bookingService.review({...payload,crmV2ClientId:req.myShilohClientSession.crmV2ClientId}));
+    }catch(error){if(error instanceof MyShilohBookingError || error?.code==='BOOKING_OFFER_QUOTE_CHANGED')return res.status(error.httpStatus || 409).json({error:error.message,code:error.code});return next(error);}
+  });
+
   router.post('/my-shiloh/api/booking/confirm', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
     let context;
     try {
       setNoStoreJson(res);
       const payload = req.body && typeof req.body === 'object' ? req.body : {};
-      const allowed = new Set(['serviceId','staffId','startsAt','policyAccepted','specialOccasion','occasionNote']);
+      const allowed = new Set(['serviceId','staffId','startsAt','policyAccepted','specialOccasion','occasionNote','quoteHash','useMorningOffer']);
       if (Object.keys(payload).some((key) => !allowed.has(key))) {
         return res.status(422).json({ error:'Please reload My Shiloh and try again', requestId:req.id });
       }
@@ -530,6 +542,7 @@ function createMyShilohRouter({
       const result = await bookingService.createRequest({
         crmV2ClientId:req.myShilohClientSession.crmV2ClientId,
         serviceId:payload.serviceId,
+        quoteHash:payload.quoteHash,useMorningOffer:payload.useMorningOffer,
         staffId:payload.staffId,
         startsAt:payload.startsAt,
         policyAccepted:payload.policyAccepted === true,
@@ -549,8 +562,8 @@ function createMyShilohRouter({
       try {
         setNoStoreJson(res);
         const payload = req.body && typeof req.body === 'object' ? req.body : {};
-        const allowed = new Set(action === 'review' ? ['treatments']
-          : ['treatments','quoteHash','requestId','policyAccepted','specialOccasion','occasionNote']);
+        const allowed = new Set(action === 'review' ? ['treatments','useMorningOffer']
+          : ['treatments','quoteHash','requestId','policyAccepted','specialOccasion','occasionNote','useMorningOffer']);
         if (Object.keys(payload).some(key => !allowed.has(key))) {
           return res.status(422).json({ error:'Please review your appointments again.', requestId:req.id });
         }
@@ -576,8 +589,8 @@ function createMyShilohRouter({
       try {
         setNoStoreJson(res);
         const payload = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
-        const allowed = new Set(action === 'availability' ? ['serviceIds','staffIds','date','timing'] : action === 'review' ? ['guest','guests','treatments','timing']
-          : ['guest','guests','treatments','timing','quoteHash','requestId','policyAccepted','specialOccasion','occasionNote']);
+        const allowed = new Set(action === 'availability' ? ['serviceIds','staffIds','date','timing'] : action === 'review' ? ['guest','guests','treatments','timing','useMorningOffer']
+          : ['guest','guests','treatments','timing','quoteHash','requestId','policyAccepted','specialOccasion','occasionNote','useMorningOffer']);
         if (Object.keys(payload).some(key => !allowed.has(key))) return res.status(422).json({ error:'Please review your family or friends booking again.' });
         const input = { ...payload,crmV2ClientId:req.myShilohClientSession.crmV2ClientId };
         if (action === 'confirm') context = confirmationContext(req,'couples',payload);

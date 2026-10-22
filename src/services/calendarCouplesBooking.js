@@ -1,4 +1,5 @@
 const { pool } = require('../db/pool');
+const { createMorningWelcomeOfferService, pricingHash, MorningOfferError, applyCalendarOffer } = require('./morningWelcomeOffer');
 const crmV2 = require('./crmV2ClientService');
 const { createCalendarCreateBookingService, canonicalLocalDateTimeFromInputs } = require('./calendarCreateBooking');
 const { checkAuthoritativeSchedule, getConflicts } = require('./adminAvailability');
@@ -114,6 +115,7 @@ function resolveAssignments(options, rawStaffIds, rawServiceIds) {
 function createCalendarCouplesBookingService({
   db = pool,
   standardBooking = createCalendarCreateBookingService({ db }),
+  morningOffer = db === pool ? createMorningWelcomeOfferService({ db }) : null,
 } = {}) {
   async function resolveOperator(adminId) {
     return standardBooking.resolveOperator(adminId);
@@ -180,12 +182,14 @@ function createCalendarCouplesBookingService({
     time,
     discount,
     notes,
+    useMorningOffer = true,
   } = {}) {
+    if (typeof useMorningOffer !== 'boolean') throw couplesError('BOOKING_OFFER_INVALID', 'Review the promotional offer choice again.');
     const options = await listOptions(adminId);
     const guests = (Array.isArray(rawGuests) ? rawGuests : []).map(normalizeGuest);
     ensureDistinctGuests(guests);
     const assignments = resolveAssignments(options, rawStaffIds, rawServiceIds);
-    const pricing = priceCouplesBooking({
+    let pricing = priceCouplesBooking({
       prices: assignments.map(item => item.service.price),
       discount,
       canDiscount: options.authority.canApplyDiscount,
@@ -212,7 +216,10 @@ function createCalendarCouplesBookingService({
 
     const startsAt = new Date(resolved[0].startsAt).toISOString();
     const endsAt = new Date(Math.max(...resolved.map(item => new Date(item.endsAt).getTime()))).toISOString();
+    const offerPricing = morningOffer ? await morningOffer.calendarQuote(resolved, guests, { useOffer: useMorningOffer, otherPromotion: pricing.discountAmount > 0 }) : null;
+    pricing = applyCalendarOffer(pricing, offerPricing);
     const payload = {
+      ...(offerPricing ? { morningOffer: { hash: pricingHash(offerPricing), useOffer: useMorningOffer } } : {}),
       guests,
       assignments: resolved.map(item => ({
         guestPosition: item.guestPosition,
@@ -252,6 +259,7 @@ function createCalendarCouplesBookingService({
         startsAt,
         endsAt,
         pricing,
+        ...(offerPricing ? { offerPricing, quoteHash:pricingHash(offerPricing) } : {}),
         price: displayPrice(pricing.total),
       },
     };
@@ -263,7 +271,7 @@ function createCalendarCouplesBookingService({
     return { status: result.rowCount ? 'discarded' : 'no_pending' };
   }
 
-  async function confirm({ adminId } = {}) {
+  async function confirm({ adminId, quoteHash } = {}) {
     const admin = await resolveOperator(adminId);
     const currentOptions = await listOptions(adminId);
     const client = await db.connect();
@@ -277,6 +285,7 @@ function createCalendarCouplesBookingService({
       );
       const payload = draftResult.rows[0]?.payload;
       if (!payload) throw couplesError('COUPLES_NO_PENDING', 'There is no Couples booking review waiting to be confirmed.', 409);
+      if(payload.morningOffer && payload.morningOffer.hash!==quoteHash) throw new MorningOfferError('This booking review changed. Review its current total before creating the appointments.');
       const guests = payload.guests.map(normalizeGuest);
       ensureDistinctGuests(guests);
       const payloadAssignments = Array.isArray(payload.assignments) ? payload.assignments : [];
@@ -310,9 +319,10 @@ function createCalendarCouplesBookingService({
         const assignment = assignments[index];
         const selected = await client.query(
           `SELECT sv.id AS service_id,sv.name AS service_name,sv.status AS service_status,
-                  sv.duration_minutes,sv.processing_time_minutes,sv.extra_time_minutes,sv.price,sv.variable_price,
+                  sv.duration_minutes,sv.processing_time_minutes,sv.extra_time_minutes,sv.price,sv.variable_price,sc.name AS category_name,
                   st.id AS staff_id,st.display_name AS staff_name,st.status AS staff_status
              FROM services sv
+             LEFT JOIN service_categories sc ON sc.id=sv.category_id
              JOIN staff_services ss ON ss.service_id=sv.id
              JOIN staff st ON st.id=ss.staff_id
             WHERE sv.id=$1 AND st.id=$2
@@ -337,7 +347,7 @@ function createCalendarCouplesBookingService({
         selections.push(row);
       }
 
-      const pricing = priceCouplesBooking({
+      let pricing = priceCouplesBooking({
         prices: selections.map(row => Number(row.price)),
         discount: payload.discount,
         canDiscount: currentOptions.authority.canApplyDiscount,
@@ -391,6 +401,13 @@ function createCalendarCouplesBookingService({
         throw couplesError('COUPLES_DUPLICATE_CLIENT', 'Choose two different client profiles.');
       }
 
+      let offerPricing = null;
+      if (morningOffer) {
+        offerPricing = await morningOffer.calendarQuote(selections.map((row, index) => ({ ...row, startsAt: startsAt.toISOString() })), guests,
+          { queryable: client, lock: true, useOffer: payload.morningOffer?.useOffer ?? true, otherPromotion: pricing.discountAmount > 0 });
+        morningOffer.assertReviewed(offerPricing, payload.morningOffer?.hash, { required: Boolean(payload.morningOffer) });
+        pricing = applyCalendarOffer(pricing, offerPricing);
+      }
       const groupEndsAt = new Date(Math.max(...endsAt.map(value => new Date(value).getTime()))).toISOString();
       const discountingPrincipalId = pricing.discountAmount > 0 ? Number(admin.id) : null;
       const groupResult = await client.query(
@@ -436,11 +453,12 @@ function createCalendarCouplesBookingService({
           ]
         );
         const appointmentId = appointmentResult.rows[0].id;
+        if (offerPricing) await morningOffer.record(client, { appointmentId, clientId: person.id, price: offerPricing.items[index] });
         appointmentIds.push(Number(appointmentId));
         await client.query(
           `INSERT INTO appointment_services(appointment_id,service_id,position,service_name_snapshot,price_snapshot,duration_minutes_snapshot)
            VALUES($1,$2,1,$3,$4,$5)`,
-          [appointmentId, selection.service_id, selection.service_name, Number(selection.price), durationMinutes(selection)]
+          [appointmentId, selection.service_id, selection.service_name, pricing.allocations[index], durationMinutes(selection)]
         );
         await client.query(
           `INSERT INTO appointment_staff(appointment_id,staff_id,position,staff_name_snapshot) VALUES($1,$2,1,$3)`,

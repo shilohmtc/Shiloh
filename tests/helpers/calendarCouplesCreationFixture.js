@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 
 // Real SQL for the affected transaction; availability and outbound delivery are
 // synthetic boundaries. Never uses DATABASE_URL or sends a communication.
-async function createFixture({ nativeUrl = process.env.TEST_CALENDAR_COUPLES_DATABASE_URL } = {}) {
+async function createFixture({ nativeUrl = process.env.TEST_CALENDAR_COUPLES_DATABASE_URL, morningOffer = false } = {}) {
   let sql;
   if (nativeUrl) {
     assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(new URL(nativeUrl).hostname), 'Only a local synthetic PostgreSQL server is allowed');
@@ -47,6 +47,16 @@ async function createFixture({ nativeUrl = process.env.TEST_CALENDAR_COUPLES_DAT
       (81,'Synthetic Swedish',590,90,'active',NULL,NULL);
     INSERT INTO staff_services VALUES(11,81),(12,81),(13,81);
   `);
+  if (morningOffer) {
+    await sql.exec(`CREATE TABLE client_contacts(client_id bigint,contact_type text,normalized_value text);
+      CREATE TABLE admin_booking_sessions(admin_id bigint);
+      CREATE TABLE booking_payment_accounts(id bigint PRIMARY KEY,appointment_id bigint);
+      CREATE TABLE booking_welcome_voucher_allocations(id bigserial PRIMARY KEY,booking_payment_account_id bigint,state text DEFAULT 'applied');
+      INSERT INTO service_categories VALUES(1,'Massage');UPDATE services SET category_id=1 WHERE id=81;`);
+    await sql.exec(read('migrations/199_website_publishing_morning_offer.sql'));
+    await sql.exec("UPDATE website_content_posts SET published=draft WHERE kind='offer'");
+  }
+  const promotion = morningOffer ? require('../../src/services/morningWelcomeOffer').createMorningWelcomeOfferService({db}) : null;
   const standardBooking = {
     resolveOperator: async () => ({ id: 7, display_name: 'Synthetic operator',
       calendarAuthority: { capabilities: ['appointment:couples:discount', 'appointment:group:discount'] } }),
@@ -54,7 +64,7 @@ async function createFixture({ nativeUrl = process.env.TEST_CALENDAR_COUPLES_DAT
       staff: [{ id: 11, displayName: 'Synthetic practitioner A' }, { id: 12, displayName: 'Synthetic practitioner B' }, { id: 13, displayName: 'Synthetic practitioner C' }],
       services: [
         { id: 90, name: 'Couples booking', externalSource: 'shiloh_special', externalId: 'couples-massage-v1' },
-        { id: 81, name: 'Synthetic Swedish', durationMinutes: 90, price: 590, staffIds: [11, 12, 13] },
+        { id: 81, name: 'Synthetic Swedish', categoryName: 'Massage', durationMinutes: 90, price: 590, staffIds: [11, 12, 13] },
       ] }),
   };
   const state = { failQueue: false, sends: [] };
@@ -88,9 +98,9 @@ async function createFixture({ nativeUrl = process.env.TEST_CALENDAR_COUPLES_DAT
   let service, groupService;
   try {
     delete require.cache[servicePath];
-    service = require(servicePath).createCalendarCouplesBookingService({ db, standardBooking });
+    service = require(servicePath).createCalendarCouplesBookingService({ db, standardBooking, morningOffer: promotion });
     delete require.cache[groupPath];
-    groupService = require(groupPath).createCalendarGroupBookingService({ db, standardBooking });
+    groupService = require(groupPath).createCalendarGroupBookingService({ db, standardBooking, morningOffer: promotion });
   } finally {
     for (const [resolved, original] of originals) require.cache[resolved].exports = original;
     delete require.cache[servicePath];
@@ -104,7 +114,7 @@ async function createFixture({ nativeUrl = process.env.TEST_CALENDAR_COUPLES_DAT
   };
   const groupInput = { ...input, staffIds: [11, 12, 13], serviceIds: [81, 81, 81],
     guests: [...input.guests, { name: 'Synthetic Guest C', mobile: '0820000003' }] };
-  return { sql, db, service, groupService, state, input, groupInput, close: () => sql.close() };
+  return { sql, db, service, groupService, standardBooking, state, input, groupInput, close: () => sql.close() };
 }
 
 module.exports = { createFixture };
