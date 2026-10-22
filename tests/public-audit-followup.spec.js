@@ -47,12 +47,12 @@ for (const width of [320, 390, 1440]) {
   test(`booking catalogue keeps categories together at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/iframe.html?id=public-website-production-pages--book&viewMode=story', { waitUntil: 'networkidle' });
-    await expect(page.locator('.inside-shiloh-break')).toHaveCount(1);
+    await expect(page.locator('.inside-shiloh-break')).toHaveCount(0);
     await expect(page.locator('.category-head span')).toHaveCount(0);
     await expect(page.locator('.category h2')).toHaveCount(7);
     await expect(page.locator('.service-card')).toHaveCount(9);
     const sections = await page.locator('.catalogue > *').evaluateAll(nodes => nodes.map(node => node.className));
-    expect(sections).toEqual([...Array(7).fill('category'), 'inside-shiloh-break']);
+    expect(sections).toEqual(Array(7).fill('category'));
     const jump = page.getByRole('navigation', { name: 'Service categories' }).getByRole('link', { name: 'Advanced Aesthetics', exact: true });
     await jump.click();
     const category = page.locator('.category').filter({ has: page.getByRole('heading', { name: 'Advanced Aesthetics', exact: true }) });

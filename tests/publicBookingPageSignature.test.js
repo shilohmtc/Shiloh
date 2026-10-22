@@ -10,17 +10,18 @@ const catalogue = [
   { category: 'Microneedling', name: 'Needling A', duration: '60 min', price: 'R500' },
 ];
 
-test('catalogue categories stay together with one closing brand signature', () => {
+test('catalogue categories stay together without a closing brand interruption', () => {
   const html = renderBookingPage('27823269871', catalogue);
-  assert.equal((html.match(/<section class="inside-shiloh-break"/g) || []).length, 1);
-  const signature = html.indexOf('<section class="inside-shiloh-break"');
+  assert.equal((html.match(/<section class="inside-shiloh-break"/g) || []).length, 0);
+  const clinic = html.indexOf('<section class="clinic"');
+  let previousCategory = -1;
   for (let i = 0; i < catalogue.length; i += 1) {
     const category = html.indexOf(`<section class="category" id="category-${i}">`);
-    assert.ok(category >= 0 && category < signature, 'each category precedes the closing signature');
+    assert.ok(category > previousCategory && category < clinic, 'categories stay in order before the existing booking guidance');
+    previousCategory = category;
   }
-  assert.ok(signature < html.indexOf('<section class="clinic">'));
   assert.doesNotMatch(html, /<span>Shiloh services<\/span>|<div class="eyebrow">Our services<\/div>/);
-  assert.match(html, /Personal care\. Thoughtful touch\./);
+  assert.doesNotMatch(html, /Personal care\. Thoughtful touch\./);
   assert.doesNotMatch(html, /Clinical care\. Personal touch\. Beautifully you\./);
   assert.doesNotMatch(html, /<section class="clinic-gallery"/);
 });
