@@ -81,16 +81,28 @@ async function main() {
       const codeSession=await issueStaffBrowserSession({client:h.db,admin,current:h.now(),authMethod:'workspace_whatsapp'});
       await h.db.query('UPDATE staff_browser_sessions SET detail_identity_revision=$2 WHERE token_hash=$1',
         [require('../src/services/staffBrowserSession').sha256(codeSession.sessionToken),workspaceWhatsAppRevision(admin)]);
+      currentSession=codeSession;
       await context.addCookies([{name:'shiloh_staff_session',value:codeSession.sessionToken,url:origin}]);
       await page.goto(origin+'/calendar/staff-auth/passkeys/manage');
       await page.waitForURL('**/calendar/staff-auth/whatsapp/enroll');
-      await page.getByRole('button',{name:'Send WhatsApp code',exact:true}).waitFor();
+      await page.getByRole('button',{name:'Save a passkey',exact:true}).waitFor();
       assert.equal(await page.locator('#purpose').inputValue(),'enroll');
       assert.equal(await page.locator('#mobile').isVisible(),false);
       assert.equal(counts.create,0);
       assert.equal(Number((await h.db.query('SELECT count(*) AS n FROM workspace_whatsapp_dispatch')).rows[0].n),0);
       assert.deepEqual((await new AxeBuilder({page}).analyze()).violations,[]);
       await page.screenshot({path:`${out}/${staffMode?'staff':'pilot'}-${label}-whatsapp-my-passkeys-enrollment.png`,fullPage:true});
+      await page.getByRole('button',{name:'Save a passkey',exact:true}).click();
+      await page.getByRole('status').filter({hasText:'No passkey was saved.'}).waitFor();
+      assert.equal(counts.create,1);assert.equal(await page.locator('#verify').isVisible(),false);
+      assert.equal(Number((await h.db.query('SELECT count(*) AS n FROM workspace_whatsapp_dispatch')).rows[0].n),0);
+      await page.getByRole('link',{name:'Back to Workspace',exact:true}).click();
+      await page.goto(origin+'/calendar/staff-auth/whatsapp/enroll');
+      await page.getByRole('button',{name:'Save a passkey',exact:true}).click();
+      await page.getByRole('status').filter({hasText:'No passkey was saved.'}).waitFor();
+      assert.equal(counts.create,2);assert.equal(await page.locator('#verify').isVisible(),false);
+      assert.equal(Number((await h.db.query('SELECT count(*) AS n FROM workspace_whatsapp_dispatch')).rows[0].n),0);
+
       if(fs.existsSync('storybook-static/iframe.html')) {
         await page.goto(origin+'/storybook/iframe.html?id=workspace-whatsapp-authentication-draft--own-account-passkey-setup&viewMode=story');
         await page.getByRole('heading',{name:'Save a passkey',exact:true}).waitFor();
@@ -103,7 +115,7 @@ async function main() {
       await context.close();
     }
     assert.equal(sends,0);
-    console.log((staffMode?'All-staff mode (two canonical accounts): ':'Pilot mode: ')+'Saved-passkey welcome and WhatsApp-session My passkeys enrollment navigation passed on phone/desktop, without automatic codes or ceremonies. Synthetic only.');
+    console.log((staffMode?'All-staff mode (two canonical accounts): ':'Pilot mode: ')+'Saved-passkey welcome and WhatsApp-session My passkeys enrollment navigation passed on phone/desktop, without automatic codes or ceremonies; fresh WhatsApp proof starts passkey setup and survives cancellation/reopening without another send. Synthetic only.');
   } finally {
     await browser.close();await release.stop();await new Promise(r=>server.close(r));for(const fn of cleanups)await fn();
   }

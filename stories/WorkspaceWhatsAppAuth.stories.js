@@ -19,10 +19,10 @@ export const ClientRegistration={render:()=>documentBody(client.clientCodePage({
 export const OptionalInvitations={render:()=>documentBody(invitation.authInvitationPage({audience:'staff',base:'/calendar/staff-auth/whatsapp'})).replace('id="passkey-invite" hidden','id="passkey-invite"').replace('id="notification-invite" hidden','id="notification-invite"').replace('id="continue" hidden','id="continue"').replace('Opening Workspace…','These choices are optional. You can continue now.')};
 
 // Protected own-account setup, reached from My passkeys after sign-in.
-export const OwnAccountPasskeySetup={render:()=>render(false,false,false,true)
-  .replace('<label for="mobile">','<label for="mobile" hidden>')
-  .replace('id="mobile" name="mobile"','id="mobile" hidden name="mobile"')
-  .replace('id="setup-help" hidden','id="setup-help"')};
+export const OwnAccountPasskeySetup={render:()=>render(false,false,false,true)};
+export const OwnAccountVerificationNeeded={render:()=>render(false,false,false,true)
+  .replace('id="status" role="status" aria-live="polite"></p>','id="status" role="status" aria-live="polite">Your recent verification is no longer available. Request a WhatsApp code to continue.</p>')
+  .replace('id="send">Save a passkey','id="send">Send WhatsApp code')};
 
 export const OpeningWorkspace={render:()=>documentBody(invitation.authInvitationPage({audience:'staff',base:'/calendar/staff-auth/whatsapp'}))};
 
