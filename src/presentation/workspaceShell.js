@@ -54,7 +54,9 @@ function renderWorkspaceNavigation({ active, displayName = '', dashboardHref = n
     }),
   ].join('');
   const secondary = [
-    workspaceItem({key:'website',label:'Website',active:active === 'website',href:websiteHref}),
+    websiteHref || active === 'website'
+      ? workspaceItem({key:'website',label:'Website',active:active === 'website',href:websiteHref})
+      : '<span hidden data-workspace-destination="website">Website</span>',
     workspaceItem({
       key: 'staff',
       label: 'Staff',
