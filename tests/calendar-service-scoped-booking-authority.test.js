@@ -158,7 +158,7 @@ test('Calendar confirm accepts only internal note body data, no browser identity
 test('Calendar layer delegates V2 appointment writes while retaining canonical mobile snapshot and internal notes', () => {
   const source = fs.readFileSync(path.join(__dirname, '../src/services/calendarCreateBooking.js'), 'utf8');
   assert.doesNotMatch(source, /INSERT INTO appointments|INSERT INTO clients|INSERT INTO client_contacts/);
-  assert.match(source, /confirmBooking\(admin, \{ source: 'shiloh_calendar', notes: normalizedNotes \}\)/);
+  assert.match(source, /confirmBooking\(admin, \{ source: 'shiloh_calendar', notes: normalizedNotes,/);
   assert.match(source, /client_mobile_snapshot/);
   assert.doesNotMatch(source, /mobile_acknowledged_at|acknowledged_mobile|acknowledgeMobile/);
   assert.doesNotMatch(source, /operatorContactAuthority|client_identity_verifications/);

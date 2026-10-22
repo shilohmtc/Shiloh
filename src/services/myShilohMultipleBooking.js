@@ -1,3 +1,4 @@
+const { createMorningWelcomeOfferService } = require('./morningWelcomeOffer');
 'use strict';
 
 const crypto = require('crypto');
@@ -113,21 +114,25 @@ function createMyShilohMultipleBookingService({
   checkSchedule = checkAuthoritativeSchedule,
   conflicts = getConflicts,
   now = () => new Date(),
+  morningOffer,
   depositPreflight = db===pool ? assertApprovalReady : null,
   sendConfirmation = sendCustomerBookingConfirmationForAppointment,
 } = {}) {
+  const offer = morningOffer === undefined ? (db === pool ? createMorningWelcomeOfferService({db,now}) : null) : morningOffer;
   const source = couples ? COUPLES_SOURCE : SOURCE;
   const auditAction = couples ? 'client.couples_booking_created' : 'client.multiple_booking_created';
-  async function buildQuote(queryable, crmV2ClientId, raw, { checkSlots = true, guest = null, guests = null, timing = 'together' } = {}) {
+  async function buildQuote(queryable, crmV2ClientId, raw, { checkSlots = true, guest = null, guests = null, timing = 'together', useMorningOffer = true, lockPrices = false } = {}) {
     const items = selections(raw);
     const companions = couples ? normalizeGuests(guests, guest, items.length) : [];
     if (couples) assertFamilySelection(items, timing);
     const policy = await deposits.loadPolicy(queryable);
     const treatments = [];
+    const promotionInputs = [];
+    const depositExemptions = [];
     for (const item of items) {
-      const found = await queryable.query(`SELECT s.id,s.name,s.price,s.duration_minutes,s.processing_time_minutes,s.extra_time_minutes,s.external_source,s.external_id,
+      const found = await queryable.query(`SELECT s.id,s.name,s.price,s.duration_minutes,s.processing_time_minutes,s.extra_time_minutes,s.external_source,s.external_id,sc.name AS category_name,
           st.id AS staff_id,st.display_name AS staff_name
-        FROM services s JOIN staff_services ss ON ss.service_id=s.id JOIN staff st ON st.id=ss.staff_id
+        FROM services s JOIN staff_services ss ON ss.service_id=s.id JOIN staff st ON st.id=ss.staff_id LEFT JOIN service_categories sc ON sc.id=s.category_id
         WHERE s.id=$1 AND st.id=$2 AND s.status='active' AND st.status='active'
           AND st.resource_type='practitioner' AND st.client_bookable=TRUE
           AND COALESCE(st.business_role,'') <> 'tenant_practitioner'
@@ -158,13 +163,27 @@ function createMyShilohMultipleBookingService({
       }
       const endsAt = new Date(new Date(item.startsAt).getTime() + duration * 60000).toISOString();
       const exempt = Number(row.staff_id) === Number(policy.exemptStaffId);
+      const index=treatments.length;
+      promotionInputs.push({clientId:couples && index>0 ? null : Number(crmV2ClientId),guestMobile:couples && index>0 ? companions[index-1].mobile : null,
+        identityKey:couples && index>0 ? `guest:${companions[index-1].mobile}` : `client:${Number(crmV2ClientId)}`,
+        serviceId:item.serviceId,staffId:item.staffId,startsAt:item.startsAt,price:(priceCents/100).toFixed(2),name:row.name,category:row.category_name});
+      depositExemptions.push(exempt);
       treatments.push({ ...item, endsAt, service:row.name, practitioner:row.staff_name, durationMinutes:duration,
         ...(namedCouples ? { couplesService:true } : {}), price:(priceCents / 100).toFixed(2), deposit:exempt ? '0.00' : percentAmount(priceCents / 100, policy.rateBasisPoints).toFixed(2) });
     }
     if (!couples) assertClientWindows(treatments);
     if (couples && (!validFamilyWindows(treatments) || (timing === 'in_turn' && treatments.some((item,index) => index > 0 && new Date(item.startsAt) < new Date(treatments[index-1].endsAt)))
       || new Set(treatments.map(item => localDate(item.startsAt))).size !== 1)) fail('BOOKING_COUPLES_SELECTION', 'Choose available times for everyone in the selected order on the same day.', 422);
+    let offerPricing=null;
+    if(offer) {
+      offerPricing=await offer.quoteItems(promotionInputs,{queryable,lock:lockPrices,useOffer:useMorningOffer});
+      for(const [index,price] of offerPricing.items.entries()) {
+        treatments[index].price=price.total;
+        treatments[index].deposit=depositExemptions[index]?'0.00':percentAmount(Number(price.total),policy.rateBasisPoints).toFixed(2);
+      }
+    }
     return {
+      ...(offerPricing ? {offerPricing} : {}),
       crmV2ClientId:positiveId(crmV2ClientId), policyVersion:POLICY_VERSION, treatments,
       ...(couples ? (companions.length === 1 ? { guest:companions[0] } : { guests:companions }) : {}),
       ...(couples && timing !== 'together' ? { timing } : {}),
@@ -173,12 +192,14 @@ function createMyShilohMultipleBookingService({
     };
   }
 
-  async function review({ crmV2ClientId, treatments, guest, guests, timing } = {}) {
-    const quote = await buildQuote(db, crmV2ClientId, treatments, { guest, guests, timing });
+  async function review({ crmV2ClientId, treatments, guest, guests, timing, useMorningOffer = true } = {}) {
+    if(typeof useMorningOffer!=='boolean')fail('BOOKING_REVIEW_INVALID','Review your booking price again.',422);
+    const quote = await buildQuote(db, crmV2ClientId, treatments, { guest, guests, timing, useMorningOffer });
     return { ...quote, quoteHash:quoteHash(quote) };
   }
 
-  async function createRequest({ crmV2ClientId, treatments, quoteHash:reviewHash, requestId, policyAccepted, specialOccasion, occasionNote, guest, guests, timing = 'together', _reception=null } = {}) {
+  async function createRequest({ crmV2ClientId, treatments, quoteHash:reviewHash, requestId, policyAccepted, specialOccasion, occasionNote, guest, guests, timing = 'together', _reception=null, useMorningOffer = true } = {}) {
+    if(typeof useMorningOffer!=='boolean')fail('BOOKING_REVIEW_INVALID','Review your booking price again.',422);
     const items = selections(treatments);
     const clientId = positiveId(crmV2ClientId);
     const companions = couples ? normalizeGuests(guests, guest, items.length) : [];
@@ -223,7 +244,7 @@ function createMyShilohMultipleBookingService({
           || String(request.service_detail||'').trim().toLowerCase()!=='couples massage')
           fail('PLANNING_ALREADY_RESOLVED','This enquiry changed or was already arranged. Refresh Dashboard.',409);
       }
-      const quote = await buildQuote(connection, clientId, items, { guests:couples ? companions : null, timing });
+      let quote = await buildQuote(connection, clientId, items, { guests:couples ? companions : null, timing, useMorningOffer });
       if (quoteHash(quote) !== reviewHash) fail('BOOKING_CART_QUOTE_CHANGED', 'A price, duration or deposit changed. Review the updated totals before sending.');
       const guestClients = [];
       if (couples) {
@@ -248,6 +269,10 @@ function createMyShilohMultipleBookingService({
         await connection.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`crm-v2-client:${guestClient.id}`]);
         guestClients.push(guestClient);
         }
+      }
+      if(offer) {
+        quote=await buildQuote(connection,clientId,items,{guests:couples?companions:null,timing,useMorningOffer,lockPrices:true});
+        if(quoteHash(quote)!==reviewHash)fail('BOOKING_CART_QUOTE_CHANGED','The offer or booking price changed. Review the updated total before sending.');
       }
       const location = await locationProvider(connection);
       if (!location?.id) fail('BOOKING_LOCATION_UNRESOLVED', 'Shiloh needs to check the clinic location before booking.');
@@ -276,6 +301,7 @@ function createMyShilohMultipleBookingService({
           { clientId:null, crmV2ClientId:couples && index > 0 ? guestClients[index-1].id : clientId, sourceClientName:couples && index > 0 ? companions[index-1].name : client.name }, location.id, item.startsAt,item.endsAt,item.service,item.price);
         const id = Number(appointment.id);
         appointmentIds.push(id);
+        if(quote.offerPricing)await offer.record(connection,{appointmentId:id,clientId:couples && index>0?guestClients[index-1].id:clientId,price:quote.offerPricing.items[index]});
         await connection.query(`INSERT INTO appointment_services(appointment_id,service_id,position,service_name_snapshot,price_snapshot,duration_minutes_snapshot)
           VALUES($1,$2,1,$3,$4,$5)`, [id,item.serviceId,item.service,item.price,item.durationMinutes]);
         await connection.query(`INSERT INTO appointment_staff(appointment_id,staff_id,position,staff_name_snapshot) VALUES($1,$2,1,$3)`, [id,item.staffId,item.practitioner]);

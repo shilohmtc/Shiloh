@@ -48,6 +48,7 @@ function setBookingSecurityHeaders(res) {
 
 function statusForError(error) {
   const code = String(error?.code || '');
+  if (code === 'BOOKING_OFFER_QUOTE_CHANGED' || code === 'CALENDAR_BOOKING_REVIEW_CHANGED') return 409;
   if (code === 'CALENDAR_BOOKING_FORBIDDEN' || code === 'CALENDAR_BOOKING_SCOPE_UNRESOLVED') return 403;
   if (code === 'CALENDAR_BOOKING_CRM_V2_CONFLICT' || code === 'CALENDAR_BOOKING_CLIENT_MOBILE_CHANGED' || code === 'CALENDAR_BOOKING_CRM_V2_CLIENT_INACTIVE') return 409;
   if (code === 'CALENDAR_BOOKING_INELIGIBLE_SELECTION' || code === 'CALENDAR_BOOKING_CONFIRMATION_UNSAFE' || code === 'CALENDAR_BOOKING_NO_PENDING') return 409;
@@ -358,6 +359,7 @@ function createCalendarCreateBookingRouter({
         serviceId: req.body?.serviceId,
         date: req.body?.date,
         time: req.body?.time,
+        ...(req.body?.useMorningOffer !== undefined ? { useMorningOffer: req.body.useMorningOffer } : {}),
       });
       if (result.status !== 'pending_confirmation') {
         return res.status(409).json({
@@ -395,6 +397,7 @@ function createCalendarCreateBookingRouter({
       const result = await bookingService.confirm({
         adminId: req.staffBrowserSession.adminId,
         notes: req.body?.notes,
+        ...(req.body?.quoteHash !== undefined ? {quoteHash:req.body.quoteHash} : {}),
       });
       if (result.status !== 'created') {
         return res.status(409).json({ status: result.status, reply: result.reply || 'Booking was not created.' });

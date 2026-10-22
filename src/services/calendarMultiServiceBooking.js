@@ -1,4 +1,5 @@
 const { pool } = require('../db/pool');
+const { createMorningWelcomeOfferService, pricingHash, MorningOfferError } = require('./morningWelcomeOffer');
 const crmV2 = require('./crmV2ClientService');
 const { createCalendarCreateBookingService, canonicalLocalDateTimeFromInputs } = require('./calendarCreateBooking');
 const { checkAuthoritativeSchedule, getConflicts } = require('./adminAvailability');
@@ -94,6 +95,7 @@ function assertNoInternalConflicts(assignments) {
 function createCalendarMultiServiceBookingService({
   db = pool,
   standardBooking = createCalendarCreateBookingService({ db }),
+  morningOffer = db === pool ? createMorningWelcomeOfferService({ db }) : null,
   crmV2Service = crmV2,
   queueConfirmation = queueCustomerBookingConfirmation,
   sendConfirmation = sendCustomerBookingConfirmationForAppointment,
@@ -124,7 +126,8 @@ function createCalendarMultiServiceBookingService({
     return standardBooking.searchClients(adminId, query);
   }
 
-  async function prepare({ adminId, clientId, treatments: rawTreatments, date, notes } = {}) {
+  async function prepare({ adminId, clientId, treatments: rawTreatments, date, notes, useMorningOffer = true } = {}) {
+    if (typeof useMorningOffer !== 'boolean') throw multiServiceError('BOOKING_OFFER_INVALID', 'Review the promotional offer choice again.');
     const options = await listOptions(adminId);
     const canonicalClientId = positiveId(clientId);
     if (!canonicalClientId) throw multiServiceError('MULTI_SERVICE_CLIENT_REQUIRED', 'Find and select one client.');
@@ -154,7 +157,9 @@ function createCalendarMultiServiceBookingService({
     }
     assertNoInternalConflicts(resolved);
 
+    const offerPricing = morningOffer ? await morningOffer.calendarQuote(resolved, resolved.map(() => ({ clientId: canonicalClientId })), { useOffer: useMorningOffer }) : null;
     const payload = {
+      ...(offerPricing ? { morningOffer: { hash: pricingHash(offerPricing), useOffer: useMorningOffer } } : {}),
       clientId: canonicalClientId,
       clientMobile: client.normalizedMobile,
       assignments: resolved.map(item => ({
@@ -175,7 +180,7 @@ function createCalendarMultiServiceBookingService({
        ON CONFLICT(admin_id) DO UPDATE SET payload=EXCLUDED.payload,state='confirm',updated_at=NOW()`,
       [Number(adminId), JSON.stringify(payload)]
     );
-    const subtotal = resolved.reduce((sum, item) => sum + Number(item.service.price), 0);
+    const subtotal = offerPricing ? Number(offerPricing.total) : resolved.reduce((sum, item) => sum + Number(item.service.price), 0);
     return {
       status: 'pending_confirmation',
       review: {
@@ -194,6 +199,7 @@ function createCalendarMultiServiceBookingService({
         startsAt: new Date(Math.min(...resolved.map(item => new Date(item.startsAt).getTime()))).toISOString(),
         endsAt: new Date(Math.max(...resolved.map(item => new Date(item.endsAt).getTime()))).toISOString(),
         subtotal,
+        ...(offerPricing ? { offerPricing, quoteHash:pricingHash(offerPricing) } : {}),
       },
     };
   }
@@ -204,7 +210,7 @@ function createCalendarMultiServiceBookingService({
     return { status: result.rowCount ? 'discarded' : 'no_pending' };
   }
 
-  async function confirm({ adminId } = {}) {
+  async function confirm({ adminId, quoteHash } = {}) {
     const admin = await resolveOperator(adminId);
     const options = await listOptions(adminId);
     const connection = await db.connect();
@@ -217,6 +223,7 @@ function createCalendarMultiServiceBookingService({
       );
       const payload = draft.rows[0]?.payload;
       if (!payload) throw multiServiceError('MULTI_SERVICE_NO_PENDING', 'There is no multiple-treatment review waiting to be confirmed.', 409);
+      if(payload.morningOffer && payload.morningOffer.hash!==quoteHash) throw new MorningOfferError('This booking review changed. Review its current total before creating the appointments.');
       const assignments = resolveAssignments(options, (payload.assignments || []).map(item => ({
         serviceId: item.serviceId,
         staffId: item.staffId,
@@ -243,9 +250,10 @@ function createCalendarMultiServiceBookingService({
         const assignment = assignments[index];
         const selected = await connection.query(
           `SELECT sv.id AS service_id,sv.name AS service_name,sv.status AS service_status,
-                  sv.duration_minutes,sv.processing_time_minutes,sv.extra_time_minutes,sv.price,sv.variable_price,
+                  sv.duration_minutes,sv.processing_time_minutes,sv.extra_time_minutes,sv.price,sv.variable_price,sc.name AS category_name,
                   st.id AS staff_id,st.display_name AS staff_name,st.status AS staff_status
              FROM services sv
+             LEFT JOIN service_categories sc ON sc.id=sv.category_id
              JOIN staff_services ss ON ss.service_id=sv.id
              JOIN staff st ON st.id=ss.staff_id
             WHERE sv.id=$1 AND st.id=$2
@@ -283,7 +291,10 @@ function createCalendarMultiServiceBookingService({
         });
       }
 
-      const subtotal = selections.reduce((sum, item) => sum + Number(item.row.price), 0);
+      const offerPricing = morningOffer ? await morningOffer.calendarQuote(selections, selections.map(() => ({ clientId: payload.clientId })),
+        { queryable: connection, lock: true, useOffer: payload.morningOffer?.useOffer ?? true }) : null;
+      if (offerPricing) morningOffer.assertReviewed(offerPricing, payload.morningOffer?.hash, { required: Boolean(payload.morningOffer) });
+      const subtotal = offerPricing ? Number(offerPricing.total) : selections.reduce((sum, item) => sum + Number(item.row.price), 0);
       const groupStartsAt = new Date(Math.min(...selections.map(item => new Date(item.startsAt).getTime()))).toISOString();
       const groupEndsAt = new Date(Math.max(...selections.map(item => new Date(item.endsAt).getTime()))).toISOString();
       const groupResult = await connection.query(
@@ -300,14 +311,15 @@ function createCalendarMultiServiceBookingService({
         const appointment = await connection.query(
           `INSERT INTO appointments(client_id,crm_v2_client_id,source_client_name,location_id,starts_at,ends_at,status,title,notes,total_price,currency,source)
            VALUES(NULL,$1,$2,$3,$4,$5,'scheduled',$6,$7,$8,'ZAR','shiloh_calendar_multi_service') RETURNING id`,
-          [client.id, client.name, payload.locationId, item.startsAt, item.endsAt, item.row.service_name, payload.notes || null, Number(item.row.price)]
+          [client.id, client.name, payload.locationId, item.startsAt, item.endsAt, item.row.service_name, payload.notes || null, offerPricing ? Number(offerPricing.items[index].total) : Number(item.row.price)]
         );
         const appointmentId = Number(appointment.rows[0].id);
+        if (offerPricing) await morningOffer.record(connection, { appointmentId, clientId: client.id, price: offerPricing.items[index] });
         appointmentIds.push(appointmentId);
         await connection.query(
           `INSERT INTO appointment_services(appointment_id,service_id,position,service_name_snapshot,price_snapshot,duration_minutes_snapshot)
            VALUES($1,$2,1,$3,$4,$5)`,
-          [appointmentId, item.row.service_id, item.row.service_name, Number(item.row.price), durationMinutes(item.row)]
+          [appointmentId, item.row.service_id, item.row.service_name, offerPricing ? Number(offerPricing.items[index].total) : Number(item.row.price), durationMinutes(item.row)]
         );
         await connection.query(
           `INSERT INTO appointment_staff(appointment_id,staff_id,position,staff_name_snapshot) VALUES($1,$2,1,$3)`,
@@ -315,7 +327,7 @@ function createCalendarMultiServiceBookingService({
         );
         await connection.query(
           `INSERT INTO appointment_group_members(group_id,appointment_id,guest_position,allocated_price) VALUES($1,$2,$3,$4)`,
-          [groupId, appointmentId, index + 1, Number(item.row.price)]
+          [groupId, appointmentId, index + 1, offerPricing ? Number(offerPricing.items[index].total) : Number(item.row.price)]
         );
         await connection.query(
           `INSERT INTO appointment_status_history(appointment_id,from_status,to_status,changed_by,reason)

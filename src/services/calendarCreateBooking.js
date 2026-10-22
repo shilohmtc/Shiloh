@@ -12,6 +12,7 @@ const {
   allowsBookingTarget,
 } = require('./calendarAuthorization');
 const { normalizeAppointmentNotes } = require('./appointmentNotes');
+const { createMorningWelcomeOfferService, pricingHash } = require('./morningWelcomeOffer');
 
 const BOOKING_TIME_INCREMENT_MINUTES = 5;
 const PRACTITIONER_FIRST_BUSINESS_ROLES = new Set(['owner', 'business_admin', 'booking_operator']);
@@ -115,6 +116,7 @@ function createCalendarCreateBookingService({
   prepareBooking = prepareCalendarV2Booking,
   confirmBooking = confirmCalendarV2Booking,
   cancelBooking = cancelPendingBooking,
+  morningOffer = db === pool ? createMorningWelcomeOfferService({ db }) : null,
 } = {}) {
   if (!db || typeof db.query !== 'function') throw new Error('Calendar Create Booking db is required');
   if (!crmV2Service || typeof crmV2Service.searchClients !== 'function' || typeof crmV2Service.getClientById !== 'function' || typeof crmV2Service.createClient !== 'function') {
@@ -324,7 +326,8 @@ function createCalendarCreateBookingService({
     return { client, resolution };
   }
 
-  async function prepare({ adminId, clientId, newClient, staffId, serviceId, date, time } = {}) {
+  async function prepare({ adminId, clientId, newClient, staffId, serviceId, date, time, useMorningOffer = true } = {}) {
+    if (typeof useMorningOffer !== 'boolean') throw bookingError('CALENDAR_BOOKING_INVALID_OFFER', 'Review the promotional offer choice again.');
     const admin = await resolveOperator(adminId);
     const validatedChoice = validateClientChoice(clientId, newClient);
     const selected = await resolveEligibleSelection(admin, staffId, serviceId);
@@ -340,7 +343,20 @@ function createCalendarCreateBookingService({
     if (result.status !== 'pending_confirmation') return result;
 
     const durationMinutes = Math.max(0, Math.round((new Date(result.endsAt).getTime() - new Date(result.startsAt).getTime()) / 60000));
-    const price = result.service.variable_price
+    let offerPricing = null;
+    if (morningOffer && !result.service.variable_price && result.service.price != null) {
+      offerPricing = await morningOffer.quoteItems([{
+        clientId: result.client.id, serviceId: result.service.id, staffId: result.staff.id,
+        startsAt: result.startsAt, name: result.service.name, category: selected.category_name,
+        price: result.service.price,
+      }], { useOffer: useMorningOffer });
+      const saved = await db.query(`UPDATE admin_booking_sessions SET morning_offer_quote=$2::jsonb
+        WHERE admin_id=$1 AND crm_v2_client_id=$3 AND service_id=$4 AND staff_id=$5 AND starts_at=$6`,
+      [Number(admin.id), JSON.stringify({ quote: offerPricing, hash: pricingHash(offerPricing), useOffer: useMorningOffer }),
+        result.client.id, result.service.id, result.staff.id, result.startsAt]);
+      if (saved.rowCount !== 1) throw bookingError('CALENDAR_BOOKING_REVIEW_CHANGED', 'The pending booking changed. Review it again.');
+    }
+    const price = offerPricing ? `R${offerPricing.total}` : result.service.variable_price
       ? (result.service.price == null ? 'Variable' : `From R${Number(result.service.price).toFixed(2)}`)
       : (result.service.price == null ? 'Not set' : `R${Number(result.service.price).toFixed(2)}`);
     return {
@@ -367,6 +383,7 @@ function createCalendarCreateBookingService({
         endsAt: result.endsAt,
         durationMinutes,
         price,
+        ...(offerPricing ? { offerPricing, quoteHash:pricingHash(offerPricing) } : {}),
       },
     };
   }
@@ -377,7 +394,7 @@ function createCalendarCreateBookingService({
     return { status: cancelled ? 'discarded' : 'no_pending', crmV2ClientRemoved: false };
   }
 
-  async function confirm({ adminId, notes } = {}) {
+  async function confirm({ adminId, notes, quoteHash } = {}) {
     const normalizedNotes = normalizeAppointmentNotes(notes);
     const admin = await resolveOperator(adminId);
     const pending = await pendingBooking(Number(admin.id));
@@ -391,7 +408,7 @@ function createCalendarCreateBookingService({
     ) {
       throw bookingError('CALENDAR_BOOKING_CLIENT_MOBILE_CHANGED', 'The current canonical CRM V2 client/mobile changed. Prepare the booking again.');
     }
-    return confirmBooking(admin, { source: 'shiloh_calendar', notes: normalizedNotes });
+    return confirmBooking(admin, { source: 'shiloh_calendar', notes: normalizedNotes, ...(morningOffer ? {morningOfferReviewHash:quoteHash} : {}) });
   }
 
   return {

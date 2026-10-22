@@ -1,3 +1,4 @@
+const { createMorningWelcomeOfferService, pricingHash, MorningOfferError } = require('./morningWelcomeOffer');
 'use strict';
 
 const { createHash } = require('node:crypto');
@@ -118,7 +119,9 @@ function createMyShilohBookingService({
   depositPolicy = createBookingDepositPolicyService({ db }),
   packages = createWorkspacePackages({ db }),
   now = () => new Date(),
+  morningOffer,
 } = {}) {
+  const offer = morningOffer === undefined ? (db === pool ? createMorningWelcomeOfferService({db,now}) : null) : morningOffer;
   const discardableDraftStates = new Set(['collecting', 'awaiting_confirmation', 'awaiting_policy_acceptance', 'policy_accepted', 'ready_for_handoff']);
   function draftRevision(row) {
     return createHash('sha256').update(JSON.stringify(row)).digest('hex');
@@ -375,6 +378,7 @@ function createMyShilohBookingService({
   }
 
   async function createRequest({
+    quoteHash, useMorningOffer = true,
     crmV2ClientId,
     serviceId,
     staffId,
@@ -390,6 +394,7 @@ function createMyShilohBookingService({
         422,
       );
     }
+    if(typeof useMorningOffer !== 'boolean' || (quoteHash != null && !/^[a-f0-9]{64}$/.test(quoteHash)))throw new MyShilohBookingError('BOOKING_REVIEW_INVALID','Review your booking price again.',422);
     const note = cleanOccasionNote(occasionNote);
     if (typeof specialOccasion !== 'boolean') {
       throw new MyShilohBookingError('BOOKING_OCCASION_CHOICE_REQUIRED', 'Please choose Yes or No for a special occasion.', 422);
@@ -460,7 +465,7 @@ function createMyShilohBookingService({
       if (!accepted) {
         throw new MyShilohBookingError('BOOKING_POLICY_NOT_RECORDED', 'Your booking terms could not be recorded safely. Nothing was booked.', 409);
       }
-      const created = await commitBooking(phone, { crmV2ClientId:Number(client.id) });
+      const created = await commitBooking(phone, { crmV2ClientId:Number(client.id), ...(offer ? {enableMorningOffer:true, pricingReviewHash:quoteHash, useMorningOffer} : {}) });
       if (!created?.handled || created.status !== 'created' || !created.appointmentId) {
         await db.query(
           `DELETE FROM booking_intents WHERE phone=$1 AND created_at=$2 AND policy_channel='my_shiloh'`,
@@ -478,6 +483,7 @@ function createMyShilohBookingService({
       return {
         status: staged.status,
         appointmentId: Number(created.appointmentId),
+        ...(created.pricing ? {pricing:created.pricing} : {}),
         service: service.name,
         practitioner: practitioner.display_name,
         startsAt: exact.startsAt,
@@ -494,9 +500,23 @@ function createMyShilohBookingService({
         `DELETE FROM booking_intents WHERE phone=$1 AND created_at=$2`,
         [phone, inserted.rows[0].created_at],
       ).catch(() => {});
+      if(error instanceof MorningOfferError)throw new MyShilohBookingError(error.code,error.message,409);
       throw error;
     }
   }
+
+  async function review({crmV2ClientId,serviceId,staffId,startsAt,useMorningOffer=true}={}) {
+    const service=await canonicalService(serviceId,crmV2ClientId);
+    const selectedStaff=positiveId(staffId,'BOOKING_PRACTITIONER_INVALID');
+    if(!service.staff.some(row=>Number(row.id)===selectedStaff)) throw new MyShilohBookingError('BOOKING_PRACTITIONER_CHANGED','Choose an available practitioner.',409);
+    const start=exactStart(startsAt);
+    if(start<=now())throw new MyShilohBookingError('BOOKING_SLOT_PASSED','Choose a future appointment time.',409);
+    const items=[{clientId:Number(crmV2ClientId),serviceId:service.id,staffId:selectedStaff,startsAt:start.toISOString(),price:service.price,name:service.name,category:service.category_name,prepaidPackage:Boolean(service.entitlement),variablePrice:service.variable_price}];
+    if(!offer)return {items:[],total:Number(service.price).toFixed(2),discount:'0.00',quoteHash:null};
+    const quote=await offer.quoteItems(items,{useOffer:useMorningOffer});
+    return {...quote,quoteHash:pricingHash(quote)};
+  }
+  async function morningOfferActive() { return Boolean(offer && await offer.activePolicy()); }
 
   async function packageCatalogue({ crmV2ClientId, serviceId }) {
     const service = await canonicalService(serviceId, crmV2ClientId);
@@ -506,7 +526,7 @@ function createMyShilohBookingService({
 
   async function policy() { return depositPolicy.loadPolicy(db); }
 
-  return { catalogue, couplesCatalogue, packageCatalogue, practitioners, slots, createRequest, policy, clientAppEligibleStaff, unfinishedDraft, discardDraft };
+  return { catalogue, couplesCatalogue, packageCatalogue, practitioners, slots, createRequest, policy, clientAppEligibleStaff, unfinishedDraft, discardDraft, review, morningOfferActive };
 }
 
 const service = createMyShilohBookingService();

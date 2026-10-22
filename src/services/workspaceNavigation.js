@@ -1,3 +1,4 @@
+const websiteContent = require('./websiteContent').createWebsiteContentService();
 const workspaceClients = require('./workspaceClients');
 const workspaceStaffAccess = require('./workspaceStaffAccess');
 const workspaceServices = require('./workspaceServices');
@@ -9,6 +10,7 @@ const shilohRewards = require('./shilohRewards').createShilohRewardsService();
 const problemReports = require('./problemReports');
 
 const DESTINATIONS = Object.freeze({
+  website: '/calendar/website',
   dashboard: '/calendar/workspace',
   calendar: '/calendar/read-only?view=week&staff=all&phoneStaff=default',
   clients: '/calendar/clients',
@@ -42,6 +44,7 @@ function staffDestinationFor(service) {
 }
 
 function createWorkspaceNavigationService({
+  websiteAccessService = { resolveAccess:async () => null },
   clientAccessService = workspaceClients,
   staffAccessService = workspaceStaffAccess,
   servicesAccessService = workspaceServices,
@@ -55,7 +58,7 @@ function createWorkspaceNavigationService({
   async function resolve({ session } = {}) {
     const adminId = session?.adminId;
     const calendarAllowed = Boolean(session?.viewer);
-    const [clients, staff, services, forms, reports, clinicHours, vouchers, rewards, problemReportAccess] = await Promise.allSettled([
+    const [clients, staff, services, forms, reports, clinicHours, vouchers, rewards, problemReportAccess, website] = await Promise.allSettled([
       clientAccessService.resolveAccess(adminId),
       resolveStaffAccess(staffAccessService, adminId),
       servicesAccessService.resolveAccess(adminId),
@@ -65,10 +68,12 @@ function createWorkspaceNavigationService({
       voucherAccessService.resolveAccess(adminId),
       rewardsAccessService.resolveAccess(adminId),
       problemReportsAccessService.resolveWorkspaceAccess(adminId),
+      websiteAccessService.resolveAccess(adminId),
     ]);
     const clientsAllowed = clients.status === 'fulfilled' && Boolean(clients.value);
     const staffAllowed = staff.status === 'fulfilled' && Boolean(staff.value);
     return {
+      website: allowedDestination(website.status === 'fulfilled' && Boolean(website.value), 'website'),
       dashboard: allowedDestination(calendarAllowed, 'dashboard'),
       calendar: allowedDestination(calendarAllowed, 'calendar'),
       clients: allowedDestination(clientsAllowed, 'clients'),
@@ -93,7 +98,7 @@ function createWorkspaceNavigationService({
   return { resolve };
 }
 
-const service = createWorkspaceNavigationService({ problemReportsAccessService: problemReports });
+const service = createWorkspaceNavigationService({ problemReportsAccessService: problemReports, websiteAccessService:websiteContent });
 
 module.exports = {
   DESTINATIONS,

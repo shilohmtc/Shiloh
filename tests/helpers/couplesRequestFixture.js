@@ -7,14 +7,14 @@ const START='2030-11-02T08:00:00.000Z';
 const NOW=new Date('2030-10-01T08:00:00Z');
 const OWNER={id:7,business_role:'owner',calendar_scope:'all_business'};
 const GUEST={name:'Synthetic Guest',mobile:'0822345678',consent:true};
-async function setup(t,{db:externalDb=null}={}) {
+async function setup(t,{db:externalDb=null,morningOffer=false,start=START}={}) {
   const pg=externalDb ? null : new PGlite();if(pg)t.after(()=>pg.close());
   const query=externalDb ? (sql,params)=>externalDb.query(sql,params) : async(sql,params)=>{const result=params ? await pg.query(sql,params) : (await pg.exec(sql)).at(-1);return {...result,rowCount:result.rows.length||result.affectedRows||0};};
   const db=externalDb||{query,connect:async()=>({query,release(){}})};
   await query(fs.readFileSync('tests/fixtures/couples-schema.sql','utf8'));
   for(const file of ['084_clean_crm_v2_foundation.sql','120_couples_booking_groups.sql','121_couples_booking_pricing_audit.sql','124_group_bookings_and_optional_discount_note.sql','145_multi_service_client_bookings.sql'])await query(fs.readFileSync('migrations/'+file,'utf8'));
-  await query(`ALTER TABLE services ADD category_id BIGINT;
-    CREATE TABLE service_categories(id BIGINT PRIMARY KEY,name TEXT);
+  await query(`ALTER TABLE services ADD COLUMN IF NOT EXISTS category_id BIGINT;
+    CREATE TABLE IF NOT EXISTS service_categories(id BIGINT PRIMARY KEY,name TEXT);
     ALTER TABLE service_packages ADD id BIGINT;
     CREATE TABLE staff_operational_teams(id BIGINT PRIMARY KEY,display_name TEXT,active BOOLEAN);
     CREATE TABLE staff_operational_team_members(staff_id BIGINT,team_id BIGINT,active BOOLEAN);
@@ -37,11 +37,20 @@ async function setup(t,{db:externalDb=null}={}) {
   await query(fs.readFileSync('migrations/108_workspace_booking_request_resolution.sql','utf8'));
   await query(fs.readFileSync('migrations/159_booking_request_reception_planning.sql','utf8'));
   await query(fs.readFileSync('migrations/163_client_planning_requests.sql','utf8'));
+  if(morningOffer){
+    await query(`CREATE TABLE admin_booking_sessions(admin_id bigint);
+      CREATE TABLE booking_payment_accounts(id bigint PRIMARY KEY,appointment_id bigint);
+      CREATE TABLE booking_welcome_voucher_allocations(id bigserial PRIMARY KEY,booking_payment_account_id bigint,state text DEFAULT 'applied');
+      INSERT INTO service_categories VALUES(1,'Massage');UPDATE services SET category_id=1;`);
+    await query(fs.readFileSync('migrations/199_website_publishing_morning_offer.sql','utf8'));
+    await query("UPDATE website_content_posts SET published=draft WHERE kind='offer'");
+  }
+  const promotion=morningOffer?require('../../src/services/morningWelcomeOffer').createMorningWelcomeOfferService({db,now:()=>NOW}):null;
   const state={unavailable:false,failApproval:false,failPreflight:false,confirmations:[],alerts:[]};
-  const booking={slots:async()=>({slots:[{startsAt:START,time:'10:00',endTime:'11:30'}]}),
+  const booking={slots:async()=>({slots:[{startsAt:start,time:'10:00',endTime:'11:30'}]}),
     couplesCatalogue:async()=>[{id:1,name:'Couples Massage',price:'R1080.01 for two',couplesService:true}],
     practitioners:async()=>({practitioners:[{id:11,name:'Practitioner A'},{id:12,name:'Practitioner B'}]})};
-  const service=createMyShilohMultipleBookingService({db,couples:true,booking,
+  const service=createMyShilohMultipleBookingService({db,couples:true,booking,morningOffer:promotion,
     deposits:{loadPolicy:async()=>({rateBasisPoints:5000,exemptStaffId:null})},ensureApproval:async()=>{},
     stageApproval:async(...args)=>state.failApproval?null:createPendingBookingApproval(...args),
     alert:async input=>state.alerts.push(input),sendConfirmation:async id=>state.confirmations.push(id),
@@ -49,7 +58,7 @@ async function setup(t,{db:externalDb=null}={}) {
     locationProvider:async()=>({id:1}),checkClinic:async()=>({covered:true}),checkSchedule:async()=>({covered:true}),
     conflicts:async()=>state.unavailable?[{}]:[],now:()=>NOW});
   const enquiry=createClientPlanningRequestService({db,couplesBooking:service,now:()=>NOW});
-  const treatments=[11,12].map(staffId=>({serviceId:1,staffId,startsAt:START}));
+  const treatments=[11,12].map(staffId=>({serviceId:1,staffId,startsAt:start}));
   async function input(overrides={}){const value={crmV2ClientId:55,guest:GUEST,treatments,...overrides};const review=await service.review(value);return {...value,quoteHash:review.quoteHash,requestId:'synthetic_couples_request_1',policyAccepted:true,specialOccasion:false};}
   const snapshot=async()=>({appointments:(await query('SELECT * FROM appointments ORDER BY id')).rows,
     approvals:(await query('SELECT * FROM appointment_booking_approvals ORDER BY appointment_id')).rows,
