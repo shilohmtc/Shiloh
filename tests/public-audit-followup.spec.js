@@ -131,6 +131,26 @@ for (const width of [320, 390, 768, 900, 901, 1024, 1100, 1101, 1440]) {
       expect(cards[1].y).toBeGreaterThan(cards[0].y + cards[0].height);
       expect(cards[2].y).toBeGreaterThan(cards[1].y + cards[1].height);
     }
+    // The complete footer name uses the header's lettering without clipping or an orphaned last word.
+    await expect(page.locator('.site-footer-name')).toHaveText('Shiloh Massage & Aesthetic Clinic');
+    const brand = await page.evaluate(() => {
+      const header = getComputedStyle(document.querySelector('.site-brand-name'));
+      const name = document.querySelector('.site-footer-name');
+      const footer = document.querySelector('.site-footer').getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(name);
+      const text = [...range.getClientRects()];
+      const style = getComputedStyle(name);
+      return {
+        sameLettering: ['fontFamily', 'fontSize', 'fontWeight', 'letterSpacing', 'lineHeight'].every(key => style[key] === header[key]),
+        lines: text.length,
+        unclipped: text.every(rect => rect.left >= footer.left && rect.right <= footer.right && rect.top >= footer.top && rect.bottom <= footer.bottom),
+      };
+    });
+    expect(brand.sameLettering).toBe(true);
+    expect(brand.unclipped).toBe(true);
+    expect(brand.lines).toBeLessThanOrEqual(width > 760 ? 1 : 2);
+    await page.locator('.site-footer').screenshot({ path: testInfo.outputPath(`public-footer-name-${width}.png`) });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     const axe = await new AxeBuilder({ page }).include('[data-public-site-story]').analyze();
     expect(axe.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
