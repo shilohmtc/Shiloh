@@ -97,6 +97,23 @@ test('invalid Meta credentials keep the pilot closed while preserved routes rema
   assert.ok(!JSON.stringify(release.status()).includes('synthetic-private-error'));
 });
 
+test('Workspace retains sign-in and automatically resumes after a temporary queue database failure',async t=>{
+  const h=await harness(t),events=[];let fail=false;
+  const db={query:(...args)=>h.db.query(...args),connect:async()=>{if(fail)throw Error('synthetic private DB error');return h.db.connect();}};
+  const release=createWorkspaceWhatsAppRelease({env:configuration(h),db,sessions:h.sessions,now:h.now,
+    workerOptions:{pollMs:100,onStateChange:event=>events.push(event)},
+    fetchImpl:async(url,options)=>{assert.equal(options.method,'GET');return new Response(JSON.stringify({data:url.includes('/phone_numbers')?[{id:'789'}]:[{...template,status:'APPROVED'}]}));}});
+  const http=await serve(t,release);assert.equal((await release.start()).ok,true);fail=true;
+  await assert.doesNotReject(async()=>{const end=Date.now()+5000;while(!events.some(e=>e.event==='worker_recovering')){assert.ok(Date.now()<end);await new Promise(r=>setTimeout(r,10));}});
+  assert.equal(release.status().enabled,true);assert.equal(release.status().worker.state,'recovering');
+  assert.equal((await http.get(BASE+'/')).status,200);
+  fail=false;
+  const end=Date.now()+5000;while(!events.some(e=>e.event==='worker_recovered')){assert.ok(Date.now()<end);await new Promise(r=>setTimeout(r,10));}
+  assert.equal(release.status().enabled,true);assert.equal(release.status().worker.state,'running');
+  assert.doesNotMatch(JSON.stringify(events),/private DB|27820000001/);
+  await release.stop();assert.equal(release.status().enabled,false);assert.equal(release.status().worker.state,'stopped');
+});
+
 test('private participant inspection returns canonical IDs and phone endings without selecting authentication material',async t=>{
   const h=await harness(t);await h.db.query("UPDATE staff_admin_accounts SET display_name=CASE id WHEN 1 THEN 'Christel' ELSE 'Jean-Pierre' END");
   const release=createWorkspaceWhatsAppRelease({env:{SHILOH_WORKSPACE_WHATSAPP_PILOT_INSPECT:'true'},db:h.db});

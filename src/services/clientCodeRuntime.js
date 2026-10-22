@@ -6,7 +6,7 @@ const {createClientCodeStore}=require('./clientCodeStore');
 const {createClientCodeRouter}=require('../routes/clientCodeAuth');
 const {createAuthInvitations}=require('./authInvitations');
 const {validClientBudget}=require('./clientCodeReleasePolicy');
-function createClientCodeRuntime({enabled=false,config={},db,sessions,hmacKey,metaCredentials={},smsCredentials={},fetchImpl,env={},now}={}){
+function createClientCodeRuntime({enabled=false,config={},db,sessions,hmacKey,metaCredentials={},smsCredentials={},fetchImpl,env={},now,workerOptions={}}={}){
   // The staff template must never silently become a client template. The owner
   // must supply a distinct reviewed client contract; no default is fabricated.
   const name=config.template?.name;
@@ -35,7 +35,7 @@ function createClientCodeRuntime({enabled=false,config={},db,sessions,hmacKey,me
       const inventory=await meta.readiness();ready=inventory?.ready===true&&inventory.codeTtlSeconds===300;
       return ready?{ok:true}:{ok:false,code:'CLIENT_TEMPLATE_UNREADY'};
     }catch(_){return {ok:false,code:'CLIENT_RUNTIME_UNAVAILABLE'};}finally{preparing=false;}}
-  return {prepare,stop:()=>{ready=false;preparing=false;},status:()=>({configured:!!configured,enabled:service.enabled()}),service,worker:createWorkspaceWhatsAppWorker({service,enabled}),
+  return {prepare,stop:()=>{ready=false;preparing=false;},status:()=>({configured:!!configured,enabled:service.enabled()}),service,worker:createWorkspaceWhatsAppWorker({service,enabled,...workerOptions}),
     router:createClientCodeRouter({enabled,service,sessions,env,invitations:configured?createAuthInvitations({db,audience:'client'}):null})};
 }
 module.exports={createClientCodeRuntime};
