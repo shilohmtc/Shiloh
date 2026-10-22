@@ -78,11 +78,12 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       const authenticatedAt=new Date(session.authenticatedAt).getTime();
       const freshWhatsApp=session.authMethod==='workspace_whatsapp'&&session.identityRevision===revision(subject)&&Number.isFinite(authenticatedAt)&&authenticatedAt<=current.getTime()&&current.getTime()-authenticatedAt<WINDOW_MS;
       if(freshWhatsApp&&(proof==='code'||proof==='session'))return {result:await tx.issuePasskeyGrant({...binding,reusable:true,expiresAt:new Date(authenticatedAt+WINDOW_MS)})};
-      if(proof==='session')return strongRecentSession(session,current)?{result:await tx.issuePasskeyGrant(binding)}:null;
-      if(proof==='code'&&tx.ownEnrollmentWindow){
+      // A non-sending session probe can reopen the same fixed phone-proof window.
+      if((proof==='code'||proof==='session')&&tx.ownEnrollmentWindow){
         const until=await tx.ownEnrollmentWindow({...binding,sessionId,current});
         if(until)return {result:await tx.issuePasskeyGrant({...binding,reusable:true,expiresAt:until})};
       }
+      if(proof==='session')return strongRecentSession(session,current)?{result:await tx.issuePasskeyGrant(binding)}:null;
       if(proof==='passkey') {
         if(!strongRecentSession(session,current)) return null;
         return {result:await tx.issuePasskeyGrant(binding)};
