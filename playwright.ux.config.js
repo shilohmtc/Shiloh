@@ -67,3 +67,4 @@ module.exports.testMatch.push('owner-phone-polish.spec.js');
 module.exports.testMatch.push("workspace-account-finish.spec.js");
 
 module.exports.testMatch.push('workspace-passkey-enrollment.spec.js');
+module.exports.testMatch.push('calendar-couples-creation.spec.js');

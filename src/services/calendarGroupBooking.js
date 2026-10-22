@@ -392,7 +392,7 @@ function createCalendarGroupBookingService({
           if (exact.rowCount) throw groupError('GROUP_EXISTING_CLIENT', 'That mobile already belongs to a client. Nothing was created; find and select that client instead.', 409);
           const inserted = await client.query(
             `INSERT INTO crm_v2_clients(name,normalized_mobile,date_of_birth,gender,profile_status,mobile_verified_at,source,status,provenance)
-             VALUES($1,$2,$3::date,$4,CASE WHEN $3::date IS NOT NULL AND $4 IS NOT NULL THEN 'registered' ELSE 'minimal' END,NULL,'staff','active',$5::jsonb) RETURNING *`,
+             VALUES($1,$2,$3::date,$4::text,CASE WHEN $3::date IS NOT NULL AND $4::text IS NOT NULL THEN 'registered' ELSE 'minimal' END,NULL,'staff','active',$5::jsonb) RETURNING *`,
             [guest.name, guest.mobile, guest.dateOfBirth, guest.gender, JSON.stringify({ createdVia: 'calendar_group_booking', actorAdminId: Number(admin.id) })]
           );
           row = inserted.rows[0];
