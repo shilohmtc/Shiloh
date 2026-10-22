@@ -10,7 +10,18 @@ const {
   renderPrivacy,
 } = require('../services/publicWebsite');
 
+const { PUBLIC_SITE_ORIGIN } = require('../config/publicOrigins');
+
 const router = express.Router();
+const INDEXABLE_PATHS = ['/', '/treatments', '/about', '/contact', '/visit', '/privacy', '/book'];
+
+// Public discovery only: no client/profile, staff, form, payment or query URLs.
+router.get('/robots.txt', (req, res) => res.type('text/plain').send(
+  `User-agent: *\nAllow: /\nSitemap: ${PUBLIC_SITE_ORIGIN}/sitemap.xml\n`,
+));
+router.get('/sitemap.xml', (req, res) => res.type('application/xml').send(
+  `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${INDEXABLE_PATHS.map(path => `<url><loc>${PUBLIC_SITE_ORIGIN}${path}</loc></url>`).join('')}</urlset>`,
+));
 
 router.get('/', async (req, res) => {
   const catalogue = await getPublicServiceCatalogue();

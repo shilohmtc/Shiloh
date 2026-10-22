@@ -14,6 +14,8 @@ const PUBLIC_WEBSITE_PATHS = new Set([
   '/privacy',
   '/treatments',
   '/visit',
+  '/robots.txt',
+  '/sitemap.xml',
 ]);
 
 function requestHostname(req) {
