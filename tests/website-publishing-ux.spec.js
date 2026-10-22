@@ -1,8 +1,36 @@
 const {test,expect}=require('@playwright/test');
 const AxeBuilder=require('@axe-core/playwright').default;
 const {workspaceNavigationClientScript}=require('../src/presentation/workspaceShell');
+const {workspaceIconClientScript}=require('../src/presentation/workspaceIconClient');
 const {renderEditorialArticle}=require('../src/services/publicWebsite');
 const id='b06a730c-30ec-4245-9f98-2dc8eebbb2d0';
+for(const width of [320,390,700,1440]){
+  test(`Website heading clears the menu and its icon aligns with navigation at ${width}px`,async({page},testInfo)=>{
+    await page.setViewportSize({width,height:900});
+    await page.route('**/calendar/pwa/icon-192.png?*',route=>route.fulfill({path:require('node:path').join(__dirname,'../public/assets/brand/shiloh-mark-192.png'),contentType:'image/png'}));
+    await page.route('**/calendar/workspace/navigation',route=>route.fulfill({json:{website:{allowed:true,href:'/calendar/website'},messages:{allowed:true,href:'/calendar/messages'}}}));
+    await page.goto('/iframe.html?id=website-publishing--website-editor&viewMode=story',{waitUntil:'networkidle'});
+    await page.addScriptTag({content:workspaceNavigationClientScript()});
+    await page.addScriptTag({content:workspaceIconClientScript()});
+    const heading=page.getByRole('heading',{name:'Website',exact:true});
+    if(width<=700){
+      const title=await heading.boundingBox(),menu=await page.getByRole('button',{name:'Open Shiloh Workspace navigation'}).boundingBox();
+      expect(title.x).toBeGreaterThanOrEqual(menu.x+menu.width+8);
+      expect(Math.abs((title.y+title.height/2)-(menu.y+menu.height/2))).toBeLessThan(3);
+    }
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await page.screenshot({path:testInfo.outputPath(`website-heading-${width}.png`),fullPage:true});
+    if(width<=700)await page.getByRole('button',{name:'Open Shiloh Workspace navigation'}).click();
+    const website=page.locator('[data-workspace-destination="website"]');
+    await expect(website.locator('svg.workspace-nav-icon')).toBeVisible();
+    await expect(website).toHaveAttribute('aria-current','page');
+    const siteLabel=await website.locator('.workspace-link-label').boundingBox();
+    const messagesLabel=await page.locator('[data-workspace-destination="messages"] .workspace-link-label').boundingBox();
+    expect(Math.abs(siteLabel.x-messagesLabel.x)).toBeLessThan(1);
+    expect((await new AxeBuilder({page}).include('[data-workspace-navigation-drawer]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`website-navigation-${width}.png`),fullPage:true});
+  });
+}
 for(const width of [390,1440]){
   test(`website stories and accurate ongoing offer are readable at ${width}px`,async({page},testInfo)=>{
     await page.setViewportSize({width,height:900});
