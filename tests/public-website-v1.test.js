@@ -149,8 +149,9 @@ test('home includes a clear My Shiloh install and returning-client entry point',
   assert.match(html, /Keep Shiloh one tap away\./);
   assert.match(html, /href="https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/" data-my-shiloh-install-link>Install My Shiloh<\/a>/);
   assert.equal((html.match(/data-my-shiloh-install-link/g) || []).length, 1);
-  assert.match(html, /On iPhone, use Share → Add to Home Screen in Safari or Chrome/);
-  assert.match(html, /open this page in your browser/);
+  assert.match(html, /sign in with a WhatsApp code or a saved passkey/);
+  assert.doesNotMatch(html, /continue with your Shiloh details/);
+  assert.match(html, /Open My Shiloh for the installation steps for your phone/);
   assert.match(html, /bookings, latest appointment details and Wallet/i);
 });
 
@@ -414,4 +415,47 @@ test('both public menus offer staff the existing Workspace install doorway', () 
   assert.doesNotMatch(html, /href="[^"]*calendar\/workspace/);
   assert.match(html, /class="site-client"[^>]*>My Shiloh<\/a>/);
   assert.match(html, /class="site-book"[^>]*>Book<\/a>/);
+});
+
+
+test('public pages retain app navigation without the repeated app banner', () => {
+  for (const html of [renderHome(catalogue), renderContact(), renderAbout(), renderPrivacy()]) {
+    assert.doesNotMatch(html, /<aside class="welcome-offer"/);
+    assert.match(html, /href="https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/"/);
+    const footer = html.match(/<footer[\s\S]*?<\/footer>/)[0];
+    assert.doesNotMatch(footer, /37 Jacobs Street/);
+    assert.match(html, /37 Jacobs Street/);
+  }
+});
+
+test('public sitemap and robots serve canonical marketing URLs without database access', async t => {
+  const express = require('express');
+  const app = express();
+  const { canonicalHostRedirect } = require('../src/middleware/canonicalHostRedirect');
+  app.use(canonicalHostRedirect);
+  app.use(require('../src/routes/publicWebsite'));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const robots = await fetch(`${origin}/robots.txt`);
+  assert.equal(robots.status, 200);
+  assert.match(robots.headers.get('content-type'), /text\/plain/);
+  assert.match(await robots.text(), /Sitemap: https:\/\/shilohmtc\.co\.za\/sitemap\.xml/);
+  const sitemap = await fetch(`${origin}/sitemap.xml`);
+  assert.equal(sitemap.status, 200);
+  assert.match(sitemap.headers.get('content-type'), /application\/xml/);
+  const xml = await sitemap.text();
+  const urls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]);
+  assert.deepEqual(urls, ['/', '/treatments', '/about', '/contact', '/visit', '/privacy', '/book'].map(path => `https://shilohmtc.co.za${path}`));
+  assert.doesNotMatch(urls.join(' '), /my-shiloh|calendar|forms|payments|\?/);
+  assert.doesNotMatch(xml, /<lastmod>/);
+  for (const path of ['/robots.txt', '/sitemap.xml']) {
+    const response = await fetch(`${origin}${path}`, { headers: { 'x-forwarded-host': 'app.shilohmtc.co.za' }, redirect: 'manual' });
+    assert.equal(response.status, 308);
+    assert.equal(response.headers.get('location'), `https://shilohmtc.co.za${path}`);
+    const head = await fetch(`${origin}${path}`, { method: 'HEAD' });
+    assert.equal(head.status, 200);
+    assert.equal(await head.text(), '');
+  }
 });
