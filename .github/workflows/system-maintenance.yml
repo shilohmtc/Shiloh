@@ -13,6 +13,12 @@ on:
       - scripts/independent-code-backup.js
       - tests/system-maintenance-check.test.js
       - tests/independent-code-backup.test.js
+      - scripts/independent-database-backup.js
+      - scripts/database-backup-drive.js
+      - scripts/database-backup-evidence.js
+      - scripts/database-backup-wrapper-contract.js
+      - tests/database-backup-wrapper-contract.test.js
+      - tests/independent-database-backup.test.js
       - .github/workflows/system-maintenance.yml
 
 permissions:
@@ -36,7 +42,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - name: Test maintenance failure handling
-        run: node --test tests/system-maintenance-check.test.js tests/independent-code-backup.test.js
+        run: node --test tests/system-maintenance-check.test.js tests/independent-code-backup.test.js tests/independent-database-backup.test.js tests/database-backup-wrapper-contract.test.js
       - name: Fetch current branch and tag inventory
         if: github.event_name != 'pull_request'
         run: git fetch origin '+refs/heads/*:refs/remotes/origin/*' --tags
@@ -63,6 +69,11 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: shiloh-maintenance-${{ github.run_id }}
-          path: artifacts/system-maintenance/
+          # Only reviewed report outputs and Git checkpoints; no raw database receipts or archives.
+          path: |
+            artifacts/system-maintenance/report.json
+            artifacts/system-maintenance/report.md
+            artifacts/system-maintenance/code-snapshot.json
+            artifacts/system-maintenance/shiloh-*.bundle
           retention-days: 30
           if-no-files-found: error
