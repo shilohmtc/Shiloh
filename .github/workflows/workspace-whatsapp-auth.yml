@@ -20,6 +20,7 @@ on:
       - 'src/services/authInvitations.js'
       - 'src/routes/clientCodeAuth.js'
       - 'src/presentation/clientCodeUx.js'
+      - 'public/my-shiloh/assets/app.js'
       - 'src/presentation/authInvitations.js'
       - 'docs/proposed-migrations/client_code_auth.sql'
       - 'tests/client-code-auth.test.js'

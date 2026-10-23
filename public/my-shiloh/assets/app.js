@@ -9,6 +9,8 @@
   const installGateAction = document.querySelector('[data-install-gate-action]');
   const installGateTitle = document.querySelector('[data-install-gate-title]');
   const installGateCopy = document.querySelector('[data-install-gate-copy]');
+  const desktopHandoff = document.querySelector('[data-install-desktop-handoff]');
+  const installSequence = document.querySelector('[data-install-gate-sequence]');
   const installGateStatus = document.querySelector('[data-install-gate-status]');
   const websiteTreatmentHandoff = document.querySelector('[data-website-treatment-handoff]');
   const treatmentCodeCopy = document.querySelector('[data-copy-treatment-code]');
@@ -251,7 +253,13 @@
     const browserGated = browserNeedsInstall();
     document.documentElement.dataset.myShilohMode = browserGated ? 'browser' : 'standalone';
     if (installGate) installGate.hidden = !browserGated;
-    const showWebsiteTreatment = browserGated && window.location.hash === '#book-online'
+    // iPad Safari can request the desktop user agent while retaining touch.
+    const ipadDesktopMode = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    const desktop = !isIos() && !isAndroid() && !ipadDesktopMode;
+    if (desktopHandoff) desktopHandoff.hidden = !browserGated || !desktop;
+    if (installGateAction) installGateAction.hidden = browserGated && desktop;
+    if (installSequence) installSequence.hidden = browserGated && desktop;
+    const showWebsiteTreatment = browserGated && !desktop && window.location.hash === '#book-online'
       && /^[1-9]\d{0,11}$/.test(websiteTreatmentHandoff?.dataset.serviceCode || '');
     if (websiteTreatmentHandoff) websiteTreatmentHandoff.hidden = !showWebsiteTreatment;
     if (installGateStatus) installGateStatus.hidden = showWebsiteTreatment;
@@ -262,6 +270,12 @@
 
     installGateAction?.classList.toggle('button--primary', !showWebsiteTreatment);
     installGateAction?.classList.toggle('button--soft', showWebsiteTreatment);
+
+    if (desktop) {
+      if (installGateTitle) installGateTitle.textContent = 'Continue your booking on your phone.';
+      if (installGateCopy) installGateCopy.textContent = 'My Shiloh bookings are requested in the installed phone app. You can also contact Reception from this computer.';
+      return;
+    }
 
     if (showWebsiteTreatment) {
       if (installGateTitle) installGateTitle.textContent = 'Continue your chosen treatment in My Shiloh.';
@@ -503,6 +517,17 @@
       return;
     }
     openInstallGuide();
+  });
+
+  document.querySelector('[data-copy-phone-link]')?.addEventListener('click', async () => {
+    const link = document.querySelector('[data-desktop-phone-link]');
+    const status = document.querySelector('[data-copy-phone-link-status]');
+    try {
+      await navigator.clipboard.writeText(link.href);
+      if (status) status.textContent = 'Phone link copied. Open it on your phone to continue.';
+    } catch (_) {
+      if (status) status.textContent = 'Copy the phone link shown above, then open it on your phone.';
+    }
   });
 
   treatmentCodeCopy?.addEventListener('click', async () => {

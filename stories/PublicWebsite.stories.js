@@ -183,6 +183,8 @@ export const CataloguePresentationReview = {
   render: () => productionPage(renderBookingPage('27830000000', [
     { id: 1001, name: 'Lymphatic Drainage Session', category: 'Massage', duration: '60 min', price: '650', description: '' },
     { id: 1002, name: 'Young Guest Back &amp;!Neck Massage(age8–15)', category: 'Massage', duration: '30 min', price: 'R250', description: '' },
+    { id: 1004, name: 'Young Guest Pedi', category: 'Massage', duration: '30 min', price: 'R200', description: '' },
+    { id: 1005, name: 'Young Guest Back &!Neck Massage', category: 'Massage', duration: '30 min', price: 'R250', description: '' },
     { id: 1003, name: 'Preview massage', category: 'Massage', duration: '60 min', price: 'Price on request', description: 'Synthetic comparison description. Clinic descriptions remain authoritative.' },
   ])),
 };

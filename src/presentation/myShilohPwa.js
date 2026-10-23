@@ -9,6 +9,7 @@ const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 const { renderCouplesBookingChoice } = require('./myShilohBookingActions');
 
+const { APP_ORIGIN } = require('../config/publicOrigins');
 const { APP_VERSION, appRelease } = require('./appRelease');
 const MY_SHILOH_ASSET_VERSION = appRelease();
 
@@ -102,6 +103,7 @@ function renderMyShilohPage({
   const authenticated = Boolean(client?.id && client?.firstName);
   const selectedService = /^[1-9]\d*$/.test(String(selectedServiceId || ''))
     ? sanitizePublicCatalogue(catalogue).find((service) => String(service.id) === String(selectedServiceId)) : null;
+  const phoneBookingLink = `${APP_ORIGIN}/my-shiloh/${selectedService ? `?service=${encodeURIComponent(selectedService.id)}` : ''}#book-online`;
   const bookingsHelpHref = authenticated ? '#shiloh' : speakToReception;
   const bookingsHelpLabel = !authenticated ? 'Ask Reception'
     : 'Ask Shiloh';
@@ -386,7 +388,16 @@ function renderMyShilohPage({
         <p role="status" data-copy-treatment-status></p>
       </div>` : ''}
       <button class="button button--primary button--wide" type="button" data-install-gate-action>Install My Shiloh</button>
-      <p class="install-gate__sequence">After installing, open My Shiloh from your Home Screen. ${detailsRetired ? signInCopy : crmAvailable ? 'Sign in with your Shiloh details, or use your saved passkey.' : 'Sign-in is temporarily unavailable. Contact Reception for help.'}</p>
+      <section data-install-desktop-handoff hidden aria-label="Continue on your phone">
+        ${selectedService ? `<p>Your website choice: <strong>${escapeHtml(selectedService.name)}</strong></p>` : ''}
+        <p>Open this link on your phone, add My Shiloh to your Home Screen, then sign in to request your booking.</p>
+        <p><a href="${escapeHtml(phoneBookingLink)}" data-desktop-phone-link style="overflow-wrap:anywhere">${escapeHtml(phoneBookingLink)}</a></p>
+        <button class="button button--soft button--wide" type="button" data-copy-phone-link>Copy phone link</button>
+        <p role="status" data-copy-phone-link-status></p>
+        <p>Prefer help from a person?</p>
+        <a class="button button--soft button--wide" href="${escapeHtml(speakToReception)}" rel="noopener noreferrer">Message Reception on WhatsApp</a>
+      </section>
+      <p class="install-gate__sequence" data-install-gate-sequence>After installing, open My Shiloh from your Home Screen. ${detailsRetired ? signInCopy : crmAvailable ? 'Sign in with your Shiloh details, or use your saved passkey.' : 'Sign-in is temporarily unavailable. Contact Reception for help.'}</p>
       <p class="install-gate__status" data-install-gate-status aria-live="polite"></p>
     </section>
   </main>

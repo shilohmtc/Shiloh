@@ -17,6 +17,12 @@ for (const width of [390, 1440]) {
     await expect(card.locator('.service-description')).toHaveCount(0);
     await expect(card.getByRole('link')).toHaveAttribute('href', '/my-shiloh/book?service=1001');
     await expect(page.locator('#service-1002 h3')).toHaveText('Young Guest Back & Neck Massage (age 8–15)');
+    await expect(page.locator('#service-1005 h3')).toHaveText('Young Guest Back & Neck Massage');
+    const footCare = page.locator('.category').filter({ has: page.locator('#service-1004') });
+    await expect(footCare.locator('h2')).toHaveText('Pedicures & Foot Care');
+    await expect(page.locator('#service-1004 .meta strong')).toHaveText('R200');
+    await expect(page.locator('#service-1004 a')).toHaveAttribute('href', '/my-shiloh/book?service=1004');
+    await page.locator('#service-1004').screenshot({ path: testInfo.outputPath(`young-guest-pedi-${width}.png`) });
     await expect(page.locator('#service-1003 .meta strong')).toHaveText('Price on request');
     // No invented description or space reserved for absent clinical copy.
     const geometry = await card.evaluate(node => {
@@ -32,7 +38,7 @@ for (const width of [390, 1440]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const axe = await new AxeBuilder({ page }).analyze();
     expect(axe.violations.filter(v => ['critical', 'serious'].includes(v.impact))).toEqual([]);
-    await page.locator('.category').screenshot({ path: testInfo.outputPath(`catalogue-${width}.png`) });
+    await page.locator('.category').first().screenshot({ path: testInfo.outputPath(`catalogue-${width}.png`) });
     // A refresh or browser Back must retain the same public service handoff.
     await page.reload({ waitUntil: 'networkidle' });
     await expect(page.locator('#service-1001 a')).toHaveAttribute('href', '/my-shiloh/book?service=1001');

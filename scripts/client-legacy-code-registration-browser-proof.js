@@ -37,6 +37,9 @@ async function main(){
       }
       await verifyNumber();await page.getByRole('heading',{name:'Your details',exact:true}).waitFor();
       assert.equal(await page.locator('#start').isVisible(),false);
+      assert.deepEqual(await page.getByLabel('Gender',{exact:true}).locator('option').evaluateAll(options=>options.map(o=>({value:o.value,label:o.textContent}))),[{value:'',label:'Choose'},{value:'female',label:'Female'},{value:'male',label:'Male'}]);
+      assert.equal(await page.getByLabel('Gender',{exact:true}).inputValue(),'');
+      assert.equal(await page.getByLabel('Gender',{exact:true}).getAttribute('required'),'');
       assert.equal((await h.db.query('SELECT * FROM crm_v2_clients')).rows.length,0);
       assert.equal((await h.db.query('SELECT * FROM client_browser_sessions')).rows.length,0);
       assert.deepEqual((await new AxeBuilder({page}).analyze()).violations,[]);
