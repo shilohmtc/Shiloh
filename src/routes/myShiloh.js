@@ -653,6 +653,26 @@ function createMyShilohRouter({
     } catch (error) { return next(error); }
   });
 
+  router.post('/my-shiloh/auth/passkeys/devices/rename', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
+    try {
+      setNoStoreJson(res);
+      const result = await passkeyEnrollmentService.rename({
+        session: req.myShilohClientSession,
+        credentialId: req.body?.credentialId,
+        label: req.body?.label,
+        requestFingerprintHash: requestFingerprintHash(req),
+      });
+      if (!result.ok) {
+        const status = result.code === 'CLIENT_PASSKEY_LABEL_INVALID' ? 400 :
+          result.code === 'CLIENT_RECENT_AUTH_REQUIRED' ? 428 :
+            result.code === 'CLIENT_PASSKEY_INVALID' ? 404 : 503;
+        return res.status(status).json({error: status === 400 ? 'Use a passkey name with 1 to 48 characters.' :
+          status === 428 ? 'Your sign-in has expired. Please sign in again.' : 'Could not rename this passkey.', requestId: req.id});
+      }
+      return res.status(200).json({ renamed: true, label: result.label });
+    } catch (error) { return next(error); }
+  });
+
   router.post('/my-shiloh/auth/passkeys/devices/revoke', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
     try {
       setNoStoreJson(res);

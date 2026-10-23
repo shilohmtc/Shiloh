@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 const { pool } = require('../db/pool');
 const { sha256, normalizedFingerprint } = require('./clientBrowserSession');
-const { verifyRegistrationResponse } = require('./staffPasskeyAuth');
+const { verifyRegistrationResponse, normalizeDeviceLabel } = require('./staffPasskeyAuth');
 const { APP_ORIGIN } = require('../config/publicOrigins');
 
 const FEATURE_FLAG = 'SHILOH_CLIENT_PASSKEY_AUTH_ENABLED';
@@ -284,6 +284,46 @@ function createClientPasskeyEnrollmentService({
     })) };
   }
 
+  async function rename({ session, credentialId, label, requestFingerprintHash = null } = {}) {
+    const p = policy();
+    if (!p.operational) return unavailable(p);
+    if (!enrollmentClientSession(session)) return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
+    const normalizedLabel = normalizeDeviceLabel(label);
+    if (!Number.isSafeInteger(credentialId) || credentialId <= 0 || !normalizedLabel) {
+      return { ok: false, code: 'CLIENT_PASSKEY_LABEL_INVALID' };
+    }
+    const client = typeof db.connect === 'function' ? await db.connect() : db;
+    try {
+      await client.query('BEGIN');
+      if (!(await liveStoredClientSession(client, session, now()))) {
+        await client.query('ROLLBACK'); return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
+      }
+      const found = await client.query(`SELECT id,device_label FROM client_auth_passkey_credentials
+        WHERE id=$1 AND crm_v2_client_id=$2 AND revoked_at IS NULL FOR UPDATE`, [credentialId, session.crmV2ClientId]);
+      if (found.rowCount !== 1) {
+        await client.query('ROLLBACK'); return { ok: false, code: 'CLIENT_PASSKEY_INVALID' };
+      }
+      if (!(await liveStoredClientSession(client, session, now()))) {
+        await client.query('ROLLBACK'); return { ok: false, code: 'CLIENT_RECENT_AUTH_REQUIRED' };
+      }
+      if (found.rows[0].device_label !== normalizedLabel) {
+        await client.query(`UPDATE client_auth_passkey_credentials SET device_label=$3
+          WHERE id=$1 AND crm_v2_client_id=$2 AND revoked_at IS NULL`, [credentialId, session.crmV2ClientId, normalizedLabel]);
+        await client.query(`INSERT INTO client_auth_security_events
+          (event_type,crm_v2_client_id,session_id,request_fingerprint_hash,metadata)
+          VALUES ('passkey_label_updated',$1,$2,$3,$4::jsonb)`,
+        [session.crmV2ClientId,session.sessionId,normalizedFingerprint(requestFingerprintHash),JSON.stringify({credentialReference:`passkey:${credentialId}`})]);
+      }
+      await client.query('COMMIT');
+      return { ok: true, id: credentialId, label: normalizedLabel };
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+      throw error;
+    } finally {
+      if (client !== db && typeof client.release === 'function') client.release();
+    }
+  }
+
   async function revoke({ session, credentialId, requestFingerprintHash = null } = {}) {
     const p = policy();
     if (!p.operational) return unavailable(p);
@@ -336,7 +376,7 @@ function createClientPasskeyEnrollmentService({
     }
   }
 
-  return { policy, begin, finish, list, revoke };
+  return { policy, begin, finish, list, rename, revoke };
 }
 
 module.exports = { FEATURE_FLAG, CHALLENGE_TTL_MS, RECENT_SESSION_MS,

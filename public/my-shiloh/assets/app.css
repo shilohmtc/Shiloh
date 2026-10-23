@@ -455,3 +455,10 @@ h3{font-size:20px;line-height:1.12}
 .iphone-control-more{box-sizing:border-box;padding:3px;border-radius:50%;background:#526159;color:#fff}
 .iphone-guide-copy{min-width:0;padding-top:2px}.iphone-guide-copy>strong{display:block!important;margin:0 0 3px!important;color:#20322b;font-size:14px!important;line-height:1.35!important}.iphone-guide-copy>span{display:block;margin:0!important;color:#5e7067;font-size:12px!important;line-height:1.4!important;overflow-wrap:anywhere}
 .iphone-guide-finish{margin:10px 0 12px!important;color:#52675a;font-size:12px;line-height:1.4}
+
+.passkey-device{flex-wrap:wrap}
+.passkey-device>div:first-child{flex:1;min-width:0}
+.passkey-device strong{overflow-wrap:anywhere}
+.passkey-device-actions{display:flex;flex-wrap:wrap;gap:8px}
+.passkey-rename{flex-basis:100%;width:100%;display:grid;gap:10px}
+@media(max-width:480px){.passkey-device-actions{width:100%}.passkey-device-actions .button{flex:1}}

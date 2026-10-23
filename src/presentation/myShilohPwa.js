@@ -225,6 +225,7 @@ function renderMyShilohPage({
         <button class="button button--soft button--wide" type="button" data-passkey-enroll>Save a passkey</button>
         <p class="profile-editor__status" data-passkey-enroll-status role="status" aria-live="polite"></p>
         <h3>Your saved passkeys</h3>
+        <p>Choose names you recognise. Synced passkeys can be available on more than one device.</p>
         <div data-passkey-devices aria-live="polite">Loading saved passkeys…</div>
         <p class="profile-editor__status" data-passkey-device-status role="status" aria-live="polite"></p>
       </section>` : ''}

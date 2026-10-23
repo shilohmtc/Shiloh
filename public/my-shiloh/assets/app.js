@@ -1195,7 +1195,56 @@
         remove.textContent = 'Remove';
         remove.setAttribute('aria-label', `Remove ${title.textContent} passkey`);
         remove.addEventListener('click', () => revokePasskeyDevice(device.id, title.textContent, remove));
-        item.append(detail, remove);
+        const actions = document.createElement('div');
+        actions.className = 'passkey-device-actions';
+        const rename = document.createElement('button');
+        rename.type = 'button';
+        rename.className = 'button button--soft';
+        rename.textContent = 'Rename';
+        rename.setAttribute('aria-label', `Rename ${title.textContent} passkey`);
+        const editor = document.createElement('form');
+        editor.className = 'passkey-rename';
+        editor.hidden = true;
+        const field = document.createElement('label');
+        field.className = 'profile-field';
+        const fieldName = document.createElement('span');
+        fieldName.textContent = 'Passkey name';
+        const input = document.createElement('input');
+        input.type = 'text'; input.maxLength = 48; input.required = true; input.autocomplete = 'off';
+        field.append(fieldName, input);
+        const editorActions = document.createElement('div');
+        editorActions.className = 'passkey-device-actions';
+        const save = document.createElement('button');
+        save.type = 'submit'; save.className = 'button button--soft'; save.textContent = 'Save name';
+        const cancel = document.createElement('button');
+        cancel.type = 'button'; cancel.className = 'button button--soft'; cancel.textContent = 'Cancel';
+        const status = document.createElement('p');
+        status.className = 'profile-editor__status'; status.setAttribute('role', 'status');
+        let saving = false;
+        const closeEditor = () => { editor.hidden = true; actions.hidden = false; rename.focus(); };
+        rename.addEventListener('click', () => {
+          if (passkeyDeviceStatus) passkeyDeviceStatus.textContent = '';
+          input.value = title.textContent; status.textContent = ''; editor.hidden = false; actions.hidden = true; input.focus(); input.select();
+        });
+        cancel.addEventListener('click', () => { if (!saving) closeEditor(); });
+        editor.addEventListener('submit', async event => {
+          event.preventDefault(); if (saving) return;
+          saving = true; input.disabled = true; save.disabled = true; cancel.disabled = true; status.textContent = 'Saving name…';
+          try {
+            const token = await freshCsrfToken();
+            const response = await postJson('/my-shiloh/auth/passkeys/devices/rename', { credentialId: device.id, label: input.value }, { 'x-shiloh-csrf-token': token });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || !result.renamed || typeof result.label !== 'string') throw new Error(result.error || 'Could not rename this passkey.');
+            title.textContent = result.label; device.label = result.label;
+            rename.setAttribute('aria-label', `Rename ${result.label} passkey`);
+            remove.setAttribute('aria-label', `Remove ${result.label} passkey`);
+            if (passkeyDeviceStatus) passkeyDeviceStatus.textContent = 'Passkey name saved.';
+            closeEditor();
+          } catch (error) { status.textContent = error.message || 'Could not rename this passkey.'; }
+          finally { saving = false; input.disabled = false; save.disabled = false; cancel.disabled = false; if (!editor.hidden) input.focus(); }
+        });
+        editorActions.append(save, cancel); editor.append(field, editorActions, status);
+        actions.append(rename, remove); item.append(detail, actions, editor);
         list.append(item);
       }
       passkeyDevices.append(list);
