@@ -1776,7 +1776,7 @@ test('Desktop Book menu exposes every authorized booking and availability action
   for (const label of ['New appointment', 'Couples massage', 'Record past appointment', 'Block time', 'Leave']) {
     await expect(menu.getByText(label, { exact: true })).toBeVisible();
   }
-  await expect(menu.getByRole('link', { name: /Book a Couples Massage/ })).toHaveAttribute('href', '/calendar/book/couples?date=2026-09-14');
+  await expect(menu.getByRole('link', { name: 'Couples massage 2 guests', exact: true })).toHaveAttribute('href', '/calendar/book/couples?date=2026-09-14');
   await expect(menu.getByRole('separator', { name: 'Availability controls' })).toBeVisible();
   const metrics = await menu.locator('a,button').evaluateAll((nodes) => ({
     labels: nodes.map(node => node.textContent.trim()),
