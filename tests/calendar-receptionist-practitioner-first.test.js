@@ -46,6 +46,6 @@ test('#963 switching practitioners retains shared services and clears incompatib
 test('#963 final prepare continues to submit one exact treatment and practitioner for server recheck', () => {
   const script = calendarCreateBookingClientScript();
   assert.match(script, /var serviceId=Number\(el\('#service-select'\)\.value\);var staffId=Number\(el\('#staff-select'\)\.value\)/);
-  assert.match(script, /var payload=\{serviceId:serviceId,staffId:staffId,date:date,time:time\}/);
+  assert.match(script, /var payload=\{serviceId:serviceId,staffId:staffId,date:date,time:time,useMorningOffer:useMorningOffer\}/);
   assert.match(script, /Rechecking the client, treatment, practitioner and availability/);
 });

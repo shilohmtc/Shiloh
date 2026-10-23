@@ -6,9 +6,16 @@ const {createWorkspaceWhatsAppStore} = require('./workspaceWhatsAppStore');
 const {createWorkspaceWhatsAppRouter} = require('../routes/workspaceWhatsAppAuth');
 const {createAuthInvitations} = require('./authInvitations');
 
-function createWorkspaceWhatsAppWorker({service,enabled = false,pollMs = 1000,batchSize = 10} = {}) {
-  let busy = false;
-  const configured = () => enabled === true && service?.enabled?.() === true && Number.isInteger(pollMs) && pollMs >= 100 && pollMs <= 60000 && Number.isInteger(batchSize) && batchSize >= 1 && batchSize <= 100;
+function createWorkspaceWhatsAppWorker({service,enabled = false,pollMs = 1000,batchSize = 10,
+  retryMaxMs = Math.max(30000,pollMs),onStateChange = () => {}} = {}) {
+  let busy = false, running = false, state = 'idle', consecutiveFailures = 0, retryDelayMs = 0;
+  const configured = () => enabled === true && service?.enabled?.() === true && Number.isInteger(pollMs) && pollMs >= 100 && pollMs <= 60000 && Number.isInteger(batchSize) && batchSize >= 1 && batchSize <= 100 && Number.isInteger(retryMaxMs) && retryMaxMs >= pollMs && retryMaxMs <= 60000;
+  const status = () => ({state,consecutiveFailures,retryDelayMs});
+  function report(event) {
+    // Only fixed event names and counters cross the diagnostic boundary. A DB
+    // error may contain credentials or client data; never pass it to observers.
+    try { if(typeof onStateChange === 'function') onStateChange({event,...status()}); } catch (_) { /* Diagnostics cannot stop delivery. */ }
+  }
   async function runOnce({signal} = {}) {
     if (!configured()) return {ok:false,code:'WORKER_DISABLED',processed:0};
     if (busy) return {ok:false,code:'WORKER_BUSY',processed:0};
@@ -28,14 +35,33 @@ function createWorkspaceWhatsAppWorker({service,enabled = false,pollMs = 1000,ba
     // An explicit abort signal is required; constructing/importing never starts
     // timers or delivery. Operators can stop between bounded provider attempts.
     if (!signal || !configured()) return {ok:false,code:'WORKER_DISABLED'};
-    while (!signal.aborted) {
-      const result = await runOnce({signal});
-      if (!result.ok) return result;
-      try { await delay(pollMs,undefined,{signal}); } catch (_) { break; }
+    if (running) return {ok:false,code:'WORKER_BUSY'};
+    running = true; state = 'running';
+    try {
+      while (!signal.aborted) {
+        const result = await runOnce({signal});
+        if (signal.aborted) break;
+        if (result.code === 'WORKER_DISABLED') { state = 'disabled'; report('worker_disabled'); return result; }
+        if (!result.ok) {
+          consecutiveFailures++;
+          retryDelayMs = Math.min(retryMaxMs,pollMs * 2 ** Math.min(consecutiveFailures - 1,16));
+          state = 'recovering';
+          if (consecutiveFailures === 1 || consecutiveFailures % 10 === 0) report('worker_recovering');
+        } else {
+          if (consecutiveFailures) { state = 'running'; retryDelayMs = 0; report('worker_recovered'); }
+          consecutiveFailures = 0; retryDelayMs = 0;
+        }
+        // Resume queue polling only. dispatchOne commits each claim before any
+        // send, so a claimed/uncertain message is never replayed by this loop.
+        try { await delay(retryDelayMs || pollMs,undefined,{signal}); } catch (_) { break; }
+      }
+      state = 'stopped'; retryDelayMs = 0;
+      return {ok:true,stopped:true};
+    } finally {
+      running = false;
     }
-    return {ok:true,stopped:true};
   }
-  return {runOnce,run};
+  return {runOnce,run,status};
 }
 
 // Explicit composition: no process.env, global fetch, default database or

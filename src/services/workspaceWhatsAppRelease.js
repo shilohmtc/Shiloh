@@ -21,7 +21,7 @@ function parseManifest(value,section='pilot') {
     return manifest;
   } catch (_) {return null;}
 }
-function createWorkspaceWhatsAppRelease({env={},db,sessions,fetchImpl,close=async()=>{},now}={}) {
+function createWorkspaceWhatsAppRelease({env={},db,sessions,fetchImpl,close=async()=>{},now,workerOptions={}}={}) {
   const staffRequested=env[STAFF_ENABLED]==='true',pilotRequested=env[ENABLED]==='true';
   const mode=staffRequested?'staff':'pilot',manifestKey=staffRequested?STAFF_MANIFEST:MANIFEST;
   const manifest=parseManifest(env[manifestKey],mode);
@@ -32,7 +32,7 @@ function createWorkspaceWhatsAppRelease({env={},db,sessions,fetchImpl,close=asyn
   const missing=[...(!manifest?[manifestKey]:[]),...(!(typeof token==='string' && token.length>0)?[TOKEN]:[]),...(!key?[KEY]:[])];
   const channel=(staffRequested?createWorkspaceWhatsAppStaff:createWorkspaceWhatsAppPilot)({enabled:requested && !conflict && missing.length===0,
     ...(staffRequested?{staff:manifest?.staff}:{pilot:{...manifest?.pilot,recoveryEnabled:false}}),config:{...manifest,smsFallbackEnabled:false},
-    env,db,sessions,fetchImpl,hmacKey:key,metaCredentials:{accessToken:token},...(now?{now}:{})});
+    env,db,sessions,fetchImpl,workerOptions,hmacKey:key,metaCredentials:{accessToken:token},...(now?{now}:{})});
   const status=()=>({...channel.status(),mode,requested,detailsSigninRetired:staffDetailsRetired(env),missing:[...missing],...(conflict?{configurationError:'STAFF_PILOT_MODE_CONFLICT'}:{}),...(staffReadiness?{staffReadiness}: {})});
   async function inspectParticipants() {
     if(env.SHILOH_WORKSPACE_WHATSAPP_PILOT_INSPECT!=='true')return {enabled:false};

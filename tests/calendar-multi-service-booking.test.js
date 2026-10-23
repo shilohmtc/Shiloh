@@ -126,7 +126,7 @@ test('final confirmation creates every treatment atomically and queues one combi
       if (text.includes('pg_advisory_xact_lock')) return { rows: [{}], rowCount: 1 };
       if (text.includes('FROM crm_v2_clients WHERE id=$1 FOR UPDATE')) return { rows: [{ id: 55, name: 'Christa', normalized_mobile: '27821234567', status: 'active' }], rowCount: 1 };
       if (text.includes("FROM locations WHERE id=$1 AND status='active'")) return { rows: [{ id: 1 }], rowCount: 1 };
-      if (text.includes('FROM services sv JOIN staff_services')) return { rows: [serviceRows[Number(params[0])]], rowCount: 1 };
+      if (text.includes('FROM services sv') && text.includes('JOIN staff_services')) return { rows: [serviceRows[Number(params[0])]], rowCount: 1 };
       if (text.includes("AT TIME ZONE 'Africa/Johannesburg')::date::text AS local_date")) {
         return { rows: [{ local_date: '2099-09-22', local_end_date: '2099-09-22', local_start: '09:00:00', local_end: '10:00:00' }], rowCount: 1 };
       }

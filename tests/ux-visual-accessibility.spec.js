@@ -1,3 +1,4 @@
+const { APP_VERSION } = require('../src/presentation/appRelease');
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { buildClientExperience } = require('../src/services/myShilohExperienceOrchestrator');
@@ -25,7 +26,7 @@ test('Workspace refresh keeps cancelled edits and offline pages, and icons prese
 
       await report.scrollIntoViewIfNeeded();
       await page.screenshot({ path: testInfo.outputPath(`workspace-badge-${viewport.name}-${iconsFirst ? 'icons-first' : 'badge-first'}.png`), fullPage: true });
-      const refresh = page.getByRole('button', { name: 'Refresh Workspace', exact: true });
+      const refresh = page.getByRole('button', { name: `Refresh Workspace Version ${APP_VERSION}`, exact: true });
       await refresh.scrollIntoViewIfNeeded();
       const size = await refresh.boundingBox();
       expect(size.height).toBeGreaterThanOrEqual(44);
@@ -1957,10 +1958,8 @@ for (const viewport of [
       await expect(surface.getByRole('heading', { level: 1 })).toBeVisible();
       await expect(surface.locator('a[href="/book"]').first()).toBeAttached();
       await expect(surface.locator('a[href="https://app.shilohmtc.co.za/my-shiloh/"]').first()).toBeAttached();
-      if (name !== 'book') {
-        await expect(surface.locator('.welcome-offer')).toContainText('Your bookings, latest appointment details and Wallet in one place.');
-        await expect(surface.locator('.welcome-offer')).not.toContainText(/R100|welcome voucher|first-time registrations/);
-      }
+      await expect(surface.locator('.welcome-offer')).toHaveCount(0);
+      await expect(surface).not.toContainText(/R100|welcome voucher|first-time registrations/);
 
       if (name === 'contact') {
         const entry = surface.locator('[data-my-shiloh-contact-entry]');
@@ -4011,9 +4010,9 @@ test('retired welcome offer stays absent on public pages and My Shiloh registrat
     await page.setViewportSize(viewport);
     for (const story of ['home', 'contact']) {
       await page.goto(`/iframe.html?id=public-website-production-pages--${story}&viewMode=story`, { waitUntil: 'networkidle' });
-      await expect(page.locator('.welcome-offer')).toContainText('Meet My Shiloh');
+      await expect(page.locator('.welcome-offer')).toHaveCount(0);
       await expect(page.locator('body')).not.toContainText('R100');
-      const axe = await new AxeBuilder({ page }).include('.welcome-offer').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+      const axe = await new AxeBuilder({ page }).include('[data-public-site-story]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
       expect(axe.violations.filter(item => ['serious', 'critical'].includes(item.impact))).toEqual([]);
       await page.screenshot({ path: testInfo.outputPath(`retired-offer-public-${story}-${viewport.name}.png`), fullPage: true });
     }

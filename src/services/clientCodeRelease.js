@@ -18,16 +18,16 @@ function parseClientManifest(value) {
 
 // Explicit composition: disabled construction performs no database/provider work.
 // The production adapter supplies credentials and starts this single lifecycle.
-function createClientCodeRelease({env={},db,sessions,fetchImpl,now}={}) {
+function createClientCodeRelease({env={},db,sessions,fetchImpl,now,workerOptions={}}={}) {
   const requested=env[ENABLED]==='true',manifest=parseClientManifest(env[MANIFEST]);
   const key=typeof env[KEY]==='string'&&/^[a-f0-9]{64}$/i.test(env[KEY])?Buffer.from(env[KEY],'hex'):null;
   const credential=typeof env[TOKEN]==='string'&&env[TOKEN].length>0;
   const missing=[...(!manifest?[MANIFEST]:[]),...(!key?[KEY]:[]),...(!credential?[TOKEN]:[])];
   const runtime=createClientCodeRuntime({enabled:requested&&missing.length===0,config:manifest||{},db,sessions,
-    hmacKey:key,metaCredentials:{accessToken:credential?env[TOKEN]:undefined},fetchImpl,env,...(now?{now}:{})});
+    hmacKey:key,metaCredentials:{accessToken:credential?env[TOKEN]:undefined},fetchImpl,env,workerOptions,...(now?{now}:{})});
   let controller=null,pending=null,state=requested?'unready':'disabled';
   const status=()=>({requested,state,enabled:state==='running'&&runtime.service.enabled(),
-    detailsSigninRetired:clientDetailsRetired(env),smsEnabled:false,missing:[...missing]});
+    detailsSigninRetired:clientDetailsRetired(env),smsEnabled:false,missing:[...missing],worker:runtime.worker.status()});
   async function start() {
     if(controller||state==='starting')return {ok:false,code:'CLIENT_ALREADY_STARTED',...status()};
     if(!requested||missing.length)return {ok:false,code:'CLIENT_RELEASE_UNCONFIGURED',...status()};

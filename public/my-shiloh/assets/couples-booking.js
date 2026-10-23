@@ -3,6 +3,9 @@
   const root = document.querySelector('[data-my-shiloh-couples]');
   if (!root) return;
   const get = selector => root.querySelector(selector);
+  const offerChoice = get('[data-use-morning-offer]');
+  const pricingReviewAvailable = root.dataset.pricingReview === 'true';
+  const offerPayload = () => pricingReviewAvailable ? {useMorningOffer:offerChoice?.checked!==false} : {};
   const state = { guest:null,guests:[],guestSignature:null,timing:'together',peopleGeneration:0,serviceIds:[null,null],staffIds:[null,null],slot:null,quote:null,requestId:null,busy:false,generations:[0,0] };
   const submit = get('[data-couples-submit]');
   const rand = value => 'R' + Number(value).toFixed(2);
@@ -13,7 +16,7 @@
       if (!node.hidden) { node.scrollIntoView({ block:'start' }); const heading = node.querySelector('h2'); heading.tabIndex = -1; heading.focus({ preventScroll:true }); }
     });
   }
-  function invalidate() { state.quote = null; state.requestId = null; get('[data-couples-policy]').checked = false; submit.disabled = true; }
+  function invalidate() { const offer=get('[data-offer-price]');if(offer)offer.hidden=true;state.quote = null; state.requestId = null; get('[data-couples-policy]').checked = false; submit.disabled = true; }
   let busyControls = null;
   function busy(value) {
     state.busy = value;
@@ -56,7 +59,8 @@
     get('[data-couples-total]').textContent = get('[data-couples-deposit]').textContent = 'Checking…';
     status('[data-couples-review-status]','Checking everyone’s appointments and your combined total…'); busy(true);
     try {
-      state.quote = await request('review',{ ...guestPayload(),treatments:treatments(),timing:state.timing });
+      state.quote = await request('review',{ ...guestPayload(),...offerPayload(),treatments:treatments(),timing:state.timing });
+      window.ShilohOfferPricing?.render(root,state.quote);
       renderItems();
       get('[data-couples-total]').textContent = rand(state.quote.total); get('[data-couples-deposit]').textContent = rand(state.quote.deposit);
       status('[data-couples-review-status]');
@@ -187,6 +191,7 @@
     finally { busy(false); }
   });
   root.querySelectorAll('[data-couples-back]').forEach(button => button.addEventListener('click',() => { if (!state.busy) { invalidate(); step(Number(button.dataset.couplesBack)); } }));
+  offerChoice?.addEventListener('change',()=>{invalidate();review();});
   get('[data-couples-retry]').addEventListener('click',() => { if (!state.busy) review(); });
   root.querySelectorAll('[name="couples-occasion"]').forEach(input => input.addEventListener('change',() => { get('[data-couples-occasion]').disabled = input.value !== 'yes'; get('[data-couples-occasion-details]').hidden = input.value !== 'yes'; state.requestId = null; }));
   get('[data-couples-occasion]').addEventListener('input',() => { state.requestId = null; });
@@ -197,10 +202,10 @@
     if (!get('[data-couples-policy]').checked) { status('[data-couples-confirm-status]','Please accept Shiloh’s Booking Policy & Terms first.',true); return; }
     state.requestId ||= crypto.randomUUID(); busy(true); status('[data-couples-confirm-status]','Sending everyone’s booking request…');
     try {
-      const data = await request('confirm',{ ...guestPayload(),timing:state.timing,treatments:treatments(),quoteHash:state.quote.quoteHash,requestId:state.requestId,policyAccepted:true,specialOccasion:occasion === 'yes',occasionNote:occasion === 'yes' ? get('[data-couples-occasion]').value.trim() : '' },{ reviewOnly:false });
+      const data = await request('confirm',{ ...guestPayload(),...offerPayload(),timing:state.timing,treatments:treatments(),quoteHash:state.quote.quoteHash,requestId:state.requestId,policyAccepted:true,specialOccasion:occasion === 'yes',occasionNote:occasion === 'yes' ? get('[data-couples-occasion]').value.trim() : '' },{ reviewOnly:false });
       get('[data-couples-success]').textContent = data.message; step(5);
     } catch (error) {
-      if (error.code === 'BOOKING_CART_QUOTE_CHANGED') { busy(false); await review(); status('[data-couples-confirm-status]',error.message,true); return; }
+      if (error.code === 'BOOKING_OFFER_QUOTE_CHANGED' || error.code === 'BOOKING_CART_QUOTE_CHANGED') { busy(false); await review(); status('[data-couples-confirm-status]',error.message,true); return; }
       const reference = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(error.supportReference || '') ? error.supportReference : null;
       const message = reference ? 'We could not complete your request. ' + (error.incidentLinkSaved === true
         ? 'We saved a support link in Shiloh. Quote this reference if you contact Reception. '

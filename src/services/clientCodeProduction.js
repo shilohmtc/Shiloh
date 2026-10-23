@@ -31,6 +31,7 @@ function createProductionClientCode({env,canonicalDb,PoolClass=Pool,fetchImpl,lo
   }
   const db={query:(...args)=>connection().query(...args),connect:()=>connection().connect()};
   const release=createClientCodeRelease({env:productionClientEnv(env),db,
+    workerOptions:{onStateChange:event=>log[event.event==='worker_recovered'?'info':'warn'](event,'My Shiloh WhatsApp worker state')},
     sessions:createClientBrowserSessionService({db:canonicalDb}),fetchImpl,...(now?{now}:{})});
   return {...release,async stop(){await release.stop();if(clientPool&&!closed){closed=true;await clientPool.end();}}};
 }

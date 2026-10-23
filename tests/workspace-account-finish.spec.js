@@ -1,3 +1,4 @@
+const { APP_VERSION } = require('../src/presentation/appRelease');
 // Production presentation; all sessions and responses below are synthetic.
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
@@ -28,7 +29,7 @@ for (const width of [320, 390, 1440]) {
     if (width <= 700) await page.locator('[data-workspace-drawer-toggle]').evaluate(b => b.click());
     // Storybook does not execute the production navigation script.
     await page.locator('.workspace-nav').evaluate(n => n.classList.add('open'));
-    const refresh = page.getByRole('button', { name: 'Refresh Workspace', exact: true });
+    const refresh = page.getByRole('button', { name: `Refresh Workspace Version ${APP_VERSION}`, exact: true });
     await refresh.scrollIntoViewIfNeeded();
     await expect(refresh).toBeVisible();
     await expect(refresh).toContainText('Refresh Workspace');

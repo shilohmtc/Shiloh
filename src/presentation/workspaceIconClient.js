@@ -7,6 +7,7 @@ function workspaceIconClientScript() {
     calendar: renderLucideIcon('calendar', { className: 'workspace-nav-icon', size: 18 }),
     clients: renderLucideIcon('clients', { className: 'workspace-nav-icon', size: 18 }),
     messages: renderLucideIcon('messages', { className: 'workspace-nav-icon', size: 18 }),
+    website: renderLucideIcon('website', { className: 'workspace-nav-icon', size: 18 }),
     staff: renderLucideIcon('staff', { className: 'workspace-nav-icon', size: 18 }),
     services: renderLucideIcon('services', { className: 'workspace-nav-icon', size: 18 }),
     forms: renderLucideIcon('forms', { className: 'workspace-nav-icon', size: 18 }),

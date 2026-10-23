@@ -1,4 +1,5 @@
 const { pool } = require("../db/pool");
+const { confirmReviewedCalendarOffer } = require('./morningWelcomeOffer');
 const { checkAvailability, formatAvailabilityReply, checkAuthoritativeSchedule, getConflicts } = require("./adminAvailability");
 const { checkClinicHours } = require("./clinicHours");
 const {
@@ -184,6 +185,7 @@ async function prepareCalendarV2Booking({ adminId, crmV2Client, staffName, servi
        client_mobile_snapshot = EXCLUDED.client_mobile_snapshot,
        acknowledged_mobile = NULL,
        mobile_acknowledged_at = NULL,
+       morning_offer_quote = NULL,
        staff_id = EXCLUDED.staff_id,
        service_id = EXCLUDED.service_id,
        location_id = EXCLUDED.location_id,
@@ -475,15 +477,16 @@ async function confirmCalendarV2Booking(admin, options = {}) {
               abs.source_client_name, abs.client_mobile_snapshot,
               abs.acknowledged_mobile, abs.mobile_acknowledged_at,
               abs.staff_id, abs.service_id, abs.location_id,
-              abs.starts_at, abs.ends_at, abs.state,
+              abs.starts_at, abs.ends_at, abs.state, abs.morning_offer_quote,
               st.display_name AS staff_name, st.status AS staff_status,
               s.name AS service_name, s.status AS service_status,
               s.duration_minutes, s.processing_time_minutes, s.extra_time_minutes,
-              s.price, s.variable_price,
+              s.price, s.variable_price, sc.name AS category_name,
               l.name AS location_name, l.status AS location_status
          FROM admin_booking_sessions abs
          JOIN staff st ON st.id = abs.staff_id
          JOIN services s ON s.id = abs.service_id
+         LEFT JOIN service_categories sc ON sc.id=s.category_id
          JOIN locations l ON l.id = abs.location_id
         WHERE abs.admin_id = $1
           AND abs.client_id IS NULL
@@ -576,7 +579,15 @@ async function confirmCalendarV2Booking(admin, options = {}) {
       return { status: "client_mobile_changed", reply: "The CRM V2 client/mobile changed after acknowledgement. Nothing was written; prepare the booking again." };
     }
 
-    const totalPrice = session.variable_price ? null : session.price;
+    let totalPrice = session.variable_price ? null : session.price;
+    let offerPricing = null;
+    let morningOffer = null;
+    if (!session.variable_price && session.price != null) {
+      const reviewed = await confirmReviewedCalendarOffer(db, session, options.morningOfferReviewHash);
+      offerPricing = reviewed.quote;
+      morningOffer = reviewed.offer;
+      totalPrice = offerPricing.total;
+    }
     const appointmentResult = await db.query(
       `INSERT INTO appointments
          (client_id, crm_v2_client_id, source_client_name, location_id,
@@ -595,12 +606,13 @@ async function confirmCalendarV2Booking(admin, options = {}) {
       ]
     );
     const appointment = appointmentResult.rows[0];
+    if (offerPricing) await morningOffer.record(db, { appointmentId: appointment.id, clientId: session.crm_v2_client_id, price: offerPricing.items[0] });
 
     await db.query(
       `INSERT INTO appointment_services
          (appointment_id, service_id, position, service_name_snapshot, price_snapshot, duration_minutes_snapshot)
        VALUES ($1, $2, 1, $3, $4, $5)`,
-      [appointment.id, session.service_id, session.service_name, session.price, session.duration_minutes]
+      [appointment.id, session.service_id, session.service_name, totalPrice, session.duration_minutes]
     );
     await db.query(
       `INSERT INTO appointment_staff

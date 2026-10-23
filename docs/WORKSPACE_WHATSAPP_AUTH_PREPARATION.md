@@ -443,10 +443,47 @@ Start coalesces concurrent callers, checks schema before opening intake, and
 manages one abortable worker. Stop synchronously closes the new HTTP channel and
 grant use, waits for bounded started work to settle, and cannot restart the same
 instance. A stop during preparation cannot reopen the channel. Window expiry or
-worker failure disables the new channel; existing session/passkey/details paths
-are untouched. Started provider calls may still settle, and are never replayed.
+loss of eligibility disables the new channel; existing session/passkey/details paths
+are untouched. Temporary queue/transaction failures resume polling automatically
+under the 22 October reliability standard below. Started provider calls may still
+settle, and are never replayed.
 The runtime gates each actual provider HTTP request, so stopping or expiring during
 an inventory read cannot start a subsequent message POST.
+
+### Accepted 22 October 2026 — automatic worker continuity in both apps
+
+Workspace and My Shiloh share one worker implementation. A failed queue poll must
+not permanently remove either app's WhatsApp sign-in. Keep the existing entry and
+queue, expiry, eligibility, rate and spend authorities. Resume queue polling with
+abortable exponential backoff (one second initially, capped at thirty seconds in
+production), without requiring a manual restart or a new user recovery flow.
+Only one worker loop and one dispatch may run at a time. Disabled configuration,
+lost eligibility, expired pilot windows and explicit shutdown still close intake;
+automatic polling must never reopen them or bypass readiness.
+
+This resumes normal claims, never a failed message send. A committed claim or an
+uncertain/started provider call remains ineligible for replay. Existing reserved
+allowances are not reset and no SMS fallback is added. A request already expired
+retains the existing fresh-code action. Provider outages may prevent delivery;
+the application must recover when the dependency recovers rather than stay stuck.
+
+Private production logs record sanitized worker_recovering, worker_recovered and
+worker_disabled transitions for both apps, with counters and bounded retry delay.
+Persistent failures report at each tenth failed poll. Release status includes the
+worker state; overall HTTP/database health alone is not proof of sign-in readiness.
+Never log underlying exceptions, numbers, tokens or code material in these events.
+Synthetic acceptance covers repeated failures, capped backoff, shutdown, lost
+eligibility, independent staff/client production compositions and a SQL-proven
+post-acceptance transaction failure that cannot replay a send. Release and actual
+device/provider acceptance remain separate milestones.
+
+Clean Change: reuse the existing shared worker, SQL claims, account eligibility,
+provider contracts and bounded production pools. Extend the worker loop rather
+than add a queue, sender, scheduler, service or user-facing recovery screen. Source,
+regressions and this standard are permanent; diagnostic logs/screenshots stay out
+of the release tree. This small lifecycle policy is worth maintaining to prevent
+both apps losing entry after one failed poll. **REPLACES NOW:** the exit-on-first-
+queue-error branch; no identity, message or provider authority is replaced.
 Shutdown must stop/drain the adapter before closing the shared database pool;
 closing a pool does not reliably cancel an acquisition already in progress.
 `passkeySuccessDestination(token)` validates the canonical session and returns the
@@ -634,3 +671,23 @@ Owner requested the WhatsApp option inside Workspace after the bounded pilot ope
 Owner confirmed physical code delivery and successful WhatsApp sign-in, then reported Forbidden from My passkeys. Production request d2cbdc29-de2e-4dd7-8837-82595a4dff44 matches GET `/calendar/staff-auth/passkeys/manage` returning 403 at 13:06:22 UTC. The legacy optional-key authority intentionally accepts staff-details/passkey sessions, not the new code session; it must not be broadened to bypass fresh enrollment proof.
 
 While the live pilot reports enabled, My passkeys now redirects a valid, non-recovery WhatsApp session to the existing `/calendar/staff-auth/whatsapp/enroll` flow. The destination remains fixed, private and uncached. Disabled/expired pilots, unavailable lookups, invalid sessions, SMS sessions and recovery-required sessions retain existing guards. No legacy mutation authority changes. Enrollment still requires the canonical own session, CSRF, fresh proof, browser/purpose/identity binding and explicit native passkey ceremony, within the original current pilot allowance/window. No codes are sent on navigation. Existing keys and sessions remain intact. Passkey device acceptance remains pending; this fix does not extend the pilot or replenish codes.
+
+
+### Own-account passkey screen correction — 22 October 2026
+
+The signed-in enrollment page starts with **Save a passkey**, checks the existing
+own-session proof without sending a code, and starts the native creation ceremony
+only after that explicit action. Fresh WhatsApp sign-in and an existing own-account
+phone-proof window retain their original fixed ten-minute deadline. A non-sending
+session probe can reopen that same browser/session/identity-bound window; it cannot
+extend it. When proof is unavailable, explain the next step and require a separate
+**Send WhatsApp code** action. Service/network errors do not trigger code requests.
+Cancellation keeps a retry available; **Back to Workspace** returns to the signed-in
+app. The compact page reuses Shiloh's existing brand tokens and preserves large text.
+
+Clean Change: correct the existing enrollment presentation and session-proof lookup;
+do not add an authentication authority, sender, route, dependency or datastore.
+Session validation, CSRF, identity revision, eligibility, browser binding, native
+challenge freshness and replacement safeguards remain unchanged. Storybook,
+phone/desktop browser checks, accessibility and SQL expiry/revocation proof are
+required; synthetic credential cancellation does not establish handset acceptance.

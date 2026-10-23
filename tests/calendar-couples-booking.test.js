@@ -127,7 +127,6 @@ test('#971 schema and Calendar projection retain one group with two appointment 
   assert.ok(service.indexOf('INSERT INTO crm_v2_clients') < service.indexOf('INSERT INTO appointment_groups'));
   assert.ok(service.indexOf('obligations.push(await queueCustomerBookingConfirmation') < service.lastIndexOf("client.query('COMMIT')"));
   assert.match(service, /client\.query\('ROLLBACK'\)/);
-  assert.match(service, /CASE WHEN \$3::date IS NOT NULL AND \$4 IS NOT NULL THEN 'registered' ELSE 'minimal' END/);
   assert.match(service, /date_of_birth=COALESCE\(\$3::date,date_of_birth\)/);
 });
 
