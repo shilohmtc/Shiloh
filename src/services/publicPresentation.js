@@ -55,7 +55,9 @@ function neutralizePublicLabel(value = '') {
 
 function publicServiceNameFor(value = '') {
   const canonicalName = String(value).trim();
-  return neutralizePublicLabel(PUBLIC_SERVICE_NAME_ALIASES.get(canonicalName) || canonicalName);
+  const correctedYoungGuest = canonicalName.replace(/^(Young Guest Back )&(?:amp;)?!\s*(Neck Massage)/i, '$1& $2')
+    .replace(/^Young Guest Back & Neck Massage\s*\(age\s*8[–-]15\)$/i, 'Young Guest Back & Neck Massage (age 8–15)');
+  return neutralizePublicLabel(PUBLIC_SERVICE_NAME_ALIASES.get(canonicalName) || correctedYoungGuest);
 }
 
 function formatRandAmount(value = '') {
@@ -113,7 +115,7 @@ function publicServiceCategoryFor(service = {}) {
   if (/permanent makeup|permanant makeup|areola|eyeliner/.test(serviceName)) {
     return 'Permanent Makeup';
   }
-  if (/pedicure|heel|foot massage|feet|toe gel|mediheel/.test(serviceName)) {
+  if (/pedicure|heel|foot massage|feet|toe gel|mediheel/.test(serviceName) || /\byoung guest\b.*\bpedi\b/.test(serviceName)) {
     return 'Pedicures & Foot Care';
   }
   if (/facial|peel|derma|skin|brow|lash|wax/.test(serviceName)) return 'Facials & Skin';

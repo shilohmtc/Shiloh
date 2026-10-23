@@ -70,3 +70,5 @@ module.exports.testMatch.push('workspace-passkey-enrollment.spec.js');
 module.exports.testMatch.push('calendar-couples-creation.spec.js');
 
 module.exports.testMatch.push("website-publishing-ux.spec.js");
+
+module.exports.testMatch.push('desktop-booking-handoff.spec.js');

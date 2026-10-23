@@ -700,3 +700,5 @@ export const CrmOptionalInvitations = {
   render: () => productionSurface({ id: '9012', name: 'Synthetic Client', firstName: 'Synthetic' },
     { passkeysAvailable: true, signInMethod: 'crm_details' }),
 };
+
+export const DesktopBookingHandoff = {render:()=>productionSurface(null,{detailsRetired:true,codeAvailable:true,selectedServiceId:101})};

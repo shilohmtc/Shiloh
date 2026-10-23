@@ -2140,19 +2140,31 @@ test('My Shiloh install doorway is clear, contained and accessible on Phone and 
 test('website treatment code carries a booking choice into the installed app on Phone and Desktop', async ({ page }, testInfo) => {
   for (const viewport of [{ name:'phone', width:390, height:844 }, { name:'desktop', width:1280, height:900 }]) {
     await page.setViewportSize({ width:viewport.width, height:viewport.height });
+    await page.addInitScript((phone) => { Object.defineProperty(navigator, 'userAgent', { configurable:true, value:phone ? 'Android Chrome' : 'Desktop Chrome' }); }, viewport.name === 'phone');
     await page.goto('/iframe.html?id=client-my-shiloh-pwa--website-treatment-handoff&viewMode=story&service=103#book-online', { waitUntil:'networkidle' });
+    await page.locator('[data-install-gate]').waitFor({ state:'attached' });
     await page.evaluate(() => {
       Object.defineProperty(navigator, 'clipboard', { configurable:true, value:{ writeText:async (value) => { window.copiedTreatmentCode = value; } } });
     });
     await page.addScriptTag({ url:'/my-shiloh/assets/app.js' });
     const handoff = page.locator('[data-website-treatment-handoff]');
-    await expect(handoff).toBeVisible();
-    await expect(page.locator('[data-install-gate]').getByRole('heading', { name:'Continue your chosen treatment in My Shiloh.' })).toBeVisible();
-    await expect(page.locator('[data-install-gate]').getByRole('button', { name:'New here? Show install steps' })).toBeVisible();
-    await expect(handoff).toContainText('Signature Pedicure');
-    await expect(handoff).toContainText('103');
-    await handoff.getByRole('button', { name:'Copy treatment code' }).click();
-    expect(await page.evaluate(() => window.copiedTreatmentCode)).toBe('103');
+    if (viewport.name === 'phone') {
+      await expect(handoff).toBeVisible();
+      await expect(page.locator('[data-install-gate]').getByRole('heading', { name:'Continue your chosen treatment in My Shiloh.' })).toBeVisible();
+      await expect(page.locator('[data-install-gate]').getByRole('button', { name:'New here? Show install steps' })).toBeVisible();
+      await expect(handoff).toContainText('Signature Pedicure');
+      await expect(handoff).toContainText('103');
+      await handoff.getByRole('button', { name:'Copy treatment code' }).click();
+      expect(await page.evaluate(() => window.copiedTreatmentCode)).toBe('103');
+    } else {
+      await expect(handoff).toBeHidden();
+      const desktop = page.locator('[data-install-desktop-handoff]');
+      await expect(desktop).toBeVisible();
+      await expect(desktop).toContainText('Signature Pedicure');
+      await desktop.getByRole('button', { name:'Copy phone link' }).click();
+      expect(await page.evaluate(() => window.copiedTreatmentCode)).toBe('https://app.shilohmtc.co.za/my-shiloh/?service=103#book-online');
+      await expect(desktop.getByRole('link', { name:'Message Reception on WhatsApp' })).toBeVisible();
+    }
     const gateAxe = await new AxeBuilder({ page }).include('[data-install-gate]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(gateAxe.violations.filter((item) => ['serious','critical'].includes(item.impact))).toEqual([]);
     await page.screenshot({ path:testInfo.outputPath(`website-treatment-handoff-${viewport.name}.png`), fullPage:true, animations:'disabled' });
@@ -2238,22 +2250,24 @@ test('authenticated My Shiloh browser sessions still show only the install doorw
 });
 
 
-test('My Shiloh install guidance appears only after Show install steps is tapped', async ({ page }) => {
+test('My Shiloh Android install guidance appears only after Show Android steps is tapped', async ({ page }) => {
+  await page.addInitScript(() => Object.defineProperty(navigator, 'userAgent', { configurable:true, value:'Android Chrome' }));
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/iframe.html?id=client-my-shiloh-pwa--browser-install-doorway&viewMode=story', { waitUntil: 'networkidle' });
+  await page.locator('[data-install-gate]').waitFor({ state:'attached' });
   await page.addScriptTag({ url: '/my-shiloh/assets/app.js' });
 
   await expect(page.locator('[data-install-gate-instructions]')).toHaveCount(0);
-  const button = page.getByRole('button', { name: 'Show install steps' });
+  const button = page.getByRole('button', { name: 'Show Android steps' });
   await expect(button).toBeVisible();
 
   const sheet = page.locator('[data-install-sheet]');
   await expect(sheet).toBeHidden();
   await button.click();
   await expect(sheet).toBeVisible();
-  await expect(sheet.getByRole('heading', { name: 'Add My Shiloh to your Home Screen.' })).toBeVisible();
-  await expect(sheet.getByText('Open your browser menu or Share button')).toBeVisible();
-  await expect(sheet.getByText('Choose Add to Home Screen or Install app')).toBeVisible();
+  await expect(sheet.getByRole('heading', { name: 'Three quick steps.' })).toBeVisible();
+  await expect(sheet.getByText('Open your browser menu ⋮')).toBeVisible();
+  await expect(sheet.getByText('Choose Install app or Add to Home screen')).toBeVisible();
   await expect(sheet.getByText('Open My Shiloh', { exact: true })).toBeVisible();
 });
 
