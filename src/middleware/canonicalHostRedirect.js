@@ -14,6 +14,10 @@ const PUBLIC_WEBSITE_PATHS = new Set([
   '/privacy',
   '/treatments',
   '/visit',
+  '/robots.txt',
+  '/sitemap.xml',
+  '/discover',
+  '/offers',
 ]);
 
 function requestHostname(req) {
@@ -36,7 +40,7 @@ function canonicalHostRedirect(req, res, next) {
 
   if (hostname === APP_HOST) {
     if (!['GET', 'HEAD'].includes(method)) return next();
-    if (!PUBLIC_WEBSITE_PATHS.has(publicPath)) return next();
+    if (!PUBLIC_WEBSITE_PATHS.has(publicPath) && !/^\/(?:discover|offers)\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(publicPath) && !/^\/website-media\/[0-9a-f-]{36}$/.test(publicPath)) return next();
     return res.redirect(308, `${PUBLIC_SITE_ORIGIN}${req.originalUrl || req.url || '/'}`);
   }
 

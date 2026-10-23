@@ -23,5 +23,6 @@ function connection() {
 }
 const db={query:(...args)=>connection().query(...args),connect:()=>connection().connect()};
 module.exports=createWorkspaceWhatsAppRelease({env:process.env,db,
+  workerOptions:{onStateChange:event=>logger[event.event==='worker_recovered'?'info':'warn'](event,'Workspace WhatsApp worker state')},
   sessions:createStaffBrowserSessionService({db:canonicalPool}),fetchImpl:globalThis.fetch,
   close:async()=>{if(pilotPool)await pilotPool.end();}});

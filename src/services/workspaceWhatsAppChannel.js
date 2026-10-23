@@ -17,7 +17,7 @@ function createWorkspaceWhatsAppChannel({enabled=false,policy,codePrefix='PILOT'
     isEnabled:()=>active && !closed && policy.withinWindow(now()),
     allowProviderRead:()=>preflight && !closed && policy.withinWindow(now())});
   const status=()=>({state:active && !policy.withinWindow(now())?'expired':state,
-    enabled:runtime.service.enabled(),smsEnabled:false});
+    enabled:runtime.service.enabled(),smsEnabled:false,worker:runtime.worker.status()});
   function mount(app) {
     if(mounted || typeof app?.use!=='function') return {ok:false,code:code('MOUNT_INVALID')};
     app.use(BASE,runtime.router);mounted=true;return {ok:true};

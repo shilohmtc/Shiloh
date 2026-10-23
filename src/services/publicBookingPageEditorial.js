@@ -1,20 +1,5 @@
 const base = require('./publicBookingPage');
 const { PUBLIC_CHROME_CSS, renderSiteHeader, renderSiteFooter } = require('./publicSiteChrome');
-const {
-  PUBLIC_BRAND_NAME,
-  PUBLIC_TAGLINE,
-  sanitizePublicCatalogue,
-} = require('./publicPresentation');
-
-const VISUAL_BREAK = `<section class="inside-shiloh-break" aria-label="Inside Shiloh"><div class="inside-shiloh-break-copy"><span>Inside Shiloh</span><strong>${PUBLIC_TAGLINE}</strong><small>${PUBLIC_BRAND_NAME}</small></div></section>`;
-
-function insertInsideShilohSignature(html, catalogue = []) {
-  if (!sanitizePublicCatalogue(catalogue).length) return html;
-  return html.replace(
-    '</div><section class="clinic">',
-    `${VISUAL_BREAK}</div><section class="clinic">`,
-  );
-}
 
 function renderBookingPage(number, catalogue = [], selectedServiceId = '', options = {}) {
   let html = base.renderBookingPage(number, catalogue, selectedServiceId, options);
@@ -26,13 +11,10 @@ function renderBookingPage(number, catalogue = [], selectedServiceId = '', optio
   const oldGallery = /<section class="clinic-gallery"[\s\S]*?<\/section>/;
   html = html.replace(oldGallery, '');
 
-  html = insertInsideShilohSignature(html, catalogue);
-
-  const visualBreakCss = `
+  const descriptionCss = `
 .service-card .service-description{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.55}
-.inside-shiloh-break{width:calc(100% + 280px);margin:26px -140px 32px;border-radius:20px;overflow:hidden;box-shadow:0 10px 30px rgba(36,53,47,.12);border:1px solid rgba(36,53,47,.08);background:#5f584f;color:#fff}.inside-shiloh-break-copy{min-height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px}.inside-shiloh-break-copy span{font-size:11px;font-weight:850;text-transform:uppercase;letter-spacing:.17em;color:#fff}.inside-shiloh-break-copy strong{font-family:Georgia,"Times New Roman",serif;font-size:clamp(28px,3.4vw,46px);font-weight:500;letter-spacing:-.025em;margin:7px 0 9px}.inside-shiloh-break-copy small{color:#eee7dc;font-size:13px}.catalogue>.inside-shiloh-break:last-child{margin-top:34px;margin-bottom:8px}@media(max-width:1280px){.inside-shiloh-break{width:100%;margin:24px 0 30px}}@media(max-width:700px){.inside-shiloh-break{border-radius:16px;margin:20px 0 24px}.inside-shiloh-break-copy{min-height:145px;padding:24px 18px}}
 `;
-  html = html.replace('</style>', `${PUBLIC_CHROME_CSS}${visualBreakCss}</style>`);
+  html = html.replace('</style>', `${PUBLIC_CHROME_CSS}${descriptionCss}</style>`);
   return html;
 }
 

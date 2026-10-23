@@ -26,7 +26,7 @@ function workspaceItem({ key, label, active, href }) {
   return `<span class="workspace-link future" aria-disabled="true" ${destination}>${escapeHtml(label)}</span>`;
 }
 
-function renderWorkspaceNavigation({ active, displayName = '', dashboardHref = null, calendarHref = '/calendar/workspace', clientsHref = null, messagesHref = null, staffHref = null, servicesHref = null, reportsHref = null, clinicHoursHref = null, vouchersHref = null, rewardsHref = null, formsHref = null, problemReportsHref = null } = {}) {
+function renderWorkspaceNavigation({ active, displayName = '', dashboardHref = null, calendarHref = '/calendar/workspace', clientsHref = null, messagesHref = null, staffHref = null, servicesHref = null, reportsHref = null, clinicHoursHref = null, vouchersHref = null, rewardsHref = null, formsHref = null, problemReportsHref = null, websiteHref = null } = {}) {
   const primary = [
     workspaceItem({
       key: 'dashboard',
@@ -54,6 +54,9 @@ function renderWorkspaceNavigation({ active, displayName = '', dashboardHref = n
     }),
   ].join('');
   const secondary = [
+    websiteHref || active === 'website'
+      ? workspaceItem({key:'website',label:'Website',active:active === 'website',href:websiteHref})
+      : '<span hidden data-workspace-destination="website">Website</span>',
     workspaceItem({
       key: 'staff',
       label: 'Staff',
@@ -103,7 +106,7 @@ function renderWorkspaceNavigation({ active, displayName = '', dashboardHref = n
       href: problemReportsHref,
     }),
   ].join('');
-  const moreActive = ['staff', 'services', 'reports', 'clinicHours', 'vouchers', 'rewards', 'forms', 'problemReports'].includes(active);
+  const moreActive = ['staff', 'services', 'reports', 'clinicHours', 'vouchers', 'rewards', 'forms', 'problemReports', 'website'].includes(active);
   const accountLabel = String(displayName || '').trim();
   const account = `<footer class="workspace-account" data-workspace-account-footer><div class="workspace-account-identity">${accountLabel ? `<span>Signed in as</span><strong>${escapeHtml(accountLabel)}</strong>` : '<span>Signed in</span>'}</div><section data-workspace-notifications hidden aria-label="Workspace notifications"><button class="workspace-account-signout workspace-notification-switch" type="button" role="switch" aria-label="Notifications on this device" aria-checked="false" data-workspace-push-toggle disabled><span class="workspace-control-label">Notifications</span><span class="workspace-switch-state" aria-hidden="true" data-workspace-push-state>Off</span><span class="workspace-switch-track" aria-hidden="true"></span></button><span class="workspace-account-status" role="status" aria-live="polite" data-workspace-push-status></span></section><button class="workspace-account-signout" type="button" aria-label="Refresh Workspace" data-workspace-refresh><span class="workspace-link-label">Refresh Workspace<span class="workspace-app-version" data-app-version>Version ${escapeHtml(APP_VERSION)}</span></span></button><span class="workspace-account-status" role="status" aria-live="polite" data-workspace-refresh-status></span><button class="workspace-account-signout" type="button" data-shiloh-logout>Sign out</button><span class="workspace-account-status" role="status" aria-live="polite" data-shiloh-calendar-access-status></span></footer>`;
   const logo = '<img src="/calendar/pwa/icon-192.png?v=official-brand-v4" alt="" width="42" height="42" decoding="async">';

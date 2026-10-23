@@ -9,10 +9,10 @@ const { iconSvg, desktopApprovedStyles, DESKTOP_GRID_END_MINUTES } = require('..
 
 test('#835 pins official Lucide and npm lockfile at one exact version', () => {
   const pkg = require('../package.json');
-  assert.equal(pkg.dependencies.lucide, '1.43.0');
+  assert.equal(pkg.dependencies.lucide, '1.59.0');
   const lock = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package-lock.json'), 'utf8'));
-  assert.equal(lock.packages[''].dependencies.lucide, '1.43.0');
-  assert.equal(lock.packages['node_modules/lucide'].version, '1.43.0');
+  assert.equal(lock.packages[''].dependencies.lucide, '1.59.0');
+  assert.equal(lock.packages['node_modules/lucide'].version, '1.59.0');
 });
 
 test('#835 shared renderer consumes upstream Lucide node data and emits accessible currentColor SVG', () => {

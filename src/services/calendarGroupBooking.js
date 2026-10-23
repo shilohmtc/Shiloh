@@ -1,4 +1,5 @@
 const { pool } = require('../db/pool');
+const { createMorningWelcomeOfferService, pricingHash, MorningOfferError, applyCalendarOffer } = require('./morningWelcomeOffer');
 const crmV2 = require('./crmV2ClientService');
 const { createCalendarCreateBookingService, canonicalLocalDateTimeFromInputs } = require('./calendarCreateBooking');
 const { checkAuthoritativeSchedule, getConflicts } = require('./adminAvailability');
@@ -117,6 +118,7 @@ function resolveAssignments(options, rawStaffIds, rawServiceIds) {
 function createCalendarGroupBookingService({
   db = pool,
   standardBooking = createCalendarCreateBookingService({ db }),
+  morningOffer = db === pool ? createMorningWelcomeOfferService({ db }) : null,
 } = {}) {
   async function resolveOperator(adminId) {
     return standardBooking.resolveOperator(adminId);
@@ -177,7 +179,9 @@ function createCalendarGroupBookingService({
     startTimes: rawStartTimes,
     discount,
     notes,
+    useMorningOffer = true,
   } = {}) {
+    if (typeof useMorningOffer !== 'boolean') throw groupError('BOOKING_OFFER_INVALID', 'Review the promotional offer choice again.');
     const options = await listOptions(adminId);
     const guests = (Array.isArray(rawGuests) ? rawGuests : []).map(normalizeGuest);
     ensureDistinctGroupGuests(guests);
@@ -185,7 +189,7 @@ function createCalendarGroupBookingService({
     if (assignments.length !== guests.length) {
       throw groupError('GROUP_ASSIGNMENT_COUNT_INVALID', 'Choose one treatment and practitioner for every guest.');
     }
-    const pricing = priceLinkedBooking({
+    let pricing = priceLinkedBooking({
       prices: assignments.map(item => item.service.price),
       discount,
       canDiscount: options.authority.canApplyDiscount,
@@ -225,7 +229,10 @@ function createCalendarGroupBookingService({
 
     const startsAt = new Date(Math.min(...resolved.map(item => new Date(item.startsAt).getTime()))).toISOString();
     const endsAt = new Date(Math.max(...resolved.map(item => new Date(item.endsAt).getTime()))).toISOString();
+    const offerPricing = morningOffer ? await morningOffer.calendarQuote(resolved, guests, { useOffer: useMorningOffer, otherPromotion: pricing.discountAmount > 0 }) : null;
+    pricing = applyCalendarOffer(pricing, offerPricing);
     const payload = {
+      ...(offerPricing ? { morningOffer: { hash: pricingHash(offerPricing), useOffer: useMorningOffer } } : {}),
       guests,
       assignments: resolved.map(item => ({
         guestPosition: item.guestPosition,
@@ -266,6 +273,7 @@ function createCalendarGroupBookingService({
         startsAt,
         endsAt,
         pricing,
+        ...(offerPricing ? { offerPricing, quoteHash:pricingHash(offerPricing) } : {}),
         price: displayPrice(pricing.total),
       },
     };
@@ -277,7 +285,7 @@ function createCalendarGroupBookingService({
     return { status: result.rowCount ? 'discarded' : 'no_pending' };
   }
 
-  async function confirm({ adminId } = {}) {
+  async function confirm({ adminId, quoteHash } = {}) {
     const admin = await resolveOperator(adminId);
     const currentOptions = await listOptions(adminId);
     const client = await db.connect();
@@ -291,6 +299,7 @@ function createCalendarGroupBookingService({
       );
       const payload = draftResult.rows[0]?.payload;
       if (!payload) throw groupError('GROUP_NO_PENDING', 'There is no Group booking review waiting to be confirmed.', 409);
+      if(payload.morningOffer && payload.morningOffer.hash!==quoteHash) throw new MorningOfferError('This booking review changed. Review its current total before creating the appointments.');
       const guests = payload.guests.map(normalizeGuest);
       ensureDistinctGroupGuests(guests);
       const payloadAssignments = Array.isArray(payload.assignments) ? payload.assignments : [];
@@ -313,9 +322,10 @@ function createCalendarGroupBookingService({
         const assignment = assignments[index];
         const selected = await client.query(
           `SELECT sv.id AS service_id,sv.name AS service_name,sv.status AS service_status,
-                  sv.duration_minutes,sv.processing_time_minutes,sv.extra_time_minutes,sv.price,sv.variable_price,
+                  sv.duration_minutes,sv.processing_time_minutes,sv.extra_time_minutes,sv.price,sv.variable_price,sc.name AS category_name,
                   st.id AS staff_id,st.display_name AS staff_name,st.status AS staff_status
              FROM services sv
+             LEFT JOIN service_categories sc ON sc.id=sv.category_id
              JOIN staff_services ss ON ss.service_id=sv.id
              JOIN staff st ON st.id=ss.staff_id
             WHERE sv.id=$1 AND st.id=$2
@@ -340,7 +350,7 @@ function createCalendarGroupBookingService({
         selections.push(row);
       }
 
-      const pricing = priceLinkedBooking({
+      let pricing = priceLinkedBooking({
         prices: selections.map(row => Number(row.price)),
         discount: payload.discount,
         canDiscount: currentOptions.authority.canApplyDiscount,
@@ -392,7 +402,7 @@ function createCalendarGroupBookingService({
           if (exact.rowCount) throw groupError('GROUP_EXISTING_CLIENT', 'That mobile already belongs to a client. Nothing was created; find and select that client instead.', 409);
           const inserted = await client.query(
             `INSERT INTO crm_v2_clients(name,normalized_mobile,date_of_birth,gender,profile_status,mobile_verified_at,source,status,provenance)
-             VALUES($1,$2,$3::date,$4,CASE WHEN $3::date IS NOT NULL AND $4 IS NOT NULL THEN 'registered' ELSE 'minimal' END,NULL,'staff','active',$5::jsonb) RETURNING *`,
+             VALUES($1,$2,$3::date,$4::text,CASE WHEN $3::date IS NOT NULL AND $4::text IS NOT NULL THEN 'registered' ELSE 'minimal' END,NULL,'staff','active',$5::jsonb) RETURNING *`,
             [guest.name, guest.mobile, guest.dateOfBirth, guest.gender, JSON.stringify({ createdVia: 'calendar_group_booking', actorAdminId: Number(admin.id) })]
           );
           row = inserted.rows[0];
@@ -403,6 +413,13 @@ function createCalendarGroupBookingService({
         throw groupError('GROUP_DUPLICATE_CLIENT', 'Choose a different client profile for every guest.');
       }
 
+      let offerPricing = null;
+      if (morningOffer) {
+        offerPricing = await morningOffer.calendarQuote(selections.map((row, index) => ({ ...row, startsAt: reviewedStarts[index].toISOString() })), guests,
+          { queryable: client, lock: true, useOffer: payload.morningOffer?.useOffer ?? true, otherPromotion: pricing.discountAmount > 0 });
+        morningOffer.assertReviewed(offerPricing, payload.morningOffer?.hash, { required: Boolean(payload.morningOffer) });
+        pricing = applyCalendarOffer(pricing, offerPricing);
+      }
       const groupEndsAt = new Date(Math.max(...endsAt.map(value => new Date(value).getTime()))).toISOString();
       const discountingPrincipalId = pricing.discountAmount > 0 ? Number(admin.id) : null;
       const groupResult = await client.query(
@@ -447,11 +464,12 @@ function createCalendarGroupBookingService({
           ]
         );
         const appointmentId = appointmentResult.rows[0].id;
+        if (offerPricing) await morningOffer.record(client, { appointmentId, clientId: person.id, price: offerPricing.items[index] });
         appointmentIds.push(Number(appointmentId));
         await client.query(
           `INSERT INTO appointment_services(appointment_id,service_id,position,service_name_snapshot,price_snapshot,duration_minutes_snapshot)
            VALUES($1,$2,1,$3,$4,$5)`,
-          [appointmentId, selection.service_id, selection.service_name, Number(selection.price), durationMinutes(selection)]
+          [appointmentId, selection.service_id, selection.service_name, pricing.allocations[index], durationMinutes(selection)]
         );
         await client.query(
           `INSERT INTO appointment_staff(appointment_id,staff_id,position,staff_name_snapshot) VALUES($1,$2,1,$3)`,

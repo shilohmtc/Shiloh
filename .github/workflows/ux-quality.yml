@@ -10,8 +10,9 @@ permissions:
 jobs:
   ux_quality:
     runs-on: ubuntu-latest
-    # Preserve the full UX suite and evidence packaging on slower runners.
-    timeout-minutes: 40
+    # The 604-test suite passed but exhausted 40 minutes before evidence capture.
+    # Preserve every assertion and required artifact on slower runners.
+    timeout-minutes: 60
     steps:
       - name: Checkout exact PR head
         uses: actions/checkout@v7

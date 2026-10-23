@@ -144,6 +144,7 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
                AND st.business_role='tenant_practitioner'
           )
           AND NOT EXISTS(SELECT 1 FROM appointment_group_members gm WHERE gm.appointment_id=a.id)
+          AND NOT EXISTS(SELECT 1 FROM morning_offer_booking_prices mop WHERE mop.appointment_id=a.id AND mop.final_total=a.total_price)
           AND NOT EXISTS(SELECT 1 FROM package_session_redemptions psr WHERE psr.appointment_id=a.id AND psr.status IN ('reserved','redeemed'))
         ORDER BY a.starts_at,a.id
         LIMIT 10`,
@@ -233,6 +234,8 @@ function createMyShilohWelcomeVoucherService({ db = pool, now = () => new Date()
       )).rows[0];
       const invalidBooking = !booking || Number(booking.crm_v2_client_id) !== clientId || !['scheduled','confirmed'].includes(booking.status) || new Date(booking.starts_at) <= now();
       if (invalidBooking) throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_BOOKING_UNAVAILABLE', 'Choose an upcoming booking from the voucher card.', 409, ['Return to My Shiloh.', 'Choose one of the eligible upcoming bookings.']);
+      const morningOffer = await client.query('SELECT 1 FROM morning_offer_booking_prices WHERE appointment_id=$1 AND final_total=$2 LIMIT 1', [bookingId, booking.total_price]);
+      if (morningOffer.rowCount) throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_PROMOTION_CONFLICT', 'This booking already has the Morning Welcome Offer.', 409, ['One promotional offer applies per booking.', 'Keep your promotional voucher for another eligible booking. Purchased gift vouchers can still be used to pay.']);
       if (!booking.welcome_voucher_practitioner_eligible) throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_PRACTITIONER_EXCLUDED', 'The R100 welcome voucher does not apply to independent practitioner treatments.', 409, ['Choose a qualifying clinic treatment.', 'Or keep the voucher for a later qualifying booking.']);
       if (Number(booking.total_price) < Number(voucher.minimum_booking_value)) throw new MyShilohWelcomeVoucherError('WELCOME_VOUCHER_MINIMUM_NOT_MET', `Choose a treatment priced at R${Number(voucher.minimum_booking_value).toFixed(0)} or more.`, 409, ['Choose another upcoming treatment.', 'Or keep the voucher for a later qualifying booking.']);
       const grouped = await client.query(`SELECT 1 FROM appointment_group_members WHERE appointment_id=$1 LIMIT 1`, [bookingId]);

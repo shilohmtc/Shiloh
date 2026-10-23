@@ -364,6 +364,8 @@ test('own enrollment permits explicit expiry fallback but still binds the curren
 
 test('own WhatsApp passkey setup survives cancellation and restart for a fixed ten minutes without another send',async t=>{
   const h=await harness(t),input={...h.context,sessionId:h.priorSession.sessionId,proof:'code'};
+  // An older session isolates the phone-proof window from recent passkey sign-in.
+  h.advance(20*60*1000);
   const request=await h.service.requestOwnEnrollment(input);await h.service.dispatchOne();
   const proof=await h.service.verify({...h.context,purpose:'enroll',request:request.request,code:h.sent[0].code});assert.equal(proof.ok,true);
   const begin=()=>h.service.beginRegistration({grant:proof.grant,browserToken:h.context.browserToken});
@@ -373,10 +375,11 @@ test('own WhatsApp passkey setup survives cancellation and restart for a fixed t
   const added=await h.service.finishRegistration({grant:proof.grant,browserToken:h.context.browserToken,response});assert.equal(added.ok,true);
   assert.equal((await h.service.finishRegistration({grant:proof.grant,browserToken:h.context.browserToken,response})).ok,false);
   const restarted=require('../src/services/workspaceWhatsAppAuth').createWorkspaceWhatsAppAuth({enabled:true,store:h.store,delivery:h.delivery,hmacKey:Buffer.alloc(32,7),env:h.env,now:h.now});
-  h.advance(599999);const reopened=await restarted.requestOwnEnrollment(input);assert.equal(reopened.ok,true);assert.ok(reopened.grant);assert.equal(reopened.request,undefined);assert.equal(h.sent.length,1);
-  const otherBrowser=await restarted.requestOwnEnrollment({...input,browserToken:'X'.repeat(43)});assert.equal(otherBrowser.grant,undefined);
+  h.advance(599999);const reopened=await restarted.requestOwnEnrollment({...input,proof:'session'});assert.equal(reopened.ok,true);assert.ok(reopened.grant);assert.equal(reopened.request,undefined);assert.equal(h.sent.length,1);
+  const otherBrowser=await restarted.requestOwnEnrollment({...input,proof:'session',browserToken:'X'.repeat(43)});assert.equal(otherBrowser.grant,undefined);assert.equal(otherBrowser.ok,false);
   h.advance(1);assert.equal((await begin()).ok,false);
   assert.equal((await restarted.beginRegistration({grant:reopened.grant,browserToken:h.context.browserToken})).ok,false);
+  assert.equal((await restarted.requestOwnEnrollment({...input,proof:'session'})).ok,false);
   const expired=await restarted.requestOwnEnrollment(input);assert.equal(expired.grant,undefined);assert.ok(expired.request);
   assert.equal((await h.sessions.validateSessionToken(h.priorSession.sessionToken)).ok,true);
 });

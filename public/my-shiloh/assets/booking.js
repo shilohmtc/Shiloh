@@ -25,6 +25,8 @@
   const draftCard = get('[data-booking-draft]');
   const draftStatus = get('[data-booking-draft-status]');
   const discardDraft = get('[data-discard-booking-draft]');
+  let pricingReviewAvailable = root.dataset.pricingReview === 'true';
+  const offerChoice = get('[data-use-morning-offer]');
   const prepaidPackage = root.dataset.prepaidPackage === 'true';
   const rate = prepaidPackage ? 0 : Number(root.dataset.depositRate || 50);
   const multiple = !prepaidPackage && root.dataset.multipleBookings === 'true';
@@ -42,7 +44,7 @@
   }
   const payload = list => list.map(item => ({ serviceId:item.service.id, staffId:item.practitioner.id, startsAt:item.slot.startsAt }));
   function clearCurrent() { state.service = state.practitioner = state.slot = null; state.editing = null; }
-  function invalidate() { state.quote = null; state.requestId = null; policyAccepted.checked = false; }
+  function invalidate() { if(get('[data-offer-price]'))get('[data-offer-price]').hidden=true; state.quote = null; state.requestId = null; policyAccepted.checked = false; }
   function step(number) {
     const showSaved = state.cart.length > 0 && Number(number) < 4;
     get('[data-cart-summary]').hidden = !showSaved;
@@ -67,9 +69,10 @@
     if (!response.ok) { const error = new Error(body.error || 'That step could not be completed.'); error.code = body.code; error.supportReference = body.supportReference; error.incidentLinkSaved = body.incidentLinkSaved; throw error; }
     return body;
   }
-  const post = (url, body) => json(url, { method:'POST', headers:{ 'Content-Type':'application/json', 'x-shiloh-csrf-token':root.dataset.csrf, ...(url.endsWith('/confirm') ? { 'x-shiloh-booking-attempt':state.requestId } : {}) }, body:JSON.stringify(body) });
+  const post = (url, body, options = {}) => json(url, { ...options, method:'POST', headers:{ 'Content-Type':'application/json', 'x-shiloh-csrf-token':root.dataset.csrf, ...(url.endsWith('/confirm') ? { 'x-shiloh-booking-attempt':state.requestId } : {}) }, body:JSON.stringify(body) });
   function busy(value) {
     state.busy = value;
+    if(offerChoice)offerChoice.disabled=value;
     root.querySelectorAll('button').forEach(button => { button.disabled = value; });
     get('[data-add-booking]').disabled = value || selected().length >= 10;
     submit.disabled = value || state.draftBlocked;
@@ -125,7 +128,19 @@
       get('[data-review-date]').textContent = localDateLabel(item.slot.startsAt);
       get('[data-review-time]').textContent = item.slot.time + '–' + item.slot.endTime;
       get('[data-review-deposit]').textContent = prepaidPackage ? 'Paid package · no further payment due' : item.practitioner.depositExempt ? 'No deposit required' : rate + '% after approval';
-      setStatus(confirmStatus,''); submit.disabled = false; return;
+      setStatus(confirmStatus,'');
+      if(pricingReviewAvailable) {
+        busy(true);submit.disabled=true;
+        const controller=new AbortController();
+        const timeout=setTimeout(()=>controller.abort(),20000);
+        try {
+          state.quote=await post('/my-shiloh/api/booking/review',{...payload(list)[0],useMorningOffer:offerChoice?.checked!==false},{signal:controller.signal});
+          window.ShilohOfferPricing?.render(root,state.quote);
+          setStatus(cartStatus,'');
+        } catch(error) { state.quote=null;setStatus(cartStatus,error.message,'error');retryReview.hidden=false; }
+        finally {clearTimeout(timeout);busy(false);submit.disabled=!state.quote;}
+      } else submit.disabled=false;
+      return;
     }
     renderCart(list);
     get('[data-cart-total]').textContent = get('[data-cart-deposit]').textContent = 'Checking…';
@@ -138,11 +153,12 @@
       state.quote = await json('/my-shiloh/api/booking/multiple/review', {
         method:'POST', signal:controller.signal,
         headers:{ 'Content-Type':'application/json', 'x-shiloh-csrf-token':root.dataset.csrf },
-        body:JSON.stringify({ treatments:payload(list) }),
+        body:JSON.stringify({ treatments:payload(list),...(pricingReviewAvailable ? {useMorningOffer:offerChoice?.checked!==false} : {}) }),
       });
       get('[data-cart-total]').textContent = rand(state.quote.total);
       get('[data-cart-deposit]').textContent = rand(state.quote.deposit);
       get('[data-review-deposit]').textContent = 'One deposit payment after every appointment is approved';
+      window.ShilohOfferPricing?.render(root,state.quote);
       renderCart(list); setStatus(cartStatus,'');
     } catch (error) {
       state.quote = null;
@@ -155,6 +171,7 @@
       setStatus(cartStatus,message,'error'); retryReview.hidden = false;
     } finally { clearTimeout(timeout); busy(false); submit.disabled = !state.quote; }
   }
+  offerChoice?.addEventListener('change',()=>{invalidate();review();});
   retryReview.addEventListener('click', () => { if (!state.busy) review(); });
   function practitionerButton(row) {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'option';
@@ -293,17 +310,17 @@
     if (occasionChoice === 'yes' && !occasionNote.value.trim()) { setStatus(confirmStatus,'Please tell Reception what the occasion is.','error'); occasionNote.focus(); return; }
     if (!policyAccepted.checked) { setStatus(confirmStatus,'Please accept Shiloh’s Booking Policy & Terms first.','error'); return; }
     const common = { policyAccepted:true, specialOccasion:occasionChoice === 'yes', occasionNote:occasionChoice === 'yes' ? occasionNote.value : '' };
-    if (list.length > 1 && !state.quote) { await review(); return; }
+    if ((list.length > 1 || pricingReviewAvailable) && !state.quote) { await review(); return; }
     state.requestId ||= crypto.randomUUID();
     busy(true); setStatus(confirmStatus,'Sending your booking request…');
     try {
       let data;
       if (list.length > 1) {
-        data = await post('/my-shiloh/api/booking/multiple/confirm', { ...common, treatments:payload(list), quoteHash:state.quote.quoteHash, requestId:state.requestId });
-      } else data = await post('/my-shiloh/api/booking/confirm', { ...common, ...payload(list)[0] });
+        data = await post('/my-shiloh/api/booking/multiple/confirm', { ...common, treatments:payload(list), quoteHash:state.quote.quoteHash, requestId:state.requestId,...(pricingReviewAvailable ? {useMorningOffer:offerChoice?.checked!==false} : {}) });
+      } else data = await post('/my-shiloh/api/booking/confirm', { ...common, ...payload(list)[0],...(pricingReviewAvailable ? {quoteHash:state.quote.quoteHash,useMorningOffer:offerChoice?.checked!==false} : {}) });
       get('[data-success-message]').textContent = data.message || 'Your selected time is being held while Shiloh confirms it.'; step(5);
     } catch (error) {
-      if (error.code === 'BOOKING_CART_QUOTE_CHANGED') { invalidate(); busy(false); await review(); setStatus(confirmStatus,error.message,'error'); return; }
+      if (error.code === 'BOOKING_OFFER_QUOTE_CHANGED' || error.code === 'BOOKING_CART_QUOTE_CHANGED') { if(error.code==='BOOKING_OFFER_QUOTE_CHANGED')pricingReviewAvailable=true; invalidate(); busy(false); await review(); setStatus(confirmStatus,error.message,'error'); return; }
       if (error.code === 'BOOKING_ALREADY_IN_PROGRESS' && draftCard) { state.draftBlocked = true; draftCard.hidden = false; await reviewDraft(); }
       const reference = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(error.supportReference || '') ? error.supportReference : null;
       const message = reference ? 'We could not complete your request. ' + (error.incidentLinkSaved === true

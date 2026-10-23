@@ -8,7 +8,7 @@ async function main(){
     verify:async input=>input.code==='222222'?{ok:true,accountAccessRequired:true}:input.code==='123456'?{ok:true,profileRequired:true,grant:'G'.repeat(43)}:{ok:false},completeRegistration:async input=>{actions.push(input);return {ok:false};}};
   const sessions={validateSessionToken:async()=>({ok:true,sessionId:1,adminId:1}),validateCsrfToken:()=>true};
   const invitations={visit:async()=>({ok:true,show:true,passkey:true})};
-  const service={enabled:()=>true,admitRequest:async()=>true,fallbackEnabled:()=>false,requestOwnEnrollment:async input=>{actions.push(input);return {ok:true,request:'E'.repeat(43)};}};
+  const service={enabled:()=>true,admitRequest:async()=>true,fallbackEnabled:()=>false,requestOwnEnrollment:async input=>{actions.push(input);return input.proof==='session'?{ok:false}:{ok:true,request:'E'.repeat(43)};}};
   app.post('/calendar/staff-auth/csrf',(_req,res)=>res.json({csrfToken:'C'.repeat(43)}));
   app.use(BASE,createClientCodeRouter({enabled:true,service:client,sessions,invitations}));app.use(STAFF,createWorkspaceWhatsAppRouter({enabled:true,service,sessions,invitations}));
   app.get('/calendar/workspace',(_req,res)=>res.type('html').send('<!doctype html><html lang="en"><head><title>Workspace</title></head><body><main><h1>Workspace</h1></main></body></html>'));
@@ -72,7 +72,7 @@ async function main(){
     await page.getByLabel('Verification code',{exact:true}).fill('222222');await page.getByRole('button',{name:'Verify code',exact:true}).click();
     await page.getByRole('status').filter({hasText:'This code has not opened or changed any profile.'}).waitFor();assert.equal(await page.locator('#profile').isVisible(),false);assert.equal(await page.locator('#account-help').count(),0);assert.equal(await page.locator('#mobile').evaluate(el=>el===document.activeElement),true);
     assert.deepEqual((await new AxeBuilder({page}).analyze()).violations,[]);await page.screenshot({path:`${output}/${label}-client-account-help.png`,fullPage:true});
-    await page.goto(origin+STAFF+'/enroll');await page.getByRole('button',{name:'Send WhatsApp code',exact:true}).click();await page.getByLabel('Verification code',{exact:true}).waitFor();
+    await page.goto(origin+STAFF+'/enroll');await page.getByRole('button',{name:'Save a passkey',exact:true}).click();await page.getByRole('button',{name:'Send WhatsApp code',exact:true}).click();await page.getByLabel('Verification code',{exact:true}).waitFor();
     await page.screenshot({path:`${output}/${label}-self-enrollment.png`,fullPage:true});
     await page.goto(origin+STAFF+'/welcome');await page.getByRole('heading',{name:'Workspace',exact:true}).waitFor();assert.equal(new URL(page.url()).pathname,'/calendar/workspace');
     assert.deepEqual((await new AxeBuilder({page}).analyze()).violations,[]);await page.screenshot({path:`${output}/${label}-invitations.png`,fullPage:true});

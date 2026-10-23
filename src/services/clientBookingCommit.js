@@ -1,3 +1,4 @@
+const { createMorningWelcomeOfferService } = require('./morningWelcomeOffer');
 const { pool } = require('../db/pool');
 const { getIntent, verifyService } = require('./bookingIntent');
 const {
@@ -171,7 +172,7 @@ async function resolveCommitContext(phone, intent, { crmV2ClientId = null } = {}
   };
 }
 
-async function commitAcceptedClientBooking(phone, { crmV2ClientId = null } = {}) {
+async function commitAcceptedClientBooking(phone, { crmV2ClientId = null, enableMorningOffer = false, pricingReviewHash = null, useMorningOffer = true } = {}) {
   const normalizedPhone = normalizePhone(phone);
   const initialIntent = await getIntent(normalizedPhone);
   if (!initialIntent || initialIntent.status !== 'policy_accepted') {
@@ -234,11 +235,13 @@ async function commitAcceptedClientBooking(phone, { crmV2ClientId = null } = {})
              st.client_bookable,
              s.id AS service_id, s.name AS service_name, s.status AS service_status,
              s.duration_minutes, s.processing_time_minutes, s.extra_time_minutes,
-             s.price, s.variable_price,
+             s.price, s.variable_price, sc.name AS category_name,
+             EXISTS(SELECT 1 FROM service_packages sp WHERE sp.session_service_id=s.id) AS is_package_session,
              l.id AS location_id, l.name AS location_name, l.status AS location_status
         FROM staff st
         CROSS JOIN services s
         CROSS JOIN locations l
+        LEFT JOIN service_categories sc ON sc.id=s.category_id
        WHERE st.id = $1
          AND s.id = $2
          AND l.id = $3
@@ -306,7 +309,15 @@ async function commitAcceptedClientBooking(phone, { crmV2ClientId = null } = {})
       return { handled: true, status: 'conflict', reply: chooseAnotherTimeReply('Another appointment or staff calendar block now conflicts with that time.') };
     }
 
-    const totalPrice = canonical.variable_price ? null : canonical.price;
+    let totalPrice = canonical.variable_price ? null : canonical.price;
+    let pricing = null;
+    const morningOffer = enableMorningOffer ? createMorningWelcomeOfferService({db}) : null;
+    if(morningOffer && canonical.crm_v2_client_id && totalPrice != null) {
+      pricing=await morningOffer.quoteItems([{clientId:Number(canonical.crm_v2_client_id),serviceId:canonical.service_id,staffId:canonical.staff_id,startsAt,
+        name:canonical.service_name,category:canonical.category_name,price:totalPrice,prepaidPackage:canonical.is_package_session,variablePrice:canonical.variable_price}],{queryable:db,lock:true,useOffer:useMorningOffer});
+      morningOffer.assertReviewed(pricing,pricingReviewHash);
+      totalPrice=pricing.items[0].total;
+    }
     const appointment = await insertOrdinaryClientAppointment(
       db, appointmentIdentity, canonical.location_id, startsAt, endsAt, canonical.service_name, totalPrice
     );
@@ -327,7 +338,7 @@ async function commitAcceptedClientBooking(phone, { crmV2ClientId = null } = {})
       INSERT INTO appointment_services
         (appointment_id, service_id, position, service_name_snapshot, price_snapshot, duration_minutes_snapshot)
       VALUES ($1, $2, 1, $3, $4, $5)
-    `, [appointment.id, canonical.service_id, canonical.service_name, canonical.price, canonical.duration_minutes]);
+    `, [appointment.id, canonical.service_id, canonical.service_name, pricing ? totalPrice : canonical.price, canonical.duration_minutes]);
 
     await db.query(`
       INSERT INTO appointment_staff
@@ -365,6 +376,7 @@ async function commitAcceptedClientBooking(phone, { crmV2ClientId = null } = {})
       schedulingAuthority: 'shiloh_canonical',
     })]);
 
+    if(pricing)await morningOffer.record(db,{appointmentId:appointment.id,clientId:canonical.crm_v2_client_id,price:pricing.items[0]});
     await db.query('DELETE FROM booking_intents WHERE phone = $1', [normalizedPhone]);
     await db.query('COMMIT');
 
@@ -372,6 +384,7 @@ async function commitAcceptedClientBooking(phone, { crmV2ClientId = null } = {})
       handled: true,
       status: 'created',
       appointmentId: appointment.id,
+      ...(pricing ? {pricing} : {}),
       clientIdentity: finalIdentity.identity,
       reply: [
         `Booking created successfully — appointment #${appointment.id}.`,

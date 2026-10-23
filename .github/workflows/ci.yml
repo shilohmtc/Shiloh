@@ -374,6 +374,10 @@ jobs:
           createdb -h localhost -U postgres shiloh_credit_test
           node scripts/client-treatment-credit-postgres-proof.js
           node scripts/booking-noncash-postgres-proof.js
+      - name: Prove Workspace couples and group guest creation and rollback in PostgreSQL
+        env:
+          TEST_CALENDAR_COUPLES_DATABASE_URL: postgres://postgres:synthetic-test-only@localhost:5432/package_proof
+        run: node --test tests/calendar-couples-creation-sql.test.js
       - name: Prove atomic My Shiloh couples booking in PostgreSQL
         env:
           TEST_COUPLES_DATABASE_URL: postgres://postgres:synthetic-test-only@localhost:5432/package_proof

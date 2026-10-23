@@ -78,6 +78,7 @@ function createCalendarMultiServiceBookingRouter({
         treatments: req.body?.treatments,
         date: req.body?.date,
         notes: req.body?.notes,
+        ...(req.body?.useMorningOffer !== undefined ? { useMorningOffer: req.body.useMorningOffer } : {}),
       }));
     } catch (error) {
       const status = errorStatus(error);
@@ -98,7 +99,7 @@ function createCalendarMultiServiceBookingRouter({
 
   router.post('/confirm', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
     try {
-      const result = await bookingService.confirm({ adminId: req.staffBrowserSession.adminId });
+      const result = await bookingService.confirm({ adminId: req.staffBrowserSession.adminId, ...(req.body?.quoteHash !== undefined ? {quoteHash:req.body.quoteHash} : {}) });
       return res.status(201).json(result);
     } catch (error) {
       const status = errorStatus(error);

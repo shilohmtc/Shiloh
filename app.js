@@ -83,6 +83,14 @@ app.get("/health", async (req, res) => { const ok = await checkDatabase(); retur
 const paymentProviderRouter = createPaymentProviderRouter();
 app.use("/payments", createPaymentReturnRouter()); app.use("/payments/providers", paymentProviderRouter); app.use("/", paymentProviderRouter); app.use("/pay", createPaymentLinkRouter()); app.use("/audit-read", auditReadRoutes); app.use("/admin", adminRoutes); app.use("/calendar", calendarRoutes); app.use('/check-in', createClinicIpadPublicRouter()); app.use("/forms", createClientConsultationFormsRouter()); app.use("/", myShilohRoutes); app.use("/", publicWebsiteRoutes); app.use("/", serviceRoutes); app.use("/", walkinRoutes); app.use("/", bookRoutes); app.use("/", webhookRoutes);
 app.use((err, req, res, next) => {
+  if (!res.headersSent && err?.code === 'P0M01') return res.status(409).json({
+    error: 'This booking has a Morning Welcome Offer price. Choose a start from 08:00 and before 12:00, excluding Saturdays, on the same visit date, or review its price with Shiloh before moving it.',
+    code: 'MORNING_OFFER_MOVE_REQUIRES_REVIEW', requestId: req.id,
+  });
+  if (!res.headersSent && err?.code === 'P0M02') return res.status(409).json({
+    error: 'One promotional offer per booking. Choose the Morning Welcome Offer or your promotional voucher. Purchased gift vouchers can still be used to pay.',
+    code: 'MORNING_OFFER_PROMOTION_CONFLICT', requestId: req.id,
+  });
   const log = req.log || logger;
   const route = `${req.baseUrl || ""}${req.route?.path || ""}` || "unmatched";
   observability.captureException(err, {

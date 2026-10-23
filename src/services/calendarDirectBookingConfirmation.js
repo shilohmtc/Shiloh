@@ -1,4 +1,5 @@
 const { pool } = require('../db/pool');
+const { confirmReviewedCalendarOffer } = require('./morningWelcomeOffer');
 const { checkAuthoritativeSchedule, getConflicts } = require('./adminAvailability');
 const { checkClinicHours } = require('./clinicHours');
 const {
@@ -22,7 +23,7 @@ async function confirmCalendarV2BookingDirect(admin, options = {}) {
       `SELECT abs.admin_id, abs.client_id, abs.crm_v2_client_id,
               abs.source_client_name, abs.client_mobile_snapshot,
               abs.staff_id, abs.service_id, abs.location_id,
-              abs.starts_at, abs.ends_at, abs.state,
+              abs.starts_at, abs.ends_at, abs.state, abs.morning_offer_quote,
               st.display_name AS staff_name, st.status AS staff_status,
               s.name AS service_name, s.status AS service_status,
               s.duration_minutes, s.processing_time_minutes, s.extra_time_minutes,
@@ -126,7 +127,8 @@ async function confirmCalendarV2BookingDirect(admin, options = {}) {
       return { status: 'pricing_unavailable', reply: 'This treatment cannot be booked yet because Shiloh has not confirmed a fixed price. No appointment was created.' };
     }
 
-    const totalPrice = session.variable_price ? null : session.price;
+    const { quote: offerPricing, offer: morningOffer } = await confirmReviewedCalendarOffer(db, session, options.morningOfferReviewHash);
+    const totalPrice = offerPricing.total;
     const appointmentResult = await db.query(
       `INSERT INTO appointments
          (client_id, crm_v2_client_id, source_client_name, location_id,
@@ -146,12 +148,13 @@ async function confirmCalendarV2BookingDirect(admin, options = {}) {
       ]
     );
     const appointment = appointmentResult.rows[0];
+    await morningOffer.record(db, { appointmentId: appointment.id, clientId: session.crm_v2_client_id, price: offerPricing.items[0] });
 
     await db.query(
       `INSERT INTO appointment_services
          (appointment_id, service_id, position, service_name_snapshot, price_snapshot, duration_minutes_snapshot)
        VALUES ($1, $2, 1, $3, $4, $5)`,
-      [appointment.id, session.service_id, session.service_name, session.price, session.duration_minutes]
+      [appointment.id, session.service_id, session.service_name, totalPrice, session.duration_minutes]
     );
     await db.query(
       `INSERT INTO appointment_staff
