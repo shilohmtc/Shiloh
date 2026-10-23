@@ -1,3 +1,4 @@
+const { APP_VERSION } = require('../src/presentation/appRelease');
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { buildClientExperience } = require('../src/services/myShilohExperienceOrchestrator');
@@ -25,7 +26,7 @@ test('Workspace refresh keeps cancelled edits and offline pages, and icons prese
 
       await report.scrollIntoViewIfNeeded();
       await page.screenshot({ path: testInfo.outputPath(`workspace-badge-${viewport.name}-${iconsFirst ? 'icons-first' : 'badge-first'}.png`), fullPage: true });
-      const refresh = page.getByRole('button', { name: 'Refresh Workspace', exact: true });
+      const refresh = page.getByRole('button', { name: `Refresh Workspace Version ${APP_VERSION}`, exact: true });
       await refresh.scrollIntoViewIfNeeded();
       const size = await refresh.boundingBox();
       expect(size.height).toBeGreaterThanOrEqual(44);
@@ -1775,7 +1776,7 @@ test('Desktop Book menu exposes every authorized booking and availability action
   for (const label of ['New appointment', 'Couples massage', 'Record past appointment', 'Block time', 'Leave']) {
     await expect(menu.getByText(label, { exact: true })).toBeVisible();
   }
-  await expect(menu.getByRole('link', { name: /Book a Couples Massage/ })).toHaveAttribute('href', '/calendar/book/couples?date=2026-09-14');
+  await expect(menu.getByRole('link', { name: 'Couples massage 2 guests', exact: true })).toHaveAttribute('href', '/calendar/book/couples?date=2026-09-14');
   await expect(menu.getByRole('separator', { name: 'Availability controls' })).toBeVisible();
   const metrics = await menu.locator('a,button').evaluateAll((nodes) => ({
     labels: nodes.map(node => node.textContent.trim()),

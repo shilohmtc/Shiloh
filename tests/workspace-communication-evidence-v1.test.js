@@ -132,8 +132,8 @@ test('Client appointment history exposes an obvious accessible drill-in to Calen
   assert.match(html, /class="history-row history-row-link"/);
   assert.match(html, /data-appointment-detail-link="71"/);
   assert.match(html, /appointment=71&amp;staff=all/);
-  assert.match(html, /aria-label="Open appointment details"/);
-  assert.match(html, /<span>Open<\/span>›/);
+  assert.doesNotMatch(html, /data-appointment-detail-link="71"[^>]*aria-label=/);
+  assert.match(html, /<span class="history-open"><span>Open<\/span><span aria-hidden="true">›<\/span>/);
   assert.match(html, /history-row-link:hover/);
   assert.match(html, /history-row-link:focus-visible/);
 });
