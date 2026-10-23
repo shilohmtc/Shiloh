@@ -112,7 +112,8 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
       if(r.purpose==='signin'&&(!identity.verified||Number(identity.owner.id)!==Number(r.clientId)||identity.revision!==r.identityRevision)||r.purpose==='register'&&!identity.empty){r.state='revoked';await tx.save(r);return INVALID;}
       if(r.purpose==='continue'&&identity.snapshot!==r.identitySnapshot){r.state='revoked';await tx.save(r);return INVALID;}
       r.state='consumed';await tx.save(r);
-      if(r.purpose==='continue'&&!identity.empty){
+      const legacyOnlyRegistration=r.purpose==='continue'&&r.channel==='whatsapp'&&identity.legacyOnly===true;
+      if(r.purpose==='continue'&&!identity.empty&&!legacyOnlyRegistration){
         if(!identity.available)return {ok:true,accountAccessRequired:true};
         // Record fresh phone evidence through the canonical CRM authority. No
         // names, dates, registration status or historical relationships change.
@@ -123,7 +124,9 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
       }
       if(r.purpose==='register'||r.purpose==='continue'){
         const grant=randomBytes(32).toString('base64url');
-        await tx.insert({...r,hash:hash('registration',grant),state:'profile',mobile:crypt(mobile,hash('registration',grant)),expiresAt:new Date(current.getTime()+300000)});
+        // Legacy contacts do not identify a current profile. Fresh proof may
+        // authorize explicit current-profile creation, never historical access.
+        await tx.insert({...r,hash:hash('registration',grant),state:'profile',legacyOnlyRegistration,mobile:crypt(mobile,hash('registration',grant)),expiresAt:new Date(current.getTime()+300000)});
         return {ok:true,grant,profileRequired:true};
       }
       const result=await tx.issueSession({owner:identity.owner,mobile,channel:r.channel,current});
@@ -138,7 +141,9 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
       if(!r||r.state!=='profile'||r.browserHash!==hash('browser',input.browserToken)||new Date(r.expiresAt)<=current)return INVALID;
       const mobile=decrypt(r),profile=details({...input.profile,mobile},true);
       if(!profile)return INVALID;
-      if(!(await tx.identity(mobile)).empty){r.state='revoked';await tx.save(r);return INVALID;}
+      const identity=await tx.identity(mobile);
+      const legacyRegistration=r.purpose==='continue'&&r.channel==='whatsapp'&&r.legacyOnlyRegistration===true&&identity.legacyOnly===true&&identity.snapshot===r.identitySnapshot;
+      if(r.legacyOnlyRegistration===true?!legacyRegistration:!identity.empty){r.state='revoked';await tx.save(r);return INVALID;}
       r.state='consumed';await tx.save(r);
       const owner=await tx.register({profile,mobile,current,channel:r.channel});
       if(!owner)throw Error('Client registration unavailable');
