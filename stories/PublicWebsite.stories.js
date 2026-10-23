@@ -188,3 +188,13 @@ export const CataloguePresentationReview = {
     { id: 1003, name: 'Preview massage', category: 'Massage', duration: '60 min', price: 'Price on request', description: 'Synthetic comparison description. Clinic descriptions remain authoritative.' },
   ])),
 };
+
+export const HomeLoadingReviews = {render:()=>productionPage(renderHome(catalogue))};
+
+const youthGuestReviewCatalogue = [
+  {id:1101,name:'Youth Guests Pedi & Gel',category:'More Services',duration:'45 min',price:'R210'},
+  {id:1102,name:'Synthetic massage',category:'Massage',duration:'30 min',price:'R200'},
+];
+export const YouthGuestServices = {render:()=>productionPage(renderTreatments(youthGuestReviewCatalogue))};
+export const YouthGuestBooking = {render:()=>productionPage(renderBookingPage('27830000000',youthGuestReviewCatalogue))};
+export const BookAnchoredSelection = {render:()=>productionPage(renderBookingPage('27830000000',Array.from({length:18},(_,i)=>({id:1001+i,name:`Synthetic massage ${i+1}`,category:'Massage',duration:'30 min',price:'R200'})),1007))};

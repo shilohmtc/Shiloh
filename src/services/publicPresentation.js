@@ -115,7 +115,7 @@ function publicServiceCategoryFor(service = {}) {
   if (/permanent makeup|permanant makeup|areola|eyeliner/.test(serviceName)) {
     return 'Permanent Makeup';
   }
-  if (/pedicure|heel|foot massage|feet|toe gel|mediheel/.test(serviceName) || /\byoung guest\b.*\bpedi\b/.test(serviceName)) {
+  if (/pedicure|heel|foot massage|feet|toe gel|mediheel/.test(serviceName) || /\b(?:young guest|youth guests?)\b.*\bpedi\b/.test(serviceName)) {
     return 'Pedicures & Foot Care';
   }
   if (/facial|peel|derma|skin|brow|lash|wax/.test(serviceName)) return 'Facials & Skin';
