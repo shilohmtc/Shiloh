@@ -256,10 +256,21 @@ async function runViewport(browser, name, viewport) {
   loggedOut = false;
   voucherSyncCalls.length = 0;
 
-  const browserContext = await browser.newContext({ viewport });
+  const platform = name === 'phone' ? { userAgent: 'Mozilla/5.0 (Linux; Android 14; Synthetic Phone) AppleWebKit/537.36 Chrome/156.0.0.0 Mobile Safari/537.36' } : {};
+  const doorwayTitle = name === 'phone' ? 'Add My Shiloh to your phone.' : 'Continue your booking on your phone.';
+  const browserContext = await browser.newContext({ viewport, ...platform });
   const browserPage = await browserContext.newPage();
   await browserPage.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
-  await browserPage.getByRole('heading', { name: 'Add My Shiloh to your Home Screen.' }).waitFor();
+  await browserPage.getByRole('heading', { name: doorwayTitle, exact: true }).waitFor();
+  if (name === 'desktop') {
+    await browserPage.getByRole('button', { name: 'Copy phone link', exact: true }).waitFor();
+    await browserPage.getByRole('link', { name: 'Message Reception on WhatsApp', exact: true }).waitFor();
+    if (await browserPage.locator('[data-desktop-phone-link]').getAttribute('href') !== 'https://app.shilohmtc.co.za/my-shiloh/#book-online') throw new Error('desktop handoff must retain the canonical phone link');
+    if (!(await browserPage.locator('[data-install-gate-action]').isHidden())) throw new Error('desktop must not offer phone installation steps');
+  } else {
+    await browserPage.getByRole('button', { name: 'Show Android steps', exact: true }).waitFor();
+    if (!(await browserPage.locator('[data-install-desktop-handoff]').isHidden())) throw new Error('phone must retain its installation flow');
+  }
   if (await browserPage.locator('[data-client-auth-start]').count()) {
     throw new Error('normal browser must not expose My Shiloh sign-in before installation');
   }
@@ -269,7 +280,7 @@ async function runViewport(browser, name, viewport) {
   await browserPage.screenshot({ path: path.join(out, `${name}-install-doorway.png`), fullPage: true });
   await browserContext.close();
 
-  const context = await browser.newContext({ viewport });
+  const context = await browser.newContext({ viewport, ...platform });
   await context.addInitScript(() => {
     Object.defineProperty(window.navigator, 'standalone', {
       configurable: true,
@@ -306,11 +317,11 @@ async function runViewport(browser, name, viewport) {
   }
 
   const authenticatedCookies = await context.cookies(baseUrl);
-  const authenticatedBrowserContext = await browser.newContext({ viewport });
+  const authenticatedBrowserContext = await browser.newContext({ viewport, ...platform });
   await authenticatedBrowserContext.addCookies(authenticatedCookies);
   const authenticatedBrowserPage = await authenticatedBrowserContext.newPage();
   await authenticatedBrowserPage.goto(`${baseUrl}/my-shiloh/`, { waitUntil: 'networkidle' });
-  await authenticatedBrowserPage.getByRole('heading', { name: 'Add My Shiloh to your Home Screen.' }).waitFor();
+  await authenticatedBrowserPage.getByRole('heading', { name: doorwayTitle, exact: true }).waitFor();
   if (!(await authenticatedBrowserPage.locator('[data-app-frame]').isHidden())) {
     throw new Error('authenticated browser must keep the My Shiloh client shell hidden');
   }
