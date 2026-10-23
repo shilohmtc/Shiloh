@@ -72,3 +72,5 @@ module.exports.testMatch.push('calendar-couples-creation.spec.js');
 module.exports.testMatch.push("website-publishing-ux.spec.js");
 
 module.exports.testMatch.push('desktop-booking-handoff.spec.js');
+
+module.exports.testMatch.push('client-passkey-rename.spec.js');

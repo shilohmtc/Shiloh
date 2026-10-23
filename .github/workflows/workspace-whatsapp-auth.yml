@@ -24,6 +24,8 @@ on:
       - 'src/presentation/authInvitations.js'
       - 'docs/proposed-migrations/client_code_auth.sql'
       - 'tests/client-code-auth.test.js'
+      - 'tests/client-passkey-rename.test.js'
+      - 'src/services/clientPasskeyEnrollment.js'
       - 'tests/helpers/clientCodeHarness.js'
       - 'src/routes/workspaceWhatsAppAuth.js'
       - 'src/presentation/workspaceWhatsAppUx.js'
@@ -77,7 +79,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node --test tests/code-signin-policy.test.js tests/workspace-meta-readback.test.js tests/workspace-whatsapp-auth-preparation.test.js tests/workspace-whatsapp-providers.test.js tests/workspace-whatsapp-integration.test.js tests/staff-detail-auth.test.js tests/staff-passkey-auth-v1.test.js tests/staff-details-device-retirement.test.js tests/staff-detail-signin-retirement.test.js tests/my-shiloh-remembered-session.test.js tests/my-shiloh-payment-choice-routes.test.js tests/crm-v2-foundation.test.js tests/whatsapp-clean-crm-v2-registration-activation-p0.test.js
-      - run: node --test tests/workspace-whatsapp-integration.test.js tests/workspace-whatsapp-pilot.test.js tests/workspace-whatsapp-release.test.js tests/workspace-whatsapp-staff.test.js tests/staff-detail-signin-retirement.test.js tests/client-code-auth.test.js tests/client-auth-retirement.test.js tests/client-code-production.test.js tests/workspace-account-setup.test.js tests/staff-passkey-manager-choice.test.js
+      - run: node --test tests/workspace-whatsapp-integration.test.js tests/workspace-whatsapp-pilot.test.js tests/workspace-whatsapp-release.test.js tests/workspace-whatsapp-staff.test.js tests/staff-detail-signin-retirement.test.js tests/client-code-auth.test.js tests/client-passkey-rename.test.js tests/client-auth-retirement.test.js tests/client-code-production.test.js tests/workspace-account-setup.test.js tests/staff-passkey-manager-choice.test.js
         env:
           WORKSPACE_WHATSAPP_SYNTHETIC_DATABASE_URL: postgres://postgres:synthetic-only@127.0.0.1:5432/wa_synthetic
       - run: npm run build-storybook

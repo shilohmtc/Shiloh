@@ -253,7 +253,7 @@ export const PasskeyProfile = {
   render: () => {
     const surface = productionSurface({
       id: '913', name: 'Synthetic Client AO', firstName: 'Synthetic Client AI',
-    }, { passkeysAvailable: true, signInMethod: 'passkey' });
+    }, { passkeysAvailable: true, signInMethod: 'passkey', detailsRetired: true, codeAvailable: true });
     surface.querySelectorAll('[data-view]').forEach((view) => {
       const active = view.dataset.view === 'profile';
       view.hidden = !active;
@@ -262,8 +262,8 @@ export const PasskeyProfile = {
     surface.querySelector('[data-passkey-enroll]').hidden = true;
     const devices = surface.querySelector('[data-passkey-devices]');
     if (devices) devices.innerHTML = `<ul class="passkey-device-list">
-      <li class="passkey-device"><div><strong>iPhone</strong><small>Saved 27 Sep 2026 · Last used 27 Sep 2026</small></div><button class="button button--soft" type="button" aria-label="Remove iPhone passkey">Remove</button></li>
-      <li class="passkey-device"><div><strong>Mac</strong><small>Saved 26 Sep 2026 · Not used yet</small></div><button class="button button--soft" type="button" aria-label="Remove Mac passkey">Remove</button></li>
+      <li class="passkey-device"><div><strong>iPhone</strong><small>Saved 27 Sep 2026 · Last used 27 Sep 2026</small></div><div class="passkey-device-actions"><button class="button button--soft" type="button" aria-label="Rename iPhone passkey">Rename</button><button class="button button--soft" type="button" aria-label="Remove iPhone passkey">Remove</button></div></li>
+      <li class="passkey-device"><div><strong>Mac</strong><small>Saved 26 Sep 2026 · Not used yet</small></div><div class="passkey-device-actions"><button class="button button--soft" type="button" aria-label="Rename Mac passkey">Rename</button><button class="button button--soft" type="button" aria-label="Remove Mac passkey">Remove</button></div></li>
     </ul>`;
     return surface;
   },
@@ -702,3 +702,17 @@ export const CrmOptionalInvitations = {
 };
 
 export const DesktopBookingHandoff = {render:()=>productionSurface(null,{detailsRetired:true,codeAvailable:true,selectedServiceId:101})};
+
+export const PasskeyRename = {
+  render: () => {
+    const surface = PasskeyProfile.render();
+    const item = surface.querySelector('.passkey-device');
+    item.querySelector('.passkey-device-actions').hidden = true;
+    const editor = document.createElement('form');
+    editor.className = 'passkey-rename';
+    editor.innerHTML = '<label class="profile-field"><span>Passkey name</span><input type="text" value="My iPhone" maxlength="48" required autocomplete="off"></label><div class="passkey-device-actions"><button class="button button--soft" type="submit">Save name</button><button class="button button--soft" type="button">Cancel</button></div>';
+    editor.addEventListener('submit', event => event.preventDefault());
+    item.append(editor);
+    return surface;
+  },
+};

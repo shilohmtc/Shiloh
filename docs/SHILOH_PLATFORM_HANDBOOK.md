@@ -439,3 +439,6 @@ iPhone/iPad Home Screen apps need notification permission and the independent **
 
 
 **Accepted 23 October 2026 — registration gender choices:** The My Shiloh registration selector reached after WhatsApp verification offers only Female and Male, with the neutral Choose placeholder and its existing required behavior. Do not select a default, rewrite stored gender values or remove backend compatibility for existing records. This is limited to the new-registration selector, not Profile editing.
+
+
+**Accepted 23 October 2026 — client passkey names:** A signed-in client may rename their own active passkey in Profile using Save name or Cancel. Reuse the existing 1–48 character display label and remembered-session, same-origin and CSRF protections; recheck live ownership/session authority under the credential lock. Update only the display label and its existing audit, preserving keys, counters, eligibility, timestamps, sessions and other clients. A repeated identical save is idempotent. Names identify entries in My Shiloh, not a unique physical device; synced passkeys may be available elsewhere. No migration or real credential edit is authorised as a production test.
