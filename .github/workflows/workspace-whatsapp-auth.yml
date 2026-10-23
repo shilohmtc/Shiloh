@@ -14,6 +14,7 @@ on:
       - 'src/services/clientAuthReadiness*.js'
       - 'tests/client-auth-retirement.test.js'
       - 'scripts/client-auth-retirement-browser-proof.js'
+      - 'scripts/client-legacy-code-registration-browser-proof.js'
       - 'src/services/clientBrowserSession.js'
       - 'src/services/crmV2ClientService.js'
       - 'src/services/authInvitations.js'
@@ -82,6 +83,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node scripts/workspace-whatsapp-browser-proof.js
       - run: node scripts/client-code-browser-proof.js
+      - run: node scripts/client-legacy-code-registration-browser-proof.js
       - run: node scripts/workspace-account-setup-browser-proof.js
       - run: node scripts/client-auth-retirement-browser-proof.js
       - run: node scripts/workspace-whatsapp-release-browser-proof.js

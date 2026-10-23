@@ -49,7 +49,7 @@ function createClientCodeStore({db,sessions}={}){
           // not block that one active owner, and are never opened or linked.
           const available=owner?.status==='active';
           const snapshot=crypto.createHash('sha256').update(JSON.stringify([rows.map(r=>[String(r.id),revision(r),r.status,r.first_name,r.surname]),historical.map(r=>String(r.id))])).digest('hex');
-          return {empty:rows.length===0&&historical.length===0,verified,available,owner,revision:verified?revision(owner):null,snapshot};
+          return {empty:rows.length===0&&historical.length===0,legacyOnly:rows.length===0&&historical.length>0,verified,available,owner,revision:verified?revision(owner):null,snapshot};
         },
         async verifyMobile({mobile,current,channel}){
           // Called only after consuming fresh browser-bound phone proof, under

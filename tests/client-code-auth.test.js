@@ -159,7 +159,7 @@ test('one client entry reveals registration only after proof and cannot create a
   assert.equal(result.ok,true);assert.equal((await h.db.query('SELECT * FROM crm_v2_clients')).rows.length,1);
 });
 
-for(const kind of ['historical','archived','multiple'])test(`verified phone does not choose or expose a ${kind} profile`,async t=>{
+for(const kind of ['archived','multiple'])test(`verified phone does not choose or expose a ${kind} profile`,async t=>{
   const h=await clientHarness(t),input={...h.context,purpose:'continue'};
   if(kind==='historical'){await h.db.query("INSERT INTO client_contacts(normalized_value,contact_type) VALUES($1,'mobile')",[input.mobile]);}
   if(kind==='archived')await h.owner({status:'archived'});
@@ -206,4 +206,65 @@ test('unified requests share the durable R5 daily allowance with legacy purposes
     const s=h.make({budget});await s.begin({...h.context,purpose:i%2?'continue':'register',mobile:'2782000000'+i});await s.dispatchOne();
   }
   assert.equal(h.sent.length,5);assert.equal((await h.db.query('SELECT * FROM crm_v2_clients')).rows.length,0);
+});
+
+async function legacyRegistrationProof(t){
+  const h=await clientHarness(t),input={...h.context,purpose:'continue'};
+  await h.db.query("INSERT INTO client_contacts(normalized_value,contact_type) VALUES($1,'mobile')",[input.mobile]);
+  const legacy=(await h.db.query('SELECT * FROM client_contacts ORDER BY id')).rows;
+  const request=await h.service.begin(input);await h.service.dispatchOne();
+  const proof=await h.service.verify({...input,request:request.request,code:h.sent[0].code});
+  assert.equal(proof.profileRequired,true);assert.ok(proof.grant);assert.equal(proof.accountAccessRequired,undefined);
+  assert.equal((await h.db.query('SELECT * FROM crm_v2_clients')).rows.length,0);
+  assert.equal((await h.db.query('SELECT * FROM client_browser_sessions')).rows.length,0);
+  return {...h,input,legacy,request,proof,profile:{firstName:'Explicit',surname:'Registration',dateOfBirth:'1990-01-01',gender:'female'}};
+}
+
+test('fresh legacy-only phone proof permits explicit current registration and sign-in without historical linking',async t=>{
+  const h=await legacyRegistrationProof(t);
+  assert.equal((await h.service.verify({...h.input,request:h.request.request,code:h.sent[0].code})).ok,false);
+  const result=await h.service.completeRegistration({...h.input,grant:h.proof.grant,profile:h.profile});
+  assert.equal(result.ok,true);
+  const rows=(await h.db.query('SELECT * FROM crm_v2_clients')).rows;assert.equal(rows.length,1);
+  assert.equal(rows[0].first_name,'Explicit');assert.equal(rows[0].surname,'Registration');assert.equal(rows[0].normalized_mobile,h.input.mobile);
+  assert.equal(rows[0].status,'active');assert.ok(rows[0].mobile_verified_at);
+  assert.deepEqual((await h.db.query('SELECT * FROM client_contacts ORDER BY id')).rows,h.legacy);
+  assert.equal(JSON.stringify(rows[0].provenance).includes('legacy'),false);
+  assert.equal((await h.sessions.validateSessionToken(result.sessionToken)).crmV2ClientId,Number(rows[0].id));
+  assert.equal((await h.service.completeRegistration({...h.input,grant:h.proof.grant,profile:h.profile})).ok,false);
+  h.advance(60000);const next=await h.service.begin(h.input);await h.service.dispatchOne();
+  const login=await h.service.verify({...h.input,request:next.request,code:h.sent.at(-1).code});
+  assert.equal((await h.sessions.validateSessionToken(login.sessionToken)).crmV2ClientId,Number(rows[0].id));
+  assert.equal((await h.db.query('SELECT * FROM crm_v2_clients')).rows.length,1);
+});
+
+for(const failure of ['expired','wrong_browser','active_owner','archived_owner','legacy_changed'])test(`legacy-only registration refuses ${failure} without creating or overwriting a profile`,async t=>{
+  const h=await legacyRegistrationProof(t);let input={...h.input,grant:h.proof.grant,profile:h.profile};
+  if(failure==='expired')h.advance(300001);
+  if(failure==='wrong_browser')input.browserToken='Z'.repeat(43);
+  if(failure==='active_owner')await h.owner();
+  if(failure==='archived_owner')await h.owner({status:'archived'});
+  if(failure==='legacy_changed')await h.db.query('DELETE FROM client_contacts');
+  const before=(await h.db.query('SELECT * FROM crm_v2_clients ORDER BY id')).rows;
+  assert.equal((await h.service.completeRegistration(input)).ok,false);
+  assert.deepEqual((await h.db.query('SELECT * FROM crm_v2_clients ORDER BY id')).rows,before);
+  assert.equal((await h.db.query('SELECT * FROM client_browser_sessions')).rows.length,0);
+});
+
+test('legacy registration cannot exchange a request token for a grant and keeps the grant on invalid details',async t=>{
+  const h=await legacyRegistrationProof(t);
+  assert.equal((await h.service.completeRegistration({...h.input,grant:h.request.request,profile:h.profile})).ok,false);
+  assert.equal((await h.service.completeRegistration({...h.input,grant:h.proof.grant,profile:{...h.profile,dateOfBirth:'invalid'}})).ok,false);
+  assert.equal((await h.service.completeRegistration({...h.input,grant:h.proof.grant,profile:h.profile})).ok,true);
+});
+
+test('concurrent legacy registration grants create one current profile and issue only its one session',async t=>{
+  const h=await legacyRegistrationProof(t);
+  h.advance(60000);const next=await h.service.begin(h.input);await h.service.dispatchOne();
+  const second=await h.service.verify({...h.input,request:next.request,code:h.sent.at(-1).code});assert.equal(second.profileRequired,true);
+  const results=await Promise.all([h.proof.grant,second.grant].map(grant=>h.service.completeRegistration({...h.input,grant,profile:h.profile})));
+  assert.equal(results.filter(x=>x.ok).length,1);
+  assert.equal((await h.db.query('SELECT * FROM crm_v2_clients')).rows.length,1);
+  assert.equal((await h.db.query('SELECT * FROM client_browser_sessions')).rows.length,1);
+  assert.deepEqual((await h.db.query('SELECT * FROM client_contacts ORDER BY id')).rows,h.legacy);
 });

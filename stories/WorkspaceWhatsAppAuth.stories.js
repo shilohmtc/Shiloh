@@ -33,3 +33,9 @@ const setupStory=passkey=>`<style>${setup.workspaceAccountSetupStyles()}</style>
 .replace('Optional notifications</p>',passkey?'Save a passkey</p>':'Optional notifications</p>').replace('Workspace notifications</h2>',passkey?'Make next time easier.</h2>':'Workspace notifications</h2>').replace('Get updates from Workspace on this device.</p>',passkey?'Save a passkey for quicker sign-in with your fingerprint, face or screen lock.</p>':'Get updates from Workspace on this device.</p>')}</main>`;
 export const WorkspaceNotificationCard={render:()=>setupStory(false)};
 export const WorkspacePasskeyCard={render:()=>setupStory(true)};
+
+// Existing form reached only after fresh proof; no legacy records are displayed.
+export const LegacyOnlyRegistration={render:()=>documentBody(client.clientCodePage())
+  .replace('id="start"','id="start" hidden')
+  .replace('id="profile" hidden','id="profile"')
+  .replace('id="status" data-auth-status role="status" aria-live="polite"></p>','id="status" data-auth-status role="status" aria-live="polite">Number verified. Please complete your details.</p>')};
