@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 const { pool } = require('../db/pool');
 const { sha256, normalizedFingerprint } = require('./clientBrowserSession');
-const { verifyRegistrationResponse, normalizeDeviceLabel } = require('./staffPasskeyAuth');
+const { verifyRegistrationResponse, normalizeDeviceLabel, personalizedDeviceLabel } = require('./staffPasskeyAuth');
 const { APP_ORIGIN } = require('../config/publicOrigins');
 
 const FEATURE_FLAG = 'SHILOH_CLIENT_PASSKEY_AUTH_ENABLED';
@@ -92,6 +92,18 @@ function deviceLabel(userAgent) {
   if (/Windows/i.test(agent)) return 'Windows device';
   if (/Macintosh|Mac OS X/i.test(agent)) return 'Mac';
   return 'Shiloh device';
+}
+
+// A friendly display label, not a physical-device or password-manager identity.
+// Only used for a newly inserted key; existing labels and Rename are unchanged.
+function clientDeviceLabel(owner, userAgent) {
+  const device = deviceLabel(userAgent);
+  const raw = typeof owner?.first_name === 'string' && owner.first_name.trim()
+    ? owner.first_name : owner?.name;
+  const firstName = typeof raw === 'string'
+    ? raw.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().split(/\s+/)[0] : '';
+  if (!firstName) return device;
+  return personalizedDeviceLabel(firstName, device === 'Android device' ? 'Android' : device);
 }
 
 function createClientPasskeyEnrollmentService({
@@ -215,7 +227,7 @@ function createClientPasskeyEnrollmentService({
       // Consume even an invalid response so a challenge cannot be repeatedly probed.
       await client.query('UPDATE client_auth_passkey_challenges SET consumed_at = $2 WHERE id = $1', [row.id, current]);
       const owner = await client.query(
-        `SELECT id FROM crm_v2_clients WHERE id = $1 AND status = 'active' FOR SHARE`,
+        `SELECT id, first_name, name FROM crm_v2_clients WHERE id = $1 AND status = 'active' FOR SHARE`,
         [session.crmV2ClientId],
       );
       if (owner.rowCount !== 1) {
@@ -246,7 +258,7 @@ function createClientPasskeyEnrollmentService({
           (crm_v2_client_id, credential_id, public_key_spki, algorithm, sign_count, transports, backed_up, device_label)
           VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8) RETURNING id`,
         [session.crmV2ClientId, verified.credentialId, verified.publicKeySpki,
-          verified.algorithm, verified.signCount, JSON.stringify(verified.transports), verified.backedUp, deviceLabel(userAgent)],
+          verified.algorithm, verified.signCount, JSON.stringify(verified.transports), verified.backedUp, clientDeviceLabel(owner.rows[0], userAgent)],
       );
       await client.query(
         `INSERT INTO client_auth_security_events
@@ -380,4 +392,4 @@ function createClientPasskeyEnrollmentService({
 }
 
 module.exports = { FEATURE_FLAG, CHALLENGE_TTL_MS, RECENT_SESSION_MS,
-  enrollmentPolicy, enrollmentClientSession, liveStoredClientSession, recentClientSession, recentStoredClientSession, responseChallenge, deviceLabel, createClientPasskeyEnrollmentService };
+  enrollmentPolicy, enrollmentClientSession, liveStoredClientSession, recentClientSession, recentStoredClientSession, responseChallenge, deviceLabel, clientDeviceLabel, createClientPasskeyEnrollmentService };

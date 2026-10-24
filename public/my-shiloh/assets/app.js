@@ -1191,7 +1191,7 @@
         detail.append(title, timing);
         const remove = document.createElement('button');
         remove.type = 'button';
-        remove.className = 'button button--soft';
+        remove.className = 'button button--danger';
         remove.textContent = 'Remove';
         remove.setAttribute('aria-label', `Remove ${title.textContent} passkey`);
         remove.addEventListener('click', () => revokePasskeyDevice(device.id, title.textContent, remove));
@@ -1215,7 +1215,7 @@
         const editorActions = document.createElement('div');
         editorActions.className = 'passkey-device-actions';
         const save = document.createElement('button');
-        save.type = 'submit'; save.className = 'button button--soft'; save.textContent = 'Save name';
+        save.type = 'submit'; save.className = 'button button--primary'; save.textContent = 'Save name';
         const cancel = document.createElement('button');
         cancel.type = 'button'; cancel.className = 'button button--soft'; cancel.textContent = 'Cancel';
         const status = document.createElement('p');

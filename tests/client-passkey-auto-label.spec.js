@@ -1,0 +1,21 @@
+const {test,expect}=require('@playwright/test');
+const AxeBuilder=require('@axe-core/playwright').default;
+const {clientDeviceLabel}=require('../src/services/clientPasskeyEnrollment');
+for(const width of [390,1440])test(`friendly labels stay plain text and existing names remain at ${width}`,async({page},info)=>{
+ const label=clientDeviceLabel({first_name:'Jean-Pierre'},'Mozilla Android; SM-S938B');
+ const devices=[{id:41,label,createdAt:'2026-10-20T10:00:00Z',backedUp:true},{id:42,label:'My manually named key',createdAt:'2026-10-20T10:00:00Z',backedUp:true}];
+ await page.setViewportSize({width,height:1000});await page.addInitScript(()=>{Object.defineProperty(navigator,'standalone',{value:true,configurable:true});window.PublicKeyCredential=function(){};});
+ await page.route('**/my-shiloh/api/**',r=>r.fulfill({json:{}}));await page.route('**/my-shiloh/auth/**',r=>r.fulfill({json:{}}));
+ await page.route('**/my-shiloh/auth/csrf',r=>r.fulfill({json:{csrfToken:'C'.repeat(43)}}));
+ await page.route('**/my-shiloh/auth/passkeys/devices',r=>r.fulfill({json:{devices}}));
+ await page.goto('/iframe.html?id=client-my-shiloh-pwa--personalized-passkey-profile&viewMode=story#profile',{waitUntil:'networkidle'});
+ await page.locator('[data-app-frame]').waitFor({state:'attached'});await page.addScriptTag({url:'/my-shiloh/assets/app.js'});
+ const list=page.locator('.passkey-device');await expect(list.first().locator('strong')).toHaveText('Jean-Pierre’s Android');await expect(list.nth(1).locator('strong')).toHaveText('My manually named key');
+ await expect(page.getByRole('button',{name:'Rename Jean-Pierre’s Android passkey',exact:true})).toBeEnabled();
+ await page.getByRole('button',{name:'Rename Jean-Pierre’s Android passkey',exact:true}).click();await expect(list.first().getByRole('textbox',{name:'Passkey name',exact:true})).toHaveValue(label);await list.first().getByRole('button',{name:'Cancel',exact:true}).click();
+ const panel=page.locator('[aria-labelledby="passkey-title"]');await expect(panel).toContainText('Synced passkeys can be available on more than one device.');
+ const axe=await new AxeBuilder({page}).include('[aria-labelledby="passkey-title"]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();expect(axe.violations).toEqual([]);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await panel.screenshot({path:info.outputPath(`friendly-passkeys-${width}.png`)});
+ devices[0].label=clientDeviceLabel({first_name:'<b>Ari</b>'},'Android');await page.reload({waitUntil:'networkidle'});await page.addScriptTag({url:'/my-shiloh/assets/app.js'});
+ await expect(list.first().locator('strong')).toHaveText('<b>Ari</b>’s Android');await expect(list.first().locator('b')).toHaveCount(0);
+});
