@@ -1,5 +1,9 @@
 const {test,expect}=require('@playwright/test');
 const AxeBuilder=require('@axe-core/playwright').default;
+async function expectReadable(button){
+ const ratio=await button.evaluate(el=>{const c=getComputedStyle(el),parse=x=>(x.match(/[\d.]+/g)||[]).slice(0,3).map(Number),lum=x=>parse(x).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4;}).reduce((n,v,i)=>n+v*[.2126,.7152,.0722][i],0),a=lum(c.color),b=lum(c.backgroundColor);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05);});
+ expect(ratio).toBeGreaterThanOrEqual(4.5);
+}
 async function open(page){
  const calls=[],devices=[{id:41,label:'Android device',createdAt:'2026-10-20T10:00:00Z',lastUsedAt:'2026-10-23T10:00:00Z',backedUp:true},{id:42,label:'Mac',createdAt:'2026-10-20T10:00:00Z',backedUp:true}];
  await page.addInitScript(()=>{Object.defineProperty(navigator,'standalone',{value:true,configurable:true});window.PublicKeyCredential=function(){};window.credentialCalls=0;Object.defineProperty(navigator,'credentials',{configurable:true,value:{create:async()=>{window.credentialCalls++;throw Error('unexpected credential creation');},get:async()=>{window.credentialCalls++;throw Error('unexpected credential sign-in');}}});});
@@ -20,12 +24,18 @@ async function open(page){
 for(const width of [390,1440])test(`own passkey name Save and Cancel at ${width}`,async({page},info)=>{
  await page.setViewportSize({width,height:1000});const {calls,devices}=await open(page);
  const row=page.locator('.passkey-device').first();const editor=row.locator('form');
+ const rename=row.getByRole('button',{name:'Rename Android device passkey',exact:true}),remove=row.getByRole('button',{name:'Remove Android device passkey',exact:true});
+ await expect(rename).toHaveClass(/button--soft/);await expect(remove).toHaveClass(/button--danger/);
+ for(const button of [rename,remove]){await expectReadable(button);await button.hover();await expectReadable(button);await button.focus();await expectReadable(button);}
  await row.getByRole('button',{name:'Rename Android device passkey',exact:true}).click();
  await expect(editor.getByRole('textbox',{name:'Passkey name',exact:true})).toHaveValue('Android device');
  await editor.getByRole('textbox').fill('Unsaved name');await editor.getByRole('button',{name:'Cancel',exact:true}).click();
  expect(calls).toEqual([]);await expect(row.locator('strong')).toHaveText('Android device');await expect(editor).toBeHidden();
  await row.getByRole('button',{name:'Rename Android device passkey',exact:true}).click();
  await editor.getByRole('textbox').fill('Galaxy S25 Ultra');
+ const save=editor.getByRole('button',{name:'Save name',exact:true}),cancel=editor.getByRole('button',{name:'Cancel',exact:true});
+ await expect(save).toHaveClass(/button--primary/);await expect(cancel).toHaveClass(/button--soft/);
+ for(const button of [save,cancel]){await expectReadable(button);await button.hover();await expectReadable(button);await button.focus();await expectReadable(button);}
  const axe=await new AxeBuilder({page}).include('[aria-labelledby="passkey-title"]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
  await row.screenshot({path:info.outputPath(`rename-editor-${width}.png`)});
  await editor.getByRole('button',{name:'Save name',exact:true}).click();

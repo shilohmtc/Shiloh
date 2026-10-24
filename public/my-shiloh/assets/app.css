@@ -98,6 +98,7 @@ h3{font-size:20px;line-height:1.12}
   transition:transform .18s ease,box-shadow .18s ease,background .18s ease;
 }
 .button:active{transform:translateY(1px)}
+/* Semantic action variants: see docs/PUBLIC_UI_ACTION_COLOURS.md. */
 .button--primary{background:var(--leaf-dark);color:#fff;box-shadow:0 9px 24px rgba(46,64,51,.18)}
 .button--soft{background:#fff;color:var(--leaf-dark);border:1px solid var(--line)}
 .button--danger{background:#7b433d;color:#fff;box-shadow:0 9px 24px rgba(91,52,47,.16)}

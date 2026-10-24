@@ -206,7 +206,7 @@ test('home and Contact share the approved Heidelberg town-centre story', () => {
 test('home leads with the Heidelberg location and shared brand chrome', () => {
   const html = renderHome(catalogue);
   assert.match(html, /<section class="home-hero">[\s\S]*?<div class="eyebrow">In the heart of Heidelberg<\/div>/);
-  assert.match(html, /Massage and aesthetic services at 37 Jacobs Street/);
+  assert.match(html, /Massage and aesthetic services in Heidelberg’s newly renovated town centre/);
   assert.match(html, /class="site-brand-mark"/);
   assert.match(html, /class="site-footer-mark"/);
   assert.match(html, /Contact &amp; directions/);

@@ -262,8 +262,8 @@ export const PasskeyProfile = {
     surface.querySelector('[data-passkey-enroll]').hidden = true;
     const devices = surface.querySelector('[data-passkey-devices]');
     if (devices) devices.innerHTML = `<ul class="passkey-device-list">
-      <li class="passkey-device"><div><strong>iPhone</strong><small>Saved 27 Sep 2026 · Last used 27 Sep 2026</small></div><div class="passkey-device-actions"><button class="button button--soft" type="button" aria-label="Rename iPhone passkey">Rename</button><button class="button button--soft" type="button" aria-label="Remove iPhone passkey">Remove</button></div></li>
-      <li class="passkey-device"><div><strong>Mac</strong><small>Saved 26 Sep 2026 · Not used yet</small></div><div class="passkey-device-actions"><button class="button button--soft" type="button" aria-label="Rename Mac passkey">Rename</button><button class="button button--soft" type="button" aria-label="Remove Mac passkey">Remove</button></div></li>
+      <li class="passkey-device"><div><strong>iPhone</strong><small>Saved 27 Sep 2026 · Last used 27 Sep 2026</small></div><div class="passkey-device-actions"><button class="button button--soft" type="button" aria-label="Rename iPhone passkey">Rename</button><button class="button button--danger" type="button" aria-label="Remove iPhone passkey">Remove</button></div></li>
+      <li class="passkey-device"><div><strong>Mac</strong><small>Saved 26 Sep 2026 · Not used yet</small></div><div class="passkey-device-actions"><button class="button button--soft" type="button" aria-label="Rename Mac passkey">Rename</button><button class="button button--danger" type="button" aria-label="Remove Mac passkey">Remove</button></div></li>
     </ul>`;
     return surface;
   },
@@ -710,7 +710,7 @@ export const PasskeyRename = {
     item.querySelector('.passkey-device-actions').hidden = true;
     const editor = document.createElement('form');
     editor.className = 'passkey-rename';
-    editor.innerHTML = '<label class="profile-field"><span>Passkey name</span><input type="text" value="My iPhone" maxlength="48" required autocomplete="off"></label><div class="passkey-device-actions"><button class="button button--soft" type="submit">Save name</button><button class="button button--soft" type="button">Cancel</button></div>';
+    editor.innerHTML = '<label class="profile-field"><span>Passkey name</span><input type="text" value="My iPhone" maxlength="48" required autocomplete="off"></label><div class="passkey-device-actions"><button class="button button--primary" type="submit">Save name</button><button class="button button--soft" type="button">Cancel</button></div>';
     editor.addEventListener('submit', event => event.preventDefault());
     item.append(editor);
     return surface;
