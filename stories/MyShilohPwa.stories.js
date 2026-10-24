@@ -716,3 +716,15 @@ export const PasskeyRename = {
     return surface;
   },
 };
+
+// Friendly saved-key names are labels; synced keys can span devices.
+export const PersonalizedPasskeyProfile = {
+  render: () => {
+    const surface = PasskeyProfile.render();
+    const row = surface.querySelector('.passkey-device');
+    row.querySelector('strong').textContent = 'Jean-Pierre’s Android';
+    row.querySelector('[aria-label^="Rename"]').setAttribute('aria-label', 'Rename Jean-Pierre’s Android passkey');
+    row.querySelector('[aria-label^="Remove"]').setAttribute('aria-label', 'Remove Jean-Pierre’s Android passkey');
+    return surface;
+  },
+};

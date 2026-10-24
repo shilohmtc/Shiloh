@@ -78,3 +78,4 @@ module.exports.testMatch.push('client-passkey-rename.spec.js');
 module.exports.testMatch.push('public-website-resilience.spec.js');
 
 module.exports.testMatch.push('public-address-readability.spec.js');
+module.exports.testMatch.push('client-passkey-auto-label.spec.js');
