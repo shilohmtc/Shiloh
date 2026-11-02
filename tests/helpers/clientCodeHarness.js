@@ -4,7 +4,7 @@ const {PGlite}=require('@electric-sql/pglite');
 const {createClientCodeAuth}=require('../../src/services/clientCodeAuth');
 const {createClientCodeStore}=require('../../src/services/clientCodeStore');
 const {createClientBrowserSessionService}=require('../../src/services/clientBrowserSession');
-async function clientHarness(t,{applyClientMigration=true}={}){
+async function clientHarness(t,{applyClientMigration=true,whatsappCodeTtlSeconds=300}={}){
   let pg,pool,control,schema;
   if(process.env.WORKSPACE_WHATSAPP_SYNTHETIC_DATABASE_URL){
     const u=new URL(process.env.WORKSPACE_WHATSAPP_SYNTHETIC_DATABASE_URL);
@@ -24,9 +24,9 @@ async function clientHarness(t,{applyClientMigration=true}={}){
   const db={query,async connect(){if(pool)return pool.connect();let release;const before=queue;queue=new Promise(r=>release=r);await before;return {query,release};}};
   const sessions=createClientBrowserSessionService({db,now:()=>new Date(clock)}),sent=[],sms=[];
   let outcome='accepted';
-  const provider=(channel,output)=>({audience:'client',configured:()=>true,readiness:async()=>({ready:true,codeTtlSeconds:300}),deliver:async data=>{output.push(data);return outcome==='accepted'?{ok:true,providerMessageId:channel+'.synthetic'}:{ok:false,outcome};}});
+  const provider=(channel,output)=>({audience:'client',configured:()=>true,readiness:async()=>({ready:true,codeTtlSeconds:channel==='sms'?300:whatsappCodeTtlSeconds}),deliver:async data=>{output.push(data);return outcome==='accepted'?{ok:true,providerMessageId:channel+'.synthetic'}:{ok:false,outcome};}});
   const delivery=provider('wamid',sent),smsDelivery=provider('sms',sms),store=createClientCodeStore({db,sessions});
-  const make=(options={})=>createClientCodeAuth({enabled:true,store,delivery,smsDelivery,hmacKey:Buffer.alloc(32,3),now:()=>new Date(clock),...options});
+  const make=(options={})=>createClientCodeAuth({enabled:true,store,delivery,smsDelivery,hmacKey:Buffer.alloc(32,3),now:()=>new Date(clock),whatsappCodeTtlSeconds,...options});
   const service=make(),context={browserToken:'C'.repeat(43),network:'192.0.2.0/24',purpose:'signin',mobile:'27820000001'};
   async function owner(extra={}){const x={name:'Synthetic Client',normalized_mobile:context.mobile,date_of_birth:'1990-01-01',gender:'female',profile_status:'registered',mobile_verified_at:clock,status:'active',source:'my_shiloh_crm',...extra};
     const keys=Object.keys(x);return (await db.query(`INSERT INTO crm_v2_clients(${keys.join(',')}) VALUES(${keys.map((_,i)=>'$'+(i+1)).join(',')}) RETURNING *`,Object.values(x))).rows[0];}

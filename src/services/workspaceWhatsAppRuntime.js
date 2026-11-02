@@ -75,8 +75,9 @@ function createWorkspaceWhatsAppRuntime({enabled = false,config = {},db,sessions
     if(isEnabled()!==true && !(allowProviderRead()===true && args[1]?.method==='GET')) return Promise.reject(Error('Provider unavailable'));
     return fetchImpl(...args);
   } : fetchImpl;
+  const whatsappSigninCodeTtlSeconds = config.template?.components?.find(c=>c.type==='FOOTER')?.code_expiration_minutes === 15 ? 900 : 300;
   const meta = createWorkspaceMetaProvider({enabled,reviewed:config.template,wabaId:config.wabaId,
-    phoneNumberId:config.phoneNumberId,apiVersion:config.apiVersion,accessToken:metaCredentials.accessToken,fetchImpl:gatedFetch});
+    phoneNumberId:config.phoneNumberId,apiVersion:config.apiVersion,expectedCodeTtlSeconds:whatsappSigninCodeTtlSeconds,accessToken:metaCredentials.accessToken,fetchImpl:gatedFetch});
   const sms = createWorkspaceSmsProvider({enabled:enabled && config.smsFallbackEnabled === true,accountEmail:smsCredentials.accountEmail,apiToken:smsCredentials.apiToken,fetchImpl:gatedFetch});
   let ready = false;
   const configured = enabled === true && validWorkspaceBudgets(config.budgets) && typeof db?.connect === 'function' && typeof db?.query === 'function' &&
@@ -86,7 +87,7 @@ function createWorkspaceWhatsAppRuntime({enabled = false,config = {},db,sessions
   const store = configured ? createWorkspaceWhatsAppStore({db}) : null;
   const service = createWorkspaceWhatsAppAuth({enabled:!!configured,store,hmacKey,env,
     delivery:{...meta,configured:()=>ready && meta.configured()},smsDelivery:sms,budgets:config.budgets,
-    accessPolicy,isEnabled,...(now ? {now} : {})});
+    accessPolicy,isEnabled,whatsappSigninCodeTtlSeconds,...(now ? {now} : {})});
   async function prepare() {
     ready = false;
     if (!configured) return {ok:false,code:'RUNTIME_UNCONFIGURED'};

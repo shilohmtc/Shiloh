@@ -39,3 +39,11 @@ export const LegacyOnlyRegistration={render:()=>documentBody(client.clientCodePa
   .replace('id="start"','id="start" hidden')
   .replace('id="profile" hidden','id="profile"')
   .replace('id="status" data-auth-status role="status" aria-live="polite"></p>','id="status" data-auth-status role="status" aria-live="polite">Number verified. Please complete your details.</p>')};
+
+// Synthetic post-request views: the runtime selects this copy only for reviewed 15-minute contracts.
+export const FifteenMinuteWorkspaceCode={render:()=>render(false,false,false)
+  .replace('id="verify" hidden','id="verify"')
+  .replace('<p id="status" role="status" aria-live="polite"></p>','<p id="status" role="status" aria-live="polite">If this request is eligible, a code will arrive on your recorded staff WhatsApp. Sign-in codes expire after 15 minutes.</p>')};
+export const FifteenMinuteClientCode={render:()=>documentBody(client.clientCodePage())
+  .replace('id="verify" hidden','id="verify"')
+  .replace('id="status" data-auth-status role="status" aria-live="polite"></p>','id="status" data-auth-status role="status" aria-live="polite">If eligible, a code will arrive on WhatsApp. Wait at least 60 seconds before requesting another. Codes expire after 15 minutes.</p>')};

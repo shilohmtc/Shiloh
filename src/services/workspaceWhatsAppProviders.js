@@ -33,15 +33,15 @@ function createBoundedJsonRequest({ fetchImpl, timeoutMs = 8000, maxBytes = 6553
 }
 
 function createWorkspaceMetaProvider({ enabled = false, reviewed = null, wabaId, phoneNumberId,
-  apiVersion, accessToken, fetchImpl, timeoutMs, maxBytes, expectedName = 'shiloh_workspace_verification' } = {}) {
+  apiVersion, accessToken, fetchImpl, timeoutMs, maxBytes, expectedName = 'shiloh_workspace_verification', expectedCodeTtlSeconds = 300 } = {}) {
   const request = createBoundedJsonRequest({fetchImpl,timeoutMs,maxBytes});
   const configured = enabled === true && !!request && id(wabaId) && id(phoneNumberId) &&
     /^v[0-9]{1,3}\.[0-9]{1,2}$/.test(apiVersion || '') && credential(accessToken) &&
     reviewed?.wabaId === wabaId && id(reviewed?.id) &&
-    inspectWorkspaceTemplate({reviewed,expectedName,inventory:reviewed ? [{...reviewed,status:'APPROVED'}] : [],wabaId}).ready; // structural validation only; live readiness rechecks inventory
+    inspectWorkspaceTemplate({reviewed,expectedName,expectedCodeTtlSeconds,inventory:reviewed ? [{...reviewed,status:'APPROVED'}] : [],wabaId}).ready; // structural validation only; live readiness rechecks inventory
   const root = `https://graph.facebook.com/${apiVersion}`;
   const headers = {Authorization:`Bearer ${accessToken}`,Accept:'application/json','Content-Type':'application/json'};
-  const delivery = createWorkspaceOtpDelivery({enabled:configured,reviewed,wabaId,expectedName,
+  const delivery = createWorkspaceOtpDelivery({enabled:configured,reviewed,wabaId,expectedName,expectedCodeTtlSeconds,
     readInventory: async () => {
       // Bind the configured sending phone to this WABA, never trust a caller URL
       // or follow paging.next. Oversized/paginated inventories fail closed.

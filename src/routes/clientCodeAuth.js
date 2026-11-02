@@ -15,17 +15,18 @@ function createClientCodeRouter({enabled=false,service,sessions,invitations,env=
   const requireSession=requireClientSession({service:sessions,env}),csrf=clientCsrfGuard({service:sessions});
   const page=(req,res)=>{browser(req,res,true);res.setHeader('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'");res.type('html').send(clientCodePage({base:BASE,sms:service.smsEnabled()}));};
   router.get('/',(req,res)=>page(req,res));router.get('/welcome',requireSession,(_req,res)=>res.redirect(303,'/my-shiloh/'));
-  router.get('/app.js',(_req,res)=>res.type('application/javascript').send(clientCodeScript({base:BASE})));
+  router.get('/app.js',(_req,res)=>res.type('application/javascript').send(clientCodeScript({base:BASE,whatsappCodeTtlSeconds:service.codePolicy?.().whatsappCodeTtlSeconds??300})));
   router.get('/invitations.js',(_req,res)=>res.type('application/javascript').send(authInvitationScript({audience:'client',base:BASE})));
   router.use(express.json({limit:'16kb',strict:true}),sameOriginGuard({env}));
-  const action=(fn,sessionResult=false)=>async(req,res)=>{try{const browserToken=browser(req,res),network=networkGroup(req.ip||req.socket.remoteAddress);
+  const action=(fn,sessionResult=false,refreshBrowser=false)=>async(req,res)=>{try{const browserToken=browser(req,res),network=networkGroup(req.ip||req.socket.remoteAddress);
     if(!browserToken||!network)return res.status(401).json({error:'Please reopen this page and try again.'});
     if(!await service.admitRequest?.({browserToken,network}))return res.status(429).json({error:'Please wait before trying again.'});
     const r=await fn(req,{browserToken,network});if(!r?.ok)return res.status(401).json({error:'We could not verify this request. Check the code or request a fresh one.'});
+    if(refreshBrowser&&r.accepted&&service.codePolicy?.().whatsappCodeTtlSeconds===900)res.append('Set-Cookie',`${cookie}=${browserToken}; Path=/; HttpOnly; SameSite=Strict; Max-Age=1800${production?'; Secure':''}`);
     if(sessionResult&&r.sessionToken){res.append('Set-Cookie',serializeClientSessionCookie(r.sessionToken,{env,maxAgeSeconds:Math.max(1,Math.floor((new Date(r.expiresAt)-Date.now())/1000))}));return res.json({authenticated:true,client:r.client});}
     res.json(r);
   }catch(_){res.status(503).json({error:'Sign-in is temporarily unavailable. Please try again.'});}};
-  router.post('/start',action((req,c)=>service.begin({...c,purpose:req.body.purpose??'continue',mobile:req.body.mobile})));
+  router.post('/start',action((req,c)=>service.begin({...c,purpose:req.body.purpose??'continue',mobile:req.body.mobile}),false,true));
   router.post('/fallback/sms',action((req,c)=>service.requestSmsFallback({...c,request:req.body.request,purpose:req.body.purpose??'continue'})));
   router.post('/verify',action((req,c)=>service.verify({...c,request:req.body.request,purpose:req.body.purpose??'continue',code:req.body.code}),true));
   router.post('/register',action((req,c)=>service.completeRegistration({...c,grant:req.body.grant,profile:req.body.profile}),true));
