@@ -72,7 +72,7 @@ const CONSULTATION_FORM_TOOL_DEFINITION = Object.freeze({
 const PROFILE_TOOL_DEFINITION = Object.freeze({
   type: 'function',
   name: ACTION_TOOL_NAMES.OPEN_PROFILE,
-  description: 'Open the authenticated client’s Personal details area in My Shiloh. Use when they ask to view, correct or update their profile details. The verified WhatsApp number remains non-editable.',
+  description: 'Open the authenticated client’s Personal details area in My Shiloh. Use when they ask to view, correct or update their profile details. The signed-in client can change their mobile number through the existing Profile flow.',
   strict: true,
   parameters: {
     type: 'object',

@@ -331,11 +331,14 @@ function createMyShilohClientContextService({
 
   // History is opt-in through the assistant tool, never part of every model prompt.
   // Exclude linked visits: a guest must not inherit the other guest's treatment.
-  async function loadTreatmentHistory(crmV2ClientId) {
+  async function treatmentHistoryRows(crmV2ClientId) {
     const id = positiveId(crmV2ClientId);
     if (!id) return [];
     const result = await db.query(`/* myShilohClientContext:treatment-history */
-      SELECT a.starts_at,s.name AS service_name,st.display_name AS practitioner
+      SELECT a.id,a.starts_at,s.name AS service_name,st.display_name AS practitioner,
+        COUNT(*) OVER (PARTITION BY a.starts_at) AS same_start_rows,
+        (SELECT COUNT(*) FROM appointment_services all_services WHERE all_services.appointment_id=a.id) AS service_count,
+        (SELECT COUNT(*) FROM appointment_staff all_staff WHERE all_staff.appointment_id=a.id) AS practitioner_count
       FROM appointments a
       JOIN appointment_services aps ON aps.appointment_id=a.id
       JOIN services s ON s.id=aps.service_id
@@ -345,8 +348,27 @@ function createMyShilohClientContextService({
         AND a.status='completed' AND a.ends_at<$2
         AND NOT EXISTS(SELECT 1 FROM appointment_group_members gm WHERE gm.appointment_id=a.id)
       ORDER BY a.starts_at DESC,a.id DESC,aps.position LIMIT 5`, [id, now()]);
-    return result.rows.map(row => ({ startsAt: new Date(row.starts_at).toISOString(),
+    return result.rows;
+  }
+
+  async function loadTreatmentHistory(crmV2ClientId) {
+    return (await treatmentHistoryRows(crmV2ClientId)).map(row => ({ startsAt: new Date(row.starts_at).toISOString(),
       service: String(row.service_name), practitioner: String(row.practitioner) }));
+  }
+
+  async function loadLastCompletedVisit(crmV2ClientId) {
+    // Same five-row, completed, owned, individual-history boundary; no wider read.
+    const rows = await treatmentHistoryRows(crmV2ClientId);
+    if (!rows.length) return { found: false };
+    const first = rows[0];
+    const selected = rows.filter(row => String(row.id) === String(first.id));
+    const ambiguous = Number(first.same_start_rows) > Number(first.service_count) || rows.some(row => String(row.id) !== String(first.id)
+      && new Date(row.starts_at).getTime() === new Date(first.starts_at).getTime());
+    const complete = Number(first.service_count) === selected.length && Number(first.practitioner_count) === 1;
+    return { found: true, ambiguous, complete, multiService: Number(first.service_count) !== 1,
+      startsAt: new Date(first.starts_at).toISOString(),
+      services: complete ? selected.map(row => String(row.service_name)) : [],
+      practitioners: complete ? [String(first.practitioner)] : [] };
   }
 
   async function loadRescheduleHistory(crmV2ClientId) {
@@ -529,6 +551,7 @@ function createMyShilohClientContextService({
     loadDeclinedBookingRequests,
     loadPendingRescheduleRequests,
     loadTreatmentHistory,
+    loadLastCompletedVisit,
     loadRescheduleHistory,
     loadForms,
     loadPayment,

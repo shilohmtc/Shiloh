@@ -5,6 +5,7 @@ const clientContext = require('./myShilohClientContext');
 const { createMyShilohReadTools } = require('./myShilohReadTools');
 const { createMyShilohActionTools } = require('./myShilohActionTools');
 const logger = require('../lib/logger');
+const { requestsLastAppointment, lastVisitReply, guardBookingClaims, PREPARATION_FAILED_REPLY } = require('./myShilohAssistantReplyPolicy');
 
 const MAX_MESSAGE_CHARS = 1000;
 const MESSAGE_WINDOW_MS = 60 * 1000;
@@ -128,20 +129,40 @@ function createMyShilohAssistantService({
       );
     }
 
+    // Resolve explicit last-visit requests deterministically under the same
+    // history authority. Keep the server-derived review in conversation context.
+    let repeatVisitReview = null;
+    if (requestsLastAppointment(cleanMessage)) {
+      try {
+        const result = await readTools.execute('get_my_last_completed_visit', {}, { crmV2ClientId: clientId });
+        repeatVisitReview = result.ok ? lastVisitReply(result.visit) : 'Your completed visit history is unavailable just now. Which treatment would you like to repeat?';
+      } catch (_) {
+        repeatVisitReview = 'Your completed visit history is unavailable just now. Which treatment would you like to repeat?';
+      }
+    }
     let preparedAction = null;
+    let preparationFailed = false;
     const replyText = await ai(key, cleanMessage, {
       conversationKey: key,
       profileOverride: { name: firstName(context.client.name) },
-      clientContext: context,
+      clientContext: repeatVisitReview ? { ...context, repeatVisitReview } : context,
       surface: 'my_shiloh',
-      tools: [...readTools.definitions, ...actionTools.definitions],
+      tools: repeatVisitReview ? [] : [...readTools.definitions, ...actionTools.definitions],
       toolExecutor: async (name, args) => {
+        if (repeatVisitReview) return { ok: false, error: 'review_last_visit_first' };
         if (actionTools.handles(name)) {
+          // A new preparation supersedes the previous one even if it throws,
+          // returns no card, or the model later reaches its tool-round limit.
+          preparedAction = null;
+          preparationFailed = true;
           const result = await actionTools.execute(name, args, {
             sessionId: positiveId(sessionId),
             crmV2ClientId: clientId,
           });
-          if (result.clientAction) preparedAction = result.clientAction;
+          preparationFailed = result.modelResult?.ok !== true;
+          if (!preparationFailed && result.clientAction) {
+            preparedAction = result.clientAction;
+          }
           return result.modelResult;
         }
         return readTools.execute(name, args, {
@@ -149,9 +170,10 @@ function createMyShilohAssistantService({
         });
       },
       maxToolRounds: 4,
+      onIncomplete: () => { preparedAction = null; preparationFailed = true; },
     });
 
-    let safeReply = String(replyText || '').trim();
+    let safeReply = repeatVisitReview || (preparationFailed ? PREPARATION_FAILED_REPLY : guardBookingClaims(String(replyText || '').trim(), context));
     if (preparedAction?.type === 'cancel_appointment') {
       safeReply = 'I’ve prepared the cancellation for your appointment. Please review the confirmation card below. Nothing has changed yet.';
     }
