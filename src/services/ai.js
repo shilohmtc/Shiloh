@@ -6,7 +6,6 @@ const { getActiveCatalogueKnowledge } = require("./activeCatalogueKnowledge");
 const { getPractitionerKnowledge } = require("./practitionerKnowledge");
 const { processClinicFaqMessage, getClinicFaqKnowledge } = require("./clinicFaq");
 const { getHeidelbergGuideKnowledge, buildHeidelbergGuideReply } = require("../config/heidelbergGuide");
-const { isLivePlacesQuery, searchGooglePlaces, buildGooglePlacesReply } = require("./googlePlaces");
 const { buildInstructions } = require("./orchestrator");
 const logger = require("../lib/logger");
 
@@ -145,12 +144,6 @@ async function generateReply(phone, message, {
   if (surface === "whatsapp") {
     const deterministicReply = deterministicConversationReply(message);
     if (deterministicReply) return deterministicReply;
-  }
-
-  if (isLivePlacesQuery(message)) {
-    const livePlaces = await searchGooglePlaces(message);
-    const livePlacesReply = buildGooglePlacesReply(livePlaces, message);
-    if (livePlacesReply) return livePlacesReply;
   }
 
   const localGuideReply = buildHeidelbergGuideReply(message);

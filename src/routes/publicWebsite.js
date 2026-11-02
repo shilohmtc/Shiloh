@@ -3,7 +3,6 @@ const { postPath } = require('../presentation/websiteEditorial');
 const { WebsiteContentError } = require('../domain/websiteContent');
 const express = require('express');
 const { getPublicServiceCatalogue } = require('../services/publicServiceCatalogue');
-const { getShilohGoogleReviews, searchGooglePlaces } = require('../services/googlePlaces');
 const {
   renderHome,
   renderEditorialListing,
@@ -66,15 +65,9 @@ router.get('/treatments', async (req, res) => {
 router.get('/about', (req, res) => res.status(200).type('html').send(renderAbout()));
 router.get('/contact', (req, res) => res.status(200).type('html').send(renderContact()));
 router.get('/visit', (req, res) => res.status(200).type('html').send(renderVisit()));
-router.get('/visit/places', async (req, res) => {
-  const result = await searchGooglePlaces(req.query.query || 'guesthouses and hotels');
-  return res.status(200).json({ ...result, checkedAt: new Date().toISOString() });
-});
-router.get('/reviews/google', async (req, res) => {
-  const result = await getShilohGoogleReviews();
-  res.set('Cache-Control', 'no-store');
-  return res.status(200).json({ ...result, checkedAt: new Date().toISOString() });
-});
+// Retired endpoints remain inert for older open browser tabs. Never contact a provider.
+router.get('/visit/places', (_req, res) => res.set('Cache-Control', 'no-store').json({ status: 'retired', places: [] }));
+router.get('/reviews/google', (_req, res) => res.set('Cache-Control', 'no-store').json({ status: 'retired', place: null, reviews: [] }));
 router.get('/privacy', (req, res) => res.status(200).type('html').send(renderPrivacy()));
 
 return router;
