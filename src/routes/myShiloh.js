@@ -25,6 +25,8 @@ const { createMyShilohExperienceOrchestrator } = require('../services/myShilohEx
 const { createMyShilohAssistantService, MyShilohAssistantError } = require('../services/myShilohAssistant');
 const { createMyShilohClientActionService } = require('../services/myShilohClientActions');
 const { createMyShilohConsultationFormActionService } = require('../services/myShilohConsultationFormActions');
+const clientHistory = require('../services/myShilohClientContext');
+const { previousTreatmentChoice } = require('../services/myShilohPreviousTreatment');
 const clientConsultationForms = require('../services/clientConsultationForms');
 const { submissionProof } = require('./clientConsultationForms');
 const {
@@ -110,6 +112,7 @@ function createMyShilohRouter({
   whatsappResolver = resolveWhatsAppNumber,
   catalogueProvider = getPublicServiceCatalogue,
   experienceService = createMyShilohExperienceOrchestrator(),
+  historyService = clientHistory,
   assistantService = createMyShilohAssistantService(),
   actionService = createMyShilohClientActionService(),
   formActionService = createMyShilohConsultationFormActionService(),
@@ -860,6 +863,15 @@ function createMyShilohRouter({
     } catch (error) {
       return next(error);
     }
+  });
+
+  router.get('/my-shiloh/api/previous-treatment', requireSession, async (req, res, next) => {
+    setNoStoreJson(res);
+    try {
+      const visit = await historyService.loadLastCompletedVisit(req.myShilohClientSession.crmV2ClientId);
+      const catalogue = visit?.found ? await catalogueProvider() : [];
+      return res.json(previousTreatmentChoice(visit, catalogue));
+    } catch (error) { return next(error); }
   });
 
   router.get('/my-shiloh/api/experience', requireSession, async (req, res, next) => {

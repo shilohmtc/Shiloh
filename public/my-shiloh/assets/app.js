@@ -113,6 +113,30 @@
     ? `my-shiloh-passkey-setup-later-v1:${appFrame.dataset.notificationClientId}` : null;
   const notificationReminderKey = notificationSetupKey ? `${notificationSetupKey}:reminder-hidden` : null;
   const notificationReminder = document.querySelector('[data-notification-reminder]');
+  const previousTreatmentButton = document.querySelector('[data-previous-treatment]');
+  previousTreatmentButton?.addEventListener('click', async () => {
+    if (!standalone() || appFrame?.dataset.clientAuthenticated !== 'true') return;
+    const result = document.querySelector('[data-previous-treatment-result]');
+    const status = document.querySelector('[data-previous-treatment-status]');
+    const link = document.querySelector('[data-previous-treatment-continue]');
+    result.hidden = false;
+    link.hidden = true;
+    status.textContent = 'Checking your last completed individual visit…';
+    previousTreatmentButton.disabled = true;
+    try {
+      const response = await fetch('/my-shiloh/api/previous-treatment', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
+      if (!response.ok) throw new Error(response.status === 401 ? 'Sign in again to see your previous treatment.' : 'Your previous treatment is unavailable. Please try again.');
+      const choice = await response.json();
+      const date = choice.available && choice.startsAt ? new Intl.DateTimeFormat('en-ZA', { dateStyle: 'medium', timeZone: 'Africa/Johannesburg' }).format(new Date(choice.startsAt)) : '';
+      status.textContent = [choice.available ? `${choice.service} · ${date}.` : '', choice.message].filter(Boolean).join(' ');
+      link.href = /^\/my-shiloh\/book(?:\?service=[1-9]\d*)?$/.test(choice.href) ? choice.href : '/my-shiloh/book';
+      link.textContent = choice.available ? 'Choose a new date and time' : 'Choose a treatment';
+      link.hidden = false;
+    } catch (error) {
+      status.textContent = error.message;
+    } finally { previousTreatmentButton.disabled = false; }
+  });
+
   function preference(key) {
     try { return Boolean(key && localStorage.getItem(key)); } catch (_) { return false; }
   }
@@ -710,6 +734,14 @@
             const paymentStatus = document.createElement('p');
             paymentStatus.textContent = String(booking.payment || 'Payment status unavailable');
             details.append(summary, formStatus, paymentStatus);
+            const directions = document.createElement('a');
+            directions.className = 'button button--soft';
+            directions.textContent = 'Get directions';
+            directions.href = appFrame.dataset.clinicDirections;
+            directions.target = '_blank';
+            directions.rel = 'noopener noreferrer';
+            directions.setAttribute('aria-label', 'Get directions in Google Maps (opens in a new tab)');
+            details.append(directions);
             (booking.formActions || []).forEach(form => {
               const link = document.createElement('a');
               link.className = 'button button--soft';

@@ -728,3 +728,6 @@ export const PersonalizedPasskeyProfile = {
     return surface;
   },
 };
+
+// Production presentation; browser review supplies synthetic read-only API responses.
+export const PreviousTreatment = { render: () => bookingsSurface(false) };

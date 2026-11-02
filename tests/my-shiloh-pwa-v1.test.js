@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { extractHtmlSection } = require('./helpers/extractHtmlSection');
 const {
   renderMyShilohPage,
   whatsappUrl,
@@ -120,7 +121,7 @@ test('Bookings help stays in My Shiloh for clients and names the guest and Recep
     whatsappNumber:'27000000000', humanWhatsAppNumber:'0662399138',
     humanHandoffActive:true, client,
   });
-  const bookings = (html) => html.match(/<section class="view" id="bookings"[\s\S]*?<\/section>/)?.[0] || '';
+  const bookings = html => extractHtmlSection(html.replace('id="bookings"', 'data-test-bookings'), 'data-test-bookings');
   assert.match(bookings(signed), /Ask Shiloh here to help/);
   assert.match(bookings(signed), /href="#shiloh">Ask Shiloh<\/a>/);
   assert.doesNotMatch(bookings(signed), /wa\.me/);

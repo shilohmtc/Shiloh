@@ -4,7 +4,7 @@
 [![Storybook UX](https://github.com/shilohmtc/Shiloh/actions/workflows/storybook.yml/badge.svg?branch=main)](https://github.com/shilohmtc/Shiloh/actions/workflows/storybook.yml)
 [![Production Lighthouse](https://github.com/shilohmtc/Shiloh/actions/workflows/lighthouse.yml/badge.svg?branch=main)](https://github.com/shilohmtc/Shiloh/actions/workflows/lighthouse.yml)
 
-Shiloh is the digital operating system for Shiloh Massage Therapy and Aesthetic Clinic—bringing together client care, bookings, CRM, staff operations and the customer-facing WhatsApp AI assistant.
+Shiloh is the digital operating system for Shiloh Massage Therapy and Aesthetic Clinic—bringing together client care, bookings, CRM, staff operations and the client assistant in My Shiloh.
 
 [Visit Shiloh](https://shilohmtc.co.za) · [Book an appointment](https://shilohmtc.co.za/book)
 
@@ -14,9 +14,9 @@ For the platform map, integration inventory, authority boundaries and release or
 
 - **Public website and booking** — the client-facing Home, Treatments, About, Contact and canonical Book journey.
 - **Shiloh Workspace** — the secure operating surface for authorized clinic staff.
-- **Shiloh AI Assistant** — the customer-facing WhatsApp assistant.
+- **Shiloh AI Assistant** — the signed-in assistant within My Shiloh.
 - **Shiloh CRM** — the authoritative booking and client-data layer.
-- **Operational integrations** — Google Calendar synchronization, Meta WhatsApp Cloud API and Render hosting.
+- **Operational integrations** — Meta WhatsApp Cloud API for sign-in and supported messaging, payment providers and Render hosting.
 
 Governance, engineering, release decisions and production evidence support Shiloh as one clinic platform; they are not separate products.
 
@@ -24,7 +24,7 @@ Governance, engineering, release decisions and production evidence support Shilo
 
 - The canonical Services authority owns treatment names, durations, prices and practitioner eligibility.
 - Shiloh CRM owns booking and client records.
-- Google Calendar is a synchronized operational view, not the primary database.
+- Shiloh Calendar is the operational appointment view; Google Calendar synchronization is retired.
 - Owner-provided business facts and hospitality policies remain authoritative.
 - Current `main`, active issues, pull requests and production evidence define the current engineering state.
 
@@ -47,7 +47,7 @@ Meaningful interface changes should cover normal, loading, empty, validation, er
 - PostgreSQL
 - Meta WhatsApp Cloud API
 - OpenAI Responses API
-- Google Calendar OAuth integration
+- Shiloh Calendar and payment integrations
 - Render production hosting
 
 ## Production safeguards

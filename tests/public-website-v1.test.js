@@ -304,7 +304,10 @@ test('public privacy policy is accessible, specific to Shiloh, and linked site-w
   assert.match(privacy, /outside South Africa/);
   assert.match(privacy, /policies\.google\.com\/terms/);
   assert.match(privacy, /policies\.google\.com\/privacy/);
-  assert.match(privacy, /13 September 2026/);
+  assert.match(privacy, /2 November 2026/);
+  assert.match(privacy, /assisted responses in My Shiloh/);
+  assert.match(privacy, /Google for optional business profile services/);
+  assert.doesNotMatch(privacy, /WhatsApp assistant|Google for calendar operations/);
   assert.match(privacy, /rel="canonical" href="https:\/\/shilohmtc\.co\.za\/privacy"/);
   assert.match(renderHome(catalogue), /href="\/privacy">Privacy policy<\/a>/);
 

@@ -9,6 +9,8 @@ const { STANDARD_HOSPITALITY } = require('../config/clinicFaqPolicy');
 const { renderShilohIcon } = require('./shilohIcon');
 const { renderCouplesBookingChoice } = require('./myShilohBookingActions');
 
+const { publicBookingQr } = require('./publicBookingQr');
+const { SHILOH_PUBLIC_LOCATION } = require('../config/heidelbergGuide');
 const { APP_ORIGIN } = require('../config/publicOrigins');
 const { APP_VERSION, appRelease } = require('./appRelease');
 const MY_SHILOH_ASSET_VERSION = appRelease();
@@ -391,7 +393,8 @@ function renderMyShilohPage({
       <button class="button button--primary button--wide" type="button" data-install-gate-action>Install My Shiloh</button>
       <section data-install-desktop-handoff hidden aria-label="Continue on your phone">
         ${selectedService ? `<p>Your website choice: <strong>${escapeHtml(selectedService.name)}</strong></p>` : ''}
-        <p>Open this link on your phone, add My Shiloh to your Home Screen, then sign in to request your booking.</p>
+        <p>Scan with your phone camera, or copy the link below. Add My Shiloh to your Home Screen, then sign in to request your booking.</p>
+        ${publicBookingQr(phoneBookingLink)}
         <p><a href="${escapeHtml(phoneBookingLink)}" data-desktop-phone-link style="overflow-wrap:anywhere">${escapeHtml(phoneBookingLink)}</a></p>
         <button class="button button--soft button--wide" type="button" data-copy-phone-link>Copy phone link</button>
         <p role="status" data-copy-phone-link-status></p>
@@ -403,7 +406,7 @@ function renderMyShilohPage({
     </section>
   </main>
 
-  <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}" data-client-auth-method="${escapeHtml(signInMethod || '')}" data-notification-client-id="${authenticated ? Number(client.id) : ''}" data-client-payment-whatsapp="${escapeHtml(String(whatsappNumber || '').replace(/\D/g, ''))}" hidden>
+  <div class="app-frame" data-app-frame data-client-authenticated="${authenticated ? 'true' : 'false'}" data-client-auth-method="${escapeHtml(signInMethod || '')}" data-notification-client-id="${authenticated ? Number(client.id) : ''}" data-clinic-directions="${escapeHtml(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(Object.values(SHILOH_PUBLIC_LOCATION).join(', '))}`)}" data-client-payment-whatsapp="${escapeHtml(String(whatsappNumber || '').replace(/\D/g, ''))}" hidden>
     <div class="network-banner" data-offline-banner hidden role="status">You are offline. My Shiloh will reconnect automatically.</div>
     <div class="app-update-banner" data-app-update hidden role="status" aria-live="polite">
       <div><strong>A new My Shiloh update is ready.</strong><span>Finish your work, then update to the latest version.</span></div>
@@ -436,6 +439,10 @@ function renderMyShilohPage({
           <p>${authenticated ? 'Check your appointment status and anything to complete before your visit.' : 'Sign in to see your appointments and request a new booking.'}</p>
         </div>
         ${authenticated ? `<div class="client-booking-actions"><a class="button button--primary bookings-new-action" href="/my-shiloh/book">Book another appointment</a>${renderCouplesBookingChoice()}</div>` : ''}
+        ${authenticated ? `<section class="previous-treatment quiet-card" aria-label="Book a previous treatment">
+          <div><button class="button button--soft" type="button" data-previous-treatment>Book a previous treatment</button>
+          <div data-previous-treatment-result hidden><p data-previous-treatment-status role="status"></p><a class="button button--soft" data-previous-treatment-continue href="/my-shiloh/book" hidden>Choose a treatment</a></div></div>
+        </section>` : ''}
         ${authenticated ? `<details class="website-treatment-disclosure"><summary>Have a treatment code?</summary><form class="website-treatment-form" data-website-treatment-form>
           <label for="website-treatment-code">Have a treatment code from the website?</label>
           <div class="website-treatment-form__row"><input id="website-treatment-code" name="treatmentCode" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Enter or paste code" required pattern="[1-9][0-9]*"><button class="button button--soft" type="submit">Continue treatment</button></div>
