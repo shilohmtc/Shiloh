@@ -5,8 +5,18 @@
   const get = selector => root.querySelector(selector);
   const model = JSON.parse(get('[data-website-model]').textContent);
   const form = get('[data-editor-form]'), choice = get('[data-post-choice]'), status = get('[data-editor-status]');
-  let current = null, busy = false;
+  let current = null, busy = false, switching = false, savedFields = '', historySequence = 0;
   const names = ['title','summary','body','episode','imageId','imageAlt','startsAt','endsAt'];
+  const fields = () => JSON.stringify(names.map(name=>form.elements.namedItem(name).value));
+  const dirty = () => current && fields() !== savedFields;
+  async function discardChanges() {
+    if (!dirty()) return true;
+    const options={title:'Discard unsaved changes?',copy:'Your latest edits have not been saved. Keep editing to save them before changing items.',cancel:'Keep editing',action:'Discard changes'};
+    if(window.ShilohConfirm)return window.ShilohConfirm(options);
+    message('Your unsaved changes are kept. Save them before changing items.',true);return false;
+  }
+  window.addEventListener('beforeunload',event=>{if(dirty()||busy){event.preventDefault();event.returnValue='';}});
+  form.addEventListener('input',()=>{if(!busy)message(dirty()?'Unsaved changes.':'No unsaved changes.');});
   function clinicInput(value) {
     if (!value) return '';
     return new Date(new Date(value).getTime() + 7200000).toISOString().slice(0,16);
@@ -16,28 +26,48 @@
     for (const key of ['startsAt','endsAt']) value[key] = value[key] ? new Date(value[key] + ':00+02:00').toISOString() : null;
     return value;
   }
-  function message(text, error = false) { status.textContent = text; status.dataset.state = error ? 'error' : ''; }
+  function message(text, error = false) { status.textContent = text; status.dataset.state = error ? 'error' : '';status.setAttribute('role',error?'alert':'status'); }
+  function failure(response,data) {
+    const text=response.status===403?'Workspace could not authorize this change. Your entries stay here.':data.error || 'Workspace could not confirm this change. Review the latest saved version before retrying.';
+    const error=new Error(text);error.status=response.status;error.code=data.code;return error;
+  }
   async function request(url, body, { image = false } = {}) {
+    // Reuse the existing operation-token authority; never retry a mutation automatically.
+    const tokenResponse=await fetch('/calendar/staff-auth/csrf',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json','Content-Type':'application/json'},body:'{}'});
+    const token=await tokenResponse.json().catch(()=>({}));
+    if(!tokenResponse.ok)throw failure(tokenResponse,token);
+    if(!token.csrfToken)throw new Error('A secure action token could not be issued. Your entries stay here. Try again when connected.');
     const response = await fetch(url, {method:'POST',credentials:'same-origin',cache:'no-store',
-      headers:{Accept:'application/json','x-shiloh-csrf-token':root.dataset.csrf,...(image ? {} : {'Content-Type':'application/json'})},
+      headers:{Accept:'application/json','x-shiloh-csrf-token':token.csrfToken,...(image ? {} : {'Content-Type':'application/json'})},
       body:image ? body : JSON.stringify(body)});
     const data = await response.json().catch(()=>({}));
-    if (!response.ok) throw new Error(data.error || 'That change could not be saved. Your previous published version is unchanged.');
+    if (!response.ok) throw failure(response,data);
     return data;
   }
   async function run(action) {
     if (busy) return;
     busy = true;
     root.querySelectorAll('button,select,input[type=file]').forEach(node=>{node.disabled=true;});
-    try { await action(); } catch (error) { message(error.message,true); }
+    try { await action(); } catch (error) {
+      if(window.ShilohErrorRecovery)window.ShilohErrorRecovery.render(status,error,'error',{source:form,actions:error.status===403?[{label:'Open Website in a new tab',href:'/calendar/website'}]:[]});
+      else message(error.message,true);
+    }
     finally { busy=false;root.querySelectorAll('button,select,input[type=file]').forEach(node=>{node.disabled=false;}); }
   }
   async function history() {
+    const sequence=++historySequence,postId=current?.id;
     const select = get('[data-history-choice]'); select.replaceChildren();
-    if (!current?.id) return;
-    const response = await fetch(`/calendar/website/${current.id}/history`,{credentials:'same-origin',cache:'no-store'});
-    if (!response.ok) return;
-    const versions = await response.json();
+    if (!postId) return;
+    let versions;
+    try {
+      const response = await fetch(`/calendar/website/${postId}/history`,{credentials:'same-origin',cache:'no-store'});
+      if (!response.ok) throw new Error('History unavailable');
+      versions = await response.json();
+    } catch (_error) {
+      if(sequence!==historySequence||current?.id!==postId)return;
+      const option=document.createElement('option');option.value='';option.textContent='Saved versions unavailable. Choose this item again to retry.';select.append(option);return;
+    }
+    if(sequence!==historySequence||current?.id!==postId)return;
     for (const version of versions) {
       const option = document.createElement('option');option.value=version.revision;
       option.textContent=`Version ${version.revision} · ${version.action} · ${new Intl.DateTimeFormat('en-ZA',{timeZone:'Africa/Johannesburg',dateStyle:'medium',timeStyle:'short'}).format(new Date(version.created_at))}`;
@@ -48,6 +78,8 @@
     current=post;form.hidden=false;message('');get('[data-preview-panel]').hidden=true;
     const doc=post.draft;
     for(const name of names) form.elements.namedItem(name).value = ['startsAt','endsAt'].includes(name) ? clinicInput(doc[name]) : doc[name] ?? '';
+    savedFields=fields();
+    form.elements.namedItem('imageAlt').required=Boolean(doc.imageId);
     get('[data-episode-field]').hidden=post.kind==='offer';get('[data-offer-terms]').hidden=post.kind!=='offer';
     get('[data-editor-heading]').textContent=post.kind==='offer'?'Morning Welcome Offer':'Discover Shiloh episode';
     get('[data-unpublish]').hidden=!post.published;
@@ -66,16 +98,29 @@
   }
   async function save(action) {
     if(action!=='unpublish'&&!form.reportValidity()) return null;
+    const submittedFields=fields();
     const doc=action==='unpublish'?current.draft:documentValue();
     if(action!=='unpublish'&&doc.imageId&&!doc.imageAlt.trim())throw new Error('Add an image description before saving.');
     if(!current.id){const post=await request('/calendar/website/create',{document:doc});remember(post);}
     const post=await request(`/calendar/website/${current.id}/${action}`,{revision:current.revision,document:doc});
     remember(post);
-    message(action==='publish'?'Published. The website now follows your publication dates.':action==='unpublish'?'Taken off the website. Your draft is kept.':'Draft saved. The published version is unchanged.');
+    if(action!=='unpublish')savedFields=submittedFields;
+    const result=action==='publish'?'Published. The website now follows your publication dates.':action==='unpublish'?'Taken off the website. Your saved draft is kept.':'Draft saved. The published version is unchanged.';
+    message(result+(dirty()?' You have newer unsaved changes.':''));
     return post;
   }
-  choice.addEventListener('change',()=>{const post=model.posts.find(p=>p.id===choice.value);if(post)fill(post);else form.hidden=true;});
-  get('[data-new-episode]').addEventListener('click',()=>{choice.value='';fill({id:null,kind:'episode',draft:{episode:Math.max(0,...model.posts.filter(p=>p.kind==='episode').map(p=>Number(p.draft.episode)||0))+1}});form.elements.namedItem('title').focus();});
+  async function switchItem(post) {
+    choice.value=current?.id||'';
+    if(busy||switching)return;
+    switching=true;
+    try {
+      if(!await discardChanges())return;
+      choice.value=post?.id||'';
+      if(post)fill(post);else{current=null;savedFields='';historySequence++;form.hidden=true;get('[data-preview-panel]').hidden=true;}
+    } finally {switching=false;}
+  }
+  choice.addEventListener('change',()=>switchItem(model.posts.find(p=>p.id===choice.value)));
+  get('[data-new-episode]').addEventListener('click',async()=>{await switchItem({id:null,kind:'episode',draft:{episode:Math.max(0,...model.posts.filter(p=>p.kind==='episode').map(p=>Number(p.draft.episode)||0))+1}});if(current&&!current.id)form.elements.namedItem('title').focus();});
   form.addEventListener('submit',event=>{event.preventDefault();run(()=>save('save'));});
   get('[data-publish]').addEventListener('click',()=>run(()=>save('publish')));
   get('[data-unpublish]').addEventListener('click',()=>run(()=>save('unpublish')));
@@ -88,6 +133,7 @@
   get('[data-restore]').addEventListener('click',()=>run(async()=>{
     const restoreRevision=Number(get('[data-history-choice]').value);
     if(!restoreRevision)return;
+    if(!await discardChanges())return;
     const post=await request(`/calendar/website/${current.id}/restore`,{revision:current.revision,restoreRevision});
     remember(post);fill(post);message('Restored as a draft. Preview before publishing.');
   }));
