@@ -2,6 +2,8 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('node:path');
+const { readFile } = require('node:fs/promises');
+const { workspaceErrorRecoveryClientScript } = require('../presentation/workspaceErrorRecovery');
 const { requireStaffSession, sameOriginGuard, csrfGuard, expectedOrigin } = require('../middleware/staffBrowserSession');
 const { createWebsiteContentService } = require('../services/websiteContent');
 const { WebsiteContentError } = require('../domain/websiteContent');
@@ -11,7 +13,7 @@ const { renderEditorialArticle } = require('../services/publicWebsite');
 function createWorkspaceWebsiteRouter({ env = process.env, sessionService, service = createWebsiteContentService() } = {}) {
   if (!sessionService) throw new Error('Website publishing requires the existing staff session service.');
   const router = express.Router();
-  const session = requireStaffSession({ service:sessionService, env });
+  const session = requireStaffSession({ service:sessionService, env, humanNavigationSigninPath:'/calendar/staff' });
   const origin = sameOriginGuard({env}), csrf = csrfGuard({service:sessionService});
   function imageOrigin(req,res,next) {
     const expected=expectedOrigin(req);
@@ -30,7 +32,7 @@ function createWorkspaceWebsiteRouter({ env = process.env, sessionService, servi
   function handle(handler) {
     return async(req,res,next)=>{try{return await handler(req,res);}catch(error){if(error instanceof WebsiteContentError)return res.status(error.httpStatus).json({error:error.message,code:error.code});return next(error);}};
   }
-  router.get('/client.js',session,owner,(_req,res)=>res.type('application/javascript').sendFile(path.join(__dirname,'../../public/workspace/website.js')));
+  router.get('/client.js',session,owner,async(_req,res)=>res.type('application/javascript').send(workspaceErrorRecoveryClientScript()+await readFile(path.join(__dirname,'../../public/workspace/website.js'),'utf8')));
   router.get('/',session,owner,handle(async(req,res)=>{
     const model=await service.model({adminId:req.staffBrowserSession.adminId});
     const rotated=await sessionService.rotateCsrfToken(req.staffBrowserSession.sessionId);

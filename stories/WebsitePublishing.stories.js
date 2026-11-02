@@ -7,6 +7,8 @@ const offer={...episode,id:'c674d720-8358-4d16-aeb0-c85a7c0f5a16',slug:'morning-
 function surface(html){const root=document.createElement('div');const doc=new DOMParser().parseFromString(html,'text/html');doc.querySelectorAll('script:not([type="application/json"])').forEach(s=>s.remove());root.innerHTML=[...doc.querySelectorAll('style,link[rel="stylesheet"]')].map(s=>s.outerHTML).join('')+doc.body.innerHTML;return root;}
 export default {title:'Website/Publishing',parameters:{layout:'fullscreen'}};
 export const Discover={render:()=>surface(website.renderEditorialListing('episode',[episode]))};
+export const PublicationsUnavailable={render:()=>surface(website.renderEditorialUnavailable({currentPath:'/offers'}))};
+export const ArticleUnavailable={render:()=>surface(website.renderEditorialUnavailable({currentPath:'/discover/previous-episode',missing:true}))};
 export const Episode={render:()=>surface(website.renderEditorialArticle(episode))};
 export const MorningWelcomeOffer={render:()=>surface(website.renderEditorialArticle(offer))};
 export const HomeWithPublications={render:()=>surface(website.renderHome([],{publications:[episode,offer]}))};

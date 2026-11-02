@@ -224,7 +224,13 @@ function renderEditorialListing(kind, posts = []) {
 function renderEditorialArticle(post, options = {}) {
   return layout({title:post.title,description:post.summary,currentPath:`/${post.kind === 'offer' ? 'offers' : 'discover'}/${post.slug}`,body:articleBody(post,options)});
 }
+function renderEditorialUnavailable({ currentPath, missing = false }) {
+  const title=missing?'This page is no longer available.':'We couldn’t load this page just now.';
+  const copy=missing?'It may have been taken off the website or reached its end date. You can explore our current services or contact Shiloh.':'Please try again in a moment. You can still visit Home, explore services or contact Shiloh. We can’t confirm current offers while this page is unavailable.';
+  return layout({title,description:copy,currentPath,body:`<main id="main-content"><section class="page-hero"><div class="shell prose"><div class="eyebrow">Shiloh</div><h1>${title}</h1><p class="lede">${copy}</p><div class="actions">${missing?'':`<a class="button primary" href="${escapeHtml(currentPath)}">Try again</a>`}<a class="button ${missing?'primary':'secondary'}" href="/book">View services &amp; book</a><a class="button secondary" href="/contact">Contact Shiloh</a><a class="button secondary" href="/">Home</a></div></div></section></main>`});
+}
 module.exports = { renderEditorialListing, renderEditorialArticle,
+  renderEditorialUnavailable,
   PUBLIC_SITE_ORIGIN,
   escapeHtml,
   renderHome,

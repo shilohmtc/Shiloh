@@ -53,6 +53,7 @@ for(const width of [390,1440]){
   test(`owner draft, preview, publish and unpublish workflow at ${width}px`,async({page},testInfo)=>{
     await page.setViewportSize({width,height:900});
     let post,history=[],fail=false;const writes=[];
+    await page.route('**/calendar/staff-auth/csrf',route=>route.fulfill({json:{csrfToken:'synthetic-website-csrf'}}));
     await page.route('**/calendar/pwa/icon-192.png?*',route=>route.fulfill({path:require('node:path').join(__dirname,'../public/assets/brand/shiloh-mark-192.png'),contentType:'image/png'}));
     await page.route('**/calendar/workspace/navigation',route=>route.fulfill({json:{website:{allowed:true,href:'/calendar/website'}}}));
     await page.route('**/calendar/website/*/history',route=>route.fulfill({json:history}));
@@ -85,7 +86,7 @@ for(const width of [390,1440]){
     await page.getByLabel('Title',{exact:true}).fill('');
     await page.getByRole('button',{name:'Take off website',exact:true}).click();await expect(page.getByRole('status')).toContainText('Taken off');expect(post.published).toBeNull();
     await page.getByLabel('Title',{exact:true}).fill('Conflicting unsaved edit');fail=true;
-    await page.getByRole('button',{name:'Save draft',exact:true}).click();await expect(page.getByRole('status')).toContainText('newer version');expect(post.draft.title).toBe('A thoughtful first visit');
+    await page.getByRole('button',{name:'Save draft',exact:true}).click();await expect(page.locator('[data-editor-status]')).toContainText('newer version');expect(post.draft.title).toBe('A thoughtful first visit');
   });
   test(`client sees actual saving and can choose one promotional offer at ${width}px`,async({page},testInfo)=>{
     await page.setViewportSize({width,height:900});const reviews=[];const confirms=[];

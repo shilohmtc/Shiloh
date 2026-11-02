@@ -50,6 +50,7 @@ body[data-calendar-desktop-approved="true"] .workspace-main .shell{max-width:non
 body[data-calendar-desktop-approved="true"] .topbar{margin-bottom:14px;align-items:center}
 body[data-calendar-desktop-approved="true"] .brand h1{font-size:1.55rem;color:#17382d}
 body[data-calendar-desktop-approved="true"] .brand p{margin-top:4px}
+body[data-calendar-desktop-approved="true"] .brand p,body[data-calendar-desktop-approved="true"] .time-rail span,body[data-calendar-desktop-approved="true"] .footer-note{color:#53665c}
 body[data-calendar-desktop-approved="true"] .desktop-calendar-toolbar{display:flex;align-items:center;gap:10px;min-height:48px;margin-bottom:10px;padding:7px 8px;border:1px solid var(--line);border-radius:14px;background:#fffdf9;box-shadow:0 3px 12px rgba(32,50,43,.045)}
 body[data-calendar-desktop-approved="true"] .desktop-calendar-toolbar .period-nav{display:grid;grid-template-columns:38px minmax(150px,auto) 38px;gap:4px;align-items:center}
 body[data-calendar-desktop-approved="true"] .desktop-calendar-toolbar .period-context{font-size:.92rem;color:#20322b}
