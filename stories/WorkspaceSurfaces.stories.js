@@ -309,6 +309,18 @@ export default {
 };
 
 export const DashboardOperational = { render: () => interactiveProductionSurface(renderDashboardPage(dashboardModel()), dashboardClientScript()) };
+function receptionTriageModel(awaitingClient = true) {
+  const request = (id, name, received) => ({ appointmentId:id,currentStaffId:11,canChangePractitioner:true,eligiblePractitioners:[staff[0]],status:'pending',effectiveStatus:'pending',clientName:name,serviceName:'Massage',staffName:'Synthetic practitioner',requestedStartsAt:'2026-11-06T08:00:00Z',requestedRevision:'2026-11-02T08:00:00Z',requestedAt:received });
+  return { ...dashboardModel(), mode:'business_overview',displayName:'Reception',generatedAt:'2026-11-02T10:00:00Z',requestedDateKey:'2026-11-02',operationalDateKey:'2026-11-02',appointments:[],teamGroups:[],carryOver:[],awaitingFinalization:[],recentActivity:[],
+    bookingRequests:[request(811,'Synthetic newer request','2026-11-02T08:00:00Z'),{...request(812,'Synthetic client response','2026-11-01T09:00:00Z'),effectiveStatus:awaitingClient?'awaiting_client_confirmation':'pending',proposedStartsAt:'2026-11-07T08:00:00Z',proposedEndsAt:'2026-11-07T09:00:00Z',proposalExpiresAt:'2026-11-03T10:00:00Z',proposalVersion:1},request(813,'Synthetic undated request',null)],
+    planningRequests:[{id:821,request_kind:'flexible',status:'planning',client_name:'Synthetic oldest request',service_name:'Massage',requested_at:'2026-10-31T10:00:00Z',candidate_appointments:[]}],
+    rescheduleRequests:[{requestId:831,appointmentId:831,decisionOwner:'reception',clientName:'Synthetic time change',serviceName:'Massage',staffName:'Synthetic practitioner',originalStartsAt:'2026-11-07T08:00:00Z',proposedStartsAt:'2026-11-08T08:00:00Z',requestedAt:'2026-11-02T07:00:00Z'}],
+    holidayDecisions:[{holidayName:'Synthetic holiday',exceptionDate:'2026-12-16',href:'/calendar/clinic-hours'}],
+  };
+}
+export const ReceptionRequestTriage = {render:()=>interactiveProductionSurface(renderDashboardPage(receptionTriageModel()),dashboardClientScript())};
+export const ReceptionRequestTriageStaffOnly = {render:()=>interactiveProductionSurface(renderDashboardPage(receptionTriageModel(false)),dashboardClientScript())};
+
 export const ReceptionPlanningQueue = {
   render: () => interactiveProductionSurface(renderDashboardPage({
     ...dashboardModel(),
