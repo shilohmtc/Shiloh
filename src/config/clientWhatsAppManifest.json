@@ -22,8 +22,8 @@
       },
       {
         "type": "FOOTER",
-        "text": "Expires in 5 minutes.",
-        "code_expiration_minutes": 5
+        "text": "Expires in 15 minutes.",
+        "code_expiration_minutes": 15
       },
       {
         "type": "BUTTONS",
@@ -31,15 +31,15 @@
           {
             "type": "URL",
             "text": "Copy code",
-            "url": "https://www.whatsapp.com/otp/code/?otp_type=COPY_CODE&code_expiration_minutes=5&code=otp{{1}}",
+            "url": "https://www.whatsapp.com/otp/code/?otp_type=COPY_CODE&code_expiration_minutes=15&code=otp{{1}}",
             "example": [
-              "https://www.whatsapp.com/otp/code/?otp_type=COPY_CODE&code_expiration_minutes=5&code=otp123456"
+              "https://www.whatsapp.com/otp/code/?otp_type=COPY_CODE&code_expiration_minutes=15&code=otp123456"
             ]
           }
         ]
       }
     ],
-    "message_send_ttl_seconds": 300
+    "message_send_ttl_seconds": 900
   },
   "wabaId": "1114297824590105",
   "phoneNumberId": "1310303435498156",

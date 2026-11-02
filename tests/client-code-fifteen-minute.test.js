@@ -13,7 +13,9 @@ test('client validity is separate from delivery TTL; Workspace requires explicit
  for(const change of [{status:'PENDING'},{language:'en_GB'},{id:'900000002'}])assert.equal(inspect(c,{...c,...change}).ready,false);
  const bad=contract();bad.components[2].buttons[0].url=bad.components[2].buttons[0].url.replace('minutes=15','minutes=5');assert.equal(inspect(bad).ready,false);
  const staff={...c,name:'shiloh_workspace_verification'};assert.equal(inspect(staff).ready,true);assert.equal(inspectWorkspaceTemplate({reviewed:staff,inventory:[staff],wabaId:staff.wabaId}).ready,false);
- assert.equal(inspectWorkspaceTemplate({reviewed:pinned.template,inventory:[pinned.template],wabaId:pinned.wabaId,expectedName:pinned.template.name}).codeTtlSeconds,300);
+ assert.equal(inspectWorkspaceTemplate({reviewed:pinned.template,inventory:[pinned.template],wabaId:pinned.wabaId,expectedName:pinned.template.name,expectedCodeTtlSeconds:900}).codeTtlSeconds,900);
+ const legacy=structuredClone(pinned.template);legacy.components[1]={type:'FOOTER',text:'Expires in 5 minutes.',code_expiration_minutes:5};legacy.components[2].buttons[0].url=legacy.components[2].buttons[0].url.replace('minutes=15','minutes=5');legacy.components[2].buttons[0].example=legacy.components[2].buttons[0].example.map(x=>x.replace('minutes=15','minutes=5'));legacy.message_send_ttl_seconds=300;
+ assert.equal(inspectWorkspaceTemplate({reviewed:legacy,inventory:[legacy],wabaId:pinned.wabaId,expectedName:legacy.name}).codeTtlSeconds,300);
  assert.match(clientCodeScript({whatsappCodeTtlSeconds:900}),/expire after 15 minutes/);assert.match(clientCodeScript(),/expire after five minutes/);
 });
 for(const elapsed of [301000,601000,899999,900000])test(`fifteen-minute deadline/storage boundary at ${elapsed}ms`,async t=>{
