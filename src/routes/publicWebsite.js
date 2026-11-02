@@ -11,7 +11,6 @@ const {
   renderTreatments,
   renderAbout,
   renderContact,
-  renderVisit,
   renderPrivacy,
 } = require('../services/publicWebsite');
 
@@ -19,7 +18,7 @@ const { PUBLIC_SITE_ORIGIN } = require('../config/publicOrigins');
 
 function createPublicWebsiteRouter({ contentService = createWebsiteContentService() } = {}) {
 const router = express.Router();
-const INDEXABLE_PATHS = ['/', '/treatments', '/about', '/contact', '/visit', '/privacy', '/book', '/discover', '/offers'];
+const INDEXABLE_PATHS = ['/', '/treatments', '/about', '/contact', '/privacy', '/book', '/discover', '/offers'];
 
 // Public discovery only: no client/profile, staff, form, payment or query URLs.
 router.get('/robots.txt', (req, res) => res.type('text/plain').send(
@@ -77,7 +76,8 @@ router.get('/treatments', async (req, res) => {
 
 router.get('/about', (req, res) => res.status(200).type('html').send(renderAbout()));
 router.get('/contact', (req, res) => res.status(200).type('html').send(renderContact()));
-router.get('/visit', (req, res) => res.status(200).type('html').send(renderVisit()));
+// Keep old visitor-guide links useful without promoting independent businesses.
+router.get('/visit', (_req, res) => res.redirect(301, '/contact'));
 // Retired endpoints remain inert for older open browser tabs. Never contact a provider.
 router.get('/visit/places', (_req, res) => res.set('Cache-Control', 'no-store').json({ status: 'retired', places: [] }));
 router.get('/reviews/google', (_req, res) => res.set('Cache-Control', 'no-store').json({ status: 'retired', place: null, reviews: [] }));

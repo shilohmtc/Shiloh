@@ -1999,6 +1999,9 @@ for (const viewport of [
         await expect(surface.locator('#category-advanced-aesthetics')).toBeVisible();
         await expect(surface.locator('#category-body-and-wellness')).toBeVisible();
         await expect(surface.getByRole('heading', { name: 'SQT Rejuvenation & Revitalising BioMicroneedling' })).toBeVisible();
+        const sqtDetails = surface.locator('details').filter({ hasText: 'An SQT BioMicroneedling option focused on rejuvenation' });
+        await sqtDetails.locator('summary').click();
+        await expect(sqtDetails).toHaveAttribute('open', '');
         await expect(surface.getByText(
           'An SQT BioMicroneedling option focused on rejuvenation and revitalising skincare goals, selected according to the client’s skin assessment and suitability.',
           { exact: true },
@@ -2010,6 +2013,9 @@ for (const viewport of [
 
       if (name === 'book') {
         await expect(surface.getByRole('link', { name: /Install or open My Shiloh to book/ }).first()).toHaveAttribute('href', '/my-shiloh/book');
+        const footCareDetails = surface.locator('details').filter({ hasText: 'Restorative foot care.' });
+        await footCareDetails.locator('summary').click();
+        await expect(footCareDetails).toHaveAttribute('open', '');
         await expect(surface.getByText('Restorative foot care.', { exact: true })).toBeVisible();
         await expect(surface.locator('[data-website-planning-entry]')).toBeVisible();
         await expect(surface.getByRole('link', { name: /Plan a flexible or group visit in My Shiloh/ })).toHaveAttribute('href', '/my-shiloh/request');
