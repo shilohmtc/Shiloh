@@ -85,6 +85,7 @@ test('explicit team coordination narrows a business-wide principal and projects 
   const rows = await routing.listUnresolvedBookingRequests({ db, principal: principal(), now: new Date('2026-09-09T08:00:00Z') });
   assert.equal(rows.length, 1);
   assert.equal(rows[0].appointmentId, 501);
+  assert.equal(rows[0].requestedAt, requestRows[0].requested_at.toISOString());
   assert.equal(rows[0].teamName, 'Christel team');
   assert.equal(rows[0].occasionNote, 'Birthday treat for two');
   assert.match(rows[0].staffName, /Christel team/);
@@ -106,7 +107,7 @@ test('owner sees and may resolve requests across teams despite a historical team
 
 test('pending time changes reach Christel and scoped Reception without exposing them to practitioners', async () => {
   const reschedules = [
-    { id: 801, appointment_id: 501, approver_staff_id: 3, team_id: 11, client_name: 'Client A', service_name: 'Massage', staff_name: 'Christel', original_starts_at: '2026-09-27T08:00:00Z', proposed_starts_at: '2026-09-30T08:00:00Z' },
+    { id: 801, requested_at:'2026-09-25T06:00:00Z', appointment_id: 501, approver_staff_id: 3, team_id: 11, client_name: 'Client A', service_name: 'Massage', staff_name: 'Christel', original_starts_at: '2026-09-27T08:00:00Z', proposed_starts_at: '2026-09-30T08:00:00Z' },
     { id: 802, appointment_id: 502, approver_staff_id: 5, team_id: 12, client_name: 'Client B', service_name: 'Facial', staff_name: 'Abigail', original_starts_at: '2026-09-28T08:00:00Z', proposed_starts_at: '2026-10-01T08:00:00Z' },
   ];
   const db = dbWith({ scopes: { 100: { scope_kind: 'team', team_id: 11 } }, reschedules });
@@ -114,6 +115,7 @@ test('pending time changes reach Christel and scoped Reception without exposing 
   const owner = principal({ business_role: 'owner', calendarAuthority: { businessRole: 'owner', calendarScope: 'all_business' } });
   assert.deepEqual((await routing.listPendingRescheduleRequests({ ...input, principal: owner })).map(row => row.requestId), [801, 802]);
   assert.deepEqual((await routing.listPendingRescheduleRequests({ ...input, principal: principal() })).map(row => row.requestId), [801]);
+  assert.equal((await routing.listPendingRescheduleRequests({ ...input, principal: principal() }))[0].requestedAt, '2026-09-25T06:00:00.000Z');
   const practitioner = principal({ business_role: 'employee_practitioner', calendar_scope: 'own_appointments' });
   assert.deepEqual(await routing.listPendingRescheduleRequests({ ...input, principal: practitioner }), []);
 });

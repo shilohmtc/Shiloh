@@ -166,6 +166,7 @@ async function listUnresolvedBookingRequests({ db = pool, principal, now = new D
     eligiblePractitioners: Number(row.current_staff_count) === 1 && Array.isArray(row.eligible_practitioners)
       ? row.eligible_practitioners : [],
     status: row.status,
+    requestedAt: row.requested_at ? revisionOf(row.requested_at) : null,
     planningStartedAt: row.planning_started_at || null,
     occasionNote: row.client_occasion_note || null,
     specialOccasion: row.client_special_occasion,
@@ -193,7 +194,7 @@ async function listUnresolvedBookingRequests({ db = pool, principal, now = new D
   return requests.filter(item=>!item.groupId).concat([...groups.values()].map(members=>{
     members.sort((a,b)=>a.guestPosition-b.guestPosition);
     const lead=members[0];
-    return {...lead,members,canChangePractitioner:false,eligiblePractitioners:[],
+    return {...lead,members,requestedAt:members.map(member=>member.requestedAt).filter(Boolean).sort()[0]||null,canChangePractitioner:false,eligiblePractitioners:[],
       clientName:members.map(member=>member.clientName).join(' & '),staffName:members.map(member=>member.practitionerName).join(' & '),
       proposedStaffName:members.map(member=>member.proposedStaffName).join(' & '),
       serviceName:members.length===2 ? 'Booking for two' : `Family or friends · ${members.length} people`,
@@ -205,7 +206,7 @@ async function listPendingRescheduleRequests({ db = pool, principal, now = new D
   const scope = await coordinationScopeForPrincipal(db, principal);
   if (scope.kind === 'none') return [];
   const result = await db.query(`
-    SELECT request.id,request.appointment_id,request.approver_staff_id,request.decision_owner,
+    SELECT request.id,request.appointment_id,request.approver_staff_id,request.decision_owner,request.requested_at,
            request.original_starts_at,request.original_ends_at,request.proposed_starts_at,
            COALESCE(v2.name,c.display_name,a.source_client_name,'Client') AS client_name,
            COALESCE(s.name,aps.service_name_snapshot,a.title,'Shiloh appointment') AS service_name,
@@ -242,6 +243,7 @@ async function listPendingRescheduleRequests({ db = pool, principal, now = new D
     return true;
   }).map(row => ({
     requestId: Number(row.id), appointmentId: Number(row.appointment_id),
+    requestedAt: row.requested_at ? revisionOf(row.requested_at) : null,
     decisionOwner: row.decision_owner,
     clientName: row.client_name, serviceName: row.service_name, staffName: row.staff_name,
     originalStartsAt: row.original_starts_at, proposedStartsAt: row.proposed_starts_at,
