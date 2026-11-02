@@ -2,7 +2,7 @@ const {test,expect}=require('@playwright/test');
 const AxeBuilder=require('@axe-core/playwright').default;
 const {renderBookingPage}=require('../src/services/publicBookingPageEditorial');
 
-for(const width of [390,1440])test(`retired Places pages preserve review links, visitor guide and directions at ${width}`,async({page},info)=>{
+for(const width of [390,1440])test(`retired Places pages preserve review links and clinic directions at ${width}`,async({page},info)=>{
   await page.setViewportSize({width,height:1000});
   const calls=[];
   page.on('request',request=>{if(/reviews\/google|visit\/places|places\.googleapis/.test(request.url()))calls.push(request.url());});
@@ -16,7 +16,8 @@ for(const width of [390,1440])test(`retired Places pages preserve review links, 
       await expect(page.locator('.review-card')).toHaveCount(0);
     }
     if(story==='visit') {
-      await expect(page.getByRole('heading',{name:'Accommodation starting points.'})).toBeVisible();
+      await expect(page.getByRole('heading',{name:'Come find Shiloh in Heidelberg.'})).toBeVisible();
+      await expect(page.getByText('Accommodation starting points.')).toHaveCount(0);
       await expect(page.locator('[data-live-places-query]')).toHaveCount(0);
     }
     if(story==='contact') {

@@ -170,6 +170,7 @@ test('home and Contact share the approved Heidelberg town-centre story', () => {
   assert.match(home, /Great neighbours make life more beautiful|Businesses near Shiloh/);
   assert.match(contact, /data-public-town-centre/);
   assert.match(contact, /Great neighbours make life more beautiful/);
+  for (const html of [home, contact]) assert.doesNotMatch(html, /Visit Heidelberg|href="\/visit"/);
 
   for (const html of [home, contact]) {
     assert.match(html, /Grill King Family Restaurant/);
@@ -247,16 +248,15 @@ test('public website brand assets exactly match the approved installed-app artwo
   }
 });
 
-test('Visit and the assistant use direct accommodation sources without Hello Heidelberg', () => {
+test('legacy Visit rendering uses Contact while retained assistant sources stay unchanged', () => {
   const visit = renderVisit();
   const guide = fs.readFileSync(
     path.join(__dirname, '..', 'src', 'config', 'heidelbergGuide.js'),
     'utf8',
   );
 
-  assert.match(visit, /Heidelberg Lodge/);
-  assert.match(visit, /Suikerbosrand Guesthouse/);
-  assert.match(visit, /Picanha Guesthouse/);
+  assert.equal(visit, renderContact());
+  assert.doesNotMatch(visit, /Heidelberg Lodge|Suikerbosrand Guesthouse|Picanha Guesthouse/);
   assert.doesNotMatch(visit, /Hello Heidelberg/i);
   assert.doesNotMatch(guide, /Hello Heidelberg/i);
 });
@@ -311,10 +311,7 @@ test('public privacy policy is accessible, specific to Shiloh, and linked site-w
   assert.match(privacy, /rel="canonical" href="https:\/\/shilohmtc\.co\.za\/privacy"/);
   assert.match(renderHome(catalogue), /href="\/privacy">Privacy policy<\/a>/);
 
-  assert.match(renderVisit(), /Suikerbosrand Nature Reserve/);
-  assert.match(renderVisit(), /Heidelberg Lodge/);
-  assert.match(renderVisit(), /Picanha Guesthouse/);
-  assert.match(renderVisit(), /current rates, availability and facilities/i);
+  assert.equal(renderVisit(), renderContact());
 
   const websiteRoute = fs.readFileSync(
     path.join(__dirname, '..', 'src', 'routes', 'publicWebsite.js'),
@@ -424,12 +421,15 @@ test('public sitemap includes published stories while robots stays independent o
   assert.equal(robots.status, 200);
   assert.match(robots.headers.get('content-type'), /text\/plain/);
   assert.match(await robots.text(), /Sitemap: https:\/\/shilohmtc\.co\.za\/sitemap\.xml/);
+  const legacyVisit = await fetch(`${origin}/visit?from=old-link`, { redirect: 'manual' });
+  assert.equal(legacyVisit.status, 301);
+  assert.equal(legacyVisit.headers.get('location'), '/contact');
   const sitemap = await fetch(`${origin}/sitemap.xml`);
   assert.equal(sitemap.status, 200);
   assert.match(sitemap.headers.get('content-type'), /application\/xml/);
   const xml = await sitemap.text();
   const urls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]);
-  assert.deepEqual(urls, ['/', '/treatments', '/about', '/contact', '/visit', '/privacy', '/book', '/discover', '/offers', '/discover/no-two-bodies-are-the-same'].map(path => `https://shilohmtc.co.za${path}`));
+  assert.deepEqual(urls, ['/', '/treatments', '/about', '/contact', '/privacy', '/book', '/discover', '/offers', '/discover/no-two-bodies-are-the-same'].map(path => `https://shilohmtc.co.za${path}`));
   assert.doesNotMatch(urls.join(' '), /my-shiloh|calendar|forms|payments|\?/);
   assert.doesNotMatch(xml, /<lastmod>/);
   for (const path of ['/robots.txt', '/sitemap.xml']) {

@@ -85,3 +85,5 @@ module.exports.testMatch.push('login-code-fifteen-minute.spec.js');
 module.exports.testMatch.push('my-shiloh-assistant-audit-fixes.spec.js');
 module.exports.testMatch.push('website-workspace-audit-fixes.spec.js');
 module.exports.testMatch.push('client-journey-small-batch.spec.js');
+
+module.exports.testMatch.push('website-treatment-clarity.spec.js');

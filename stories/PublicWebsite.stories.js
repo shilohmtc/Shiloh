@@ -123,6 +123,7 @@ export const Contact = {
 };
 
 export const Visit = {
+  name: 'Legacy visit destination — Contact',
   render: () => productionPage(renderVisit()),
 };
 
