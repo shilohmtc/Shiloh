@@ -81,3 +81,5 @@ module.exports.testMatch.push('public-address-readability.spec.js');
 module.exports.testMatch.push('client-passkey-auto-label.spec.js');
 
 module.exports.testMatch.push('login-code-fifteen-minute.spec.js');
+
+module.exports.testMatch.push('my-shiloh-assistant-audit-fixes.spec.js');

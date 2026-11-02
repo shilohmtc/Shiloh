@@ -137,9 +137,10 @@ async function generateReply(phone, message, {
   tools = [],
   toolExecutor = null,
   maxToolRounds = 4,
+  onIncomplete = () => {},
 } = {}) {
   const directFaq = processClinicFaqMessage(message);
-  if (directFaq.handled) return directFaq.reply;
+  if (directFaq.handled && surface !== "my_shiloh") return directFaq.reply;
 
   if (surface === "whatsapp") {
     const deterministicReply = deterministicConversationReply(message);
@@ -147,7 +148,7 @@ async function generateReply(phone, message, {
   }
 
   const localGuideReply = buildHeidelbergGuideReply(message);
-  if (localGuideReply) return localGuideReply;
+  if (localGuideReply && surface !== "my_shiloh") return localGuideReply;
 
   const [previousResponseId, knowledge, profile, activeCatalogue, practitionerKnowledge] = await Promise.all([
     getSession(conversationKey),
@@ -170,7 +171,9 @@ async function generateReply(phone, message, {
   const enabledTools = Array.isArray(tools) && typeof toolExecutor === 'function' ? tools : [];
   const request = {
     model: getModelForWorkload(workload),
-    input: message,
+    input: clientContext?.repeatVisitReview && surface === "my_shiloh"
+      ? [{ role: 'user', content: message }, { role: 'assistant', content: clientContext.repeatVisitReview }]
+      : message,
     instructions,
     reasoning: { effort: REASONING_EFFORT },
     store: true,
@@ -200,6 +203,7 @@ async function generateReply(phone, message, {
     });
     response = toolRun.response;
     if (toolRun.limitReached) {
+      onIncomplete();
       return "I couldn't finish checking that safely just now. Please try again.";
     }
 
@@ -210,6 +214,7 @@ async function generateReply(phone, message, {
     const reply = response.output_text?.trim();
 
     if (!reply) {
+      onIncomplete();
       logger.warn({ responseId: response.id }, "OpenAI returned no text output");
       return "Sorry, I couldn't generate a response right now.";
     }

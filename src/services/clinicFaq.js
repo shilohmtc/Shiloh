@@ -52,13 +52,13 @@ function scoreEntry(message, entry) {
   for (const alias of entry.aliases || []) {
     const normalizedAlias = normalizeText(alias);
     if (!normalizedAlias) continue;
-    if (normalized.includes(normalizedAlias)) score = Math.max(score, 10 + normalizedAlias.split(' ').length);
+    if ((` ${normalized} `).includes(` ${normalizedAlias} `)) score = Math.max(score, 10 + normalizedAlias.split(' ').length);
   }
 
   for (const topic of entry.topics || []) {
     const normalizedTopic = normalizeText(topic);
     if (!normalizedTopic) continue;
-    if (normalized.includes(normalizedTopic)) {
+    if ((` ${normalized} `).includes(` ${normalizedTopic} `)) {
       score += normalizedTopic.includes(' ') ? 5 : 3;
       continue;
     }
@@ -101,7 +101,7 @@ function isCanonicalAuthorityQuery(message) {
 function looksLikeClinicPolicyQuestion(message) {
   const normalized = normalizeText(message);
   if (!normalized) return false;
-  return POLICY_QUESTION_PATTERN.test(normalized) && /\b(?:you|we|i|my|us|clinic|shiloh)\b/i.test(normalized);
+  return /\b(?:policy|policies|allowed|permit|permitted|bring|wear|wearing)\b/i.test(normalized) && POLICY_QUESTION_PATTERN.test(normalized) && /\b(?:you|we|i|my|us|clinic|shiloh)\b/i.test(normalized);
 }
 
 function ambiguousReply(matches = []) {

@@ -7,6 +7,7 @@ const { createShilohRewardsService } = require('./shilohRewards');
 
 const TOOL_NAMES = Object.freeze({
   TREATMENT_HISTORY: 'get_my_treatment_history',
+  LAST_COMPLETED_VISIT: 'get_my_last_completed_visit',
   REQUEST_STATUS: 'get_my_request_status',
   NEXT_APPOINTMENT: 'get_my_next_appointment',
   UPCOMING_BOOKINGS: 'get_my_upcoming_bookings',
@@ -18,6 +19,7 @@ const TOOL_NAMES = Object.freeze({
 
 const READ_TOOL_DEFINITIONS = Object.freeze([
   ...[
+    [TOOL_NAMES.LAST_COMPLETED_VISIT, 'Read the most recent accessible completed individual visit only after the client asks to repeat their last appointment. Present it for review and ask for a new date/time; never automatically book. Ambiguous or incomplete history needs clarification.'],
     [TOOL_NAMES.TREATMENT_HISTORY, 'Read the signed-in client’s own recent completed treatments, only after they ask to repeat a past treatment or book their usual. History does not prove current eligibility, price or availability. Ask which treatment if ambiguous; never invent a usual.'],
     [TOOL_NAMES.REQUEST_STATUS, 'Read canonical appointment change, booking and Reception request states. Pending is awaiting Shiloh approval, not a confirmed change.'],
   ].map(([name, description]) => ({ type: 'function', name, description, strict: true,
@@ -181,6 +183,9 @@ function createMyShilohReadTools({
     const clientId = positiveId(crmV2ClientId);
     if (!clientId) return { ok: false, error: 'authenticated_client_unavailable' };
 
+    if (name === TOOL_NAMES.LAST_COMPLETED_VISIT) {
+      return { ok: true, visit: await contextService.loadLastCompletedVisit(clientId), currentBookingCheckRequired: true };
+    }
     if (name === TOOL_NAMES.TREATMENT_HISTORY) {
       return { ok: true, treatments: await contextService.loadTreatmentHistory(clientId), currentBookingCheckRequired: true };
     }

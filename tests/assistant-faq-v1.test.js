@@ -104,7 +104,7 @@ test('#884 mixed canonical questions retain FAQ context without allowing FAQ to 
 test('#884 pure confirmed FAQ answers before provider use while canonical questions remain on existing AI path', () => {
   const aiSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'ai.js'), 'utf8');
   assert.match(aiSource, /processClinicFaqMessage\(message\)/);
-  assert.match(aiSource, /if \(directFaq\.handled\) return directFaq\.reply/);
+  assert.match(aiSource, /if \(directFaq\.handled && surface !== "my_shiloh"\) return directFaq\.reply/);
   assert.match(aiSource, /getClinicFaqKnowledge\(message\)/);
   assert.match(aiSource, /\[activeCatalogue, practitionerKnowledge, clinicFaqKnowledge, heidelbergGuideKnowledge, \.\.\.knowledge\]/);
 

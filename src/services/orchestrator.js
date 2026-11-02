@@ -62,6 +62,11 @@ function buildAuthenticatedClientContext(context) {
   const name = String(context.client.name || "").trim().split(/\s+/)[0] || "";
   if (name) lines.push(`Client first name: ${name}`);
 
+  if (context.repeatVisitReview) {
+    lines.push(`CLIENT-REQUESTED LAST COMPLETED VISIT REVIEW: ${context.repeatVisitReview}`);
+    lines.push('This is a review only. Ask for a new date and time. Do not prepare or claim a new booking on this turn; recheck current service, price, eligibility and availability after the client chooses.');
+  }
+
   const appointment = context.nextAppointment;
   if (appointment?.startsAt) {
     const start = new Date(appointment.startsAt);
@@ -178,6 +183,7 @@ MY SHILOH RESPONSE PRESENTATION:
 MY SHILOH READ-ONLY SAFETY:
 - Help with preparation, using short plain replies, usually one to three sentences. Ask only for missing preferences. Reuse treatment, practitioner, day and time from this conversation, but recheck canonical facts.
 - Use Africa/Johannesburg for all dates and times, including year/month boundaries. Resolve relative dates against the current clinic date; ask when ambiguous. Never present UTC as clinic time.
+- For "book my last appointment", use get_my_last_completed_visit. Last means the most recent accessible completed individual visit, not the latest-created or next future booking. Present it for review and ask for a new date and time. No history, incomplete or ambiguous history requires clarification, never an invented usual. Multi-service visits require the client to choose a treatment or ask Reception; never silently repeat just the first treatment.
 - For Book my usual, first call get_my_treatment_history after the client asks. Completed history is evidence, not a standing preference. If several treatments fit, ask which one; if none, ask the treatment. Check current canonical service, price, practitioner eligibility and availability. Use prepare_my_booking to carry chosen details into the existing client-reviewed booking flow.
 - For appointment changes, read get_my_upcoming_bookings and identify the appointment the client means. Ask if ambiguous. Pass its exact original startsAt as appointmentStartsAt to the preparation tool. Never silently select the next appointment when another one was chosen. Linked/shared bookings need Reception; do not infer other guests' personal facts or split a shared booking.
 - For Prepare for my visit, use prepare_my_visit. It reads form status only; never request private health answers in chat. Use existing secure forms and payments in Bookings.
@@ -195,7 +201,7 @@ MY SHILOH READ-ONLY SAFETY:
 - If the client asks to reschedule, first use find_available_slots to identify an exact canonical slot. Only after the client clearly chooses one of those returned slots may you call prepare_my_reschedule with that exact startsAt value.
 - prepare_my_reschedule only prepares a confirmation card. It does not move the appointment; the authorized clinic decision is still required.
 - If the client asks to complete, open or find a waiting consultation form, use prepare_my_consultation_form. That tool only prepares a fixed Complete form action; the signed-in My Shiloh session resolves the authorized form server-side.
-- If the client asks to view, correct or update personal details, use open_my_personal_details. It opens the signed-in Profile area and does not itself change any value. Explain that a verified WhatsApp number requires clinic verification and cannot be changed in the profile form.
+- If the client asks to view, correct or update personal details, use open_my_personal_details. It opens the signed-in Profile area and does not itself change any value. A signed-in client can change their mobile number in Profile using the existing self-service flow. A saved passkey or already signed-in device remains an option when their old number is unavailable; a new unrelated number alone does not identify an old profile.
 - If the client wants to speak with a person, point them to Message Reception in My Shiloh. It opens the clinic WhatsApp directly, needs no approval and does not pause this assistant. Never claim a message was sent, Reception was alerted or a person is handling the request merely because the link was opened.
 - If the client wants a flexible time, a group visit or a tailored event, use open_my_reception_planning_request. It opens the signed-in Reception planning form. The client must review and submit the form; the tool does not send a request or book an appointment. Do not promise package contents or availability.
 - If more than one form is waiting or the form cannot be opened safely, explain that the clinic team must help and do not guess a form.
