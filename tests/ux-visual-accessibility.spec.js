@@ -686,7 +686,8 @@ test('My Shiloh shows a pending time change while preserving the current appoint
     await expect(booking).toContainText('27 Sept');
     await expect(booking).toContainText('30 Sept');
     await expect(booking).toContainText('until the change is approved');
-    await expect(booking.locator('a')).toContainText('request');
+    await expect(booking.locator(':scope > a')).toContainText('request');
+    await expect(booking.locator(':scope > a')).toHaveAttribute('href', '#shiloh');
     await expect(page.locator('[data-client-experience-bookings] .action-card')).toHaveCount(2);
     await expect(page.locator('[data-client-experience-bookings] .action-card').nth(1)).toContainText('Change an appointment');
     const bounds = await page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }));
