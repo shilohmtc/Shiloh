@@ -61,7 +61,7 @@ test('production Responses loop and existing PostgreSQL session memory retain se
    './activeCatalogueKnowledge':{getActiveCatalogueKnowledge:async()=>null},'./practitionerKnowledge':{getPractitionerKnowledge:async()=>null},
    './clinicFaq':{processClinicFaqMessage:()=>({handled:false}),getClinicFaqKnowledge:()=>null},
    '../config/heidelbergGuide':{getHeidelbergGuideKnowledge:()=>null,buildHeidelbergGuideReply:()=>null},
-   './googlePlaces':{isLivePlacesQuery:()=>false},'../lib/logger':log,
+   '../lib/logger':log,
  });
  const context={getContext:async({crmV2ClientId})=>({client:{id:crmV2ClientId,name:'Synthetic'},generatedAt:'2026-10-15T08:00:00Z'}),loadNextAppointment:async()=>null,loadTreatmentHistory:async id=>{assert.equal(id,55);return[{service,practitioner,startsAt:'2026-10-01T08:00:00Z'}];}};
  const readTools=createMyShilohReadTools({contextService:context,availability:async(intent,options)=>{availabilityCalls.push({intent,options});return{status:'available',slots:canonicalSlots().filter(slot=>slot.starts_at.getUTCHours()>=10)};}});

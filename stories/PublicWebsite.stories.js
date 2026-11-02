@@ -93,34 +93,6 @@ const catalogue = [
   },
 ];
 
-const reviewPreview = {
-  place: {
-    rating: 4.9,
-    ratingCount: 87,
-    mapsUrl: 'https://www.google.com/maps',
-  },
-  reviews: [
-    {
-      authorName: 'Preview client',
-      rating: 5,
-      text: 'The whole experience felt calm, welcoming and thoughtfully personal from beginning to end.',
-      relativePublishTime: 'Google review',
-    },
-    {
-      authorName: 'Preview client',
-      rating: 5,
-      text: 'Beautiful attention to detail and such a relaxing space. I left feeling genuinely cared for.',
-      relativePublishTime: 'Google review',
-    },
-    {
-      authorName: 'Preview client',
-      rating: 5,
-      text: 'Professional, friendly and easy to recommend. I am already looking forward to my next visit.',
-      relativePublishTime: 'Google review',
-    },
-  ],
-};
-
 function productionPage(pageHtml) {
   const styles = [...String(pageHtml).matchAll(/<style>([\s\S]*?)<\/style>/g)]
     .map((match) => match[1])
@@ -135,7 +107,7 @@ export default {
 };
 
 export const Home = {
-  render: () => productionPage(renderHome(catalogue, { reviewPreview })),
+  render: () => productionPage(renderHome(catalogue)),
 };
 
 export const Treatments = {
@@ -189,7 +161,7 @@ export const CataloguePresentationReview = {
   ])),
 };
 
-export const HomeLoadingReviews = {render:()=>productionPage(renderHome(catalogue))};
+
 
 const youthGuestReviewCatalogue = [
   {id:1101,name:'Youth Guests Pedi & Gel',category:'More Services',duration:'45 min',price:'R210'},

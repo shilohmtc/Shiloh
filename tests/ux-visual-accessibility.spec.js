@@ -1977,10 +1977,11 @@ for (const viewport of [
         await expect(surface.getByText(/Every Shiloh visit includes a welcome drink on arrival/)).toBeVisible();
         await expect(surface.locator('[data-public-service-discovery]')).toBeVisible();
         await expect(surface.locator('[data-google-reviews]')).toBeVisible();
-        await expect(surface.locator('[data-reviews-rail] .review-card')).toHaveCount(3);
-        await expect(surface.getByRole('link', { name: 'Read all reviews on Google Maps →' })).toBeVisible();
-        await expect(surface.getByRole('button', { name: 'Previous review' })).toBeVisible();
-        await expect(surface.getByRole('button', { name: 'Next review' })).toBeVisible();
+        await expect(surface.locator('[data-reviews-rail], .review-card, .reviews-controls')).toHaveCount(0);
+        const reviewLink = surface.getByRole('link', { name: 'Read reviews on Google Maps →' });
+        await expect(reviewLink).toBeVisible();
+        await expect(reviewLink).toHaveAttribute('href', /^https:\/\/www\.google\.com\/maps\/search\//);
+        await expect(surface.locator('[data-google-reviews]')).not.toContainText(/Loading|out of 5|temporarily unavailable/);
         await expect(surface.locator('[data-public-service-category]')).toHaveCount(7);
         await expect(surface.getByRole('heading', { name: 'Advanced Aesthetics' })).toBeVisible();
         await expect(surface.getByRole('heading', { name: 'Body & Wellness' })).toBeVisible();

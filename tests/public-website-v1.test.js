@@ -155,31 +155,10 @@ test('home includes a clear My Shiloh install and returning-client entry point',
   assert.match(html, /bookings, latest appointment details and Wallet/i);
 });
 
-test('home includes a resilient, accessible Google review carousel without exposing credentials', () => {
-  const html = renderHome(catalogue, {
-    reviewPreview: {
-      place: { rating: 4.9, ratingCount: 87, mapsUrl: 'https://maps.google.com/example' },
-      reviews: [{
-        authorName: 'Test reviewer',
-        rating: 5,
-        text: 'A calm and caring visit.',
-        reviewUrl: 'https://maps.google.com/example/review',
-      }],
-    },
-  });
-  assert.match(html, /data-google-reviews/);
-  assert.match(html, /Loved in Heidelberg/);
-  assert.match(html, /4\.9<\/strong> from 87 Google reviews/);
-  assert.match(html, /A calm and caring visit/);
-  assert.match(html, /data-reviews-previous aria-label="Previous review"/);
-  assert.match(html, /data-reviews-next aria-label="Next review"/);
-  assert.match(html, /data-reviews-rail tabindex="0" aria-label="Google client reviews"/);
-  assert.match(html, /fetch\('\/reviews\/google'/);
-  assert.match(html, /prefers-reduced-motion/);
-  assert.match(html, /translate="no">Google Maps<\/span> · Reviews are shown in Google Maps relevance order/);
-  assert.match(html, /View review on Google Maps/);
-  assert.match(html, /cache:'no-store'/);
-  assert.doesNotMatch(html, /GOOGLE_PLACES_API_KEY/);
+test('home offers a plain Google Maps review link without ratings or a live feed', () => {
+  const html = renderHome(catalogue, { reviewPreview: { place: { rating: 4.9, ratingCount: 87 }, reviews: [{ text: 'Stale review' }] } });
+  assert.match(html, /Read reviews on Google Maps/);
+  assert.doesNotMatch(html, /Stale review|4\.9|review-card|data-reviews-rail|Loading recent|fetch\('\/reviews\/google'/);
 });
 
 test('home and Contact share the approved Heidelberg town-centre story', () => {
