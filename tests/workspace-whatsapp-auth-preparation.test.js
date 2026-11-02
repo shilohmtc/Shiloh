@@ -20,7 +20,7 @@ function contract(language = 'en') {
     ] };
 }
 
-function fixture({ purpose = 'signin', ...overrides } = {}) {
+function fixture({ purpose = 'signin', templateTtlSeconds = 300, ...overrides } = {}) {
   let clock = new Date('2026-10-17T12:00:00Z');
   const browserToken = crypto.randomBytes(32).toString('base64url');
   const network = '192.0.2.0/24';
@@ -87,10 +87,11 @@ function fixture({ purpose = 'signin', ...overrides } = {}) {
     return call;
   } };
   const reviewed = contract();
+  reviewed.components[1].code_expiration_minutes=templateTtlSeconds/60;
   let inventory = [{ ...structuredClone(reviewed), status: 'APPROVED' }];
   const sent = [];
   let sendHook = async () => ({ messages: [{ id: 'wamid.synthetic' }] });
-  const delivery = createWorkspaceOtpDelivery({ enabled: true, reviewed, wabaId: reviewed.wabaId,
+  const delivery = createWorkspaceOtpDelivery({ enabled: true, reviewed, wabaId: reviewed.wabaId, expectedCodeTtlSeconds:templateTtlSeconds,
     readInventory: async () => inventory, send: async payload => { sent.push(payload); return sendHook(payload); } });
   const service = createWorkspaceWhatsAppAuth({ enabled: true, store, delivery,
     hmacKey: Buffer.alloc(32, 7), now: () => new Date(clock), ...overrides });
@@ -280,7 +281,8 @@ test('failed/uncertain sends cannot authenticate, never retry, never leak provid
 });
 
 test('template changes between preflight and send prevent provider dispatch', async () => {
-  const reviewed = contract(); let reads = 0, sends = 0;
+  const reviewed = contract();
+  let reads = 0, sends = 0;
   const delivery = createWorkspaceOtpDelivery({ enabled: true, reviewed, wabaId: reviewed.wabaId,
     readInventory: async () => [{ ...reviewed, status: ++reads === 1 ? 'APPROVED' : 'PAUSED' }],
     send: async () => { sends++; } });
@@ -369,4 +371,22 @@ test('accepted staff policy caps actual code dispatches at ten across purposes a
   await restarted.begin(f.input);
   await restarted.dispatchOne();
   assert.equal(f.sent.length,10);
+});
+
+// The existing five-minute/default cases above remain unchanged.
+for(const elapsed of [300000,899999,900000])test(`15-minute Workspace login deadline ${elapsed}ms`,async()=>{
+ const f=fixture({templateTtlSeconds:900,whatsappSigninCodeTtlSeconds:900});const r=await f.start();assert.equal(f.sent.length,1);f.advance(elapsed);assert.equal((await f.verify(r.request)).ok,elapsed<900000);
+ if(elapsed<900000){assert.equal(f.state.sessions[1].expiresAt-f.state.sessions[1].current,8*3600000);assert.deepEqual(f.state.sessions[0],{existing:true});assert.equal((await f.verify(r.request)).ok,false);}
+});
+for(const purpose of ['enroll','recover'])for(const elapsed of [0,300000])test(`shared 15-minute template preserves ${purpose} authority at ${elapsed}ms`,async()=>{
+ const f=fixture({purpose,templateTtlSeconds:900,whatsappSigninCodeTtlSeconds:900});const r=await f.start();assert.equal(f.sent.length,1);f.advance(elapsed);const result=await f.verify(r.request);assert.equal(result.ok,elapsed<300000);assert.equal(f.state.sessions.length,1);
+ if(result.ok){assert.equal(f.state.grants[0].expiresAt-f.state.grants[0].current,300000);assert.equal(f.state.grants[0].operatorId,2);}
+});
+test('15-minute Workspace login retains binding, newest-code revocation and attempt limit',async()=>{
+ const f=fixture({templateTtlSeconds:900,whatsappSigninCodeTtlSeconds:900});const first=await f.start();f.advance(60000);const second=await f.start();assert.equal(f.sent.length,2);assert.equal((await f.verify(first.request)).ok,false);
+ assert.equal((await f.verify(second.request,{browserToken:'Z'.repeat(43)})).ok,false);assert.equal((await f.verify(second.request,{purpose:'recover'})).ok,false);
+ for(let i=0;i<5;i++)assert.equal((await f.verify(second.request,{code:'invalid'})).ok,false);assert.equal((await f.verify(second.request)).ok,false);
+});
+test('15-minute template does not revive an expired queued Workspace intake',async()=>{
+ const f=fixture({templateTtlSeconds:900,whatsappSigninCodeTtlSeconds:900});await f.service.begin(f.input);f.advance(300000);await f.service.dispatchOne();assert.equal(f.sent.length,0);
 });

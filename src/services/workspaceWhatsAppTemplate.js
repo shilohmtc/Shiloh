@@ -27,8 +27,10 @@ function copyCodeButton(button, footerMinutes) {
 // No language or approved components are inferred from the owner-reported name.
 // Both arguments must come from a reviewed contract and a fresh authenticated
 // provider read. This module does not discover accounts or read credentials.
-function inspectWorkspaceTemplate({ reviewed, inventory, wabaId, expectedName = TEMPLATE_NAME } = {}) {
+function inspectWorkspaceTemplate({ reviewed, inventory, wabaId, expectedName = TEMPLATE_NAME, expectedCodeTtlSeconds = MAX_CODE_TTL_SECONDS } = {}) {
   const blocked = { ready: false, reason: 'template_not_verified' };
+  const extendedCode = expectedCodeTtlSeconds === 900;
+  if (expectedCodeTtlSeconds !== MAX_CODE_TTL_SECONDS && !extendedCode) return blocked;
   if (!reviewed || !Array.isArray(inventory) || !wabaId || reviewed.wabaId !== wabaId ||
       reviewed.name !== expectedName || !/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(reviewed.language || '') ||
       reviewed.category !== 'AUTHENTICATION' || !reviewed.id) return blocked;
@@ -53,6 +55,12 @@ function inspectWorkspaceTemplate({ reviewed, inventory, wabaId, expectedName = 
   const footerMinutes = footers[0]?.code_expiration_minutes;
   if ((ttl !== undefined && (!Number.isInteger(ttl) || ttl <= 0)) ||
       (footerMinutes !== undefined && (!Number.isInteger(footerMinutes) || footerMinutes <= 0))) return blocked;
+  // Code validity is separate from Meta's message-delivery deadline.
+  // Only an explicitly reviewed 15-minute contract selects the longer window.
+  if (extendedCode) {
+    if (footerMinutes !== 15 || (ttl !== undefined && (ttl < 30 || ttl > 900))) return blocked;
+    return { ready: true, name: expectedName, language: reviewed.language, codeTtlSeconds: expectedCodeTtlSeconds };
+  }
   // Do not display an expiry longer than the application actually honors.
   if (footerMinutes !== undefined && footerMinutes * 60 > MAX_CODE_TTL_SECONDS) return blocked;
   const codeTtlSeconds = Math.min(MAX_CODE_TTL_SECONDS, ttl || MAX_CODE_TTL_SECONDS,
@@ -82,13 +90,13 @@ function buildWorkspaceOtpPayload({ template, mobile, code, expectedName = TEMPL
 // lookup. A separately reviewed activation composition must supply the sender
 // and authenticated inventory reader. Existing generic WhatsApp stays retired.
 function createWorkspaceOtpDelivery({ enabled = false, reviewed = null, wabaId = null,
-  readInventory = null, send = null, expectedName = TEMPLATE_NAME } = {}) {
+  readInventory = null, send = null, expectedName = TEMPLATE_NAME, expectedCodeTtlSeconds = MAX_CODE_TTL_SECONDS } = {}) {
   const pin = reviewed ? structuredClone(reviewed) : null;
   const configured = () => enabled === true && !!pin && !!wabaId &&
     typeof readInventory === 'function' && typeof send === 'function';
   async function readiness() {
     if (!configured()) return { ready: false, reason: 'delivery_disabled' };
-    try { return inspectWorkspaceTemplate({ reviewed: pin, wabaId, expectedName, inventory: await readInventory() }); }
+    try { return inspectWorkspaceTemplate({ reviewed: pin, wabaId, expectedName, expectedCodeTtlSeconds, inventory: await readInventory() }); }
     catch (_) { return { ready: false, reason: 'template_not_verified' }; }
   }
   async function deliver({ mobile, code, codeTtlSeconds } = {}) {

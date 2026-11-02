@@ -166,3 +166,32 @@ test('staff WhatsApp session beyond its setup window can enroll only its own acc
   assert.equal(result.ok,true);assert.equal(Number((await h.sessions.validateSessionToken(result.sessionToken)).adminId),2);
   assert.equal((await h.sessions.validateSessionToken(verified.sessionToken)).ok,true);
 });
+
+test('reviewed fifteen-minute staff runtime preserves SQL challenge and eight-hour session boundaries',async t=>{
+ const {createWorkspaceWhatsAppRuntime}=require('../src/services/workspaceWhatsAppRuntime');
+ const h=await harness(t),reviewed=structuredClone(template);reviewed.components[1].code_expiration_minutes=15;
+ const sent=[],runtime=createWorkspaceWhatsAppRuntime({enabled:true,config:{staff,template:reviewed,wabaId:'456',phoneNumberId:'789',apiVersion:'v99.0',budgets},
+  db:h.db,sessions:h.sessions,hmacKey:Buffer.alloc(32,7),metaCredentials:{accessToken:'synthetic-only'},env:h.env,accessPolicy:policy(),now:h.now,fetchImpl:async(url,o)=>{
+   if(o.method==='GET')return new Response(JSON.stringify({data:url.includes('/phone_numbers')?[{id:'789'}]:[{...reviewed,status:'APPROVED'}]}));
+   sent.push(JSON.parse(o.body));return new Response(JSON.stringify({messages:[{id:'wamid.synthetic'}]}));
+  }});
+ assert.equal((await runtime.prepare()).ok,true);assert.equal((await runtime.checkProvider()).codeTtlSeconds,900);
+ const first=await issue(h,runtime.service);h.advance(899999);await runtime.service.dispatchOne();
+ const verified=await runtime.service.verify({...h.context,request:first.request,code:sent[0].template.components[0].parameters[0].text});assert.equal(verified.ok,true);
+ assert.equal(+new Date(verified.expiresAt)-+h.now(),8*3600000);assert.equal((await h.sessions.validateSessionToken(h.priorSession.sessionToken)).ok,true);
+ const second=await issue(h,runtime.service);h.advance(900000);
+ assert.equal((await runtime.service.verify({...h.context,request:second.request,code:sent[1].template.components[0].parameters[0].text})).ok,false);
+});
+
+test('accepted fifteen-minute Workspace login refreshes only its existing anonymous cookie',async t=>{
+ const express=require('express'),{createWorkspaceWhatsAppRouter,BASE}=require('../src/routes/workspaceWhatsAppAuth');let admitted=true;
+ const app=express(),sessions={validateSessionToken:async()=>({ok:false}),validateCsrfToken:async()=>false};
+ const service={enabled:()=>true,admitRequest:async()=>admitted,codePolicy:()=>({whatsappSigninCodeTtlSeconds:900}),begin:async()=>({ok:true,accepted:true,request:'synthetic'})};
+ app.use(BASE,createWorkspaceWhatsAppRouter({enabled:true,service,sessions,env:{NODE_ENV:'production'}}));
+ const server=app.listen(0,'127.0.0.1');await new Promise(r=>server.once('listening',r));t.after(()=>new Promise(r=>server.close(r)));const origin=`http://127.0.0.1:${server.address().port}`;
+ const page=await fetch(origin+BASE+'/'),cookie=page.headers.get('set-cookie').split(';')[0];
+ const post=(purpose='signin',extra={})=>fetch(origin+BASE+'/start',{method:'POST',headers:{Origin:origin.replace('http:','https:'),'X-Forwarded-Proto':'https','Content-Type':'application/json',Cookie:cookie,...extra},body:JSON.stringify({mobile:'0820000001',purpose})});
+ const result=await post();assert.equal(result.status,200);assert.equal(result.headers.get('set-cookie'),cookie+'; Path=/; HttpOnly; SameSite=Strict; Max-Age=1800; Secure');
+ assert.equal((await post('recover')).headers.get('set-cookie'),null);assert.equal((await post('signin',{Origin:'https://evil.example'})).headers.get('set-cookie'),null);
+ admitted=false;assert.equal((await post()).status,429);assert.equal((await post()).headers.get('set-cookie'),null);
+});

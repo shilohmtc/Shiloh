@@ -25,9 +25,9 @@ const active = row => row?.admin_active === true &&
 function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery = null,
   hmacKey = null, now = () => new Date(), randomBytes = crypto.randomBytes,
   randomInt = crypto.randomInt, env = {}, smsDelivery = null, budgets = null,
-  accessPolicy = null, isEnabled = () => true } = {}) {
+  accessPolicy = null, isEnabled = () => true, whatsappSigninCodeTtlSeconds = 300 } = {}) {
   const key = Buffer.isBuffer(hmacKey) ? Buffer.from(hmacKey) : null;
-  const enabledHere = () => enabled === true && isEnabled() === true && key?.length >= 32 &&
+  const enabledHere = () => [300,900].includes(whatsappSigninCodeTtlSeconds) && enabled === true && isEnabled() === true && key?.length >= 32 &&
     typeof store?.transaction === 'function' && typeof delivery?.configured === 'function' && delivery.configured();
   const digest = (...parts) => crypto.createHmac('sha256', key).update(JSON.stringify(parts)).digest('hex');
   const revision = workspaceWhatsAppRevision;
@@ -200,7 +200,10 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       })) { await finish('not_sent'); return completed; }
       template = await provider?.readiness();
     } catch (_) { await finish('not_sent'); return completed; }
-    if (!template?.ready || !Number.isInteger(template.codeTtlSeconds) || template.codeTtlSeconds <= 0 || template.codeTtlSeconds > 300) { await finish('not_sent'); return completed; }
+    // The shared WhatsApp template may advertise 15 minutes. Protected setup
+    // still expires at its original authority deadline below; only sign-in extends.
+    const maximumTtl = channel === 'whatsapp' ? whatsappSigninCodeTtlSeconds : 300;
+    if (!template?.ready || !Number.isInteger(template.codeTtlSeconds) || template.codeTtlSeconds <= 0 || template.codeTtlSeconds > maximumTtl) { await finish('not_sent'); return completed; }
     const { purpose, requestHash } = intake;
     const prepared = await store.transaction(async tx => {
       const current = now();
@@ -260,7 +263,10 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
         approvalSessionId: operator ? approvalSessionId : null, selfSessionId,
         identityRevision: revision(subject), browserHash: intake.browserHash,
         codeHash: digest('code', requestHash, purpose, code), issuedAt: current,
-        expiresAt: new Date(Math.min(new Date(intake.expiresAt).getTime(), current.getTime() + template.codeTtlSeconds * 1000)),
+        // Only ordinary WhatsApp sign-in gets the approved longer code window.
+        expiresAt: purpose === 'signin' && channel === 'whatsapp' && whatsappSigninCodeTtlSeconds === 900
+          ? new Date(current.getTime() + template.codeTtlSeconds * 1000)
+          : new Date(Math.min(new Date(intake.expiresAt).getTime(), current.getTime() + template.codeTtlSeconds * 1000)),
         attempts: 0, state: 'dispatching', providerMessageId: null,
       };
       await tx.revokeChallenges(subject.id, purpose, current);
@@ -279,7 +285,10 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
       const dispatch = await tx.dispatch(intake.requestHash);
       if (dispatch?.state === 'claimed') {
         settleDispatch(dispatch, sent?.ok === true ? 'accepted' : sent?.outcome === 'not_sent' ? 'not_sent' : 'uncertain');
-        dispatch.expiresAt=new Date(now().getTime()+600000);
+        const issued = await tx.challenge(intake.requestHash);
+        const retainUntil = purpose === 'signin' && channel === 'whatsapp' && whatsappSigninCodeTtlSeconds === 900
+          ? new Date(issued?.expiresAt || 0).getTime() + 300000 : 0;
+        dispatch.expiresAt=new Date(Math.max(now().getTime()+600000,retainUntil));
         await tx.saveDispatch(dispatch);
       }
       const row = await tx.challenge(prepared.requestHash);
@@ -457,7 +466,7 @@ function createWorkspaceWhatsAppAuth({ enabled = false, store = null, delivery =
     });
   }
 
-  return { enabled: enabledHere, fallbackEnabled, begin, requestOwnEnrollment, requestSmsFallback, dispatchOne, verify, requestSetup, inspectSetup, approveSetup, admitRequest, beginRegistration, finishRegistration };
+  return { enabled: enabledHere, codePolicy:()=>({whatsappSigninCodeTtlSeconds}), fallbackEnabled, begin, requestOwnEnrollment, requestSmsFallback, dispatchOne, verify, requestSetup, inspectSetup, approveSetup, admitRequest, beginRegistration, finishRegistration };
 }
 
 module.exports = { createWorkspaceWhatsAppAuth, MAX_ATTEMPTS, validWorkspaceBudgets };

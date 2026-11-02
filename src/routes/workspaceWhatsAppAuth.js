@@ -43,7 +43,7 @@ function createWorkspaceWhatsAppRouter({ service, sessions, invitations, env = {
   router.get('/welcome', requireSession, (_req,res) => res.redirect(303,'/calendar/workspace'));
   router.get('/invitations.js',(_req,res)=>res.type('application/javascript').send(authInvitationScript({audience:'staff',base:BASE})));
   router.get('/approve', (_req,res,next) => recoveryEnabled ? next() : res.sendStatus(404), requireSession, (req,res) => page(req,res,true));
-  router.get('/app.js', (_req,res) => res.type('application/javascript').send(workspaceWhatsAppScript()));
+  router.get('/app.js', (_req,res) => res.type('application/javascript').send(workspaceWhatsAppScript({whatsappSigninCodeTtlSeconds:service.codePolicy?.().whatsappSigninCodeTtlSeconds??300})));
   router.use(sameOriginGuard({ env }));
   // In-app setup needs the authenticated own session and CSRF, including when
   // the account signed in with an existing passkey and has no OTP cookie yet.
@@ -63,11 +63,14 @@ function createWorkspaceWhatsAppRouter({ service, sessions, invitations, env = {
       next();
     } catch (_) { res.status(503).json({ error:'Sign-in is temporarily unavailable.' }); }
   });
-  function action(fn, sessionResult = false) {
+  function action(fn, sessionResult = false, refreshBrowser = false) {
     return async (req,res) => {
       try {
         const result = await fn(req);
         if (!result?.ok) return res.status(result?.code === 'WORKSPACE_WHATSAPP_DISABLED' ? 503 : 401).json({ error:'This request could not be verified. Try again or ask your administrator.' });
+        if(refreshBrowser && result.accepted && service.codePolicy?.().whatsappSigninCodeTtlSeconds===900 && (req.body.purpose??'signin')==='signin') {
+          res.append('Set-Cookie', `${browserCookie}=${req.workspaceOtpContext.browserToken}; Path=/; HttpOnly; SameSite=Strict; Max-Age=1800${production ? '; Secure' : ''}`);
+        }
         if (sessionResult && result.sessionToken) {
           res.append('Set-Cookie', serializeSessionCookie(result.sessionToken,{ env, maxAgeSeconds:Math.max(1,Math.floor((new Date(result.expiresAt)-Date.now())/1000)) }));
           if (result.credentialHint) res.append('Set-Cookie', serializePasskeyHintCookie(result.credentialHint,{ env }));
@@ -78,7 +81,7 @@ function createWorkspaceWhatsAppRouter({ service, sessions, invitations, env = {
     };
   }
   router.post('/start', action(req => service.begin({ ...req.workspaceOtpContext, mobile:req.body.mobile,
-    purpose:req.body.purpose, setupIntent:req.body.setupIntent })));
+    purpose:req.body.purpose, setupIntent:req.body.setupIntent }),false,true));
   router.post('/fallback/sms', action(req => service.requestSmsFallback({ ...req.workspaceOtpContext, request:req.body.request, purpose:req.body.purpose })));
   router.post('/verify', action(req => service.verify({ ...req.workspaceOtpContext, request:req.body.request,
     code:req.body.code, purpose:req.body.purpose }),true));
