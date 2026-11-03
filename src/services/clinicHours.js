@@ -1,3 +1,4 @@
+const { annualClosureName } = require('../config/clinicAnnualClosures');
 const { pool } = require('../db/pool');
 const { isSundayDateKey } = require('./operationalCalendar');
 
@@ -75,6 +76,9 @@ async function getClinicWindowForDate({ db = pool, locationId = null, date }) {
   }
   if (row.override_type === 'open') {
     return { covered: true, reason: null, locationId: resolvedLocationId, isHoliday: row.is_holiday, holidayName: row.holiday_name, configured: true, startsLocal: row.override_start, endsLocal: row.override_end };
+  }
+  if (annualClosureName(date)) {
+    return { covered: false, reason: 'annual_closure', locationId: resolvedLocationId, isHoliday: row.is_holiday === true, holidayName: row.holiday_name || null, configured: true, annualDefault: true };
   }
   if (row.is_holiday) {
     return { covered: false, reason: 'holiday_unconfigured', locationId: resolvedLocationId, isHoliday: true, holidayName: row.holiday_name, configured: false };

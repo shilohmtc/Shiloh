@@ -1,3 +1,4 @@
+const { annualClosuresBetween } = require('../config/clinicAnnualClosures');
 const { pool } = require('../db/pool');
 const adminAvailability = require('./adminAvailability');
 
@@ -193,13 +194,13 @@ function buildClosures(locationExceptions, publicHolidays) {
   for (const row of publicHolidays) {
     const locationIds = [...new Set(locationExceptions.map(item => Number(item.location_id)).filter(Boolean))];
     if (!locationIds.length) {
-      closures.push(canonical('clinic_closure', 'public_holidays', {
+      closures.push(canonical('clinic_closure', row.annualDefault ? 'annual_clinic_closures' : 'public_holidays', {
         id: `holiday:${row.holiday_date}`,
         locationId: null,
         date: row.holiday_date,
         reason: row.name,
         observed: row.observed === true,
-        closureType: 'public_holiday',
+        closureType: row.annualDefault ? 'annual_default' : 'public_holiday',
       }));
       continue;
     }
@@ -207,13 +208,13 @@ function buildClosures(locationExceptions, publicHolidays) {
       const override = overrides.get(`${locationId}:${row.holiday_date}`);
       if (override?.exception_type === 'open') continue;
       if (override?.exception_type === 'closed') continue;
-      closures.push(canonical('clinic_closure', 'public_holidays', {
+      closures.push(canonical('clinic_closure', row.annualDefault ? 'annual_clinic_closures' : 'public_holidays', {
         id: `holiday:${locationId}:${row.holiday_date}`,
         locationId,
         date: row.holiday_date,
         reason: row.name,
         observed: row.observed === true,
-        closureType: 'public_holiday',
+        closureType: row.annualDefault ? 'annual_default' : 'public_holiday',
       }));
     }
   }
@@ -395,7 +396,9 @@ function createSchedulingEngine({
       })];
     });
     const workingWindows = buildWorkingWindows(staff, staffHoursResult.rows || [], recurringClosureResult.rows || [], locationHoursResult.rows || []);
-    const closures = buildClosures(locationExceptionResult.rows || [], holidayResult.rows || []);
+    const holidayRows = holidayResult.rows || [];
+    const annualRows = annualClosuresBetween(localFrom, localTo).filter(row => !holidayRows.some(holiday => String(holiday.holiday_date).slice(0,10) === row.holiday_date));
+    const closures = buildClosures(locationExceptionResult.rows || [], [...holidayRows, ...annualRows]);
     const externalBusy = [];
     const events = [...appointments, ...blocks, ...leave, ...closures];
 
@@ -407,7 +410,7 @@ function createSchedulingEngine({
         canonicalSources: [
           'appointments', 'appointment_staff', 'calendar_blocks', 'staff_working_hours',
           'staff_recurring_day_closures', 'staff_schedule_exceptions',
-          'location_working_hours', 'location_hours_exceptions', 'public_holidays',
+          'location_working_hours', 'location_hours_exceptions', 'public_holidays', 'annual_clinic_closures',
         ],
         nonCanonicalSources: [],
         schedulingAuthority: 'shiloh_canonical',

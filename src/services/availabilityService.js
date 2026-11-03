@@ -1,3 +1,5 @@
+const { annualClosureName } = require('../config/clinicAnnualClosures');
+const { getClinicWindowForDate } = require('./clinicHours');
 const { pool } = require('../db/pool');
 
 const TZ = 'Africa/Johannesburg';
@@ -61,6 +63,11 @@ async function listAvailableSlots({
 
   const totalMinutes = canonicalServiceTotalMinutes(resource);
   if (totalMinutes <= 0) return { status: 'invalid_duration', slots: [], resource };
+
+  if (annualClosureName(date)) {
+    const clinic = await getClinicWindowForDate({ locationId, date });
+    if (!clinic.covered) return { status: 'no_slots', slots: [], resource, date, totalMinutes, intervalMinutes };
+  }
 
   const result = await pool.query(
     `WITH requested AS (

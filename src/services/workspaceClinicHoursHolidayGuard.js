@@ -1,3 +1,4 @@
+const { annualClosureName } = require('../config/clinicAnnualClosures');
 const { pool } = require('../db/pool');
 const { WorkspaceClinicHoursError } = require('./workspaceClinicHours');
 
@@ -22,6 +23,7 @@ function createWorkspaceClinicHoursHolidayGuard({ db = pool } = {}) {
         400
       );
     }
+    if (annualClosureName(date)) return { exceptionDate: date, holidayName: annualClosureName(date) };
     const result = await db.query(
       `/* workspaceClinicHours:publicHolidayGuard */
        SELECT holiday_date, name
