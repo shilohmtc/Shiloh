@@ -315,7 +315,7 @@ test('list presentation is compact, bounded and masks mobile contact', () => {
   assert.doesNotMatch(html, /27821234567|082 123 4567/);
   assert.doesNotMatch(html, /Results are bounded/);
   assert.match(html, /href="\/calendar\/read-only">Calendar/);
-  assert.match(html, /aria-current="page">Clients/);
+  assert.match(html, /aria-current="page">Client Directory/);
   assert.match(html, /@media\(max-width:700px\)/);
 });
 
@@ -336,9 +336,9 @@ test('detail shows authorized profile/contact and immutable historical snapshots
 
 test('Calendar and Clients share capability-driven navigation without making Calendar scope a shortcut', () => {
   const enabled = renderCalendarPage(calendarModel(), { clientNavigationAllowed: true, clientsPath: '/calendar/clients' });
-  assert.match(enabled, /href="\/calendar\/clients">Clients/);
+  assert.match(enabled, /href="\/calendar\/clients">Client Directory/);
   const denied = renderCalendarPage(calendarModel());
-  assert.match(denied, /workspace-link future[^>]*aria-disabled="true"[^>]*>Clients/);
+  assert.match(denied, /workspace-link future[^>]*aria-disabled="true"[^>]*>Client Directory/);
   assert.doesNotMatch(denied, /href="\/calendar\/clients"/);
 });
 

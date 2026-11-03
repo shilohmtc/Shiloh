@@ -93,8 +93,8 @@ test('Clients and Messages keep internal architecture terms out of ordinary empt
     authority: { displayName: 'Naomi' }, selectedView: 'all', notificationAuthority: null,
     attention: [], activity: [], attentionUnavailable: false, activityUnavailable: false,
   });
-  assert.match(messages, /Recovery actions are not available with your current access\./);
-  assert.match(messages, /No current My Shiloh updates\./);
+  assert.match(messages, /No updates in this view\./);
+  assert.doesNotMatch(messages, /data-booking-confirmation-recover|data-needs-attention|class="attention-count"/);
   assert.doesNotMatch(messages, /client:notify|canonical communication activity|Fail closed/);
 });
 

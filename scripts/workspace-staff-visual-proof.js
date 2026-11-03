@@ -147,7 +147,7 @@ const proofs = [
 const manifest = [];
 
 for (const proof of proofs) {
-  if (!/aria-current="page">Staff/.test(proof.html) || !/>Calendar<|>Calendar<\//.test(proof.html) || !/>Clients<|>Clients<\//.test(proof.html)) {
+  if (!/aria-current="page">Staff/.test(proof.html) || !/>Calendar<|>Calendar<\//.test(proof.html) || !/>Client Directory<|>Client Directory<\//.test(proof.html)) {
     throw new Error(`${proof.view}/${proof.viewport} lacks shared Workspace navigation`);
   }
   if (proof.view === 'staff-onboarding' && (!/data-staff-onboarding-form/.test(proof.html) || !/Practitioner access/.test(proof.html) || !/data-onboarding-identity hidden/.test(proof.html))) {

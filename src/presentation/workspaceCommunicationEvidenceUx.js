@@ -46,7 +46,7 @@ function renderCommunicationSection(communications = [], unavailable = false) {
     ? '<div class="empty">Communication evidence is temporarily unavailable. No delivery claim is being made.</div>'
     : (rows || '<div class="empty">No recorded Shiloh notifications yet.</div>');
 
-  return `<section class="history-panel" data-client-communications style="margin-bottom:12px"><header class="section-heading"><div><span class="eyebrow">Communications</span><h2>My Shiloh updates</h2></div><div class="detail-actions"><span class="truth-note">App availability does not confirm a phone alert or a read receipt</span><a class="button" href="/calendar/messages?view=recent">View all in Messages</a></div></header><div class="history-list">${body}</div></section>`;
+  return `<section class="history-panel" data-client-communications style="margin-bottom:12px"><header class="section-heading"><div><span class="eyebrow">Communications</span><h2>My Shiloh updates</h2></div><div class="detail-actions"><span class="truth-note">App availability does not confirm a phone alert or a read receipt</span><a class="button" href="/calendar/messages?view=recent">View all activity</a></div></header><div class="history-list">${body}</div></section>`;
 }
 
 function renderClientDetailPageWithCommunications(model, options = {}) {

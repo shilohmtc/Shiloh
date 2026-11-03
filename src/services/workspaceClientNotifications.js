@@ -400,7 +400,7 @@ function createWorkspaceClientNotificationService({
                COALESCE(a.title,'Shiloh appointment') AS service_name
           FROM appointments a JOIN crm_v2_clients c ON c.id=a.crm_v2_client_id
          WHERE a.client_id IS NULL AND a.source='shiloh_calendar'
-           AND a.created_at>=NOW()-INTERVAL '30 days' AND a.starts_at>NOW()
+           AND a.starts_at>NOW()
            AND a.status IN ('scheduled','confirmed') AND c.status='active'
            AND EXISTS (SELECT 1 FROM crm_v2_client_relationships rel
              WHERE rel.client_id=c.id AND rel.relationship_type='clinic'
@@ -411,7 +411,7 @@ function createWorkspaceClientNotificationService({
            AND NOT EXISTS (SELECT 1 FROM my_shiloh_push_notifications n
              WHERE n.crm_v2_client_id=c.id AND n.event_key LIKE 'appointment-confirmation:'||a.id::text||':%'
                AND n.expires_at>NOW())
-         ORDER BY a.starts_at,a.id LIMIT 100`);
+         ORDER BY a.starts_at,a.id`);
       return { authority, generatedAt: now.toISOString(), exceptions: result.rows.map(row => ({
         client: { id: Number(row.client_id), name: row.client_name, normalizedMobile: row.normalized_mobile },
         appointment: { id: Number(row.appointment_id), startsAt: row.starts_at, serviceName: row.service_name },
@@ -444,10 +444,8 @@ function createWorkspaceClientNotificationService({
          LEFT JOIN customer_message_deliveries delivery
            ON delivery.appointment_id=a.id AND delivery.message_kind='booking_confirmation'
         WHERE a.client_id IS NULL AND a.source='shiloh_calendar'
-          AND a.created_at>=NOW()-INTERVAL '30 days'
           AND a.starts_at>NOW() AND a.status IN ('scheduled','confirmed')
-        ORDER BY a.starts_at,a.id
-        LIMIT 100`
+        ORDER BY a.starts_at,a.id`
     );
     let providerReady = true;
     try { await providerGuard(env); } catch (_error) { providerReady = false; }

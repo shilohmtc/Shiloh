@@ -220,11 +220,11 @@ test('capability-driven navigation is only a composition of existing destination
 test('Desktop and hidden Phone drawer share canonical destination grammar with capability-filtered More', () => {
   const html = renderWorkspaceNavigation({ active: 'messages', messagesHref: '/calendar/messages' });
   assert.ok(html.indexOf('Dashboard') < html.indexOf('Calendar'));
-  assert.ok(html.indexOf('Calendar') < html.indexOf('Clients'));
-  assert.ok(html.indexOf('Clients') < html.indexOf('Messages'));
-  assert.ok(html.indexOf('Messages') < html.indexOf('Staff'));
-  assert.ok(html.indexOf('Staff') < html.indexOf('Services'));
-  assert.ok(html.indexOf('Services') < html.indexOf('Clinic reports'));
+  assert.ok(html.indexOf('Calendar') < html.indexOf('Client Directory'));
+  assert.ok(html.indexOf('Client Directory') < html.indexOf('Client Services'));
+  assert.ok(html.indexOf('Client Services') < html.indexOf('Staff'));
+  assert.ok(html.indexOf('Staff') < html.indexOf('>Services<'));
+  assert.ok(html.indexOf('>Services<') < html.indexOf('Clinic reports'));
   assert.match(html, /data-workspace-more-toggle>More<\/button>/);
   assert.match(workspaceShellStyles(), /\.workspace-nav\{position:fixed;inset:0 auto 0 0/);
   assert.match(workspaceShellStyles(), /transform:translateX\(-105%\)/);

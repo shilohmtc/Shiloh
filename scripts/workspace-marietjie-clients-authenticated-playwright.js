@@ -262,7 +262,7 @@ async function main() {
       const listResponse = await page.goto(`${origin}/calendar/clients`, { waitUntil: 'networkidle' });
       assert.equal(listResponse.status(), 200);
       await page.locator('[data-workspace-clients="true"]').waitFor();
-      assert.equal(await page.getByRole('heading', { name: 'Clients', exact: true }).isVisible(), true);
+      assert.equal(await page.getByRole('heading', { name: 'Client Directory', exact: true }).isVisible(), true);
       assert.equal(await page.getByText('Marietjie Client One', { exact: true }).isVisible(), true);
       assert.equal(await page.getByText('Shared Shiloh Client', { exact: true }).isVisible(), true);
       assert.equal(await page.getByText('Clinic Only Client', { exact: true }).count(), 0);

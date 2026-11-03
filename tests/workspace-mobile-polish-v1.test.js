@@ -64,7 +64,7 @@ test('mobile polish preserves capability-driven navigation rather than widening 
     staffHref: null,
     servicesHref: null,
   });
-  assert.match(html, /aria-current="page">Clients<\/span>/);
+  assert.match(html, /aria-current="page">Client Directory<\/span>/);
   assert.match(html, /aria-disabled="true" data-workspace-destination="calendar">Calendar<\/span>/);
   assert.match(html, /aria-disabled="true" data-workspace-destination="staff">Staff<\/span>/);
   assert.match(html, /aria-disabled="true" data-workspace-destination="services">Services<\/span>/);

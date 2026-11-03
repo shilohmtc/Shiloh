@@ -1,0 +1,44 @@
+const { test, expect } = require('@playwright/test');
+const AxeBuilder = require('@axe-core/playwright').default;
+const { workspaceNavigationClientScript } = require('../src/presentation/workspaceShell');
+for (const width of [390, 820, 1440]) {
+  test(`Client Services activity, navigation and permissions at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    const writes = [];
+    page.on('request', request => { if (request.method() !== 'GET') writes.push(request.url()); });
+    await page.route('**/calendar/workspace/navigation', route => route.fulfill({ json: {} }));
+    await page.route('**/calendar/pwa/icon-192.png*', route => route.fulfill({ path: require('node:path').join(__dirname, '../public/assets/pwa/shiloh-pwa-192.png'), contentType: 'image/png' }));
+    await page.goto('/iframe.html?id=workspace-client-services--activity&viewMode=story');
+    await expect(page.getByRole('heading', { name: 'Activity', exact: true })).toBeVisible();
+    await expect(page.locator('[data-activity-list] > article')).toHaveCount(2);
+    const exception = page.locator('[data-needs-attention]');
+    await expect(exception).toContainText('Available in My Shiloh');
+    await expect(exception).toContainText('Send status uncertain');
+    await expect(page.getByRole('link', { name: 'Needs attention 1' })).toHaveAttribute('href', '/calendar/messages?view=attention');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect((await page.locator('[data-client-activity]').boundingBox()).y).toBeLessThan(180);
+    const axe = await new AxeBuilder({ page }).include('[data-client-activity]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
+    expect(axe.violations).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`client-services-${width}.png`), fullPage: true });
+    await page.addScriptTag({ content: workspaceNavigationClientScript() });
+    if (width <= 700) await page.locator('[data-workspace-drawer-toggle]').click();
+    const group = page.locator('[data-client-services]');
+    await expect(group.locator('summary')).toBeVisible();
+    for (const key of ['messages','vouchers','rewards','forms']) await expect(group.locator(`[data-workspace-destination="${key}"]`)).toBeVisible();
+    await group.locator('summary').click();
+    await expect(group.locator('[data-workspace-destination="forms"]')).toBeHidden();
+    await group.locator('summary').click();
+    await page.screenshot({ path: testInfo.outputPath(`client-services-navigation-${width}.png`), fullPage: true });
+    await page.goto('/iframe.html?id=workspace-client-services--lookup-only&viewMode=story');
+    await expect(page.locator('[data-needs-attention]')).toHaveCount(0);
+    await expect(page.getByRole('link', { name: /Needs attention/ })).toHaveCount(0);
+    await expect(page.locator('[data-client-services] a')).toHaveCount(0);
+    await page.route('**/calendar/workspace/navigation', route => route.fulfill({ json: { forms: { allowed: true, href: '/calendar/forms' }, rewards: { allowed: false, href: null } } }));
+    await page.addScriptTag({ content: workspaceNavigationClientScript() });
+    if (width <= 700) await page.locator('[data-workspace-drawer-toggle]').click();
+    await expect(page.locator('[data-client-services] a')).toHaveCount(1);
+    await expect(page.locator('[data-workspace-destination="forms"]')).toHaveAttribute('href', '/calendar/forms');
+    await expect(page.locator('[data-workspace-destination="rewards"]')).toBeHidden();
+    expect(writes).toEqual([]);
+  });
+}

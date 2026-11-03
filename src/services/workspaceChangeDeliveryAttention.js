@@ -17,6 +17,7 @@ function projectChangeDelivery(row) {
   const label = kind === 'cancellation' ? 'Cancellation update' : 'Appointment update';
   return {
     id: Number(row.audit_event_id),
+    eventKey: `appointment-${kind}:${Number(row.appointment_id)}:${Number(row.audit_event_id)}`,
     appointmentId: Number(row.appointment_id),
     clientId: Number(row.client_id),
     normalizedMobile: row.normalized_mobile,
@@ -44,12 +45,11 @@ function createWorkspaceChangeDeliveryAttentionService({ db = pool } = {}) {
         FROM customer_change_notifications n
         JOIN appointments a ON a.id=n.appointment_id AND a.crm_v2_client_id IS NOT NULL AND a.client_id IS NULL
         JOIN crm_v2_clients c ON c.id=a.crm_v2_client_id
-       WHERE n.created_at>=NOW()-INTERVAL '30 days'
-         AND (n.last_error='app_wake_unaccepted' OR EXISTS (
+       WHERE (n.last_error='app_wake_unaccepted' OR EXISTS (
            SELECT 1 FROM my_shiloh_push_notifications app_update
             WHERE app_update.crm_v2_client_id=c.id
               AND app_update.event_key='appointment-'||n.change_kind||':'||a.id::text||':'||n.audit_event_id::text
-              AND app_update.expires_at>NOW()))
+              ))
          AND ((n.status='failed')
            OR (n.status='pending' AND n.last_error IS NOT NULL)
            OR (n.status='sending' AND n.updated_at<NOW()-INTERVAL '15 minutes'))
@@ -57,7 +57,7 @@ function createWorkspaceChangeDeliveryAttentionService({ db = pool } = {}) {
            WHERE rel.client_id=c.id AND rel.relationship_type='clinic'
              AND rel.owner_staff_id IS NULL AND rel.status='active')
          AND ${scope.sql}
-       ORDER BY n.updated_at DESC,n.audit_event_id DESC LIMIT 30`, scope.values);
+       ORDER BY n.updated_at DESC,n.audit_event_id DESC`, scope.values);
     return result.rows.map(projectChangeDelivery);
   }
   return { list };

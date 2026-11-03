@@ -44,7 +44,7 @@ for (const width of [1180,500]) test(`Messages Open booking opens the exact visi
   await expect(page.locator('body')).not.toHaveAttribute('data-calendar-phone-pending','true');
   await page.getByRole('button',{name:'Close appointment details',exact:true}).click();
   await expect(page.locator('.event-card[data-event-id="appointment-9101"]:visible')).toHaveCount(1);
-  await page.getByRole('link',{name:'Back to Messages',exact:true}).click();
+  await page.getByRole('link',{name:'Back to Activity',exact:true}).click();
   await expect(page).toHaveURL(/\/calendar\/messages\?view=attention$/);
   await page.locator('[data-message-attention]').getByRole('link',{name:'Open booking',exact:true}).click();await page.goBack();
   await expect(page).toHaveURL(/\/calendar\/messages\?view=attention$/);

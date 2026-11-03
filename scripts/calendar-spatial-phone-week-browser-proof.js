@@ -541,6 +541,7 @@ async function main() {
     await evaluate(cdp, `document.querySelector('[data-workspace-drawer-toggle]').click();true`);
     await poll(() => evaluate(cdp, `document.querySelector('[data-workspace-navigation-drawer]').classList.contains('open')`), Boolean);
     await poll(() => evaluate(cdp, `document.querySelector('[data-workspace-navigation-drawer]').getBoundingClientRect().left`), value => value >= -1);
+    await evaluate(cdp, `document.querySelector('[data-client-services]').open=true;true`);
     const drawerMetrics = await evaluate(cdp, `(() => {
       const visible=node=>{if(!node)return false;const style=getComputedStyle(node),rect=node.getBoundingClientRect();return style.display!=='none'&&style.visibility!=='hidden'&&rect.width>0&&rect.height>0&&rect.right>0;};
       const drawer=document.querySelector('[data-workspace-navigation-drawer]');
@@ -567,7 +568,7 @@ async function main() {
     assert.ok(Math.abs(drawerMetrics.width - Math.min(390 * 0.6, 220)) <= 1, `Phone drawer missed the compact 60vw–220px target: ${drawerMetrics.width}px`);
     assert.ok(drawerMetrics.headerRight <= drawerMetrics.drawerRight, 'Phone drawer header escapes the drawer');
     assert.ok(drawerMetrics.closeRight <= drawerMetrics.drawerRight, 'Phone drawer close control escapes the drawer');
-    assert.deepEqual(drawerMetrics.labels, ['Dashboard', 'Calendar', 'Clients', 'Messages', 'Staff', 'Services', 'Clinic reports']);
+    assert.deepEqual(drawerMetrics.labels, ['Dashboard', 'Calendar', 'Client Directory', 'Activity', 'Staff', 'Services', 'Clinic reports']);
     assert.ok(drawerMetrics.minHeight >= 44, 'Phone drawer destination is below 44px');
     assert.equal(drawerMetrics.moreVisible, false);
     assert.equal(drawerMetrics.current, 'Calendar');

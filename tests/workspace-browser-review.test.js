@@ -23,10 +23,10 @@ test('approved Calendar retains hourly positioning and only accepts a bounded Me
     const html = renderCalendarPage(calendarModel(empty), { bookingEnabled: true, approvedPhonePresentation: true, messagesReturnTo: '/calendar/messages?view=attention' });
     assert.match(html, /\.calendar-booking-slot\{position:absolute;top:var\(--slot-top\)/);
     assert.match(html, /--slot-top:720px/);
-    assert.match(html, /Back to Messages/);
+    assert.match(html, /Back to Activity/);
   }
   for (const path of ['https://example.com','//example.com','/calendar/clients','/calendar/messages?view=all&redirect=evil']) {
-    assert.doesNotMatch(renderCalendarPage(calendarModel(), { messagesReturnTo:path }), /Back to Messages/);
+    assert.doesNotMatch(renderCalendarPage(calendarModel(), { messagesReturnTo:path }), /Back to Activity/);
   }
 });
 
