@@ -465,3 +465,5 @@ h3{font-size:20px;line-height:1.12}
 @media(max-width:480px){.passkey-device-actions{width:100%}.passkey-device-actions .button{flex:1}}
 
 .booking-phone-qr{display:block;width:200px;max-width:100%;height:auto;margin:16px auto}.previous-treatment{margin:12px 0}.previous-treatment>div{min-width:0}.previous-treatment p{line-height:1.6;overflow-wrap:anywhere}
+
+.website-treatment-steps{padding-left:22px;margin:12px 0;font-size:14px;line-height:1.5}.website-treatment-steps li+li{margin-top:8px}

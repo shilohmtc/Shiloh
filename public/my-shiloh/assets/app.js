@@ -303,7 +303,7 @@
 
     if (showWebsiteTreatment) {
       if (installGateTitle) installGateTitle.textContent = 'Continue your chosen treatment in My Shiloh.';
-      if (installGateCopy) installGateCopy.textContent = 'Already have My Shiloh? Copy the code below, then open your Home Screen app.';
+      if (installGateCopy) installGateCopy.textContent = 'Keep your treatment choice when you switch to the installed app.';
       if (installGateAction) {
         installGateAction.textContent = 'New here? Show install steps';
       }
@@ -559,9 +559,9 @@
     if (!/^[1-9]\d{0,11}$/.test(code)) return;
     try {
       await navigator.clipboard.writeText(code);
-      if (treatmentCopyStatus) treatmentCopyStatus.textContent = 'Code copied. Open My Shiloh from your Home Screen, tap Bookings, then paste it into the website treatment field.';
+      if (treatmentCopyStatus) treatmentCopyStatus.textContent = 'Code copied. Follow the steps below to continue in My Shiloh.';
     } catch (_) {
-      if (treatmentCopyStatus) treatmentCopyStatus.textContent = `Copy code ${code} manually, then open My Shiloh from your Home Screen.`;
+      if (treatmentCopyStatus) treatmentCopyStatus.textContent = `Copy or note code ${code} manually, then follow the steps below.`;
     }
   });
 

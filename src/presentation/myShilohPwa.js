@@ -377,6 +377,7 @@ function renderMyShilohPage({
 </head>
 <body${detailsRetired ? ' data-client-details-retired="true"' : ''}>
   <a class="skip-link" href="#main-content">Skip to content</a>
+  <noscript><section class="install-gate"><div class="install-gate__card"><h1>Continue in My Shiloh</h1><p>Enable JavaScript to use My Shiloh and its installation guide.</p>${selectedService ? `<p>Your website choice: <strong>${escapeHtml(selectedService.name)}</strong>. Treatment code: <strong>${escapeHtml(selectedService.id)}</strong>.</p><p>Note this code. Open My Shiloh from your Home Screen and sign in if asked. Tap Bookings, then Have a treatment code? Type the code and tap Continue treatment.</p>` : ''}<p><a href="${escapeHtml(speakToReception)}" rel="noopener noreferrer">Message Reception on WhatsApp</a></p></div></section></noscript>
   <main class="install-gate" data-install-gate hidden aria-labelledby="install-gate-title">
     <section class="install-gate__card">
       <span class="brand-mark brand-mark--large install-gate__logo" aria-hidden="true"><img src="/my-shiloh/assets/icon-192.png" alt=""></span>
@@ -385,15 +386,21 @@ function renderMyShilohPage({
       <p class="install-gate__copy" data-install-gate-copy>Keep your bookings and vouchers close at hand.</p>
       ${selectedService ? `<div class="website-treatment-handoff" data-website-treatment-handoff data-service-code="${escapeHtml(selectedService.id)}" hidden>
         <p>Your website choice: <strong>${escapeHtml(selectedService.name)}</strong></p>
-        <p>Already have My Shiloh? Copy this treatment code, open the app from your Home Screen, then tap Bookings to continue.</p>
+        <p>Copy or note this code before leaving this page.</p>
         <div class="website-treatment-code">Code <strong>${escapeHtml(selectedService.id)}</strong></div>
         <button class="button button--soft button--wide" type="button" data-copy-treatment-code>Copy treatment code</button>
         <p role="status" data-copy-treatment-status></p>
+        <ol class="website-treatment-steps">
+          <li>Open My Shiloh from your Home Screen. Sign in if asked.</li>
+          <li>Tap <strong>Bookings</strong>, then <strong>Have a treatment code?</strong></li>
+          <li>Paste or type the code and tap <strong>Continue treatment</strong>.</li>
+        </ol>
+        <p>New to My Shiloh? Keep this code, follow the install steps below, then use the same steps in the app.</p>
       </div>` : ''}
       <button class="button button--primary button--wide" type="button" data-install-gate-action>Install My Shiloh</button>
       <section data-install-desktop-handoff hidden aria-label="Continue on your phone">
         ${selectedService ? `<p>Your website choice: <strong>${escapeHtml(selectedService.name)}</strong></p>` : ''}
-        <p>Scan with your phone camera, or copy the link below. Add My Shiloh to your Home Screen, then sign in to request your booking.</p>
+        <p>Scan with your phone camera, or open the link below on your phone. ${selectedService ? 'If it opens in your browser, follow the phone’s instructions to copy your treatment code and continue in My Shiloh.' : 'Open My Shiloh from your Home Screen to choose a treatment.'} New clients will also see installation steps.</p>
         ${publicBookingQr(phoneBookingLink)}
         <p><a href="${escapeHtml(phoneBookingLink)}" data-desktop-phone-link style="overflow-wrap:anywhere">${escapeHtml(phoneBookingLink)}</a></p>
         <button class="button button--soft button--wide" type="button" data-copy-phone-link>Copy phone link</button>
