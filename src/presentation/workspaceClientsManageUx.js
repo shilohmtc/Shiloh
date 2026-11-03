@@ -33,15 +33,13 @@ function injectClientListManagement(html, model, { checkinEnabled = false } = {}
 }
 
 function genderOptions(current) {
-  const options = [
-    ['', 'Not recorded'],
-    ['female', 'Female'],
-    ['male', 'Male'],
-    ['non_binary', 'Non-binary'],
-    ['prefer_not_to_say', 'Prefer not to say'],
-    ['other', 'Other'],
-  ];
-  return options.map(([value, label]) => `<option value="${value}"${String(current || '') === value ? ' selected' : ''}>${label}</option>`).join('');
+  const value = String(current || '');
+  const choices = [['female', 'Female'], ['male', 'Male']];
+  // Keep the recorded value in FormData when another profile field is edited.
+  // A hidden selected option preserves it without offering it as a new choice.
+  const retained = choices.some(([choice]) => choice === value) ? ''
+    : `<option value="${escapeHtml(value)}" selected hidden>${escapeHtml(value ? value.replace(/_/g, ' ') + ' (recorded)' : 'Not recorded')}</option>`;
+  return retained + choices.map(([choice, label]) => `<option value="${choice}"${value === choice ? ' selected' : ''}>${label}</option>`).join('');
 }
 
 function injectClientDetailManagement(html, model) {

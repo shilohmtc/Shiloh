@@ -120,8 +120,9 @@ function listHtml() {
   return injectClientListManagement(renderClientListPage(model, options), model);
 }
 
-function detailHtml(clinic = false) {
+function detailHtml(clinic = false, gender = 'female') {
   const model = detailModel();
+  model.client.gender = gender;
   if (clinic) model.authority = { ...model.authority, displayName: 'Synthetic clinic owner', businessRole: 'owner', deleteAllowed: true, clientScope: { kind: 'clinic', ownerStaffId: null } };
   return injectClientDetailManagement(renderClientDetailPageWithCommunications(model, options), model);
 }
@@ -196,3 +197,6 @@ export const AwaitingConfirmationHistory = { render: () => {
   ];
   return productionSurface(renderClientDetailPageWithCommunications(model,options));
 } };
+
+export const ClientGenderLegacy = { render: () => productionSurface(detailHtml(false, 'non_binary')) };
+export const ClientGenderUnrecorded = { render: () => productionSurface(detailHtml(false, null)) };
