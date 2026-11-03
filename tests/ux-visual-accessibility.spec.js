@@ -74,7 +74,7 @@ test('Reception sees uncertain booking-change delivery without a blind resend on
     await expect(card).toContainText('phone-alert outcome is uncertain');
     await expect(card.getByRole('link',{name:'Open client'})).toHaveAttribute('href','/calendar/clients/9012');
     await expect(card.getByRole('button',{name:/send|retry/i})).toHaveCount(0);
-    const axe=await new AxeBuilder({page}).include('[data-messages-attention]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
+    const axe=await new AxeBuilder({page}).include('[data-client-activity]').withTags(['wcag2a','wcag2aa','wcag21a','wcag21aa']).analyze();
     expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
     await page.screenshot({path:testInfo.outputPath(`change-delivery-attention-${viewport.name}.png`),fullPage:true,animations:'disabled'});
   }

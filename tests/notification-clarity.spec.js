@@ -6,11 +6,11 @@ const { renderClientDetailPage } = require('../src/presentation/workspaceClients
 const { profileFixture } = require('../stories/fixtures/notificationClarity');
 
 for (const width of [390, 500, 1180, 1440]) {
-  test(`notification clarity and existing navigation at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 960 });
-    await page.route('**/calendar/pwa/icon-192.png*', route => route.fulfill({ path: path.resolve(__dirname, '../public/assets/pwa/shiloh-pwa-192.png') }));
-    for (const [story, text] of [['all', 'Booking confirmation not confirmed'], ['recent', 'No current My Shiloh updates.'], ['attention', 'Booking confirmation not confirmed'], ['profile-unknown', 'Phone alerts: Unknown'],
+  for (const [story, text] of [['all', 'Booking confirmation not confirmed'], ['recent', 'Booking confirmation not confirmed'], ['attention', 'Booking confirmation not confirmed'], ['profile-unknown', 'Phone alerts: Unknown'],
       ['profile-used', 'My Shiloh: Used before'], ['profile-setup-needed', 'Phone alerts: Setup needed']]) {
+    test(`notification clarity ${story} and existing navigation at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 960 });
+      await page.route('**/calendar/pwa/icon-192.png*', route => route.fulfill({ path: path.resolve(__dirname, '../public/assets/pwa/shiloh-pwa-192.png') }));
       await page.goto(`/iframe.html?id=workspace-notification-clarity--${story}&viewMode=story`, { waitUntil: 'networkidle' });
       const surface = page.locator('[data-notification-clarity]');
       await expect(surface).toContainText(text);
@@ -18,11 +18,17 @@ for (const width of [390, 500, 1180, 1440]) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       const axe = await new AxeBuilder({ page }).include('[data-notification-clarity]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
       expect(axe.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
-      if (['attention', 'recent', 'all'].includes(story) && width > 800) {
-        const grid = await page.locator('.layout').boundingBox();
-        const panel = await page.locator('.layout > section').first().boundingBox();
-        if (story === 'all') expect(panel.width).toBeLessThan(grid.width * 0.6);
-        else expect(Math.abs(panel.width - grid.width)).toBeLessThan(2);
+      if (['attention', 'recent', 'all'].includes(story)) {
+        const panel = page.locator('[data-client-activity]');
+        await expect(panel).toHaveCount(1);
+        await expect(panel.locator('[data-activity-list]')).toHaveCount(1);
+        await expect(panel.locator('[data-message-attention="701"]')).toHaveCount(1);
+        const availableWidth = await page.locator('main.shell').evaluate(node => {
+          const style = getComputedStyle(node);
+          return node.getBoundingClientRect().width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        });
+        expect(Math.abs((await panel.boundingBox()).width - availableWidth)).toBeLessThan(2);
+        await expect(panel.getByRole('link', { name: story === 'attention' ? 'Needs attention 5' : 'All activity', exact: true })).toHaveAttribute('aria-current', 'page');
       }
       if (story === 'profile-used') await expect(surface).not.toContainText('Not yet confirmed means');
       if (story === 'attention') {
@@ -51,6 +57,6 @@ for (const width of [390, 500, 1180, 1440]) {
           await expect(page.locator('[data-message-attention="701"]')).toHaveCount(1);
         }
       }
-    }
-  });
+    });
+  }
 }

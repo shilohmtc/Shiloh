@@ -8,8 +8,10 @@ for(const width of [320,390,700,1440]){
   test(`Website heading clears the menu and its icon aligns with navigation at ${width}px`,async({page},testInfo)=>{
     await page.setViewportSize({width,height:900});
     await page.route('**/calendar/pwa/icon-192.png?*',route=>route.fulfill({path:require('node:path').join(__dirname,'../public/assets/brand/shiloh-mark-192.png'),contentType:'image/png'}));
-    await page.route('**/calendar/workspace/navigation',route=>route.fulfill({json:{website:{allowed:true,href:'/calendar/website'},messages:{allowed:true,href:'/calendar/messages'}}}));
+    await page.route('**/calendar/workspace/navigation',route=>route.fulfill({json:{website:{allowed:true,href:'/calendar/website'},clients:{allowed:true,href:'/calendar/clients'},messages:{allowed:true,href:'/calendar/messages'}}}));
     await page.goto('/iframe.html?id=website-publishing--website-editor&viewMode=story',{waitUntil:'networkidle'});
+    // Storybook renders after network idle; initialize only once its shell exists.
+    await expect(page.getByRole('heading',{name:'Website',exact:true})).toBeVisible();
     await page.addScriptTag({content:workspaceNavigationClientScript()});
     await page.addScriptTag({content:workspaceIconClientScript()});
     const heading=page.getByRole('heading',{name:'Website',exact:true});
@@ -25,8 +27,8 @@ for(const width of [320,390,700,1440]){
     await expect(website.locator('svg.workspace-nav-icon')).toBeVisible();
     await expect(website).toHaveAttribute('aria-current','page');
     const siteLabel=await website.locator('.workspace-link-label').boundingBox();
-    const messagesLabel=await page.locator('[data-workspace-destination="messages"] .workspace-link-label').boundingBox();
-    expect(Math.abs(siteLabel.x-messagesLabel.x)).toBeLessThan(1);
+    const directoryLabel=await page.locator('[data-workspace-destination="clients"] .workspace-link-label').boundingBox();
+    expect(Math.abs(siteLabel.x-directoryLabel.x)).toBeLessThan(1);
     expect((await new AxeBuilder({page}).include('[data-workspace-navigation-drawer]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);
     await page.screenshot({path:testInfo.outputPath(`website-navigation-${width}.png`),fullPage:true});
   });

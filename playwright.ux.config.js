@@ -94,3 +94,4 @@ module.exports.testMatch.push("handoff-arrival-details.spec.js");
 
 module.exports.testMatch.push('workspace-client-gender.spec.js');
 module.exports.testMatch.push('holiday-planning.spec.js');
+module.exports.testMatch.push('workspace-client-services.spec.js');

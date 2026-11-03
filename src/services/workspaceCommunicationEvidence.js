@@ -196,6 +196,7 @@ function activeRelationshipSql(clientExpression, scope, ownerParam) {
 function appNotificationEntry(row) {
   if (!row?.created_at) return null;
   return {
+    eventKey: row.event_key || null, notificationId: positiveId(row.id),
     intent: String(row.category || 'system'), label: String(row.title || 'My Shiloh update'),
     status: 'available', statusLabel: 'Available in My Shiloh', occurredAt: row.created_at,
     appointmentId: positiveId(row.appointment_id), templateName: null,
@@ -223,7 +224,7 @@ function createWorkspaceCommunicationEvidenceService({ db = pool } = {}) {
       : `(linked.appointment_id IS NULL OR (a.id IS NOT NULL AND ${appointmentPredicate}))`);
     values.push(boundedLimit(limit));
     const result = await db.query(`/* workspaceCommunicationEvidence:myShiloh */
-      SELECT n.category,n.title,n.created_at,a.id AS appointment_id,c.id AS client_id,c.name AS client_name
+      SELECT n.id,n.event_key,n.category,n.title,n.created_at,a.id AS appointment_id,c.id AS client_id,c.name AS client_name
         FROM my_shiloh_push_notifications n JOIN crm_v2_clients c ON c.id=n.crm_v2_client_id
         CROSS JOIN LATERAL (SELECT CASE
           WHEN n.event_key ~ '^appointment-[a-z_-]+:[1-9][0-9]{0,9}:'

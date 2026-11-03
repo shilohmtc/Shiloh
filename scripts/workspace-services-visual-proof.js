@@ -117,7 +117,7 @@ const proofs = [
 const manifest = [];
 
 for (const proof of proofs) {
-  if (!/aria-current="page">Services/.test(proof.html) || !/>Calendar<|>Calendar<\//.test(proof.html) || !/>Clients<|>Clients<\//.test(proof.html) || !/>Staff<|>Staff<\//.test(proof.html)) {
+  if (!/aria-current="page">Services/.test(proof.html) || !/>Calendar<|>Calendar<\//.test(proof.html) || !/>Client Directory<|>Client Directory<\//.test(proof.html) || !/>Staff<|>Staff<\//.test(proof.html)) {
     throw new Error(`${proof.view}/${proof.viewport} lacks shared Workspace navigation`);
   }
   if ((proof.view === 'service-detail' || proof.view === 'service-category-repair') && (!/data-service-edit-form/.test(proof.html) || !/name="categoryId"/.test(proof.html) || !/data-service-description-form/.test(proof.html))) {

@@ -845,7 +845,7 @@ function renderCalendarPage(model, {
   timelineReadOnlyMessage = 'Read-only operational view. Booking, reschedule, cancellation, block, leave and schedule mutations are not available here.',
 } = {}) {
   const backToMessages = /^\/calendar\/messages(?:\?view=(?:all|attention|recent))?$/.test(String(messagesReturnTo))
-    ? `<a data-workspace-action="secondary" class="nav-button" href="${escapeHtml(messagesReturnTo)}">Back to Messages</a>` : '';
+    ? `<a data-workspace-action="secondary" class="nav-button" href="${escapeHtml(messagesReturnTo)}">Back to Activity</a>` : '';
   const booking = { enabled: bookingEnabled === true, path: bookingPath };
   const content = model.view === 'week'
     ? renderWeek(model, booking, basePath)

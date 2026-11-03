@@ -6,7 +6,7 @@ const stories = [
     id: 'workspace-clients--marietjie-client-base',
     name: 'client base',
     assertSurface: async (page) => {
-      await expect(page.getByRole('heading', { name: 'Clients', exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Client Directory', exact: true })).toBeVisible();
       await expect(page.getByText('Synthetic Client AR', { exact: true })).toBeVisible();
       await expect(page.getByText('Synthetic Client AS', { exact: true })).toBeVisible();
       await expect(page.getByRole('heading', { name: 'Add client', exact: true })).toBeVisible();

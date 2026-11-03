@@ -25,11 +25,14 @@ for (const kind of ['sparse', 'busy']) for (const width of [1180, 1440, 390, 500
       expect(attention.x).toBeGreaterThan(today.x + today.width);
       expect(activity.y - today.y - today.height).toBeCloseTo(12, 0);
       expect(carry.y - attention.y - attention.height).toBeCloseTo(12, 0);
+      await expect(page.locator('[data-client-services]')).not.toHaveAttribute('open');
+      await page.locator('[data-client-services] summary').click();
       for (const key of ['vouchers', 'rewards']) {
         const link = page.locator(`[data-workspace-destination="${key}"]`);
+        await expect(link).toBeVisible();
         const icon = await link.evaluate(node => { const s = getComputedStyle(node, '::before'); return { display: s.display, width: s.width, mask: s.maskImage }; });
         expect(icon.display).toBe('block'); expect(icon.width).toBe('20px'); expect(icon.mask).toContain('svg');
-        await expect(link).toHaveAccessibleName(key === 'vouchers' ? 'Gift vouchers' : 'Rewards');
+        await expect(link).toHaveAccessibleName(key === 'vouchers' ? 'Gift Vouchers' : 'Rewards');
       }
     } else if (width <= 700) {
       expect(today.y).toBeLessThan(attention.y); expect(attention.y).toBeLessThan(carry.y); expect(carry.y).toBeLessThan(activity.y);

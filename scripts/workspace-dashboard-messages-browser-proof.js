@@ -393,7 +393,7 @@ const METRICS_EXPRESSION = `(() => {
     signoutHeight:document.querySelector('[data-shiloh-logout]')?.getBoundingClientRect().height||0,
     signoutText:document.querySelector('[data-shiloh-logout]')?.textContent.trim()||'',
     signoutToTabsGap:(()=>{const button=document.querySelector('[data-shiloh-logout]'),tabs=document.querySelector('.tabs');return button&&tabs?tabs.getBoundingClientRect().top-button.getBoundingClientRect().bottom:null;})(),
-    attentionVisible:visible(document.querySelector('[data-messages-attention]')),
+    attentionVisible:visible(document.querySelector('[data-needs-attention]')),
     attentionText:document.querySelector('[data-message-attention]')?.textContent.trim()||'',
     unknownVisible:Array.from(document.querySelectorAll('[data-message-status="unknown"]')).some(visible),
     dashboardMode:document.body.dataset.dashboardMode||'',
@@ -497,6 +497,7 @@ async function main() {
         await poll(() => evaluate(cdp, `document.querySelector('[data-workspace-navigation-drawer]').classList.contains('open')`), Boolean);
         await poll(() => evaluate(cdp, `document.querySelector('[data-workspace-navigation-drawer]').getBoundingClientRect().left`), value => value >= -1);
       }
+      await evaluate(cdp, `document.querySelector('[data-client-services]').open=true;true`);
       const metrics = await evaluate(cdp, METRICS_EXPRESSION);
       assert.deepEqual(metrics.viewport, { width, height, screenWidth: width, screenHeight: height });
       assert.ok(metrics.rootScrollWidth <= width + 1, `${name} leaked horizontal page overflow`);
@@ -512,7 +513,7 @@ async function main() {
         assert.equal(metrics.framePaddingBottom, 0, `${name} still reserves bottom-navigation space`);
         if (openDrawer) {
           assert.equal(metrics.drawerOpen, true);
-          assert.deepEqual(metrics.primary, ['Dashboard', 'Calendar', 'Clients', 'Messages']);
+          assert.deepEqual(metrics.primary, ['Dashboard', 'Calendar', 'Client Directory', 'Activity']);
           assert.deepEqual(metrics.secondary, ['Staff', 'Services', 'Clinic reports', 'Clinic hours']);
           assert.ok(Math.abs(metrics.navWidth - Math.min(width * 0.6, 220)) <= 1, `${name} drawer width is not compactly contained: ${metrics.navWidth}px`);
           assert.ok(metrics.drawerHeaderRight <= metrics.navRight, `${name} drawer header escapes its panel`);
@@ -536,7 +537,7 @@ async function main() {
         }
       } else {
         assert.equal(metrics.drawerLogoLoaded, true, `${name} did not paint the Shiloh desktop logo`);
-        assert.deepEqual([...metrics.primary, ...metrics.secondary], ['Dashboard', 'Calendar', 'Clients', 'Messages', 'Staff', 'Services', 'Clinic reports', 'Clinic hours', 'Gift vouchers', 'Rewards', 'Problem reports']);
+        assert.deepEqual([...metrics.primary, ...metrics.secondary], ['Dashboard', 'Calendar', 'Client Directory', 'Activity', 'Staff', 'Services', 'Clinic reports', 'Clinic hours', 'Problem reports']);
         assert.equal(metrics.moreVisible, false);
         assert.equal(metrics.accountFooterVisible, true, `${name} does not show the Desktop account footer`);
       }

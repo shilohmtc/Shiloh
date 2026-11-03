@@ -1,3 +1,4 @@
+const { buildClientActivity } = require('../domain/workspaceClientActivity');
 const {
   escapeHtml,
   workspaceShellStyles,
@@ -23,7 +24,7 @@ function baseStyles() {
 }
 
 function styles() {
-  return `${baseStyles()}:root{--muted:#52645b}`;
+  return `${baseStyles()}:root{--muted:#52645b}.activity-client{display:inline-flex;align-items:center;min-height:44px;color:var(--leaf-deep);text-underline-offset:3px}.needs-attention{border-left:3px solid var(--warn)}.attention-label{display:block;font-size:.7rem;font-weight:800;color:var(--warn);margin-bottom:8px}.attention-count{margin-left:7px}.panel>.truth-note{margin:0 0 8px}.app-availability{padding-top:9px;border-top:1px solid var(--line)}.brand .eyebrow{display:block;margin-bottom:5px}`;
 }
 
 function attentionItem(item, selectedView) {
@@ -52,8 +53,10 @@ function changeDeliveryItem(item, selectedView) {
 }
 
 function activityItem(item) {
+  const clientName = escapeHtml(item.clientName || 'Unnamed client');
+  const clientLabel = Number.isSafeInteger(Number(item.clientId)) && Number(item.clientId) > 0 ? `<a href="/calendar/clients/${escapeHtml(item.clientId)}" class="activity-client">${clientName}</a>` : clientName;
   const context = item.appointmentId ? `Appointment #${item.appointmentId}` : 'Client communication';
-  return `<article class="item activity-row" data-message-activity data-message-status="${escapeHtml(item.status || 'unknown')}"><div class="activity-context"><strong>${escapeHtml(item.clientName || 'Unnamed client')}</strong><span>My Shiloh</span></div><div class="activity-context"><strong>${escapeHtml(item.label || 'Shiloh notification')}</strong><span>${escapeHtml(context)} · ${escapeHtml(formatDateTime(item.occurredAt))}</span></div><span class="status${statusTone(item.status)}">${escapeHtml(item.statusLabel || 'Unknown')}</span></article>`;
+  return `<article class="item activity-row" data-message-activity data-message-status="${escapeHtml(item.status || 'unknown')}"><div class="activity-context"><strong>${clientLabel}</strong><span>My Shiloh</span></div><div class="activity-context"><strong>${escapeHtml(item.label || 'Shiloh notification')}</strong><span>${escapeHtml(context)} · ${escapeHtml(formatDateTime(item.occurredAt))}</span></div><span class="status${statusTone(item.status)}">${escapeHtml(item.statusLabel || 'Unknown')}</span></article>`;
 }
 
 function renderMessagesPage(model, {
@@ -61,28 +64,28 @@ function renderMessagesPage(model, {
   actionScriptPath = '/calendar/operations/client.js',
   navigation = {},
 } = {}) {
-  const showAttention = model.selectedView !== 'recent';
-  const showRecent = model.selectedView !== 'attention';
-  let attentionBody = model.attentionUnavailable
-    ? '<div class="empty">Communication attention is temporarily unavailable. No recovery or delivery claim is being made.</div>'
-    : !model.notificationAuthority
-      ? '<div class="empty">Recovery actions are not available with your current access.</div>'
-      : (model.attention || []).map(item => attentionItem(item, model.selectedView)).join('') || '<div class="empty">No current My Shiloh updates need attention.</div>';
-  const changeBody = model.notificationAuthority
-    ? model.changeAttentionUnavailable
-      ? '<div class="empty">Booking-change delivery evidence is temporarily unavailable. Review the client record before any resend.</div>'
-      : (model.changeAttention || []).map(item => changeDeliveryItem(item, model.selectedView)).join('')
-    : '';
-  if (changeBody && !model.attentionUnavailable && model.notificationAuthority && !(model.attention || []).length) attentionBody = '';
-  const activityBody = model.activityUnavailable
-    ? '<div class="empty">Communication evidence is temporarily unavailable. No delivery claim is being made.</div>'
-    : (model.activity || []).map(activityItem).join('') || '<div class="empty">No current My Shiloh updates.</div>';
+  const rows = buildClientActivity(model);
+  const attentionCount = rows.filter(row => row.needsAttention).length;
+  const visibleRows = model.selectedView === 'attention' ? rows.filter(row => row.needsAttention) : rows;
+  const activityBody = visibleRows.map(row => {
+    if (row.kind === 'activity') return activityItem(row.item);
+    let html = row.kind === 'confirmation' ? attentionItem(row.item, model.selectedView) : changeDeliveryItem(row.item, model.selectedView);
+    html = html.replace('class="item"', 'class="item needs-attention" data-needs-attention');
+    const available = row.activity ? `<p class="app-availability">${escapeHtml(row.activity.statusLabel)} · ${escapeHtml(formatDateTime(row.activity.occurredAt))}</p>` : '';
+    return html.replace('</article>', `${available}</article>`).replace('<header class="item-head">', '<span class="attention-label">Needs attention</span><header class="item-head">');
+  }).join('');
+  const notices = [
+    model.attentionUnavailable ? 'Booking-confirmation attention is temporarily unavailable. The attention count may be incomplete.' : '',
+    model.changeAttentionUnavailable ? 'Booking-change delivery evidence is temporarily unavailable. The attention count may be incomplete.' : '',
+    model.activityUnavailable ? 'Recent activity is temporarily unavailable. No delivery claim is being made.' : '',
+  ].filter(Boolean).map(note => `<p class="empty" role="status">${note}</p>`).join('');
+  const incomplete = model.attentionUnavailable || model.changeAttentionUnavailable;
   const operationsScript = model.notificationAuthority ? `<script src="${escapeHtml(actionScriptPath)}" defer></script>` : '';
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Messages — Shiloh Workspace</title><style>${workspaceShellStyles()}${styles()}</style><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${operationsScript}</head><body data-workspace-messages="true"><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'messages', displayName: model.authority?.displayName, messagesHref: '/calendar/messages', ...navigation })}<div class="workspace-main"><main class="shell"><header class="topbar"><div class="brand"><h1>Messages</h1><p>My Shiloh updates and items needing attention.</p></div><div class="topbar-side"><span class="truth-note">Available in the app does not confirm a phone alert or that an update was read.</span></div></header><nav class="tabs" aria-label="Messages view"><a class="tab${model.selectedView === 'all' ? ' active' : ''}" href="/calendar/messages?view=all">All</a><a class="tab${model.selectedView === 'attention' ? ' active' : ''}" href="/calendar/messages?view=attention">Needs attention</a><a class="tab${model.selectedView === 'recent' ? ' active' : ''}" href="/calendar/messages?view=recent">Recent activity</a></nav><p class="operation-status" role="status" aria-live="polite" data-calendar-operation-status>Booking updates appear in My Shiloh. Review urgent communication here.</p><div class="layout${showAttention && showRecent ? '' : ' single-panel'}">${showAttention ? `<section class="panel" data-messages-attention><header class="panel-head"><div><span class="eyebrow">Action</span><h2>Needs attention</h2></div></header><div class="list">${attentionBody}${changeBody}</div></section>` : ''}${showRecent ? `<section class="panel" data-messages-recent><header class="panel-head"><div><span class="eyebrow">Activity</span><h2>Recent activity</h2></div></header><div class="list">${activityBody}</div></section>` : ''}</div></main></div></div></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Client Services · Activity — Shiloh Workspace</title><style>${workspaceShellStyles()}${styles()}</style><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${operationsScript}</head><body data-workspace-messages="true"><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'messages', displayName: model.authority?.displayName, messagesHref: '/calendar/messages', ...navigation })}<div class="workspace-main"><main class="shell"><header class="topbar"><div class="brand"><span class="eyebrow">Client Services</span><h1>Activity</h1><p>Client updates and follow-ups, together.</p></div></header><section class="panel" data-client-activity><header class="panel-head"><nav class="tabs" aria-label="Activity filter"><a class="tab${model.selectedView !== 'attention' ? ' active' : ''}" ${model.selectedView !== 'attention' ? 'aria-current="page"' : ''} href="/calendar/messages?view=all">All activity</a>${model.notificationAuthority ? `<a class="tab${model.selectedView === 'attention' ? ' active' : ''}" ${model.selectedView === 'attention' ? 'aria-current="page"' : ''} href="/calendar/messages?view=attention">Needs attention <span class="attention-count">${attentionCount}${incomplete ? '+' : ''}</span></a>` : ''}</nav></header><p class="truth-note">App availability does not confirm a phone alert or that an update was read.</p><p class="operation-status" role="status" aria-live="polite" data-calendar-operation-status>Unresolved follow-ups appear first, followed by recent updates.</p>${notices}<div class="list" data-activity-list>${activityBody || (notices ? '' : '<div class="empty">No updates in this view.</div>')}</div></section></main></div></div></body></html>`;
 }
 
-function renderMessagesUnavailablePage({ message = 'Messages are unavailable.' } = {}) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Messages unavailable — Shiloh Workspace</title><style>${workspaceShellStyles()}${styles()}</style></head><body><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'messages' })}<div class="workspace-main"><main class="shell"><section class="panel"><span class="eyebrow">Unavailable</span><h2>Messages unavailable</h2><p>${escapeHtml(message)}</p></section></main></div></div></body></html>`;
+function renderMessagesUnavailablePage({ message = 'Activity is unavailable.' } = {}) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Activity unavailable — Shiloh Workspace</title><style>${workspaceShellStyles()}${styles()}</style></head><body><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'messages' })}<div class="workspace-main"><main class="shell"><section class="panel"><span class="eyebrow">Unavailable</span><h2>Activity unavailable</h2><p>${escapeHtml(message)}</p></section></main></div></div></body></html>`;
 }
 
 module.exports = { statusTone, renderMessagesPage, renderMessagesUnavailablePage };

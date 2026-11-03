@@ -98,7 +98,7 @@ const proofCases = [
 const manifest = [];
 
 for (const proof of proofCases) {
-  if (!/aria-label="Workspace"/.test(proof.html) || !/>Calendar<|>Calendar<\//.test(proof.html) || !/>Clients<|>Clients<\//.test(proof.html)) {
+  if (!/aria-label="Workspace"/.test(proof.html) || !/>Calendar<|>Calendar<\//.test(proof.html) || !/>Client Directory<|>Client Directory<\//.test(proof.html)) {
     throw new Error(`${proof.view}/${proof.viewport} does not contain the shared Calendar and Clients Workspace navigation`);
   }
   const stem = `${proof.view}-${proof.viewport}`;
