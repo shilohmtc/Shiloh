@@ -89,3 +89,5 @@ module.exports.testMatch.push('client-journey-small-batch.spec.js');
 module.exports.testMatch.push('website-treatment-clarity.spec.js');
 
 module.exports.testMatch.push('workspace-request-queue.spec.js');
+
+module.exports.testMatch.push("handoff-arrival-details.spec.js");
