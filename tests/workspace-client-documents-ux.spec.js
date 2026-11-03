@@ -26,6 +26,8 @@ for (const [device,width,height] of [['phone',390,844],['desktop',1280,900]]) {
       await page.goto(`/iframe.html?id=workspace-clients--${story}&viewMode=story`);
       const surface = page.locator('[data-story-surface]');
       await expect(surface).toBeVisible();
+      const forms = page.locator('[data-client-profile-services] #client-forms > summary');
+      if (await forms.count()) await forms.click();
       if (story === 'clinic-client-documents') {
         await expect(page.getByRole('link',{ name:'View acceptance' })).toHaveAttribute('href','/calendar/clients/801/policy-acceptances/501');
         await expect(page.getByRole('link',{ name:'View signed form' })).toHaveAttribute('href','/calendar/clients/801/consultation-forms/701');

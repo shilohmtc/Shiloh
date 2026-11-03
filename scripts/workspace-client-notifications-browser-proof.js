@@ -409,6 +409,12 @@ async function main() {
       await cdp.send('Page.navigate', { url });
       await poll(() => evaluate(cdp, 'document.readyState'), value => value === 'complete');
     }
+    async function openClientActivity() {
+      const categories = await evaluate(cdp, `[...document.querySelectorAll('[data-client-profile-services] > details > summary')].map(item => item.textContent.trim())`);
+      assert.deepEqual(categories, ['Activity', 'Forms', 'Rewards', 'Vouchers']);
+      await evaluate(cdp, `document.querySelector('#client-activity > summary').click();true`);
+      assert.equal(await evaluate(cdp, `document.querySelector('#client-activity').open`), true);
+    }
     async function screenshot(name) {
       const shot = await cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
       const file = `${name}.png`;
@@ -419,6 +425,7 @@ async function main() {
 
     await navigate(`${origin}/proof/lookupOnly`);
     await poll(() => evaluate(cdp, 'location.pathname'), value => value === `/calendar/clients/${CLIENT_ID}`);
+    await openClientActivity();
     const lookupOnlyPage = await evaluate(cdp, `({
       hasPreviewLink:[...document.querySelectorAll('a')].some(a=>a.textContent.includes('Preview booking confirmation')),
       text:document.body.innerText
@@ -441,6 +448,7 @@ async function main() {
 
     await navigate(`${origin}/proof/authorized`);
     await poll(() => evaluate(cdp, 'location.pathname'), value => value === `/calendar/clients/${CLIENT_ID}`);
+    await openClientActivity();
     const authorizedPage = await evaluate(cdp, `({
       hasPreviewLink:[...document.querySelectorAll('a')].some(a=>a.textContent.includes('Preview booking confirmation')),
       evidenceText:document.querySelector('[data-client-communications]')?.innerText||''
@@ -481,6 +489,7 @@ async function main() {
     const afterSendShot = await screenshot('authorized-after-synthetic-evidence');
 
     await navigate(`${origin}/calendar/clients/${CLIENT_ID}`);
+    await openClientActivity();
     const detailAfterSend = await evaluate(cdp, `({body:document.querySelector('[data-client-communications]')?.innerText||''})`);
     assert.match(detailAfterSend.body, /Booking confirmation/);
     assert.match(detailAfterSend.body, /Sent/);

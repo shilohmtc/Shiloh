@@ -355,6 +355,13 @@ export const NavigationDrawerOpen = { render: () => workspaceNavigationOpenStory
 export const CompactMenuNotificationsOn = { render: () => workspaceNavigationOpenStory('on') };
 export const CompactMenuNotificationsOff = { render: () => workspaceNavigationOpenStory('off') };
 export const CompactMenuNotificationsBlocked = { render: () => workspaceNavigationOpenStory('blocked') };
+export const ClientProfileServices = { render: () => productionSurface(renderClientDetailPageWithCommunications({
+  ...clientModel(),
+  consultationHistory: { items: [{ reference: '7001', formTitle: 'Synthetic consultation form', appointmentId: 9067, signedAt: '2026-10-02T11:56:00Z', services: ['Synthetic treatment'], canOpen: true }], page: 0, hasMore: false },
+  rewards: { data: { policy: { unlockThreshold: 100 }, wallet: { balance: 120, unlocked: true }, entries: [{ entry_type: 'earn', signed_amount: 120, created_at: '2026-10-02T11:56:00Z', notes: 'Synthetic completed treatment' }] } },
+  vouchers: { data: { received: [{ voucher_code: 'SV-SYNTHETIC-RECEIVED', balance: 250, original_value: 500, state: 'active', order_state: 'paid', valid_until: null }], purchased: [{ voucher_code: 'SV-SYNTHETIC-PURCHASED', balance: 0, original_value: 300, state: 'redeemed', order_state: 'paid', valid_until: null }] } },
+}, { calendarNavigationAllowed: true })) };
+
 export const ClientAppointmentHistory = { render: () => productionSurface(renderClientDetailPageWithCommunications(clientModel(), { calendarNavigationAllowed: true, notificationActionAllowed: true })) };
 export const MessagesAttention = { render: () => productionSurface(renderMessagesPage(messagesModel())) };
 export const MessagesChangeDeliveryAttention = {

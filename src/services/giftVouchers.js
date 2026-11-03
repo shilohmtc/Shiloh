@@ -215,6 +215,21 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     return operator;
   }
 
+  // Use recorded client identities only; never claim an unassigned voucher on profile view.
+  async function getWorkspaceClientModel({ adminId, clientId } = {}) {
+    await resolveOperator(db, adminId, CAPABILITIES.VIEW);
+    const id = Number(clientId);
+    if (!Number.isSafeInteger(id) || id <= 0) throw new GiftVoucherError('VOUCHER_CLIENT_INVALID', 'Client reference is invalid.', 400);
+    const result = await db.query(`SELECT v.id,v.voucher_code,v.original_value,v.balance,v.state,v.issued_at,v.valid_until,
+        v.recipient_crm_v2_client_id,o.purchaser_crm_v2_client_id,o.state AS order_state
+      FROM gift_vouchers v JOIN gift_voucher_orders o ON o.id=v.order_id
+      WHERE v.recipient_crm_v2_client_id=$1 OR o.purchaser_crm_v2_client_id=$1
+      ORDER BY v.id DESC`, [id]);
+    const rows = result.rows.map(row => ({ ...row, expired: voucherExpiryTimestamp(row.valid_until) != null && voucherExpiryTimestamp(row.valid_until) < Date.now() }));
+    return { received: rows.filter(row => Number(row.recipient_crm_v2_client_id) === id),
+      purchased: rows.filter(row => Number(row.purchaser_crm_v2_client_id) === id) };
+  }
+
   async function getWorkspaceModel({ adminId } = {}) {
     const operator = await resolveOperator(db, adminId, CAPABILITIES.VIEW);
     const [validity, vouchers, recipientChanges] = await Promise.all([
@@ -474,7 +489,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     } catch (error) { try { await client.query('ROLLBACK'); } catch (_) {} throw error; } finally { client.release(); }
   }
 
-  return { syncRecipientLinks, getClientModel, createOrder, createWalkInVoucher, getPublicVoucher, getWorkspaceModel, changeRecipient, updatePolicy, redeem, resolveAccess };
+  return { syncRecipientLinks, getClientModel, createOrder, createWalkInVoucher, getPublicVoucher, getWorkspaceModel, getWorkspaceClientModel, changeRecipient, updatePolicy, redeem, resolveAccess };
 }
 
 async function issueVerifiedVoucher(client, request, providerTransactionId) {

@@ -457,7 +457,7 @@ iPhone/iPad Home Screen apps need notification permission and the independent **
 
 ### Client Directory and Client Services — accepted 3 November 2026
 
-Keep searching and adding clients in **Client Directory**. Group **Activity, Gift Vouchers, Rewards and Forms** under **Client Services**, retaining each destination's existing permission and direct URL. Client profiles retain their specific communication and completed-form context; clinic-wide forms management and all vouchers, including unassigned recipients, remain accessible. Balances, redemption rules, form data and communications authorities do not change.
+Keep searching and adding clients in **Client Directory**. Group **Activity, Gift Vouchers, Rewards and Forms** under **Client Services**, retaining each destination's existing permission and direct URL. The owner clarified that each individual client profile must bring together that client’s **Activity, Forms, Rewards and Vouchers**. Use explicit client associations, distinguish purchased from received vouchers, and keep profile inspection read-only (no automatic wallet creation, earnings synchronisation or recipient linking). Financial history requires the existing feature capability and clinic relationship scope; tenant relationships do not disclose clinic ledgers. This profile correction is in implementation; clinic-wide forms management and all vouchers, including unassigned recipients, remain accessible. Balances, redemption rules, form data and communications authorities do not change.
 
 Release and follow-up verification are recorded in [PR #1528](https://github.com/shilohmtc/Shiloh/pull/1528), including exact deployed revisions and remaining live acceptance.
 

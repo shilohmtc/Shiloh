@@ -8,6 +8,9 @@ const { createInPersonBookingPolicyService } = require('./inPersonBookingPolicy'
 const { createWorkspaceFormsService } = require('./workspaceForms');
 const { createWorkspaceFormSubmissionsService } = require('./workspaceFormSubmissions');
 
+const { createShilohRewardsService } = require('./shilohRewards');
+const { createGiftVoucherService } = require('./giftVouchers');
+
 const CLIENT_LOOKUP_CAPABILITY = 'client:lookup';
 const CLIENT_LIST_PAGE_SIZE = 24;
 const CLIENT_HISTORY_PAGE_SIZE = 20;
@@ -67,11 +70,14 @@ function normalizeOffset(value) {
   return Math.min(offset, 100000);
 }
 
-function createWorkspaceClientsService({ db = pool, readService = crmReadService, communicationService = null, policyAcceptanceService = null, submissionService = null } = {}) {
+function createWorkspaceClientsService({ db = pool, readService = crmReadService, communicationService = null, policyAcceptanceService = null, submissionService = null, rewardsService = null, voucherService = null } = {}) {
   if (!db || typeof db.query !== 'function') throw new Error('Workspace Clients database is required');
   const communicationReads = communicationService || createWorkspaceCommunicationEvidenceService({ db });
   const policyReads = policyAcceptanceService || createInPersonBookingPolicyService({ db });
   const submissionReads = submissionService || createWorkspaceFormSubmissionsService({ db, formsService: createWorkspaceFormsService({ db }) });
+
+  const rewardsReads = rewardsService || createShilohRewardsService({ db });
+  const voucherReads = voucherService || createGiftVoucherService({ db });
 
   async function resolveAccess(adminId) {
     const id = positiveId(adminId);
@@ -130,7 +136,7 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
     };
   }
 
-  async function getClientDetail({ adminId, clientId, historyOffset, policyOffset, formsPage } = {}) {
+  async function getClientDetail({ adminId, clientId, historyOffset, policyOffset, formsPage, services } = {}) {
     const authority = await requireAccess(adminId);
     const manageAllowed = authority.manageAllowed === true;
     const id = positiveId(clientId);
@@ -205,6 +211,14 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
     } catch (_) {
       communicationsUnavailable = true;
     }
+    // These clinic-wide ledgers have no tenant appointment partition. A tenant
+    // relationship alone must not disclose the client's clinic financial history.
+    async function financialHistory(reader) {
+      if (authority.clientScope.kind !== 'clinic') return { restricted: true };
+      try { return { data: await reader.getWorkspaceClientModel({ adminId, clientId: id }) }; }
+      catch (error) { return error.httpStatus === 403 ? { restricted: true } : { unavailable: true }; }
+    }
+    const [rewards, vouchers] = await Promise.all([financialHistory(rewardsReads), financialHistory(voucherReads)]);
     return {
       authority,
       manageAllowed,
@@ -223,6 +237,9 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
       pageSize: CLIENT_HISTORY_PAGE_SIZE,
       communications,
       communicationsUnavailable,
+      rewards,
+      vouchers,
+      services: ['forms', 'rewards', 'vouchers', 'activity'].includes(services) ? services : (formsPage != null || policyOffset != null ? 'forms' : null),
     };
   }
 

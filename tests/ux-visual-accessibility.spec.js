@@ -3111,6 +3111,7 @@ test('Workspace client record shows policy history and booking readiness on Phon
     await page.goto('/iframe.html?id=workspace-clients--marietjie-client-management&viewMode=story', { waitUntil:'networkidle' });
     const surface = page.locator('[data-story-surface]');
     await expect(surface).toBeVisible();
+    await surface.locator('#client-forms > summary').click();
     await expect(surface.getByRole('heading', { name:'Booking Policy & Terms' })).toBeVisible();
     await expect(surface.getByText('2026-09-25-v3')).toBeVisible();
     await expect(surface.getByText(/In clinic on Shiloh device/)).toBeVisible();
