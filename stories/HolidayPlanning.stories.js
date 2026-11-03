@@ -6,6 +6,7 @@ export const Upcoming = { render: () => {
     { exceptionDate: '2026-12-16', holidayName: 'Day of Reconciliation', decisionNeeded: true },
     { exceptionDate: '2026-12-24', holidayName: 'Christmas Eve', decisionNeeded: true },
     { exceptionDate: '2026-12-25', holidayName: 'Christmas Day', clinicExceptionType: 'open', clinicStartsLocal: '09:00', clinicEndsLocal: '12:00', decisionNeeded: false },
+    { exceptionDate: '2026-12-31', holidayName: 'Synthetic planning date', decisionNeeded: true },
     { exceptionDate: '2027-01-01', holidayName: 'New Year’s Day', decisionNeeded: true },
     { exceptionDate: '2027-03-21', holidayName: 'Human Rights Day', decisionNeeded: true },
     { exceptionDate: '2027-03-22', holidayName: 'Human Rights Day (Observed)', decisionNeeded: true },
