@@ -1,3 +1,4 @@
+const { publicHolidayCalendarSql } = require('../config/publicHolidayCalendar');
 const { annualClosuresBetween } = require('../config/clinicAnnualClosures');
 const { pool } = require('../db/pool');
 const adminAvailability = require('./adminAvailability');
@@ -350,7 +351,7 @@ function createSchedulingEngine({
 
     const holidayResult = await query(`/* SchedulingTimeline:public_holidays */
       SELECT holiday_date, name, observed
-        FROM public_holidays
+        FROM ${publicHolidayCalendarSql} holiday_calendar
        WHERE country_code='ZA'
          AND holiday_date BETWEEN $1::date AND $2::date
        ORDER BY holiday_date`, [localFrom, localTo]);

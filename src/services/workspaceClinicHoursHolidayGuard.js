@@ -1,3 +1,4 @@
+const { publicHolidayCalendarSql } = require('../config/publicHolidayCalendar');
 const { annualClosureName } = require('../config/clinicAnnualClosures');
 const { pool } = require('../db/pool');
 const { WorkspaceClinicHoursError } = require('./workspaceClinicHours');
@@ -27,7 +28,7 @@ function createWorkspaceClinicHoursHolidayGuard({ db = pool } = {}) {
     const result = await db.query(
       `/* workspaceClinicHours:publicHolidayGuard */
        SELECT holiday_date, name
-         FROM public_holidays
+         FROM ${publicHolidayCalendarSql} holiday_calendar
         WHERE holiday_date=$1::date
           AND country_code='ZA'
         LIMIT 1`,

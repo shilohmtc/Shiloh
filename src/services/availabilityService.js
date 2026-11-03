@@ -1,3 +1,4 @@
+const { publicHolidayCalendarSql } = require('../config/publicHolidayCalendar');
 const { annualClosureName } = require('../config/clinicAnnualClosures');
 const { getClinicWindowForDate } = require('./clinicHours');
 const { pool } = require('../db/pool');
@@ -79,7 +80,7 @@ async function listAvailableSlots({
      ),
      holiday AS (
        SELECT ph.holiday_date
-         FROM public_holidays ph, requested r
+         FROM ${publicHolidayCalendarSql} ph, requested r
         WHERE ph.country_code='ZA' AND ph.holiday_date=r.local_date
      ),
      clinic_override AS (

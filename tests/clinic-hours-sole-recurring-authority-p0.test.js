@@ -23,7 +23,8 @@ test('ordinary slot availability always selects clinic hours despite stale recur
   assert.match(availability, /WHERE st\.scheduling_type = 'regular'/);
   assert.doesNotMatch(availability, /st\.scheduling_type = 'regular'[\s\S]{0,160}NOT EXISTS \(SELECT 1 FROM (?:base_windows|recurring_closed)\)/);
   assert.match(availability, /staff_schedule_exceptions/);
-  assert.match(availability, /public_holidays/);
+  assert.match(availability, /FROM \$\{publicHolidayCalendarSql\} ph/);
+  assert.match(source('src/config/publicHolidayCalendar.js'), /SELECT holiday_date, name, country_code, observed FROM public_holidays/);
   assert.match(availability, /location_hours_exceptions/);
   assert.match(availability, /appointment_staff/);
   assert.match(availability, /calendar_blocks/);

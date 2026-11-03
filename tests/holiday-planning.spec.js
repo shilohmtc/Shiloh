@@ -70,3 +70,20 @@ test('links to saved decisions and Sundays reveal their groups without changing 
     await expect(page.locator('[data-special-date]')).toHaveValue(date);
   }
 });
+
+
+for (const width of [390, 1440]) test(`proclaimed election holiday can be selected in the existing editor at ${width}`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 1000 });
+  await page.goto('/iframe.html?id=workspace-holiday-planning--election-day&viewMode=story&date=2026-11-04', { waitUntil: 'networkidle' });
+  await page.addScriptTag({ content: clinicHoursTabsClientScript() + clinicHoursClientScript() });
+  await expect(page.locator('#holiday-2026-11-04')).toContainText('Local Government Election Day');
+  await expect(page.locator('#holiday-2026-11-04')).toContainText('Needs attention');
+  await expect(page.locator('[data-special-date]')).toHaveValue('2026-11-04');
+  await expect(page.locator('.view-tab-count')).toHaveText('1');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const axe = await new AxeBuilder({ page }).include('#special-dates').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(axe.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: info.outputPath(`election-holiday-${width}.png`), fullPage: true });
+  // Synthetic UI inspection only: do not save clinic decisions.
+});

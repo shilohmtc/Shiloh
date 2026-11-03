@@ -1,3 +1,4 @@
+const { publicHolidayCalendarSql } = require('../config/publicHolidayCalendar');
 const { annualClosureName, annualClosuresBetween } = require('../config/clinicAnnualClosures');
 const { dateKeyInBusinessTimezone } = require('./operationalCalendar');
 const { createHash } = require('crypto');
@@ -328,7 +329,7 @@ function createWorkspaceClinicHoursService({ db = pool, locationResolver = getDe
        SELECT e.id, e.exception_date, e.exception_type, e.starts_local, e.ends_local,
               e.actor_admin_id, e.updated_at, h.name AS holiday_name
          FROM location_hours_exceptions e
-         LEFT JOIN public_holidays h
+         LEFT JOIN ${publicHolidayCalendarSql} h
            ON h.holiday_date=e.exception_date
           AND h.country_code='ZA'
         WHERE e.location_id=$1
@@ -343,7 +344,7 @@ function createWorkspaceClinicHoursService({ db = pool, locationResolver = getDe
     const annualDates = annualClosuresBetween(today, horizon);
     const result = await queryable.query(`/* workspaceClinicHours:holidayRows */
       WITH dates AS (
-        SELECT holiday_date, name FROM public_holidays WHERE country_code='ZA' AND holiday_date >= $2::date
+        SELECT holiday_date, name FROM ${publicHolidayCalendarSql} holiday_calendar WHERE country_code='ZA' AND holiday_date >= $2::date
         UNION
         SELECT d::date, NULL::text FROM unnest($3::text[]) AS d
       ), dates_named AS (
