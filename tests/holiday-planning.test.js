@@ -63,7 +63,7 @@ test('saved decisions remain visible and annual defaults never count as undecide
   assert.equal((html.match(/data-holiday-needs-attention/g) || []).length, 1);
   assert.match(html, /Closed — annual default/);
   assert.match(html, /Clinic 09:00–12:00/);
-  assert.match(html, /<details class="later-holidays"><summary>Later holidays/);
+  assert.match(html, /<details class="later-holidays" data-holiday-group="later"><summary>Later holidays/);
   assert.match(html, /Not decided/);
 });
 
@@ -158,4 +158,20 @@ test('Workspace reads annual dates alongside loaded holidays and preserves expli
     assert.ok(model.holidays.some(x => x.exceptionDate === '2027-12-24'));
     assert.ok(seen.every(sql => !/INSERT|UPDATE|DELETE/.test(sql)));
   } finally { await pg.close(); }
+});
+
+
+test('saved decisions, annual defaults and Sundays stay in separate collapsed groups', () => {
+  const html = renderClinicHoursPage({ today: '2026-12-15', days: [], holidays: [
+    { exceptionDate: '2026-12-16', holidayName: 'Pending', decisionNeeded: true },
+    { exceptionDate: '2026-12-24', holidayName: 'Annual', decisionNeeded: true },
+    { exceptionDate: '2026-12-25', holidayName: 'Saved open', clinicExceptionType: 'open', clinicStartsLocal: '09:00', clinicEndsLocal: '12:00', decisionNeeded: false },
+    { exceptionDate: '2027-03-21', holidayName: 'Sunday', decisionNeeded: true },
+  ], exceptions: [{ exceptionDate: '2026-12-10', exceptionType: 'closed' }] });
+  const saved = html.match(/<details[^>]*data-holiday-group="saved"[^>]*>([\s\S]*?)<\/details>/)[1];
+  assert.match(saved, /2026-12-24/); assert.match(saved, /Clinic 09:00–12:00/); assert.match(saved, /2026-12-10/);
+  assert.doesNotMatch(saved, /2026-12-16|2027-03-21/);
+  assert.match(html, /data-holiday-group="sundays"><summary>Sundays — permanently closed/);
+  assert.equal((html.match(/data-holiday-needs-attention/g) || []).length, 1);
+  assert.doesNotMatch(html, /<details[^>]* open/);
 });

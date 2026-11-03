@@ -8,11 +8,14 @@ for (const width of [390, 1440]) test(`holiday planning and existing override ed
   await page.addScriptTag({ content: clinicHoursClientScript() + clinicHoursTabsClientScript() });
   await expect(page.locator('.view-tab-count')).toHaveText('1');
   await expect(page.locator('#holiday-2026-12-16')).toContainText('Needs attention');
+  await expect(page.locator('#holiday-2026-12-24')).toBeHidden();
+  await expect(page.locator('#holiday-2026-12-25')).toBeHidden();
+  await expect(page.locator('#holiday-2027-03-21')).toBeHidden();
   await expect(page.locator('#holiday-2026-12-24')).toContainText('Closed — annual default');
   await expect(page.locator('#holiday-2026-12-25')).toContainText('Clinic 09:00–12:00');
   await expect(page.getByRole('heading', { name: 'Plan ahead' })).toBeVisible();
   await expect(page.locator('#holiday-2027-03-22')).toBeHidden();
-  const later = page.locator('.later-holidays summary');
+  const later = page.locator('[data-holiday-group="later"] summary');
   await later.focus(); await page.keyboard.press('Enter');
   await expect(page.locator('#holiday-2027-03-22')).toBeVisible();
   await expect(page.locator('#holiday-2027-03-22')).toContainText('Not decided');
@@ -23,6 +26,12 @@ for (const width of [390, 1440]) test(`holiday planning and existing override ed
   await later.click();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: info.outputPath(`holiday-planning-${width}.png`), fullPage: true });
+  await page.locator('[data-holiday-group="saved"] summary').click();
+  await expect(page.locator('#holiday-2026-12-25')).toBeVisible();
+  await page.locator('[data-holiday-group="sundays"] summary').click();
+  await expect(page.locator('#holiday-2027-03-21')).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: info.outputPath(`holiday-decisions-expanded-${width}.png`), fullPage: true });
   await page.locator('#holiday-2026-12-25 [data-edit-date]').click();
   await expect(page.locator('[data-special-date]')).toHaveValue('2026-12-25');
   await expect(page.locator('[data-special-type]')).toHaveValue('open');
@@ -34,7 +43,7 @@ for (const width of [390, 1440]) test(`holiday planning and existing override ed
 test('a link to a later holiday expands its group and selects the existing editor', async ({ page }) => {
   await page.goto('/iframe.html?id=workspace-holiday-planning--upcoming&viewMode=story&date=2027-03-22', { waitUntil: 'networkidle' });
   await page.addScriptTag({ content: clinicHoursTabsClientScript() + clinicHoursClientScript() });
-  await expect(page.locator('.later-holidays')).toHaveAttribute('open', '');
+  await expect(page.locator('[data-holiday-group="later"]')).toHaveAttribute('open', '');
   await expect(page.locator('[data-special-date]')).toHaveValue('2027-03-22');
   await expect(page.locator('[data-hours-tab="holidays"]')).toHaveAttribute('aria-selected', 'true');
 });
@@ -47,7 +56,17 @@ test('later dates can be read and expanded without JavaScript', async ({ browser
   await page.goto('https://synthetic.shiloh.test/hours');
   await expect(page.locator('#special-dates')).toContainText('Undecided public holidays remain unavailable');
   await expect(page.locator('#holiday-2027-03-22')).toBeHidden();
-  await page.locator('.later-holidays summary').click();
+  await page.locator('[data-holiday-group="later"] summary').click();
   await expect(page.locator('#holiday-2027-03-22')).toBeVisible();
   await context.close();
+});
+
+
+test('links to saved decisions and Sundays reveal their groups without changing a decision', async ({ page }) => {
+  for (const [date, group] of [['2026-12-25', 'saved'], ['2027-03-21', 'sundays']]) {
+    await page.goto(`/iframe.html?id=workspace-holiday-planning--upcoming&viewMode=story&date=${date}`, { waitUntil: 'networkidle' });
+    await page.addScriptTag({ content: clinicHoursTabsClientScript() + clinicHoursClientScript() });
+    await expect(page.locator(`[data-holiday-group="${group}"]`)).toHaveAttribute('open', '');
+    await expect(page.locator('[data-special-date]')).toHaveValue(date);
+  }
 });
