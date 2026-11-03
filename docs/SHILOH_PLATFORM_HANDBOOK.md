@@ -455,8 +455,10 @@ iPhone/iPad Home Screen apps need notification permission and the independent **
 
 **Accepted 23 October 2026 — client passkey names:** A signed-in client may rename their own active passkey in Profile using Save name or Cancel. Reuse the existing 1–48 character display label and remembered-session, same-origin and CSRF protections; recheck live ownership/session authority under the credential lock. Update only the display label and its existing audit, preserving keys, counters, eligibility, timestamps, sessions and other clients. A repeated identical save is idempotent. Names identify entries in My Shiloh, not a unique physical device; synced passkeys may be available elsewhere. No migration or real credential edit is authorised as a production test.
 
-### Client Directory and Client Services — accepted 3 November 2026; implementation staged
+### Client Directory and Client Services — accepted 3 November 2026
 
 Keep searching and adding clients in **Client Directory**. Group **Activity, Gift Vouchers, Rewards and Forms** under **Client Services**, retaining each destination's existing permission and direct URL. Client profiles retain their specific communication and completed-form context; clinic-wide forms management and all vouchers, including unassigned recipients, remain accessible. Balances, redemption rules, form data and communications authorities do not change.
+
+Release and follow-up verification are recorded in [PR #1528](https://github.com/shilohmtc/Shiloh/pull/1528), including exact deployed revisions and remaining live acceptance.
 
 Activity uses one list with inline attention markers and a count/filter. Read unresolved exceptions independently of the recent-event limit and show them first. Join app availability and delivery exceptions only by exact event identity within the same client, never by client or booking alone. Availability in My Shiloh is separate from phone-alert delivery or reading. Unavailable evidence must not imply a complete attention count or successful delivery. Release verification and owner acceptance remain separate from synthetic tests.
