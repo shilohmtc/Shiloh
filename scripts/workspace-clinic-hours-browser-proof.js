@@ -123,15 +123,20 @@ async function main() {
         text: document.body.textContent,
         tabs: document.querySelectorAll('[data-hours-tab]').length,
         visiblePanels: Array.from(document.querySelectorAll('[data-view-panel],#special-dates')).filter(node=>!node.hidden).length,
-        editButtons: document.querySelectorAll('[data-edit-exception]').length,
+        holidayForms: document.querySelectorAll('[data-holiday-form="clinic"]').length,
+        clinicDays: document.querySelectorAll('[data-clinic-day]').length,
+        onlineDays: document.querySelectorAll('[data-assistant-day]').length,
+        sundayRows: document.querySelectorAll('[data-clinic-day="0"],[data-assistant-day="0"]').length,
         deleteButtons: document.querySelectorAll('[data-delete-exception]').length,
-        sunday: document.querySelector('[data-clinic-day="0"]')?.textContent || '',
         header: (()=>{const menu=document.querySelector('[data-workspace-drawer-toggle]')?.getBoundingClientRect(),title=document.querySelector('.brand h1')?.getBoundingClientRect();return menu&&title?{menuRight:menu.right,titleLeft:title.left,titleRight:title.right}:null})(),
         targets: Array.from(document.querySelectorAll('button,input,select,a.workspace-nav-item')).filter(node=>{const r=node.getBoundingClientRect();return r.width>0&&r.height>0;}).map(node=>({width:node.getBoundingClientRect().width,height:node.getBoundingClientRect().height}))
       })`);
       assert.equal(geometry.width, width);
       assert.equal(geometry.overflow, false);
-      assert.equal(geometry.editButtons, 2);
+      assert.equal(geometry.holidayForms, 2);
+      assert.equal(geometry.clinicDays, 6);
+      assert.equal(geometry.onlineDays, 6);
+      assert.equal(geometry.sundayRows, 0);
       assert.equal(geometry.deleteButtons, 0);
       assert.equal(geometry.tabs, 3);
       assert.equal(geometry.visiblePanels, 1);
@@ -140,7 +145,7 @@ async function main() {
       assert.match(geometry.text, /Day of Reconciliation/);
       assert.match(geometry.text, /Christmas Day/);
       assert.match(geometry.text, /Staff leave and blocked-off time will stay exactly as they are/);
-      assert.match(geometry.sunday, /Permanent clinic closure/);
+      assert.match(geometry.text, /Sundays remain closed/);
       assert.doesNotMatch(geometry.text, /synthetic-clinic-hours-session/);
       if (width === 390) {
         assert.ok(geometry.targets.every(target => target.height >= 43 && target.width >= 43));
@@ -152,6 +157,27 @@ async function main() {
       const filePath = path.join(OUT_DIR, file);
       fs.writeFileSync(filePath, Buffer.from(result.data, 'base64'));
       screenshots.push({ file, width, height, sha256: sha256(filePath), noHorizontalOverflow: true, touchTargets: geometry.targets.length });
+      await page.locator('[data-hours-tab="holidays"]').click();
+      const saved = page.locator('[data-holiday-group="saved"]');
+      assert.equal(await saved.getAttribute('open'), null, 'Saved decisions start collapsed');
+      await saved.locator(':scope > summary').click();
+      const decisions = await page.locator('[data-holiday-form="clinic"]').evaluateAll(forms => forms.map(form => ({
+        date: form.dataset.exceptionDate,
+        type: form.querySelector('[data-holiday-type]').value,
+        start: form.querySelector('[data-holiday-start]').value,
+        end: form.querySelector('[data-holiday-end]').value,
+        disabledTimes: form.querySelector('[data-holiday-start]').disabled,
+      })));
+      assert.deepEqual(decisions, [
+        { date: '2026-12-16', type: 'closed', start: '', end: '', disabledTimes: true },
+        { date: '2026-12-25', type: 'open', start: '09:00', end: '13:00', disabledTimes: false },
+      ]);
+      assert.equal(await page.locator('[data-holiday-form="clinic"] [data-holiday-save]:enabled').count(), 2);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+      const holidayFile = `${name}-holiday-hours.png`;
+      const holidayPath = path.join(OUT_DIR, holidayFile);
+      await page.screenshot({ path: holidayPath, fullPage: false });
+      screenshots.push({ file: holidayFile, width, height, sha256: sha256(holidayPath), noHorizontalOverflow: true, savedDecisions: decisions.length });
     }
 
     assert.equal(mutationCalls, 0);
