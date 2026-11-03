@@ -1,3 +1,4 @@
+const { publicHolidayCalendarSql } = require('../config/publicHolidayCalendar');
 const { pool } = require('../db/pool');
 const schedulingEngine = require('./schedulingEngine');
 const {
@@ -110,7 +111,7 @@ async function listCanonicalPublicHolidays({ startKey, endKey } = {}) {
   if (!DATE_KEY.test(String(startKey || '')) || !DATE_KEY.test(String(endKey || ''))) return [];
   const result = await pool.query(`/* CalendarReadOnlyUx:public_holidays */
     SELECT holiday_date, name, observed
-      FROM public_holidays
+      FROM ${publicHolidayCalendarSql} holiday_calendar
      WHERE country_code='ZA'
        AND holiday_date >= $1::date
        AND holiday_date < $2::date

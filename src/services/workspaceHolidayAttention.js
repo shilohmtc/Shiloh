@@ -1,3 +1,4 @@
+const { publicHolidayCalendarSql } = require('../config/publicHolidayCalendar');
 const { annualClosureName } = require('../config/clinicAnnualClosures');
 const { dateKeyInBusinessTimezone, isSundayDateKey } = require('./operationalCalendar');
 const { pool } = require('../db/pool');
@@ -9,7 +10,7 @@ async function listHolidayDecisions({ db = pool, now = new Date(), daysAhead = 1
   const date = dateKeyInBusinessTimezone(now);
   const result = await db.query(`/* workspaceHolidayAttention:list */
     SELECT h.holiday_date::text exception_date, h.name holiday_name
-      FROM public_holidays h
+      FROM ${publicHolidayCalendarSql} h
       LEFT JOIN location_hours_exceptions e ON e.location_id=$1 AND e.exception_date=h.holiday_date
      WHERE h.country_code='ZA' AND h.holiday_date BETWEEN $2::date AND ($2::date + $3::int)
        AND e.id IS NULL ORDER BY h.holiday_date`, [location.id, date, daysAhead]);

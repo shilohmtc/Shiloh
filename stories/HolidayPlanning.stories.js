@@ -15,3 +15,14 @@ export const Upcoming = { render: () => {
   const body = html.match(/<body[^>]*>([\s\S]*?)<\/body>/)[1];
   return `<style>${styles}</style>${body.replaceAll("/calendar/pwa/icon-192.png?v=official-brand-v4", "/assets/brand/shiloh-mark-192.png")}`;
 } };
+
+
+export const ElectionDay = { render: () => {
+  const html = renderClinicHoursPage({ today: '2026-11-03', days: [], location: { name: 'Shiloh' }, holidays: [
+    { exceptionDate: '2026-11-04', holidayName: 'Local Government Election Day', decisionNeeded: true },
+    { exceptionDate: '2026-12-24', holidayName: 'Christmas Eve', decisionNeeded: false },
+  ] });
+  const styles = [...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(x => x[1]).join('\n');
+  const body = html.match(/<body[^>]*>([\s\S]*?)<\/body>/)[1];
+  return `<style>${styles}</style>${body.replaceAll("/calendar/pwa/icon-192.png?v=official-brand-v4", "/assets/brand/shiloh-mark-192.png")}`;
+} };

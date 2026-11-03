@@ -1,3 +1,4 @@
+const { publicHolidayCalendarSql } = require('../config/publicHolidayCalendar');
 const { annualClosureName } = require('../config/clinicAnnualClosures');
 const { pool } = require('../db/pool');
 const { isSundayDateKey } = require('./operationalCalendar');
@@ -29,7 +30,7 @@ async function getClinicWindowForDate({ db = pool, locationId = null, date }) {
              EXTRACT(DOW FROM $2::date)::int AS dow
     ), holiday AS (
       SELECT ph.name, ph.observed
-        FROM public_holidays ph, requested r
+        FROM ${publicHolidayCalendarSql} ph, requested r
        WHERE ph.country_code='ZA' AND ph.holiday_date=r.local_date
        LIMIT 1
     ), override AS (

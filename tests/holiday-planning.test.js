@@ -134,8 +134,8 @@ test('Workspace reads annual dates alongside loaded holidays and preserves expli
   const { createWorkspaceClinicHoursService } = require('../src/services/workspaceClinicHours');
   const pg = new PGlite();
   try {
-    await pg.exec(`CREATE TABLE public_holidays(holiday_date date,name text,country_code text);
-      INSERT INTO public_holidays VALUES('2026-12-25','Christmas Day','ZA'),('2027-01-01','New Year','ZA');
+    await pg.exec(`CREATE TABLE public_holidays(holiday_date date,name text,country_code text,observed boolean DEFAULT FALSE);
+      INSERT INTO public_holidays(holiday_date,name,country_code) VALUES('2026-12-25','Christmas Day','ZA'),('2027-01-01','New Year','ZA');
       CREATE TABLE location_hours_exceptions(location_id int,exception_date date,exception_type text,starts_local time,ends_local time);
       INSERT INTO location_hours_exceptions VALUES(1,'2026-12-25','open','09:00','12:00');
       CREATE TABLE location_assistant_hours_exceptions(location_id int,exception_date date,exception_type text,starts_local time,ends_local time);

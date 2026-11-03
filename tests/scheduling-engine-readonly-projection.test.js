@@ -298,5 +298,9 @@ test('SchedulingTimeline SQL projection is locked to canonical production schema
   assert.match(source, /SchedulingTimeline:location_hours_exceptions[\s\S]*SELECT lhe\.location_id, lhe\.exception_date, lhe\.exception_type, lhe\.starts_local, lhe\.ends_local, lhe\.reason[\s\S]*FROM location_hours_exceptions lhe/i);
 
   assert.match(migration022, /CREATE TABLE IF NOT EXISTS public_holidays[\s\S]*\bholiday_date\s+DATE[\s\S]*\bname\s+TEXT[\s\S]*\bcountry_code\s+TEXT[\s\S]*\bobserved\s+BOOLEAN/i);
-  assert.match(source, /SchedulingTimeline:public_holidays[\s\S]*SELECT holiday_date, name, observed[\s\S]*FROM public_holidays/i);
+  assert.match(source, /SchedulingTimeline:public_holidays[\s\S]*SELECT holiday_date, name, observed[\s\S]*FROM \$\{publicHolidayCalendarSql\}/i);
+  const calendar = repoFile('src/config/publicHolidayCalendar.js');
+  assert.match(calendar, /SELECT holiday_date, name, country_code, observed FROM public_holidays/);
+  assert.match(calendar, /WHERE NOT EXISTS[\s\S]*FROM public_holidays WHERE holiday_date=DATE '2026-11-04'/);
+  assert.doesNotMatch(calendar, /\b(?:INSERT|UPDATE|DELETE|ALTER)\b/);
 });
