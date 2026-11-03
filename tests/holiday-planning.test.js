@@ -168,7 +168,7 @@ test('saved decisions, annual defaults and Sundays stay in separate collapsed gr
     { exceptionDate: '2026-12-25', holidayName: 'Saved open', clinicExceptionType: 'open', clinicStartsLocal: '09:00', clinicEndsLocal: '12:00', decisionNeeded: false },
     { exceptionDate: '2027-03-21', holidayName: 'Sunday', decisionNeeded: true },
   ], exceptions: [{ exceptionDate: '2026-12-10', exceptionType: 'closed' }] });
-  const saved = html.match(/<details[^>]*data-holiday-group="saved"[^>]*>([\s\S]*?)<\/details>/)[1];
+  const saved = html.match(/<details[^>]*data-holiday-group="saved"[^>]*>([\s\S]*?)<details[^>]*data-holiday-group="sundays"/)[1];
   assert.match(saved, /2026-12-24/); assert.match(saved, /Clinic 09:00–12:00/); assert.match(saved, /2026-12-10/);
   assert.doesNotMatch(saved, /2026-12-16|2027-03-21/);
   assert.match(html, /data-holiday-group="sundays"><summary>Sundays — permanently closed/);

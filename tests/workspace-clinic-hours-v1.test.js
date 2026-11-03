@@ -218,7 +218,8 @@ test('Clinic hours presentation keeps clinic-wide exceptions separate from pract
   assert.doesNotMatch(html, /Clinic-wide authority|Two clear boundaries/);
   assert.match(html, /Staff leave and blocked-off time will stay exactly as they are/);
   assert.match(html, /Day of Reconciliation/);
-  assert.match(html, /data-edit-exception/);
+  assert.match(html, /data-holiday-form="clinic" data-exception-date="2026-12-16"/);
+  assert.match(html, /data-holiday-type/);
   assert.match(html, /Changing a closed date back to Open reopens it/);
   assert.doesNotMatch(html, /data-delete-exception|Delete exception/);
 });

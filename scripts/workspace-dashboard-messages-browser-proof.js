@@ -596,7 +596,27 @@ async function main() {
         assert.equal(metrics.addStaffVisible, true, `${name} does not expose Add staff at the top`);
         assert.equal(metrics.addStaffCollapsed, true, `${name} must keep Add staff collapsed until requested`);
       }
-      if (urlPath.startsWith('/calendar/clinic-hours')) assert.equal(metrics.clinicSaveVisible, true, `${name} does not expose the clinic-hours Save action`);
+      if (urlPath.startsWith('/calendar/clinic-hours')) {
+        // Save follows the weekly rows instead of floating over their controls.
+        await evaluate(cdp, `document.querySelector('[data-clinic-hours-save]').scrollIntoView({block:'center'});true`);
+        await poll(() => evaluate(cdp, METRICS_EXPRESSION), value => value.clinicSaveVisible);
+        const save = await evaluate(cdp, `(() => {
+          const button=document.querySelector('[data-clinic-hours-save]'),r=button.getBoundingClientRect();
+          const rows=[...document.querySelectorAll('[data-clinic-day]')];
+          const last=rows.at(-1).getBoundingClientRect();
+          return {height:r.height,top:r.top,bottom:r.bottom,left:r.left,right:r.right,lastBottom:last.bottom,
+            viewportHeight:innerHeight,viewportWidth:innerWidth,disabled:button.disabled,
+            unobscured:button.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)),
+            days:rows.map(row=>Number(row.dataset.clinicDay))};
+        })()`);
+        assert.deepEqual(save.days, [1,2,3,4,5,6], `${name} must omit Sunday without losing another day`);
+        assert.equal(save.disabled, false);
+        assert.ok(save.height >= 44 && save.top >= 0 && save.bottom <= save.viewportHeight, `${name} Save must be fully reachable with a usable touch target`);
+        assert.ok(save.left >= 0 && save.right <= save.viewportWidth, `${name} Save escapes the viewport`);
+        assert.ok(save.top >= save.lastBottom, `${name} Save overlays the weekly rows`);
+        assert.equal(save.unobscured, true, `${name} Save is covered by another control`);
+        metrics.clinicSaveAfterScroll = save;
+      }
       return { name, phone, viewport: { width, height }, active: metrics.active, metrics, ...(await screenshot(name)) };
     }
 
