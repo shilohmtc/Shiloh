@@ -5,6 +5,7 @@ const { renderClinicHoursPage, clinicHoursClientScript, clinicHoursTabsClientScr
 for (const width of [390, 1440]) test(`holiday planning and existing override editor at ${width}`, async ({ page }, info) => {
   await page.setViewportSize({ width, height: 1000 });
   await page.goto('/iframe.html?id=workspace-holiday-planning--upcoming&viewMode=story&view=holidays', { waitUntil: 'networkidle' });
+  await expect(page.getByRole('heading', { name: 'Clinic & booking hours', exact: true })).toBeVisible();
   await page.addScriptTag({ content: clinicHoursClientScript() + clinicHoursTabsClientScript() + assistantExceptionClientScript() });
   await expect(page.locator('.view-tab-count')).toHaveText('1');
   await expect(page.locator('#holiday-2026-12-16')).toContainText('Needs attention');
@@ -41,6 +42,7 @@ for (const width of [390, 1440]) test(`holiday planning and existing override ed
 
 test('a link to a later holiday expands its group and selects the existing editor', async ({ page }) => {
   await page.goto('/iframe.html?id=workspace-holiday-planning--upcoming&viewMode=story&date=2027-03-22', { waitUntil: 'networkidle' });
+  await expect(page.getByRole('heading', { name: 'Clinic & booking hours', exact: true })).toBeVisible();
   await page.addScriptTag({ content: clinicHoursTabsClientScript() + clinicHoursClientScript() + assistantExceptionClientScript() });
   await expect(page.locator('[data-holiday-group="later"]')).toHaveAttribute('open', '');
   await expect(page.locator('#holiday-2027-03-22 [data-holiday-type]').first()).toBeFocused();
@@ -64,6 +66,7 @@ test('later dates can be read and expanded without JavaScript', async ({ browser
 test('links to saved decisions and Sundays reveal their groups without changing a decision', async ({ page }) => {
   for (const [date, group] of [['2026-12-25', 'saved'], ['2027-03-21', 'sundays']]) {
     await page.goto(`/iframe.html?id=workspace-holiday-planning--upcoming&viewMode=story&date=${date}`, { waitUntil: 'networkidle' });
+    await expect(page.getByRole('heading', { name: 'Clinic & booking hours', exact: true })).toBeVisible();
     await page.addScriptTag({ content: clinicHoursTabsClientScript() + clinicHoursClientScript() + assistantExceptionClientScript() });
     await expect(page.locator(`[data-holiday-group="${group}"]`)).toHaveAttribute('open', '');
     await expect(page.locator('#holiday-'+date)).toBeVisible();
@@ -75,6 +78,7 @@ test('links to saved decisions and Sundays reveal their groups without changing 
 for (const width of [390, 820, 1440]) test(`proclaimed election holiday can be selected in the existing editor at ${width}`, async ({ page }, info) => {
   await page.setViewportSize({ width, height: 1000 });
   await page.goto('/iframe.html?id=workspace-holiday-planning--election-day&viewMode=story&date=2026-11-04', { waitUntil: 'networkidle' });
+  await expect(page.getByRole('heading', { name: 'Clinic & booking hours', exact: true })).toBeVisible();
   await page.addScriptTag({ content: clinicHoursTabsClientScript() + clinicHoursClientScript() + assistantExceptionClientScript() });
   await expect(page.locator('#holiday-2026-11-04')).toContainText('Local Government Election Day');
   await expect(page.locator('#holiday-2026-11-04')).toContainText('Needs attention');
@@ -85,7 +89,22 @@ for (const width of [390, 820, 1440]) test(`proclaimed election holiday can be s
   expect(axe.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: info.outputPath(`election-holiday-${width}.png`), fullPage: true });
-  if (width === 820) expect(await page.locator('.workspace-nav').evaluate(node => node.getBoundingClientRect().height)).toBeLessThan(180);
+  if (width === 820) {
+    const nav = await page.locator('.workspace-nav').boundingBox();
+    const heading = await page.getByRole('heading', { name: 'Clinic & booking hours', exact: true }).boundingBox();
+    expect(heading.y).toBeLessThan(180);
+    expect(nav.x + nav.width).toBeLessThanOrEqual(heading.x);
+    const accountControls = page.locator('.workspace-account .workspace-account-signout:visible');
+    await expect(accountControls).toHaveCount(2);
+    await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible();
+    for (const control of await accountControls.all()) {
+      const bounds = await control.boundingBox();
+      expect(bounds.height).toBeGreaterThanOrEqual(44);
+      expect(bounds.x).toBeGreaterThanOrEqual(nav.x);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(nav.x + nav.width);
+      expect(bounds.y + bounds.height).toBeLessThanOrEqual(1000);
+    }
+  }
   // Synthetic UI inspection only: do not save clinic decisions.
 });
 
@@ -100,6 +119,7 @@ for (const width of [390, 1440]) test(`weekly hours omit Sunday and retain six-d
     await route.fulfill({ json: { revision: 'synthetic-next' } });
   });
   await page.goto('/iframe.html?id=workspace-production-surfaces--clinic-and-assistant-hours&viewMode=story', { waitUntil: 'networkidle' });
+  await expect(page.getByRole('heading', { name: 'Clinic & booking hours', exact: true })).toBeVisible();
   await page.addScriptTag({ content: clinicHoursTabsClientScript() + clinicHoursClientScript() + assistantExceptionClientScript() });
   for (const kind of ['clinic', 'assistant']) {
     await page.locator('[data-hours-tab="'+kind+'"]').click();
@@ -130,6 +150,7 @@ test('per-date saves preserve other edits, use the existing endpoints and retain
     await route.fulfill({ status: refuse ? 400 : 200, json: refuse ? { error: 'Synthetic hours refusal' } : { ok: true } });
   });
   await page.goto('/iframe.html?id=workspace-holiday-planning--upcoming&viewMode=story&view=holidays', { waitUntil: 'networkidle' });
+  await expect(page.getByRole('heading', { name: 'Clinic & booking hours', exact: true })).toBeVisible();
   await page.addScriptTag({ content: clinicHoursTabsClientScript() + clinicHoursClientScript() + assistantExceptionClientScript() });
   await expect(page.locator('[data-assistant-special-form]')).toBeHidden();
   await expect(page.locator('.other-date [data-assistant-special-form]')).toHaveCount(1);
