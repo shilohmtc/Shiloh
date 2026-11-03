@@ -51,6 +51,8 @@ For a small documentation-only change, apply the same branch, tree, PR, exact-he
 
 ## Interface quality
 
+- Accepted owner direction, 3 November 2026: default to clean, professional, simple layouts that are easy to update and manage across Shiloh. Use consistent patterns and mobile judgment without waiting for a separate request for simplicity. Keep necessary decisions and safeguards clear; put less-used controls behind an accessible disclosure.
+
 - Every meaningful interface change must be reviewed in Storybook.
 - Test relevant desktop and phone behavior with Playwright.
 - Include accessibility checks and relevant visual evidence.

@@ -146,7 +146,10 @@ test('#751 presentation is explicit about existing appointments, holiday separat
   assert.match(html, /Online bookings/);
   assert.match(html, /Public holidays/);
   assert.doesNotMatch(html, /Clinic-wide authority|Two clear boundaries|Client-facing availability/);
-  assert.match(html, /Sunday cannot be opened here/);
+  assert.match(html, /Sundays remain closed/);
+  assert.doesNotMatch(html, /data-(?:clinic|assistant)-day="0"/);
+  assert.equal((html.match(/data-clinic-day=/g) || []).length, 6);
+  assert.equal((html.match(/data-assistant-day=/g) || []).length, 6);
   assert.match(html, /type="time"/);
   assert.match(clinicHoursClientScript(), /staff-auth\/csrf/);
   assert.match(clinicHoursClientScript(), /x-shiloh-csrf-token/);
@@ -159,7 +162,7 @@ test('#751 presentation is explicit about existing appointments, holiday separat
   assert.match(html, /data-hours-tab="holidays"/);
   assert.match(clinicHoursClientScript(), /data-hours-form/);
   assert.match(html, /position:sticky/);
-  assert.match(html, /data-open="false"/);
+  assert.doesNotMatch(html, /aria-label="Sunday status"/);
 });
 
 test('#751 Workspace navigation exposes Clinic hours only when schedule:manage access resolves', async () => {
