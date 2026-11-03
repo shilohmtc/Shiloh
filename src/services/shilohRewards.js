@@ -178,13 +178,27 @@ function createShilohRewardsService({db=pool,notifyClient=null}={}) {
 
   async function getWorkspaceModel({adminId}={}){const operator=await resolveOperator(db,adminId,CAPABILITIES.VIEW);await syncEligibleEarnings();await syncCancelledRedemptions();const [config,wallets]=await Promise.all([settings(db),db.query(`SELECT w.id,w.crm_v2_client_id,c.name,c.normalized_mobile,COALESCE(SUM(e.signed_amount),0)::numeric(12,2) AS balance,MAX(e.created_at) AS latest_activity FROM loyalty_wallets w JOIN crm_v2_clients c ON c.id=w.crm_v2_client_id LEFT JOIN loyalty_wallet_entries e ON e.wallet_id=w.id GROUP BY w.id,c.id ORDER BY MAX(e.created_at) DESC NULLS LAST,c.name LIMIT 200`)]);return{policy:config,wallets:wallets.rows,authority:{canManage:hasCapability(operator.calendarAuthority,CAPABILITIES.MANAGE),canRedeem:hasCapability(operator.calendarAuthority,CAPABILITIES.REDEEM)}};}
 
+  // Profile inspection must not synchronise earnings or create a wallet.
+  async function getWorkspaceClientModel({ adminId, clientId } = {}) {
+    await resolveOperator(db, adminId, CAPABILITIES.VIEW);
+    const id = positiveId(clientId, 'client');
+    const wallet = (await db.query(`SELECT id FROM loyalty_wallets WHERE crm_v2_client_id=$1`, [id])).rows[0];
+    const config = await settings(db);
+    if (!wallet) return { policy: config, wallet: null, entries: [] };
+    const [position, entries] = await Promise.all([
+      walletPosition(db, wallet.id),
+      db.query(`SELECT entry_type,signed_amount,notes,created_at FROM loyalty_wallet_entries WHERE wallet_id=$1 ORDER BY id DESC LIMIT 50`, [wallet.id]),
+    ]);
+    return { policy: config, wallet: { ...position, unlocked: position.balance >= config.unlockThreshold }, entries: entries.rows };
+  }
+
   async function resolveAccess(adminId){try{return await resolveOperator(db,adminId,CAPABILITIES.VIEW);}catch(error){if(error instanceof ShilohRewardsError&&error.httpStatus===403)return null;throw error;}}
 
   async function adjust({adminId,clientSearch,amount,direction,notes,operationId}={}){const selected=String(direction||'');if(!['add','remove'].includes(selected))throw new ShilohRewardsError('REWARDS_INVALID_DIRECTION','Choose whether to add or remove reward credit.');const value=money(amount,{positive:true}),key=operationKey(operationId);const client=await db.connect();try{await client.query('BEGIN');const operator=await resolveOperator(client,adminId,CAPABILITIES.MANAGE);const clientId=await resolveAdjustmentClient(client,clientSearch);const wallet=await ensureWallet(client,clientId);await client.query(`SELECT id FROM loyalty_wallets WHERE id=$1 FOR UPDATE`,[wallet.id]);const adjustmentKey=`adjustment:${operator.id}:${key}`;const replay=(await client.query(`SELECT * FROM loyalty_wallet_entries WHERE operation_key=$1`,[adjustmentKey])).rows[0];if(replay){await client.query('COMMIT');return{status:'idempotent_replay',entry:replay};}const position=await walletPosition(client,wallet.id);if(selected==='remove'&&Number(value)>position.balance)throw new ShilohRewardsError('REWARDS_EXCEEDS_BALANCE','That adjustment is greater than the client’s rewards balance.',409);const entry=(await client.query(`INSERT INTO loyalty_wallet_entries(wallet_id,entry_type,signed_amount,operation_key,actor_admin_id,notes) VALUES($1,'adjustment',$2,$3,$4,$5) RETURNING *`,[wallet.id,selected==='remove'?`-${value}`:value,adjustmentKey,operator.id,String(notes||'').trim().slice(0,240)||null])).rows[0];await client.query(`INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata) VALUES($1,'loyalty.adjusted','loyalty_wallet',$2,$3::jsonb)`,[operator.id,wallet.id,JSON.stringify({direction:selected,amount:value,noteProvided:Boolean(String(notes||'').trim())})]);await client.query('COMMIT');return{status:'adjusted',entry};}catch(error){try{await client.query('ROLLBACK');}catch(_){}throw error;}finally{client.release();}}
 
   async function getClientBalance(crmV2ClientId){const model=await getClientModel({crmV2ClientId});return{balance:model.wallet.balance,unlocked:model.wallet.unlocked,unlockThreshold:model.policy.unlockThreshold,earnRate:model.policy.earnRate};}
 
-  return{settings,syncEligibleEarnings,syncCancelledRedemptions,getClientModel,getClientBalance,getWorkspaceModel,resolveAccess,applyCredit,applyStaffCredit,adjust,accountOutstanding};
+  return{settings,syncEligibleEarnings,syncCancelledRedemptions,getClientModel,getClientBalance,getWorkspaceModel,getWorkspaceClientModel,resolveAccess,applyCredit,applyStaffCredit,adjust,accountOutstanding};
 }
 
 module.exports={CAPABILITIES,ShilohRewardsError,money,rewardAmount,createShilohRewardsService};

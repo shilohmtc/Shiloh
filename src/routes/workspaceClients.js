@@ -97,6 +97,7 @@ function createWorkspaceClientDetailHandler({
         historyOffset: req.query?.historyOffset,
         policyOffset: req.query?.policyOffset,
         formsPage: req.query?.formsPage,
+        services: req.query?.services,
       });
       let notificationActionAllowed = false;
       try {

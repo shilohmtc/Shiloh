@@ -2,6 +2,8 @@ const { escapeHtml } = require('./workspaceShell');
 const { renderClientDetailPage } = require('./workspaceClientsUx');
 const { decorateClientAppointmentHistory } = require('./calendarAppointmentDetailLinks');
 
+const { renderClientServices, clientServicesStyles } = require('./workspaceClientServicesUx');
+
 const BUSINESS_TIMEZONE = 'Africa/Johannesburg';
 
 function formatDateTime(value) {
@@ -46,19 +48,21 @@ function renderCommunicationSection(communications = [], unavailable = false) {
     ? '<div class="empty">Communication evidence is temporarily unavailable. No delivery claim is being made.</div>'
     : (rows || '<div class="empty">No recorded Shiloh notifications yet.</div>');
 
-  return `<section class="history-panel" data-client-communications style="margin-bottom:12px"><header class="section-heading"><div><span class="eyebrow">Communications</span><h2>My Shiloh updates</h2></div><div class="detail-actions"><span class="truth-note">App availability does not confirm a phone alert or a read receipt</span><a class="button" href="/calendar/messages?view=recent">View all activity</a></div></header><div class="history-list">${body}</div></section>`;
+  return `<section class="history-panel" data-client-communications style="margin-bottom:12px"><header class="section-heading"><div><span class="eyebrow">Communications</span><h2>My Shiloh updates</h2></div><div class="detail-actions"><span class="truth-note">App availability does not confirm a phone alert or a read receipt</span><a class="button" href="/calendar/messages?view=recent">Clinic activity</a></div></header><div class="history-list">${body}</div></section>`;
 }
 
 function renderClientDetailPageWithCommunications(model, options = {}) {
-  const base = decorateClientAppointmentHistory(
+  let base = decorateClientAppointmentHistory(
     renderClientDetailPage(model, options),
     model?.appointments || [],
   );
-  const actionSection = ''; // Automated WhatsApp confirmation controls are retired.
-  const communicationSection = renderCommunicationSection(model?.communications || [], model?.communicationsUnavailable === true);
-  const marker = '<section class="history-panel">';
-  if (!base.includes(marker)) return base;
-  return base.replace(marker, `${actionSection}${communicationSection}${marker}`);
+  const policyPattern = /<section class="history-panel" id="policy-documents"[\s\S]*?<\/section>/;
+  const policySection = base.match(policyPattern)?.[0] || '';
+  base = base.replace(policyPattern, '');
+  const services = renderClientServices(model, { policySection,
+    activitySection: renderCommunicationSection(model?.communications || [], model?.communicationsUnavailable === true) });
+  return base.replace('<section class="history-panel">', `${services}<section class="history-panel">`)
+    .replace('</style>', `${clientServicesStyles}</style>`);
 }
 
 module.exports = {
