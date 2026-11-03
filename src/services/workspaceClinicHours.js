@@ -1,3 +1,5 @@
+const { annualClosureName, annualClosuresBetween } = require('../config/clinicAnnualClosures');
+const { dateKeyInBusinessTimezone } = require('./operationalCalendar');
 const { createHash } = require('crypto');
 const { pool } = require('../db/pool');
 const { getDefaultActiveLocation } = require('./clinicHours');
@@ -204,7 +206,7 @@ function canonicalExceptions(rows = []) {
 function canonicalHolidays(rows = []) {
   return rows.map(row => ({
     exceptionDate: dateValue(row.holiday_date),
-    holidayName: String(row.holiday_name || 'Public holiday'),
+    holidayName: String(row.holiday_name || annualClosureName(dateValue(row.holiday_date)) || 'Public holiday'),
     clinicExceptionType: row.clinic_exception_type || null,
     clinicStartsLocal: row.clinic_exception_type === 'open' ? timeValue(row.clinic_starts_local) : null,
     clinicEndsLocal: row.clinic_exception_type === 'open' ? timeValue(row.clinic_ends_local) : null,
@@ -336,24 +338,33 @@ function createWorkspaceClinicHoursService({ db = pool, locationResolver = getDe
     return result.rows;
   }
 
-  async function holidayRows(locationId, queryable = db) {
+  async function holidayRows(locationId, today, queryable = db) {
+    const horizon = `${Number(today.slice(0, 4)) + 1}-12-31`;
+    const annualDates = annualClosuresBetween(today, horizon);
     const result = await queryable.query(`/* workspaceClinicHours:holidayRows */
+      WITH dates AS (
+        SELECT holiday_date, name FROM public_holidays WHERE country_code='ZA' AND holiday_date >= $2::date
+        UNION
+        SELECT d::date, NULL::text FROM unnest($3::text[]) AS d
+      ), dates_named AS (
+        SELECT holiday_date, MAX(name) AS name FROM dates GROUP BY holiday_date
+      )
       SELECT h.holiday_date, h.name holiday_name,
              c.exception_type clinic_exception_type, c.starts_local clinic_starts_local, c.ends_local clinic_ends_local,
              a.exception_type assistant_exception_type, a.starts_local assistant_starts_local, a.ends_local assistant_ends_local
-        FROM public_holidays h
+        FROM dates_named h
         LEFT JOIN location_hours_exceptions c ON c.location_id=$1 AND c.exception_date=h.holiday_date
         LEFT JOIN location_assistant_hours_exceptions a ON a.location_id=$1 AND a.exception_date=h.holiday_date
-       WHERE h.country_code='ZA' AND h.holiday_date >= CURRENT_DATE
-       ORDER BY h.holiday_date LIMIT 16`, [locationId]);
+       ORDER BY h.holiday_date LIMIT 16`, [locationId, today, annualDates.map(row => row.holiday_date)]);
     return result.rows;
   }
 
-  async function buildModel({ adminId } = {}) {
+  async function buildModel({ adminId, now = new Date() } = {}) {
+    const today = dateKeyInBusinessTimezone(now);
     const authority = await requireAccess(adminId);
     const location = await requireLocation();
     const [daysRows, assistantDayRows, exceptionsRows, holidaysRows] = await Promise.all([
-      activeRows(location.id), assistantRows(location.id), exceptionRows(location.id), holidayRows(location.id),
+      activeRows(location.id), assistantRows(location.id), exceptionRows(location.id), holidayRows(location.id, today),
     ]);
     const days = canonicalDays(daysRows);
     const assistantDays = canonicalDays(assistantDayRows);
@@ -366,6 +377,7 @@ function createWorkspaceClinicHoursService({ db = pool, locationResolver = getDe
       assistantRevision: revisionFor(location.id, assistantDays),
       exceptions: canonicalExceptions(exceptionsRows),
       holidays: canonicalHolidays(holidaysRows),
+      today,
     };
   }
 
