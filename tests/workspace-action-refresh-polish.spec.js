@@ -124,12 +124,15 @@ function contrast(a,b){function l(h){const c=[1,3,5].map(i=>parseInt(h.slice(i,i
 for (const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width:1440,height:960}]) {
   test(`Focused Dashboard and Reports omit retired cards while financial and Messages paths remain on ${viewport.name}`, async ({page}) => {
     await page.route('**/calendar/pwa/icon-192.png*',r=>r.fulfill({path:path.resolve('public/assets/pwa/shiloh-pwa-192.png')}));
+    await page.route('**/calendar/workspace/navigation',r=>r.fulfill({json:{clients:{allowed:true,href:'/calendar/clients'}}}));
     await page.setViewportSize(viewport);
     for (const [story,root] of [['workspace-production-surfaces--focused-workspace-dashboard','.workspace-main'],['workspace-reports--focused-workspace-reports','.workspace-main']]) {
       await page.goto(`/iframe.html?id=${story}&viewMode=story`,{waitUntil:'networkidle'});
+      await page.addScriptTag({content:workspaceNavigationClientScript()});
       await expect(page.locator('[data-dashboard-communications-panel],[data-dashboard-voucher-panel],[data-welcome-voucher-campaign]')).toHaveCount(0);
       await expect(page.locator('a[href="#welcome-voucher"]')).toHaveCount(0);
-      await expect(page.locator('[data-workspace-destination="messages"]')).toHaveCount(1);
+      await expect(page.locator('[data-workspace-destination="clients"]')).toHaveAttribute('href','/calendar/clients');
+      await expect(page.locator('[data-workspace-destination="messages"]')).toHaveCount(0);
       if(story.includes('dashboard')){
         await expect(page.locator('[data-dashboard-deposits]')).toContainText('Synthetic Aloe');
         await expect(page.locator('[data-dashboard-today]')).toContainText('Open calendar');
@@ -150,5 +153,10 @@ for (const viewport of [{name:'phone',width:390,height:844},{name:'desktop',widt
       expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
       fs.mkdirSync(evidence,{recursive:true});await page.screenshot({path:path.join(evidence,`${story.includes('dashboard')?'dashboard':'reports'}-${viewport.name}.png`),fullPage:true});
     }
+    await page.goto('/iframe.html?id=workspace-client-services--directory&viewMode=story',{waitUntil:'networkidle'});
+    await page.locator('[data-client-management] summary').click();
+    const activity=page.locator('[data-client-management] [data-workspace-destination="messages"]');
+    await expect(activity).toBeVisible();
+    await expect(activity).toHaveAttribute('href','/calendar/messages');
   });
 }
