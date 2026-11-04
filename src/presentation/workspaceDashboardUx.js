@@ -183,7 +183,7 @@ function bookingRequestItem(item, model) {
     : item.canChangePractitioner === false ? '<p class="request-note">This request keeps its current practitioner team. Choose an alternative date and time.</p>' : '';
   const members = item.members ? `<div class="couples-request-members">${item.members.map(member=>`<p class="request-note"><strong>${escapeHtml(member.clientName)}</strong> · ${escapeHtml(member.serviceName)} · ${escapeHtml(member.practitionerName)} · ${escapeHtml(dateTimeLabel(member.requestedStartsAt))}</p>`).join('')}<p class="request-note"><strong>${family ? 'Total for everyone:' : 'Total for both:'}</strong> ${escapeHtml(formatRand(item.groupTotal))}</p></div>` : '';
   const attendanceAction = item.canRecordAttendance && !item.groupId
-    ? '<button data-workspace-action="secondary" class="action-button complete" type="button" data-booking-action="already-attended">Already attended</button>'
+    ? '<button data-workspace-action="create" class="action-button complete" type="button" data-booking-action="already-attended">Already attended</button>'
     : '';
   const groupAttendanceNote = item.attendanceGroupReview ? '<p class="request-note">Attendance needs a separate review for each person. This shortcut cannot resolve grouped bookings.</p>' : '';
   const proposal = awaiting ? `<p class="request-note">Proposed ${escapeHtml(dateTimeLabel(item.proposedStartsAt))} with ${escapeHtml(item.proposedStaffName || item.staffName)}. The client must accept before confirmation.</p>` : '<p class="request-note">Accept the requested appointment or propose an alternative. This request is not confirmed yet.</p>';
