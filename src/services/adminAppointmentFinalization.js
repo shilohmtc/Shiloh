@@ -358,6 +358,33 @@ async function loadReplacementService(appointmentId, serviceId, db = pool) {
   return result.rows[0] || null;
 }
 
+// Caller must hold the appointment lock and validate current certification authority.
+async function recordFinalization(db, admin, appointment, targetStatus, { workspace = false, allowBusinessBackup = false } = {}) {
+  const isNoCharge = targetStatus === 'no_charge';
+  const canonicalStatus = isNoCharge ? 'completed' : targetStatus;
+  const financialClassification = isNoCharge ? 'no_charge' : 'standard';
+  await db.query(
+    `UPDATE appointments SET status=$1,financial_classification=$2,
+     pre_adjustment_total_price=CASE WHEN $2='no_charge' THEN COALESCE(pre_adjustment_total_price,total_price) ELSE pre_adjustment_total_price END,
+     total_price=CASE WHEN $2='no_charge' THEN 0 ELSE total_price END,updated_at=NOW() WHERE id=$3`,
+    [canonicalStatus, financialClassification, appointment.id]
+  );
+  await db.query(
+    `INSERT INTO appointment_status_history (appointment_id,from_status,to_status,changed_by,reason) VALUES ($1,$2,$3,$4,$5)`,
+    [appointment.id, appointment.status, canonicalStatus, `admin:${admin.id}:${admin.display_name}`, workspace
+      ? 'Explicit Workspace attendance certification'
+      : isNoCharge
+        ? 'Explicit WhatsApp practitioner attendance certification — no-charge visit; client charge R0; practitioner earnings R0'
+        : 'Explicit WhatsApp practitioner attendance certification']
+  );
+  await db.query(`UPDATE appointment_lifecycle SET status=$1,updated_at=NOW() WHERE appointment_id=$2`, [canonicalStatus, appointment.id]);
+  await db.query(
+    `INSERT INTO crm_audit_events (actor_admin_id,action,entity_type,entity_id,metadata) VALUES ($1,'admin.appointment_finalized','appointment',$2,$3::jsonb)`,
+    [admin.id, String(appointment.id), JSON.stringify({ fromStatus: appointment.status, toStatus: canonicalStatus, outcome: targetStatus, startsAt: appointment.starts_at, explicitAdminDecision: true, certificationAuthority: authorityDescription(admin, { workspace, allowBusinessBackup }), surface: workspace ? 'workspace_dashboard' : 'whatsapp', financialClassification, previousTotalPrice: appointment.total_price, clientCharge: isNoCharge ? 0 : appointment.total_price, practitionerEarningsOverride: isNoCharge ? 0 : null })]
+  );
+  return { canonicalStatus, financialClassification };
+}
+
 async function finalizeAppointment(admin, appointmentId, targetStatus, {
   windowStart = HISTORICAL_WINDOW_START,
   windowEnd = HISTORICAL_WINDOW_END,
@@ -381,28 +408,7 @@ async function finalizeAppointment(admin, appointmentId, targetStatus, {
       return { status: 'stale_revision' };
     }
     if (!(await canCertifyAppointment(admin, appointment.id, db, { workspace, allowBusinessBackup }))) { await db.query('ROLLBACK'); return { status: 'certification_forbidden' }; }
-    const isNoCharge = targetStatus === 'no_charge';
-    const canonicalStatus = isNoCharge ? 'completed' : targetStatus;
-    const financialClassification = isNoCharge ? 'no_charge' : 'standard';
-    await db.query(
-      `UPDATE appointments SET status=$1,financial_classification=$2,
-       pre_adjustment_total_price=CASE WHEN $2='no_charge' THEN COALESCE(pre_adjustment_total_price,total_price) ELSE pre_adjustment_total_price END,
-       total_price=CASE WHEN $2='no_charge' THEN 0 ELSE total_price END,updated_at=NOW() WHERE id=$3`,
-      [canonicalStatus, financialClassification, appointment.id]
-    );
-    await db.query(
-      `INSERT INTO appointment_status_history (appointment_id,from_status,to_status,changed_by,reason) VALUES ($1,$2,$3,$4,$5)`,
-      [appointment.id, appointment.status, canonicalStatus, `admin:${admin.id}:${admin.display_name}`, workspace
-        ? 'Explicit Workspace attendance certification'
-        : isNoCharge
-          ? 'Explicit WhatsApp practitioner attendance certification — no-charge visit; client charge R0; practitioner earnings R0'
-          : 'Explicit WhatsApp practitioner attendance certification']
-    );
-    await db.query(`UPDATE appointment_lifecycle SET status=$1,updated_at=NOW() WHERE appointment_id=$2`, [canonicalStatus, appointment.id]);
-    await db.query(
-      `INSERT INTO crm_audit_events (actor_admin_id,action,entity_type,entity_id,metadata) VALUES ($1,'admin.appointment_finalized','appointment',$2,$3::jsonb)`,
-      [admin.id, String(appointment.id), JSON.stringify({ fromStatus: appointment.status, toStatus: canonicalStatus, outcome: targetStatus, startsAt: appointment.starts_at, explicitAdminDecision: true, certificationAuthority: authorityDescription(admin, { workspace, allowBusinessBackup }), surface: workspace ? 'workspace_dashboard' : 'whatsapp', financialClassification, previousTotalPrice: appointment.total_price, clientCharge: isNoCharge ? 0 : appointment.total_price, practitionerEarningsOverride: isNoCharge ? 0 : null })]
-    );
+    const { canonicalStatus, financialClassification } = await recordFinalization(db, admin, appointment, targetStatus, { workspace, allowBusinessBackup });
     await db.query('COMMIT');
     return { status: 'updated', appointment, targetStatus, canonicalStatus, financialClassification };
   } catch (error) {
@@ -691,7 +697,7 @@ async function processAdminAppointmentFinalizationMessage(sender, text) {
 module.exports = {
   FINAL_STATUSES, PAGE_SIZE, SERVICE_PAGE_SIZE, HISTORICAL_WINDOW_START, HISTORICAL_WINDOW_END,
   pendingPastAppointments, pendingListInteractive, refreshedQueueInteractive, decisionInteractive, reviewOnlyInteractive,
-  loadAuthorizedPendingAppointment, finalizeAppointment, finalizePriceAdjustedAppointment, finalizeServiceChangedAppointment,
+  recordFinalization, loadAuthorizedPendingAppointment, finalizeAppointment, finalizePriceAdjustedAppointment, finalizeServiceChangedAppointment,
   priceEntryInteractive, priceConfirmationInteractive, parseAdjustedPrice,
   getPriceAdjustmentIntent, hasPendingPriceAdjustmentIntent, clearPriceAdjustmentIntent,
   getServiceChangeIntent, hasPendingServiceChangeIntent, clearServiceChangeIntent, ensureServiceChangeSchema,

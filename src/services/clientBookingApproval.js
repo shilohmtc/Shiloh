@@ -769,6 +769,7 @@ module.exports = {
   proposalReplyButtons,
   parseClientProposalAction,
   operatorCanResolve,
+  loadRequest,
   requestSnapshotMatches,
   createPendingBookingApproval,
   listUnresolvedBookingRequests,

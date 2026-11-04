@@ -414,6 +414,35 @@ test('booking-request routes preserve session, same-origin and CSRF boundaries',
   });
 });
 
+test('Already attended route preserves session, same-origin and CSRF boundaries', async () => {
+  const calls = [];
+  const session = { ok: true, adminId: 7, viewer: { calendarScope: 'own_staff', staffId: 11 }, csrfHash: 'test' };
+  const sessionService = {
+    async validateSessionToken(token) { return token === 'valid' ? session : { ok: false }; },
+    validateCsrfToken(current, token) { return current === session && token === 'csrf'; },
+  };
+  const dashboardService = {
+    async buildModel() { throw new Error('not used'); },
+    async resolveBookingRequest(input) { calls.push(input); return { ok: true, status: 'awaiting_client_confirmation' }; },
+  };
+  const app = express();
+  app.use(express.json());
+  app.use('/calendar/workspace', createWorkspaceOperationalRouter({ env: ENABLED_ENV, sessionService, dashboardService }));
+  await withServer(app, async base => {
+    const path = `${base}/calendar/workspace/booking-requests/7651/already-attended`;
+    const body = JSON.stringify({ expectedRevision: '2026-09-05T06:30:00.000Z', startsAt: '2026-09-11T08:00:00.000Z', staffId: 11, expectedAppointmentRevision: '2026-09-05T06:30:00.000Z', expectedApprovalRevision: '2026-09-05T06:30:00.000Z' });
+    assert.equal((await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body })).status, 401);
+    assert.equal((await fetch(path, { method: 'POST', headers: { cookie: 'shiloh_staff_session=valid', 'content-type': 'application/json' }, body })).status, 403);
+    assert.equal((await fetch(path, { method: 'POST', headers: { cookie: 'shiloh_staff_session=valid', origin: base, 'content-type': 'application/json', 'x-shiloh-csrf-token': 'bad' }, body })).status, 403);
+    assert.equal((await fetch(path, { method: 'POST', headers: { cookie: 'shiloh_staff_session=valid', origin: base, 'content-type': 'application/json', 'x-shiloh-csrf-token': 'csrf' }, body })).status, 200);
+  });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], {
+    adminId: 7, viewer: session.viewer, appointmentId: '7651', action: 'already-attended',
+    expectedRevision: '2026-09-05T06:30:00.000Z', startsAt: '2026-09-11T08:00:00.000Z', staffId: 11, serviceId: undefined, expectedAppointmentRevision: '2026-09-05T06:30:00.000Z', expectedApprovalRevision: '2026-09-05T06:30:00.000Z',
+  });
+});
+
 test('Reception time-change decision requires session, same origin and CSRF', async () => {
   const calls = [];
   const session = { ok: true, adminId: 7, viewer: { calendarScope: 'all_business' }, csrfHash: 'test' };
