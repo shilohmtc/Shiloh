@@ -16,7 +16,7 @@ const ENV = {
 };
 
 function chromeExecutable() {
-  return [process.env.CHROME_BIN, '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser']
+  return [process.env.CHROME_BIN, chromium.executablePath(), '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser']
     .find(candidate => candidate && fs.existsSync(candidate)) || null;
 }
 function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'); }
@@ -97,8 +97,8 @@ async function main() {
     server.listen(0, '127.0.0.1');
     await once(server, 'listening');
     const origin = `http://127.0.0.1:${server.address().port}`;
-    // Keep the approved preinstalled executable and the existing 15-second startup bound.
-    // Playwright uses its pipe transport; no downloaded browser or DevToolsActivePort file.
+    // Prefer the Chromium build matched to this Playwright version; retain explicit CHROME_BIN overrides.
+    // Keep the existing 15-second startup bound and pipe transport.
     chrome = await chromium.launch({ executablePath: executable, headless: true, timeout: 15000,
       args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--hide-scrollbars'], });
     const context = await chrome.newContext({ viewport: null });

@@ -1,6 +1,7 @@
 const { pool } = require('../db/pool');
 const bookingRequests = require('./clientBookingApproval');
 const rescheduleRequests = require('./clientRescheduleApproval');
+const { canAccessWorkspaceBackupFinalization } = require('./attendanceFinalizationAuthority');
 
 const GLOBAL_COORDINATION_ROLES = new Set(['owner', 'business_admin', 'booking_operator']);
 
@@ -102,6 +103,8 @@ async function rawUnresolvedRows(db, scope) {
              WHERE gm.appointment_id=a.id AND g.source='shiloh_my_shiloh_couples' AND g.group_type IN ('couples_massage','group_booking')) AS couples_group_id,
            (SELECT gm.guest_position FROM appointment_group_members gm WHERE gm.appointment_id=a.id) AS guest_position,
            (SELECT g.final_total FROM appointment_group_members gm JOIN appointment_groups g ON g.id=gm.group_id WHERE gm.appointment_id=a.id) AS group_total,
+           aba.updated_at AS approval_revision,a.status AS appointment_status,a.updated_at AS appointment_revision,a.ends_at AS appointment_ends_at,
+           EXISTS(SELECT 1 FROM appointment_group_members WHERE appointment_id=a.id) AS grouped,
            aba.appointment_id,aba.approver_staff_id,aba.status,aba.requested_at,aba.planning_started_at,aba.client_occasion_note,aba.client_special_occasion,
            aba.requested_starts_at,aba.requested_ends_at,aba.requested_revision,
            aba.requested_staff_ids,aba.proposed_starts_at,aba.proposed_ends_at,
@@ -162,6 +165,12 @@ async function listUnresolvedBookingRequests({ db = pool, principal, now = new D
     groupId:positiveId(row.couples_group_id), guestPosition:Number(row.guest_position||0), groupTotal:row.group_total,
     appointmentId: Number(row.appointment_id),
     currentStaffId: positiveId(row.current_staff_id),
+    appointmentRevision: revisionOf(row.appointment_revision),
+    approvalRevision: revisionOf(row.approval_revision),
+    attendanceGroupReview: row.grouped === true && new Date(row.appointment_ends_at).getTime() < now.getTime(),
+    canRecordAttendance: row.grouped === false && canAccessWorkspaceBackupFinalization(principal)
+      && ['scheduled', 'confirmed', 'completed'].includes(row.appointment_status)
+      && new Date(row.appointment_ends_at).getTime() < now.getTime(),
     canChangePractitioner: Number(row.current_staff_count) === 1,
     eligiblePractitioners: Number(row.current_staff_count) === 1 && Array.isArray(row.eligible_practitioners)
       ? row.eligible_practitioners : [],

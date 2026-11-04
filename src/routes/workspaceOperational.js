@@ -253,6 +253,8 @@ function createWorkspaceOperationalRouter({
         appointmentId: req.params.appointmentId,
         action,
         expectedRevision: req.body?.expectedRevision,
+        ...(action === 'already-attended' ? { expectedAppointmentRevision: req.body?.expectedAppointmentRevision,
+          expectedApprovalRevision: req.body?.expectedApprovalRevision } : {}),
         startsAt: req.body?.startsAt,
         staffId: req.body?.staffId,
         ...(req.body?.staffIds!==undefined ? {staffIds:req.body.staffIds} : {}),
@@ -265,6 +267,8 @@ function createWorkspaceOperationalRouter({
     }
   }
 
+  router.post('/booking-requests/:appointmentId/already-attended', sameOrigin, requireCsrf,
+    (req, res) => bookingRequestAction(req, res, 'already-attended'));
   router.post('/booking-requests/:appointmentId/accept', sameOrigin, requireCsrf,
     (req, res) => bookingRequestAction(req, res, 'accept'));
   router.post('/booking-requests/:appointmentId/propose', sameOrigin, requireCsrf,

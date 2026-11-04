@@ -51,6 +51,16 @@ jobs:
           path: artifacts/holiday-review
           if-no-files-found: error
           retention-days: 14
+      - name: Prove past booking attendance on phone and desktop
+        run: npx playwright test tests/workspace-already-attended.spec.js --config=playwright.ux.config.js
+      - name: Upload attended visit review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: already-attended-review
+          path: artifacts/already-attended
+          if-no-files-found: error
+          retention-days: 14
       - name: Prove Client Directory navigation and affected visual baselines
         run: |
           node scripts/ux-baseline-codec.js decode
