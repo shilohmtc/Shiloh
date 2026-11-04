@@ -361,7 +361,7 @@ const METRICS_EXPRESSION = `(() => {
   const targets = Array.from(document.querySelectorAll('.workspace-nav a,.workspace-nav button')).filter(visible);
   const nav = document.querySelector('.workspace-nav');
   const frame = document.querySelector('.workspace-frame');
-  const active = document.querySelector('.workspace-link.active');
+  const active = document.querySelector('.workspace-link.active,.workspace-link.current-section');
   const menuToggle = document.querySelector('[data-workspace-drawer-toggle]');
   const drawerHeader = document.querySelector('.workspace-drawer-header');
   const drawerClose = document.querySelector('[data-workspace-drawer-close]');
@@ -477,7 +477,7 @@ async function main() {
       // A same-URL navigation can otherwise read the old document as complete.
       if (navigation.loaderId) await poll(() => cdp.send('Page.getFrameTree'), tree => tree.frameTree.frame.loaderId === navigation.loaderId);
       await poll(() => evaluate(cdp, 'document.readyState'), value => value === 'complete');
-      await poll(() => evaluate(cdp, `Array.from(document.querySelectorAll('[data-workspace-destination]')).filter(n=>n.tagName==='A'||n.classList.contains('active')).length`), value => value === 8);
+      await poll(() => evaluate(cdp, `Array.from(document.querySelectorAll('[data-workspace-destination]')).filter(n=>n.tagName==='A'||n.classList.contains('active')).length`), value => value === (new URL(url).pathname === '/calendar/clients' ? 8 : 7));
     }
     async function screenshot(name) {
       const result = await cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false, fromSurface: true });
@@ -497,7 +497,6 @@ async function main() {
         await poll(() => evaluate(cdp, `document.querySelector('[data-workspace-navigation-drawer]').classList.contains('open')`), Boolean);
         await poll(() => evaluate(cdp, `document.querySelector('[data-workspace-navigation-drawer]').getBoundingClientRect().left`), value => value >= -1);
       }
-      await evaluate(cdp, `document.querySelector('[data-client-services]').open=true;true`);
       const metrics = await evaluate(cdp, METRICS_EXPRESSION);
       assert.deepEqual(metrics.viewport, { width, height, screenWidth: width, screenHeight: height });
       assert.ok(metrics.rootScrollWidth <= width + 1, `${name} leaked horizontal page overflow`);
@@ -513,7 +512,7 @@ async function main() {
         assert.equal(metrics.framePaddingBottom, 0, `${name} still reserves bottom-navigation space`);
         if (openDrawer) {
           assert.equal(metrics.drawerOpen, true);
-          assert.deepEqual(metrics.primary, ['Dashboard', 'Calendar', 'Client Directory', 'Activity']);
+          assert.deepEqual(metrics.primary, ['Dashboard', 'Calendar', 'Client Directory']);
           assert.deepEqual(metrics.secondary, ['Staff', 'Services', 'Clinic reports', 'Clinic hours']);
           assert.ok(Math.abs(metrics.navWidth - Math.min(width * 0.6, 220)) <= 1, `${name} drawer width is not compactly contained: ${metrics.navWidth}px`);
           assert.ok(metrics.drawerHeaderRight <= metrics.navRight, `${name} drawer header escapes its panel`);
@@ -537,7 +536,7 @@ async function main() {
         }
       } else {
         assert.equal(metrics.drawerLogoLoaded, true, `${name} did not paint the Shiloh desktop logo`);
-        assert.deepEqual([...metrics.primary, ...metrics.secondary], ['Dashboard', 'Calendar', 'Client Directory', 'Activity', 'Staff', 'Services', 'Clinic reports', 'Clinic hours', 'Problem reports']);
+        assert.deepEqual([...metrics.primary, ...metrics.secondary], ['Dashboard', 'Calendar', 'Client Directory', 'Staff', 'Services', 'Clinic reports', 'Clinic hours', 'Problem reports']);
         assert.equal(metrics.moreVisible, false);
         assert.equal(metrics.accountFooterVisible, true, `${name} does not show the Desktop account footer`);
       }

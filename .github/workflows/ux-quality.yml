@@ -41,6 +41,10 @@ jobs:
           done
           cat /tmp/shiloh-storybook.log
           exit 1
+      - name: Prove Client Directory navigation and affected visual baselines
+        run: |
+          node scripts/ux-baseline-codec.js decode
+          npx playwright test tests/workspace-client-services.spec.js tests/ux-visual-accessibility.spec.js --config=playwright.ux.config.js --grep 'Client Directory management|(?:dashboard|messages|client-history)-(?:desktop|phone) visual and accessibility baseline'
       - name: Prove booking for two on Phone and Desktop
         run: npx playwright test tests/my-shiloh-couples-ux.spec.js --config=playwright.ux.config.js
       - name: Prove ordinary booking entry accessibility

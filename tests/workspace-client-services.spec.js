@@ -1,8 +1,9 @@
 const { test, expect } = require('@playwright/test');
+const { workspaceIconClientScript } = require('../src/presentation/workspaceIconClient');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { workspaceNavigationClientScript } = require('../src/presentation/workspaceShell');
 for (const width of [390, 820, 1440]) {
-  test(`Client Services activity, navigation and permissions at ${width}px`, async ({ page }, testInfo) => {
+  test(`Client Directory management, activity and permissions at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     const writes = [];
     page.on('request', request => { if (request.method() !== 'GET') writes.push(request.url()); });
@@ -20,25 +21,44 @@ for (const width of [390, 820, 1440]) {
     const axe = await new AxeBuilder({ page }).include('[data-client-activity]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
     expect(axe.violations).toEqual([]);
     await page.screenshot({ path: testInfo.outputPath(`client-services-${width}.png`), fullPage: true });
+    await page.addScriptTag({ content: workspaceIconClientScript() });
     await page.addScriptTag({ content: workspaceNavigationClientScript() });
     if (width <= 700) await page.locator('[data-workspace-drawer-toggle]').click();
-    const group = page.locator('[data-client-services]');
+    await expect(page.locator('[data-client-services]')).toHaveCount(0);
+    await expect(page.locator('[data-workspace-destination="clients"]')).toHaveAttribute('href', '/calendar/clients');
+    await page.goto('/iframe.html?id=workspace-client-services--directory&viewMode=story');
+    await page.addScriptTag({ content: workspaceIconClientScript() });
+    const group = page.locator('[data-client-management]');
     await expect(group.locator('summary')).toBeVisible();
-    for (const key of ['messages','vouchers','rewards','forms']) await expect(group.locator(`[data-workspace-destination="${key}"]`)).toBeVisible();
+    await expect(group.locator('a')).toHaveCount(4);
+    await expect(group.locator('a').first()).toBeHidden();
+    await group.locator('summary').focus();
+    await page.keyboard.press('Enter');
+    for (const key of ['messages','vouchers','rewards','forms']) {
+      const link = group.locator(`[data-workspace-destination="${key}"]`);
+      await expect(link).toBeVisible();
+      await expect(link.locator('strong')).toHaveCount(1);
+      await expect(link).toHaveAttribute('href', `/calendar/${key}`);
+      expect((await link.boundingBox()).height).toBeGreaterThanOrEqual(44);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect((await new AxeBuilder({ page }).include('[data-clients-list-view]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`client-directory-management-${width}.png`), fullPage: true });
     await group.locator('summary').click();
-    await expect(group.locator('[data-workspace-destination="forms"]')).toBeHidden();
-    await group.locator('summary').click();
-    await page.screenshot({ path: testInfo.outputPath(`client-services-navigation-${width}.png`), fullPage: true });
-    await page.goto('/iframe.html?id=workspace-client-services--lookup-only&viewMode=story');
-    await expect(page.locator('[data-needs-attention]')).toHaveCount(0);
-    await expect(page.getByRole('link', { name: /Needs attention/ })).toHaveCount(0);
-    await expect(page.locator('[data-client-services] a')).toHaveCount(0);
+    await expect(group.locator('a').first()).toBeHidden();
+    await page.screenshot({ path: testInfo.outputPath(`client-directory-compact-${width}.png`), fullPage: true });
+    await page.goto('/iframe.html?id=workspace-client-services--directory-permissions&viewMode=story');
+    await expect(page.locator('[data-client-management]')).toBeHidden();
     await page.route('**/calendar/workspace/navigation', route => route.fulfill({ json: { forms: { allowed: true, href: '/calendar/forms' }, rewards: { allowed: false, href: null } } }));
+    await page.addScriptTag({ content: workspaceIconClientScript() });
     await page.addScriptTag({ content: workspaceNavigationClientScript() });
-    if (width <= 700) await page.locator('[data-workspace-drawer-toggle]').click();
-    await expect(page.locator('[data-client-services] a')).toHaveCount(1);
+    await expect(page.locator('[data-client-management]')).toBeVisible();
+    await page.locator('[data-client-management] summary').click();
+    await expect(page.locator('[data-client-management] a')).toHaveCount(1);
     await expect(page.locator('[data-workspace-destination="forms"]')).toHaveAttribute('href', '/calendar/forms');
+    await expect(page.locator('[data-workspace-destination="forms"] strong')).toHaveText('Forms');
     await expect(page.locator('[data-workspace-destination="rewards"]')).toBeHidden();
+    await expect(page.locator('[data-workspace-navigation-drawer] [data-workspace-destination="forms"]')).toHaveCount(0);
     expect(writes).toEqual([]);
   });
 }

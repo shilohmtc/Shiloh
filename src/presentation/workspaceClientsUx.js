@@ -6,6 +6,8 @@ const {
   renderWorkspaceNavigation,
 } = require('./workspaceShell');
 
+const { renderClientManagement, clientManagementStyles } = require('./workspaceClientManagementUx');
+
 const BUSINESS_TIMEZONE = 'Africa/Johannesburg';
 
 function baseStyles() {
@@ -13,7 +15,7 @@ function baseStyles() {
 }
 
 function styles() {
-  return `${baseStyles()}:root{--muted:#52645b}`;
+  return `${baseStyles()}:root{--muted:#52645b}${clientManagementStyles()}`;
 }
 
 const appointmentHistoryResponsiveStyles = `@media(max-width:900px) and (min-width:701px){.history-row-link{grid-template-columns:150px minmax(170px,1fr) minmax(110px,.7fr) 100px 64px}.history-row-link .history-staff{grid-column:auto}}@media(max-width:700px){.history-row-link .status-pill{grid-column:2;grid-row:1/3}.history-row-link .history-open{grid-column:2;grid-row:3/5;align-self:end}}`;
@@ -73,6 +75,7 @@ function shellStart({ title, subtitle, displayName, calendarNavigationAllowed, s
 }
 
 function renderClientListPage(model, {
+  navigation = {},
   staffAccessScriptPath = '/calendar/staff/client.js',
   calendarNavigationAllowed = false,
 } = {}) {
@@ -88,11 +91,17 @@ function renderClientListPage(model, {
   const previous = model.offset > 0 ? `<a data-workspace-action="secondary" class="pager-link" href="${escapeHtml(listHref({ query: model.query, status: selectedStatus, offset: previousOffset }))}">Previous</a>` : '<span class="pager-spacer"></span>';
   const next = model.hasMore ? `<a data-workspace-action="secondary" class="pager-link" href="${escapeHtml(listHref({ query: model.query, status: selectedStatus, offset: model.offset + model.pageSize }))}">Next</a>` : '<span class="pager-spacer"></span>';
   return `${shellStart({ title: 'Client Directory', subtitle: 'Find and view client records.', displayName: model.authority?.displayName, calendarNavigationAllowed, staffAccessScriptPath })}<main data-clients-list-view>
+    ${renderClientManagement(navigation)}
     <section class="search-panel"><form class="search-form" method="get" action="/calendar/clients"><div class="field"><label for="client-search">Name or mobile number</label><input id="client-search" name="q" type="search" value="${escapeHtml(model.query || '')}" placeholder="Enter a name or mobile number" maxlength="120"></div><div class="field"><label for="client-status">Client status</label><select id="client-status" name="status">${statusOptions}</select></div><button data-workspace-action="secondary" class="button primary" type="submit">Search</button></form></section>
     <div class="result-summary"><span>${model.clients.length} client${model.clients.length === 1 ? '' : 's'} on this page</span></div>
     <section class="client-list" aria-label="Clients">${rows || '<div class="empty">No clients found.</div>'}</section>
     <nav class="pager" aria-label="Client result pages">${previous}${next}</nav>
   </main><p class="footer-note">This page is view only. Client editing and messaging are not available here.</p></div></div></div></body></html>`;
+}
+
+// A shared-tool capability does not grant access to client search or records.
+function renderClientManagementPage(navigation, options = {}) {
+  return `${shellStart({ title: 'Client Directory', subtitle: 'Open the client tools available to you.', ...options })}<main>${renderClientManagement(navigation)}</main></div></div></div></body></html>`;
 }
 
 function appointmentServices(appointment) {
@@ -182,6 +191,7 @@ module.exports = {
   maskMobile,
   acceptanceChannelLabel,
   renderClientListPage,
+  renderClientManagementPage,
   renderClientDetailPage,
   renderClientsUnavailablePage,
 };

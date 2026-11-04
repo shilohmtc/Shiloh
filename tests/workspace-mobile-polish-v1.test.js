@@ -78,18 +78,19 @@ test('mobile polish preserves capability-driven navigation rather than widening 
   assert.doesNotMatch(html, /href="\/calendar\/services"/);
 });
 
-test('Phone drawer keeps Forms before an icon-ready Problem reports utility item', () => {
+test('Phone drawer keeps Client Directory as the parent of Forms and retains Problem reports', () => {
   const css = workspaceShellStyles();
   const html = renderWorkspaceNavigation({
     active: 'forms',
     formsHref: '/calendar/forms',
     problemReportsHref: '/calendar/problem-reports',
   });
-  const formsIndex = html.indexOf('data-workspace-destination="forms"');
+  const directoryIndex = html.indexOf('data-workspace-destination="clients"');
   const problemReportsIndex = html.indexOf('data-workspace-destination="problemReports"');
-  assert.ok(formsIndex >= 0);
-  assert.ok(problemReportsIndex > formsIndex);
-  assert.match(html, /data-workspace-destination="forms"[^>]*aria-current="page">Forms<\/span>/);
+  assert.ok(directoryIndex >= 0);
+  assert.ok(problemReportsIndex > directoryIndex);
+  assert.doesNotMatch(html, /data-workspace-destination="forms"/);
+  assert.match(html, /class="workspace-link future current-section"[^>]*data-workspace-destination="clients"/);
   assert.match(html, /data-workspace-destination="problemReports" href="\/calendar\/problem-reports">Problem reports<\/a>/);
   assert.match(css, /\.workspace-link\[data-workspace-destination="problemReports"\]\{margin-top:4px\}/);
 });

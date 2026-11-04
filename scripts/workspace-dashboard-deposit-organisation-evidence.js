@@ -48,7 +48,7 @@ async function main() {
           attentionScroll: Math.max(0, attention.y - 100), firstActionScroll: Math.max(0, firstAction.bottom - innerHeight),
           unrelatedRowGap: Math.max(0, attention.y - carryover.bottom),
           controls: [...document.querySelectorAll('.appointment-actions button,.appointment-actions a')].map(n => ({ text: n.textContent.trim(), height: n.getBoundingClientRect().height, fontSize: getComputedStyle(n).fontSize })),
-          sidebar: ['vouchers', 'rewards'].map(key => { const n = document.querySelector(`[data-workspace-destination="${key}"]`); const style = getComputedStyle(n, '::before'); return { key, label: n.textContent.trim(), display: style.display, mask: style.maskImage, width: style.width }; }),
+          sidebar: ['clients', 'vouchers', 'rewards'].map(key => { const n = document.querySelector(`[data-workspace-destination="${key}"]`); if (!n) return { key, present: false }; const style = getComputedStyle(n, '::before'); return { key, present: true, label: n.textContent.trim(), display: style.display, mask: style.maskImage, width: style.width }; }),
         };
       });
       fs.writeFileSync(path.join(output, renderedHtml), html);

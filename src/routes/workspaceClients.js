@@ -1,9 +1,11 @@
 const express = require('express');
+const workspaceNavigation = require('../services/workspaceNavigation');
 const workspaceClients = require('../services/workspaceClients');
 const workspaceClientNotifications = require('../services/workspaceClientNotifications');
 const workspaceClientMutations = require('../services/workspaceClientMutations');
 const {
   renderClientListPage,
+  renderClientManagementPage,
   renderClientsUnavailablePage,
 } = require('../presentation/workspaceClientsUx');
 const { renderClientDetailPageWithCommunications } = require('../presentation/workspaceCommunicationEvidenceUx');
@@ -52,6 +54,7 @@ function createWorkspaceClientListHandler({
   env = process.env,
   service = workspaceClients,
   renderPage = renderClientListPage,
+  navigationService = workspaceNavigation,
   renderUnavailable = renderClientsUnavailablePage,
   injectManagement = injectClientListManagement,
   staffAccessPath = '/calendar/staff',
@@ -71,6 +74,16 @@ function createWorkspaceClientListHandler({
       });
       return res.status(200).type('html').send(html);
     } catch (error) {
+      if (error?.code === 'WORKSPACE_CLIENTS_FORBIDDEN') {
+        // Keep independently granted tools reachable without reading any client data.
+        try {
+          const destinations = await navigationService.resolve({ session: req.staffBrowserSession });
+          const navigation = Object.fromEntries(['messages', 'vouchers', 'rewards', 'forms']
+            .filter(key => destinations[key]?.allowed === true && destinations[key]?.href)
+            .map(key => [`${key}Href`, destinations[key].href]));
+          if (Object.keys(navigation).length) return res.status(200).type('html').send(renderClientManagementPage(navigation, pageOptions(req, staffAccessPath)));
+        } catch (_error) { /* Preserve the original denied response if navigation is unavailable. */ }
+      }
       const safe = safeError(error);
       return res.status(safe.status).type('html').send(renderUnavailable({ code: error?.code, message: safe.message }));
     }

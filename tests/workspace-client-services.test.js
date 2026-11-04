@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const { buildClientActivity } = require('../src/domain/workspaceClientActivity');
 const { renderMessagesPage } = require('../src/presentation/workspaceMessagesUx');
 const { renderWorkspaceNavigation } = require('../src/presentation/workspaceShell');
+const { renderClientManagement } = require('../src/presentation/workspaceClientManagementUx');
 const { createWorkspaceMessagesService } = require('../src/services/workspaceMessages');
 const { createWorkspaceChangeDeliveryAttentionService } = require('../src/services/workspaceChangeDeliveryAttention');
 
@@ -45,8 +46,9 @@ test('one activity list preserves separate availability and delivery states, cou
 test('directory and four existing service destinations share navigation without inventing access', () => {
   const html = renderWorkspaceNavigation({ active: 'forms', formsHref: '/calendar/forms', vouchersHref: '/calendar/vouchers' });
   assert.match(html, /Client Directory/);
-  assert.match(html, /data-client-services open/);
-  const group = html.match(/<details[\s\S]*?<\/details>/)[0];
+  assert.doesNotMatch(html, /data-client-services|Client Services/);
+  const group = renderClientManagement({ vouchersHref: '/calendar/vouchers' });
+  assert.match(group, /Manage across clients/);
   for (const key of ['messages','vouchers','rewards','forms']) assert.match(group, new RegExp(`data-workspace-destination="${key}"`));
   assert.match(group, /href="\/calendar\/vouchers"/);
   assert.doesNotMatch(group, /href="\/calendar\/messages"|href="\/calendar\/rewards"/);
@@ -60,4 +62,38 @@ test('change exceptions have no recent-event row or age cutoff and retain exact 
   assert.match(sql, /app_update.event_key='appointment-'/);
   assert.match(sql, /relationship_type='clinic'/);
   assert.match(sql, /service_visibility_policies/);
+});
+
+test('tool-only directory retains independent capabilities without client search or mutations', async () => {
+  const { createWorkspaceClientListHandler } = require('../src/routes/workspaceClients');
+  const env = { SHILOH_CALENDAR_READONLY_UX_ENABLED: 'true', SHILOH_STAFF_BROWSER_SESSION_CALENDAR_BRIDGE_ENABLED: 'true' };
+  for (const allowed of [true, false]) {
+    let body, status, managementCalls = 0;
+    const res = { setHeader() {}, status(value) { status = value; return this; }, type() { return this; }, send(value) { body = value; return this; } };
+    const handler = createWorkspaceClientListHandler({ env,
+      service: { listClients: async () => { throw Object.assign(new Error('Denied'), { code: 'WORKSPACE_CLIENTS_FORBIDDEN', httpStatus: 403 }); } },
+      navigationService: { resolve: async () => ({ forms: { allowed, href: '/calendar/forms' }, rewards: { allowed: false, href: null } }) },
+      injectManagement: () => { managementCalls++; },
+    });
+    await handler({ staffBrowserSession: { adminId: 7 }, query: {} }, res);
+    assert.equal(status, allowed ? 200 : 403);
+    assert.equal(managementCalls, 0);
+    assert.doesNotMatch(body, /data-clients-list-view|client-search|href="\/calendar\/rewards"/);
+    if (allowed) assert.match(body, /href="\/calendar\/forms"/);
+  }
+});
+
+test('directory entry composes tool capabilities without granting activity or client lookup', async () => {
+  const { createWorkspaceNavigationService } = require('../src/services/workspaceNavigation');
+  const denied = { resolveAccess: async () => null };
+  const service = createWorkspaceNavigationService({ clientAccessService: denied, staffAccessService: denied,
+    servicesAccessService: denied, reportsAccessService: denied, clinicHoursAccessService: denied,
+    voucherAccessService: denied, rewardsAccessService: denied,
+    formsAccessService: { resolveAccess: async () => ({}) },
+  });
+  const result = await service.resolve({ session: { adminId: 7 } });
+  assert.deepEqual(result.clients, { allowed: true, href: '/calendar/clients' });
+  assert.deepEqual(result.messages, { allowed: false, href: null });
+  assert.equal(result.forms.allowed, true);
+  assert.equal(result.rewards.allowed, false);
 });

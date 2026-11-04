@@ -71,12 +71,13 @@ function createWorkspaceNavigationService({
       websiteAccessService.resolveAccess(adminId),
     ]);
     const clientsAllowed = clients.status === 'fulfilled' && Boolean(clients.value);
+    const clientToolsAllowed = [forms, vouchers, rewards].some(result => result.status === 'fulfilled' && Boolean(result.value));
     const staffAllowed = staff.status === 'fulfilled' && Boolean(staff.value);
     return {
       website: allowedDestination(website.status === 'fulfilled' && Boolean(website.value), 'website'),
       dashboard: allowedDestination(calendarAllowed, 'dashboard'),
       calendar: allowedDestination(calendarAllowed, 'calendar'),
-      clients: allowedDestination(clientsAllowed, 'clients'),
+      clients: allowedDestination(clientsAllowed || clientToolsAllowed, 'clients'),
       messages: allowedDestination(clientsAllowed, 'messages'),
       staff: staffAllowed ? { allowed: true, href: staffDestinationFor(staffAccessService) } : { allowed: false, href: null },
       services: allowedDestination(services.status === 'fulfilled' && Boolean(services.value), 'services'),

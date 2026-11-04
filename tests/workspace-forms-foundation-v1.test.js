@@ -157,8 +157,8 @@ test('capability-driven Workspace navigation gains Forms with the shared Lucide 
   assert.match(navigationSource, /formsAccessService = workspaceForms/);
   assert.match(navigationSource, /forms: allowedDestination/);
   assert.match(iconSource, /forms: renderLucideIcon\('forms'/);
-  assert.match(iconSource, /dataset\.workspaceDestination='forms'/);
-  assert.match(iconSource, /textContent='Forms'/);
+  assert.doesNotMatch(iconSource, /ensureFormsDestination/);
+  assert.match(source('src/presentation/workspaceClientManagementUx.js'), /'forms', 'Forms'/);
   assert.match(lucideSource, /FileText/);
   assert.match(lucideSource, /forms: FileText/);
 });
