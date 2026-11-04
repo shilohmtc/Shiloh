@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { workspaceIconClientScript } = require('../src/presentation/workspaceIconClient');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { workspaceNavigationClientScript } = require('../src/presentation/workspaceShell');
 for (const width of [390, 820, 1440]) {
@@ -20,11 +21,13 @@ for (const width of [390, 820, 1440]) {
     const axe = await new AxeBuilder({ page }).include('[data-client-activity]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
     expect(axe.violations).toEqual([]);
     await page.screenshot({ path: testInfo.outputPath(`client-services-${width}.png`), fullPage: true });
+    await page.addScriptTag({ content: workspaceIconClientScript() });
     await page.addScriptTag({ content: workspaceNavigationClientScript() });
     if (width <= 700) await page.locator('[data-workspace-drawer-toggle]').click();
     await expect(page.locator('[data-client-services]')).toHaveCount(0);
     await expect(page.locator('[data-workspace-destination="clients"]')).toHaveAttribute('href', '/calendar/clients');
     await page.goto('/iframe.html?id=workspace-client-services--directory&viewMode=story');
+    await page.addScriptTag({ content: workspaceIconClientScript() });
     const group = page.locator('[data-client-management]');
     await expect(group.locator('summary')).toBeVisible();
     await expect(group.locator('a')).toHaveCount(4);
@@ -34,6 +37,7 @@ for (const width of [390, 820, 1440]) {
     for (const key of ['messages','vouchers','rewards','forms']) {
       const link = group.locator(`[data-workspace-destination="${key}"]`);
       await expect(link).toBeVisible();
+      await expect(link.locator('strong')).toHaveCount(1);
       await expect(link).toHaveAttribute('href', `/calendar/${key}`);
       expect((await link.boundingBox()).height).toBeGreaterThanOrEqual(44);
     }
@@ -46,6 +50,7 @@ for (const width of [390, 820, 1440]) {
     await page.goto('/iframe.html?id=workspace-client-services--directory-permissions&viewMode=story');
     await expect(page.locator('[data-client-management]')).toBeHidden();
     await page.route('**/calendar/workspace/navigation', route => route.fulfill({ json: { forms: { allowed: true, href: '/calendar/forms' }, rewards: { allowed: false, href: null } } }));
+    await page.addScriptTag({ content: workspaceIconClientScript() });
     await page.addScriptTag({ content: workspaceNavigationClientScript() });
     await expect(page.locator('[data-client-management]')).toBeVisible();
     await page.locator('[data-client-management] summary').click();
@@ -53,6 +58,7 @@ for (const width of [390, 820, 1440]) {
     await expect(page.locator('[data-workspace-destination="forms"]')).toHaveAttribute('href', '/calendar/forms');
     await expect(page.locator('[data-workspace-destination="forms"] strong')).toHaveText('Forms');
     await expect(page.locator('[data-workspace-destination="rewards"]')).toBeHidden();
+    await expect(page.locator('[data-workspace-navigation-drawer] [data-workspace-destination="forms"]')).toHaveCount(0);
     expect(writes).toEqual([]);
   });
 }
