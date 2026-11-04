@@ -1,3 +1,4 @@
+import clients from '../src/presentation/workspaceClientsUx.js';
 import presentation from '../src/presentation/workspaceMessagesUx.js';
 
 // Fabricated records only. These stories never query or mutate clinic data.
@@ -22,3 +23,12 @@ export const Activity = { render: () => surface() };
 export const NeedsAttention = { render: () => surface({ selectedView: 'attention' }) };
 export const LookupOnly = { render: () => surface({ notificationAuthority: null, changeAttention: [], attention: [] }, { messagesHref: '/calendar/messages' }) };
 export const Unavailable = { render: () => surface({ activity: [], attention: [], changeAttention: [], activityUnavailable: true, changeAttentionUnavailable: true, attentionUnavailable: true }) };
+
+export const Directory = { render: () => {
+  const html = clients.renderClientListPage({ authority: { displayName: 'Example Reception' }, clients: [], offset: 0, pageSize: 24 }, { navigation });
+  return `<style>${[...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(match => match[1]).join('\n')}</style>${html.match(/<body[^>]*>([\s\S]*?)<\/body>/)[1].replace(/<script[\s\S]*?<\/script>/g, '')}`;
+} };
+export const DirectoryPermissions = { render: () => {
+  const html = clients.renderClientListPage({ authority: { displayName: 'Example Practitioner' }, clients: [], offset: 0, pageSize: 24 });
+  return `<style>${[...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(match => match[1]).join('\n')}</style>${html.match(/<body[^>]*>([\s\S]*?)<\/body>/)[1].replace(/<script[\s\S]*?<\/script>/g, '')}`;
+} };
