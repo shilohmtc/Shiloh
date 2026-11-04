@@ -8,6 +8,7 @@ const { desktopDashboardHtml } = require('../stories/fixtures/workspaceDesktopLa
 const { shortcutHtml } = require('../stories/fixtures/dashboardDepositWaiverShortcut');
 const { rebookHtml } = require('../stories/fixtures/rebookActionPresentation');
 const { dashboardDepositsHtml } = require('../stories/fixtures/workspaceDashboardDeposits');
+const { attendedHtml } = require('../stories/fixtures/alreadyAttended');
 const destination = path.resolve(__dirname, '../stories/fixtures/workspaceBrowserReview.generated');
 fs.mkdirSync(destination, { recursive: true });
 for (const [name, html] of [
@@ -15,6 +16,7 @@ for (const [name, html] of [
   ['appointment-details',detailsHtml()],['appointment-details-pending',detailsHtml({pending:true})],['appointment-details-read-only',detailsHtml({readOnly:true})],
   ['booking-problems-recent',bookingProblemsHtml()],['booking-problems-unavailable',bookingProblemsHtml('unavailable')],
   ['rebook-actions',rebookHtml()],
+  ['already-attended',attendedHtml()],
   ['waiver-shortcut-sparse',shortcutHtml('sparse')],['waiver-shortcut-busy',shortcutHtml('busy')],
   ['waiver-shortcut-restricted',shortcutHtml('sparse',false)],
   ['empty',review.calendarHtml(true)],['populated',review.calendarHtml(false)],

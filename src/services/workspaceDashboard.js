@@ -1,5 +1,6 @@
 const { service:bookingSubmissionIncidents } = require('./bookingSubmissionIncidents');
 const { pool } = require('../db/pool');
+const { alreadyAttended } = require('./workspaceAlreadyAttended');
 const calendarReadOnlyUx = require('./calendarReadOnlyUx');
 const workspaceDashboardBacklog = require('./workspaceDashboardBacklog');
 const {
@@ -379,9 +380,10 @@ function createWorkspaceDashboardService({
     throw new WorkspaceDashboardError('WORKSPACE_DASHBOARD_FINALIZE_INVALID', 'This appointment outcome cannot be recorded.', 400);
   }
 
-  async function resolveBookingRequest({ adminId, viewer, sessionPrincipal = null, appointmentId, expectedRevision, action, startsAt, staffId, staffIds, serviceId } = {}) {
+  async function resolveBookingRequest({ adminId, viewer, sessionPrincipal = null, appointmentId, expectedRevision, expectedAppointmentRevision, expectedApprovalRevision, action, startsAt, staffId, staffIds, serviceId } = {}) {
     const { principal } = await resolveAuthority(adminId, viewer, sessionPrincipal);
     const input = { principal, appointmentId, expectedRevision };
+    if (action === 'already-attended') return alreadyAttended({ ...input, expectedAppointmentRevision, expectedApprovalRevision });
     if (action === 'accept' && typeof bookingRequestService.acceptRequestedAppointment === 'function') return bookingRequestService.acceptRequestedAppointment(input);
     if (action === 'propose' && typeof bookingRequestService.proposeAlternative === 'function') return bookingRequestService.proposeAlternative({ ...input, startsAt, staffId, staffIds, serviceId });
     throw new WorkspaceDashboardError('WORKSPACE_BOOKING_REQUEST_INVALID', 'Choose a valid booking-request resolution.', 400);
