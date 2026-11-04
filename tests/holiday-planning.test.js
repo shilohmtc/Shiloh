@@ -63,7 +63,8 @@ test('saved decisions remain visible and annual defaults never count as undecide
   assert.equal((html.match(/data-holiday-needs-attention/g) || []).length, 1);
   assert.match(html, /Closed — annual default/);
   assert.match(html, /Clinic 09:00–12:00/);
-  assert.match(html, /<details class="later-holidays" data-holiday-group="later"><summary>Later holidays/);
+  assert.match(html, /data-holiday-period="upcoming"/);
+  assert.match(html, /id="holiday-2027-03-22"/);
   assert.match(html, /Not decided/);
 });
 
@@ -161,17 +162,39 @@ test('Workspace reads annual dates alongside loaded holidays and preserves expli
 });
 
 
-test('saved decisions, annual defaults and Sundays stay in separate collapsed groups', () => {
+test('upcoming dates share one list; past saved decisions move to History without losing hours', () => {
   const html = renderClinicHoursPage({ today: '2026-12-15', days: [], holidays: [
     { exceptionDate: '2026-12-16', holidayName: 'Pending', decisionNeeded: true },
     { exceptionDate: '2026-12-24', holidayName: 'Annual', decisionNeeded: true },
     { exceptionDate: '2026-12-25', holidayName: 'Saved open', clinicExceptionType: 'open', clinicStartsLocal: '09:00', clinicEndsLocal: '12:00', decisionNeeded: false },
     { exceptionDate: '2027-03-21', holidayName: 'Sunday', decisionNeeded: true },
-  ], exceptions: [{ exceptionDate: '2026-12-10', exceptionType: 'closed' }] });
-  const saved = html.match(/<details[^>]*data-holiday-group="saved"[^>]*>([\s\S]*?)<details[^>]*data-holiday-group="sundays"/)[1];
-  assert.match(saved, /2026-12-24/); assert.match(saved, /Clinic 09:00–12:00/); assert.match(saved, /2026-12-10/);
-  assert.doesNotMatch(saved, /2026-12-16|2027-03-21/);
-  assert.match(html, /data-holiday-group="sundays"><summary>Sundays — permanently closed/);
+  ], exceptions: [{ exceptionDate: '2026-12-10', exceptionType: 'open', startsLocal: '10:00', endsLocal: '13:00' }] });
+  const upcoming = html.split('data-holiday-period="upcoming"')[1].split('data-holiday-period="history"')[0];
+  const history = html.split('data-holiday-period="history"')[1];
+  for (const date of ['2026-12-16', '2026-12-24', '2026-12-25', '2027-03-21']) assert.match(upcoming, new RegExp('id="holiday-'+date+'"'));
+  assert.doesNotMatch(upcoming, /2026-12-10/);
+  assert.match(history, /id="holiday-2026-12-10"/); assert.match(history, /Clinic 10:00–13:00/);
   assert.equal((html.match(/data-holiday-needs-attention/g) || []).length, 1);
   assert.doesNotMatch(html, /<details[^>]* open/);
+});
+
+test('Johannesburg today keeps today upcoming, rolls past decisions into history, and omits unsaved past dates', () => {
+  const model = { days: [], holidays: [{ exceptionDate:'2026-12-14', holidayName:'Expired undecided date', decisionNeeded:true }], exceptions: [
+    { exceptionDate:'2026-12-15', exceptionType:'closed' }, { exceptionDate:'2026-12-10', exceptionType:'closed' },
+  ] };
+  const before = JSON.stringify(model);
+  for (const [today, period] of [['2026-12-15','upcoming'],['2026-12-16','history']]) {
+    const html=renderClinicHoursPage({...model,today});
+    const target=html.split('data-holiday-period="'+period+'"')[1].split('</section>')[0];
+    assert.match(target,/id="holiday-2026-12-15"/);
+    assert.doesNotMatch(html,/Expired undecided date/);
+  }
+  assert.equal(JSON.stringify(model),before);
+});
+
+test('view-only holiday lists preserve decisions without rendering mutation forms', () => {
+  const html=renderClinicHoursPage({readOnly:true,today:'2026-12-15',days:[],holidays:[{exceptionDate:'2026-12-16',holidayName:'Synthetic',decisionNeeded:true}]});
+  assert.doesNotMatch(html,/data-holiday-form|data-add-special-date/);
+  assert.match(html,/View only/);
+  assert.match(html,/id="holiday-add-date" hidden/);
 });

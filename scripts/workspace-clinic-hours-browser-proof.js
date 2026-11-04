@@ -16,7 +16,7 @@ const ENV = {
 };
 
 function chromeExecutable() {
-  return [process.env.CHROME_BIN, '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser']
+  return [process.env.CHROME_BIN, chromium.executablePath(), '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser']
     .find(candidate => candidate && fs.existsSync(candidate)) || null;
 }
 function sha256(file) { return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'); }
@@ -97,8 +97,8 @@ async function main() {
     server.listen(0, '127.0.0.1');
     await once(server, 'listening');
     const origin = `http://127.0.0.1:${server.address().port}`;
-    // Keep the approved preinstalled executable and the existing 15-second startup bound.
-    // Playwright uses its pipe transport; no downloaded browser or DevToolsActivePort file.
+    // Prefer the Chromium build matched to this Playwright version; retain explicit CHROME_BIN overrides.
+    // Keep the existing 15-second startup bound and pipe transport.
     chrome = await chromium.launch({ executablePath: executable, headless: true, timeout: 15000,
       args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--hide-scrollbars'], });
     const context = await chrome.newContext({ viewport: null });
@@ -158,9 +158,13 @@ async function main() {
       fs.writeFileSync(filePath, Buffer.from(result.data, 'base64'));
       screenshots.push({ file, width, height, sha256: sha256(filePath), noHorizontalOverflow: true, touchTargets: geometry.targets.length });
       await page.locator('[data-hours-tab="holidays"]').click();
-      const saved = page.locator('[data-holiday-group="saved"]');
-      assert.equal(await saved.getAttribute('open'), null, 'Saved decisions start collapsed');
-      await saved.locator(':scope > summary').click();
+      const upcoming = page.locator('[data-holiday-period="upcoming"]');
+      assert.equal(await upcoming.isVisible(), true, 'Upcoming dates are shown first');
+      for (const date of ['2026-12-16', '2026-12-25']) {
+        const saved = upcoming.locator('#holiday-' + date);
+        assert.equal(await saved.getAttribute('open'), null, 'Saved date editors start collapsed');
+        await saved.locator(':scope > summary').click();
+      }
       const decisions = await page.locator('[data-holiday-form="clinic"]').evaluateAll(forms => forms.map(form => ({
         date: form.dataset.exceptionDate,
         type: form.querySelector('[data-holiday-type]').value,

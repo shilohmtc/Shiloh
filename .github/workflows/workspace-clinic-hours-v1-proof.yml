@@ -23,6 +23,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Install version-matched Playwright Chromium
+        run: npx playwright install --with-deps chromium
       - name: Run focused Clinic hours security and orchestration tests
         run: node --test tests/workspace-clinic-hours-v1.test.js
       - name: Run authenticated Desktop and Phone Clinic hours proof
