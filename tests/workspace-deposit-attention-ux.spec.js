@@ -42,6 +42,9 @@ for(const [name,viewport] of [['phone',{width:390,height:844}],['desktop',{width
     await context.addCookies([{name:cookieName(env),value:'owner',url:base}]);
     const response=await page.goto(base+'/calendar/workspace');expect(response.headers()['cache-control']).toContain('no-store');
     const section=page.locator('[data-dashboard-deposits]');
+    await expect(section.locator('[data-deposits-count]')).toHaveText('1');
+    await expect(section.locator('[data-deposit-account]')).toBeHidden();
+    await section.locator('summary').click();
     await expect(section.locator('[data-deposit-account]')).toHaveCount(1);
     await expect(section.locator('[data-deposit-account]')).toHaveAttribute('data-workspace-card','deposit-pending');
     await expect(section.locator('.booking-notes-indicator')).toHaveCount(0);
@@ -50,12 +53,13 @@ for(const [name,viewport] of [['phone',{width:390,height:844}],['desktop',{width
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     const axe=await new AxeBuilder({page}).analyze();expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
     fs.mkdirSync('artifacts/workspace-deposits',{recursive:true});await page.screenshot({path:`artifacts/workspace-deposits/${name}-awaiting.png`,fullPage:true});
-    await section.getByRole('link',{name:'View booking'}).click();await page.getByRole('link',{name:'Dashboard'}).click();await expect(section).toContainText('R350');
+    await section.getByRole('link',{name:'View booking'}).click();await page.getByRole('link',{name:'Dashboard'}).click();await expect(section).toContainText('R350');await section.locator('summary').click();
     delay=600;await section.getByRole('button',{name:'Refresh deposits'}).click();await expect(section).toContainText('Checking current deposits');await expect(section.locator('[data-deposit-account]')).toHaveCount(0);await expect(section).toContainText('R350');delay=0;
     await db.exec("INSERT INTO payment_ledger_entries VALUES(1,null,'payment',350)");
     await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await expect(section).toContainText('No upcoming bookings');
     await page.screenshot({path:`artifacts/workspace-deposits/${name}-empty.png`,fullPage:true});
-    failure=true;await section.getByRole('button',{name:'Refresh deposits'}).click();await expect(section).toContainText('temporarily unavailable');await expect(section.locator('[data-deposit-account]')).toHaveCount(0);
+    await expect(section.locator('[data-deposits-count]')).toHaveText('0');
+    failure=true;await section.getByRole('button',{name:'Refresh deposits'}).click();await expect(section).toContainText('temporarily unavailable');await expect(section.locator('[data-deposits-count]')).toHaveText('Unavailable');await expect(section.locator('[data-deposit-account]')).toHaveCount(0);
     await page.screenshot({path:`artifacts/workspace-deposits/${name}-error.png`,fullPage:true});
     failure=false;await db.exec("INSERT INTO payment_ledger_entries VALUES(1,null,'refund',25)");await section.getByRole('button',{name:'Refresh deposits'}).click();await expect(section).toContainText('R25,00 deposit outstanding');
     await context.addCookies([{name:cookieName(env),value:'own',url:base}]);await page.reload();await expect(section).toContainText('No upcoming bookings');await expect(page.getByText('Synthetic Fynbos')).toHaveCount(0);

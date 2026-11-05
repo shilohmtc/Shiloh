@@ -13,6 +13,12 @@ for (const kind of ['sparse','busy']) for (const width of [1180,1440,390,500]) t
   const t=await today.boundingBox(),d=await deposits.boundingBox();
   expect(d.y-t.y-t.height).toBeCloseTo(12,0);expect(d.x).toBeCloseTo(t.x,0);expect(d.width).toBeCloseTo(t.width,0);
   await expect(attention.locator('[data-dashboard-attention-appointment]')).toHaveCount(0);
+  await expect(deposits.locator('[data-deposits-count]')).toHaveText('2');
+  await expect(deposits.locator('[data-deposit-account]').first()).toBeHidden();
+  await expect(today.locator('.day-summary')).not.toContainText('pending request');
+  await expect(today.locator('.day-summary')).not.toContainText('holiday');
+  await deposits.locator('summary').click();
+  await expect(deposits.locator('[data-deposit-account]').first()).toBeVisible();
   await expect(deposits.locator('[data-deposit-account]')).toHaveCount(2);
   await expect(deposits.locator('[data-deposit-account]').first()).toHaveAttribute('data-deposit-account','7101');
   await expect(deposits.locator('[data-deposit-account="7102"]')).toHaveCount(1);
