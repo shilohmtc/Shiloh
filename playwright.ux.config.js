@@ -101,3 +101,4 @@ module.exports.testMatch.push("workspace-client-profile-services.spec.js");
 module.exports.testMatch.push("workspace-already-attended.spec.js");
 
 module.exports.testMatch.push('workspace-alert-context.spec.js');
+module.exports.testMatch.push('workspace-session-message.spec.js');
