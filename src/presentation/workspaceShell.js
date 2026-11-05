@@ -77,6 +77,7 @@ function renderWorkspaceNavigation({ active, displayName = '', dashboardHref = n
       active: active === 'clinicHours',
       href: clinicHoursHref,
     }),
+    '<span hidden data-workspace-destination="clinicCheckin">Clinic check-in</span>',
     workspaceItem({
       key: 'problemReports',
       label: 'Problem reports',
@@ -84,7 +85,7 @@ function renderWorkspaceNavigation({ active, displayName = '', dashboardHref = n
       href: problemReportsHref,
     }),
   ].join('');
-  const moreActive = ['staff', 'services', 'reports', 'clinicHours', 'problemReports', 'website'].includes(active);
+  const moreActive = ['staff', 'services', 'reports', 'clinicHours', 'clinicCheckin', 'problemReports', 'website'].includes(active);
   const accountLabel = String(displayName || '').trim();
   const account = `<footer class="workspace-account" data-workspace-account-footer><div class="workspace-account-identity">${accountLabel ? `<span>Signed in as</span><strong>${escapeHtml(accountLabel)}</strong>` : '<span>Signed in</span>'}</div><section data-workspace-notifications hidden aria-label="Workspace notifications"><button class="workspace-account-signout workspace-notification-switch" type="button" role="switch" aria-label="Notifications on this device" aria-checked="false" data-workspace-push-toggle disabled><span class="workspace-control-label">Notifications</span><span class="workspace-switch-state" aria-hidden="true" data-workspace-push-state>Off</span><span class="workspace-switch-track" aria-hidden="true"></span></button><span class="workspace-account-status" role="status" aria-live="polite" data-workspace-push-status></span></section><button class="workspace-account-signout" type="button" data-workspace-refresh><span class="workspace-link-label">Refresh Workspace<span class="workspace-app-version" data-app-version>Version ${escapeHtml(APP_VERSION)}</span></span></button><span class="workspace-account-status" role="status" aria-live="polite" data-workspace-refresh-status></span><button class="workspace-account-signout" type="button" data-shiloh-logout>Sign out</button><span class="workspace-account-status" role="status" aria-live="polite" data-shiloh-calendar-access-status></span></footer>`;
   const logo = '<img src="/calendar/pwa/icon-192.png?v=official-brand-v4" alt="" width="42" height="42" decoding="async">';

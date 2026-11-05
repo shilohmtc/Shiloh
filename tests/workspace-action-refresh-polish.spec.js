@@ -157,7 +157,7 @@ for (const viewport of [{name:'phone',width:390,height:844},{name:'desktop',widt
     await expect(page.locator('[data-client-management]')).toHaveCount(0);
     await expect(page.locator('#client-search')).toBeVisible();
     await page.goto('/iframe.html?id=workspace-production-surfaces--client-home-activity&viewMode=story',{waitUntil:'networkidle'});
-    const clientActivity=page.getByRole('navigation',{name:'Client sections'}).getByRole('link',{name:'Activity',exact:true});
+    const clientActivity=page.getByRole('navigation',{name:'Client sections'}).getByRole('link',{name:'Communications',exact:true});
     await expect(clientActivity).toHaveAttribute('href','/calendar/clients/9012?services=activity#client-activity');
     await expect(clientActivity).toHaveAttribute('aria-current','page');
     await expect(page.locator('[data-client-communications]')).toBeVisible();

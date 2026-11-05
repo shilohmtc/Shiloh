@@ -1,6 +1,6 @@
 'use strict';
 const { escapeHtml } = require('./workspaceShell');
-const SECTIONS = [['overview','Overview'],['appointments','Appointments'],['vouchers','Vouchers'],['rewards','Rewards'],['forms','Forms'],['activity','Activity']];
+const SECTIONS = [['overview','Overview'],['appointments','Appointments'],['vouchers','Vouchers'],['rewards','Rewards'],['forms','Forms'],['activity','Communications']];
 function selectedClientSection(model) {
   return SECTIONS.some(([key])=>key===model.services) ? model.services : 'overview';
 }

@@ -30,7 +30,7 @@ function renderVouchers(state) {
 function renderClientServices(model, { policySection, activitySection }) {
   const selected = model.services;
   const sections = [
-    ['activity', 'Activity', activitySection],
+    ['activity', 'Communications', activitySection],
     ['forms', 'Forms', `<section id="consultation-documents" data-client-consultation-history><h3>Consultation forms</h3>${renderConsultationHistory(model) || '<p>No completed consultation forms are recorded for this client.</p>'}</section>${policySection}`],
     ['rewards', 'Rewards', clientActionForm(model, 'rewards') + renderRewards(model.rewards)],
     ['vouchers', 'Vouchers', clientActionForm(model, 'vouchers') + renderVouchers(model.vouchers)],

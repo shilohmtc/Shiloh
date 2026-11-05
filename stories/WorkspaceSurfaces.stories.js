@@ -171,7 +171,7 @@ function clientModel() {
     },
     appointments: [
       { id: 9067, starts_at: '2026-10-04T08:00:00.000Z', ends_at: '2026-10-04T09:30:00.000Z', status: 'scheduled', services: [{ name: 'Full Body Swedish' }], staff: [{ name: 'Synthetic Client AN' }] },
-      { id: 9040, starts_at: '2026-10-03T08:00:00.000Z', ends_at: '2026-10-03T08:45:00.000Z', status: 'completed', services: [{ name: 'Quick Relief: Back & Neck (45 min)' }], staff: [{ name: 'Synthetic Client AN' }] },
+      { id: 9040, paymentSummary: { available: true, state: 'known', outstanding: '650.00', scopeLabel: 'Appointment balance' }, starts_at: '2026-10-03T08:00:00.000Z', ends_at: '2026-10-03T08:45:00.000Z', status: 'completed', services: [{ name: 'Quick Relief: Back & Neck (45 min)' }], staff: [{ name: 'Synthetic Client AN' }] },
       { id: 9020, starts_at: '2026-10-01T07:00:00.000Z', ends_at: '2026-10-01T07:45:00.000Z', status: 'cancelled', services: [{ name: 'Quick Relief: Back & Neck (45 min)' }], staff: [{ name: 'Synthetic Client AN' }] },
     ],
     communications: [{ intent: 'booking_confirmation', label: 'Booking confirmation', statusLabel: 'Available in My Shiloh', occurredAt: '2026-10-02T11:56:00.000Z', appointmentId: 9067, templateName: null }],

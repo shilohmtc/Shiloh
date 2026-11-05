@@ -13,11 +13,14 @@ function projectAppStatus(row) {
 
 // Only boolean evidence leaves this read: no session, device, key or endpoint data.
 // Tenant/private profiles do not expose the client's clinic account activity.
-async function readClientAppStatus({ db, clientId, scope } = {}) {
-  if (scope?.kind !== 'clinic' || scope.ownerStaffId != null) return { ...UNKNOWN };
+async function readClientAppStatuses({ db, clientIds = [], scope } = {}) {
+  const ids = [...new Set(clientIds.map(String).filter(id => /^[1-9]\d*$/.test(id)))];
+  const statuses = Object.fromEntries(ids.map(id => [id, { ...UNKNOWN }]));
+  if (scope?.kind !== 'clinic' || scope.ownerStaffId != null) return statuses;
+  if (!ids.length) return statuses;
   try {
     const result = await db.query(`/* workspaceClientAppStatus:clinic */
-      SELECT EXISTS (SELECT 1 FROM client_browser_sessions s
+      SELECT c.id, EXISTS (SELECT 1 FROM client_browser_sessions s
                WHERE s.crm_v2_client_id=c.id AND s.last_used_at IS NOT NULL
                  AND s.last_used_at>=s.issued_at AND s.last_used_at<=NOW()
                  AND s.last_used_at<s.expires_at
@@ -29,14 +32,20 @@ async function readClientAppStatus({ db, clientId, scope } = {}) {
                  AND p.last_push_error IS NULL AND p.endpoint ~ '^https://'
                  AND BTRIM(p.p256dh)<>'' AND BTRIM(p.auth)<>'') AS alerts_enabled
         FROM crm_v2_clients c
-       WHERE c.id=$1 AND c.status='active'
+       WHERE c.id=ANY($1::bigint[]) AND c.status='active'
          AND EXISTS (SELECT 1 FROM crm_v2_client_relationships rel
            WHERE rel.client_id=c.id AND rel.status='active'
-             AND rel.relationship_type='clinic' AND rel.owner_staff_id IS NULL)`, [clientId]);
-    return projectAppStatus(result.rows[0]);
+             AND rel.relationship_type='clinic' AND rel.owner_staff_id IS NULL)`, [ids]);
+    for (const row of result.rows) if (Object.hasOwn(statuses, String(row.id))) statuses[String(row.id)] = projectAppStatus(row);
+    return statuses;
   } catch (_) {
-    return { ...UNKNOWN };
+    return statuses;
   }
 }
 
-module.exports = { projectAppStatus, readClientAppStatus };
+async function readClientAppStatus({ db, clientId, scope } = {}) {
+  const statuses = await readClientAppStatuses({ db, clientIds: [clientId], scope });
+  return statuses[String(clientId)] || { ...UNKNOWN };
+}
+
+module.exports = { projectAppStatus, readClientAppStatus, readClientAppStatuses };

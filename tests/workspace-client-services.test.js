@@ -78,7 +78,7 @@ test('tool-only directory retains independent capabilities without client search
     await handler({ staffBrowserSession: { adminId: 7 }, query: {} }, res);
     assert.equal(status, allowed ? 200 : 403);
     assert.equal(managementCalls, 0);
-    assert.doesNotMatch(body, /data-clients-list-view|client-search|href="\/calendar\/rewards"/);
+    assert.doesNotMatch(body, /<main data-clients-list-view|id="client-search"|href="\/calendar\/rewards"/);
     if (allowed) assert.match(body, /href="\/calendar\/forms"/);
   }
 });

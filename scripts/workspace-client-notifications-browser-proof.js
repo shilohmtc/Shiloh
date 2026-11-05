@@ -412,7 +412,7 @@ async function main() {
     }
     async function openClientActivity() {
       const categories = await evaluate(cdp, `[...document.querySelectorAll('[aria-label="Client sections"] > a')].map(item => item.textContent.trim())`);
-      assert.deepEqual(categories, ['Overview', 'Appointments', 'Vouchers', 'Rewards', 'Forms', 'Activity']);
+      assert.deepEqual(categories, ['Overview', 'Appointments', 'Vouchers', 'Rewards', 'Forms', 'Communications']);
       const href = await evaluate(cdp, `document.querySelector('[aria-label="Client sections"] a[href*="services=activity"]').href`);
       assert.equal(new URL(href).pathname, `/calendar/clients/${CLIENT_ID}`);
       await navigate(href);
