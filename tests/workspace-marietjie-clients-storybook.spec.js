@@ -18,7 +18,9 @@ const stories = [
     name: 'client management',
     assertSurface: async (page) => {
       await expect(page.getByRole('heading', { name: 'Synthetic Client AR', exact: true })).toBeVisible();
-      await expect(page.getByRole('heading', { name: 'Edit profile', exact: true })).toBeVisible();
+      await expect(page.locator('[data-client-edit-form]')).toBeHidden();
+      await expect(page.getByRole('navigation', { name: 'Client sections' })).toBeVisible();
+      await page.locator('.client-edit-summary').click();
       await expect(page.getByRole('button', { name: 'Save client', exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Remove from my clients', exact: true })).toBeVisible();
       await expect(page.getByText('Marietjie Signature Massage', { exact: true })).toBeVisible();

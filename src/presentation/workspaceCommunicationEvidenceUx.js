@@ -61,7 +61,9 @@ function renderClientDetailPageWithCommunications(model, options = {}) {
   base = base.replace(policyPattern, '');
   const services = renderClientServices(model, { policySection,
     activitySection: renderCommunicationSection(model?.communications || [], model?.communicationsUnavailable === true) });
-  return base.replace('<section class="history-panel">', `${services}<section class="history-panel">`)
+  const navigation = `<nav class="client-section-navigation" aria-label="Client sections"><a href="#client-overview">Overview</a><a href="#appointment-history">Appointments</a>${[['forms','Forms'],['rewards','Rewards'],['vouchers','Vouchers'],['activity','Activity']].map(([key,label])=>`<a href="/calendar/clients/${encodeURIComponent(String(model.client.id))}?services=${key}#client-${key}"${model.services===key?' aria-current="location"':''}>${label}</a>`).join('')}</nav>`;
+  return base.replace('<section class="profile-panel"', `${navigation}<section class="profile-panel"`)
+    .replace('<section class="history-panel">', `${services}<section class="history-panel">`)
     .replace('</style>', `${clientServicesStyles}</style>`);
 }
 

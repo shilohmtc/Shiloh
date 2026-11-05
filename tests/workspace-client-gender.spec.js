@@ -6,7 +6,17 @@ for (const width of [390, 1440]) {
   for (const [story, recorded] of [['marietjie-client-management', 'female'], ['client-gender-legacy', 'non_binary'], ['client-gender-unrecorded', '']]) {
     test(`Workspace gender choices preserve ${recorded || 'unrecorded'} at ${width}`, async ({ page }, info) => {
       await page.setViewportSize({ width, height: 1000 });
+      await page.route('**/calendar/pwa/icon-192.png*', route => route.fulfill({ path: require('node:path').resolve('public/assets/brand/shiloh-mark-192.png') }));
       await page.goto(`/iframe.html?id=workspace-clients--${story}&viewMode=story`, { waitUntil: 'networkidle' });
+      await expect(page.locator('[data-client-edit-form]')).toBeHidden();
+      const navigation = page.getByRole('navigation', { name: 'Client sections' });
+      await expect(navigation).toBeVisible();
+      for (const key of ['forms', 'rewards', 'vouchers', 'activity']) {
+        await expect(navigation.locator(`a[href="/calendar/clients/801?services=${key}#client-${key}"]`)).toHaveCount(1);
+      }
+      await page.screenshot({ path: info.outputPath(`client-overview-${story}-${width}.png`), fullPage: true });
+      await page.locator('.client-edit-summary').focus();
+      await page.keyboard.press('Enter');
       const field = page.locator('#edit-client-gender');
       await expect(field).toHaveValue(recorded);
       expect(await field.locator('option:not([hidden])').allTextContents()).toEqual(['Female', 'Male']);
@@ -23,6 +33,11 @@ for (const width of [390, 1440]) {
       await expect(page.locator('[data-client-operation-status]')).toContainText('Synthetic revision refusal');
       expect(requests).toHaveLength(1);
       expect(requests[0].gender).toBe(recorded || null);
+      await expect(field).toHaveValue(recorded);
+      await expect(page.locator('#edit-client-name')).toHaveValue('Synthetic changed name');
+      await page.locator('.client-edit-summary').click();
+      await expect(field).toBeHidden();
+      await page.locator('.client-edit-summary').click();
       await expect(field).toHaveValue(recorded);
       await expect(page.locator('#edit-client-name')).toHaveValue('Synthetic changed name');
       await field.selectOption('male');
