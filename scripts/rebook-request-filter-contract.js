@@ -9,3 +9,11 @@ function stripUndatedRebookFilterChrome(html) {
   return html.replace(queue, (_, cards) => cards.replace(/<div data-request-state="staff">(<article\b[\s\S]*?<\/article>)<\/div>/g, '$1'));
 }
 module.exports = { stripUndatedRebookFilterChrome };
+
+// This fixture has three selected-day appointments, two unfinished outcomes and
+// five requests for another date. Only the misplaced Today request badge moves.
+function normalizeRebookTodaySummary(html) {
+  const selectedDay = '<div class="day-summary"><span class="summary-pill">3 appointments</span><span class="summary-pill attention">2 awaiting outcome</span>';
+  return html.replace(selectedDay + '<span class="summary-pill attention">5 pending requests</span></div>', selectedDay + '</div>');
+}
+module.exports.normalizeRebookTodaySummary = normalizeRebookTodaySummary;
