@@ -35,3 +35,30 @@ for(const width of [390,1440]) for(const scenario of ['partial','paid','group','
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:info.outputPath(`payment-${scenario}-${width}.png`),fullPage:true});
 });
+
+for(const width of [390,1440])test(`payment requires explicit confirmation, shows saved receipt and always offers Close at ${width}`,async({page},info)=>{
+ await page.setViewportSize({width,height:950});
+ await page.route('**/calendar/pwa/icon-192.png*',route=>route.fulfill({path:require('node:path').resolve('public/assets/brand/shiloh-mark-192.png')}));
+ await page.goto('/iframe.html?id=workspace-production-surfaces--dashboard-active-no-show&viewMode=story',{waitUntil:'networkidle'});
+ await page.route('**/calendar/payments/appointments/42/state',route=>route.fulfill({json:{subject:{pricingRevision:'2030-01-01T00:00:00Z'},payment:{outstanding:'650.00'},authority:{canCollect:true}}}));
+ const writes=[];
+ await page.route('**/calendar/staff-auth/csrf',route=>route.fulfill({json:{csrfToken:'synthetic'}}));
+ await page.route('**/calendar/payments/appointments/42/manual',route=>{writes.push(route.request().postDataJSON());return route.fulfill({json:{status:'recorded'}});});
+ await page.addScriptTag({content:visitPaymentScript()});await page.evaluate(()=>window.ShilohVisitPayment(42));
+ let dialog=page.getByRole('dialog',{name:'Completed visit payment'});
+ await dialog.getByRole('button',{name:'Paid now',exact:true}).click();
+ await dialog.getByRole('button',{name:'Record payment',exact:true}).click();
+ await expect(dialog).toContainText('Tick the confirmation box');expect(writes).toHaveLength(0);
+ await dialog.getByRole('button',{name:'Close payment window'}).click();
+ await expect(dialog).toHaveCount(0);expect(writes).toHaveLength(0);
+ await page.waitForLoadState('networkidle');
+ await page.addScriptTag({content:visitPaymentScript()});await page.evaluate(()=>window.ShilohVisitPayment(42));
+ dialog=page.getByRole('dialog',{name:'Completed visit payment'});
+ await dialog.getByRole('button',{name:'Paid now',exact:true}).click();await dialog.getByRole('checkbox').check();
+ await dialog.getByRole('button',{name:'Record payment',exact:true}).click();
+ await expect(dialog).toContainText('R650.00 payment recorded.');expect(writes).toHaveLength(1);expect(writes[0].amount).toBe('650.00');
+ await expect(dialog.getByRole('button',{name:'Record payment',exact:true})).toHaveCount(0);
+ expect((await new AxeBuilder({page}).include('dialog').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);
+ await page.screenshot({path:info.outputPath('saved-receipt-'+width+'.png'),fullPage:true});
+ await dialog.getByRole('button',{name:'Close payment window'}).click();await expect(dialog).toHaveCount(0);expect(writes).toHaveLength(1);
+});
