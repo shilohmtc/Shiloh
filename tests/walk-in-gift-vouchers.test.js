@@ -180,3 +180,37 @@ test('Workspace client posts the idempotent walk-in operation and preserves the 
   assert.match(script, /data-issued-code/);
   assert.match(route, /router\.post\('\/walk-in',sameOrigin,requireSession,requireCsrf/);
 });
+
+test('client-context voucher links only the selected recipient and rejects changed details before writes', async () => {
+  for (const changed of [false,true]) {
+    const fake=walkInDatabase(),original=await fake.db.connect(),query=original.query.bind(original);
+    original.query=async(sql,params)=>{
+      if(sql.includes('clientAction:principal'))return {rows:[{...principal(),permissions:{...principal().permissions,'client:lookup':true}}]};
+      if(sql.includes('clientAction:client'))return {rows:[{id:42,name:changed?'Changed client':'Evelyn',normalized_mobile:'27821234567',mobile_verified_at:'2026-01-01'}]};
+      if(sql.includes('SELECT id FROM crm_v2_clients WHERE normalized_mobile='))return {rows:[{id:42}]};
+      if(sql.includes('UPDATE gift_vouchers SET recipient_crm_v2_client_id')) {fake.calls.push({sql,params});return {rows:[]};}
+      return query(sql,params);
+    };
+    const service=createGiftVoucherService({db:fake.db,randomBytes:()=>Buffer.alloc(24,8)});
+    const action=service.createWalkInVoucher({adminId:14,contextClientId:42,purchaserName:'Tinkie',recipientName:'Evelyn',fromName:'Tinkie',language:'en',amount:'900',paymentMethod:'cash',recipientMobile:'0821234567',paymentConfirmed:true,operationId:'context-voucher-001'});
+    if(changed){await assert.rejects(action,{code:'VOUCHER_CLIENT_CHANGED'});assert.equal(fake.calls.some(c=>c.sql.includes('INSERT INTO gift_voucher_orders')),false);assert.ok(fake.calls.some(c=>c.sql==='ROLLBACK'));}
+    else{await action;assert.deepEqual(fake.calls.find(c=>c.sql.includes('UPDATE gift_vouchers SET recipient_crm_v2_client_id')).params,[601,42]);assert.ok(fake.calls.some(c=>c.sql==='COMMIT'));}
+  }
+});
+
+test('client-context voucher refuses unverified or ambiguous recipient identity and cross-client retries',async()=>{
+  for(const mode of ['unverified','ambiguous','replay']){
+    const fake=walkInDatabase(),connection=await fake.db.connect(),query=connection.query.bind(connection);
+    connection.query=async(sql,params)=>{
+      if(sql.includes('clientAction:principal'))return {rows:[{...principal(),permissions:{...principal().permissions,'client:lookup':true}}]};
+      if(sql.includes('clientAction:client'))return {rows:[{id:42,name:'Evelyn',normalized_mobile:'27821234567',mobile_verified_at:mode==='unverified'?null:'2026-01-01'}]};
+      if(sql.includes('SELECT id FROM crm_v2_clients WHERE normalized_mobile='))return {rows:mode==='ambiguous'?[{id:42},{id:43}]:[{id:42}]};
+      if(mode==='replay'&&sql.includes('FROM gift_voucher_payment_entries payment'))return {rows:[{recipient_crm_v2_client_id:43}]};
+      return query(sql,params);
+    };
+    const service=createGiftVoucherService({db:fake.db});
+    await assert.rejects(service.createWalkInVoucher({adminId:14,contextClientId:42,purchaserName:'Synthetic buyer',recipientName:'Evelyn',fromName:'Synthetic buyer',language:'en',amount:'125',paymentMethod:'cash',recipientMobile:'0821234567',paymentConfirmed:true,operationId:'context-retry-001'}),{code:mode==='replay'?'VOUCHER_OPERATION_CONTEXT_CHANGED':'VOUCHER_RECIPIENT_UNVERIFIED'});
+    assert.equal(fake.calls.some(c=>c.sql.includes('INSERT INTO gift_voucher_orders')),false);
+    assert.ok(fake.calls.some(c=>c.sql==='ROLLBACK'));
+  }
+});

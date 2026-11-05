@@ -2,7 +2,7 @@ const { bookingActionStyles } = require('./calendarBookingsMenuPolish');
 const { workspaceErrorRecoveryClientScript } = require('./workspaceErrorRecovery');
 const { confirmationClientScript } = require('./workspaceConfirmation');
 function calendarOperationalMutationsClientScript() {
-  return workspaceErrorRecoveryClientScript() + confirmationClientScript() + `(function(){'use strict';
+  return require('./calendarClientToolsUx').calendarClientToolsScript() + workspaceErrorRecoveryClientScript() + confirmationClientScript() + `(function(){'use strict';
 var API='/calendar/operations';var AUTH='/calendar/staff-auth';var dragged=null;var activeAppointmentCard=null;var availabilityState=null;
 function one(selector,root){return(root||document).querySelector(selector);}function all(selector,root){return Array.prototype.slice.call((root||document).querySelectorAll(selector));}
 function operationId(){if(window.crypto&&typeof window.crypto.randomUUID==='function')return window.crypto.randomUUID();return'D'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2);}

@@ -14,7 +14,7 @@ test('Storybook workspace catalogue consumes production presentation authorities
   assert.match(story, /renderDashboardPage\(dashboardModel\(\)\)/);
   assert.match(story, /NavigationDrawerOpen/);
   assert.match(story, /workspaceNavigationOpenStory/);
-  assert.match(story, /renderClientDetailPageWithCommunications\(clientModel\(\)/);
+  assert.match(story, /renderClientDetailPageWithCommunications\(\{\.\.\.clientModel\(\),services:/);
   assert.match(story, /renderMessagesPage\(messagesModel\(\)\)/);
   assert.match(story, /calendarAppointmentCompactEditorClientScript\(\)/);
   assert.match(story, /renderCalendarCreateBookingPage\(/);

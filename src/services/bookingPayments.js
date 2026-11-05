@@ -568,7 +568,7 @@ function createBookingPaymentService({
     return subject.crmV2ClientId;
   }
 
-  async function recordManual({ adminId, appointmentId, amount, method, reference, notes, payerMobile, operationId } = {}) {
+  async function recordManual({ adminId, appointmentId, amount, method, reference, notes, payerMobile, operationId, expectedRevision } = {}) {
     const normalizedAmount = money(amount, { positive: true }), normalizedMethod = normalizeMethod(method), key = requestKey(operationId);
     const client = await db.connect();
     try {
@@ -580,6 +580,7 @@ function createBookingPaymentService({
       const operationKey=`manual:${operator.id}:${key}`;
       const replay = await client.query(`SELECT id FROM payment_ledger_entries WHERE operation_key=$1 LIMIT 1`, [operationKey]);
       if (!replay.rows[0]) {
+        if (expectedRevision != null && expectedRevision !== subject.pricingRevision) throw new BookingPaymentError('PAYMENT_STALE_REVISION', 'This booking changed. Review Payments before recording a receipt.', 409);
         const current = await position(client, account, subject);
         if (Number(normalizedAmount) > Number(current.outstanding)) throw new BookingPaymentError('PAYMENT_EXCEEDS_OUTSTANDING', 'The amount is greater than the booking balance.', 409);
         const payerClientId=await resolvePayer(client,subject,payerMobile||subject.clientMobile);

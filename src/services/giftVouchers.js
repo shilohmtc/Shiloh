@@ -217,7 +217,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
 
   // Use recorded client identities only; never claim an unassigned voucher on profile view.
   async function getWorkspaceClientModel({ adminId, clientId } = {}) {
-    await resolveOperator(db, adminId, CAPABILITIES.VIEW);
+    const operator = await resolveOperator(db, adminId, CAPABILITIES.VIEW);
     const id = Number(clientId);
     if (!Number.isSafeInteger(id) || id <= 0) throw new GiftVoucherError('VOUCHER_CLIENT_INVALID', 'Client reference is invalid.', 400);
     const result = await db.query(`SELECT v.id,v.voucher_code,v.original_value,v.balance,v.state,v.issued_at,v.valid_until,
@@ -226,7 +226,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
       WHERE v.recipient_crm_v2_client_id=$1 OR o.purchaser_crm_v2_client_id=$1
       ORDER BY v.id DESC`, [id]);
     const rows = result.rows.map(row => ({ ...row, expired: voucherExpiryTimestamp(row.valid_until) != null && voucherExpiryTimestamp(row.valid_until) < Date.now() }));
-    return { received: rows.filter(row => Number(row.recipient_crm_v2_client_id) === id),
+    return { authority: { canIssue: hasCapability(operator.calendarAuthority, CAPABILITIES.ISSUE) }, received: rows.filter(row => Number(row.recipient_crm_v2_client_id) === id),
       purchased: rows.filter(row => Number(row.purchaser_crm_v2_client_id) === id) };
   }
 
@@ -375,6 +375,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
   async function createWalkInVoucher({
     adminId,
     purchaserName,
+    contextClientId,
     recipientName,
     fromName,
     personalMessage,
@@ -410,8 +411,14 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
     try {
       await client.query('BEGIN');
       const operator = await resolveOperator(client, adminId, CAPABILITIES.ISSUE);
+      const selectedClient = contextClientId == null ? null : await require('./workspaceClientActionContext').requireClientActionContext(client, adminId, contextClientId, { lock: true });
+      if (selectedClient) {
+        const verifiedMatches = await client.query(`SELECT id FROM crm_v2_clients WHERE normalized_mobile=$1 AND status='active' AND mobile_verified_at IS NOT NULL ORDER BY id LIMIT 2 FOR SHARE`, [selectedClient.normalized_mobile]);
+        if (!selectedClient.mobile_verified_at || verifiedMatches.rows.length !== 1 || Number(verifiedMatches.rows[0].id) !== Number(selectedClient.id)) throw new GiftVoucherError('VOUCHER_RECIPIENT_UNVERIFIED', 'The selected client needs a uniquely verified mobile number before a voucher can be linked to this record.', 409);
+      }
+      if (selectedClient && (recipient !== selectedClient.name || recipientLocalMobile !== localMobile(selectedClient.normalized_mobile))) throw new GiftVoucherError('VOUCHER_CLIENT_CHANGED', 'This client’s details changed. Refresh the client record before issuing the voucher.', 409);
       const replay = (await client.query(
-        `SELECT v.voucher_code,v.original_value,v.balance,v.state,v.valid_until,v.access_key,o.id AS order_id
+        `SELECT v.voucher_code,v.original_value,v.balance,v.state,v.valid_until,v.access_key,v.recipient_crm_v2_client_id,o.id AS order_id
            FROM gift_voucher_payment_entries payment
            JOIN gift_voucher_orders o ON o.id=payment.order_id
            JOIN gift_vouchers v ON v.order_id=o.id
@@ -420,6 +427,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
         [operationKey],
       )).rows[0];
       if (replay) {
+        if (selectedClient && Number(replay.recipient_crm_v2_client_id) !== Number(selectedClient.id)) throw new GiftVoucherError('VOUCHER_OPERATION_CONTEXT_CHANGED', 'This operation belongs to a different recipient. Refresh before trying again.', 409);
         await client.query('COMMIT');
         return { status: 'idempotent_replay', orderId: Number(replay.order_id), voucher: replay, voucherPath: publicVoucherPath(replay.access_key), whatsappDelivery: { sent: false, reason: 'idempotent_replay' } };
       }
@@ -441,6 +449,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
          RETURNING *`,
         [order.id, code, normalizedAmount, validity.mode, validity.months, accessKey],
       )).rows[0];
+      if (selectedClient) await client.query(`UPDATE gift_vouchers SET recipient_crm_v2_client_id=$2,recipient_linked_at=NOW() WHERE id=$1`, [voucher.id, selectedClient.id]);
       await client.query(
         `INSERT INTO gift_voucher_payment_entries(order_id,amount,method,operation_key,external_reference,actor_admin_id)
          VALUES($1,$2,$3,$4,$5,$6)`,
@@ -454,7 +463,7 @@ function createGiftVoucherService({ db = pool, ozow = createOzowPaymentProvider(
       await client.query(
         `INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata)
          VALUES($1,'gift_voucher.walk_in_issued','gift_voucher',$2,$3::jsonb)`,
-        [operator.id, voucher.id, JSON.stringify({ orderId: Number(order.id), amount: normalizedAmount, paymentMethod: method, hasPaymentReference: Boolean(reference), stockReference: stock, language: selectedLanguage, whatsappDeliveryRequested: Boolean(mobile) })],
+        [operator.id, voucher.id, JSON.stringify({ orderId: Number(order.id), amount: normalizedAmount, paymentMethod: method, hasPaymentReference: Boolean(reference), stockReference: stock, language: selectedLanguage, whatsappDeliveryRequested: Boolean(mobile), ...(selectedClient ? { recipientClientId: Number(selectedClient.id) } : {}) })],
       );
       await client.query('COMMIT');
       result = { status: 'issued', orderId: Number(order.id), order, voucher, voucherPath: publicVoucherPath(accessKey) };

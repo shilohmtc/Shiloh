@@ -239,7 +239,7 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
       communicationsUnavailable,
       rewards,
       vouchers,
-      services: ['forms', 'rewards', 'vouchers', 'activity'].includes(services) ? services : (formsPage != null || policyOffset != null ? 'forms' : null),
+      services: ['overview', 'appointments', 'forms', 'rewards', 'vouchers', 'activity'].includes(services) ? services : (formsPage != null || policyOffset != null ? 'forms' : historyOffset != null ? 'appointments' : 'overview'),
     };
   }
 
