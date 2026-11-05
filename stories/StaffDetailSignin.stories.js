@@ -1,7 +1,7 @@
 import accessUx from '../src/presentation/staffCalendarAccessUx.js';
 import detailUx from '../src/presentation/staffDetailSigninUx.js';
 import passkeyUx from '../src/presentation/staffPasskeyUx.js';
-function surface(setup = false, whatsapp = false) {
+function surface(setup = false, whatsapp = false, sessionEnded = false) {
   let html = setup
     ? detailUx.setupPage(
         {
@@ -21,6 +21,7 @@ function surface(setup = false, whatsapp = false) {
         )
         .replace('Use your saved Shiloh passkey to continue.', '');
   if (whatsapp) html = html.replace('<main class="card">', `<main class="card">${accessUx.workspaceWhatsAppSigninPanel()}`);
+  if (sessionEnded) html = html.replace('<main class="card">', `<main class="card">${accessUx.workspaceSessionNotice()}`);
   return (
     `<style>${[...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map((match) => match[1]).join('\n')}</style>` +
     html.match(/<body[^>]*>([\s\S]*?)<\/body>/)[1].replace(/<script[\s\S]*?<\/script>/g, '')
@@ -34,6 +35,7 @@ export const SignIn = { render: () => surface() };
 export const AccountSetup = { render: () => surface(true) };
 
 export const WhatsAppSignIn = { render: () => surface(false, true) };
+export const SessionEnded = { render: () => surface(false, false, true) };
 
 export const RetiredDetails = { render: () => {
   const html=accessUx.renderStaffCalendarAccessPage()

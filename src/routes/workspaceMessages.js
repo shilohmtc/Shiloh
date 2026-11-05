@@ -32,7 +32,7 @@ function createWorkspaceMessagesRouter({
     if (!isWorkspaceOperationalEnabled(env)) return res.sendStatus(404);
     return next();
   });
-  router.use(requireStaffSession({ service: sessionService, env }));
+  router.use(requireStaffSession({ service: sessionService, env, humanNavigationSigninPath: staffAccessPath }));
   router.get('/', async (req, res) => {
     try {
       const model = await service.buildModel({

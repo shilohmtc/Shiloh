@@ -195,7 +195,12 @@ if(window.matchMedia){var weekDesktopMedia=window.matchMedia('(min-width: 701px)
 })();`;
 }
 
+function workspaceSessionNotice() {
+  return '<section class="status" role="status" data-workspace-session-notice><h2>Sign in to continue</h2><p>Your Workspace sign-in is no longer active. Please sign in again.</p></section>';
+}
+
 module.exports = {
+  workspaceSessionNotice,
   escapeHtml,
   messageForReason,
   workspaceWhatsAppSigninPanel,
