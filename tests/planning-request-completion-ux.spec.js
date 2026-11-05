@@ -10,6 +10,7 @@ for(const viewport of [{name:'phone',width:390,height:844},{name:'desktop',width
     await page.goto('/iframe.html?id=client-planning-requests--enquiry-resolution&viewMode=story',{waitUntil:'networkidle'});
     const card=page.locator('[data-dashboard-planning-request="81"]');
     await expect(card).toBeVisible();
+    await expect(card.getByRole('link',{name:'Call 082 000 0022',exact:true})).toHaveAttribute('href','tel:+27820000022');
     await page.addScriptTag({content:planningRequestClientScript()});
     return card;
   }

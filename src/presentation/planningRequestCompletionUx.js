@@ -1,11 +1,12 @@
 'use strict';
 
 const { escapeHtml } = require('./workspaceShell');
+const { displayPhone } = require('./southAfricanPhone');
 const { confirmationClientScript } = require('./workspaceConfirmation');
 
 function planningRequestContact(item) {
   const mobile=String(item.client_mobile||'');
-  const phone=/^27[678][0-9]{8}$/.test(mobile) ? `<a data-workspace-action="secondary" class="button" href="tel:+${mobile}">Call +${escapeHtml(mobile)}</a>` : '';
+  const phone=/^27[678][0-9]{8}$/.test(mobile) ? `<a data-workspace-action="secondary" class="button" href="tel:+${mobile}">Call ${escapeHtml(displayPhone(mobile))}</a>` : '';
   const client=Number.isSafeInteger(Number(item.client_id))&&Number(item.client_id)>0 ? `<a data-workspace-action="secondary" class="button" href="/calendar/clients/${Number(item.client_id)}">Open client profile</a>` : '';
   const submitted=new Date(item.requested_at);
   const timestamp=item.requested_at && Number.isFinite(submitted.getTime()) ? new Intl.DateTimeFormat('en-ZA',{timeZone:'Africa/Johannesburg',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(submitted) : '';
