@@ -13,7 +13,7 @@ function workerFixture({ api = 'supported' } = {}) {
   };
   const self = { navigator, addEventListener: (name, callback) => { (handlers[name] ||= []).push(callback); },
     registration: { async showNotification(...args) { shown.push(args); } } };
-  vm.runInNewContext(workspacePwaServiceWorkerScript(), { self });
+  vm.runInNewContext(workspacePwaServiceWorkerScript(), { self, AbortController, setTimeout, clearTimeout });
   function dispatch(type, data = {}) {
     for (const handler of handlers[type]) handler({ ...data, waitUntil(promise) { waits.push(promise); } });
   }
@@ -29,7 +29,7 @@ test('badge uses exactly the existing Needs attention projection, without counti
   assert.equal(workspaceDashboardAttention({}).count, 0);
 });
 
-for (const api of ['supported', 'unsupported', 'reject']) test(`push badge is optional and preserves immediate generic notification: ${api}`, async () => {
+for (const api of ['supported', 'unsupported', 'reject']) test(`push badge is optional and preserves fallback notification: ${api}`, async () => {
   const f = workerFixture({ api });
   f.dispatch('push'); await f.settle();
   assert.equal(f.shown.length, 1);

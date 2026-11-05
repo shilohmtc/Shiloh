@@ -60,8 +60,9 @@ test('Workspace notification UI requests permission on tap and display does not 
   new Function(client);
   new Function('self','caches','fetch','Response',worker);
   assert.match(client,/button\.addEventListener\('click'.*Notification\.requestPermission\(\)/s);
-  assert.doesNotMatch(worker,/push\/pending/);
-  assert.match(worker,/event.waitUntil\(self.registration.showNotification/);
+  assert.match(worker,/push\/pending/);
+  assert.match(worker,/controller.abort\(\)/);
+  assert.match(worker,/event.waitUntil\(workspaceAlertBody\(\).then/);
   assert.doesNotMatch(worker,/client.*(?:name|phone|email)/i);
 });
 
@@ -89,10 +90,10 @@ test('every received wake displays a generic notification despite expired sessio
       pushManager:{getSubscription:async()=>{reads++;return mode==='missing-subscription'?null:{endpoint:'https://push.example/device'};}},
       showNotification:async(...args)=>{shown.push(args);},
     },clients:{openWindow:async url=>opened.push(url)}};
-    vm.runInNewContext(workspacePwaServiceWorkerScript(),{self,fetch:async()=>{fetches++;if(mode==='network-failure')throw Error('offline');return {ok:mode!=='expired-session',status:401,json:async()=>({count:0})};}});
-    let completion;handlers.push({waitUntil:value=>{completion=value;}});await completion;
+    vm.runInNewContext(workspacePwaServiceWorkerScript(),{self,AbortController,setTimeout,clearTimeout,fetch:async()=>{fetches++;if(mode==='network-failure')throw Error('offline');return {ok:mode!=='expired-session',status:401,json:async()=>({count:0})};}});
+    let completion;const waits=[];handlers.push({waitUntil:value=>waits.push(value)});await Promise.all(waits);
     assert.deepEqual(shown.map(([title,options])=>[title,options.body,options.tag,options.data.url]),[['Shiloh Workspace','Open Workspace to review updates.','shiloh-workspace-attention','/calendar/workspace']]);
-    assert.equal(fetches,0);assert.equal(reads,0);
+    assert.equal(fetches,mode==='missing-subscription'?0:1);assert.equal(reads,1);
     let closed=false;handlers.notificationclick({notification:{close(){closed=true;}},waitUntil:value=>{completion=value;}});await completion;
     assert.equal(closed,true);assert.deepEqual(opened,['/calendar/workspace']);
   });
@@ -125,4 +126,65 @@ test('read-only device status keeps session/origin protections and ignores a sup
   const response=await request({Cookie:'shiloh_staff_session=synthetic'});assert.equal(response.status,200);
   assert.match(response.headers.get('cache-control'),/private, no-store/);assert.deepEqual(await response.json(),{enabled:true});
   assert.deepEqual(calls,[{adminId:1,endpoint:'https://push.example.com/current'}]);
+});
+
+test('alert context describes categories only, preserves batches and falls back for malformed data or a stalled fetch', async t => {
+  const vm = require('node:vm');
+  const fallback = 'Open Workspace to review updates.';
+  const cases = [
+    [{count:1,categories:['booking_request']}, 'Booking request update. Open Workspace to review.'],
+    [{count:2,categories:['planning','handoff']}, 'Appointment planning update. Reception update. Open Workspace to review.'],
+    [{count:5,categories:['booking_request','planning','handoff']}, 'Booking request update. Appointment planning update. Reception update. Open Workspace to review.'],
+    [{count:1,categories:['booking_request','booking_request']}, 'Booking request update. Open Workspace to review.'],
+    [{count:0,categories:['booking_request']}, fallback],
+    [{count:1,categories:['private client name']}, fallback],
+    [{count:1,categories:['__proto__']}, fallback],
+    [{count:1}, fallback],
+    ['stalled', fallback],
+  ];
+  for (const [result, expected] of cases) await t.test(JSON.stringify(result), async () => {
+    const handlers={}, shown=[], waits=[]; let timer, signal;
+    const self={addEventListener:(name,handler)=>{handlers[name]=handler;},registration:{
+      pushManager:{getSubscription:async()=>({endpoint:'https://push.example.com/device'})},
+      showNotification:async(...args)=>shown.push(args),
+    }};
+    vm.runInNewContext(workspacePwaServiceWorkerScript(), {self,AbortController,
+      setTimeout:(callback,delay)=>{assert.equal(delay,1500);timer=callback;return 1;},clearTimeout:()=>{},
+      fetch:async(url,options)=>{
+        assert.equal(url,'/calendar/pwa/push/pending');
+        assert.equal(options.credentials,'same-origin');assert.equal(options.cache,'no-store');
+        assert.deepEqual(JSON.parse(options.body),{endpoint:'https://push.example.com/device'});
+        signal=options.signal;
+        return result==='stalled'?new Promise(()=>{}):{ok:true,json:async()=>({...result,clientName:'Never display this',url:'https://evil.example'})};
+      },
+    });
+    handlers.push({waitUntil:value=>waits.push(value)});
+    if(result==='stalled'){await Promise.resolve();timer();}
+    await Promise.all(waits);
+    assert.equal(shown.length,1);assert.equal(shown[0][1].body,expected);
+    assert.equal(shown[0][1].data.url,'/calendar/workspace');
+    assert.doesNotMatch(JSON.stringify(shown),/Never display|evil.example/);
+    if(result==='stalled')assert.equal(signal.aborted,true);
+  });
+});
+
+test('pending context reads only the current account subscription and returns no event IDs or private record fields',async t=>{
+  const {PGlite}=require('@electric-sql/pglite');const pg=new PGlite();t.after(()=>pg.close());
+  await pg.exec(`CREATE TABLE workspace_push_subscriptions(id INT,admin_id INT,endpoint TEXT,enabled BOOLEAN,last_notification_id INT);
+    CREATE TABLE workspace_push_notifications(id INT,admin_id INT,event_key TEXT,created_at TIMESTAMPTZ DEFAULT NOW());
+    INSERT INTO workspace_push_subscriptions VALUES(1,1,'https://push.example.com/current',TRUE,0),(2,2,'https://push.example.com/other',TRUE,0);
+    INSERT INTO workspace_push_notifications(id,admin_id,event_key) VALUES(1,1,'booking_request:91'),(2,1,'planning:92'),(3,2,'handoff:93'),(4,1,'unknown:94');`);
+  const {db}=fixture();const principal=db.query;db.query=async(sql,params)=>sql.includes('calendarAuthorization:principal')?principal(sql,params):pg.query(sql,params);
+  const service=createWorkspacePushService({db,env:{}});
+  assert.deepEqual(await service.pending({adminId:1,endpoint:'https://push.example.com/other'}),{count:0});
+  assert.deepEqual(await service.pending({adminId:3,endpoint:'https://push.example.com/current'}),{count:0});
+  assert.deepEqual(await service.pending({adminId:1,endpoint:'https://push.example.com/current'}),{count:3,categories:['booking_request','planning']});
+  assert.deepEqual(await service.pending({adminId:1,endpoint:'https://push.example.com/current'}),{count:0,categories:[]});
+  assert.deepEqual((await pg.query('SELECT last_notification_id FROM workspace_push_subscriptions ORDER BY id')).rows,[{last_notification_id:4},{last_notification_id:0}]);
+  await pg.exec(`INSERT INTO workspace_push_notifications(id,admin_id,event_key,created_at) VALUES(5,1,'handoff:95',NOW()-INTERVAL '16 minutes');`);
+  assert.deepEqual(await service.pending({adminId:1,endpoint:'https://push.example.com/current'}),{count:1,categories:[]});
+  await pg.exec(`INSERT INTO workspace_push_notifications(id,admin_id,event_key) SELECT id,1,'booking_request:'||id FROM generate_series(6,11) AS id;`);
+  assert.deepEqual(await service.pending({adminId:1,endpoint:'https://push.example.com/current'}),{count:5,categories:[]});
+  assert.deepEqual(await service.pending({adminId:1,endpoint:'https://push.example.com/current'}),{count:1,categories:['booking_request']});
+  assert.deepEqual((await pg.query('SELECT last_notification_id FROM workspace_push_subscriptions ORDER BY id')).rows,[{last_notification_id:11},{last_notification_id:0}]);
 });

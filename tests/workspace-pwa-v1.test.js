@@ -95,7 +95,8 @@ test('#791 service worker caches only inert versioned icon assets and never prot
   assert.match(worker, /Cache-Control':'no-store/);
   assert.doesNotMatch(worker, /cache\.put\(|caches\.match\(request\).*calendar|localStorage|sessionStorage|indexedDB|BackgroundSync/i);
   assert.match(worker, /addEventListener\('push'/);
-  assert.doesNotMatch(worker, /push\/pending/);
+  assert.match(worker, /push\/pending/);
+  assert.match(worker, /credentials:'same-origin',cache:'no-store'/);
   assert.match(worker, /Open Workspace to review updates/);
   assert.doesNotMatch(worker, /clientName|clientPhone|phoneNumber|clientEmail/i);
   assert.doesNotMatch(worker, /staff-auth\/session|\/clients|\/team|\/messages|\/book|\/operations/);

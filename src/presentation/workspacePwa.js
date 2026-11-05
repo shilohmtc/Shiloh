@@ -126,13 +126,37 @@ function workspacePwaOfflineDocument() {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#17382d"><title>Shiloh — connection required</title><style>*{box-sizing:border-box}body{margin:0;background:#f7f5ef;color:#20322b;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.offline-shell{min-height:100vh;display:grid;place-items:center;padding:24px}.offline-card{width:min(440px,100%);padding:24px;border:1px solid #dfe5df;border-radius:18px;background:#fffdf9;box-shadow:0 8px 28px rgba(32,50,43,.08)}h1{margin:0 0 10px;font-size:1.5rem}p{margin:0 0 18px;color:#6c7d75;line-height:1.5}.retry{min-height:44px;border:1px solid #496b5a;border-radius:999px;padding:10px 16px;background:#496b5a;color:#fff;font:inherit;font-weight:750;cursor:pointer}</style></head><body><main class="offline-shell"><section class="offline-card" data-shiloh-pwa-offline><h1>Shiloh needs a live connection</h1><p>Protected Workspace information is not stored for offline use. Reconnect, then retry to refresh current clinic data and access.</p><button class="retry" type="button" onclick="location.reload()">Retry</button></section></main></body></html>`;
 }
 
+function workspaceAlertDescription(result) {
+const fallback='Open Workspace to review updates.';
+if(!Number.isInteger(result?.count)||result?.count<1||!Array.isArray(result.categories))return fallback;
+const labels={booking_request:'Booking request update',planning:'Appointment planning update',handoff:'Reception update'};
+const categories=[...new Set(result.categories)];
+if(!categories.length||categories.some(key=>!Object.prototype.hasOwnProperty.call(labels,key)))return fallback;
+return categories.map(key=>labels[key]).join('. ')+'. Open Workspace to review.';
+}
+
 function workspacePwaServiceWorkerScript() {
   const iconUrls = JSON.stringify(ICON_URLS);
   const offline = JSON.stringify(workspacePwaOfflineDocument());
   const script = `'use strict';\nconst APP_RELEASE=${JSON.stringify(APP_RELEASE)};\nconst CACHE_NAME=${JSON.stringify(STATIC_CACHE_NAME)};\nconst CACHE_PREFIX=${JSON.stringify(STATIC_CACHE_PREFIX)};\nconst STATIC_URLS=${iconUrls};\nconst OFFLINE_HTML=${offline};\nself.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(STATIC_URLS)));});\nself.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith(CACHE_PREFIX)&&key!==CACHE_NAME).map(key=>caches.delete(key)))).then(()=>self.clients.claim()));});\nself.addEventListener('message',event=>{if(event.data&&event.data.type==='SHILOH_ACTIVATE_UPDATE')self.skipWaiting();});\nself.addEventListener('fetch',event=>{const request=event.request;if(request.method!=='GET')return;const url=new URL(request.url);if(url.origin!==self.location.origin)return;if(STATIC_URLS.includes(url.pathname+url.search)){event.respondWith(caches.open(CACHE_NAME).then(async cache=>(await cache.match(request))||fetch(request)));return;}if(request.mode==='navigate'&&url.pathname.startsWith('/calendar/')){event.respondWith(fetch(request).catch(()=>new Response(OFFLINE_HTML,{status:503,headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'}})));}});\n`;
   // A push wake must display even when a staff session has expired or the network is unavailable.
-  // Keep lock-screen content generic; opening Workspace still requires canonical staff authority.
-  return script + workspaceBadgeWorkerScript() + `self.addEventListener('push',event=>{event.waitUntil(self.registration.showNotification('Shiloh Workspace',{body:'Open Workspace to review updates.',icon:'/calendar/pwa/icon-192.png',tag:'shiloh-workspace-attention',data:{url:'/calendar/workspace'}}));invalidateBadgeCount();event.waitUntil(updateAppBadge());});\nself.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil(self.clients.openWindow('/calendar/workspace'));});\n`;
+  // Category-only context never includes client records. A bounded fallback keeps every wake visible.
+  // Opening Workspace still requires canonical staff authority.
+  return script + workspaceBadgeWorkerScript() + `${workspaceAlertDescription.toString()}
+async function workspaceAlertBody(){
+const fallback='Open Workspace to review updates.';
+let timer;
+const controller=new AbortController();
+try{return await Promise.race([(async()=>{
+const subscription=await self.registration.pushManager.getSubscription();
+if(!subscription)return fallback;
+const response=await fetch('/calendar/pwa/push/pending',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:subscription.endpoint}),signal:controller.signal});
+if(!response.ok)return fallback;
+const result=await response.json();
+return workspaceAlertDescription(result);
+})(),new Promise(resolve=>{timer=setTimeout(()=>{controller.abort();resolve(fallback);},1500);})]);}catch(_error){return fallback;}finally{clearTimeout(timer);}
+}
+self.addEventListener('push',event=>{event.waitUntil(workspaceAlertBody().then(body=>self.registration.showNotification('Shiloh Workspace',{body,icon:'/calendar/pwa/icon-192.png',tag:'shiloh-workspace-attention',data:{url:'/calendar/workspace'}})));invalidateBadgeCount();event.waitUntil(updateAppBadge());});\nself.addEventListener('notificationclick',event=>{event.notification.close();event.waitUntil(self.clients.openWindow('/calendar/workspace'));});\n`;
 }
 
 function workspacePushClientScript() {
@@ -243,5 +267,6 @@ module.exports = {
   augmentWorkspacePwaCsp,
   workspacePwaOfflineDocument,
   workspacePwaServiceWorkerScript,
+  workspaceAlertDescription,
   workspacePwaClientScript,
 };

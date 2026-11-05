@@ -47,9 +47,12 @@ function createWorkspacePushService({ db=pool, env=process.env, send=safePushReq
     const rows=await db.query(`SELECT id,last_notification_id FROM workspace_push_subscriptions WHERE admin_id=$1 AND endpoint=$2 AND enabled=TRUE LIMIT 1`,[Number(adminId),target]);
     if (!rows.rowCount) return { count:0 };
     const sub=rows.rows[0];
-    const events=await db.query(`SELECT id FROM workspace_push_notifications WHERE admin_id=$1 AND id>$2 AND created_at>NOW()-INTERVAL '7 days' ORDER BY id LIMIT 5`,[Number(adminId),Number(sub.last_notification_id)]);
+    const events=await db.query(`SELECT id,event_key,(created_at>=NOW()-INTERVAL '15 minutes' AND created_at<=NOW()) AS recent FROM workspace_push_notifications WHERE admin_id=$1 AND id>$2 AND created_at>NOW()-INTERVAL '7 days' ORDER BY id LIMIT 5`,[Number(adminId),Number(sub.last_notification_id)]);
     if (events.rowCount) await db.query(`UPDATE workspace_push_subscriptions SET last_notification_id=GREATEST(last_notification_id,$2) WHERE id=$1`,[sub.id,events.rows.at(-1).id]);
-    return { count:events.rowCount };
+    // Match My Shiloh's freshness window. A full page may omit newer categories; keep that alert generic.
+    const describe = events.rowCount < 5 && events.rows.every(event => event.recent === true);
+    const categories = describe ? [...new Set(events.rows.map(event => /^(planning|handoff|booking_request):[1-9]\d*$/.exec(String(event.event_key || ''))?.[1]).filter(Boolean))] : [];
+    return { count:events.rowCount, categories };
   }
   async function queue(eventKey, { adminIds = null } = {}) {
     const result = { queued: 0, accepted: 0, failed: 0 };
