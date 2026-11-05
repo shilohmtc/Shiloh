@@ -206,10 +206,16 @@ async function main() {
     const rotated = await sessionService.rotateCsrfToken(req.staffBrowserSession.sessionId);
     return res.status(200).json({ csrfToken: rotated.csrfToken });
   });
+  app.get('/calendar/pwa/icon-192.png', (_req, res) => res.type('image/png').sendFile(path.join(__dirname, '..', 'public', 'assets', 'pwa', 'shiloh-pwa-192.png')));
   app.use('/calendar/clients', createWorkspaceClientsRouter({
     env: ENV,
     sessionService,
     service: readService,
+    paymentService: { async getDirectoryReviews({ adminId, ids }) {
+      assert.equal(adminId, 81);
+      assert.ok(ids.every(id => [701, 702].includes(Number(id))));
+      return Object.fromEntries(ids.map(id => [id, { state: 'restricted' }]));
+    } },
     mutationService,
     notificationService,
   }));
@@ -267,6 +273,7 @@ async function main() {
       assert.equal(await page.getByText('Shared Shiloh Client', { exact: true }).isVisible(), true);
       assert.equal(await page.getByText('Clinic Only Client', { exact: true }).count(), 0);
       assert.equal(await page.locator('.client-row').count(), 2);
+      assert.equal(await page.getByText('Payment details restricted', { exact: true }).count(), 2);
       assert.equal(await page.locator('[data-tenant-client-base="true"]').count() > 0, true);
 
       const denied = await page.goto(`${origin}/calendar/clients/999`, { waitUntil: 'networkidle' });

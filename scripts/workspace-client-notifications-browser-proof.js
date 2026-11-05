@@ -263,7 +263,9 @@ function createFixture() {
     return res.status(200).json({ csrfToken: rotated.csrfToken });
   });
 
+  app.get('/calendar/pwa/icon-192.png', (_req, res) => res.type('image/png').sendFile(path.join(__dirname, '..', 'public', 'assets', 'pwa', 'shiloh-pwa-192.png')));
   app.use('/calendar/clients', createWorkspaceClientsRouter({
+    paymentService: { async getDirectoryReviews({ ids }) { return Object.fromEntries(ids.map(id => [id, { state: 'unavailable' }])); } },
     env,
     sessionService,
     service: clientService,

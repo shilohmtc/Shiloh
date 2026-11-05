@@ -294,6 +294,7 @@ function createFixture() {
   app.use('/calendar/workspace', createWorkspaceOperationalRouter({ env: ENV, sessionService, dashboardService, navigationService }));
   app.use('/calendar/messages', createWorkspaceMessagesRouter({ env: ENV, sessionService, service: messageService }));
   app.use('/calendar/clients', createWorkspaceClientsRouter({
+    paymentService: { async getDirectoryReviews({ ids }) { return Object.fromEntries(ids.map(id => [id, { state: 'unavailable' }])); } },
     env: ENV, sessionService, service: clientService, notificationService: { async resolveAccess() { return null; } },
   }));
   app.get('/calendar/team', requireStaffSession({ service: sessionService, env: ENV }), (_req, res) => {
