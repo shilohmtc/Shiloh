@@ -32,6 +32,7 @@ for (const width of [1440, 390]) test(`Already attended ${width}: confirm, cance
   expect(await frame.locator('html').evaluate(el => el.scrollWidth <= window.innerWidth)).toBe(true);
   await dialog.getByRole('button', { name: 'Already attended', exact: true }).click();
   const payment=frame.getByRole('dialog',{name:'Complete visit and payment'});
+  await expect(payment.locator('[data-visit-payment-client]')).toHaveText(await card.locator('.appointment-copy strong').first().innerText());
   expect(calls).toHaveLength(0);
   await payment.getByRole('button',{name:'Payment outstanding',exact:true}).click();
   await expect(payment).toContainText('Refresh Workspace');

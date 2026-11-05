@@ -1589,32 +1589,40 @@ test('Dashboard visit outcomes use a polished accessible confirmation on Desktop
     await page.setViewportSize(viewport);
     await page.goto('/iframe.html?id=workspace-production-surfaces--dashboard-operational&viewMode=story', { waitUntil: 'networkidle' });
 
+    let writes = 0;
+    await page.route('**/calendar/staff-auth/csrf', route => { writes++; return route.fulfill({json:{csrfToken:'synthetic'}}); });
+    await page.route('**/calendar/payments/appointments/*/completion-state', route => route.fulfill({json:{payment:{outstanding:'650.00'},subject:{pricingRevision:'synthetic'},authority:{canCollect:true}}}));
     const carryOver = page.locator('[data-dashboard-carryover-panel]');
     await carryOver.getByRole('button', { name: 'Completed' }).click();
 
-    const dialog = page.locator('[data-dashboard-outcome-dialog]');
+    const dialog = page.getByRole('dialog', {name:'Complete visit and payment'});
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole('heading', { name: 'Mark this visit as completed?' })).toBeVisible();
-    await expect(dialog).toContainText('Synthetic Client AY’s appointment');
-    await expect(dialog.getByRole('button', { name: 'Not yet' })).toBeFocused();
-    await expect(dialog.getByRole('button', { name: 'Complete visit' })).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: 'Complete visit', exact:true })).toBeVisible();
+    await expect(dialog).toContainText('Synthetic Client AY');
+    await expect(dialog.getByRole('button', { name: 'Paid', exact:true })).toBeFocused();
+    await expect(dialog.getByRole('button', { name: 'Payment outstanding' })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Paid', exact:true })).toBeVisible();
 
     const accessibility = await new AxeBuilder({ page })
-      .include('[data-dashboard-outcome-dialog]')
+      .include('.visit-payment-dialog')
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     const serious = accessibility.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
     expect(serious, `Serious accessibility violations in Dashboard outcome dialog: ${JSON.stringify(serious, null, 2)}`).toEqual([]);
 
-    await dialog.getByRole('button', { name: 'Not yet' }).click();
+    await page.screenshot({ path: `artifacts/dashboard-payment-choice-${viewport.width <= 560 ? 'phone' : 'desktop'}.png` });
+    await dialog.getByRole('button', { name: 'Close payment window' }).click();
     await expect(dialog).toBeHidden();
 
+    await expect(carryOver.getByRole('button', { name: 'Completed' })).toBeFocused();
+    expect(writes).toBe(0);
+    const noShowDialog = page.locator('[data-dashboard-outcome-dialog]');
     await carryOver.getByRole('button', { name: 'No-show' }).click();
-    await expect(dialog.getByRole('heading', { name: 'Mark this visit as a no-show?' })).toBeVisible();
-    await expect(dialog.getByRole('button', { name: 'Mark no-show' })).toBeVisible();
+    await expect(noShowDialog.getByRole('heading', { name: 'Mark this visit as a no-show?' })).toBeVisible();
+    await expect(noShowDialog.getByRole('button', { name: 'Mark no-show' })).toBeVisible();
     await page.screenshot({ path: `artifacts/dashboard-outcome-dialog-${viewport.width <= 560 ? 'phone' : 'desktop'}.png` });
     await page.keyboard.press('Escape');
-    await expect(dialog).toBeHidden();
+    await expect(noShowDialog).toBeHidden();
     await expect(carryOver.getByRole('button', { name: 'No-show' })).toBeFocused();
   }
 });

@@ -1,10 +1,11 @@
 'use strict';
 function visitPaymentScript() {
   return String.raw`(()=>{'use strict';
-window.ShilohVisitPayment=function(id,complete){return new Promise(resolve=>{
+window.ShilohVisitPayment=function(id,complete,clientName){return new Promise(resolve=>{
  const previousFocus=document.activeElement,dialog=document.createElement('dialog');let completed=false,submitted=false,busy=false,pending=null;
  dialog.className='outcome-dialog visit-payment-dialog';dialog.setAttribute('aria-label','Complete visit and payment');
  dialog.innerHTML='<style>.visit-payment-dialog [hidden]{display:none!important}.visit-payment-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}.visit-payment-heading h2{margin:0}.visit-payment-dialog [data-visit-payment-actions]{display:flex;flex-wrap:wrap;gap:10px}.visit-payment-dialog form{display:grid;gap:12px;width:100%}.visit-payment-dialog input:not([type=checkbox]),.visit-payment-dialog select{width:100%;min-width:0;min-height:44px;padding:10px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--ink);font:inherit}.visit-payment-dialog input[type=checkbox]{width:20px;height:20px;flex-shrink:0}.visit-payment-dialog .action-button{min-height:44px}.visit-payment-dialog details{width:100%}.visit-payment-dialog form button{background:var(--leaf-soft);color:var(--leaf-deep)}</style><div class="outcome-dialog-body"><div class="visit-payment-heading"><h2>Complete visit</h2><button class="action-button" type="button" data-visit-payment-close aria-label="Close payment window">Close</button></div><p data-visit-payment-copy>Checking recorded payments…</p><div data-visit-payment-actions></div><p role="status" data-visit-payment-status></p></div>';
+ if(clientName){const name=document.createElement('p');name.textContent=String(clientName);name.style.fontWeight='700';name.dataset.visitPaymentClient='';dialog.querySelector('.visit-payment-heading').after(name);}
  document.body.append(dialog);dialog.showModal();
  const copy=dialog.querySelector('[data-visit-payment-copy]'),actions=dialog.querySelector('[data-visit-payment-actions]'),status=dialog.querySelector('[data-visit-payment-status]');
  function close(){dialog.close();dialog.remove();if(previousFocus&&previousFocus.isConnected)previousFocus.focus();resolve({completed,uncertain:submitted&&!completed});}
