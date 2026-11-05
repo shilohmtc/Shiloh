@@ -276,6 +276,8 @@ async function main() {
       const detailResponse = await page.goto(`${origin}/calendar/clients/701`, { waitUntil: 'networkidle' });
       assert.equal(detailResponse.status(), 200);
       await page.locator('[data-client-management]').waitFor();
+      assert.equal(await page.locator('[data-client-edit-form]').isVisible(), false);
+      await page.locator('.client-edit-summary').click();
       assert.equal(await page.getByRole('button', { name: 'Remove from my clients', exact: true }).isVisible(), true);
       assert.equal(await page.getByText('Marietjie Signature Massage', { exact: true }).isVisible(), true);
 
@@ -316,6 +318,7 @@ async function main() {
         response.url().endsWith('/calendar/clients/701/archive') && response.request().method() === 'POST'
       );
       const beforeArchive = archiveCalls;
+      await page.locator('.client-edit-summary').click();
       await page.getByRole('button', { name: 'Remove from my clients', exact: true }).click();
       const confirmation = page.getByRole('dialog', { name: 'Remove client from your list?' });
       await confirmation.waitFor({ state: 'visible' });

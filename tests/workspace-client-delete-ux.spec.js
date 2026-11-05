@@ -14,6 +14,8 @@ for (const [name,width,height] of [['phone',390,844],['desktop',1280,900]]) {
       return r.fulfill({status:409,json:{code:'WORKSPACE_CLIENT_DELETE_LINKED',error:'This profile cannot be permanently deleted because it is linked to appointments, payments, an app account, or other clinic records. No records were deleted.'}});
     });
     await page.goto('/iframe.html?id=workspace-clients--clinic-client-deletion&viewMode=story');
+    await expect(page.locator('[data-client-edit-form]')).toBeHidden();
+    await page.locator('.client-edit-summary').click();
     const button=page.getByRole('button',{name:'Delete client',exact:true});
     await expect(button).toBeVisible();
     await expect(page.getByRole('button',{name:'Archive client',exact:true})).toHaveCount(0);
