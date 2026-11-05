@@ -41,8 +41,10 @@ function createCalendarAppointmentDetailsService({
     // Never fall back to a payer, first group member, display-name match or phone guess.
     const client = await readClient(identity.crm_v2_client_id, { scope: authority.clientScope });
     const mobile = String(client?.normalized_mobile || '').trim();
-    if (!client || !/^27[678]\d{8}$/.test(mobile)) return unavailable('Contact details unavailable');
-    return { available: true, name: String(client.name || 'Client'), displayPhone: displayPhone(mobile),
+    if (!client || Number(client.id) !== Number(identity.crm_v2_client_id)) return unavailable('Contact details unavailable');
+    const clientProfile = { id:Number(client.id), name:String(client.name || 'Client') };
+    if (!/^27[678]\d{8}$/.test(mobile)) return { ...unavailable('Contact details unavailable'), clientProfile };
+    return { available: true, clientProfile, name: String(client.name || 'Client'), displayPhone: displayPhone(mobile),
       callHref: `tel:+${mobile}`, whatsappHref: `https://wa.me/${mobile}` };
   }
   async function get({ adminId, viewer, appointmentId, view, date, staff } = {}) {

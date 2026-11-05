@@ -154,6 +154,15 @@ for (const viewport of [{name:'phone',width:390,height:844},{name:'desktop',widt
       fs.mkdirSync(evidence,{recursive:true});await page.screenshot({path:path.join(evidence,`${story.includes('dashboard')?'dashboard':'reports'}-${viewport.name}.png`),fullPage:true});
     }
     await page.goto('/iframe.html?id=workspace-client-services--directory&viewMode=story',{waitUntil:'networkidle'});
+    await expect(page.locator('[data-client-management]')).toHaveCount(0);
+    await expect(page.locator('#client-search')).toBeVisible();
+    await page.goto('/iframe.html?id=workspace-production-surfaces--client-home-activity&viewMode=story',{waitUntil:'networkidle'});
+    const clientActivity=page.getByRole('navigation',{name:'Client sections'}).getByRole('link',{name:'Activity',exact:true});
+    await expect(clientActivity).toHaveAttribute('href','/calendar/clients/9012?services=activity#client-activity');
+    await expect(clientActivity).toHaveAttribute('aria-current','page');
+    await expect(page.locator('[data-client-communications]')).toBeVisible();
+    // The restricted tools-only fallback retains its independently authorized Messages route.
+    await page.goto('/iframe.html?id=workspace-client-services--tools-only&viewMode=story',{waitUntil:'networkidle'});
     await page.locator('[data-client-management] summary').click();
     const activity=page.locator('[data-client-management] [data-workspace-destination="messages"]');
     await expect(activity).toBeVisible();

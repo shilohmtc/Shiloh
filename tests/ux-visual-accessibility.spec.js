@@ -1597,7 +1597,7 @@ test('Dashboard visit outcomes use a polished accessible confirmation on Desktop
     await expect(dialog.getByRole('heading', { name: 'Mark this visit as completed?' })).toBeVisible();
     await expect(dialog).toContainText('Synthetic Client AY’s appointment');
     await expect(dialog.getByRole('button', { name: 'Not yet' })).toBeFocused();
-    await expect(dialog.getByRole('button', { name: 'Mark completed' })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Complete visit' })).toBeVisible();
 
     const accessibility = await new AxeBuilder({ page })
       .include('[data-dashboard-outcome-dialog]')
@@ -3108,13 +3108,14 @@ test('Workspace client record shows policy history and booking readiness on Phon
     { name:'desktop', width:1280, height:900 },
   ]) {
     await page.setViewportSize({ width:viewport.width, height:viewport.height });
-    await page.goto('/iframe.html?id=workspace-clients--marietjie-client-management&viewMode=story', { waitUntil:'networkidle' });
+    await page.goto('/iframe.html?id=workspace-clients--client-policy-history&viewMode=story', { waitUntil:'networkidle' });
     const surface = page.locator('[data-story-surface]');
     await expect(surface).toBeVisible();
-    await surface.locator('#client-forms > summary').click();
     await expect(surface.getByRole('heading', { name:'Booking Policy & Terms' })).toBeVisible();
     await expect(surface.getByText('2026-09-25-v3')).toBeVisible();
     await expect(surface.getByText(/In clinic on Shiloh device/)).toBeVisible();
+    await page.screenshot({path:testInfo.outputPath(`client-policy-record-${viewport.name}.png`),fullPage:true});
+    await page.goto('/iframe.html?id=workspace-clients--client-booking-readiness&viewMode=story',{waitUntil:'networkidle'});
     await expect(surface.getByText('✓ Terms accepted')).toBeVisible();
     await expect(surface.getByText('Deposit received')).toBeVisible();
     await expect(surface.getByText('✓ Confirmed')).toBeVisible();

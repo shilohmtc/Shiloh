@@ -29,6 +29,8 @@ export const Directory = { render: () => {
   return `<style>${[...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(match => match[1]).join('\n')}</style>${html.match(/<body[^>]*>([\s\S]*?)<\/body>/)[1].replace(/<script[\s\S]*?<\/script>/g, '')}`;
 } };
 export const DirectoryPermissions = { render: () => {
-  const html = clients.renderClientListPage({ authority: { displayName: 'Example Practitioner' }, clients: [], offset: 0, pageSize: 24 });
+  const html = clients.renderClientManagementPage({}, {displayName:'Example Practitioner'});
   return `<style>${[...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(match => match[1]).join('\n')}</style>${html.match(/<body[^>]*>([\s\S]*?)<\/body>/)[1].replace(/<script[\s\S]*?<\/script>/g, '')}`;
 } };
+
+export const ToolsOnly = { render: () => { const html=clients.renderClientManagementPage(navigation,{displayName:'Example Reception'});return `<style>${[...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(m=>m[1]).join('\n')}</style>${html.match(/<body[^>]*>([\s\S]*?)<\/body>/)[1]}`; } };

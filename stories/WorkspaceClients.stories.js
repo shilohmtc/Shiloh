@@ -120,9 +120,10 @@ function listHtml() {
   return injectClientListManagement(renderClientListPage(model, options), model);
 }
 
-function detailHtml(clinic = false, gender = 'female') {
+function detailHtml(clinic = false, gender = 'female', services = 'overview') {
   const model = detailModel();
   model.client.gender = gender;
+  model.services = services;
   if (clinic) model.authority = { ...model.authority, displayName: 'Synthetic clinic owner', businessRole: 'owner', deleteAllowed: true, clientScope: { kind: 'clinic', ownerStaffId: null } };
   return injectClientDetailManagement(renderClientDetailPageWithCommunications(model, options), model);
 }
@@ -143,8 +144,13 @@ export const MarietjieClientManagement = {
   render: () => productionSurface(detailHtml()),
 };
 
+export const MarietjieClientAppointments = {
+  render: () => productionSurface(detailHtml(false, 'female', 'appointments')),
+};
+
 function documentsModel({ reception = false, empty = false, unavailable = false } = {}) {
   const model = detailModel();
+  model.services = 'forms';
   model.authority = { ...model.authority, displayName: reception ? 'Reception' : 'Christel', businessRole: reception ? 'booking_operator' : 'owner' };
   model.manageAllowed = false;
   model.policyAcceptances = empty ? [] : [{ ...model.policyAcceptances[0], crm_v2_client_id: model.client.id, has_snapshot: true }];
@@ -190,6 +196,7 @@ export const NextAppointmentAndLastVisit = { render: () => productionSurface(ren
 }, options)) };
 export const AwaitingConfirmationHistory = { render: () => {
   const model=detailModel();
+  model.services = 'appointments';
   model.appointments=[
     {...model.appointments[0],status:'scheduled',bookingRequestState:'pending'},
     {...model.appointments[0],status:'scheduled',bookingRequestState:'awaiting_client_confirmation'},
@@ -200,3 +207,6 @@ export const AwaitingConfirmationHistory = { render: () => {
 
 export const ClientGenderLegacy = { render: () => productionSurface(detailHtml(false, 'non_binary')) };
 export const ClientGenderUnrecorded = { render: () => productionSurface(detailHtml(false, null)) };
+
+export const ClientPolicyHistory = { render: () => productionSurface(renderClientDetailPageWithCommunications({...detailModel(),services:'forms'},options)) };
+export const ClientBookingReadiness = { render: () => productionSurface(renderClientDetailPageWithCommunications({...detailModel(),services:'appointments'},options)) };

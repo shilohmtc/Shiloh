@@ -16,6 +16,7 @@ for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',w
       if(route.request().method()==='GET')return route.fulfill({status:denied?403:200,json:denied?{error:'This pair is outside your appointment scope.'}:state()});
       saves.push(route.request().postDataJSON());return route.fulfill({status:409,json:{error:'One of the appointments changed. Reload the pair before saving.'}});
     });
+    await page.route('**/calendar/read-only/appointments/*/details**',route=>{const id=Number(new URL(route.request().url()).pathname.split('/')[4]);return route.fulfill({json:{appointmentId:id,sharedBooking:true,contact:{clientProfile:{id:id+1000,name:'Synthetic Guest '+(id===101?'A':'B')}}}});});
     await page.route('**/calendar/staff-auth/csrf',route=>route.fulfill({json:{csrfToken:'synthetic-token'}}));
     await page.goto('/iframe.html?id=calendar-couples-editing--linked-pair&viewMode=story',{waitUntil:'networkidle'});
     const frame=page.frameLocator('iframe[title="Synthetic couples appointment editor"]');
@@ -35,6 +36,11 @@ for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',w
       const editor=frame.locator('[data-couples-edit-dialog]');
       await expect(editor.getByText('Synthetic Guest A · Appointment #101')).toBeVisible();
       await expect(editor.getByText('Synthetic Guest B · Appointment #102')).toBeVisible();
+      await expect(editor.getByRole('navigation',{name:'Booking client tools'})).toHaveCount(0);
+      await editor.getByLabel('Choose the client for vouchers, rewards or forms').selectOption(String(id));
+      const voucher=editor.getByRole('navigation',{name:'Booking client tools'}).getByRole('link',{name:'Vouchers',exact:true});
+      await expect(voucher).toHaveAttribute('href',new RegExp('/calendar/clients/'+(id+1000)+'\\?services=vouchers&returnTo='));
+      expect(new URLSearchParams((await voucher.getAttribute('href')).split('?')[1]).get('returnTo')).toContain('appointment='+id);
       await expect(editor.getByLabel('Date',{exact:true})).toBeVisible();
       await expect(editor.getByLabel('Start time',{exact:true})).toHaveValue('10:00');
       await page.screenshot({path:testInfo.outputPath(`couples-edit-${viewport.name}-${id}.png`),fullPage:true});
@@ -68,10 +74,13 @@ for (const viewport of [{ name:'phone',width:390,height:844 },{ name:'desktop',w
       await page.screenshot({path:testInfo.outputPath('couples-completed-narrow-text.png'),fullPage:true});
       await frame.locator('html').evaluate(node=>{node.style.fontSize='';});await page.setViewportSize(viewport);
     }
+    await editor.getByLabel('Choose the client for vouchers, rewards or forms').selectOption('102');
+    await expect(editor.getByRole('navigation',{name:'Booking client tools'})).toBeVisible();
     await page.keyboard.press('Escape');denied=true;
     await frame.locator('[data-event-id="appointment-101"]').click();await frame.getByRole('button',{name:'Manage booking'}).click();
     await expect(editor.getByRole('status')).toContainText('outside your appointment scope');
     await expect(editor.locator('form')).toBeHidden();
+    await expect(editor.getByRole('navigation',{name:'Booking client tools'})).toHaveCount(0);
     expect(await editor.getByText('Synthetic Guest B · Appointment #102').isVisible()).toBe(false);
     // Retain the pixels independently of the general test-results directory.
     fs.mkdirSync('artifacts/couples-edit-review',{recursive:true});

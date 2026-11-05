@@ -14,7 +14,7 @@ const {
   injectClientDetailManagement,
   workspaceClientsManageClientScript,
 } = require('../presentation/workspaceClientsManageUx');
-const { requireStaffSession } = require('../middleware/staffBrowserSession');
+const { requireStaffSession, sameOriginGuard, csrfGuard } = require('../middleware/staffBrowserSession');
 const { injectClientCreditSummary } = require('../presentation/clientCreditSummaryUx');
 const { createClientTreatmentCreditService } = require('../services/clientTreatmentCredit');
 const { injectClientConsultationHistory, renderPolicyDocument, documentClientScript } = require('../presentation/workspaceClientDocumentsUx');
@@ -112,6 +112,11 @@ function createWorkspaceClientDetailHandler({
         formsPage: req.query?.formsPage,
         services: req.query?.services,
       });
+      const returnTo = String(req.query?.returnTo || '');
+      if (returnTo.startsWith('/calendar/read-only?') && returnTo.length <= 2000) {
+        const appointment = new URL(returnTo, 'https://calendar.invalid').searchParams.get('appointment');
+        if (/^[1-9][0-9]*$/.test(appointment || '')) model.returnHref = require('../presentation/calendarReturnContext').calendarReturnHref(returnTo, appointment);
+      }
       let notificationActionAllowed = false;
       try {
         notificationActionAllowed = Boolean(await notificationService.resolveAccess(req.staffBrowserSession?.adminId));
@@ -162,6 +167,11 @@ function createWorkspaceClientsRouter({ sessionService, ...options } = {}) {
       }
     });
   }
+  router.get('/home.js', (req, res) => {
+    setWorkspaceClientsSecurityHeaders(res);
+    if (!isWorkspaceClientsEnabled(options.env || process.env)) return res.sendStatus(404);
+    return res.type('application/javascript').send(require('../presentation/workspaceClientHomeUx').clientHomeScript());
+  });
   router.get('/manage.js', async (req, res) => {
     setWorkspaceClientsSecurityHeaders(res);
     if (!isWorkspaceClientsEnabled(options.env || process.env)) return res.sendStatus(404);
@@ -170,6 +180,19 @@ function createWorkspaceClientsRouter({ sessionService, ...options } = {}) {
       return res.status(200).type('application/javascript').send(workspaceClientsManageClientScript());
     } catch (_error) {
       return res.sendStatus(403);
+    }
+  });
+  for (const kind of ['rewards', 'vouchers']) router.post('/:id/actions/' + kind, sameOriginGuard({env:options.env}), csrfGuard({service:sessionService}), async (req,res,next) => {
+    setWorkspaceClientsSecurityHeaders(res);
+    if (!isWorkspaceClientsEnabled(options.env || process.env)) return res.sendStatus(404);
+    try {
+      const input = {...req.body, adminId:req.staffBrowserSession.adminId, contextClientId:req.params.id, sendDigitalCopy:false};
+      const actionService = kind === 'rewards' ? (options.rewardsService || require('../services/shilohRewards').createShilohRewardsService({db:require('../db/pool').pool})) : (options.voucherService || require('../services/giftVouchers').createGiftVoucherService({db:require('../db/pool').pool}));
+      const result = kind === 'rewards' ? await actionService.adjust(input) : await actionService.createWalkInVoucher(input);
+      return res.status(200).json(result);
+    } catch(error) {
+      if (error.httpStatus) return res.status(error.httpStatus).json({error:error.message,code:error.code});
+      return next(error);
     }
   });
   router.get('/', createWorkspaceClientListHandler({ ...options, service }));

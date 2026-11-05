@@ -12,7 +12,9 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # The full 3,412-test run passed but hit ten minutes during completion.
+    # Retain every focused check and the full regression suite on slower runners.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v7

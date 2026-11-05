@@ -16,7 +16,7 @@ function payment(method = 'card_machine', change = () => {}) {
   return node;
 }
 function profile(authority = { canIssue: true, canCorrect: true }, unavailable = false) {
-  return surface(creditSummary.injectClientCreditSummary(clients.renderClientDetailPageWithCommunications(fixtures.clientProfileFixture), { clientId: 101, credit: unavailable ? null : { balance: 500, authority }, unavailable }));
+  return surface(creditSummary.injectClientCreditSummary(clients.renderClientDetailPageWithCommunications({...fixtures.clientProfileFixture,services:'rewards'}), { clientId: 101, credit: unavailable ? null : { balance: 500, authority }, unavailable }));
 }
 export default { title: 'Workspace/Payment method and client credit', parameters: { layout: 'fullscreen' } };
 export const CardMachine = { render: () => payment() };
