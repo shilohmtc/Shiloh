@@ -120,9 +120,10 @@ function listHtml() {
   return injectClientListManagement(renderClientListPage(model, options), model);
 }
 
-function detailHtml(clinic = false, gender = 'female') {
+function detailHtml(clinic = false, gender = 'female', services = 'overview') {
   const model = detailModel();
   model.client.gender = gender;
+  model.services = services;
   if (clinic) model.authority = { ...model.authority, displayName: 'Synthetic clinic owner', businessRole: 'owner', deleteAllowed: true, clientScope: { kind: 'clinic', ownerStaffId: null } };
   return injectClientDetailManagement(renderClientDetailPageWithCommunications(model, options), model);
 }
@@ -141,6 +142,10 @@ export const MarietjieClientBase = {
 
 export const MarietjieClientManagement = {
   render: () => productionSurface(detailHtml()),
+};
+
+export const MarietjieClientAppointments = {
+  render: () => productionSurface(detailHtml(false, 'female', 'appointments')),
 };
 
 function documentsModel({ reception = false, empty = false, unavailable = false } = {}) {

@@ -9,7 +9,9 @@ const stories = [
       await expect(page.getByRole('heading', { name: 'Client Directory', exact: true })).toBeVisible();
       await expect(page.getByText('Synthetic Client AR', { exact: true })).toBeVisible();
       await expect(page.getByText('Synthetic Client AS', { exact: true })).toBeVisible();
-      await expect(page.getByRole('heading', { name: 'Add client', exact: true })).toBeVisible();
+      await expect(page.locator('[data-client-create-form]')).toBeHidden();
+      await page.locator('[data-client-create-details] > summary').click();
+      await expect(page.getByRole('button', { name: 'Add client', exact: true })).toBeVisible();
       await expect(page.getByText('This list contains only your clients.', { exact: false })).toBeVisible();
     },
   },
@@ -23,7 +25,17 @@ const stories = [
       await page.locator('.client-edit-summary').click();
       await expect(page.getByRole('button', { name: 'Save client', exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Remove from my clients', exact: true })).toBeVisible();
+      await expect(page.getByRole('navigation', { name: 'Client sections' }).getByRole('link', { name: 'Appointments', exact: true })).toHaveAttribute('href', /services=appointments/);
+    },
+  },
+  {
+    id: 'workspace-clients--marietjie-client-appointments',
+    name: 'appointment history',
+    assertSurface: async (page) => {
+      await expect(page.getByRole('heading', { name: 'Synthetic Client AR', exact: true })).toBeVisible();
+      await expect(page.getByRole('navigation', { name: 'Client sections' }).locator('[aria-current="page"]')).toHaveText('Appointments');
       await expect(page.getByText('Marietjie Signature Massage', { exact: true })).toBeVisible();
+      await expect(page.locator('[data-client-edit-form]')).toBeHidden();
     },
   },
 ];

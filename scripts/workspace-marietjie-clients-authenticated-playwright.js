@@ -156,7 +156,7 @@ async function main() {
       assert.equal(adminId, 81);
       return listModel(state, status || 'active');
     },
-    async getClientDetail({ adminId, clientId }) {
+    async getClientDetail({ adminId, clientId, services }) {
       assert.equal(adminId, 81);
       if (Number(clientId) === 999) {
         throw new WorkspaceClientsError('WORKSPACE_CLIENT_NOT_FOUND', 'Client was not found.', 404);
@@ -164,7 +164,7 @@ async function main() {
       if (Number(clientId) !== 701) {
         throw new WorkspaceClientsError('WORKSPACE_CLIENT_NOT_FOUND', 'Client was not found.', 404);
       }
-      return detailModel(state);
+      return { ...detailModel(state), services: services || 'overview' };
     },
   };
 
@@ -277,9 +277,11 @@ async function main() {
       assert.equal(detailResponse.status(), 200);
       await page.locator('[data-client-management]').waitFor();
       assert.equal(await page.locator('[data-client-edit-form]').isVisible(), false);
+      await page.getByRole('navigation', { name: 'Client sections' }).getByRole('link', { name: 'Appointments', exact: true }).click();
+      assert.equal(await page.getByText('Marietjie Signature Massage', { exact: true }).isVisible(), true);
+      await page.getByRole('navigation', { name: 'Client sections' }).getByRole('link', { name: 'Overview', exact: true }).click();
       await page.locator('.client-edit-summary').click();
       assert.equal(await page.getByRole('button', { name: 'Remove from my clients', exact: true }).isVisible(), true);
-      assert.equal(await page.getByText('Marietjie Signature Massage', { exact: true }).isVisible(), true);
 
       const geometry = await page.evaluate(() => ({
         viewportWidth: window.innerWidth,
