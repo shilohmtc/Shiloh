@@ -57,7 +57,8 @@ function createShilohRewardsService({db=pool,notifyClient=null}={}) {
     return {balance:Number(row?.balance||0),credited:Number(row?.credited||0),used:Number(row?.used||0)};
   }
 
-  async function syncEligibleEarnings() {
+  async function syncEligibleEarnings({notify=true,appointmentId=null}={}) {
+    if(appointmentId!==null)appointmentId=positiveId(appointmentId,'appointment');
     const config=await settings(db);
     const candidates=await db.query(
       `SELECT ple.id,ple.entry_type,ple.amount,bpa.id AS booking_payment_account_id,
@@ -72,6 +73,7 @@ function createShilohRewardsService({db=pool,notifyClient=null}={}) {
          LEFT JOIN loyalty_wallet_entries existing ON existing.source_payment_ledger_entry_id=ple.id
          JOIN loyalty_program_settings cfg ON cfg.singleton=TRUE
         WHERE existing.id IS NULL
+          AND ($1::bigint IS NULL OR bpa.appointment_id=$1)
           AND ple.created_at>=cfg.activated_at
           AND (
             (bpa.appointment_id IS NOT NULL AND a.status='completed') OR
@@ -79,7 +81,7 @@ function createShilohRewardsService({db=pool,notifyClient=null}={}) {
               AND EXISTS(SELECT 1 FROM appointment_group_members gm JOIN appointments ga ON ga.id=gm.appointment_id WHERE gm.group_id=bpa.appointment_group_id AND ga.status='completed')
               AND NOT EXISTS(SELECT 1 FROM appointment_group_members gm JOIN appointments ga ON ga.id=gm.appointment_id WHERE gm.group_id=bpa.appointment_group_id AND ga.status NOT IN ('completed','cancelled')))
           )
-        ORDER BY ple.id`,
+        ORDER BY ple.id`, [appointmentId],
     );
     let recorded=0,skipped=0;
     for(const row of candidates.rows) {
@@ -99,7 +101,7 @@ function createShilohRewardsService({db=pool,notifyClient=null}={}) {
         if(inserted.rowCount){
           recorded++;
           const afterBalance=beforePosition.balance+(reversal?-Number(amount):Number(amount));
-          if(!reversal&&pushNotify&&beforePosition.balance<config.unlockThreshold&&afterBalance>=config.unlockThreshold){
+          if(notify&&!reversal&&pushNotify&&beforePosition.balance<config.unlockThreshold&&afterBalance>=config.unlockThreshold){
             await pushNotify({
               crmV2ClientId:Number(row.reward_client_id),
               eventKey:`rewards-unlocked:${wallet.id}:${inserted.rows[0].id}`,

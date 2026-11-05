@@ -61,8 +61,8 @@ function createBookingPaymentService({
   now = () => new Date(),
 } = {}) {
   const pushNotify = notifyClient || (db === pool ? queueClientNotification : null);
-  async function syncRewardsAfterPayment() {
-    try { await rewards.syncEligibleEarnings(); }
+  async function syncRewardsAfterPayment(options) {
+    try { if(options)await rewards.syncEligibleEarnings(options);else await rewards.syncEligibleEarnings(); }
     catch (error) { logger.error({ err:error }, 'Shiloh Rewards payment sync failed'); }
   }
   function depositMemberMap(position) {
@@ -947,7 +947,7 @@ function createBookingPaymentService({
   const prior = createBookingPriorPaymentActions({ db,money,requestKey,positiveId,ErrorType:BookingPaymentError,resolveOperator,loadSubject,assertTarget,accountFor,position,syncDepositAfterSettlement,now });
   const getReview = ({ adminId, appointmentId } = {}) => get({ adminId, appointmentId }, { allowPriceReview: true });
   const clientChoice = createClientPaymentChoice({db,ozow,loadSubject,accountFor,position,PaymentError:BookingPaymentError,now});
-  return { get, getReview, getSummary, getCompletionStateInTransaction, getCompletionState: input => getSummary(input, { completion: true }), recordManualInTransaction, syncCompletionRewards: syncRewardsAfterPayment, recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification,recordDepositWaiver,recordNoCharge:noCharge.record,recordPrior:prior.recordPrior,reversePrior:prior.reversePrior,
+  return { get, getReview, getSummary, getCompletionStateInTransaction, getCompletionState: input => getSummary(input, { completion: true }), recordManualInTransaction, syncCompletionRewards: appointmentId => syncRewardsAfterPayment({notify:false,appointmentId:positiveId(appointmentId,'appointment')}), recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification,recordDepositWaiver,recordNoCharge:noCharge.record,recordPrior:prior.recordPrior,reversePrior:prior.reversePrior,
     getClientPaymentChoices:clientChoice.get, collectClientPayment:clientChoice.collect, validatePaymentCheckout };
 }
 

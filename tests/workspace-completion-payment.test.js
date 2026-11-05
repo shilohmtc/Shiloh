@@ -86,3 +86,32 @@ test('completion state is a read-only canonical balance and retains view authori
   assert.deepEqual(await f.state(), { status: 'confirmed', receipts: 0 });
   await assert.rejects(f.service.getCompletionState({ adminId: 3, appointmentId: 201 }));
 });
+test('completion synchronizes only this visit rewards silently; ordinary rewards retain notifications', async t => {
+  const f = await fixture(t);
+  await f.query("UPDATE appointments SET status='completed',total_price=500 WHERE id IN(201,204)");
+  for (const appointmentId of [201,204]) {
+    const current = new Date((await f.query('SELECT updated_at FROM appointments WHERE id=$1',[appointmentId])).rows[0].updated_at).toISOString();
+    await f.service.recordManual({adminId:1,appointmentId,amount:'500.00',method:'cash',operationId:'synthetic_reward_receipt_'+appointmentId,expectedRevision:current});
+  }
+  await f.query(`ALTER TABLE payment_requests ADD COLUMN payer_crm_v2_client_id BIGINT;
+    CREATE TABLE loyalty_program_settings(singleton BOOLEAN,earn_basis_points INT,unlock_threshold NUMERIC,expiry_mode TEXT,activated_at TIMESTAMPTZ);
+    INSERT INTO loyalty_program_settings VALUES(TRUE,500,100,'no_expiry','2000-01-01');
+    CREATE TABLE loyalty_wallets(id BIGSERIAL PRIMARY KEY,crm_v2_client_id BIGINT UNIQUE,updated_at TIMESTAMPTZ DEFAULT NOW());
+    CREATE TABLE loyalty_wallet_entries(id BIGSERIAL PRIMARY KEY,wallet_id BIGINT,entry_type TEXT,signed_amount NUMERIC,operation_key TEXT UNIQUE,source_payment_ledger_entry_id BIGINT UNIQUE,booking_payment_account_id BIGINT,appointment_id BIGINT,notes TEXT);
+    INSERT INTO loyalty_wallets(crm_v2_client_id) VALUES(101),(102);
+    INSERT INTO loyalty_wallet_entries(wallet_id,entry_type,signed_amount,operation_key) VALUES(1,'adjustment',90,'synthetic_previous_reward_101'),(2,'adjustment',90,'synthetic_previous_reward_102');`);
+  const pushes=[];
+  const db={query:f.query,connect:async()=>({query:f.query,release(){}})};
+  const rewards=require('../src/services/shilohRewards').createShilohRewardsService({db,notifyClient:async message=>pushes.push(message)});
+  const payments=require('../src/services/bookingPayments').createBookingPaymentService({db,rewards});
+  const balances=async()=> (await f.query('SELECT wallet_id,SUM(signed_amount)::numeric(12,2) AS balance FROM loyalty_wallet_entries GROUP BY wallet_id ORDER BY wallet_id')).rows.map(r=>Number(r.balance));
+  await payments.syncCompletionRewards(201);
+  assert.deepEqual(await balances(),[115,90],'only the completed visit is synchronized');
+  assert.equal(pushes.length,0,'completion must not send even an indirect reward notification');
+  await payments.syncCompletionRewards(201);
+  assert.deepEqual(await balances(),[115,90],'retry does not duplicate rewards');
+  await rewards.syncEligibleEarnings();
+  assert.deepEqual(await balances(),[115,115]);
+  assert.equal(pushes.length,1,'ordinary reward synchronization retains its existing notification');
+  assert.equal(pushes[0].crmV2ClientId,102,'other clients are not silently swept by completion');
+});

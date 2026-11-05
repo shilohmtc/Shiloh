@@ -416,7 +416,7 @@ async function finalizeAppointment(admin, appointmentId, targetStatus, {
     const financialOutcome = needsPaymentChoice ? await require('./workspaceCompletionPayment').recordCompletionPayment(db, { adminId: admin.id, appointmentId, decision: paymentDecision, paymentService: completionPaymentService }) : null;
     const { canonicalStatus, financialClassification } = await recordFinalization(db, admin, appointment, targetStatus, { workspace, allowBusinessBackup, paymentDecision: financialOutcome });
     await db.query('COMMIT');
-    if (financialOutcome?.choice === 'paid') await (completionPaymentService || require('./bookingPayments').createBookingPaymentService({ db: connectionPool })).syncCompletionRewards();
+    if (financialOutcome?.choice === 'paid') await (completionPaymentService || require('./bookingPayments').createBookingPaymentService({ db: connectionPool })).syncCompletionRewards(appointmentId);
     return { status: 'updated', appointment, targetStatus, canonicalStatus, financialClassification, paymentOutcome: financialOutcome };
   } catch (error) {
     try { await db.query('ROLLBACK'); } catch (_) {}
