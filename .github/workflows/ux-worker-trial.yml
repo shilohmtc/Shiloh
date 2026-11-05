@@ -1,0 +1,42 @@
+name: Controlled UX worker trial
+on:
+  pull_request:
+    branches: [main]
+    paths: ['scripts/ux-worker-trial/**', '.github/workflows/ux-worker-trial.yml']
+permissions:
+  contents: read
+jobs:
+  compare:
+    if: github.head_ref == 'trial/ux-two-workers'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.14.1
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build-storybook -- --quiet
+        env:
+          STORYBOOK_DISABLE_TELEMETRY: '1'
+      - run: node scripts/ux-baseline-codec.js decode
+      - name: Start shared read-only Storybook
+        run: |
+          python3 -m http.server 6006 --directory storybook-static > /tmp/trial-storybook.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:6006/index.html > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Compare three runs per mode on this same runner
+        run: node scripts/ux-worker-trial/run.cjs
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: controlled-worker-trial
+          path: artifacts/worker-trial
+          retention-days: 7
