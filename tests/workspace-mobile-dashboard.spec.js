@@ -50,7 +50,8 @@ for (const width of [320, 390, 500, 700, 701, 1440]) {
       await expect(page.getByRole('heading', { level: 1, name: 'Welcome, Synthetic Reviewer' })).toBeVisible();
     }
     await expect(today).toContainText('1 appointment');
-    await expect(today).toContainText('2 pending requests');
+    await expect(today.locator('.day-summary')).not.toContainText('pending requests');
+    await expect(today.locator('.day-summary')).not.toContainText('holiday');
     await expect(attention.locator('[data-dashboard-planning-request]')).toHaveCount(2);
     await expect(attention.getByRole('link', { name: 'Set holiday hours' })).toHaveAttribute('href', '/calendar/clinic-hours');
     await expect(today.getByRole('link', { name: 'Open calendar', exact: true })).toHaveAttribute('href', /date=2026-10-14/);
@@ -107,6 +108,7 @@ for (const state of ['busy', 'empty', 'loading', 'unavailable', 'practitioner', 
     if (['loading', 'unavailable'].includes(state)) {
       const content = page.locator('[data-deposits-content]');
       await expect(content).toContainText(state === 'loading' ? 'Checking current deposits' : 'temporarily unavailable');
+      await page.locator('[data-deposits-review] summary').click();
       let release;
       await page.route('**/calendar/workspace/deposits', async route => { await new Promise(resolve => { release = resolve; }); return route.fulfill({ status: 503, body: 'Synthetic unavailable' }); });
       await page.getByRole('button', { name: 'Refresh deposits' }).click();

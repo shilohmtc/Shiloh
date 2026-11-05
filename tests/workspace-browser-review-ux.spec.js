@@ -73,7 +73,7 @@ for (const viewport of [{width:1180,height:757},{width:500,height:757},{width:32
       }
       if(name==='dashboard') {
         const summary=page.locator('[data-dashboard-today] .day-summary');
-        await expect(summary).toContainText('1 appointment');await expect(summary).toContainText('2 pending requests');await expect(summary).toContainText('1 holiday decision');await expect(summary).not.toContainText('awaiting outcome');
+        await expect(summary).toContainText('1 appointment');await expect(summary).not.toContainText('pending requests');await expect(summary).not.toContainText('holiday decision');await expect(summary).not.toContainText('awaiting outcome');
         await expect(page.locator('[data-dashboard-attention-panel]>.panel-head .summary-pill')).toHaveText('3');
         if(viewport.width>1050) {
           const card=await page.locator('.team-group').boundingBox(),panel=await page.locator('[data-dashboard-today]').boundingBox();expect(card.width).toBeGreaterThan(panel.width*.8);
