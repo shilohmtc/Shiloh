@@ -23,7 +23,7 @@ for (const kind of ['sparse','busy']) for (const width of [1180,1440,390,500]) t
     await expect(attention.locator(`[data-dashboard-attention-appointment="${item.id}"]`)).toHaveCount(0);
   }
   const finalize=today.locator('[data-dashboard-finalize="completed"]').first();
-  for(let repeat=0;repeat<2;repeat++){await finalize.click();await page.getByRole('button',{name:'Not yet',exact:true}).click();await expect(finalize).toBeFocused();}
+  for(let repeat=0;repeat<2;repeat++){await finalize.click();await page.getByRole('button',{name:'Close payment window',exact:true}).click();await expect(finalize).toBeFocused();}
   await finalize.click();await page.keyboard.press('Escape');await expect(finalize).toBeFocused();expect(writes).toBe(0);
   for(const control of await page.locator('.appointment-actions button,.request-actions a,[data-deposits-refresh],summary[data-workspace-action]').all())expect((await control.boundingBox()).height).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);

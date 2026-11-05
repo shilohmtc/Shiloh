@@ -233,6 +233,7 @@ function createWorkspaceOperationalRouter({
         appointmentId: req.params.appointmentId,
         expectedRevision: req.body?.expectedRevision,
         outcome: req.body?.outcome,
+        paymentDecision: req.body?.paymentDecision,
         operationalDateKey: req.body?.operationalDateKey,
       });
       return res.status(200).json(result);
@@ -254,7 +255,7 @@ function createWorkspaceOperationalRouter({
         action,
         expectedRevision: req.body?.expectedRevision,
         ...(action === 'already-attended' ? { expectedAppointmentRevision: req.body?.expectedAppointmentRevision,
-          expectedApprovalRevision: req.body?.expectedApprovalRevision } : {}),
+          expectedApprovalRevision: req.body?.expectedApprovalRevision, paymentDecision: req.body?.paymentDecision } : {}),
         startsAt: req.body?.startsAt,
         staffId: req.body?.staffId,
         ...(req.body?.staffIds!==undefined ? {staffIds:req.body.staffIds} : {}),

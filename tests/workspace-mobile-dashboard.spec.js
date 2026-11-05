@@ -17,6 +17,7 @@ for (const width of [320, 390, 500, 700, 701, 1440]) {
     const writes = [];
     page.on('request', request => { if (request.method() !== 'GET') writes.push(request.url()); });
     await page.goto('/iframe.html?id=workspace-browser-review--today-counts&viewMode=story', { waitUntil: 'networkidle' });
+    await expect.poll(() => page.frames().some(frame => frame.url().includes('/dashboard-') || frame.url().endsWith('/dashboard.html'))).toBe(true);
     const fixture = page.frames().find(frame => frame.url().includes('/dashboard-') || frame.url().endsWith('/dashboard.html'));
     expect(fixture).toBeTruthy();
     await page.goto(fixture.url(), { waitUntil: 'networkidle' });
@@ -96,7 +97,7 @@ for (const state of ['busy', 'empty', 'loading', 'unavailable', 'practitioner', 
       const finalize = today.locator('[data-dashboard-finalize="completed"]').first();
       for (let repeat = 0; repeat < 2; repeat++) {
         await finalize.click();
-        await page.getByRole('button', { name: 'Not yet', exact: true }).click();
+        await page.getByRole('button', { name: 'Close payment window', exact: true }).click();
         await expect(finalize).toBeFocused();
       }
       await finalize.click();
