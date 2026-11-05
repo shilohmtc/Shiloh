@@ -359,7 +359,7 @@ async function loadReplacementService(appointmentId, serviceId, db = pool) {
 }
 
 // Caller must hold the appointment lock and validate current certification authority.
-async function recordFinalization(db, admin, appointment, targetStatus, { workspace = false, allowBusinessBackup = false } = {}) {
+async function recordFinalization(db, admin, appointment, targetStatus, { workspace = false, allowBusinessBackup = false, paymentDecision = null } = {}) {
   const isNoCharge = targetStatus === 'no_charge';
   const canonicalStatus = isNoCharge ? 'completed' : targetStatus;
   const financialClassification = isNoCharge ? 'no_charge' : 'standard';
@@ -380,7 +380,7 @@ async function recordFinalization(db, admin, appointment, targetStatus, { worksp
   await db.query(`UPDATE appointment_lifecycle SET status=$1,updated_at=NOW() WHERE appointment_id=$2`, [canonicalStatus, appointment.id]);
   await db.query(
     `INSERT INTO crm_audit_events (actor_admin_id,action,entity_type,entity_id,metadata) VALUES ($1,'admin.appointment_finalized','appointment',$2,$3::jsonb)`,
-    [admin.id, String(appointment.id), JSON.stringify({ fromStatus: appointment.status, toStatus: canonicalStatus, outcome: targetStatus, startsAt: appointment.starts_at, explicitAdminDecision: true, certificationAuthority: authorityDescription(admin, { workspace, allowBusinessBackup }), surface: workspace ? 'workspace_dashboard' : 'whatsapp', financialClassification, previousTotalPrice: appointment.total_price, clientCharge: isNoCharge ? 0 : appointment.total_price, practitionerEarningsOverride: isNoCharge ? 0 : null })]
+    [admin.id, String(appointment.id), JSON.stringify({ ...(paymentDecision ? { paymentDecision } : {}), fromStatus: appointment.status, toStatus: canonicalStatus, outcome: targetStatus, startsAt: appointment.starts_at, explicitAdminDecision: true, certificationAuthority: authorityDescription(admin, { workspace, allowBusinessBackup }), surface: workspace ? 'workspace_dashboard' : 'whatsapp', financialClassification, previousTotalPrice: appointment.total_price, clientCharge: isNoCharge ? 0 : appointment.total_price, practitionerEarningsOverride: isNoCharge ? 0 : null })]
   );
   return { canonicalStatus, financialClassification };
 }
@@ -392,11 +392,16 @@ async function finalizeAppointment(admin, appointmentId, targetStatus, {
   workspace = false,
   allowBusinessBackup = false,
   connectionPool = pool,
+  paymentDecision = null,
+  completionPaymentService = null,
 } = {}) {
+  const needsPaymentChoice = workspace && targetStatus === 'completed';
+  if (needsPaymentChoice) require('./workspaceCompletionPayment').validateCompletionPayment(paymentDecision);
   if (!FINAL_STATUSES.has(targetStatus)) return { status: 'invalid_status' };
   const db = await connectionPool.connect();
   try {
     await db.query('BEGIN');
+    if (needsPaymentChoice) await require('./paymentCollectionGuard').lockBookingPaymentScope(db, appointmentId);
     const appointment = await loadAuthorizedPendingAppointment(admin, appointmentId, db, true, {
       windowStart,
       windowEnd,
@@ -408,9 +413,11 @@ async function finalizeAppointment(admin, appointmentId, targetStatus, {
       return { status: 'stale_revision' };
     }
     if (!(await canCertifyAppointment(admin, appointment.id, db, { workspace, allowBusinessBackup }))) { await db.query('ROLLBACK'); return { status: 'certification_forbidden' }; }
-    const { canonicalStatus, financialClassification } = await recordFinalization(db, admin, appointment, targetStatus, { workspace, allowBusinessBackup });
+    const financialOutcome = needsPaymentChoice ? await require('./workspaceCompletionPayment').recordCompletionPayment(db, { adminId: admin.id, appointmentId, decision: paymentDecision, paymentService: completionPaymentService }) : null;
+    const { canonicalStatus, financialClassification } = await recordFinalization(db, admin, appointment, targetStatus, { workspace, allowBusinessBackup, paymentDecision: financialOutcome });
     await db.query('COMMIT');
-    return { status: 'updated', appointment, targetStatus, canonicalStatus, financialClassification };
+    if (financialOutcome?.choice === 'paid') await (completionPaymentService || require('./bookingPayments').createBookingPaymentService({ db: connectionPool })).syncCompletionRewards();
+    return { status: 'updated', appointment, targetStatus, canonicalStatus, financialClassification, paymentOutcome: financialOutcome };
   } catch (error) {
     try { await db.query('ROLLBACK'); } catch (_) {}
     throw error;

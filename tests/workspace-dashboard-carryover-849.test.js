@@ -249,7 +249,7 @@ test('#852 finalization accepts older operational backlog dates but rejects futu
     viewer: { calendarScope: 'business_all_staff' },
     appointmentId: 601,
     expectedRevision: '2026-09-09T06:00:00.000Z',
-    outcome: 'completed',
+    outcome: 'completed', paymentDecision: { choice: 'outstanding' },
     now: NOW,
   };
   await service.finalizeVisit({ ...common, operationalDateKey: '2026-09-09' });
@@ -258,6 +258,7 @@ test('#852 finalization accepts older operational backlog dates but rejects futu
     expectedRevision: '2026-09-09T06:00:00.000Z',
     workspace: true,
     allowBusinessBackup: true,
+    paymentDecision: { choice: 'outstanding' },
   });
   await assert.rejects(
     service.finalizeVisit({ ...common, operationalDateKey: '2026-09-13' }),

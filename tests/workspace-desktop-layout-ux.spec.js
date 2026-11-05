@@ -53,8 +53,8 @@ for (const kind of ['sparse', 'busy']) for (const width of [1180, 1440, 390, 500
     }
     const finalize = page.locator('[data-dashboard-today] [data-dashboard-finalize="completed"]').first();
     for (let repeat = 0; repeat < 2; repeat++) {
-      await finalize.click(); await expect(page.locator('[data-dashboard-outcome-dialog]')).toBeVisible();
-      await page.getByRole('button', { name: 'Not yet', exact: true }).click();
+      await finalize.click(); await expect(page.getByRole('dialog', {name: 'Complete visit and payment'})).toBeVisible();
+      await page.getByRole('button', { name: 'Close payment window', exact: true }).click();
       await expect(finalize).toBeFocused();
     }
     await finalize.click(); await page.keyboard.press('Escape'); await expect(finalize).toBeFocused();

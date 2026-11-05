@@ -471,13 +471,24 @@ function createBookingPaymentService({
     };
   }
 
+  async function getCompletionStateInTransaction(client, { adminId, appointmentId }) {
+    const operator = await resolveOperator(client, adminId, CAPABILITIES.VIEW);
+    const subject = await loadSubject(client, appointmentId); assertTarget(operator, subject);
+    const account = await accountFor(client, subject, { allowPriceReview: true });
+    return { payment: { outstanding: account?.priceReview ? null : (await position(client, account, subject)).outstanding },
+      priceReview: account?.priceReview || null,
+      subject: { pricingRevision: subject.pricingRevision, groupId: subject.groupId, final: subject.final },
+      authority: { canCollect: hasCapability(operator.calendarAuthority, CAPABILITIES.COLLECT) } };
+  }
+
   // Opening Calendar details must never create an account, requirement, link or receipt.
   // Reuse the canonical payment position inside an enforced read-only snapshot.
-  async function getSummary({ adminId, appointmentId } = {}) {
+  async function getSummary({ adminId, appointmentId } = {}, { completion = false } = {}) {
     const client = await db.connect();
     try {
       await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
       await client.query("SET LOCAL statement_timeout='2000ms'");
+      if (completion) { const state = await getCompletionStateInTransaction(client, { adminId, appointmentId }); await client.query('COMMIT'); return state; }
       const operator = await resolveOperator(client, adminId, CAPABILITIES.VIEW);
       const subject = await loadSubject(client, appointmentId);
       assertTarget(operator, subject);
@@ -568,11 +579,10 @@ function createBookingPaymentService({
     return subject.crmV2ClientId;
   }
 
-  async function recordManual({ adminId, appointmentId, amount, method, reference, notes, payerMobile, operationId, expectedRevision } = {}) {
+  // Internal composition point: caller owns the transaction and commit. No sends,
+  // deposit release or reward sync occurs before the whole completion commits.
+  async function recordManualInTransaction(client, { adminId, appointmentId, amount, method, reference, notes, payerMobile, operationId, expectedRevision } = {}) {
     const normalizedAmount = money(amount, { positive: true }), normalizedMethod = normalizeMethod(method), key = requestKey(operationId);
-    const client = await db.connect();
-    try {
-      await client.query('BEGIN');
       const operator = await resolveOperator(client, adminId, CAPABILITIES.COLLECT);
       const subject = await loadSubject(client, appointmentId, { lock: true }); assertTarget(operator, subject);
       if (subject.final) throw new BookingPaymentError('PAYMENT_BOOKING_FINAL', 'Payment cannot be collected against a cancelled booking.', 409);
@@ -590,7 +600,16 @@ function createBookingPaymentService({
         await client.query(`INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata) VALUES($1,'payment.manual_recorded','booking_payment_account',$2,$3::jsonb)`,
           [operator.id, account.id, JSON.stringify({ amount: normalizedAmount, method: normalizedMethod, reference: String(reference || '').trim() || null, operationId: key })]);
       }
-      const result = await position(client, account, subject); await client.query('COMMIT');
+      const result = await position(client, account, subject);
+      return { result, subject, account, operationKey, replay, amount: normalizedAmount, method: normalizedMethod };
+  }
+
+  async function recordManual({ adminId, appointmentId, amount, method, reference, notes, payerMobile, operationId, expectedRevision } = {}) {
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      const { result, subject, account, operationKey, replay } = await recordManualInTransaction(client, { adminId, appointmentId, amount, method, reference, notes, payerMobile, operationId, expectedRevision });
+      await client.query('COMMIT');
       await syncRewardsAfterPayment();
       await syncDepositAfterSettlement(subject.appointmentId);
       if (!replay.rows[0] && pushNotify && subject.crmV2ClientId) {
@@ -928,7 +947,7 @@ function createBookingPaymentService({
   const prior = createBookingPriorPaymentActions({ db,money,requestKey,positiveId,ErrorType:BookingPaymentError,resolveOperator,loadSubject,assertTarget,accountFor,position,syncDepositAfterSettlement,now });
   const getReview = ({ adminId, appointmentId } = {}) => get({ adminId, appointmentId }, { allowPriceReview: true });
   const clientChoice = createClientPaymentChoice({db,ozow,loadSubject,accountFor,position,PaymentError:BookingPaymentError,now});
-  return { get, getReview, getSummary, recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification,recordDepositWaiver,recordNoCharge:noCharge.record,recordPrior:prior.recordPrior,reversePrior:prior.reversePrior,
+  return { get, getReview, getSummary, getCompletionStateInTransaction, getCompletionState: input => getSummary(input, { completion: true }), recordManualInTransaction, syncCompletionRewards: syncRewardsAfterPayment, recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification,recordDepositWaiver,recordNoCharge:noCharge.record,recordPrior:prior.recordPrior,reversePrior:prior.reversePrior,
     getClientPaymentChoices:clientChoice.get, collectClientPayment:clientChoice.collect, validatePaymentCheckout };
 }
 

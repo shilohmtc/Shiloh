@@ -346,7 +346,7 @@ function createWorkspaceDashboardService({
     return projectDeposits(principal, now);
   }
 
-  async function finalizeVisit({ adminId, viewer, sessionPrincipal = null, appointmentId, expectedRevision, outcome, operationalDateKey, now = new Date() } = {}) {
+  async function finalizeVisit({ adminId, viewer, sessionPrincipal = null, appointmentId, expectedRevision, outcome, paymentDecision, operationalDateKey, now = new Date() } = {}) {
     const { principal, authority } = await resolveAuthority(adminId, viewer, sessionPrincipal);
     const id = positiveId(appointmentId);
     const targetStatus = String(outcome || '').trim().toLowerCase();
@@ -367,10 +367,11 @@ function createWorkspaceDashboardService({
       ...operationalDayWindow(requestedWindowDateKey),
       expectedRevision: String(expectedRevision),
       workspace: true,
+      ...(targetStatus === 'completed' ? { paymentDecision: require('./workspaceCompletionPayment').validateCompletionPayment(paymentDecision) } : {}),
       allowBusinessBackup: authority.canFinalizeAllBusiness === true,
       ...(targetStatus === 'no_show' ? { allowStartedNoShow: true } : {}),
     });
-    if (result?.status === 'updated') return { ok: true, appointmentId: id, outcome: targetStatus };
+    if (result?.status === 'updated') return { ok: true, appointmentId: id, outcome: targetStatus, paymentOutcome: result.paymentOutcome };
     if (result?.status === 'certification_forbidden') {
       throw new WorkspaceDashboardError('WORKSPACE_DASHBOARD_FINALIZE_FORBIDDEN', 'Current authority cannot finalize this appointment.', 403);
     }
@@ -380,10 +381,10 @@ function createWorkspaceDashboardService({
     throw new WorkspaceDashboardError('WORKSPACE_DASHBOARD_FINALIZE_INVALID', 'This appointment outcome cannot be recorded.', 400);
   }
 
-  async function resolveBookingRequest({ adminId, viewer, sessionPrincipal = null, appointmentId, expectedRevision, expectedAppointmentRevision, expectedApprovalRevision, action, startsAt, staffId, staffIds, serviceId } = {}) {
+  async function resolveBookingRequest({ adminId, viewer, sessionPrincipal = null, appointmentId, expectedRevision, expectedAppointmentRevision, expectedApprovalRevision, paymentDecision, action, startsAt, staffId, staffIds, serviceId } = {}) {
     const { principal } = await resolveAuthority(adminId, viewer, sessionPrincipal);
     const input = { principal, appointmentId, expectedRevision };
-    if (action === 'already-attended') return alreadyAttended({ ...input, expectedAppointmentRevision, expectedApprovalRevision });
+    if (action === 'already-attended') return alreadyAttended({ ...input, expectedAppointmentRevision, expectedApprovalRevision, paymentDecision });
     if (action === 'accept' && typeof bookingRequestService.acceptRequestedAppointment === 'function') return bookingRequestService.acceptRequestedAppointment(input);
     if (action === 'propose' && typeof bookingRequestService.proposeAlternative === 'function') return bookingRequestService.proposeAlternative({ ...input, startsAt, staffId, staffIds, serviceId });
     throw new WorkspaceDashboardError('WORKSPACE_BOOKING_REQUEST_INVALID', 'Choose a valid booking-request resolution.', 400);
