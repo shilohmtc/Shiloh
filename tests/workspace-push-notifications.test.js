@@ -181,4 +181,10 @@ test('pending context reads only the current account subscription and returns no
   assert.deepEqual(await service.pending({adminId:1,endpoint:'https://push.example.com/current'}),{count:3,categories:['booking_request','planning']});
   assert.deepEqual(await service.pending({adminId:1,endpoint:'https://push.example.com/current'}),{count:0,categories:[]});
   assert.deepEqual((await pg.query('SELECT last_notification_id FROM workspace_push_subscriptions ORDER BY id')).rows,[{last_notification_id:4},{last_notification_id:0}]);
+  await pg.exec(`INSERT INTO workspace_push_notifications(id,admin_id,event_key,created_at) VALUES(5,1,'handoff:95',NOW()-INTERVAL '16 minutes');`);
+  assert.deepEqual(await service.pending({adminId:1,endpoint:'https://push.example.com/current'}),{count:1,categories:[]});
+  await pg.exec(`INSERT INTO workspace_push_notifications(id,admin_id,event_key) SELECT id,1,'booking_request:'||id FROM generate_series(6,11) AS id;`);
+  assert.deepEqual(await service.pending({adminId:1,endpoint:'https://push.example.com/current'}),{count:5,categories:[]});
+  assert.deepEqual(await service.pending({adminId:1,endpoint:'https://push.example.com/current'}),{count:1,categories:['booking_request']});
+  assert.deepEqual((await pg.query('SELECT last_notification_id FROM workspace_push_subscriptions ORDER BY id')).rows,[{last_notification_id:11},{last_notification_id:0}]);
 });
