@@ -7,7 +7,7 @@ for(const width of [390,1280]) test(`individual client sections retain history a
     const hub=page.locator('[data-client-profile-services]');
     await expect(hub).toBeVisible();
     const nav=page.getByRole('navigation',{name:'Client sections'});
-    await expect(nav.locator('[aria-current="page"]')).toHaveText(section[0].toUpperCase()+section.slice(1));
+    await expect(nav.locator('[aria-current="page"]')).toHaveText(section==='activity'?'Communications':section[0].toUpperCase()+section.slice(1));
     await expect(nav.locator('a')).toHaveCount(6);
     for(const key of ['activity','forms','rewards','vouchers'])await expect(nav.locator(`a[href="/calendar/clients/9012?services=${key}#client-${key}"]`)).toHaveCount(1);
     if(section==='activity')await expect(hub.getByText('Available in My Shiloh',{exact:true})).toBeVisible();

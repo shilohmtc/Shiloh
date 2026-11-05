@@ -167,6 +167,11 @@ function createWorkspaceClientsRouter({ sessionService, ...options } = {}) {
       }
     });
   }
+  router.get('/search.js', (req, res) => {
+    setWorkspaceClientsSecurityHeaders(res);
+    if (!isWorkspaceClientsEnabled(options.env || process.env)) return res.sendStatus(404);
+    return res.type('application/javascript').send(require('../presentation/workspaceClientSearchUx').clientSearchScript());
+  });
   router.get('/home.js', (req, res) => {
     setWorkspaceClientsSecurityHeaders(res);
     if (!isWorkspaceClientsEnabled(options.env || process.env)) return res.sendStatus(404);

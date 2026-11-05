@@ -58,7 +58,7 @@ test('CRM resolves all equivalent forms to one existing client without creation'
 test('CRM edit prefills local SA while preserving a foreign stored value safely', () => {
   for (const [stored, shown] of [['27821234567', '0821234567'], ['+44 20 7946 0958', '+44 20 7946 0958']]) {
     const client = { id:91, name:'Synthetic Phone Client', status:'active', normalized_mobile:stored };
-    const html = injectClientDetailManagement('<section class="history-panel">', { manageAllowed:true, client });
+    const html = injectClientDetailManagement(require('../src/presentation/workspaceClientsUx').renderClientDetailPage({client,appointments:[],policyAcceptances:[]}), { manageAllowed:true, client });
     assert.ok(html.includes(`value="${shown}"`)); assert.equal(client.normalized_mobile, stored);
   }
 });

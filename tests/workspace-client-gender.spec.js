@@ -15,7 +15,8 @@ for (const width of [390, 1440]) {
         await expect(navigation.locator(`a[href="/calendar/clients/801?services=${key}#client-${key}"]`)).toHaveCount(1);
       }
       await page.screenshot({ path: info.outputPath(`client-overview-${story}-${width}.png`), fullPage: true });
-      await page.locator('.client-edit-summary').focus();
+      await page.addScriptTag({ content: workspaceClientsManageClientScript() });
+      await page.locator('[data-client-edit-start]').focus();
       await page.keyboard.press('Enter');
       const field = page.locator('#edit-client-gender');
       await expect(field).toHaveValue(recorded);
@@ -29,19 +30,19 @@ for (const width of [390, 1440]) {
         return route.fulfill({ status: 409, json: { error: 'Synthetic revision refusal' } });
       });
       await page.locator('#edit-client-name').fill('Synthetic changed name');
-      await page.getByRole('button', { name: 'Save client', exact: true }).click();
+      await page.getByRole('button', { name: 'Save changes', exact: true }).click();
       await expect(page.locator('[data-client-operation-status]')).toContainText('Synthetic revision refusal');
       expect(requests).toHaveLength(1);
       expect(requests[0].gender).toBe(recorded || null);
       await expect(field).toHaveValue(recorded);
       await expect(page.locator('#edit-client-name')).toHaveValue('Synthetic changed name');
-      await page.locator('.client-edit-summary').click();
+      await page.getByRole('button', { name: 'Cancel', exact: true }).click();
       await expect(field).toBeHidden();
-      await page.locator('.client-edit-summary').click();
+      await page.locator('[data-client-edit-start]').click();
       await expect(field).toHaveValue(recorded);
-      await expect(page.locator('#edit-client-name')).toHaveValue('Synthetic changed name');
+      await expect(page.locator('#edit-client-name')).toHaveValue('Synthetic Client AR');
       await field.selectOption('male');
-      await page.getByRole('button', { name: 'Save client', exact: true }).click();
+      await page.getByRole('button', { name: 'Save changes', exact: true }).click();
       await expect.poll(() => requests.length).toBe(2);
       expect(requests[1].gender).toBe('male');
       await expect(field).toHaveValue('male');

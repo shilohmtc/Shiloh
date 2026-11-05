@@ -22,8 +22,10 @@ const stories = [
       await expect(page.getByRole('heading', { name: 'Synthetic Client AR', exact: true })).toBeVisible();
       await expect(page.locator('[data-client-edit-form]')).toBeHidden();
       await expect(page.getByRole('navigation', { name: 'Client sections' })).toBeVisible();
-      await page.locator('.client-edit-summary').click();
-      await expect(page.getByRole('button', { name: 'Save client', exact: true })).toBeVisible();
+      await page.addScriptTag({ content: require('../src/presentation/workspaceClientsManageUx').workspaceClientsManageClientScript() });
+      await page.locator('[data-client-edit-start]').click();
+      await page.locator('.client-more-options summary').click();
+      await expect(page.getByRole('button', { name: 'Save changes', exact: true })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Remove from my clients', exact: true })).toBeVisible();
       await expect(page.getByRole('navigation', { name: 'Client sections' }).getByRole('link', { name: 'Appointments', exact: true })).toHaveAttribute('href', /services=appointments/);
     },

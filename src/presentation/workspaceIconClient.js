@@ -13,6 +13,7 @@ function workspaceIconClientScript() {
     forms: renderLucideIcon('forms', { className: 'workspace-nav-icon', size: 18 }),
     problemReports: renderLucideIcon('problemReports', { className: 'workspace-nav-icon', size: 18 }),
     reports: renderLucideIcon('reports', { className: 'workspace-nav-icon', size: 18 }),
+    clinicCheckin: renderLucideIcon('forms', { className: 'workspace-nav-icon', size: 18 }),
     clinicHours: renderLucideIcon('clinicHours', { className: 'workspace-nav-icon', size: 18 }),
     logout: renderLucideIcon('logout', { className: 'workspace-nav-icon', size: 18 }),
     refresh: renderLucideIcon('refresh', { className: 'workspace-nav-icon', size: 18 }),

@@ -280,7 +280,8 @@ async function main() {
       await page.getByRole('navigation', { name: 'Client sections' }).getByRole('link', { name: 'Appointments', exact: true }).click();
       assert.equal(await page.getByText('Marietjie Signature Massage', { exact: true }).isVisible(), true);
       await page.getByRole('navigation', { name: 'Client sections' }).getByRole('link', { name: 'Overview', exact: true }).click();
-      await page.locator('.client-edit-summary').click();
+      await page.locator('[data-client-edit-start]').click();
+      await page.locator('.client-more-options summary').click();
       assert.equal(await page.getByRole('button', { name: 'Remove from my clients', exact: true }).isVisible(), true);
 
       const geometry = await page.evaluate(() => ({
@@ -310,8 +311,8 @@ async function main() {
       const updateResponsePromise = page.waitForResponse(response =>
         response.url().endsWith('/calendar/clients/701/update') && response.request().method() === 'POST'
       );
-      await page.locator('[data-client-edit-form] input[name="name"]').fill('Marietjie Client One');
-      await page.getByRole('button', { name: 'Save client', exact: true }).click();
+      await page.locator('#edit-client-name').fill('Marietjie Client One');
+      await page.getByRole('button', { name: 'Save changes', exact: true }).click();
       const updateResponse = await updateResponsePromise;
       assert.equal(updateResponse.status(), 200);
       await page.waitForLoadState('networkidle');
@@ -320,7 +321,8 @@ async function main() {
         response.url().endsWith('/calendar/clients/701/archive') && response.request().method() === 'POST'
       );
       const beforeArchive = archiveCalls;
-      await page.locator('.client-edit-summary').click();
+      await page.locator('[data-client-edit-start]').click();
+      await page.locator('.client-more-options summary').click();
       await page.getByRole('button', { name: 'Remove from my clients', exact: true }).click();
       const confirmation = page.getByRole('dialog', { name: 'Remove client from your list?' });
       await confirmation.waitFor({ state: 'visible' });

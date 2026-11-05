@@ -132,7 +132,9 @@ test('current authenticated admin permission is re-read server-side for every Cl
   const reads = fakeReadService();
   const service = createWorkspaceClientsService({ db, readService: reads });
   const model = await service.listClients({ adminId: 41, q: '  Synthetic   Client ', status: 'active', offset: 0 });
-  assert.equal(db.calls.length, 1);
+  assert.equal(db.calls.filter(call => call.sql.includes('FROM staff_admin_accounts a')).length, 1);
+  assert.equal(db.calls.length, 2, 'one principal read and one bounded app-status read');
+  assert.match(db.calls[1].sql, /workspaceClientAppStatus:clinic/);
   assert.match(db.calls[0].sql, /FROM staff_admin_accounts a/);
   assert.deepEqual(db.calls[0].values, [41]);
   assert.equal(model.authority.capability, 'client:lookup');
@@ -370,6 +372,6 @@ test('client actions reject missing session, origin and CSRF and bind actor/clie
 test('completed history replaces pre-booking readiness prompts without claiming payment or acceptance',()=>{
   const html=renderClientDetailPage({client:canonicalClient(),appointments:[canonicalAppointment({bookingReadiness:{depositState:'awaiting',termsAccepted:false}})],historyOffset:0,pageSize:20});
   assert.doesNotMatch(html,/Terms awaiting|Deposit awaiting|Deposit not recorded/);
-  assert.match(html,/Open booking for payment details/);
+  assert.match(html,/Payment status unavailable/);
   assert.doesNotMatch(html,/✓ Terms accepted|Deposit received/);
 });

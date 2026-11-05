@@ -11,7 +11,7 @@ for(const width of [390,1440]) {
       await expect(home).toHaveAttribute('data-client-home-section',section);
       const nav=home.getByRole('navigation',{name:'Client sections'});
       await expect(nav.getByRole('link')).toHaveCount(6);
-      await expect(nav.locator('[aria-current="page"]')).toHaveText(section[0].toUpperCase()+section.slice(1));
+      await expect(nav.locator('[aria-current="page"]')).toHaveText(section==='activity'?'Communications':section[0].toUpperCase()+section.slice(1));
       await expect(home.locator('.profile-heading')).toBeVisible();
       if(section==='overview') await expect(home.locator('.profile-grid')).toBeVisible();
       else await expect(home.locator('.profile-grid')).toBeHidden();
@@ -32,6 +32,7 @@ for(const width of [390,1440]) {
   });
   test(`directory keeps search visible and opens Add client at ${width}`,async({page},info)=>{
     await page.setViewportSize({width,height:900});
+    await page.route('**/calendar/pwa/icon-192.png*',route=>route.fulfill({path:require('node:path').resolve('public/assets/brand/shiloh-mark-192.png')}));
     await page.goto('/iframe.html?id=workspace-clients--marietjie-client-base&viewMode=story',{waitUntil:'networkidle'});
     await expect(page.locator('.search-panel')).toBeVisible();
     await expect(page.locator('#new-client-name')).toBeHidden();
