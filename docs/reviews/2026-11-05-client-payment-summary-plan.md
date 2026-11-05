@@ -24,7 +24,7 @@ The recorded-visit comparison reuses the report's existing authorized current/pr
 6. Integrate card presentation only after service-level synthetic proofs cover completeness and mixed histories. Bound page workload and evaluate query plans with synthetic populated data. Fail closed rather than degrade search responsiveness or financial accuracy.
 7. Prove old unpaid visits, partial receipts, refunds, transfers, rewards, vouchers, credit applications/undo, no-charge, missing price/account, mixed group statuses, duplicate group membership, private members, permission revocation, ambiguous/legacy IDs, limits and outages. Verify zero writes and zero notifications; then Storybook, phone/desktop, accessibility and all normal release workflows.
 
-This projection is still implementation work, not an access denial or a completed feature. The existing history view remains the available canonical payment review.
+The bounded projection and Directory indicators are now implemented with synthetic service, HTTP, browser and workload tests. See [implementation and limitations](2026-11-05-directory-payment-indicators.md). Publication and production verification are tracked on the existing roadmap; implementation alone is not a release claim. The existing history view remains the detailed payment review destination.
 
 ## Retention and targets
 

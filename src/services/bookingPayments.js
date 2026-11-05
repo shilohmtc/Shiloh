@@ -55,6 +55,7 @@ function createBookingPaymentService({
   ozow = createOzowPaymentProvider(),
   rewards = createShilohRewardsService({ db }),
   notifyClient = null,
+  directoryDepositReader,
   confirmBooking = db === pool ? (id,options) => require('./customerBookingConfirmation').sendCustomerBookingConfirmationForAppointment(id,options) : async () => {},
   deposits = createBookingDepositPolicyService({ db }),
   env = process.env,
@@ -434,7 +435,7 @@ function createBookingPaymentService({
     return account;
   }
 
-  async function position(queryable, account, subject) {
+  async function position(queryable, account, subject, { summaryOnly = false } = {}) {
     if (!account) return { accountId:null,amountDue: subject.amountDue, paid: '0.00', refunded: '0.00', netPaid: '0.00', priorPaid:'0.00',transferredOut:'0.00',previouslyPaid:'0.00',receivedToday:'0.00',rewardsApplied: '0.00', welcomeVoucherApplied: '0.00', treatmentCreditApplied: '0.00', giftVoucherApplied: '0.00', noncashEntries: [], outstanding: subject.amountDue, state: 'unpaid', requests: [], entries: [] };
     const queries = [
       () => queryable.query(`SELECT COALESCE(SUM(amount) FILTER (WHERE entry_type='payment'),0) paid,COALESCE(SUM(amount) FILTER (WHERE entry_type='refund'),0) refunded,
@@ -445,21 +446,21 @@ function createBookingPaymentService({
       () => queryable.query(`SELECT COALESCE(SUM(amount),0) AS amount FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1 AND state='applied'`, [account.id]),
       () => queryable.query(`SELECT COALESCE(SUM(amount),0) AS amount,COALESCE((SELECT -SUM(signed_amount) FROM treatment_credit_entries WHERE booking_payment_account_id=$1 AND entry_type IN ('apply','undo')),0) AS treatment_amount,
         COALESCE((SELECT SUM(amount) FROM booking_gift_voucher_allocations WHERE booking_payment_account_id=$1),0) AS gift_amount,
-        COALESCE((SELECT jsonb_agg(history ORDER BY history->>'created_at' DESC) FROM (
+        ${summaryOnly ? "'[]'::jsonb" : `COALESCE((SELECT jsonb_agg(history ORDER BY history->>'created_at' DESC) FROM (
           SELECT jsonb_build_object('kind','treatment_credit','id',e.id,'action',e.entry_type,'amount',-e.signed_amount,'reason',e.reason,'actor',a.display_name,'created_at',e.created_at,'sourceEntryId',e.source_entry_id) AS history
             FROM treatment_credit_entries e JOIN staff_admin_accounts a ON a.id=e.actor_admin_id WHERE e.booking_payment_account_id=$1
           UNION ALL SELECT jsonb_build_object('kind','gift_voucher','id',allocation.id,'action','apply','amount',allocation.amount,'reason','Gift voucher ending '||RIGHT(v.voucher_code,4),'actor',a.display_name,'created_at',allocation.created_at)
             FROM booking_gift_voucher_allocations allocation JOIN gift_voucher_ledger_entries ledger ON ledger.id=allocation.voucher_ledger_entry_id
             JOIN gift_vouchers v ON v.id=ledger.voucher_id JOIN staff_admin_accounts a ON a.id=allocation.actor_admin_id WHERE allocation.booking_payment_account_id=$1
-        ) noncash_history),'[]'::jsonb) AS noncash_entries FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 AND state='applied'`, [account.id]),
+        ) noncash_history),'[]'::jsonb)`} AS noncash_entries FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 AND state='applied'`, [account.id]),
       () => queryable.query(`SELECT id,request_key,provider,provider_request_id,provider_payment_url,amount,state,purpose,deposit_requirement_id,deposit_member_appointment_id,payer_name,payer_mobile,expires_at,created_at FROM payment_requests WHERE payment_account_id=$1 ORDER BY id DESC`, [account.id]),
       () => queryable.query(`SELECT id,entry_type,amount,method,evidence_kind,external_reference,notes,created_at FROM payment_ledger_entries WHERE payment_account_id=$1 ORDER BY id DESC`, [account.id]),
     ];
     // One checked-out PostgreSQL client executes serially; avoid concurrent
     // client.query calls while retaining one locked financial snapshot.
     const results=[];
-    for(const query of queries)results.push(await query());
-    const [totals, rewardsApplied, welcomeVoucherApplied, requests, entries]=results;
+    for(const query of (summaryOnly ? queries.slice(0, 3) : queries))results.push(await query());
+    const [totals, rewardsApplied, welcomeVoucherApplied, requests = { rows: [] }, entries = { rows: [] }]=results;
     const priorPaid = Number(totals.rows[0].prior_paid || 0), transferredOut = Number(totals.rows[0].transferred_out || 0);
     const paid = Number(totals.rows[0].paid), refunded = Number(totals.rows[0].refunded), net = paid - refunded - transferredOut, loyalty = Number(rewardsApplied.rows[0].amount || 0), welcome = Number(welcomeVoucherApplied.rows[0].amount || 0), treatment = Number(welcomeVoucherApplied.rows[0].treatment_amount || 0), gift = Number(welcomeVoucherApplied.rows[0].gift_amount || 0);
     const due = Number(account.canonical_amount_due), settledCents = Math.round(net*100)+Math.round(priorPaid*100)+Math.round(loyalty*100)+Math.round(welcome*100)+Math.round(treatment*100)+Math.round(gift*100),outstanding = Math.max(0, Math.round(due*100)-settledCents)/100;
@@ -483,6 +484,17 @@ function createBookingPaymentService({
 
   // Opening Calendar details must never create an account, requirement, link or receipt.
   // Reuse the canonical payment position inside an enforced read-only snapshot.
+  async function readSummaryInTransaction(client, operator, appointmentId) {
+    const subject = await loadSubject(client, appointmentId);
+    assertTarget(operator, subject);
+    const account = await accountFor(client, subject, { allowPriceReview: true });
+    const summary = account?.priceReview
+      ? { available: true, state: 'needs_review', label: 'Payment review needed', outstanding: null }
+      : { available: true, state: 'known', outstanding: (await position(client, account, subject, { summaryOnly: true })).outstanding,
+        scopeLabel: subject.groupId ? 'Whole booking balance' : 'Appointment balance' };
+    return summary;
+  }
+
   async function getSummary({ adminId, appointmentId } = {}, { completion = false } = {}) {
     const client = await db.connect();
     try {
@@ -490,13 +502,7 @@ function createBookingPaymentService({
       await client.query("SET LOCAL statement_timeout='2000ms'");
       if (completion) { const state = await getCompletionStateInTransaction(client, { adminId, appointmentId }); await client.query('COMMIT'); return state; }
       const operator = await resolveOperator(client, adminId, CAPABILITIES.VIEW);
-      const subject = await loadSubject(client, appointmentId);
-      assertTarget(operator, subject);
-      const account = await accountFor(client, subject, { allowPriceReview: true });
-      const summary = account?.priceReview
-        ? { available: true, state: 'needs_review', label: 'Payment review needed', outstanding: null }
-        : { available: true, state: 'known', outstanding: (await position(client, account, subject)).outstanding,
-          scopeLabel: subject.groupId ? 'Whole booking balance' : 'Appointment balance' };
+      const summary = await readSummaryInTransaction(client, operator, appointmentId);
       await client.query('COMMIT');
       return summary;
     } catch (error) {
@@ -945,9 +951,10 @@ function createBookingPaymentService({
   const waiver = createBookingDepositWaiverActions({db, ErrorType:BookingPaymentError,positiveId,requestKey,resolveOperator,loadSubject});
   const noCharge = createBookingNoChargeActions({db, ErrorType:BookingPaymentError,positiveId,requestKey,resolveOperator,loadSubject,assertTarget,accountFor,position,syncDepositAfterSettlement});
   const prior = createBookingPriorPaymentActions({ db,money,requestKey,positiveId,ErrorType:BookingPaymentError,resolveOperator,loadSubject,assertTarget,accountFor,position,syncDepositAfterSettlement,now });
+  const getDirectoryReviews = require('./clientDirectoryPaymentReview').createClientDirectoryPaymentReview({ db, resolveOperator, readPosition: readSummaryInTransaction, now, depositReader: directoryDepositReader });
   const getReview = ({ adminId, appointmentId } = {}) => get({ adminId, appointmentId }, { allowPriceReview: true });
   const clientChoice = createClientPaymentChoice({db,ozow,loadSubject,accountFor,position,PaymentError:BookingPaymentError,now});
-  return { get, getReview, getSummary, getCompletionStateInTransaction, getCompletionState: input => getSummary(input, { completion: true }), recordManualInTransaction, syncCompletionRewards: appointmentId => syncRewardsAfterPayment({notify:false,appointmentId:positiveId(appointmentId,'appointment')}), recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification,recordDepositWaiver,recordNoCharge:noCharge.record,recordPrior:prior.recordPrior,reversePrior:prior.reversePrior,
+  return { get, getReview, getSummary, getDirectoryReviews, getCompletionStateInTransaction, getCompletionState: input => getSummary(input, { completion: true }), recordManualInTransaction, syncCompletionRewards: appointmentId => syncRewardsAfterPayment({notify:false,appointmentId:positiveId(appointmentId,'appointment')}), recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification,recordDepositWaiver,recordNoCharge:noCharge.record,recordPrior:prior.recordPrior,reversePrior:prior.reversePrior,
     getClientPaymentChoices:clientChoice.get, collectClientPayment:clientChoice.collect, validatePaymentCheckout };
 }
 
