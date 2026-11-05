@@ -1,4 +1,5 @@
 const { pool } = require('../db/pool');
+const { recordedVisitTrend } = require('../domain/recordedVisitTrend');
 const schedulingEngine = require('./schedulingEngine');
 const {
   filterTimelineForDisplay,
@@ -593,6 +594,7 @@ function createWorkspaceReportsService({
         delta: trendDelta,
         percent: trendPct,
       },
+      recordedVisits: recordedVisitTrend(statusCounts, previousStatusCounts),
       readOnly: true,
       timezone: BUSINESS_TIMEZONE,
     };

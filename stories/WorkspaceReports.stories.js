@@ -1,3 +1,4 @@
+import visitTrends from '../src/domain/recordedVisitTrend.js';
 import reportsPresentation from '../src/presentation/workspaceReportsUx.js';
 import financialRecords from '../src/domain/workspaceFinancialRecords.js';
 import financialReports from '../src/domain/workspaceFinancialReports.js';
@@ -67,6 +68,7 @@ function reportModel() {
     ],
     clients: { uniqueClients: 43, newClients: 12, returningClients: 31 },
     closures: 1,
+    recordedVisits: visitTrends.recordedVisitTrend({ completed: 36 }, { completed: 30, no_charge: 2 }),
     trend: { delta: 6, currentOperationalAppointments: 54, previousOperationalAppointments: 48 },
     staffEarnings: {
       earliestNewRuleDate: '2026-09-16',

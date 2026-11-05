@@ -91,6 +91,12 @@ for (const viewport of [
       await page.locator('.capacity-table').screenshot({path:testInfo.outputPath(`reports-team-time-${viewport.name}.png`)});
     }
     await page.getByRole('navigation',{name:'Report sections'}).getByRole('link', {name:'Activity',exact:true}).click();
+    await page.locator('#recorded-visits > summary').click();
+    await expect(page.locator('#recorded-visits')).toContainText('This period');
+    await expect(page.locator('#recorded-visits .client-stat strong')).toHaveText(['36', '32', '+4']);
+    await expect(page.locator('#recorded-visits')).toContainText('Completion does not confirm payment');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.locator('#recorded-visits').screenshot({path:testInfo.outputPath(`recorded-visits-${viewport.name}.png`)});
     await page.locator('#treatments > summary').focus();
     await page.keyboard.press('Enter');
     await expect(page.locator('#treatments .service-list')).toBeVisible();
