@@ -1,6 +1,8 @@
 const express = require('express');
 const workspaceNavigation = require('../services/workspaceNavigation');
 const workspaceClients = require('../services/workspaceClients');
+const { createBookingPaymentService } = require('../services/bookingPayments');
+const { directoryPaymentScript } = require('../presentation/clientDirectoryPaymentUx');
 const workspaceClientNotifications = require('../services/workspaceClientNotifications');
 const workspaceClientMutations = require('../services/workspaceClientMutations');
 const {
@@ -167,6 +169,23 @@ function createWorkspaceClientsRouter({ sessionService, ...options } = {}) {
       }
     });
   }
+  router.get('/payments.js', (req, res) => {
+    setWorkspaceClientsSecurityHeaders(res);
+    if (!isWorkspaceClientsEnabled(options.env || process.env)) return res.sendStatus(404);
+    return res.type('application/javascript').send(directoryPaymentScript());
+  });
+  router.get('/payment-review', async (req, res) => {
+    setWorkspaceClientsSecurityHeaders(res);
+    if (!isWorkspaceClientsEnabled(options.env || process.env)) return res.sendStatus(404);
+    try {
+      await service.requireAccess(req.staffBrowserSession?.adminId);
+      const payments = options.paymentService || createBookingPaymentService();
+      const ids = String(req.query?.ids || '').split(',');
+      const reviews = await payments.getDirectoryReviews({ adminId: req.staffBrowserSession.adminId, ids, isCancelled: () => res.destroyed });
+      if (res.destroyed) return;
+      return res.json({ reviews });
+    } catch (error) { return res.status([400,403].includes(error.httpStatus) ? error.httpStatus : 503).json({ error: 'Payment review unavailable.' }); }
+  });
   router.get('/search.js', (req, res) => {
     setWorkspaceClientsSecurityHeaders(res);
     if (!isWorkspaceClientsEnabled(options.env || process.env)) return res.sendStatus(404);

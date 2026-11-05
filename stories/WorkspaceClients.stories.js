@@ -9,6 +9,7 @@ const { injectClientListManagement, injectClientDetailManagement } = clientManag
 const { renderClientListPage } = clientListPresentation;
 
 function productionSurface(pageHtml) {
+  pageHtml = String(pageHtml).replaceAll('/calendar/pwa/icon-192.png', '/assets/pwa/shiloh-pwa-192.png');
   const styles = [...String(pageHtml).matchAll(/<style>([\s\S]*?)<\/style>/g)]
     .map((match) => match[1])
     .join('\n');
@@ -210,3 +211,13 @@ export const ClientGenderUnrecorded = { render: () => productionSurface(detailHt
 
 export const ClientPolicyHistory = { render: () => productionSurface(renderClientDetailPageWithCommunications({...detailModel(),services:'forms'},options)) };
 export const ClientBookingReadiness = { render: () => productionSurface(renderClientDetailPageWithCommunications({...detailModel(),services:'appointments'},options)) };
+
+export const PaymentReviewIndicators = { render: () => productionSurface(renderClientListPage({
+  ...listModel(), authority: { ...authority, displayName: 'Synthetic Reception', businessRole: 'booking_operator', clientScope: { kind: 'clinic', ownerStaffId: null } }, clients: [
+    {...clients[0],paymentReview:{state:'known',completedVisits:3,outstandingVisits:1,sharedBookings:0,reviewNeeded:0,upcomingDeposits:1}},
+    {...clients[1],paymentReview:{state:'known',completedVisits:2,outstandingVisits:0,sharedBookings:1,reviewNeeded:0,upcomingDeposits:0}},
+    {...clients[0],id:803,name:'Synthetic Settled',paymentReview:{state:'known',completedVisits:1,outstandingVisits:0,sharedBookings:0,reviewNeeded:0,upcomingDeposits:0}},
+    {...clients[1],id:804,name:'Synthetic Restricted',paymentReview:{state:'restricted'}},
+    {...clients[1],id:805,name:'Synthetic Unavailable',paymentReview:{state:'unavailable'}},
+  ],
+}, options)) };
