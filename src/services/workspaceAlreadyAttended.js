@@ -61,7 +61,7 @@ async function alreadyAttended({ principal, appointmentId, expectedRevision, exp
       appointmentRevision: revision(row.current_revision), proposalVersion: row.proposal_version,
       explicitAdminDecision: true, clientNotificationSent: false, depositRequested: false })]);
     await db.query('COMMIT');
-    if (financialOutcome.choice === 'paid') await (completionPaymentService || require('./bookingPayments').createBookingPaymentService({ db: dbPool })).syncCompletionRewards();
+    if (financialOutcome.choice === 'paid') await (completionPaymentService || require('./bookingPayments').createBookingPaymentService({ db: dbPool })).syncCompletionRewards(id);
     return { ok: true, appointmentId: id, status: 'approved', outcome: 'completed', paymentOutcome: financialOutcome };
   } catch (error) {
     try { await db.query('ROLLBACK'); } catch (_) {}
