@@ -155,6 +155,7 @@ test('Reports derive team time from the scheduling timeline and use read-only ag
   assert.equal(model.services[0].name, 'Sports Massage');
   assert.deepEqual(model.clients, { uniqueClients: 2, newClients: 1, returningClients: 1 });
   assert.equal(model.appointments.statusCounts.cancelled, 1);
+  assert.deepEqual(model.recordedVisits, { available: true, currentCount: 0, previousCount: 0, delta: 0, percent: null });
 
   for (const { sql } of db.seen) {
     assert.match(sql, /WorkspaceReports:/);
