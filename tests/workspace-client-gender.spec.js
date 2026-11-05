@@ -9,6 +9,8 @@ for (const width of [390, 1440]) {
       await page.route('**/calendar/pwa/icon-192.png*', route => route.fulfill({ path: require('node:path').resolve('public/assets/brand/shiloh-mark-192.png') }));
       await page.goto(`/iframe.html?id=workspace-clients--${story}&viewMode=story`, { waitUntil: 'networkidle' });
       await expect(page.locator('[data-client-edit-form]')).toBeHidden();
+      await expect(page.locator('[data-client-edit-start]')).toHaveCSS('background-color', 'rgb(238, 245, 239)');
+      await expect(page.locator('[data-client-edit-start]')).toHaveCSS('color', 'rgb(36, 79, 58)');
       const navigation = page.getByRole('navigation', { name: 'Client sections' });
       await expect(navigation).toBeVisible();
       for (const key of ['forms', 'rewards', 'vouchers', 'activity']) {
@@ -18,6 +20,14 @@ for (const width of [390, 1440]) {
       await page.addScriptTag({ content: workspaceClientsManageClientScript() });
       await page.locator('[data-client-edit-start]').focus();
       await page.keyboard.press('Enter');
+      const save = page.getByRole('button', { name: 'Save changes', exact: true });
+      await expect(save).toHaveCSS('background-color', 'rgb(41, 76, 60)');
+      await expect(save).toHaveCSS('color', 'rgb(255, 255, 255)');
+      await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+      await save.evaluate(el => { el.disabled = true; });
+      await expect(save).toHaveCSS('background-color', 'rgb(247, 250, 248)');
+      await expect(save).toHaveCSS('color', 'rgb(102, 118, 110)');
+      await save.evaluate(el => { el.disabled = false; });
       const field = page.locator('#edit-client-gender');
       await expect(field).toHaveValue(recorded);
       expect(await field.locator('option:not([hidden])').allTextContents()).toEqual(['Female', 'Male']);

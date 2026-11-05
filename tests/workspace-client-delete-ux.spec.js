@@ -15,9 +15,12 @@ for (const [name,width,height] of [['phone',390,844],['desktop',1280,900]]) {
     });
     await page.goto('/iframe.html?id=workspace-clients--clinic-client-deletion&viewMode=story');
     await expect(page.locator('[data-client-edit-form]')).toBeHidden();
+    await expect(page.getByRole('button',{name:'Delete client',exact:true})).toBeHidden();
+    await expect(page.locator('[data-client-edit-start]')).toBeVisible();
     await page.locator('.client-more-options summary').click();
     const button=page.getByRole('button',{name:'Delete client',exact:true});
     await expect(button).toBeVisible();
+    await expect(button).toHaveCSS('color', 'rgb(125, 57, 52)');
     await expect(page.getByRole('button',{name:'Archive client',exact:true})).toHaveCount(0);
     await page.addScriptTag({content:workspaceClientsManageClientScript()});
     await button.scrollIntoViewIfNeeded();
