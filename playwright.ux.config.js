@@ -110,3 +110,5 @@ module.exports.testMatch.push("client-directory-payment-review.spec.js");
 module.exports.testMatch.push('workspace-business-targets.spec.js');
 
 module.exports.testMatch.push('payment-visit-context.spec.js');
+
+module.exports.testMatch.push('dashboard-step-one.spec.js');

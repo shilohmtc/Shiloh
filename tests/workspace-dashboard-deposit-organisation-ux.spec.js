@@ -2,7 +2,7 @@ const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const { dashboardDepositsHtml, dashboardDepositsModel } = require('../stories/fixtures/workspaceDashboardDeposits');
 const path = require('node:path');
-for (const kind of ['sparse','busy']) for (const width of [1180,1440,390,500]) test(`${kind} Today owns outcomes and deposits stay immediately below at ${width}px`, async ({page}) => {
+for (const kind of ['sparse','busy']) for (const width of [1180,1440,390,500]) test(`${kind} Today owns outcomes and unfinished visits precede deposits at ${width}px`, async ({page}) => {
   await page.setViewportSize({width,height:757});
   await page.route('**/calendar/workspace/navigation',route=>route.fulfill({json:{}}));
   await page.route('**/calendar/pwa/icon-192.png*',route=>route.fulfill({path:path.resolve('public/assets/pwa/shiloh-pwa-192.png')}));
@@ -11,7 +11,7 @@ for (const kind of ['sparse','busy']) for (const width of [1180,1440,390,500]) t
   await page.goto('/organisation-review',{waitUntil:'networkidle'});
   const today=page.locator('[data-dashboard-today]'),deposits=page.locator('[data-dashboard-deposits]'),attention=page.locator('[data-dashboard-attention-panel]');
   const t=await today.boundingBox(),d=await deposits.boundingBox();
-  expect(d.y-t.y-t.height).toBeCloseTo(12,0);expect(d.x).toBeCloseTo(t.x,0);expect(d.width).toBeCloseTo(t.width,0);
+  const unfinished=await page.locator('[data-dashboard-carryover-panel]').boundingBox();const preceding=width<=850?await attention.boundingBox():t;expect(unfinished.y-preceding.y-preceding.height).toBeCloseTo(12,0);expect(d.y-unfinished.y-unfinished.height).toBeCloseTo(12,0);expect(d.x).toBeCloseTo(t.x,0);expect(d.width).toBeCloseTo(t.width,0);
   await expect(attention.locator('[data-dashboard-attention-appointment]')).toHaveCount(0);
   await expect(deposits.locator('[data-deposits-count]')).toHaveText('2');
   await expect(deposits.locator('[data-deposit-account]').first()).toBeHidden();
