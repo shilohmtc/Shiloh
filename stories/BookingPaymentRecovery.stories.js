@@ -67,3 +67,7 @@ export const PriceChangedAfterPayment = {
     return surface(renderCalendarPaymentPage({ model }));
   },
 };
+
+export const SelectedVisitContext = {
+ render: () => {const model=paymentFixture({paid:false});Object.assign(model.subject,{groupId:88,startsAt:'2026-12-15T08:30:00Z',endsAt:'2026-12-15T09:30:00Z',serviceName:'Synthetic treatment',practitionerNames:['Synthetic practitioner']});return surface(renderCalendarPaymentPage({model}));},
+};
