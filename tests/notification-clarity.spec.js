@@ -6,8 +6,8 @@ const { renderClientDetailPage } = require('../src/presentation/workspaceClients
 const { profileFixture } = require('../stories/fixtures/notificationClarity');
 
 for (const width of [390, 500, 1180, 1440]) {
-  for (const [story, text] of [['all', 'Booking confirmation not confirmed'], ['recent', 'Booking confirmation not confirmed'], ['attention', 'Booking confirmation not confirmed'], ['profile-unknown', 'Phone alerts: Unknown'],
-      ['profile-used', 'My Shiloh: Used before'], ['profile-setup-needed', 'Phone alerts: Setup needed']]) {
+  for (const [story, text] of [['all', 'Booking confirmation not confirmed'], ['recent', 'Booking confirmation not confirmed'], ['attention', 'Booking confirmation not confirmed'], ['profile-unknown', 'Notifications: Unknown'],
+      ['profile-used', 'My Shiloh: Used before'], ['profile-setup-needed', 'Notifications: Not set up']]) {
     test(`notification clarity ${story} and existing navigation at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 960 });
       await page.route('**/calendar/pwa/icon-192.png*', route => route.fulfill({ path: path.resolve(__dirname, '../public/assets/pwa/shiloh-pwa-192.png') }));
@@ -52,7 +52,7 @@ for (const width of [390, 500, 1180, 1440]) {
         await page.route('**/calendar/clients/901', route => route.fulfill({ contentType: 'text/html', body: renderClientDetailPage(profileFixture()) }));
         for (let visit = 0; visit < 2; visit++) {
           await page.locator('[data-message-attention="701"]').getByRole('link', { name: 'Open client', exact: true }).click();
-          await expect(page.locator('[data-client-app-status]')).toContainText('Phone alerts: Unknown');
+          await expect(page.locator('[data-client-app-status]')).toContainText('Notifications: Unknown');
           await page.goBack({ waitUntil: 'networkidle' });
           await expect(page.locator('[data-message-attention="701"]')).toHaveCount(1);
         }

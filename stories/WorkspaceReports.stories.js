@@ -163,3 +163,13 @@ export const ReconciledHistoricalStatus = {
     appointments: {operational:63,allRecorded:81,statusCounts:{completed:48,no_show:3,scheduled:12,cancelled:18}},
   })),
 };
+
+export const RecordedVisitComparison = {
+  render: () => productionSurface(renderReportsPage(reportModel())),
+};
+export const RecordedVisitZeroBaseline = {
+  render: () => productionSurface(renderReportsPage({ ...reportModel(), recordedVisits: visitTrends.recordedVisitTrend({ completed: 3 }, {}) })),
+};
+export const RecordedVisitUnavailable = {
+  render: () => productionSurface(renderReportsPage({ ...reportModel(), recordedVisits: { available: false } })),
+};
