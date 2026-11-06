@@ -60,3 +60,16 @@ test('Rebook proof accepts exact empty-review relocation without masking booking
   }
   assert.notEqual(normalizeReview(after + '<script>changedBooking()</script>'), normalizeReview(before));
 });
+
+const { normalizeRebookIndividualRequestLink: normalizeRequest } = require('../scripts/rebook-request-filter-contract');
+test('Rebook evidence allows only the exact approved individual client/date/return link', () => {
+  const after = rebookHtml();
+  const before = after.replace(' id="planning-request-8201"', '').replace('/calendar/book?client=8301&amp;returnTo=%2Fcalendar%2Fworkspace%23planning-request-8201&amp;date=2030-11-02', '/calendar/read-only?view=week&amp;date=2030-11-02&amp;staff=all');
+  assert.notEqual(after, before);
+  assert.equal(normalizeRequest(after), before);
+  for (const [from, to] of [['client=8301', 'client=9999'], ['%23planning-request-8201', '%23planning-request-9999'], ['date=2030-11-02', 'date=2030-11-03'], ['id="planning-request-8201"', 'id="planning-request-9999"'], ['value="41"', 'value="42"'], ['appointment=8101', 'appointment=9999'], ['>Arrange booking</a>', '>Confirm booking</a>']]) {
+    assert.ok(after.includes(from), from);
+    assert.notEqual(normalizeRequest(after.replace(from, to)), before, from);
+  }
+  assert.notEqual(normalizeRequest(after + '<script>changed()</script>'), before);
+});

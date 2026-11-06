@@ -121,12 +121,12 @@ const serviceSource = fs.readFileSync(path.join(ROOT, 'src/services/calendarCrea
 const uxSource = fs.readFileSync(path.join(ROOT, 'src/presentation/calendarCreateBookingUx.js'), 'utf8');
 const choiceSource = fs.readFileSync(path.join(ROOT, 'src/presentation/calendarCreateBookingClientChoiceUx.js'), 'utf8');
 
-test('Create Booking presents existing clients first, keeps search secondary, and exposes Add new client without registration', () => {
+test('Create Booking presents existing clients first, keeps search visible, and exposes Add new client without registration', () => {
   assert.match(choiceSource, /existingButton\.textContent='Existing clients'/);
-  assert.match(choiceSource, /searchButton\.textContent='Search clients'/);
+  assert.match(choiceSource, /searchLabel\.hidden=false;searchActions\.hidden=false/);
   assert.match(choiceSource, /newButton\.textContent='Add new client'/);
   assert.match(choiceSource, /data-client-mode-existing/);
-  assert.match(choiceSource, /data-client-mode-search/);
+  assert.doesNotMatch(choiceSource, /data-client-mode-search/);
   assert.match(choiceSource, /data-client-mode-new/);
   assert.match(choiceSource, /loadExistingClients\(\)/);
   assert.doesNotMatch(`${uxSource}\n${choiceSource}`, /Find existing client|\+ New client|Client registration/);
