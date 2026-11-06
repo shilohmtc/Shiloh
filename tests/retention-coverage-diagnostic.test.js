@@ -15,6 +15,8 @@ async function fixture(t) {
  CREATE TABLE crm_v2_clients(id bigint); INSERT INTO crm_v2_clients VALUES(101),(102),(103),(104),(105);
  CREATE TABLE appointments(id bigint,status text,starts_at timestamptz,ends_at timestamptz,created_at timestamptz,client_id bigint,crm_v2_client_id bigint,source text,notes text);
  CREATE TABLE appointment_group_members(group_id bigint,appointment_id bigint);
+ CREATE TABLE appointment_status_history(id bigint,appointment_id bigint,from_status text,to_status text,changed_by text,reason text,changed_at timestamptz);
+ CREATE TABLE crm_audit_events(id bigint,action text,metadata jsonb,created_at timestamptz);
  INSERT INTO appointments VALUES
  (1,'completed','2026-01-31 22:30Z','2026-01-31 23:30Z','2026-02-01',NULL,101,'shiloh','PRIVATE TREATMENT NOTE'),
  (2,'completed','2026-03-01 10:00Z','2026-03-01 11:00Z','2026-03-01',7,NULL,'goldie','PRIVATE TREATMENT NOTE'),
@@ -100,6 +102,47 @@ test('canonical owner financial permissions deny revoked, scoped and ambiguous a
   );
   await assert.rejects(inspect({ db, now }), { code: 'OWNER_AUTHORITY_UNAVAILABLE' });
 });
+test('reset provenance requires exact run audit and transaction time, deduplicates history, and never infers attendance', async (t) => {
+  const { pg, db } = await fixture(t);
+  await pg.exec(`INSERT INTO crm_audit_events VALUES(1,'control.calendar_occupancy_reset','{"runId":"calendar-reset-2026-08-30-v1","private":"SECRET"}','2026-08-30T10:00Z');
+    INSERT INTO appointment_status_history VALUES
+    (1,2,'completed','cancelled','control:00','Authorized clean-calendar occupancy reset #584','2026-08-30T10:00Z'),
+    (2,1,'scheduled','cancelled','control:00','Authorized clean-calendar occupancy reset #584','2026-08-30T10:00Z'),
+    (3,3,'confirmed','cancelled','control:00','Authorized clean-calendar occupancy reset #584','2026-08-30T10:00Z');`);
+  let r = (await inspect({ db, now })).assessment.reset_provenance;
+  assert.equal(r.legacy_records, 1);
+  assert.equal(r.matched_records, 1);
+  assert.deepEqual(r.status_counts, [
+    { prior_status: 'completed', current_status: 'completed', appointment_records: 1 },
+  ]);
+  assert.doesNotMatch(JSON.stringify(r), /SECRET|appointment_id|changed_by|reason/);
+  await pg.exec(
+    'INSERT INTO appointment_status_history SELECT 4,appointment_id,from_status,to_status,changed_by,reason,changed_at FROM appointment_status_history WHERE id=1',
+  );
+  r = (await inspect({ db, now })).assessment.reset_provenance;
+  assert.equal(r.matched_records, 1);
+  assert.equal(r.ambiguous_records, 1);
+  assert.equal(r.status_counts[0].prior_status, 'ambiguous');
+  await pg.exec(
+    "DELETE FROM appointment_status_history WHERE id=4; UPDATE appointment_status_history SET changed_at='2026-08-30T10:01Z' WHERE id=1",
+  );
+  r = (await inspect({ db, now })).assessment.reset_provenance;
+  assert.equal(r.marker_records, 1);
+  assert.equal(r.matched_records, 0);
+  assert.equal(r.unmatched_marker_records, 1);
+  await pg.exec(
+    "UPDATE appointment_status_history SET changed_at='2026-08-30T10:00Z'; INSERT INTO crm_audit_events SELECT 2,action,metadata,created_at FROM crm_audit_events",
+  );
+  r = (await inspect({ db, now })).assessment.reset_provenance;
+  assert.equal(r.audit_events, 2);
+  assert.equal(r.matched_records, 0);
+  await pg.exec(
+    "DELETE FROM crm_audit_events; INSERT INTO crm_audit_events VALUES(3,'control.calendar_occupancy_reset','{\"runId\":\"another-run\"}','2026-08-30T10:00Z')",
+  );
+  r = (await inspect({ db, now })).assessment.reset_provenance;
+  assert.equal(r.audit_events, 0);
+  assert.equal(r.matched_records, 0);
+});
 test('record limits and database cancellation fail closed without partial diagnostic output', async (t) => {
   const { db, calls } = await fixture(t);
   const bounded = {
@@ -114,6 +157,19 @@ test('record limits and database cancellation fail closed without partial diagno
     },
   };
   await assert.rejects(inspect({ db: bounded, now }), { code: 'RECORD_LIMIT' });
+  assert.ok(!calls.some((s) => s.includes('WITH facts')));
+  const historyBounded = {
+    connect: async () => {
+      const client = await db.connect(),
+        query = client.query;
+      client.query = (sql, args) =>
+        sql.includes('FROM appointment_status_history LIMIT 50001')
+          ? Promise.resolve({ rows: [{ count: 50001 }] })
+          : query(sql, args);
+      return client;
+    },
+  };
+  await assert.rejects(inspect({ db: historyBounded, now }), { code: 'RECORD_LIMIT' });
   assert.ok(!calls.some((s) => s.includes('WITH facts')));
   const denied = {
     connect: async () => {
@@ -153,6 +209,17 @@ test('strict output validation rejects extra identifying fields, unknown values 
     },
     (x) => {
       x.monthly_records = Array(1201).fill(x.monthly_records[0]);
+    },
+    (x) => {
+      x.reset_provenance.client_name = 'PRIVATE';
+    },
+    (x) => {
+      x.reset_provenance.matched_records = 1;
+    },
+    (x) => {
+      x.reset_provenance.status_counts = [
+        { prior_status: 'PRIVATE', current_status: 'cancelled', appointment_records: 1 },
+      ];
     },
   ]) {
     const x = structuredClone(r);
@@ -208,6 +275,17 @@ test('execution is restricted to the approved service/main/time window, no endpo
   assert.equal(messages[0].retentionCalculated, false);
   assert.equal(messages[0].completeCoverageVerified, false);
   assert.equal(messages[0].chunkCount, messages.length - 1);
+  assert.equal(messages[0].version, 2);
+  const reconstructed = {
+    totals: messages[0].totals,
+    source_buckets: messages[0].sourceBuckets,
+    monthly_records: messages.slice(1).flatMap((m) => m.rows),
+    reset_provenance: messages[0].resetProvenance,
+  };
+  assert.equal(
+    require('node:crypto').createHash('sha256').update(JSON.stringify(reconstructed)).digest('hex'),
+    messages[0].digest,
+  );
   assert.doesNotMatch(
     JSON.stringify(messages),
     /PRIVATE|client_id|notes|connectionString|DATABASE_URL/,
