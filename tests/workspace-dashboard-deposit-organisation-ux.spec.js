@@ -44,6 +44,7 @@ for(const width of [390,1440])test(`Future deposit booking keeps its date after 
  model.depositQueue=queue;
  await page.setViewportSize({width,height:950});
  await page.route('**/calendar/workspace/deposits',r=>r.fulfill({contentType:'text/html',body:depositQueueContent(queue)}));
+ await page.route('**/calendar/pwa/icon-192.png*',route=>route.fulfill({path:path.resolve('public/assets/pwa/shiloh-pwa-192.png')}));
  await page.route('**/future-deposit-review',r=>r.fulfill({contentType:'text/html',body:renderDashboardPage(model)}));
  await page.goto('/future-deposit-review');
  const deposits=page.locator('[data-dashboard-deposits]');await deposits.locator('summary').click();
@@ -52,5 +53,7 @@ for(const width of [390,1440])test(`Future deposit booking keeps its date after 
   await expect(deposits.getByRole('link',{name:'Review payment',exact:true})).toHaveAttribute('href','/calendar/payments/appointments/843');
   if(!i)await deposits.getByRole('button',{name:'Refresh deposits'}).click();
  }
+ await page.evaluate(()=>window.scrollTo(0,0));
+ await expect.poll(()=>page.locator('img').evaluateAll(images=>images.length>0&&images.every(img=>img.complete&&img.naturalWidth>0))).toBe(true);
  await page.screenshot({path:info.outputPath(`future-deposit-${width}.png`),fullPage:true});
 });
