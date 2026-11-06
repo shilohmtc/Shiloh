@@ -1,0 +1,42 @@
+-- Fixed aggregate-only diagnostic. Execute only inside a bounded READ ONLY snapshot.
+WITH facts AS MATERIALIZED (
+ SELECT a.id,a.starts_at,a.ends_at,a.created_at,a.client_id,a.crm_v2_client_id,
+  CASE WHEN a.status IN ('scheduled','confirmed','completed','no_charge','cancelled','no_show','unknown') THEN a.status ELSE 'other' END AS status,
+  CASE WHEN a.source IN ('goldie','goldie_import') THEN 'imported_goldie' WHEN a.source='shiloh' THEN 'shiloh' ELSE 'other' END AS source_bucket,
+  CASE WHEN a.client_id IS NOT NULL AND a.crm_v2_client_id IS NOT NULL THEN 'dual'
+       WHEN a.crm_v2_client_id IS NOT NULL THEN 'modern' WHEN a.client_id IS NOT NULL THEN 'legacy' ELSE 'missing' END AS linkage,
+  (a.client_id IS NOT NULL AND c.id IS NULL) OR (a.crm_v2_client_id IS NOT NULL AND v.id IS NULL) AS missing_reference,
+  (SELECT COUNT(*) FROM appointment_group_members gm WHERE gm.appointment_id=a.id) AS memberships
+ FROM appointments a LEFT JOIN clients c ON c.id=a.client_id LEFT JOIN crm_v2_clients v ON v.id=a.crm_v2_client_id
+), totals AS (
+ SELECT COUNT(*)::int AS appointment_records,
+ COUNT(*) FILTER (WHERE linkage='modern')::int AS modern_only_records,
+ COUNT(*) FILTER (WHERE linkage='legacy')::int AS legacy_only_records,
+ COUNT(*) FILTER (WHERE linkage='dual')::int AS dual_link_records,
+ COUNT(*) FILTER (WHERE linkage='missing')::int AS missing_link_records,
+ COUNT(*) FILTER (WHERE missing_reference)::int AS missing_reference_records,
+ COUNT(*) FILTER (WHERE memberships>1)::int AS multiple_membership_records,
+ COUNT(*) FILTER (WHERE starts_at IS NULL)::int AS missing_start_records,
+ COUNT(*) FILTER (WHERE ends_at IS NULL OR ends_at<=starts_at)::int AS invalid_end_records,
+ COUNT(*) FILTER (WHERE status IN ('completed','no_charge'))::int AS recorded_completed_records,
+ COUNT(*) FILTER (WHERE status IN ('completed','no_charge') AND starts_at>$1::timestamptz)::int AS future_completed_records,
+ COUNT(*) FILTER (WHERE status IN ('completed','no_charge') AND ends_at>$1::timestamptz)::int AS completed_not_ended_records,
+ COUNT(DISTINCT crm_v2_client_id) FILTER (WHERE linkage='modern' AND NOT missing_reference AND status IN ('completed','no_charge') AND ends_at>starts_at AND starts_at<=$1::timestamptz AND ends_at<=$1::timestamptz)::int AS observed_modern_completed_profiles,
+ COUNT(DISTINCT client_id) FILTER (WHERE linkage='legacy' AND NOT missing_reference AND status IN ('completed','no_charge') AND ends_at>starts_at AND starts_at<=$1::timestamptz AND ends_at<=$1::timestamptz)::int AS observed_legacy_completed_profiles,
+ MIN(starts_at AT TIME ZONE 'Africa/Johannesburg')::date AS earliest_observed_date,
+ MAX(starts_at AT TIME ZONE 'Africa/Johannesburg')::date AS latest_observed_date,
+ MIN(starts_at AT TIME ZONE 'Africa/Johannesburg') FILTER(WHERE status IN ('completed','no_charge') AND ends_at<=$1::timestamptz)::date AS earliest_recorded_completed_date
+ FROM facts
+), monthly AS (
+ SELECT date_trunc('month',starts_at AT TIME ZONE 'Africa/Johannesburg')::date AS month,linkage,status,COUNT(*)::int AS appointment_records
+ FROM facts GROUP BY 1,2,3 ORDER BY 1,2,3 LIMIT 1201
+), provenance AS (
+ SELECT source_bucket,COUNT(*)::int AS appointment_records,
+ COUNT(*) FILTER(WHERE status IN ('completed','no_charge'))::int AS recorded_completed_records,
+ MIN(created_at AT TIME ZONE 'Africa/Johannesburg')::date AS earliest_record_created_date,
+ MAX(created_at AT TIME ZONE 'Africa/Johannesburg')::date AS latest_record_created_date
+ FROM facts GROUP BY source_bucket
+)
+SELECT jsonb_build_object('totals',(SELECT to_jsonb(totals) FROM totals),
+ 'monthly_records',COALESCE((SELECT jsonb_agg(to_jsonb(monthly) ORDER BY month,linkage,status) FROM monthly),'[]'::jsonb),
+ 'source_buckets',COALESCE((SELECT jsonb_agg(to_jsonb(provenance) ORDER BY source_bucket) FROM provenance),'[]'::jsonb)) AS assessment;

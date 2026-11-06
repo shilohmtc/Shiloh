@@ -118,6 +118,7 @@ async function start() {
   logger.info(await clientCodeRelease.start(), 'My Shiloh client WhatsApp readiness');
   logger.info(await require('./src/services/clientAuthReadinessProduction')(), 'My Shiloh client authentication read-only preflight');
   server = app.listen(PORT, () => { logger.info({ port: PORT }, "Shiloh started");
+    void require("./src/services/retentionCoverageDiagnostic").runConfiguredDiagnostic({logger});
     void require('./src/services/clientCodeHttpProof').inspectClientCodeHttp({port:PORT,requested:clientCodeRelease.status().enabled,retired:clientCodeRelease.status().detailsSigninRetired})
       .then(result=>logger.info(result,'My Shiloh client authentication mounted HTTP proof'));
     startConversationSessionCleanupScheduler(); startTemporarySessionCleanupScheduler(); startGoogleBusinessProfileSyncScheduler(); startAppointmentLifecycleScheduler(); startCustomerCareScheduler(); startBookingIntegrityScheduler(); startCustomerBookingConfirmationScheduler(); startConsultationFormDeliveryScheduler(); startMandatoryDemoCleanupScheduler(); setTimeout(logMyShilohCutoverCoverage, 15000).unref(); });
