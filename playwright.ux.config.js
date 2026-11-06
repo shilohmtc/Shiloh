@@ -114,3 +114,4 @@ module.exports.testMatch.push('payment-visit-context.spec.js');
 module.exports.testMatch.push('dashboard-step-one.spec.js');
 
 module.exports.testMatch.push("calendar-booking-request-context.spec.js");
+module.exports.testMatch.push("workspace-payment-review.spec.js");

@@ -1,3 +1,5 @@
+const { createBookingPaymentService } = require('../services/bookingPayments');
+const { renderWorkspacePaymentReview } = require('../presentation/workspacePaymentReviewUx');
 const { service:bookingIncidents, BookingIncidentError } = require('../services/bookingSubmissionIncidents');
 const { bookingProblemsContent, bookingProblemsClientScript } = require('../presentation/bookingProblemsUx');
 const {attachBookingNotePresence}=require('../services/workspaceAppointmentNotes');
@@ -103,6 +105,7 @@ function createWorkspaceOperationalRouter({
   env = process.env,
   sessionService,
   dashboardService = workspaceDashboard,
+  paymentReviewService = createBookingPaymentService(),
   incidentService = bookingIncidents,
   navigationService = workspaceNavigation,
   renderDashboard = renderDashboardPage,
@@ -183,6 +186,19 @@ function createWorkspaceOperationalRouter({
       return res.json({ count: workspaceDashboardAttention(model).count });
     } catch (error) {
       return res.sendStatus(dashboardSafeError(error).status);
+    }
+  });
+
+  router.get('/payments', async (req, res) => {
+    try {
+      const [review, deposits] = await Promise.all([
+        paymentReviewService.getWorkspaceReview({ adminId: req.staffBrowserSession?.adminId, after: req.query.after, isCancelled: () => res.destroyed }),
+        dashboardService.depositQueue({ adminId: req.staffBrowserSession?.adminId, viewer: req.staffBrowserSession?.viewer, sessionPrincipal: req.staffBrowserSession?.accountPrincipal || null }).catch(() => ({ unavailable: true, items: [] })),
+      ]);
+      return res.status(review.state === 'unavailable' ? 503 : 200).type('html').send(renderWorkspacePaymentReview({ review, deposits }));
+    } catch (error) {
+      if (error.httpStatus === 400) return res.status(400).type('text/plain').send('Choose a valid payment review page.');
+      return res.status(503).type('html').send(renderWorkspacePaymentReview());
     }
   });
 
