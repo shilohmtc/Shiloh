@@ -2,6 +2,7 @@ const { formatRand: generatedRand } = require('./currency');
 // Preserve the report's existing non-negative/missing-value presentation authority.
 function formatRand(value) { return generatedRand(Math.max(0, Number(value) || 0)); }
 const { workspaceErrorRecoveryClientScript } = require('./workspaceErrorRecovery');
+const {targetStyles,targetSection}=require('./workspaceBusinessTargetsUx');
 const { recordsStyles, recordSections } = require('./workspaceFinancialRecordsUx');
 const { financialStyles, financialOverview, financialContext, financialSections } = require('./workspaceFinancialReportsUx');
 const {
@@ -169,7 +170,7 @@ function renderReportsPage(model, {
       ? `Showing ${selectedStaff?.displayName || selectedStaff?.display_name || 'the selected team member'}.`
       : 'Showing the whole team.';
 
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clinic reports — Shiloh Workspace</title><style>${workspaceShellStyles()}${reportStyles()}${phoneCapacityStyles()}${earningsStyles()}${reportSectionStyles()}${financialStyles()}${recordsStyles()}</style><script src="/calendar/reports/sections.js" defer></script><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${model.staffEarnings ? '<script src="/calendar/reports/commission.js" defer></script>' : ''}${model.financial?.records ? '<script src="/calendar/reports/finance-records.js" defer></script>' : ''}</head><body data-workspace-reports="true"><div class="workspace-frame">${renderWorkspaceNavigation({
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clinic reports — Shiloh Workspace</title><style>${workspaceShellStyles()}${reportStyles()}${phoneCapacityStyles()}${earningsStyles()}${reportSectionStyles()}${financialStyles()}${recordsStyles()}${targetStyles()}</style><script src="/calendar/reports/sections.js" defer></script><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${model.staffEarnings ? '<script src="/calendar/reports/commission.js" defer></script>' : ''}${model.financial?.records ? '<script src="/calendar/reports/finance-records.js" defer></script>' : ''}${model.targets ? '<script src="/calendar/reports/targets.js" defer></script>' : ''}</head><body data-workspace-reports="true"><div class="workspace-frame">${renderWorkspaceNavigation({
     active: 'reports',
     displayName: model.authority?.displayName,
     calendarHref: '/calendar/read-only',
@@ -192,7 +193,7 @@ function renderReportsPage(model, {
     </section>
 
     ${financialOverview(model)}
-    <nav class="jump-row" aria-label="Report sections">${model.financial ? '<a class="jump-link" href="#money">Money</a>' : ''}<a class="jump-link" href="#team">Team</a><a class="jump-link" href="#activity">Activity</a></nav>
+    <nav class="jump-row" aria-label="Report sections">${model.financial ? '<a class="jump-link" href="#money">Money</a>' : ''}${model.targets ? '<a class="jump-link" href="#targets">Targets</a>' : ''}<a class="jump-link" href="#team">Team</a><a class="jump-link" href="#activity">Activity</a></nav>
 
     ${model.financial ? `<details class="panel report-group" id="money" data-report-section><summary class="panel-heading"><div><h2>Money</h2><p>Whole clinic · receipts, balances${model.financial.records ? ', expenses and daily cash-up' : ''}.</p></div></summary><div class="panel-body">
       ${model.financial.records ? '<div class="report-tools"><a class="button" href="#financial-expenses">Record expense</a><a class="button" href="#financial-cashup">Review / close cash-up</a></div>' : ''}
@@ -200,6 +201,8 @@ function renderReportsPage(model, {
       ${financialSections(model.financial)}
       ${recordSections(model.financial.records, model.period, csrfToken)}
     </div></details>` : ''}
+
+    ${targetSection(model.targets,model.period,csrfToken)}
 
     <details class="panel report-group" id="team" data-report-section><summary class="panel-heading"><div><h2>Team</h2><p>Booking time${model.staffEarnings ? ' and calculated commission' : ''} · ${escapeHtml(showingText)}${commissionReview ? ` · ${escapeHtml(commissionReview)} commission ${commissionReview === 1 ? 'entry needs' : 'entries need'} review.` : ''}</p></div></summary><div class="panel-body">
       <div class="metrics" aria-label="Team booking time summary">

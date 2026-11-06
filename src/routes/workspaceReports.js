@@ -3,6 +3,8 @@ const workspaceReports = require('../services/workspaceReportsProfileView');
 const staffEarnings = require('../services/workspaceStaffEarnings');
 const financialReports = require('../services/workspaceFinancialReports');
 const financialRecords = require('../services/workspaceFinancialRecords');
+const businessTargets = require('../services/workspaceBusinessTargets');
+const { targetsClientScript } = require('../presentation/workspaceBusinessTargetsUx');
 const { recordsClientScript } = require('../presentation/workspaceFinancialRecordsUx');
 const { financialCsv } = require('../presentation/workspaceFinancialReportsUx');
 const { resolvePeriod } = require('../services/workspaceReports');
@@ -44,6 +46,7 @@ function createWorkspaceReportsHandler({
   earningsService = service === workspaceReports ? staffEarnings : { async requireOwner() { throw Object.assign(new Error('Forbidden'), { httpStatus: 403 }); } },
   financialService = service === workspaceReports ? financialReports : null,
   recordsService = service === workspaceReports ? financialRecords : null,
+  targetsService = service === workspaceReports ? businessTargets : null,
   sessionService,
   renderPage = renderReportsPage,
   renderUnavailable = renderReportsUnavailablePage,
@@ -73,6 +76,7 @@ function createWorkspaceReportsHandler({
         if (financialService) {
           try {
             model.financial = await financialService.build({ adminId: req.staffBrowserSession.adminId, period: model.period });
+            if (targetsService) model.targets = { ...await targetsService.build({adminId:req.staffBrowserSession.adminId,month:req.query.targetMonth}), selectedStaffId:model.selectedStaffId };
             if (recordsService) model.financial.records = await recordsService.build({ adminId: req.staffBrowserSession.adminId, period: model.period });
           } catch (error) {
             if (error?.httpStatus !== 403) throw error;
@@ -103,6 +107,7 @@ function createWorkspaceReportsRouter({ sessionService, ...options } = {}) {
   const earningsService = options.earningsService || staffEarnings;
   const financialService = options.financialService || (options.service ? null : financialReports);
   const recordsService = options.recordsService || (options.service ? null : financialRecords);
+  const targetsService = options.targetsService || (options.service ? null : businessTargets);
   router.use((req, res, next) => {
     setWorkspaceReportsSecurityHeaders(res);
     if (!isWorkspaceReportsEnabled(options.env || process.env)) return res.sendStatus(404);
@@ -127,6 +132,9 @@ function createWorkspaceReportsRouter({ sessionService, ...options } = {}) {
     const status = [400, 403, 404, 409].includes(error?.httpStatus) ? error.httpStatus : 503;
     return res.status(status).json({ error: status === 503 ? 'Financial records are temporarily unavailable. Please try again.' : error.message });
   }
+  router.get('/targets.js', async (req,res)=>{try{if(!targetsService)return res.sendStatus(403);await targetsService.requireAccess(req.staffBrowserSession.adminId);return res.type('application/javascript').send(targetsClientScript());}catch(error){return recordFailure(res,error);}});
+  router.get('/targets', async(req,res)=>{try{if(!targetsService)return res.sendStatus(403);return res.json(await targetsService.build({adminId:req.staffBrowserSession.adminId,month:req.query.month}));}catch(error){return recordFailure(res,error);}});
+  router.post('/targets',sameOriginGuard({env:options.env}),csrfGuard({service:sessionService}),express.json({limit:'4kb'}),async(req,res)=>{try{if(!targetsService)return res.sendStatus(403);const result=await targetsService.save({...req.body,adminId:req.staffBrowserSession.adminId});return res.status(result.replayed?200:201).json(result);}catch(error){return recordFailure(res,error);}});
   router.get('/finance-records.js', async (req, res) => {
     try {
       if (!recordsService) return res.sendStatus(403);
@@ -165,7 +173,7 @@ function createWorkspaceReportsRouter({ sessionService, ...options } = {}) {
       return res.status(status).json({ error: status === 503 ? 'Commission rules are unavailable.' : error.message });
     }
   });
-  router.get('/', createWorkspaceReportsHandler({ ...options, earningsService, financialService, recordsService, sessionService }));
+  router.get('/', createWorkspaceReportsHandler({ ...options, earningsService, financialService, recordsService, targetsService, sessionService }));
   return router;
 }
 
