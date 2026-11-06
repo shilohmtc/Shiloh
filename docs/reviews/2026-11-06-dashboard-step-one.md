@@ -36,8 +36,20 @@ Initial phone review found the review link increased the top bar height; it now 
 beside Open calendar inside Today. Storybook screenshots at 390px and 1440px were
 reviewed. The broader Dashboard run passed 40 browser scenarios; the final focused
 run passed 11 scenarios, including the additional exceptional-attention/draft case.
-The focused unit run passed 42 tests and lint passed. Repository-wide tests, exact-head
-GitHub release checks and live verification must pass before release.
+The focused unit run passed 42 tests and lint passed. The full local suite passed
+3,463 tests, with zero failures and one existing skip. Exact-head GitHub release
+checks and live verification must pass before release.
+
+The first CI visual run stopped on the two old Dashboard references (desktop layout
+and phone height), with 13 other workflows passing. Only those two reference images
+were regenerated and reviewed. A process-local font configuration reproduces the
+runner-style fonts without changing application CSS or machine font configuration.
+Unchanged client-history references and the unchanged desktop messages reference
+passed as controls; the existing phone messages label differed by 402 pixels locally
+and was not updated (it passed CI). The unchanged Dashboard heading matched exactly;
+the unchanged desktop sidebar differed by only 19 pixels at the existing comparison
+threshold. Both new Dashboard references passed normal comparison after encoding
+and decoding. No comparison threshold, assertion or release gate was changed.
 
 No real appointment, payment or client record was changed during testing. Later
 booking, group-phone, combined payment review, waiver return, vouchers and rewards are
