@@ -360,6 +360,8 @@ function createBookingPaymentService({
       `/* bookingPayments:subject */
        SELECT a.id AS appointment_id,a.client_id AS legacy_client_id,a.crm_v2_client_id,a.status AS appointment_status,a.total_price AS appointment_total,
               a.currency,a.updated_at AS appointment_revision,
+              to_jsonb(a)->>'starts_at' AS visit_starts_at,to_jsonb(a)->>'ends_at' AS visit_ends_at,
+              ARRAY(SELECT to_jsonb(ast)->>'staff_name_snapshot' FROM appointment_staff ast WHERE ast.appointment_id=a.id ORDER BY ast.position) AS practitioner_names,
               COALESCE(c.display_name,v2.name) AS client_name,
               COALESCE((SELECT cc.normalized_value
                           FROM client_contacts cc
@@ -398,6 +400,8 @@ function createBookingPaymentService({
       pricingRevision: new Date(row.group_id ? row.group_revision : row.appointment_revision).toISOString(),
       clientName: String(row.client_name || ''), clientMobile: String(row.client_mobile || ''),
       serviceName: String(row.service_name || 'Shiloh appointment'),
+      startsAt: row.visit_starts_at || null, endsAt: row.visit_ends_at || null,
+      practitionerNames: Array.isArray(row.practitioner_names) ? row.practitioner_names.filter(name=>typeof name==='string'&&name.trim()) : [],
       staffIds: row.staff_ids.map(Number), serviceIds: row.service_ids.map(Number),
       financialClassification: row.financial_classification || 'standard', originalPrice: row.original_price,
       status: String(row.group_id ? row.group_status : row.appointment_status),
