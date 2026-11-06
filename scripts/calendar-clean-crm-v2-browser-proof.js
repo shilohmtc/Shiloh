@@ -283,7 +283,7 @@ async function main() {
       cookieVisible:document.cookie,
       overflow:document.documentElement.scrollWidth-document.documentElement.clientWidth
     })`);
-    assert.deepEqual(surface.choices, ['Existing clients', 'Search clients', 'Add new client']);
+    assert.deepEqual(surface.choices, ['Existing clients', 'Add new client']);
     assert.equal(surface.hasAck, false);
     assert.equal(surface.hasInternalJargon, false);
     assert.equal(surface.cookieVisible, '');

@@ -237,6 +237,8 @@ function createCalendarCreateBookingRouter({
     try {
       const options = await bookingService.listBookableOptions(req.staffBrowserSession.adminId);
       const prefill = bookingPrefillFromQuery(req.query, options);
+      if (req.query.client !== undefined) prefill.client = await bookingService.bookingClient(req.staffBrowserSession.adminId, req.query.client);
+      if (typeof req.query.returnTo === 'string' && req.query.returnTo === req.query.returnTo.trim() && /^\/calendar\/workspace#planning-request-[1-9][0-9]*$/.test(req.query.returnTo) && req.query.returnTo.length <= 100) prefill.returnTo = req.query.returnTo;
       let html = renderPage({
         options,
         date: prefill.date,

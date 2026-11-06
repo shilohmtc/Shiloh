@@ -163,3 +163,32 @@ test('Calendar layer delegates V2 appointment writes while retaining canonical m
   assert.doesNotMatch(source, /mobile_acknowledged_at|acknowledged_mobile|acknowledgeMobile/);
   assert.doesNotMatch(source, /operatorContactAuthority|client_identity_verifications/);
 });
+
+test('request client prefill is read-only, masked and protected by current booking and lookup authority', async () => {
+  for (const principal of [principals.jp, principals.naomi, principals.marietjie]) {
+    const db = bookingDb({ admin: principal });
+    const service = createCalendarCreateBookingService({ db, env: enabledEnv, crmV2Service: crmV2() });
+    assert.deepEqual(await service.bookingClient(principal.id, '123'), {
+      id: '123', displayName: 'Jane Doe', status: 'active', profileStatus: 'minimal', contactHint: 'ending in 4567',
+    });
+    assert.equal(db.calls.some(call => /\b(INSERT|UPDATE|DELETE)\b/.test(call.sql)), false);
+  }
+  for (const principal of [principals.abigail, { ...principals.jp, permissions: { 'appointment:create': true } }, { ...principals.jp, admin_active: false }]) {
+    let reads = 0;
+    const service = createCalendarCreateBookingService({ db: bookingDb({ admin: principal }), crmV2Service: { ...crmV2(), async getClientById() { reads++; return client(); } } });
+    await assert.rejects(service.bookingClient(principal.id, '123'), { code: 'CALENDAR_BOOKING_FORBIDDEN' });
+    assert.equal(reads, 0);
+  }
+});
+
+test('request client prefill rejects malformed identifiers and inactive or missing clients without writes', async () => {
+  let reads = 0;
+  const service = createCalendarCreateBookingService({ db: bookingDb({ admin: principals.jp }), crmV2Service: { ...crmV2(), async getClientById(id) { reads++; return id === '124' ? null : client(id); } } });
+  for (const id of [null, '', 0, -1, '01', '1.5', '1e2', '9007199254740992', ['123'], { id: '123' }]) {
+    await assert.rejects(service.bookingClient(principals.jp.id, id), { code: 'CRM_V2_INVALID_CLIENT_ID' });
+  }
+  assert.equal(reads, 0);
+  await assert.rejects(service.bookingClient(principals.jp.id, '124'), { code: 'CALENDAR_BOOKING_CRM_V2_CLIENT_INACTIVE' });
+  const inactive = createCalendarCreateBookingService({ db: bookingDb({ admin: principals.jp }), crmV2Service: { ...crmV2(), async getClientById() { return { ...client(), status: 'inactive' }; } } });
+  await assert.rejects(inactive.bookingClient(principals.jp.id, '123'), { code: 'CALENDAR_BOOKING_CRM_V2_CLIENT_INACTIVE' });
+});

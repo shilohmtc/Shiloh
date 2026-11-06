@@ -82,9 +82,9 @@ test('client picker keeps explicit existing-client selection while new-client mo
 
   assert.doesNotThrow(() => new Function(script));
   assert.match(script, /Existing clients/);
-  assert.match(script, /Search clients/);
+  assert.match(script, /searchLabel\.hidden=false;searchActions\.hidden=false/);
   assert.match(script, /Add new client/);
-  assert.match(script, /data-client-mode-search/);
+  assert.doesNotMatch(script, /data-client-mode-search/);
   assert.match(script, /searchAction\.click\(\)/);
   assert.match(script, /calendar-client-mode/);
   assert.match(script, /normalGuard\.remove\(\)/);

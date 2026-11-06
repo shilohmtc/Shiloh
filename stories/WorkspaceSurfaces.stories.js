@@ -5,6 +5,7 @@ import dashboardPresentation from '../src/presentation/workspaceDashboardUx.js';
 import clientPresentation from '../src/presentation/workspaceCommunicationEvidenceUx.js';
 import messagesPresentation from '../src/presentation/workspaceMessagesUx.js';
 import editorPresentation from '../src/presentation/calendarAppointmentCompactEditorUx.js';
+import clientChoicePresentation from '../src/presentation/calendarCreateBookingClientChoiceUx.js';
 import createBookingPresentation from '../src/presentation/calendarCreateBookingUx.js';
 import couplesBookingPresentation from '../src/presentation/calendarCouplesBookingUx.js';
 import groupBookingPresentation from '../src/presentation/calendarGroupBookingUx.js';
@@ -735,3 +736,11 @@ export const BookingNotesUpcoming = {render:()=>{const model=dashboardModel();mo
 
 export const CompactMenuNotificationsStale = { render: () => workspaceNavigationOpenStory('stale') };
 export const CompactMenuNotificationsUnknown = { render: () => workspaceNavigationOpenStory('unknown') };
+
+// Synthetic request context: no live client lookup or booking is performed.
+export const CreateBookingFromRequest = {
+  render: () => interactiveProductionSurface(renderCalendarCreateBookingPage({
+    options: { authority: { bookingFlow: 'practitioner_first' }, staff, services: [{ id: 81, name: 'Quick Relief: Back & Neck (45 min)', durationMinutes: 45, staffIds: [11, 12] }] },
+    prefill: { date: '2030-11-02', client: { id: '123', displayName: 'Synthetic Request Client', status: 'active', profileStatus: 'registered', contactHint: 'ending in 4567' }, returnTo: '/calendar/workspace#planning-request-81' },
+  }), calendarCreateBookingClientScript() + '\n' + clientChoicePresentation.calendarCreateBookingClientChoiceScript()),
+};

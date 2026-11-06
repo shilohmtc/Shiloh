@@ -29,3 +29,12 @@ function normalizeRebookEmptyVisitReview(html) {
   return html.replace(oldPanel, '').replace(newPanel, '').replace(link, '');
 }
 module.exports.normalizeRebookEmptyVisitReview = normalizeRebookEmptyVisitReview;
+
+// Only the accepted individual request fixture gains a client-bound booking
+// destination and return anchor. Group/couples fields and actions remain exact.
+function normalizeRebookIndividualRequestLink(html) {
+  return html
+    .replace('<article class="booking-request" id="planning-request-8201" data-dashboard-planning-request="8201">', '<article class="booking-request" data-dashboard-planning-request="8201">')
+    .replace('<a data-workspace-action="primary" class="button" href="/calendar/book?client=8301&amp;returnTo=%2Fcalendar%2Fworkspace%23planning-request-8201&amp;date=2030-11-02">Arrange booking</a>', '<a data-workspace-action="primary" class="button" href="/calendar/read-only?view=week&amp;date=2030-11-02&amp;staff=all">Arrange booking</a>');
+}
+module.exports.normalizeRebookIndividualRequestLink = normalizeRebookIndividualRequestLink;
