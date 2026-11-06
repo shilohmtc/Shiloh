@@ -21,8 +21,8 @@ for(const width of [390,1440]) {
   await expect(link).toBeFocused();await expect(page.locator('[data-deposits-content]')).toContainText('150');
   await page.locator('[data-deposits-review] summary').focus();await expect(page.locator('[data-deposits-content]')).toContainText('125');
   await expect(page.locator('[data-deposits-review]')).toHaveAttribute('open','');
-  fail=true;release=null;await page.getByRole('button',{name:'Refresh deposits'}).click();await expect.poll(()=>Boolean(release)).toBe(true);release();
-  await expect(page.locator('[data-deposits-status]')).toContainText('Could not refresh');await expect(page.locator('[data-deposits-content]')).toContainText('125');
+  fail=true;release=null;const refreshButton=page.getByRole('button',{name:'Refresh deposits'});await refreshButton.click();await expect.poll(()=>Boolean(release)).toBe(true);await expect(refreshButton).toBeFocused();await expect(refreshButton).toBeDisabled();release();
+  await expect(page.locator('[data-deposits-status]')).toContainText('Could not refresh');await expect(refreshButton).toBeFocused();await expect(refreshButton).toBeEnabled();await expect(page.locator('[data-deposits-content]')).toContainText('125');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   expect((await new AxeBuilder({page}).include('[data-dashboard-deposits]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);
   await page.screenshot({path:info.outputPath(`dashboard-refresh-${width}.png`),fullPage:true});

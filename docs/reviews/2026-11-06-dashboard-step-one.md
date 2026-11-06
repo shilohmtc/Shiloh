@@ -54,3 +54,11 @@ and decoding. No comparison threshold, assertion or release gate was changed.
 No real appointment, payment or client record was changed during testing. Later
 booking, group-phone, combined payment review, waiver return, vouchers and rewards are
 outside this implementation. The normal one-worker release workflow remains intact.
+
+Additional keyboard review found native disabling of Refresh deposits blurred focus
+to BODY during and after a request. The button now uses aria-disabled while the
+existing running guard prevents duplicate requests, so focus stays on the button.
+Desktop/phone tests require focus both during the read and after failure, together
+with disabled/enabled accessibility states. This final focus correction is covered
+by focused checks and the new exact-head full CI run; the earlier full local suite
+preceded this correction.
