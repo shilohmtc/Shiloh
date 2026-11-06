@@ -62,3 +62,13 @@ Desktop/phone tests require focus both during the read and after failure, togeth
 with disabled/enabled accessibility states. This final focus correction is covered
 by focused checks and the new exact-head full CI run; the earlier full local suite
 preceded this correction.
+
+Final full UX run on 1f9367b passed 769 of 771 scenarios. Both failures were
+legacy deposit-refresh assertions expecting the list and count to be cleared.
+Updated that existing phone/desktop integration test to require retained account,
+count, expanded disclosure and focus during refresh, and retained last-known empty
+state plus an explicit stale-information warning on read failure. Settlement,
+refund, navigation, restricted-principal and anonymous-read assertions remain.
+All four scenarios in that file passed locally (37.4s); changed test lint passed.
+No application change or screenshot threshold adjustment was needed. Required
+checks must pass on the new test-correction head before release.
