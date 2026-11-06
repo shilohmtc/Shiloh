@@ -1,3 +1,4 @@
+const { createCompletedVisitRewards } = require('../services/completedVisitRewards');
 const express = require('express');
 const { pool } = require('../db/pool');
 const { requireStaffSession, sameOriginGuard, csrfGuard } = require('../middleware/staffBrowserSession');
@@ -14,7 +15,7 @@ function sendError(error, req, res, next) {
   return res.status(status).json({ error:error.message, code:error.code, requestId:req.id });
 }
 
-function createCalendarPaymentsRouter({ env=process.env, sessionService, service=createBookingPaymentService({db:pool}), rewardsService=createShilohRewardsService({db:pool}), creditService=createClientTreatmentCreditService({db:pool}), giftSettlementService=createBookingNoncashSettlementService({db:pool}), renderPage=renderCalendarPaymentPage, renderClient=calendarPaymentsClientScript, groupReadDb=pool }={}) {
+function createCalendarPaymentsRouter({ env=process.env, sessionService, service=createBookingPaymentService({db:pool}), rewardsService=createShilohRewardsService({db:pool}), creditService=createClientTreatmentCreditService({db:pool}), giftSettlementService=createBookingNoncashSettlementService({db:pool}), renderPage=renderCalendarPaymentPage, renderClient=calendarPaymentsClientScript, groupReadDb=pool, completedRewardsService=createCompletedVisitRewards({db:pool}) }={}) {
   if (!sessionService) throw new Error('Payment routes require the staff session service.');
   const router=express.Router(), requireSession=requireStaffSession({service:sessionService,env}), sameOrigin=sameOriginGuard({env}), requireCsrf=csrfGuard({service:sessionService});
   router.use((_req,res,next)=>{res.setHeader('Cache-Control','private, no-store, max-age=0');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Content-Type-Options','nosniff');next();});
@@ -55,6 +56,7 @@ function createCalendarPaymentsRouter({ env=process.env, sessionService, service
   router.post('/appointments/:appointmentId/refund',sameOrigin,requireSession,requireCsrf,async(req,res,next)=>{try{return res.status(201).json(await service.recordRefund({...req.body,adminId:req.staffBrowserSession.adminId,appointmentId:req.params.appointmentId}));}catch(error){return sendError(error,req,res,next);}});
   router.post('/appointments/:appointmentId/ozow',sameOrigin,requireSession,requireCsrf,async(req,res,next)=>{try{return res.status(201).json(await service.createOzowRequest({...req.body,adminId:req.staffBrowserSession.adminId,appointmentId:req.params.appointmentId}));}catch(error){return sendError(error,req,res,next);}});
   router.post('/appointments/:appointmentId/deposit/retry',sameOrigin,requireSession,requireCsrf,async(req,res,next)=>{try{const result=await service.retryDepositRequest({adminId:req.staffBrowserSession.adminId,appointmentId:req.params.appointmentId});return res.status(200).json({status:result.status,linksReady:(result.requests||[]).some(request=>Boolean(request.provider_payment_url)&&['link_issued','pending'].includes(request.state))});}catch(error){return sendError(error,req,res,next);}});
+  for(const [suffix,action] of [['/preview','preview'],['','apply']])router.post('/appointments/:appointmentId/completed-rewards'+suffix,sameOrigin,requireSession,requireCsrf,async(req,res,next)=>{try{return res.status(200).json(await completedRewardsService[action]({...req.body,adminId:req.staffBrowserSession.adminId,appointmentId:req.params.appointmentId}));}catch(error){return sendError(error,req,res,next);}});
   router.post('/appointments/:appointmentId/rewards',sameOrigin,requireSession,requireCsrf,async(req,res,next)=>{try{return res.status(200).json(await rewardsService.applyStaffCredit({...req.body,adminId:req.staffBrowserSession.adminId,appointmentId:req.params.appointmentId}));}catch(error){if(error instanceof ShilohRewardsError)return res.status(error.httpStatus).json({error:error.message,code:error.code,requestId:req.id});return next(error);}});
   return router;
 }

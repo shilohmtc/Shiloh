@@ -1,0 +1,18 @@
+# Completed-visit reward use
+
+Implements the agreed completed-visit reward policy as a separate increment after unfinished-payment review #1559. Release requires the complete exact-head checks and deployment verification below.
+
+Accepted policy is recorded in roadmap #611 comment 6655859391: an eligible reward can be used after completion while a balance remains, with reward use and the remaining balance shown before confirmation. Fully paid visits must not automatically create a refund or credit.
+
+Implementation uses separate staff-only preview/apply endpoints. Upcoming and My Shiloh reward redemption retain their existing service and policy. Preview is READ ONLY and does not create an account or wallet. Apply revalidates staff capability and target scope, locks the canonical booking/account and reward wallet, checks the preview revision/balances, writes the existing immutable wallet debit and booking allocation, and audits in one transaction. No cash receipt, refund, credit issue or notification is created. Exact retries are tied to actor/client/appointment/amount/review token and return the original allocation.
+
+Existing noncash guards remain: modern active clinic client, completed treatment, Rand price aligned with payment account, no pending deposit or active/unresolved client collection, sufficient unlocked rewards, amount no greater than actual remaining treatment balance. Applied vouchers/rewards/credit, prior payment and receipts/refunds count. Linked treatments must all be completed for the same client; mixed-client/unfinished/private groups require separate review and cannot consume another participant's wallet.
+
+The shared confirmation displays reward amount, existing treatment balance and remaining amount. Keep rewards cancels without writes. Interrupted attempts retain the exact operation in session storage and block another collection choice. Refresh restores that retry; if the visit is settled, the existing pending-operation recovery can resolve the original action without offering a new reward. Known rejected requests require a fresh review. There is no auto-refund, new credit or automatic client message.
+
+Local validation:
+- Seven final focused checks pass (SQL, route and presentation boundaries): read-only preview; wallet/allocation and truthful cash accounting; exact retries; partial receipts/applied voucher; paid refusal; revisions/wallet/permission/deposit/link guards; same-client groups and unsafe-member exclusions; audit failure rollback.
+- Ten route/paid-UI/reward-model checks and ten ledger/payment-method checks pass.
+- First browser run: four passes, three test setup failures (native dialog was targeted by an explicit role selector; a storage assertion raced successful reload). Tests corrected to target the native dialog and await navigation, retaining financial and accessibility assertions.
+- All four final reward browser scenarios pass, including phone/desktop accessibility, preview cancellation and interrupted unchanged retries. Final 390px/1440px viewport screenshots reviewed: readable amounts, green confirmation, controls and dialog within the viewport. The combined browser run passed 15 of 16 scenarios; an unchanged existing seven-screen phone payment test reached its 30-second timeout during the sixth accessibility scan while full SQL regression was also running. Its isolated unchanged rerun passed in 27.8 seconds. No timeout, threshold or assertion was relaxed.
+- Full local regression: 3,492 passed, zero failed, one existing skip (896.7 seconds). Lint and Storybook build pass. Required one-worker exact-head workflows and deployment verification remain mandatory. No real client/payment changes or messages used for testing; no schema/security/access changes.
