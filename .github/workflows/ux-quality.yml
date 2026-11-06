@@ -41,18 +41,39 @@ jobs:
           done
           cat /tmp/shiloh-storybook.log
           exit 1
+      - name: Capture source-bound Rebook action review
+        env:
+          EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          REVIEW_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$REVIEW_BASE_SHA"
+          node scripts/rebook-action-evidence.js
+      - name: Upload source-bound Rebook action review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rebook-action-review
+          path: artifacts/rebook-action-review
+          if-no-files-found: error
+          retention-days: 14
+      - name: Plan exact-once UX coverage
+        run: node scripts/ux-ci-phases.js plan
+      - name: Prove booking layout and repeated booking actions first
+        run: |
+          node scripts/ux-baseline-codec.js decode
+          node scripts/ux-ci-phases.js booking
       - name: Prove holiday upcoming and history on phone and desktop
-        run: npx playwright test tests/holiday-planning.spec.js --config=playwright.ux.config.js --output=artifacts/holiday-review
+        run: node scripts/ux-ci-phases.js holiday
       - name: Upload holiday presentation review
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: holiday-presentation-review
-          path: artifacts/holiday-review
+          path: artifacts/ux-ci-phases/holiday-results
           if-no-files-found: error
           retention-days: 14
       - name: Prove past booking attendance on phone and desktop
-        run: npx playwright test tests/workspace-already-attended.spec.js --config=playwright.ux.config.js
+        run: node scripts/ux-ci-phases.js attended
       - name: Upload attended visit review
         if: always()
         uses: actions/upload-artifact@v7
@@ -64,15 +85,14 @@ jobs:
       - name: Prove Client Directory navigation and affected visual baselines
         run: |
           node scripts/ux-baseline-codec.js decode
-          npx playwright test tests/workspace-client-services.spec.js tests/ux-visual-accessibility.spec.js --config=playwright.ux.config.js --grep 'Client Directory management|(?:dashboard|messages|client-history)-(?:desktop|phone) visual and accessibility baseline'
+          node scripts/ux-ci-phases.js directory
       - name: Prove booking for two on Phone and Desktop
-        run: npx playwright test tests/my-shiloh-couples-ux.spec.js --config=playwright.ux.config.js
-      - name: Prove ordinary booking entry accessibility
-        run: npx playwright test tests/ux-visual-accessibility.spec.js --config=playwright.ux.config.js --grep 'My Shiloh multiple bookings review'
+        run: node scripts/ux-ci-phases.js couples
       - name: Prove CRM sign-in on Phone and Desktop
-        run: npx playwright test tests/my-shiloh-crm-sign-in-ux.spec.js --config=playwright.ux.config.js
+        run: node scripts/ux-ci-phases.js crm
       - name: Bind focused CRM authentication screenshots to exact head
         env:
+          CRM_AUTH_EVIDENCE_SOURCE: artifacts/ux-ci-phases/crm-results
           EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: node scripts/package-my-shiloh-crm-auth-evidence.js
       - name: Upload focused synthetic CRM authentication review
@@ -84,7 +104,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Prove clear notification cards and conservative client indicators
-        run: npx playwright test tests/notification-clarity.spec.js --config=playwright.ux.config.js
+        run: node scripts/ux-ci-phases.js notifications
       - name: Bind notification clarity evidence to exact head
         env:
           EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
@@ -106,7 +126,7 @@ jobs:
         run: |
           if compgen -G 'tests/ux-baselines/*.png.b64.part*' > /dev/null; then
             node scripts/ux-baseline-codec.js decode
-            npm run test:ux
+            node scripts/ux-ci-phases.js remaining
           else
             echo 'No committed reviewed UX baselines found; generating candidate baselines only.'
             npm run test:ux -- --update-snapshots
@@ -171,19 +191,6 @@ jobs:
         with:
           name: dashboard-deposit-waiver-shortcut-review
           path: artifacts/dashboard-deposit-waiver-shortcut
-          if-no-files-found: error
-          retention-days: 14
-      - name: Capture source-bound Rebook action review
-        env:
-          EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
-          REVIEW_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: node scripts/rebook-action-evidence.js
-      - name: Upload source-bound Rebook action review
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: rebook-action-review
-          path: artifacts/rebook-action-review
           if-no-files-found: error
           retention-days: 14
       - name: Capture source-bound payment waiver alignment review
@@ -286,6 +293,7 @@ jobs:
             artifacts/treatment-credit/*.png
             artifacts/ux-playwright-results
             artifacts/ux-playwright-report
+            artifacts/ux-ci-phases
             artifacts/workspace-deposits
             artifacts/ux-baseline-candidate
           if-no-files-found: ignore
