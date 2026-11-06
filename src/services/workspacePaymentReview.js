@@ -1,14 +1,14 @@
 'use strict';
 const { allowsAppointmentTarget } = require('./calendarAuthorization');
 const PAGE_SIZE = 25;
-const EXCEPTIONS = "'payment.received_after_booking_cancelled','payment.received_after_prior_settlement','payment.received_after_no_charge','payment.received_after_deposit_waived','payment.received_after_collection_changed'";
+const { EXCEPTION_ACTIONS_SQL: EXCEPTIONS, RECEIPT_STATES_SQL } = require('./paymentReviewEvidence');
 // Candidate pages include settled visits. Never advertise their count as a
 // clinic-wide outstanding total. A shared account is considered once per page.
 const CANDIDATES_SQL = `/* WorkspacePaymentReview:candidates */
  WITH subjects AS (
    SELECT CASE WHEN gm.group_id IS NULL THEN 'a:'||a.id ELSE 'g:'||gm.group_id END AS subject_key,
           MIN(a.id) AS appointment_id,gm.group_id,g.status AS group_status,MAX(pa.currency) AS account_currency,
-          BOOL_OR(EXISTS(SELECT 1 FROM payment_requests pr WHERE pr.payment_account_id=pa.id AND pr.state='paid'
+          BOOL_OR(EXISTS(SELECT 1 FROM payment_requests pr WHERE pr.payment_account_id=pa.id AND pr.state IN (${RECEIPT_STATES_SQL})
             AND NOT EXISTS(SELECT 1 FROM payment_ledger_entries e WHERE e.payment_request_id=pr.id AND e.entry_type='payment'))) AS unrecorded_payment,
           BOOL_OR(EXISTS(SELECT 1 FROM crm_audit_events e WHERE e.entity_type='booking_payment_account' AND e.entity_id=pa.id
             AND e.action IN (${EXCEPTIONS}))) AS recorded_exception,

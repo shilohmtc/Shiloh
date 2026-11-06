@@ -1,4 +1,5 @@
 'use strict';
+const { paymentEvidenceRequiresReview } = require('./paymentReviewEvidence');
 const { createHash } = require('node:crypto');
 const { pool } = require('../db/pool');
 const {
@@ -162,6 +163,7 @@ function createCompletedVisitRewards({
         'Review the changed treatment price and payment account first.',
       );
     if (account) {
+      if (await paymentEvidenceRequiresReview(q, account.id)) fail('REWARDS_PAYMENT_REVIEW', 'Payment receipt or exception details need review before rewards can be used.');
       await require('./paymentCollectionGuard').assertNoClientCollection(q, account.id);
       const pending = (
         await q.query(

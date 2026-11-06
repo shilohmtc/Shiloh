@@ -237,3 +237,23 @@ test('audit failure rolls back wallet debit, allocation and newly created paymen
     300,
   );
 });
+test('unrecorded provider receipts and recorded payment exceptions block both preview and stale reviewed apply', async (t) => {
+  const f = await fixture(t);
+  await f.query('INSERT INTO booking_payment_accounts(appointment_id,canonical_amount_due,currency,pricing_revision) SELECT id,total_price,currency,updated_at FROM appointments WHERE id=201');
+  const account = (await f.query('SELECT id FROM booking_payment_accounts WHERE appointment_id=201')).rows[0].id;
+  const before = await f.service.preview(input);
+  const request = (await f.query("INSERT INTO payment_requests(payment_account_id,state,amount) VALUES($1,'paid',25) RETURNING id", [account])).rows[0].id;
+  for (const state of ['paid', 'refunded', 'partially_refunded']) {
+    await f.query('UPDATE payment_requests SET state=$1 WHERE id=$2', [state, request]);
+    await assert.rejects(f.service.preview(input), { code: 'REWARDS_PAYMENT_REVIEW' });
+    await assert.rejects(f.service.apply({ ...input, reviewToken: before.reviewToken, clientConfirmed: true, operationId: 'synthetic_unverified_receipt' }), { code: 'REWARDS_PAYMENT_REVIEW' });
+  }
+  await f.query("INSERT INTO payment_ledger_entries(payment_account_id,payment_request_id,entry_type,amount) VALUES($1,$2,'payment',25)", [account, request]);
+  const verified = await f.service.preview(input);
+  assert.equal(Number(verified.outstanding), Number(before.outstanding) - 25);
+  await f.query("INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata) VALUES('payment.received_after_collection_changed','booking_payment_account',$1,'{}')", [account]);
+  await assert.rejects(f.service.preview(input), { code: 'REWARDS_PAYMENT_REVIEW' });
+  await assert.rejects(f.service.apply({ ...input, reviewToken: verified.reviewToken, clientConfirmed: true, operationId: 'synthetic_payment_exception' }), { code: 'REWARDS_PAYMENT_REVIEW' });
+  assert.equal(Number((await f.query('SELECT COUNT(*) AS n FROM booking_loyalty_allocations')).rows[0].n), 0);
+  assert.equal(Number((await f.query("SELECT COUNT(*) AS n FROM loyalty_wallet_entries WHERE entry_type='redeem'")).rows[0].n), 0);
+});
