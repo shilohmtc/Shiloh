@@ -175,3 +175,15 @@ test('Reports scope, empty periods and existing deep links stay clear', async ({
   await expect(page.locator('#money')).toContainText('Profit and commission still payable are not calculated');
   await page.screenshot({path:testInfo.outputPath('reports-empty-period-phone.png'),fullPage:true});
 });
+
+for (const width of [390,1440]) test(`Historical status totals reconcile at ${width}`, async ({page},info)=>{
+ await page.setViewportSize({width,height:950});
+ await page.goto('/iframe.html?id=workspace-reports--reconciled-historical-status&viewMode=story',{waitUntil:'networkidle'});
+ await page.locator('#activity > summary').click();
+ await expect(page.getByText('63 appointments excluding cancellations · 81 appointments recorded, including cancellations.',{exact:true})).toBeVisible();
+ const panel=page.locator('section.panel').filter({has:page.getByRole('heading',{name:'Appointment status',exact:true})});
+ await expect(panel.locator('.status-pill')).toHaveCount(4);
+ expect((await new AxeBuilder({page}).include('#activity').analyze()).violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.screenshot({path:info.outputPath(`reconciled-status-${width}.png`),fullPage:true});
+});

@@ -83,7 +83,7 @@ test('Contextual Back keeps filters and history pages, and rejects foreign or wr
   await page.route('**/calendar/clients**',r=>r.fulfill({contentType:'text/html',body:new URL(r.request().url()).pathname==='/calendar/clients'?list:detail}));
   const context='/calendar/clients?q=synthetic&status=active&offset=24';
   await page.goto(context);await page.addScriptTag({content:workspaceNavigationClientScript()});
-  const row=page.locator('.client-row').first();
+  const row=page.locator('[data-client-profile-link]').first();
   expect(new URL(await row.getAttribute('href'),'http://127.0.0.1:6006').searchParams.get('returnTo')).toBe(context);
   await row.click();await page.addScriptTag({content:workspaceNavigationClientScript()});
   const back=page.locator('[data-workspace-back-context]');await expect(back).toHaveAttribute('href',context);
@@ -148,6 +148,7 @@ test('Dense Dashboard controls preserve the shared 44px minimum on desktop and p
     await page.setViewportSize(viewport);
     await page.goto('/iframe.html?id=workspace-production-surfaces--dashboard-operational&viewMode=story',{waitUntil:'networkidle'});
     const dense=page.locator('.carryover-group [data-workspace-action],.appointment-actions>[data-workspace-action]:only-child');
+    await expect(dense.first()).toBeVisible();
     expect(await dense.count()).toBeGreaterThan(0);
     for(const control of await dense.all())if(await control.isVisible())expect((await control.boundingBox()).height,await control.textContent()).toBeGreaterThanOrEqual(44);
   }

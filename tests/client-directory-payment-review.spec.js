@@ -15,7 +15,8 @@ for(const width of [390,1440])test(`Directory payment indicators preserve financ
  });
  await page.goto(origin+'/calendar/clients');const indicator=page.locator('[data-client-payment-id="101"]');
  await expect(indicator).toHaveText('Completed visit: payment outstanding · Upcoming deposit to review');
- await expect(page.locator('.client-name')).toHaveText('Synthetic Client');await expect(page.locator('.client-row')).toHaveAttribute('href','/calendar/clients/101');
+ await expect(page.locator('.client-name')).toHaveText('Synthetic Client');await expect(page.locator('[data-client-profile-link]')).toHaveAttribute('href',/\/calendar\/clients\/101\?returnTo=/);await expect(indicator).toHaveAttribute('href',/services=appointments&returnTo=.*#client-appointments$/);
+ for(const link of await page.locator('.client-row a').all())expect((await link.boundingBox()).height).toBeGreaterThanOrEqual(44);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  expect((await new AxeBuilder({page}).include('[data-clients-list-view]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);
  await page.screenshot({path:info.outputPath(`directory-payment-${width}.png`),fullPage:true});
@@ -28,6 +29,7 @@ for(const width of [390,1440])test(`Directory payment indicators preserve financ
 for(const width of [320,1440])test(`Directory payment Storybook populated states at ${width}`,async({page},info)=>{
  await page.setViewportSize({width,height:950});await page.goto('/iframe.html?id=workspace-clients--payment-review-indicators&viewMode=story',{waitUntil:'networkidle'});
  await expect(page.getByText('Shared booking: review payment',{exact:true})).toBeVisible();await expect(page.getByText('Payment details restricted',{exact:true})).toBeVisible();
+ for(const link of await page.locator('.client-row a').all())expect((await link.boundingBox()).height).toBeGreaterThanOrEqual(44);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  expect((await new AxeBuilder({page}).include('[data-clients-list-view]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);
  await page.screenshot({path:info.outputPath(`directory-payment-story-${width}.png`),fullPage:true});
