@@ -72,3 +72,16 @@ refund, navigation, restricted-principal and anonymous-read assertions remain.
 All four scenarios in that file passed locally (37.4s); changed test lint passed.
 No application change or screenshot threshold adjustment was needed. Required
 checks must pass on the new test-correction head before release.
+
+The corrected c1276bc full UX suite passed all 771 scenarios (36.1m); CI passed
+3,463 regression tests with zero failures and one existing skip. Release remained
+stopped because the later Rebook evidence guard compared the whole Dashboard and
+rejected the agreed relocation of this fixture's empty Unfinished visits panel.
+Its guard now normalizes only that exact empty panel and its exact review link/status,
+while comparing every remaining byte. Added negative tests retain rejection of
+changed identities, dates, practitioner values, booking actions, status semantics,
+review destinations, populated/altered empty content and scripts. Four contract
+tests and lint pass. The five-variant before/after Rebook capture passes with zero
+writes; phone collapsed and desktop expanded screenshots reviewed. Application
+behavior and visual thresholds are unchanged. Every required exact-head workflow
+must pass after this evidence-only correction before merge.
