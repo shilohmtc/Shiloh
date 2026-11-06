@@ -157,3 +157,9 @@ export const MonthlyTargets = {
 export const MonthlyTargetsUnset = {
   render: () => productionSurface(renderReportsPage({ ...reportModel(), targets: targetsFixture({ unset: true }) })),
 };
+
+export const ReconciledHistoricalStatus = {
+  render: () => productionSurface(renderReportsPage({ ...reportModel(),
+    appointments: {operational:63,allRecorded:81,statusCounts:{completed:48,no_show:3,scheduled:12,cancelled:18}},
+  })),
+};

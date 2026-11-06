@@ -15,7 +15,7 @@ for(const width of [390,1440])test(`Directory payment indicators preserve financ
  });
  await page.goto(origin+'/calendar/clients');const indicator=page.locator('[data-client-payment-id="101"]');
  await expect(indicator).toHaveText('Completed visit: payment outstanding · Upcoming deposit to review');
- await expect(page.locator('.client-name')).toHaveText('Synthetic Client');await expect(page.locator('.client-row')).toHaveAttribute('href','/calendar/clients/101');
+ await expect(page.locator('.client-name')).toHaveText('Synthetic Client');await expect(page.locator('[data-client-profile-link]')).toHaveAttribute('href',/\/calendar\/clients\/101\?returnTo=/);await expect(indicator).toHaveAttribute('href',/services=appointments&returnTo=.*#client-appointments$/);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  expect((await new AxeBuilder({page}).include('[data-clients-list-view]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);
  await page.screenshot({path:info.outputPath(`directory-payment-${width}.png`),fullPage:true});

@@ -6,12 +6,14 @@ function selectedClientSection(model) {
 }
 function clientSectionNavigation(model) {
   const selected=selectedClientSection(model),base='/calendar/clients/'+encodeURIComponent(String(model.client.id));
-  return `<nav class="client-section-navigation" aria-label="Client sections">${SECTIONS.map(([key,label])=>`<a href="${base}?services=${key}${model.returnHref?'&amp;returnTo='+encodeURIComponent(model.returnHref):''}#client-${key}"${selected===key?' aria-current="page"':''}>${label}</a>`).join('')}</nav>`;
+  const returnTo=model.returnHref||model.clientListReturnHref;
+  return `<nav class="client-section-navigation" aria-label="Client sections">${SECTIONS.map(([key,label])=>`<a href="${base}?services=${key}${returnTo?'&amp;returnTo='+encodeURIComponent(returnTo):''}#client-${key}"${selected===key?' aria-current="page"':''}>${label}</a>`).join('')}</nav>`;
 }
 function decorateClientHome(html, model) {
   const selected=selectedClientSection(model);
   return html.replace('<main data-client-detail-view>',`<main data-client-detail-view><div class="client-home" data-client-home-section="${selected}">`)
     .replace('</main>','</div></main>')
+    .replace('href="/calendar/clients" data-workspace-back-context',`href="${escapeHtml(model.clientListReturnHref || '/calendar/clients')}" data-workspace-back-context`)
     .replace('<nav class="detail-actions" aria-label="Client navigation">', '<nav class="detail-actions" aria-label="Client navigation">' + (model.returnHref ? `<a class="button" href="${escapeHtml(model.returnHref)}">Back to booking</a>` : ''))
     .replace('<div class="profile-grid">',`${clientSectionNavigation(model)}<div class="profile-grid">`)
     .replace('<span class="eyebrow">Client record</span>','')

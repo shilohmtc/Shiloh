@@ -59,3 +59,30 @@ test('Clinic check-in menu is hidden until the existing permission response allo
  allowed=true;await page.reload();await page.addScriptTag({content:workspaceNavigationClientScript()});
  await expect(page.locator('a[data-workspace-destination="clinicCheckin"]')).toHaveAttribute('href','/calendar/check-in/devices');
 });
+
+for(const width of [390,1440])test(`Filtered client and payment links retain Directory context across tabs at ${width}`,async({page})=>{
+ await page.setViewportSize({width,height:950});
+ const {renderClientDetailPageWithCommunications}=require('../src/presentation/workspaceCommunicationEvidenceUx');
+ const {clientDirectoryReturnHref}=require('../src/presentation/clientDirectoryContext');
+ await page.route(origin+'/**',route=>{
+  const url=new URL(route.request().url());
+  if(url.pathname==='/calendar/clients/search.js')return route.fulfill({contentType:'application/javascript',body:clientSearchScript()});
+  if(url.pathname==='/calendar/clients')return route.fulfill({contentType:'text/html',body:html(url.searchParams.get('q')||'',url.searchParams.get('status')||'active',Number(url.searchParams.get('offset')||0))});
+  if(url.pathname==='/calendar/clients/901')return route.fulfill({contentType:'text/html',body:renderClientDetailPageWithCommunications({client:{id:901,name:'Synthetic Client',status:'active'},appointments:[],historyOffset:0,pageSize:20,policyAcceptances:[],services:url.searchParams.get('services')||'overview',clientListReturnHref:clientDirectoryReturnHref(url.searchParams.get('returnTo'))})});
+  return route.fulfill({body:'',contentType:'application/javascript'});
+ });
+ await page.goto(origin+'/calendar/clients');await page.getByRole('searchbox').fill('Synthetic surname');
+ await expect(page.locator('.client-name')).toHaveText('Synthetic surname');
+ await page.locator('#client-status').selectOption('archived');
+ await expect(page.locator('.client-row .status-pill')).toHaveText('archived');
+ await page.getByRole('link',{name:'Next',exact:true}).click();await expect(page).toHaveURL(/offset=24/);
+ const context=new URL(page.url()).pathname+new URL(page.url()).search;
+ for(const selector of ['[data-client-profile-link]','[data-client-payment-id]']) {
+  await page.locator(selector).click();
+  await expect(page.locator('[data-client-home-section]')).toHaveAttribute('data-client-home-section',selector.includes('payment')?'appointments':'overview');
+  await page.getByRole('navigation',{name:'Client sections'}).getByRole('link',{name:'Forms',exact:true}).click();
+  await expect(page.getByRole('link',{name:'Back to Clients',exact:true})).toHaveAttribute('href',context);
+  await page.getByRole('link',{name:'Back to Clients',exact:true}).click();
+  await expect(page.getByRole('searchbox')).toHaveValue('Synthetic surname');await expect(page.locator('#client-status')).toHaveValue('archived');await expect(page).toHaveURL(/offset=24/);
+ }
+});

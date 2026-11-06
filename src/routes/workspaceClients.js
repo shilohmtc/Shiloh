@@ -115,6 +115,7 @@ function createWorkspaceClientDetailHandler({
         services: req.query?.services,
       });
       const returnTo = String(req.query?.returnTo || '');
+      model.clientListReturnHref = require('../presentation/clientDirectoryContext').clientDirectoryReturnHref(returnTo);
       if (returnTo.startsWith('/calendar/read-only?') && returnTo.length <= 2000) {
         const appointment = new URL(returnTo, 'https://calendar.invalid').searchParams.get('appointment');
         if (/^[1-9][0-9]*$/.test(appointment || '')) model.returnHref = require('../presentation/calendarReturnContext').calendarReturnHref(returnTo, appointment);

@@ -36,3 +36,21 @@ for (const kind of ['sparse','busy']) for (const width of [1180,1440,390,500]) t
   const scan=await new AxeBuilder({page}).include('.workspace-frame').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();expect(scan.violations).toEqual([]);
   await page.reload({waitUntil:'networkidle'});await expect(deposits.locator('[data-deposit-account]')).toHaveCount(2);
 });
+
+for(const width of [390,1440])test(`Future deposit booking keeps its date after refresh at ${width}`,async({page},info)=>{
+ const {renderDashboardPage,depositQueueContent}=require('../src/presentation/workspaceDashboardUx');
+ const model=dashboardDepositsModel('sparse');
+ const queue={items:[{accountId:88,appointmentId:843,state:'partial',outstanding:'150',hasLink:true,members:[{appointmentId:843,startsAt:'2026-12-14T22:30:00Z',clientName:'Synthetic future guest',serviceName:'Synthetic treatment',staffNames:['Synthetic practitioner']}]}]};
+ model.depositQueue=queue;
+ await page.setViewportSize({width,height:950});
+ await page.route('**/calendar/workspace/deposits',r=>r.fulfill({contentType:'text/html',body:depositQueueContent(queue)}));
+ await page.route('**/future-deposit-review',r=>r.fulfill({contentType:'text/html',body:renderDashboardPage(model)}));
+ await page.goto('/future-deposit-review');
+ const deposits=page.locator('[data-dashboard-deposits]');await deposits.locator('summary').click();
+ for(let i=0;i<2;i++){
+  await expect(deposits.getByRole('link',{name:'View booking',exact:true})).toHaveAttribute('href','/calendar/read-only?view=week&date=2026-12-15&appointment=843&staff=all');
+  await expect(deposits.getByRole('link',{name:'Review payment',exact:true})).toHaveAttribute('href','/calendar/payments/appointments/843');
+  if(!i)await deposits.getByRole('button',{name:'Refresh deposits'}).click();
+ }
+ await page.screenshot({path:info.outputPath(`future-deposit-${width}.png`),fullPage:true});
+});
