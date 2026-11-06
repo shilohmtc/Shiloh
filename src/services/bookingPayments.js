@@ -955,10 +955,11 @@ function createBookingPaymentService({
   const waiver = createBookingDepositWaiverActions({db, ErrorType:BookingPaymentError,positiveId,requestKey,resolveOperator,loadSubject});
   const noCharge = createBookingNoChargeActions({db, ErrorType:BookingPaymentError,positiveId,requestKey,resolveOperator,loadSubject,assertTarget,accountFor,position,syncDepositAfterSettlement});
   const prior = createBookingPriorPaymentActions({ db,money,requestKey,positiveId,ErrorType:BookingPaymentError,resolveOperator,loadSubject,assertTarget,accountFor,position,syncDepositAfterSettlement,now });
+  const getWorkspaceReview = require('./workspacePaymentReview').createWorkspacePaymentReview({ db, resolveOperator, readPosition: readSummaryInTransaction, now });
   const getDirectoryReviews = require('./clientDirectoryPaymentReview').createClientDirectoryPaymentReview({ db, resolveOperator, readPosition: readSummaryInTransaction, now, depositReader: directoryDepositReader });
   const getReview = ({ adminId, appointmentId } = {}) => get({ adminId, appointmentId }, { allowPriceReview: true });
   const clientChoice = createClientPaymentChoice({db,ozow,loadSubject,accountFor,position,PaymentError:BookingPaymentError,now});
-  return { get, getReview, getSummary, getDirectoryReviews, getCompletionStateInTransaction, getCompletionState: input => getSummary(input, { completion: true }), recordManualInTransaction, syncCompletionRewards: appointmentId => syncRewardsAfterPayment({notify:false,appointmentId:positiveId(appointmentId,'appointment')}), recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification,recordDepositWaiver,recordNoCharge:noCharge.record,recordPrior:prior.recordPrior,reversePrior:prior.reversePrior,
+  return { get, getReview, getSummary, getDirectoryReviews, getWorkspaceReview, getCompletionStateInTransaction, getCompletionState: input => getSummary(input, { completion: true }), recordManualInTransaction, syncCompletionRewards: appointmentId => syncRewardsAfterPayment({notify:false,appointmentId:positiveId(appointmentId,'appointment')}), recordManual, recordRefund, createOzowRequest, ensureDepositRequest, retryDepositRequest, handleOzowNotification,recordDepositWaiver,recordNoCharge:noCharge.record,recordPrior:prior.recordPrior,reversePrior:prior.reversePrior,
     getClientPaymentChoices:clientChoice.get, collectClientPayment:clientChoice.collect, validatePaymentCheckout };
 }
 

@@ -49,7 +49,7 @@ for(const [name,viewport] of [['phone',{width:390,height:844}],['desktop',{width
     await expect(section.locator('[data-deposit-account]')).toHaveAttribute('data-workspace-card','deposit-pending');
     await expect(section.locator('.booking-notes-indicator')).toHaveCount(0);
     await expect(section).toContainText('R350,00 deposit outstanding');await expect(section).toContainText('Synthetic Fynbos');
-    await expect(section.getByRole('link',{name:'Review payment'})).toHaveAttribute('href','/calendar/payments/appointments/1');
+    await expect(section.getByRole('link',{name:'Review payment',exact:true})).toHaveAttribute('href','/calendar/payments/appointments/1');
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     const axe=await new AxeBuilder({page}).analyze();expect(axe.violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
     fs.mkdirSync('artifacts/workspace-deposits',{recursive:true});await page.screenshot({path:`artifacts/workspace-deposits/${name}-awaiting.png`,fullPage:true});
