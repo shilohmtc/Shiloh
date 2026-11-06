@@ -87,14 +87,14 @@ for (const state of ['busy', 'empty', 'loading', 'unavailable', 'practitioner', 
     if (state === 'next-day') await expect(today.getByText('Next operational day', { exact: true })).toBeVisible();
     if (state === 'empty') {
       await expect(today).toContainText('No appointments are scheduled');
-      await expect(page.locator('.topbar a')).toHaveCount(0);
+      await expect(page.locator('.topbar a')).toHaveCount(0);await expect(page.getByRole('link',{name:'Review unfinished visits',exact:true})).toBeVisible();
     }
     if (state === 'busy') {
       const deposits = page.locator('[data-dashboard-deposits]');
       await expect(deposits.locator('[data-deposit-account]')).toHaveCount(2);
       await expect(today.locator('[data-dashboard-appointment]')).toHaveCount(12);
       const t = await today.boundingBox(), d = await deposits.boundingBox();
-      expect(d.y - t.y - t.height).toBeCloseTo(12, 0);
+      const unfinished=await page.locator('[data-dashboard-carryover-panel]').boundingBox();expect(unfinished.y).toBeGreaterThan(t.y+t.height);expect(d.y-unfinished.y-unfinished.height).toBeCloseTo(12,0);
       const finalize = today.locator('[data-dashboard-finalize="completed"]').first();
       for (let repeat = 0; repeat < 2; repeat++) {
         await finalize.click();
@@ -116,7 +116,7 @@ for (const state of ['busy', 'empty', 'loading', 'unavailable', 'practitioner', 
       await expect(page.getByRole('button', { name: 'Refresh deposits' })).toBeDisabled();
       await expect.poll(() => Boolean(release)).toBe(true);
       release();
-      await expect(content).toContainText('temporarily unavailable');
+      await expect(page.locator('[data-deposits-status]')).toContainText('Could not refresh deposits');await expect(content).toContainText(state === 'loading' ? 'Checking current deposits' : 'temporarily unavailable');
       await expect(page.getByRole('button', { name: 'Refresh deposits' })).toBeEnabled();
     }
     expect(writes).toBe(0);

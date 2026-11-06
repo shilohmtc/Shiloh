@@ -23,8 +23,8 @@ for (const kind of ['sparse', 'busy']) for (const width of [1180, 1440, 390, 500
       expect(attention.y).toBeCloseTo(today.y, 0);
       expect(today.width / attention.width).toBeCloseTo(width >= 1400 ? 2 : 1, 1);
       expect(attention.x).toBeGreaterThan(today.x + today.width);
-      expect(activity.y - today.y - today.height).toBeCloseTo(12, 0);
-      expect(carry.y - attention.y - attention.height).toBeCloseTo(12, 0);
+      expect(activity.y - carry.y - carry.height).toBeCloseTo(12, 0);
+      expect(carry.y - today.y - today.height).toBeCloseTo(12, 0);expect(carry.x).toBeCloseTo(today.x,0);
       await expect(page.locator('[data-client-services]')).toHaveCount(0);
       await expect(page.locator('[data-workspace-destination="clients"]')).toBeVisible();
     } else if (width <= 700) {
@@ -33,7 +33,7 @@ for (const kind of ['sparse', 'busy']) for (const width of [1180, 1440, 390, 500
       await expect(page.locator('.topbar').getByRole('link', { name: 'Needs attention 2' })).toHaveAttribute('href', '#dashboard-attention');
       await expect(page.locator('[data-dashboard-attention-panel]').getByRole('link', { name: 'Back to Today' })).toHaveAttribute('href', '#dashboard-today');
     } else {
-      expect(attention.y).toBeLessThan(today.y); expect(today.y).toBeLessThan(carry.y); expect(carry.y).toBeLessThan(activity.y);
+      expect(today.y).toBeLessThan(attention.y); expect(attention.y).toBeLessThan(carry.y); expect(carry.y).toBeLessThan(activity.y);
     }
     const groups = page.locator('[data-dashboard-team-group]'); await expect(groups).toHaveCount(3);
     for (let index = 0; index < 3; index++) {

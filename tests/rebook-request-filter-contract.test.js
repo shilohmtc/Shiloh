@@ -35,3 +35,28 @@ test('Rebook proof allows only the exact approved future-request badge removal f
   }
   assert.notEqual(normalizeToday(before+'<script>changed()</script>'),after);
 });
+
+const { normalizeRebookEmptyVisitReview: normalizeReview } = require('../scripts/rebook-request-filter-contract');
+const { rebookHtml } = require('../stories/fixtures/rebookActionPresentation');
+test('Rebook proof accepts exact empty-review relocation without masking booking mutations', () => {
+  const after = rebookHtml();
+  const panel = after.match(/<section class="panel carryover-panel"[\s\S]*?<\/section>/)[0];
+  const link = after.match(/<a [^>]*data-dashboard-unfinished-link[^>]*>[\s\S]*?<\/a>/)[0];
+  const oldPanel = panel.replace(' id="dashboard-unfinished" tabindex="-1"', '').replace('<p class="operation-status" data-dashboard-section-status role="status" tabindex="-1"></p>', '');
+  const before = after.replace(panel, '').replace(link, '').replace('<dialog class="outcome-dialog"', oldPanel + '<dialog class="outcome-dialog"');
+  assert.equal(normalizeReview(after), normalizeReview(before));
+  for (const [from,to] of [
+    ['appointment=8101','appointment=9999'],
+    ['2030-11-02','2030-11-03'],
+    ['Synthetic existing organiser','Different client'],
+    ['value="41"','value="99"'],
+    ['>Manage booking</a>','>Cancel booking</a>'],
+    ['role="status" tabindex="-1"','role="alert" tabindex="-1"'],
+    ['href="#dashboard-unfinished"','href="/different"'],
+    ['No unfinished past visits are waiting for an outcome.','A visit is waiting for an outcome.'],
+  ]) {
+    assert.ok(after.includes(from), from);
+    assert.notEqual(normalizeReview(after.replace(from,to)), normalizeReview(before), from);
+  }
+  assert.notEqual(normalizeReview(after + '<script>changedBooking()</script>'), normalizeReview(before));
+});
