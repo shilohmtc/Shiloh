@@ -105,7 +105,7 @@ for (const viewport of [
     await expect(page.locator('#staff-earnings').getByRole('link', { name: 'Appointment #732', exact: true })).toHaveAttribute('href', /appointment=732/);
     await expect(page.getByText('Shared appointment — review allocation')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Treatments booked' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'New and returning clients' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Recorded client history' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'View report' })).toBeVisible();
 
     const text = await surface.innerText();
@@ -187,3 +187,38 @@ for (const width of [390,1440]) test(`Historical status totals reconcile at ${wi
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:info.outputPath(`reconciled-status-${width}.png`),fullPage:true});
 });
+
+for (const width of [320, 1440]) {
+  test(`Client signals and recorded visit comparison at ${width}`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 960 });
+    await page.goto('/iframe.html?id=workspace-clients--app-status-overview&viewMode=story', { waitUntil: 'networkidle' });
+    await expect(page.getByText('Not set up', { exact: true })).toBeVisible();
+    await expect(page.getByText('Unknown', { exact: true })).toBeVisible();
+    await expect(page.getByText('Setup needed', { exact: true })).toHaveCount(0);
+    await expect(page.locator('.client-last > span').filter({ hasText: 'Last recorded visit' })).toHaveCount(3);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect((await new AxeBuilder({ page }).include('[data-clients-list-view]').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+    await page.screenshot({ path: info.outputPath(`client-signals-${width}.png`), fullPage: true });
+    for (const story of ['recorded-visit-comparison', 'recorded-visit-zero-baseline', 'recorded-visit-unavailable']) {
+      await page.goto(`/iframe.html?id=workspace-reports--${story}&viewMode=story`, { waitUntil: 'networkidle' });
+      await page.locator('#activity > summary').click();
+      await page.locator('#recorded-visits > summary').focus();
+      await page.keyboard.press('Enter');
+      if (story === 'recorded-visit-unavailable') {
+        await expect(page.getByText('Visit comparison unavailable.', { exact: true })).toBeVisible();
+        await expect(page.locator('.visit-comparison')).toHaveCount(0);
+      } else {
+        await expect(page.locator('.visit-comparison')).toBeVisible();
+        await expect(page.locator('.visit-comparison dt')).toHaveCount(2);
+        await expect(page.locator('.visit-comparison')).toContainText('5 Oct 2026');
+        if (story === 'recorded-visit-zero-baseline') {
+          await expect(page.locator('#recorded-visits')).toContainText('Percentage change is unavailable');
+          await expect(page.locator('.visit-comparison dd strong').first()).toHaveText('0');
+        }
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+      await page.screenshot({ path: info.outputPath(`${story}-${width}.png`), fullPage: true });
+    }
+  });
+}
