@@ -104,6 +104,12 @@ test('real synthetic SQL and canonical ledger preserve cash, applied credit and 
   result = await service.getWorkspaceReview({ adminId: 1 });
   assert.equal(result.items.find(i => i.appointmentId === 201).reason, 'Payment receipt needs verification');
   assert.equal(result.items.find(i => i.appointmentId === 201).outstanding, null);
+  for (const state of ['refunded', 'partially_refunded']) {
+    await query("UPDATE payment_requests SET state=$1 WHERE request_key='synthetic_workspace_unrecorded'", [state]);
+    const reviewed = await service.getWorkspaceReview({ adminId: 1 });
+    assert.equal(reviewed.items.find(i => i.appointmentId === 201).reason, 'Payment receipt needs verification');
+    assert.equal(reviewed.items.find(i => i.appointmentId === 201).outstanding, null);
+  }
   await query("INSERT INTO appointments(id,crm_v2_client_id,status,total_price,currency,updated_at,starts_at,title) VALUES(301,101,'completed',450,'ZAR',NOW(),'2026-10-20T10:00Z','Synthetic shared one'),(302,102,'completed',450,'ZAR',NOW(),'2026-10-19T10:00Z','Synthetic shared two'); INSERT INTO appointment_staff(appointment_id,staff_id,position) VALUES(301,11,1),(302,11,1); INSERT INTO appointment_services VALUES(301,21,'Synthetic shared one',1),(302,21,'Synthetic shared two',1); INSERT INTO appointment_groups(id,status,total_price,updated_at) VALUES(901,'confirmed',900,NOW()); INSERT INTO appointment_group_members(group_id,appointment_id) VALUES(901,301),(901,302);");
   const groupAccount=(await query("INSERT INTO booking_payment_accounts(appointment_group_id,canonical_amount_due,currency,pricing_revision) VALUES(901,900,'ZAR',NOW()) RETURNING id")).rows[0].id;
   await query("INSERT INTO payment_ledger_entries(payment_account_id,entry_type,amount) VALUES($1,'payment',200)",[groupAccount]);
