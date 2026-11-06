@@ -49,7 +49,7 @@ function date(v) {
     throw failure('INVALID_AGGREGATE');
 }
 function validate(report) {
-  exactKeys(report, ['totals', 'monthly_records', 'source_buckets']);
+  exactKeys(report, ['totals', 'monthly_records', 'source_buckets', 'reset_provenance']);
   exactKeys(report.totals, [...countKeys, ...dateKeys]);
   countKeys.forEach((k) => count(report.totals[k]));
   dateKeys.forEach((k) => date(report.totals[k]));
@@ -111,6 +111,51 @@ function validate(report) {
     countKeys.some((k) => report.totals[k] > report.totals.appointment_records)
   )
     throw failure('INCOMPLETE_AGGREGATE');
+  const reset = report.reset_provenance;
+  const resetKeys = [
+    'audit_events',
+    'legacy_records',
+    'marker_records',
+    'matched_records',
+    'unmatched_marker_records',
+    'ambiguous_records',
+  ];
+  exactKeys(reset, [...resetKeys, 'status_counts']);
+  resetKeys.forEach((k) => count(reset[k]));
+  if (
+    reset.audit_events > 2 ||
+    !Array.isArray(reset.status_counts) ||
+    reset.status_counts.length > 72
+  )
+    throw failure('INVALID_AGGREGATE');
+  const statuses = [
+    'scheduled',
+    'confirmed',
+    'completed',
+    'no_charge',
+    'cancelled',
+    'no_show',
+    'unknown',
+    'other',
+  ];
+  for (const row of reset.status_counts) {
+    exactKeys(row, ['prior_status', 'current_status', 'appointment_records']);
+    if (
+      ![...statuses, 'ambiguous'].includes(row.prior_status) ||
+      !statuses.includes(row.current_status)
+    )
+      throw failure('INVALID_AGGREGATE');
+    count(row.appointment_records);
+  }
+  if (
+    reset.legacy_records !== report.totals.legacy_only_records ||
+    reset.marker_records > reset.legacy_records ||
+    reset.matched_records + reset.unmatched_marker_records !== reset.marker_records ||
+    reset.ambiguous_records > reset.matched_records ||
+    (reset.audit_events !== 1 && reset.matched_records !== 0) ||
+    reset.status_counts.reduce((n, r) => n + r.appointment_records, 0) !== reset.matched_records
+  )
+    throw failure('INCOMPLETE_AGGREGATE');
   return report;
 }
 async function inspect({
@@ -140,6 +185,12 @@ async function inspect({
     )
       throw failure('INVALID_AGGREGATE');
     if (bound.rows[0].count > MAX_RECORDS) throw failure('RECORD_LIMIT');
+    const historyBound = await client.query(
+      'SELECT COUNT(*)::int AS count FROM (SELECT 1 FROM appointment_status_history LIMIT 50001) bounded',
+    );
+    if (!Number.isSafeInteger(historyBound.rows[0]?.count) || historyBound.rows[0].count < 0)
+      throw failure('INVALID_AGGREGATE');
+    if (historyBound.rows[0].count > MAX_RECORDS) throw failure('RECORD_LIMIT');
     const asOf = now().toISOString();
     const result = await client.query(SQL, [asOf]);
     if (result.rows.length !== 1) throw failure('INVALID_AGGREGATE');
@@ -200,7 +251,7 @@ async function runConfiguredDiagnostic({
     logger.info(
       {
         event: 'retention_coverage_summary',
-        version: 1,
+        version: 2,
         runId,
         sourceCommit,
         asOf,
@@ -209,6 +260,7 @@ async function runConfiguredDiagnostic({
         chunkCount,
         totals: assessment.totals,
         sourceBuckets: assessment.source_buckets,
+        resetProvenance: assessment.reset_provenance,
         completeCoverageVerified: false,
         stableCrossNamespaceLinkageVerified: false,
         retentionCalculated: false,
@@ -219,7 +271,7 @@ async function runConfiguredDiagnostic({
       logger.info(
         {
           event: 'retention_coverage_months',
-          version: 1,
+          version: 2,
           runId,
           sourceCommit,
           digest,
@@ -248,7 +300,7 @@ async function runConfiguredDiagnostic({
           ? e.code
           : 'DIAGNOSTIC_UNAVAILABLE';
     logger.warn(
-      { event: 'retention_coverage_unavailable', version: 1, runId, sourceCommit, code },
+      { event: 'retention_coverage_unavailable', version: 2, runId, sourceCommit, code },
       'Aggregate retention coverage unavailable',
     );
     return { enabled: true, ok: false, code };
