@@ -1,3 +1,5 @@
+import targetsData from './fixtures/workspaceBusinessTargets.js';
+const {targetsFixture}=targetsData;
 import visitTrends from '../src/domain/recordedVisitTrend.js';
 import reportsPresentation from '../src/presentation/workspaceReportsUx.js';
 import financialRecords from '../src/domain/workspaceFinancialRecords.js';
@@ -147,4 +149,11 @@ export const EmptyPeriod = {
       totals: {}, clients: {}, trend: {},
     }));
   },
+};
+
+export const MonthlyTargets = {
+  render: () => productionSurface(renderReportsPage({ ...reportModel(), targets: targetsFixture() })),
+};
+export const MonthlyTargetsUnset = {
+  render: () => productionSurface(renderReportsPage({ ...reportModel(), targets: targetsFixture({ unset: true }) })),
 };
