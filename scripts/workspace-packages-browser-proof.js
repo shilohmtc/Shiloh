@@ -234,7 +234,7 @@ async function main() {
         const payment = page.locator('[data-package-payment]');
         await payment.getByLabel('Package', { exact: true }).selectOption('1');
         await page.getByLabel('Find client', { exact: true }).fill('Synthetic');
-        await page.getByRole('button', { name: 'Existing clients', exact: true }).click();
+        await page.getByRole('button', { name: 'Search clients', exact: true }).click();
         await payment.getByLabel('Matching clients', { exact: true }).selectOption('101');
         await payment
           .getByLabel('Receipt or payment reference', { exact: true })
