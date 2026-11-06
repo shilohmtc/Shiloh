@@ -10,7 +10,8 @@ permissions:
 jobs:
   clinic_hours_exact_head:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Allow slow runner font downloads without changing the browser or test coverage.
+    timeout-minutes: 20
     steps:
       - name: Checkout exact PR head
         uses: actions/checkout@v7

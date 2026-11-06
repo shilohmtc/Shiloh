@@ -221,3 +221,11 @@ export const PaymentReviewIndicators = { render: () => productionSurface(renderC
     {...clients[1],id:805,name:'Synthetic Unavailable',paymentReview:{state:'unavailable'}},
   ],
 }, options)) };
+
+export const AppStatusOverview = { render: () => productionSurface(renderClientListPage({
+  ...listModel(), authority: { displayName: 'Synthetic Reception' }, clients: [
+    { ...clients[0], appStatus: { usage: 'Used before', phoneAlerts: 'Enabled' }, next_appointment_at: '2026-11-09T08:30:00Z' },
+    { ...clients[1], appStatus: { usage: 'Not yet confirmed', phoneAlerts: 'Setup needed' }, last_visit_at: null },
+    { ...clients[0], id: 803, name: 'Synthetic Unknown', appStatus: { usage: 'Not yet confirmed', phoneAlerts: 'Unknown' } },
+  ],
+}, options)) };
