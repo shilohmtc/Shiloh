@@ -1,0 +1,65 @@
+name: Isolated iPad revoked handover diagnostic
+on:
+  push:
+    branches: [diagnostic/ipad-revoked-1562]
+    paths:
+      - .github/workflows/ipad-revoked-diagnostic.yml
+      - scripts/diagnostics/ipad-revoked-phases.patch
+permissions:
+  contents: read
+jobs:
+  focused_diagnostic:
+    name: Focused revoked handover (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: base
+            sha: fe1ca92b9cf2414f58bad42490a5d6707c3733ed
+          - label: head
+            sha: 0a4d0fc914be92fe5d82d50ba514d04eaf9aecb6
+    env:
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Save timestamp-only instrumentation
+        run: cp scripts/diagnostics/ipad-revoked-phases.patch "$RUNNER_TEMP/ipad-phases.patch"
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ matrix.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.14.1
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Verify source and apply timestamp-only instrumentation
+        env:
+          EXPECTED_SHA: ${{ matrix.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          git diff --exit-code
+          git apply --check "$RUNNER_TEMP/ipad-phases.patch"
+          git apply "$RUNNER_TEMP/ipad-phases.patch"
+          git diff -- tests/clinic-ipad-handover-ux.spec.js
+      - name: Run only revoked handover with unchanged assertions and timeouts
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/ipad-diagnostic
+          npx playwright test tests/clinic-ipad-handover-ux.spec.js --config=playwright.ux.config.js --grep 'an open iPad confirmation clears after revoked handover$' --workers=1 --retries=0 --trace=on 2>&1 | tee artifacts/ipad-diagnostic/phases.log
+      - name: Retain diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ipad-revoked-${{ matrix.label }}-${{ matrix.sha }}
+          path: |
+            artifacts/ipad-diagnostic
+            artifacts/ux-playwright-results
+            artifacts/ux-playwright-report
+          if-no-files-found: warn
+          retention-days: 7
