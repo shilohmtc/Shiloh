@@ -116,4 +116,5 @@ module.exports.testMatch.push('dashboard-step-one.spec.js');
 module.exports.testMatch.push("calendar-booking-request-context.spec.js");
 module.exports.testMatch.push("workspace-payment-review.spec.js");
 
+module.exports.testMatch.push('guest-profile-compatibility.spec.js');
 module.exports.testMatch.push("completed-visit-rewards.spec.js");

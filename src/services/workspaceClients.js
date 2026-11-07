@@ -1,3 +1,4 @@
+const { CLIENT_COLUMNS } = require('../repositories/crmV2ClientRepository');
 const { pool } = require('../db/pool');
 const { readClientAppStatus, readClientAppStatuses } = require('./workspaceClientAppStatus');
 const crmReadService = require('./crmReadService');
@@ -151,8 +152,7 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
 
     const revisionResult = await db.query(
       `/* workspaceClients:revision */
-       SELECT id,name,normalized_mobile,date_of_birth,gender,profile_status,
-              mobile_verified_at,source,status,created_at,updated_at
+       SELECT ${CLIENT_COLUMNS}
          FROM crm_v2_clients
         WHERE id=$1
         LIMIT 1`,
@@ -160,6 +160,7 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
     );
     if (!revisionResult.rows[0]) throw new WorkspaceClientsError('WORKSPACE_CLIENT_NOT_FOUND', 'Client was not found.', 404);
     client.revision = clientRelationshipRevision(revisionResult.rows[0], client.status);
+    client.contact_mode = revisionResult.rows[0].contact_mode || null;
 
     const appStatus = await readClientAppStatus({ db, clientId: id, scope: authority.clientScope });
     const safeOffset = normalizeOffset(historyOffset);

@@ -349,6 +349,7 @@ function createMyShilohPushService({
     body,
     targetPath = '/my-shiloh/',
     retryExisting = false,
+    deferWake = false,
   } = {}) {
     const clientId = Number(crmV2ClientId);
     if (!Number.isSafeInteger(clientId) || clientId <= 0) return { queued: false, reason: 'client_unavailable' };
@@ -376,9 +377,12 @@ function createMyShilohPushService({
         [key, clientId, now()],
       );
       if (!existing.rows.length) return { queued: false, reason: 'existing_notification_unavailable' };
+      if (deferWake === true) return { queued: true, duplicate: true, notificationId: Number(existing.rows[0].id), deferred: true };
       const delivery = await wakeClient(clientId);
       return { queued: true, duplicate: true, notificationId: Number(existing.rows[0].id), ...delivery };
     }
+    // Transactional callers wake the canonical client only after their outer commit.
+    if (deferWake === true) return { queued: true, notificationId: Number(inserted.rows[0].id), deferred: true };
     const delivery = await wakeClient(clientId);
     return { queued: true, notificationId: Number(inserted.rows[0].id), ...delivery };
   }
@@ -396,7 +400,7 @@ function createMyShilohPushService({
     )).rows[0];
     if (!subscription) return { notifications: [] };
     const result = await db.query(
-      `SELECT id,category,title,body,target_path,created_at
+      `SELECT id,category,title,body,target_path,created_at,event_key
          FROM my_shiloh_push_notifications
         WHERE crm_v2_client_id=$1
           AND id>COALESCE($2,0)
@@ -415,7 +419,7 @@ function createMyShilohPushService({
       );
     }
     return {
-      notifications: result.rows.slice().reverse().map((row) => ({
+      notifications: result.rows.filter(row => !String(row.event_key || '').startsWith('guest-booking:')).slice().reverse().map((row) => ({
         id: Number(row.id),
         category: row.category,
         title: row.title,
@@ -439,7 +443,7 @@ function createMyShilohPushService({
       [clientId, safeLimit],
     );
     return {
-      notifications: result.rows.map((row) => ({
+      notifications: result.rows.filter(row => !String(row.event_key || '').startsWith('guest-booking:')).map((row) => ({
         id: Number(row.id),
         category: row.category,
         requiresAttention: /^appointment-(cancellation|time|service|practitioner|price):/.test(String(row.event_key || '')),

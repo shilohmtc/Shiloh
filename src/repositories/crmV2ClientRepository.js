@@ -1,8 +1,9 @@
 const { pool } = require('../db/pool');
 
 const CLIENT_COLUMNS = `
-  id,name,normalized_mobile,date_of_birth,gender,profile_status,
-  mobile_verified_at,source,status,provenance,created_at,updated_at
+  id,name,normalized_mobile,TO_CHAR(date_of_birth,'YYYY-MM-DD') AS date_of_birth,gender,profile_status,
+  mobile_verified_at,source,status,provenance,created_at,updated_at,
+  to_jsonb(crm_v2_clients)->>'contact_mode' AS contact_mode
 `;
 
 class PostgresCrmV2ClientRepository {
@@ -82,6 +83,7 @@ class PostgresCrmV2ClientRepository {
     const columnByField = {
       name: 'name',
       normalizedMobile: 'normalized_mobile',
+      contactMode: 'contact_mode',
       dateOfBirth: 'date_of_birth',
       gender: 'gender',
       profileStatus: 'profile_status',

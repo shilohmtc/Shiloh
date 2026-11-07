@@ -18,7 +18,7 @@ test('client document history uses canonical ownership, clinical permissions and
   t.after(() => db.close());
   await db.exec(`
     CREATE TABLE crm_v2_clients(id BIGINT PRIMARY KEY,name TEXT,normalized_mobile TEXT,status TEXT,
-      date_of_birth DATE,gender TEXT,profile_status TEXT,mobile_verified_at TIMESTAMPTZ,source TEXT,created_at TIMESTAMPTZ,updated_at TIMESTAMPTZ);
+      date_of_birth DATE,gender TEXT,profile_status TEXT,mobile_verified_at TIMESTAMPTZ,source TEXT,provenance JSONB NOT NULL DEFAULT '{}',created_at TIMESTAMPTZ,updated_at TIMESTAMPTZ);
     CREATE TABLE staff(id BIGINT PRIMARY KEY,status TEXT);
     CREATE TABLE staff_admin_accounts(id BIGINT PRIMARY KEY,staff_id BIGINT,display_name TEXT,permissions JSONB,business_role TEXT,calendar_scope TEXT,active BOOLEAN);
     CREATE TABLE appointments(id BIGINT PRIMARY KEY,crm_v2_client_id BIGINT,starts_at TIMESTAMPTZ,ends_at TIMESTAMPTZ,source_client_name TEXT);

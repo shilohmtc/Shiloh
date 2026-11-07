@@ -1,3 +1,4 @@
+const { isOrganiserContactGuest } = require('./crmV2GuestProfile');
 const crypto = require('crypto');
 const { WorkspaceClientMutationError } = require('./workspaceClientMutationError');
 const { deleteUnlinkedClient, retainedMessage } = require('./workspaceClientDeletion');
@@ -81,14 +82,14 @@ function mobileIdentityEvidence(value) {
   return crypto.createHash('sha256').update(`workspace.clients.mobile:v1:${normalized}`).digest('hex');
 }
 function mutationFingerprint(operation, payload) { return crypto.createHash('sha256').update(JSON.stringify({ operation, ...payload })).digest('hex'); }
-function normalizeRequestedProfile({ name, mobile, dateOfBirth, gender } = {}) {
+function normalizeRequestedProfile({ name, mobile, dateOfBirth, gender } = {}, current = null) {
   const cleanName = normalizeName(name);
   const normalizedMobile = normalizeMobile(mobile);
   if (!cleanName) throw new CrmV2Error('CRM_V2_INVALID_NAME', 'Enter a valid client name.');
-  if (!normalizedMobile) throw new CrmV2Error('CRM_V2_INVALID_MOBILE', 'Enter a valid South African mobile number.');
+  if (!normalizedMobile && !(isOrganiserContactGuest(current) && String(mobile ?? '').trim() === '')) throw new CrmV2Error('CRM_V2_INVALID_MOBILE', 'Enter a valid South African mobile number.');
   return {
     name: cleanName,
-    normalizedMobile,
+    normalizedMobile: normalizedMobile || '',
     dateOfBirth: normalizeDateOfBirth(dateOfBirth),
     gender: normalizeGender(gender),
   };
@@ -267,7 +268,7 @@ function createWorkspaceClientMutationService({ db = pool } = {}) {
       if (relationship.status !== 'active') throw new WorkspaceClientMutationError('WORKSPACE_CLIENT_RELATIONSHIP_ARCHIVED', 'This client is no longer active in your client list.', 409);
       const current = await repository.getClientById(id, { forUpdate: true }); if (!current) throw new WorkspaceClientMutationError('WORKSPACE_CLIENT_NOT_FOUND', 'Client was not found.', 404);
       const beforeRevision = clientRelationshipRevision(current, relationship.status); if (beforeRevision !== expected) throw new WorkspaceClientMutationError('WORKSPACE_CLIENT_STALE_REVISION', 'This client changed. Reload Clients before retrying.', 409);
-      const requested = normalizeRequestedProfile({ name, mobile, dateOfBirth, gender });
+      const requested = normalizeRequestedProfile({ name, mobile, dateOfBirth, gender }, current);
       if (sameClientProfile(current, requested)) {
         return { status: 'unchanged', clientId: id, beforeRevision, revision: beforeRevision, auditChanges: { fields: [], mobile: null, mobileVerificationReset: false } };
       }
