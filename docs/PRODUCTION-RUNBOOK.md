@@ -10,6 +10,27 @@ Current operating rule: normal `npm start` boots the HTTP service and long-runni
 4. Confirm `/health` returns HTTP 200 with database `ok`.
 5. Review startup logs. Expected recurring schedulers are Goldie knowledge sync, Google Business Profile sync when configured, appointment lifecycle, and customer care. One-time repair/import/reconciliation jobs must not appear during ordinary startup.
 
+## Bounded read-only database checks
+
+Use an existing authorized Render Shell in the **currently deployed app directory**, on Render's internal private network, with the deployed application's pool from `src/db/pool.js`. Inspect the exact deployed commit and the proposed diagnostic before execution. Import only the pool and reviewed read-only diagnostic code: do not boot `app.js`, invoke `npm start`, run migrations, or trigger a deploy/environment update just to obtain database access. If that execution route is unavailable, report the blocker rather than changing credentials, network access or security settings.
+
+For each check:
+
+1. Define the narrow question, reviewed SELECT-only query set, expected result shape and finite execution deadline. Prefer schema metadata, counts and boolean invariants. Do not select client records, contact details, clinical text, raw payloads, credentials or connection strings into logs or GitHub.
+2. Check out **one client** from the existing pool and use that same client for the whole transaction. Begin with `BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY`; never use separate `pool.query` calls for transaction steps, because they can use different connections.
+3. Before inspecting application data, set transaction-local limits (for example, `SET LOCAL statement_timeout = '10s'`, `SET LOCAL lock_timeout = '2s'` and `SET LOCAL idle_in_transaction_session_timeout = '15s'`) and verify `SHOW transaction_read_only` returns `on`. Stop if any guard cannot be established. Bound connection acquisition and the whole diagnostic separately: a per-statement timeout is not a whole-run deadline.
+4. Execute only the reviewed reads with bounded scope/output. A read-only transaction is a safeguard, not permission to invoke arbitrary functions, external side effects, temporary writes or costly unbounded queries. Do not run an injected write against production to prove the guard.
+5. Finish with `ROLLBACK` on both success and failure, then release the client. If rollback fails or the session's state is uncertain, destroy that checked-out connection rather than returning it to the pool. A standalone diagnostic closes only its own process's pool; never close the running service's shared pool.
+6. Record the observation time, deployed commit, read-only guard, sanitized findings, timeout/failure status and confirmed rollback. A failed or partial check remains incomplete. Do not retry indefinitely, repair data or migration ledgers, or infer a successful check from HTTP health alone.
+
+### Private-network access is not external TLS verification
+
+Successful reads through the deployed pool establish that this **internal route** worked at the observation time. They do not prove that an external SQL connector works, that its server certificate was verified, or that a recovery point/restore is usable. Inspect the actual connection configuration before describing its transport security; private-network reachability alone proves neither TLS encryption nor certificate verification. The current pool has a `render.com` connection-string branch using `rejectUnauthorized: false`; reusing the deployed pool is not evidence of verified TLS and is not approval to copy that setting into another client.
+
+Do not disable TLS, relax certificate verification, alter the allowlist, expose credentials, or change the deployed pool to make a diagnostic succeed. An external connector TLS failure and an internal read-only success are separate findings, not contradictory results. Security changes require their own review and authorization.
+
+This procedure documents a bounded inspection route only. It authorizes no production execution by itself, database writes, migrations, exports, recovery instances or client messages. In particular, [PR #1562](https://github.com/shilohmtc/Shiloh/pull/1562)'s guest-compatibility diagnostic and migration proposal retain their separate review, recovery and migration-approval gates; this note neither releases that draft nor executes its collector.
+
 ## Running maintenance explicitly
 
 ### Software and release check — accepted 1 October 2026
