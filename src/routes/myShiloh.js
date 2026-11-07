@@ -42,6 +42,7 @@ const { renderClientPackages } = require('../presentation/workspacePackagesUx');
 const { renderPlanningRequestPage } = require('../presentation/myShilohPlanningRequest');
 const { createGiftVoucherService, GiftVoucherError } = require('../services/giftVouchers');
 const { renderClientVoucherPage, renderPublicVoucherPage } = require('../presentation/giftVoucherUx');
+const { renderMyShilohVoucherRecovery } = require('../presentation/myShilohVoucherRecovery');
 const { createShilohRewardsService, ShilohRewardsError } = require('../services/shilohRewards');
 const { renderClientRewardsPage, clientRewardsScript } = require('../presentation/shilohRewardsUx');
 const { createMyShilohProfileService, MyShilohProfileError } = require('../services/myShilohProfile');
@@ -242,7 +243,16 @@ function createMyShilohRouter({
       if (!rotated.ok) return res.status(401).type('text/plain').send('Unauthorized');
       setMyShilohPageHeaders(res, { allowInlineStyles: true });
       return res.status(200).type('html').send(renderClientVoucherPage({ model, csrfToken: rotated.csrfToken }));
-    } catch (error) { return next(error); }
+    } catch (error) {
+      const expected = error instanceof GiftVoucherError && (
+        (error.code === 'VOUCHER_CLIENT_REQUIRED' && [401, 404].includes(error.httpStatus)) ||
+        (error.code === 'VOUCHER_INVALID_MOBILE' && error.httpStatus === 409));
+      if (!expected) return next(error);
+      setMyShilohPageHeaders(res, { allowInlineStyles: true });
+      return res.status(error.httpStatus).type('html').send(renderMyShilohVoucherRecovery({
+        invalidMobile: error.code === 'VOUCHER_INVALID_MOBILE', verificationAvailable: codeAvailable(),
+      }));
+    }
   });
 
   router.post('/my-shiloh/api/gift-vouchers', sameOrigin, requireSession, requireCsrf, async (req, res, next) => {

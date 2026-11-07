@@ -119,3 +119,4 @@ module.exports.testMatch.push("workspace-payment-review.spec.js");
 module.exports.testMatch.push('guest-profile-compatibility.spec.js');
 module.exports.testMatch.push("completed-visit-rewards.spec.js");
 module.exports.testMatch.push('calendar-group-guests.spec.js');
+module.exports.testMatch.push('my-shiloh-voucher-recovery.spec.js');
