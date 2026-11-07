@@ -282,6 +282,7 @@ async function deliverClaimedReminder(appointment, reminderTemplate, reminderAct
 }
 
 async function processReminders() {
+  await require('./guestBookingReminders').processGuestReminders({ reminderHours: REMINDER_HOURS });
   const paused=true;
   const reminderActionsTemplate=null;
   const reminderTemplate=null;

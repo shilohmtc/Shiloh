@@ -400,7 +400,7 @@ function createMyShilohPushService({
     )).rows[0];
     if (!subscription) return { notifications: [] };
     const result = await db.query(
-      `SELECT id,category,title,body,target_path,created_at,event_key
+      `SELECT id,category,title,body,target_path,created_at,event_key,expires_at
          FROM my_shiloh_push_notifications
         WHERE crm_v2_client_id=$1
           AND id>COALESCE($2,0)
@@ -418,8 +418,12 @@ function createMyShilohPushService({
         [Number(subscription.id), lastId, now()],
       );
     }
+    const visible = [];
+    for (const row of result.rows) {
+      if (await require('./guestBookingNoticeValidity').guestBookingNoticeVisible(db, row, { recipientClientId: clientId, now: now() })) visible.push(row);
+    }
     return {
-      notifications: result.rows.filter(row => !String(row.event_key || '').startsWith('guest-booking:')).slice().reverse().map((row) => ({
+      notifications: visible.slice().reverse().map((row) => ({
         id: Number(row.id),
         category: row.category,
         title: row.title,
@@ -442,11 +446,15 @@ function createMyShilohPushService({
         LIMIT $2`,
       [clientId, safeLimit],
     );
+    const visible = [];
+    for (const row of result.rows) {
+      if (await require('./guestBookingNoticeValidity').guestBookingNoticeVisible(db, row, { recipientClientId: clientId, now: now() })) visible.push(row);
+    }
     return {
-      notifications: result.rows.filter(row => !String(row.event_key || '').startsWith('guest-booking:')).map((row) => ({
+      notifications: visible.map((row) => ({
         id: Number(row.id),
         category: row.category,
-        requiresAttention: /^appointment-(cancellation|time|service|practitioner|price):/.test(String(row.event_key || '')),
+        requiresAttention: /^(?:appointment-(?:cancellation|time|service|practitioner|price):|guest-booking:(?:booking_changed|booking_cancelled):)/.test(String(row.event_key || '')),
         title: row.title,
         body: row.body,
         targetPath: safeTargetPath(row.target_path),

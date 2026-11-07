@@ -74,6 +74,23 @@ function loadService({ templateApproved = true, templateStatusFails = false, pro
   return { service, state };
 }
 
+test('the guest dispatcher owns its handled result and prevents duplicate direct-client or Meta delivery', async () => {
+  const { service, state } = loadService();
+  let calls = 0;
+  const outcome = await service.attemptCustomerChangeNotification(701, { ...enabled,
+    guestDispatcher: async (id, options) => {
+      calls++;
+      assert.equal(id, 701);
+      assert.equal(options.env, enabled.env);
+      return { handled: true, outcome: { sent: true, channel: 'my_shiloh', recipientRole: 'organiser', notificationId: 42 } };
+    },
+  });
+  assert.equal(outcome.recipientRole, 'organiser');
+  assert.equal(calls, 1);
+  assert.equal(state.inAppCalls, 0);
+  assert.equal(state.providerCalls, 0);
+});
+
 test('in-app cancellation queues despite unapproved WhatsApp template', async () => {
   const { service, state } = loadService({ templateApproved: false, changeKind: 'cancellation' });
   const outcome = await service.attemptCustomerChangeNotification(701, enabled);

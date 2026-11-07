@@ -14,9 +14,9 @@ test('compatibility review retains the exact migration needed by the post-DDL st
  assert.equal(validateMigrationReleasePlan({migrationFiles:[filename],pullRequestBody:`SHILOH_CONTROLLED_RELEASE_MIGRATION=${filename}`}).requestedFilename,filename);
 });
 
-test('compatibility booking still requires each own mobile and cannot expose or accept guest-creation controls',()=>{
- for(const guest of [{name:'Synthetic Guest',mobile:''},{name:'Synthetic Guest',mobile:'',noMobile:true,firstVisitChoice:'first_visit'}])
-  assert.throws(()=>normalizeGuest(guest),{code:'GROUP_INVALID_MOBILE'});
- const html=renderCalendarGroupBookingPage({options:{services:[],staff:[],authority:{},guestBooking:{available:true}}});
+test('ordinary normalization stays strict and unavailable guest booking hides its controls',()=>{
+ assert.throws(()=>normalizeGuest({name:'Synthetic Guest',mobile:''}),{code:'GROUP_INVALID_MOBILE'});
+ assert.throws(()=>normalizeGuest({name:'Synthetic Guest',mobile:'',noMobile:true,firstVisitChoice:'first_visit'}),{code:'GROUP_GUEST_CONTACT_REVIEW'});
+ const html=renderCalendarGroupBookingPage({options:{services:[],staff:[],authority:{},guestBooking:{available:false}}});
  assert.doesNotMatch(html,/data-no-mobile|data-organiser-id|data-first-visit-choice/);
 });

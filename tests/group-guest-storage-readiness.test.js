@@ -1,0 +1,27 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
+const {PGlite}=require('@electric-sql/pglite');
+const {groupGuestStorageReady}=require('../src/services/groupGuestStorageReadiness');
+test('readiness remains false on the existing or partial schema, becomes true only with compatible storage, and performs no migration',async t=>{
+ const pg=new PGlite();t.after(()=>pg.close());
+ await pg.exec("CREATE TABLE crm_v2_clients(id BIGINT PRIMARY KEY,normalized_mobile TEXT NOT NULL CHECK(normalized_mobile ~ '^27[678][0-9]{8}$'),profile_status TEXT DEFAULT 'minimal',mobile_verified_at TIMESTAMPTZ);CREATE TABLE appointment_groups(id BIGINT PRIMARY KEY);CREATE TABLE appointment_lifecycle(id BIGSERIAL PRIMARY KEY,phone TEXT NOT NULL,appointment_id BIGINT,crm_v2_client_id BIGINT,client_id BIGINT);CREATE TABLE staff_admin_accounts(id BIGINT PRIMARY KEY);INSERT INTO crm_v2_clients(id,normalized_mobile)VALUES(1,'27810000001');");
+ await pg.exec("INSERT INTO appointment_lifecycle(phone)VALUES('27810000001')");
+ const seen=[];const db={query:async(sql,...args)=>{seen.push(sql);return pg.query(sql,...args);}};
+ assert.equal(await groupGuestStorageReady(db),false);
+ assert.equal((await pg.query("SELECT attnotnull FROM pg_attribute WHERE attrelid='crm_v2_clients'::regclass AND attname='normalized_mobile'")).rows[0].attnotnull,true);
+ const proposal=fs.readFileSync(require.resolve('./fixtures/guest-profile-schema-candidate.sql'),'utf8').split('-- Guest lifecycle delivery:');
+ await pg.exec(proposal[0]);
+ assert.equal(await groupGuestStorageReady(db),false,'profile/contact storage alone cannot enable guest creation');
+ await pg.exec('-- Guest lifecycle delivery:'+proposal[1]);
+ assert.equal(await groupGuestStorageReady(db),true);
+ const legacy=(await pg.query('SELECT phone,delivery_recipient_role,organiser_group_id FROM appointment_lifecycle WHERE id=1')).rows[0];
+ assert.deepEqual(legacy,{phone:'27810000001',delivery_recipient_role:'client',organiser_group_id:null});
+ await pg.exec("INSERT INTO staff_admin_accounts VALUES(7);INSERT INTO appointment_groups VALUES(10);INSERT INTO crm_v2_clients(id,contact_mode)VALUES(2,'organiser');INSERT INTO appointment_group_booking_contacts(appointment_group_id,organiser_crm_v2_client_id,created_by_admin_id)VALUES(10,1,7);");
+ for(const sql of ["INSERT INTO appointment_lifecycle(phone)VALUES(NULL)","INSERT INTO appointment_lifecycle(phone,delivery_recipient_role,organiser_group_id,appointment_id,crm_v2_client_id)VALUES('27810000001','organiser',10,20,2)","INSERT INTO appointment_lifecycle(phone,delivery_recipient_role,appointment_id,crm_v2_client_id)VALUES(NULL,'organiser',20,2)","INSERT INTO appointment_lifecycle(phone,delivery_recipient_role,organiser_group_id,appointment_id,crm_v2_client_id,client_id)VALUES(NULL,'organiser',10,20,2,9)"])await assert.rejects(pg.exec(sql));
+ await pg.exec("INSERT INTO appointment_lifecycle(phone,delivery_recipient_role,organiser_group_id,appointment_id,crm_v2_client_id)VALUES(NULL,'organiser',10,20,2)");
+ assert.equal((await pg.query("SELECT phone FROM appointment_lifecycle WHERE crm_v2_client_id=2")).rows[0].phone,null);
+ assert.equal((await pg.query('SELECT normalized_mobile FROM crm_v2_clients WHERE id=2')).rows[0].normalized_mobile,null);
+ await pg.exec('ALTER TABLE appointment_group_booking_contacts DROP COLUMN revision');
+ assert.equal(await groupGuestStorageReady(db),false);
+ assert.ok(seen.every(sql=>/^SELECT/.test(sql)&&! /\b(INSERT|UPDATE|DELETE|ALTER|CREATE)\b/.test(sql)));
+ assert.equal(await groupGuestStorageReady({query:async()=>{throw Error('Synthetic unavailable');}}),false);
+});

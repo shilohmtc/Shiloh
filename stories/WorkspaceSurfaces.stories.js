@@ -561,6 +561,20 @@ export const GroupBookingMultipleGuestsAndDiscount = {
   ),
 };
 
+export const GroupBookingWithOrganiserContact = {
+  render: () => interactiveProductionSurface(
+    renderCalendarGroupBookingPage({
+      options: {
+        services: couplesBookingOptions.services, staff,
+        guestBooking: { available: true },
+        authority: { operatorAdminId: 7, canApplyDiscount: true },
+      },
+      prefill: { date: '2026-11-20', time: '10:30' },
+    }),
+    calendarGroupBookingClientScript()
+  ),
+};
+
 export const MultiServiceClientBooking = {
   render: () => interactiveProductionSurface(
     renderCalendarMultiServiceBookingPage({

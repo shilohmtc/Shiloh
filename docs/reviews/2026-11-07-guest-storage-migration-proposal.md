@@ -1,0 +1,45 @@
+# Guest storage review — compatibility migration deployed
+
+This records the storage proposal and its later release for the accepted separate-profile and organiser-contact design. JP subsequently approved the compatibility migration separately from the pricing agreement. PR #1562 deployed migration 201 as `ac23bd7b5c498067a09ac13961ea53ab44e320b4`; independent postflight confirmed its checksum, 201 matching ledger entries, validated constraints/defaults, preserved existing invariants, empty new contact table and healthy service. The one-shot marker was cleared with Save only. Guest creation remained disabled in that release. The separate feature release is tracked in [the existing preparation review](2026-11-06-guest-booking-creation-preparation.md).
+
+The exact released DDL is [migration 201](../../migrations/201_group_guest_booking_contacts.sql), byte-identical to [the synthetic fixture](../../tests/fixtures/guest-profile-schema-candidate.sql), SHA-256 `289addeccae97938d150355af3355674ffd93f30de0feaa23305f4686f287637`. The feature candidate retains both unchanged and requires no further migration. The remaining proposal and preparation notes below are historical requirements, not authorization to rerun DDL or restore a database. Current compatible rollback is the verified `ac23bd7` deployment; pre-201 application artifacts cannot restart against ledger 201.
+
+## Proposed storage changes
+
+| Existing surface | Exact change | Preservation |
+| --- | --- | --- |
+| `crm_v2_clients` | Add non-null `contact_mode`, default `direct`, restricted to `direct`/`organiser`; permit NULL `normalized_mobile`; add validated identity constraint. | Existing rows retain their numbers, IDs and direct role. An organiser-contact profile must be minimal, have no mobile and no phone-verification timestamp. Existing mobile format and uniqueness rules remain. |
+| New `appointment_group_booking_contacts` | One row per group; organiser client and creating staff FKs; positive revision and timestamps. Group/client/staff deletion restricted by FKs. | Contact is booking-specific. It does not alias identities, grant private record access or make the organiser the financial payer. |
+| `appointment_lifecycle` | Add non-null `delivery_recipient_role`, default `client`, plus nullable organiser-group FK; permit NULL phone; add validated recipient constraint. | Existing rows retain phone, status and reminder/follow-up evidence. Only a modern guest appointment with organiser contact may use the explicit organiser role with NULL phone. Direct/legacy rows still require their own phone. |
+
+No additional pricing table or payment migration is proposed. The existing offer price snapshots and group audit JSON store reviewed eligibility/choice and discount. No appointment, client contact, receipt, balance or notification is created by this DDL. Existing rows receive the compatibility role defaults; no existing contact number is erased or replaced.
+
+## Required evidence before applying
+
+1. Review the final exact candidate SQL, checksum and source revision. Test the complete current migration chain and the approved new migration on a disposable database, including representative existing rows, constraint violations, failure rollback and code rollback. Synthetic component tests are not a production inventory.
+2. Using the existing authorized secure route, obtain read-only production migration inventory and checksums, pending migrations, actual server version, current table sizes/row counts, and aggregate invariant counts. Confirm all existing CRM mobiles are non-NULL, ordinary lifecycle phones are non-NULL, no proposed object already exists incompatibly, and every relevant existing FK/uniqueness rule is understood. Stop on a discrepancy. Do not run unrelated pending migrations.
+3. Confirm fresh Render recovery availability and an exact pre-migration recovery timestamp, with the service/database identity and time recorded immediately before applying. An earlier screenshot is not current evidence or a tested restore. Review recovery instructions and expected recovery loss/window. If an export or restore exercise is required, obtain that separate authorization; this proposal does not create another database or backup job or incur a cost.
+4. Review expected lock duration with current table sizes. The validated checks scan tables, and ALTER TABLE needs strong locks. Use the existing `applyMigrationFile` executor, which opens a transaction, sets `lock_timeout='15s'` and `statement_timeout='120s'`, takes the migration advisory lock, verifies the file checksum and records it with the DDL before COMMIT. Use the controlled-release wrapper only when the requested file is the sole pending migration; preserve its checksum and unexpected-pending refusal. Schedule a suitable low-activity window. A timeout must fail and roll back, not bypass a constraint or retry indefinitely. Stop on unexpected DDL, permissions, security changes, cost or destructive work.
+5. Obtain specific approval for this guest schema migration after presenting the exact SQL/checksum, risks, recovery evidence and rollback plan. The prior target-table migration approval is unrelated.
+
+## Controlled rollout and verification
+
+- First release and verify a compatibility version with creation disabled and normal-client behavior preserved. It must safely read explicit NULL-mobile guests, pause unsupported guest reminder/follow-up routing, hide unsupported guest notices without blocking ordinary history, and support later own-mobile conversion. Pin and test that exact rollback version. A local compatibility branch is not yet a deployed rollback target.
+- Keep guest creation and organiser messaging disabled while applying the specifically approved, inventory-verified migration through the normal audited runner. Review its transaction behavior beforehand. Verify the new catalog objects, validated constraints, unchanged aggregate invariants, migration checksum record and service health.
+- Only after the compatible schema and all exact-head release checks pass, review the enabled source and release enablement as a separate controlled step. Never infer readiness solely from the presence of one new column. No live client/booking/payment test writes or test messages are part of verification.
+- Record deployed commit, migration identity/checksum, recovery point, catalog checks, health and remaining owner acceptance on the existing roadmap.
+
+## Rollback and material risks
+
+Before transaction commit, a failed transactional migration should leave the original schema unchanged; prove this with the actual runner. After commit, prefer a forward correction or revert to the verified compatibility application while leaving the additive storage intact. Disable guest creation and pause unsupported guest delivery; do not mark paused notifications or reminders as delivered.
+
+Once guest profiles or organiser lifecycle rows exist, restoring NOT NULL or dropping columns/table is unsafe. Never invent numbers, merge identities, delete guest history or drop contacts to force a downgrade. Any schema reversal requires a new reviewed plan and approval, with aggregate proof that no dependent guest data exists; otherwise retain the schema. Point-in-time recovery can lose later legitimate clinic activity and is a last-resort owner decision, not an automatic rollback command.
+
+The main risks are transient lock contention, incomplete compatibility in an older reader/worker, wrong recipient selection, duplicate notice/claim handling, and incomplete historical identity linkage. Feature gating, current canonical recipient checks, transaction/audit/retry tests and full release gates reduce these risks; they do not prove physical-device delivery or that separately created profiles represent different people.
+
+
+## Historical preparation evidence and limits
+
+The earlier fixture candidate (SHA-256 `8a8e2ba8eea3cb34d72e9c881041f1b672fbf1d8b93d4a3398ac66bc11dafd3c`) passed a separate disposable PGlite transaction proof: an injected error after the DDL restores the original schema and direct-contact records; successful application preserves existing numbers and default client-delivery roles; attempting to restore NOT NULL with a guest present fails without erasing the guest. Existing SQL checks cover invalid recipient/contact combinations and partial-schema refusal. That preliminary proof was not a production migration-runner/full-chain, actual lock-duration or backup/restore proof. Subsequent release evidence belongs to the compatibility review; no tested production restore is claimed.
+
+The local compatibility candidate now includes released main `fe1ca92b9cf2414f58bad42490a5d6707c3733ed` at `1cfa46ab9a7efd5cfd1019f2ca064ecc4c77da4e`. Eight focused attendance, NULL-phone worker and session-actor checks pass; both guest compatibility and released rewards browser registrations were retained during its merge. It remains unpublished and needs its complete exact-head release checks before it can be a deployed rollback target.
