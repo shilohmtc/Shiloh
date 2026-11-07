@@ -9,6 +9,15 @@ const { createCalendarGroupBookingRouter } = require('../src/routes/calendarGrou
 let fixture, server, origin;
 test.beforeEach(async ({ context }, testInfo) => {
   fixture = await createFixture({ nativeUrl: null, morningOffer:testInfo.title.includes('Morning Welcome Offer') });
+  if (testInfo.title.includes('Young Guest treatment label')) {
+    const name = 'Young Guest Back &!Neck Massage (age 8-15)';
+    await fixture.db.query('UPDATE services SET name=$1 WHERE id=81', [name]);
+    const originalOptions = fixture.standardBooking.listBookableOptions;
+    fixture.standardBooking.listBookableOptions = async (...args) => {
+      const options = await originalOptions(...args);
+      return { ...options, services: options.services.map(service => Number(service.id) === 81 ? { ...service, name } : service) };
+    };
+  }
   const app = express(); app.use(express.json());
   const sessionService = {
     validateSessionToken: async token => token === 'synthetic-staff' ? { ok: true, adminId: 7 } : { ok: false },
@@ -110,6 +119,39 @@ for (const viewport of [{ name: 'phone', width: 390, height: 844 }, { name: 'des
     await expect(page).toHaveURL(/\/calendar\/read-only\?/);
     expect((await fixture.db.query('SELECT count(*)::int AS n FROM appointments')).rows[0].n).toBe(3);
     expect((await fixture.db.query('SELECT count(*)::int AS n FROM crm_v2_clients')).rows[0].n).toBe(3);
+  });
+}
+
+for (const width of [390,1440]) {
+  test(`Young Guest treatment label stays clean without changing catalogue or review identity at ${width}px`, async ({page},testInfo)=>{
+    await page.setViewportSize({width,height:900});
+    await page.goto(`${origin}/calendar/book/group`);
+    for(let i=0;i<3;i++){
+      const card=page.locator('[data-guest]').nth(i);
+      await expect(card.locator('[data-service] option[value="81"]')).toHaveText('Young Guest Back & Neck Massage (age 8-15) · 90 min · R590.00');
+      await card.locator('[data-name]').fill(`Synthetic Guest ${['Alpha','Beta','Gamma'][i]}`);
+      await card.locator('[data-mobile]').fill(`082000000${i+1}`);
+      await card.locator('[data-service]').selectOption('81');
+      await card.locator('[data-staff]').selectOption(String(i+11));
+    }
+    await page.locator('#group-date').fill('2099-10-24');
+    await page.locator('#group-time').fill('08:30');
+    const response=page.waitForResponse(r=>r.url().endsWith('/group/prepare'));
+    await page.getByRole('button',{name:'Review group booking'}).click();
+    const prepared=await response;
+    expect(prepared.status()).toBe(200);
+    const body=await prepared.json();
+    await expect(page.locator('[data-group-review]')).toBeVisible();
+    await expect(page.locator('[data-review-rows]')).toContainText('Young Guest Back & Neck Massage (age 8-15)');
+    await expect(page.locator('[data-review-rows]')).not.toContainText('&!');
+    expect(body.review.assignments.map(a=>a.service.name)).toEqual(Array(3).fill('Young Guest Back &!Neck Massage (age 8-15)'));
+    expect(body.review.assignments.map(a=>Number(a.service.id))).toEqual([81,81,81]);
+    expect(body.review.pricing.total).toBe(1770);
+    expect((await fixture.db.query('SELECT name FROM services WHERE id=81')).rows[0].name).toBe('Young Guest Back &!Neck Massage (age 8-15)');
+    expect((await fixture.db.query('SELECT count(*)::int n FROM appointments')).rows[0].n).toBe(0);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    expect((await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations.filter(v=>['serious','critical'].includes(v.impact))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath(`young-guest-label-${width}.png`),fullPage:true});
   });
 }
 

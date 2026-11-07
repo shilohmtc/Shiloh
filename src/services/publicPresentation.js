@@ -53,9 +53,15 @@ function neutralizePublicLabel(value = '') {
     .replace(/\btreatment\b/gi, 'Service');
 }
 
+// Correct only this known catalogue typo; keep canonical records and all other
+// wording (including age text) intact for internal booking presentation.
+function correctYoungGuestBackNeckTypo(value = '') {
+  return String(value).replace(/^(Young Guest Back )&(?:amp;)?!\s*(Neck Massage)/i, '$1& $2');
+}
+
 function publicServiceNameFor(value = '') {
   const canonicalName = String(value).trim();
-  const correctedYoungGuest = canonicalName.replace(/^(Young Guest Back )&(?:amp;)?!\s*(Neck Massage)/i, '$1& $2')
+  const correctedYoungGuest = correctYoungGuestBackNeckTypo(canonicalName)
     .replace(/^Young Guest Back & Neck Massage\s*\(age\s*8[–-]15\)$/i, 'Young Guest Back & Neck Massage (age 8–15)');
   return neutralizePublicLabel(PUBLIC_SERVICE_NAME_ALIASES.get(canonicalName) || correctedYoungGuest);
 }
@@ -177,6 +183,7 @@ module.exports = {
   PUBLIC_SERVICE_CATEGORY_ORDER,
   PUBLIC_SERVICE_NAME_ALIASES,
   neutralizePublicLabel,
+  correctYoungGuestBackNeckTypo,
   publicServiceNameFor,
   publicServicePriceFor,
   publicServiceCategoryFor,
