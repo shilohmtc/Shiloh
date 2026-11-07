@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 
 // Real SQL for the affected transaction; availability and outbound delivery are
 // synthetic boundaries. Never uses DATABASE_URL or sends a communication.
-async function createFixture({ nativeUrl = process.env.TEST_CALENDAR_COUPLES_DATABASE_URL, morningOffer = false } = {}) {
+async function createFixture({ nativeUrl = process.env.TEST_CALENDAR_COUPLES_DATABASE_URL, morningOffer = false, guestBooking = false } = {}) {
   let sql;
   if (nativeUrl) {
     assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(new URL(nativeUrl).hostname), 'Only a local synthetic PostgreSQL server is allowed');
@@ -56,18 +56,32 @@ async function createFixture({ nativeUrl = process.env.TEST_CALENDAR_COUPLES_DAT
     await sql.exec(read('migrations/199_website_publishing_morning_offer.sql'));
     await sql.exec("UPDATE website_content_posts SET published=draft WHERE kind='offer'");
   }
+  if (guestBooking) {
+    await sql.exec(`CREATE TABLE service_visibility_policies(service_id BIGINT,visibility_scope TEXT,owner_staff_id BIGINT);
+      ALTER TABLE appointments ADD COLUMN updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+      ALTER TABLE crm_v2_clients ADD COLUMN first_name TEXT,ADD COLUMN surname TEXT;
+      CREATE TABLE appointment_lifecycle(id BIGSERIAL PRIMARY KEY,appointment_id BIGINT REFERENCES appointments(id),
+        client_id BIGINT,crm_v2_client_id BIGINT REFERENCES crm_v2_clients(id),client_name_snapshot TEXT,
+        phone TEXT NOT NULL,service_text TEXT NOT NULL,appointment_at TIMESTAMPTZ NOT NULL,
+        appointment_ends_at TIMESTAMPTZ,status TEXT DEFAULT 'confirmed',source TEXT,
+        reminder_sent_at TIMESTAMPTZ,followup_sent_at TIMESTAMPTZ,updated_at TIMESTAMPTZ DEFAULT NOW());
+      CREATE UNIQUE INDEX lifecycle_appointment ON appointment_lifecycle(appointment_id) WHERE appointment_id IS NOT NULL;`);
+    await sql.exec(read('migrations/127_scoped_client_relationships.sql').split('-- Owner-authorized Marietjie client management.')[0]);
+    await sql.exec(read('tests/fixtures/guest-profile-schema-candidate.sql'));
+    await sql.exec(read('migrations/149_my_shiloh_push_notifications.sql'));
+  }
   const promotion = morningOffer ? require('../../src/services/morningWelcomeOffer').createMorningWelcomeOfferService({db}) : null;
   const standardBooking = {
     resolveOperator: async () => ({ id: 7, display_name: 'Synthetic operator',
-      calendarAuthority: { capabilities: ['appointment:couples:discount', 'appointment:group:discount'] } }),
-    listBookableOptions: async () => ({ authority: {},
+      calendarAuthority: { ...(guestBooking ? { calendarScope: 'all_business', serviceScope: 'all_services' } : {}), capabilities: ['appointment:couples:discount', 'appointment:group:discount', ...(guestBooking ? ['appointment:create', 'client:lookup'] : [])] } }),
+    listBookableOptions: async () => ({ authority: guestBooking ? { operatorAdminId: 7 } : {},
       staff: [{ id: 11, displayName: 'Synthetic practitioner A' }, { id: 12, displayName: 'Synthetic practitioner B' }, { id: 13, displayName: 'Synthetic practitioner C' }],
       services: [
         { id: 90, name: 'Couples booking', externalSource: 'shiloh_special', externalId: 'couples-massage-v1' },
         { id: 81, name: 'Synthetic Swedish', categoryName: 'Massage', durationMinutes: 90, price: 590, staffIds: [11, 12, 13] },
       ] }),
   };
-  const state = { failQueue: false, sends: [] };
+  const state = { failQueue: false, sends: [], organiserWakes: [] };
   const replacements = [
     ['adminAvailability', { checkAuthoritativeSchedule: async () => ({ covered: true }), getConflicts: async () => [] }],
     ['clinicHours', { checkClinicHours: async () => ({ covered: true }), getDefaultActiveLocation: async () => ({ id: 1 }) }],
@@ -100,7 +114,12 @@ async function createFixture({ nativeUrl = process.env.TEST_CALENDAR_COUPLES_DAT
     delete require.cache[servicePath];
     service = require(servicePath).createCalendarCouplesBookingService({ db, standardBooking, morningOffer: promotion });
     delete require.cache[groupPath];
-    groupService = require(groupPath).createCalendarGroupBookingService({ db, standardBooking, morningOffer: promotion });
+    groupService = require(groupPath).createCalendarGroupBookingService({ db, standardBooking, morningOffer: promotion,
+      ...(guestBooking ? { guestBookingsEnabled: true,
+        organiserService: require('../../src/services/groupBookingOrganiser').createGroupBookingOrganiserService({ authorityResolver: async () => standardBooking.resolveOperator(7) }),
+        wakeOrganiser: async id => { state.organiserWakes.push(id); return { accepted: 0, synthetic: true }; },
+      } : {}),
+    });
   } finally {
     for (const [resolved, original] of originals) require.cache[resolved].exports = original;
     delete require.cache[servicePath];

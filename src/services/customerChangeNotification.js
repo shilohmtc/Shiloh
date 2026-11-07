@@ -196,7 +196,9 @@ async function queueCustomerChangeNotification(appointmentId, changeKind) {
   return { queued: true, auditEventId: audit.id, attempted };
 }
 
-async function attemptCustomerChangeNotification(auditEventId, { env = process.env } = {}) {
+async function attemptCustomerChangeNotification(auditEventId, { env = process.env,
+  guestDispatcher = (id, options) => require('./guestBookingChanges').attemptGuestBookingChange(id, options),
+} = {}) {
   await ensureCustomerChangeNotificationTable();
   const queued = await pool.query(`
     SELECT audit_event_id,appointment_id,change_kind,status,attempt_count,suppression_reason,suppressed_at
@@ -210,6 +212,9 @@ async function attemptCustomerChangeNotification(auditEventId, { env = process.e
   if (await suppressEndedBookingUpdate(item)) {
     return { sent: false, reason: 'appointment_already_ended', suppressed: true };
   }
+
+  const guest = await guestDispatcher(auditEventId, { env });
+  if (guest?.handled) return guest.outcome;
 
   // The in-app notification is independent of WhatsApp template approval and delivery.
   const appointment = await loadAppointmentSnapshot(item.appointment_id);
