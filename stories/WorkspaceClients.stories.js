@@ -229,3 +229,5 @@ export const AppStatusOverview = { render: () => productionSurface(renderClientL
     { ...clients[0], id: 803, name: 'Synthetic Unknown', appStatus: { usage: 'Not yet confirmed', phoneAlerts: 'Unknown' } },
   ],
 }, options)) };
+
+export const GuestWithoutMobile = { render: () => { const model=detailModel(); model.client={...model.client,name:"Synthetic guest",normalized_mobile:null,profile_status:"minimal",mobile_verified_at:null,contact_mode:"organiser"}; return productionSurface(injectClientDetailManagement(renderClientDetailPageWithCommunications(model,options),model)); } };

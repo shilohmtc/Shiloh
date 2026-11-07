@@ -1,3 +1,4 @@
+const { isOrganiserContactGuest } = require('../services/crmV2GuestProfile');
 const { localPhoneInput } = require('./southAfricanPhone');
 const { workspaceErrorRecoveryClientScript } = require('./workspaceErrorRecovery');
 const { confirmationClientScript } = require('./workspaceConfirmation');
@@ -44,6 +45,7 @@ function genderOptions(current) {
 function injectClientDetailManagement(html, model) {
   if (model?.manageAllowed !== true || !model?.client) return html;
   const client = model.client;
+  const organiserGuest = isOrganiserContactGuest(client);
   const active = String(client.status || '') === 'active';
   const tenant = isTenantClientBase(model);
   const deleteAllowed = !tenant && model.authority?.deleteAllowed === true;
@@ -53,7 +55,7 @@ function injectClientDetailManagement(html, model) {
     : 'Deleting permanently removes an unlinked client profile and cannot be undone. Profiles linked to appointments, payments, app accounts or other clinic records cannot be deleted.';
   const fields = {
     name: `<label class="field" data-client-editor hidden for="edit-client-name">Name<input form="client-profile-edit" id="edit-client-name" name="name" required maxlength="120" value="${escapeHtml(client.name || '')}"></label>`,
-    mobile: `<label class="field" data-client-editor hidden for="edit-client-mobile">Mobile<input form="client-profile-edit" id="edit-client-mobile" name="mobile" required inputmode="tel" value="${escapeHtml(localPhoneInput(client.normalized_mobile))}"></label>`,
+    mobile: `<label class="field" data-client-editor hidden for="edit-client-mobile">Mobile<input form="client-profile-edit" id="edit-client-mobile" name="mobile"${organiserGuest ? '' : ' required'} inputmode="tel" value="${escapeHtml(localPhoneInput(client.normalized_mobile))}"></label>`,
     dob: `<label class="field" data-client-editor hidden for="edit-client-dob">Date of birth<input form="client-profile-edit" id="edit-client-dob" name="dateOfBirth" type="date" value="${escapeHtml(client.date_of_birth || '')}"></label>`,
     gender: `<label class="field" data-client-editor hidden for="edit-client-gender">Gender<select form="client-profile-edit" id="edit-client-gender" name="gender">${genderOptions(client.gender)}</select></label>`,
   };
