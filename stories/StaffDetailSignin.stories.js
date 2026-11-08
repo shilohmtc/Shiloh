@@ -34,6 +34,8 @@ export const SignIn = { render: () => surface() };
 export const AccountSetup = { render: () => surface(true) };
 
 export const WhatsAppSignIn = { render: () => surface(false, true) };
+export const SessionEnded = { render: () => RetiredDetails.render()
+  .replace('<main class="card">', `<main class="card">${accessUx.workspaceSessionNotice()}`) };
 
 export const RetiredDetails = { render: () => {
   const html=accessUx.renderStaffCalendarAccessPage()

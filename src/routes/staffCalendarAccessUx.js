@@ -3,6 +3,7 @@ const {
   renderStaffCalendarAccessPage,
   workspaceWhatsAppSigninPanel,
   staffCalendarAccessClientScript,
+  workspaceSessionNotice,
 } = require('../presentation/staffCalendarAccessUx');
 const {
   renderStaffCalendarHandoffPage,
@@ -106,6 +107,7 @@ function createStaffCalendarAccessPageHandler({ env = process.env, renderPage = 
     try { showWhatsApp = whatsappAvailable() === true; } catch (_) { /* Preserve existing sign-in. */ }
     if (staffDetailsRetired(env) && !showWhatsApp) html=html.replace('<main class="card">','<main class="card"><section class="section"><p class="lead" role="status">WhatsApp sign-in is temporarily unavailable. Use a saved passkey, or try again shortly.</p></section>');
     if (showWhatsApp) html = html.replace('<main class="card">', `<main class="card">${workspaceWhatsAppSigninPanel()}`);
+    if (reason === 'session') html = html.replace('<main class="card">', `<main class="card">${workspaceSessionNotice()}`);
     return res.status(200).type('html').send(html);
   };
 }
