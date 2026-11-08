@@ -10,6 +10,7 @@ const BOOKING_ACTION_PALETTE = Object.freeze({
 
 const WORKSPACE_ACTION_PALETTE = Object.freeze({
   create: BOOKING_ACTION_PALETTE.new,
+  edit: BOOKING_ACTION_PALETTE.new,
   primary: { background: '#294c3c', ink: '#ffffff', hover: '#17382d' },
   secondary: { background: '#ffffff', ink: '#20322b', hover: '#e7eee9' },
   danger: { background: '#f7e9e6', ink: '#7d3934', hover: '#f5ebe6' },

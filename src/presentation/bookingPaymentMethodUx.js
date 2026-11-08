@@ -73,7 +73,7 @@ function initializeBookingPaymentMethod() {
   } catch (_) {
     sessionStorage.removeItem(manualKey);
   }
-  for (const action of ['gift-voucher', 'client-credit', 'prior-payment', 'prior-payment-reverse', 'no-charge']) {
+  for (const action of ['gift-voucher', 'client-credit', 'prior-payment', 'prior-payment-reverse', 'no-charge', 'completed-rewards']) {
     try {
       if (
         JSON.parse(
@@ -111,6 +111,7 @@ function initializeBookingPaymentMethod() {
       !form.hidden &&
       Boolean(selector.value),
     blocked: () => busy || Boolean(pendingAction),
+    blockedFor: (action) => busy || Boolean(pendingAction && pendingAction !== action),
     setBusy: (value) => {
       busy = value;
       sync();
@@ -168,7 +169,7 @@ function initializeBookingPaymentMethod() {
         'An earlier receipt needs review. Retry this unchanged receipt, or check the history.';
     }
   }
-  if (pendingAction && pendingAction !== 'manual') {
+  if (pendingAction && pendingAction !== 'manual' && !(pendingAction === 'completed-rewards' && root.querySelector('[data-completed-rewards]'))) {
     const option = [...selector.options].find(
       (item) => item.value === pendingAction && !item.disabled,
     );

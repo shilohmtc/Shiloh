@@ -20,6 +20,7 @@ const DESTINATIONS = Object.freeze({
   forms: '/calendar/forms',
   reports: '/calendar/reports',
   clinicHours: '/calendar/clinic-hours',
+  clinicCheckin: '/calendar/check-in/devices',
   vouchers: '/calendar/vouchers',
   rewards: '/calendar/rewards',
   problemReports: '/calendar/problem-reports',
@@ -44,6 +45,8 @@ function staffDestinationFor(service) {
 }
 
 function createWorkspaceNavigationService({
+  env = process.env,
+  checkinAccessService = require('./clinicIpadCheckin').createClinicIpadCheckinService(),
   websiteAccessService = { resolveAccess:async () => null },
   clientAccessService = workspaceClients,
   staffAccessService = workspaceStaffAccess,
@@ -58,7 +61,7 @@ function createWorkspaceNavigationService({
   async function resolve({ session } = {}) {
     const adminId = session?.adminId;
     const calendarAllowed = Boolean(session?.viewer);
-    const [clients, staff, services, forms, reports, clinicHours, vouchers, rewards, problemReportAccess, website] = await Promise.allSettled([
+    const [clients, staff, services, forms, reports, clinicHours, vouchers, rewards, problemReportAccess, website, checkin] = await Promise.allSettled([
       clientAccessService.resolveAccess(adminId),
       resolveStaffAccess(staffAccessService, adminId),
       servicesAccessService.resolveAccess(adminId),
@@ -69,6 +72,7 @@ function createWorkspaceNavigationService({
       rewardsAccessService.resolveAccess(adminId),
       problemReportsAccessService.resolveWorkspaceAccess(adminId),
       websiteAccessService.resolveAccess(adminId),
+      String(env.SHILOH_CLINIC_IPAD_CHECKIN_ENABLED).toLowerCase() === 'true' ? checkinAccessService.canActivate(adminId) : Promise.resolve(null),
     ]);
     const clientsAllowed = clients.status === 'fulfilled' && Boolean(clients.value);
     const clientToolsAllowed = [forms, vouchers, rewards].some(result => result.status === 'fulfilled' && Boolean(result.value));
@@ -83,6 +87,7 @@ function createWorkspaceNavigationService({
       services: allowedDestination(services.status === 'fulfilled' && Boolean(services.value), 'services'),
       forms: allowedDestination(forms.status === 'fulfilled' && Boolean(forms.value), 'forms'),
       reports: allowedDestination(reports.status === 'fulfilled' && Boolean(reports.value), 'reports'),
+      clinicCheckin: allowedDestination(checkin.status === 'fulfilled' && checkin.value?.clientScope?.kind === 'clinic', 'clinicCheckin'),
       clinicHours: allowedDestination(clinicHours.status === 'fulfilled' && Boolean(clinicHours.value), 'clinicHours'),
       vouchers: allowedDestination(vouchers.status === 'fulfilled' && Boolean(vouchers.value), 'vouchers'),
       rewards: allowedDestination(rewards.status === 'fulfilled' && Boolean(rewards.value), 'rewards'),

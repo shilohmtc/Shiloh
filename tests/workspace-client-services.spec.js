@@ -28,6 +28,11 @@ for (const width of [390, 820, 1440]) {
     await expect(page.locator('[data-workspace-destination="clients"]')).toHaveAttribute('href', '/calendar/clients');
     await page.goto('/iframe.html?id=workspace-client-services--directory&viewMode=story');
     await page.addScriptTag({ content: workspaceIconClientScript() });
+    await expect(page.locator('[data-client-management]')).toHaveCount(0);
+    await expect(page.locator('#client-search')).toBeVisible();
+    await page.goto('/iframe.html?id=workspace-client-services--tools-only&viewMode=story');
+    await page.addScriptTag({ content: workspaceIconClientScript() });
+    await expect(page.locator('#client-search')).toHaveCount(0);
     const group = page.locator('[data-client-management]');
     await expect(group.locator('summary')).toBeVisible();
     await expect(group.locator('a')).toHaveCount(4);
@@ -42,7 +47,7 @@ for (const width of [390, 820, 1440]) {
       expect((await link.boundingBox()).height).toBeGreaterThanOrEqual(44);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    expect((await new AxeBuilder({ page }).include('[data-clients-list-view]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);
+    expect((await new AxeBuilder({ page }).include('[data-client-management]').withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);
     await page.screenshot({ path: testInfo.outputPath(`client-directory-management-${width}.png`), fullPage: true });
     await group.locator('summary').click();
     await expect(group.locator('a').first()).toBeHidden();

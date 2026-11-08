@@ -42,3 +42,17 @@ test('enquiry emphasis uses existing action palette while retaining the same pat
   assert.match(completion,/data-workspace-action="danger"[^>]*data-enquiry-action="cancelled">Client cancelled/);
   assert.match(completion,/data-enquiry-action="attended" disabled/);
 });
+
+
+test('deposit booking links open the matching member date in clinic time, including after refresh', () => {
+ const {depositQueueContent}=require('../src/presentation/workspaceDashboardUx');
+ const item={accountId:88,appointmentId:843,state:'partial',outstanding:'150',hasLink:true,members:[
+ {appointmentId:844,startsAt:'2026-11-01T08:00:00Z',staffNames:[]},
+ {appointmentId:843,startsAt:'2026-12-14T22:30:00Z',staffNames:[]}]};
+ const html=depositQueueContent({items:[item]});
+ assert.match(html,/href="\/calendar\/read-only\?view=week&amp;date=2026-12-15&amp;appointment=843&amp;staff=all">View booking/);
+ assert.match(html,/href="\/calendar\/payments\/appointments\/843">Review payment/);
+ item.members.pop();
+ assert.doesNotMatch(depositQueueContent({items:[item]}),/>View booking</);
+ assert.match(depositQueueContent({items:[item]}),/>Review payment</);
+});

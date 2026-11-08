@@ -294,6 +294,7 @@ function createFixture() {
   app.use('/calendar/workspace', createWorkspaceOperationalRouter({ env: ENV, sessionService, dashboardService, navigationService }));
   app.use('/calendar/messages', createWorkspaceMessagesRouter({ env: ENV, sessionService, service: messageService }));
   app.use('/calendar/clients', createWorkspaceClientsRouter({
+    paymentService: { async getDirectoryReviews({ ids }) { return Object.fromEntries(ids.map(id => [id, { state: 'unavailable' }])); } },
     env: ENV, sessionService, service: clientService, notificationService: { async resolveAccess() { return null; } },
   }));
   app.get('/calendar/team', requireStaffSession({ service: sessionService, env: ENV }), (_req, res) => {
@@ -477,7 +478,7 @@ async function main() {
       // A same-URL navigation can otherwise read the old document as complete.
       if (navigation.loaderId) await poll(() => cdp.send('Page.getFrameTree'), tree => tree.frameTree.frame.loaderId === navigation.loaderId);
       await poll(() => evaluate(cdp, 'document.readyState'), value => value === 'complete');
-      await poll(() => evaluate(cdp, `Array.from(document.querySelectorAll('[data-workspace-destination]')).filter(n=>n.tagName==='A'||n.classList.contains('active')).length`), value => value === (new URL(url).pathname === '/calendar/clients' ? 8 : 7));
+      await poll(() => evaluate(cdp, `Array.from(document.querySelectorAll('[data-workspace-destination]')).filter(n=>n.tagName==='A'||n.classList.contains('active')).length`), value => value === 7);
     }
     async function screenshot(name) {
       const result = await cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false, fromSurface: true });
@@ -496,6 +497,10 @@ async function main() {
         await evaluate(cdp, `document.querySelector('[data-workspace-drawer-toggle]').click();true`);
         await poll(() => evaluate(cdp, `document.querySelector('[data-workspace-navigation-drawer]').classList.contains('open')`), Boolean);
         await poll(() => evaluate(cdp, `document.querySelector('[data-workspace-navigation-drawer]').getBoundingClientRect().left`), value => value >= -1);
+      }
+      if (new URL(urlPath, origin).pathname === '/calendar/clients') {
+        assert.equal(await evaluate(cdp, `document.querySelector('[data-client-management]') === null`), true);
+        assert.equal(await evaluate(cdp, `document.querySelector('#client-search').getClientRects().length > 0`), true);
       }
       const metrics = await evaluate(cdp, METRICS_EXPRESSION);
       assert.deepEqual(metrics.viewport, { width, height, screenWidth: width, screenHeight: height });

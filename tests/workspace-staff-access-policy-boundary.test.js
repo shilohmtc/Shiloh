@@ -38,6 +38,11 @@ function finalizationDatabase(assigned) {
   const calls = [];
   const query = async (text, params = []) => {
     const sql = text.replace(/\s+/g, ' ').trim(); calls.push({ sql, params });
+    if (sql.startsWith('SELECT a.id FROM appointments a')) {
+      assert.match(sql, /FOR UPDATE OF a/);
+      assert.deepEqual(params, [51, null]);
+      return { rows: [{ id: 51 }] };
+    }
     if (sql.includes('FROM appointments a')) {
       assert.match(sql, /FOR UPDATE OF a/);
       assert.equal(params[0], false);
@@ -60,7 +65,7 @@ async function runFinalization(assigned, capability = true) {
     finalizeAppointmentFn: (admin, id, outcome, options) => finalizeAppointment(admin, id, outcome, { ...options, connectionPool: db }),
   });
   try {
-    const result = await service.finalizeVisit({ adminId: 91, viewer: { calendarScope: 'own_staff', staffId: 17 }, appointmentId: 51, expectedRevision: revision, outcome: 'completed', now: new Date('2026-09-05T10:00:00Z') });
+    const result = await service.finalizeVisit({ adminId: 91, viewer: { calendarScope: 'own_staff', staffId: 17 }, appointmentId: 51, expectedRevision: revision, outcome: 'completed', paymentDecision: { choice: 'outstanding' }, now: new Date('2026-09-05T10:00:00Z') });
     return { result, db };
   } catch (error) { return { error, db }; }
 }

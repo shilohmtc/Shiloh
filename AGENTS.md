@@ -51,6 +51,8 @@ For a small documentation-only change, apply the same branch, tree, PR, exact-he
 
 ## Interface quality
 
+- Accepted owner direction, 5 November 2026: action colours communicate meaning across Shiloh. Use shared tokens: dark green/white for the main action (Save), light green/dark green for routine editing, neutral outlines for navigation and Cancel, red text/icons for destructive actions, and muted neutral styling for unavailable controls. Icons inherit their action text colour through `currentColor`; never use colour alone to identify an action. Keep Edit profile visible and Delete client under More options with existing confirmation and linked-record protections. Apply this standard when working on a surface; do not reinterpret booking/status colours or expand deletion/deactivation authority. The client profile implements this standard; other surfaces retain their context-specific workflows.
+
 - Accepted owner direction, 3 November 2026; reinforced 4 November 2026: keep unity across Shiloh, including Workspace, My Shiloh and the public website. Default to clean, professional, simple layouts that are easy to update and manage. Reuse shared brand assets, design tokens, typography, spacing, navigation and action meanings wherever they fit; preserve the distinct needs of each surface. Use consistent patterns and mobile judgment without waiting for a separate request for simplicity. Keep necessary decisions and safeguards clear; put less-used controls behind an accessible disclosure. Already attended uses the existing light-green Workspace action shade; its colour never implies that payment was received.
 
 - Every meaningful interface change must be reviewed in Storybook.

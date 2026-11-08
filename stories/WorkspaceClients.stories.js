@@ -9,6 +9,7 @@ const { injectClientListManagement, injectClientDetailManagement } = clientManag
 const { renderClientListPage } = clientListPresentation;
 
 function productionSurface(pageHtml) {
+  pageHtml = String(pageHtml).replaceAll('/calendar/pwa/icon-192.png', '/assets/pwa/shiloh-pwa-192.png');
   const styles = [...String(pageHtml).matchAll(/<style>([\s\S]*?)<\/style>/g)]
     .map((match) => match[1])
     .join('\n');
@@ -120,9 +121,10 @@ function listHtml() {
   return injectClientListManagement(renderClientListPage(model, options), model);
 }
 
-function detailHtml(clinic = false, gender = 'female') {
+function detailHtml(clinic = false, gender = 'female', services = 'overview') {
   const model = detailModel();
   model.client.gender = gender;
+  model.services = services;
   if (clinic) model.authority = { ...model.authority, displayName: 'Synthetic clinic owner', businessRole: 'owner', deleteAllowed: true, clientScope: { kind: 'clinic', ownerStaffId: null } };
   return injectClientDetailManagement(renderClientDetailPageWithCommunications(model, options), model);
 }
@@ -143,8 +145,13 @@ export const MarietjieClientManagement = {
   render: () => productionSurface(detailHtml()),
 };
 
+export const MarietjieClientAppointments = {
+  render: () => productionSurface(detailHtml(false, 'female', 'appointments')),
+};
+
 function documentsModel({ reception = false, empty = false, unavailable = false } = {}) {
   const model = detailModel();
+  model.services = 'forms';
   model.authority = { ...model.authority, displayName: reception ? 'Reception' : 'Christel', businessRole: reception ? 'booking_operator' : 'owner' };
   model.manageAllowed = false;
   model.policyAcceptances = empty ? [] : [{ ...model.policyAcceptances[0], crm_v2_client_id: model.client.id, has_snapshot: true }];
@@ -190,6 +197,7 @@ export const NextAppointmentAndLastVisit = { render: () => productionSurface(ren
 }, options)) };
 export const AwaitingConfirmationHistory = { render: () => {
   const model=detailModel();
+  model.services = 'appointments';
   model.appointments=[
     {...model.appointments[0],status:'scheduled',bookingRequestState:'pending'},
     {...model.appointments[0],status:'scheduled',bookingRequestState:'awaiting_client_confirmation'},
@@ -200,3 +208,26 @@ export const AwaitingConfirmationHistory = { render: () => {
 
 export const ClientGenderLegacy = { render: () => productionSurface(detailHtml(false, 'non_binary')) };
 export const ClientGenderUnrecorded = { render: () => productionSurface(detailHtml(false, null)) };
+
+export const ClientPolicyHistory = { render: () => productionSurface(renderClientDetailPageWithCommunications({...detailModel(),services:'forms'},options)) };
+export const ClientBookingReadiness = { render: () => productionSurface(renderClientDetailPageWithCommunications({...detailModel(),services:'appointments'},options)) };
+
+export const PaymentReviewIndicators = { render: () => productionSurface(renderClientListPage({
+  ...listModel(), authority: { ...authority, displayName: 'Synthetic Reception', businessRole: 'booking_operator', clientScope: { kind: 'clinic', ownerStaffId: null } }, clients: [
+    {...clients[0],paymentReview:{state:'known',completedVisits:3,outstandingVisits:1,sharedBookings:0,reviewNeeded:0,upcomingDeposits:1}},
+    {...clients[1],paymentReview:{state:'known',completedVisits:2,outstandingVisits:0,sharedBookings:1,reviewNeeded:0,upcomingDeposits:0}},
+    {...clients[0],id:803,name:'Synthetic Settled',paymentReview:{state:'known',completedVisits:1,outstandingVisits:0,sharedBookings:0,reviewNeeded:0,upcomingDeposits:0}},
+    {...clients[1],id:804,name:'Synthetic Restricted',paymentReview:{state:'restricted'}},
+    {...clients[1],id:805,name:'Synthetic Unavailable',paymentReview:{state:'unavailable'}},
+  ],
+}, options)) };
+
+export const AppStatusOverview = { render: () => productionSurface(renderClientListPage({
+  ...listModel(), authority: { displayName: 'Synthetic Reception' }, clients: [
+    { ...clients[0], appStatus: { usage: 'Used before', phoneAlerts: 'Enabled' }, next_appointment_at: '2026-11-09T08:30:00Z' },
+    { ...clients[1], appStatus: { usage: 'Not yet confirmed', phoneAlerts: 'Setup needed' }, last_visit_at: null },
+    { ...clients[0], id: 803, name: 'Synthetic Unknown', appStatus: { usage: 'Not yet confirmed', phoneAlerts: 'Unknown' } },
+  ],
+}, options)) };
+
+export const GuestWithoutMobile = { render: () => { const model=detailModel(); model.client={...model.client,name:"Synthetic guest",normalized_mobile:null,profile_status:"minimal",mobile_verified_at:null,contact_mode:"organiser"}; return productionSurface(injectClientDetailManagement(renderClientDetailPageWithCommunications(model,options),model)); } };

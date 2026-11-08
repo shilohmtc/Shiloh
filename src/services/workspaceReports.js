@@ -1,4 +1,5 @@
 const { pool } = require('../db/pool');
+const { recordedVisitTrend } = require('../domain/recordedVisitTrend');
 const schedulingEngine = require('./schedulingEngine');
 const {
   filterTimelineForDisplay,
@@ -578,7 +579,9 @@ function createWorkspaceReportsService({
       selectedStaffId: filtered.selectedStaffId,
       permittedStaff: filtered.permittedStaff || [],
       appointments: {
-        operational: uniqueAppointments(effectiveTimeline.appointments || []).length,
+        // Status totals must share the same period and population as the status breakdown.
+        // The scheduling timeline intentionally omits records without active staff assignments.
+        operational: currentOperationalAppointments,
         allRecorded: statusTotal(statusCounts),
         statusCounts,
       },
@@ -593,6 +596,7 @@ function createWorkspaceReportsService({
         delta: trendDelta,
         percent: trendPct,
       },
+      recordedVisits: recordedVisitTrend(statusCounts, previousStatusCounts),
       readOnly: true,
       timezone: BUSINESS_TIMEZONE,
     };

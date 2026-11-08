@@ -10,16 +10,16 @@ const {
   calendarCreateBookingClientScript,
 } = require('../src/presentation/calendarCreateBookingUx');
 
-test('Calendar booking presents Existing clients first, with Search clients secondary and Add new client explicit', () => {
+test('Calendar booking presents Existing clients first, with search visible and Add new client explicit', () => {
   const script = calendarCreateBookingClientChoiceScript();
 
   assert.doesNotThrow(() => new Function(script));
   assert.match(script, /Existing clients/);
-  assert.match(script, /Search clients/);
+  assert.match(script, /searchLabel\.hidden=false;searchActions\.hidden=false/);
   assert.match(script, /Add new client/);
   assert.doesNotMatch(script, /Find existing client|\+ New client|Client registration/);
   assert.match(script, /data-client-mode-existing/);
-  assert.match(script, /data-client-mode-search/);
+  assert.doesNotMatch(script, /data-client-mode-search/);
   assert.match(script, /data-client-mode-new/);
   assert.match(script, /Choose client/);
   assert.match(script, /Search by name or mobile number/);
@@ -32,7 +32,8 @@ test('Existing-client choice loads a bounded browse request through the canonica
   assert.equal(CLIENT_BROWSE_QUERY, '__shiloh_calendar_active_clients_v1__');
   assert.match(script, /var BROWSE_QUERY='__shiloh_calendar_active_clients_v1__'/);
   assert.match(script, /function loadExistingClients\(\)\{setStatus\('Loading existing clients…'\);search\.value=BROWSE_QUERY;searchAction\.click\(\);search\.value=''\;\}/);
-  assert.match(script, /setMode\('browse'\);\nloadExistingClients\(\);/);
+  assert.match(script, /setMode\('browse',preselected\);/);
+  assert.match(script, /if\(preselected\)hideStatus\(\);else loadExistingClients\(\);/);
   assert.doesNotMatch(script, /\bfetch\s*\(/);
   assert.doesNotMatch(script, /XMLHttpRequest/);
 });
@@ -70,7 +71,6 @@ test('Switching picker modes clears stale selection while Review booking remains
   const script = calendarCreateBookingClientChoiceScript();
 
   assert.match(script, /clearVisibleSelection\(\);if\(review\)review\.disabled=false;setMode\('browse'\);loadExistingClients\(\)/);
-  assert.match(script, /clearVisibleSelection\(\);if\(review\)review\.disabled=false;setMode\('search'\)/);
   assert.match(script, /clearVisibleSelection\(\);if\(review\)review\.disabled=false;setMode\('new'\);syncNewClientDraftFromFields\(\)/);
   assert.doesNotMatch(script, /review\.disabled=true/);
   assert.match(script, /calendar-client-mode/);

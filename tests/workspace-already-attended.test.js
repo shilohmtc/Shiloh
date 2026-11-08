@@ -47,7 +47,7 @@ async function setup(t) {
     return pg.query(statement, params);
   };
   const dbPool = { query, connect: async () => ({ query, release() {} }) };
-  const input = { dbPool, principal, appointmentId: 100, expectedRevision: rev, expectedAppointmentRevision: rev, expectedApprovalRevision: rev };
+  const input = { paymentDecision: { choice: 'outstanding' }, dbPool, principal, appointmentId: 100, expectedRevision: rev, expectedAppointmentRevision: rev, expectedApprovalRevision: rev };
   return { pg, input, sql, failAudit: () => { failAudit = true; } };
 }
 async function state(pg) {

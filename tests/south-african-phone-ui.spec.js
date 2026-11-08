@@ -15,7 +15,8 @@ for (const [label, width, height] of [['desktop',1280,900],['mobile',390,844],['
     await page.route('**/calendar/pwa/icon-192.png*',route=>route.fulfill({contentType:'image/png',body:fs.readFileSync(path.resolve('public/assets/pwa/shiloh-pwa-192.png'))}));
     await page.goto('/iframe.html?id=workspace-clients--marietjie-client-management&viewMode=story', {waitUntil:'networkidle'});
     await expect(page.locator('#edit-client-mobile')).toBeHidden();
-    await page.locator('.client-edit-summary').click();
+    await page.addScriptTag({ content: require('../src/presentation/workspaceClientsManageUx').workspaceClientsManageClientScript() });
+    await page.locator('[data-client-edit-start]').click();
     await expect(page.locator('#edit-client-mobile')).toHaveValue('0820000011');
     await expect(page.locator('.contact-card:not([data-client-app-status]) strong')).toHaveText('082 000 0011');
     await expect(page.locator('body')).not.toContainText('+27');
@@ -40,7 +41,8 @@ for (const [label, width, height] of [['desktop',1280,900],['mobile',390,844],['
     });
     await page.goto('https://synthetic.shiloh.test/client');
     await expect(page.locator('#edit-client-mobile')).toBeHidden();
-    await page.locator('.client-edit-summary').click();
+    await page.addScriptTag({ content: require('../src/presentation/workspaceClientsManageUx').workspaceClientsManageClientScript() });
+    await page.locator('[data-client-edit-start]').click();
     await expect(page.locator('#edit-client-mobile')).toHaveValue(foreign);
     await expect(page.locator('.contact-card:not([data-client-app-status]) strong')).toHaveText(foreign);
     expect(await page.locator('body').evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);

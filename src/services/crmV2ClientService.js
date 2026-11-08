@@ -1,3 +1,4 @@
+const { isOrganiserContactGuest } = require('./crmV2GuestProfile');
 const { PostgresCrmV2ClientRepository } = require('../repositories/crmV2ClientRepository');
 
 const PROFILE_STATUS = Object.freeze({ MINIMAL: 'minimal', REGISTERED: 'registered' });
@@ -181,7 +182,8 @@ function createCrmV2ClientService({ repository = new PostgresCrmV2ClientReposito
         if (!Object.values(CLIENT_STATUS).includes(status)) throw new CrmV2Error('CRM_V2_INVALID_STATUS', 'Client status is not valid.');
         patch.status = status;
       }
-      if (mobile !== undefined) {
+      const organiserGuest = isOrganiserContactGuest(current);
+      if (mobile !== undefined && !(organiserGuest && String(mobile ?? '').trim() === '')) {
         const nextMobile = normalizeMobile(mobile);
         if (!nextMobile) throw new CrmV2Error('CRM_V2_INVALID_MOBILE', 'Enter a valid South African mobile number.');
         if (nextMobile !== current.normalized_mobile) {
@@ -191,14 +193,19 @@ function createCrmV2ClientService({ repository = new PostgresCrmV2ClientReposito
             return { status: 'conflict', normalizedMobile: nextMobile, clientIds: owners.map((owner) => String(owner.id)) };
           }
           patch.normalizedMobile = nextMobile;
+          if (organiserGuest) patch.contactMode = 'direct';
           patch.mobileVerifiedAt = null;
         }
       }
       const resultingStatus = patch.status ?? current.status;
       if (resultingStatus === CLIENT_STATUS.ACTIVE && current.status !== CLIENT_STATUS.ACTIVE) {
         const mobileToClaim = patch.normalizedMobile || current.normalized_mobile;
-        await repo.lockNormalizedMobile(mobileToClaim);
-        const owners = await repo.findActiveByNormalizedMobile(mobileToClaim, { forUpdate: true });
+        if (!mobileToClaim && !organiserGuest) throw new CrmV2Error('CRM_V2_INVALID_MOBILE', 'Review the client contact before reactivating this profile.');
+        let owners = [];
+        if (mobileToClaim) {
+          await repo.lockNormalizedMobile(mobileToClaim);
+          owners = await repo.findActiveByNormalizedMobile(mobileToClaim, { forUpdate: true });
+        }
         if (owners.some((owner) => String(owner.id) !== String(clientId))) {
           return { status: 'conflict', normalizedMobile: mobileToClaim, clientIds: owners.map((owner) => String(owner.id)) };
         }

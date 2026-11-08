@@ -177,7 +177,7 @@ test('Workspace finalization delegates to the canonical row-locking finalizer wi
     viewer: { calendarScope: 'business_all_staff' },
     appointmentId: 501,
     expectedRevision: '2026-09-05T06:30:00.000Z',
-    outcome: 'completed',
+    outcome: 'completed', paymentDecision: { choice: 'outstanding' },
     now: NOW,
   });
   assert.equal(result.ok, true);
@@ -187,6 +187,7 @@ test('Workspace finalization delegates to the canonical row-locking finalizer wi
     ...operationalDayWindow('2026-09-05'),
     expectedRevision: '2026-09-05T06:30:00.000Z',
     workspace: true,
+    paymentDecision: { choice: 'outstanding' },
     allowBusinessBackup: true,
   });
   await assert.rejects(service.finalizeVisit({ adminId: 7, viewer: { calendarScope: 'business_all_staff' }, appointmentId: 501, expectedRevision: 'x', outcome: 'cancelled', now: NOW }), error => error.httpStatus === 400);
@@ -214,14 +215,14 @@ test('canonical finalizer row-locks and audits the actual Workspace operator, wh
   const stalePool = fakePool(currentRevision);
   assert.equal((await finalizeAppointment(operator, 501, 'completed', {
     ...operationalDayWindow('2026-09-05'), expectedRevision: '2026-09-05T06:31:00.000Z',
-    workspace: true, allowBusinessBackup: true, connectionPool: stalePool,
+    workspace: true, paymentDecision: { choice: 'outstanding' }, allowBusinessBackup: true, connectionPool: stalePool,
   })).status, 'stale_revision');
   assert.equal(stalePool.calls.some(call => call.sql.includes('UPDATE appointments')), false);
 
   const currentPool = fakePool(currentRevision);
   const result = await finalizeAppointment(operator, 501, 'completed', {
     ...operationalDayWindow('2026-09-05'), expectedRevision: currentRevision,
-    workspace: true, allowBusinessBackup: true, connectionPool: currentPool,
+    workspace: true, paymentDecision: { choice: 'outstanding' }, allowBusinessBackup: true, connectionPool: currentPool,
   });
   assert.equal(result.status, 'updated');
   const lockedRead = currentPool.calls.find(call => call.sql.includes('FROM appointments a'));
@@ -430,7 +431,7 @@ test('Already attended route preserves session, same-origin and CSRF boundaries'
   app.use('/calendar/workspace', createWorkspaceOperationalRouter({ env: ENABLED_ENV, sessionService, dashboardService }));
   await withServer(app, async base => {
     const path = `${base}/calendar/workspace/booking-requests/7651/already-attended`;
-    const body = JSON.stringify({ expectedRevision: '2026-09-05T06:30:00.000Z', startsAt: '2026-09-11T08:00:00.000Z', staffId: 11, expectedAppointmentRevision: '2026-09-05T06:30:00.000Z', expectedApprovalRevision: '2026-09-05T06:30:00.000Z' });
+    const body = JSON.stringify({ expectedRevision: '2026-09-05T06:30:00.000Z', startsAt: '2026-09-11T08:00:00.000Z', staffId: 11, expectedAppointmentRevision: '2026-09-05T06:30:00.000Z', expectedApprovalRevision: '2026-09-05T06:30:00.000Z', paymentDecision: { choice: 'outstanding' } });
     assert.equal((await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body })).status, 401);
     assert.equal((await fetch(path, { method: 'POST', headers: { cookie: 'shiloh_staff_session=valid', 'content-type': 'application/json' }, body })).status, 403);
     assert.equal((await fetch(path, { method: 'POST', headers: { cookie: 'shiloh_staff_session=valid', origin: base, 'content-type': 'application/json', 'x-shiloh-csrf-token': 'bad' }, body })).status, 403);
@@ -439,7 +440,7 @@ test('Already attended route preserves session, same-origin and CSRF boundaries'
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0], {
     adminId: 7, viewer: session.viewer, appointmentId: '7651', action: 'already-attended',
-    expectedRevision: '2026-09-05T06:30:00.000Z', startsAt: '2026-09-11T08:00:00.000Z', staffId: 11, serviceId: undefined, expectedAppointmentRevision: '2026-09-05T06:30:00.000Z', expectedApprovalRevision: '2026-09-05T06:30:00.000Z',
+    expectedRevision: '2026-09-05T06:30:00.000Z', startsAt: '2026-09-11T08:00:00.000Z', staffId: 11, serviceId: undefined, expectedAppointmentRevision: '2026-09-05T06:30:00.000Z', expectedApprovalRevision: '2026-09-05T06:30:00.000Z', paymentDecision: { choice: 'outstanding' },
   });
 });
 

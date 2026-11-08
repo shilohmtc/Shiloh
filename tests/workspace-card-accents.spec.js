@@ -13,6 +13,7 @@ for (const viewport of [{name:'phone',width:390,height:844},{name:'desktop',widt
       ['booking-notes-upcoming','.booking-notes-indicator'],
     ]) {
       await page.goto(`/iframe.html?id=workspace-production-surfaces--${story}&viewMode=story`,{waitUntil:'networkidle'});
+      if(story==='dashboard-awaiting-deposits') await page.locator('[data-deposits-review] summary').click();
       const target=page.locator(selector).first();await expect(target).toBeVisible();
       if (story==='dashboard-awaiting-deposits') {
         await expect(page.locator('[data-workspace-card="deposit-pending"]')).toHaveCount(2);

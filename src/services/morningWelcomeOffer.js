@@ -23,10 +23,21 @@ function createMorningWelcomeOfferService({db=pool,now=()=>new Date()}={}) {
       FROM website_content_posts WHERE rule_code=$1`,[MORNING_OFFER.code])).rows[0];
     return visibleDocument(row,now());
   }
-  async function clientBinding(queryable, item) {
+  async function clientBinding(queryable, item, { allowNoMobile = false } = {}) {
+    if (item.noMobile) {
+      if (!allowNoMobile || !['first_visit','returning','unknown'].includes(item.firstVisitChoice))
+        throw new MorningOfferError('Review this guest’s first-visit choice again.');
+      if (!item.clientId) return {clientId:null,mobile:null,guest:true};
+      const client=(await queryable.query(`/* morningOffer:phonelessGuest */ SELECT id,normalized_mobile,status,
+        to_jsonb(c)->>'contact_mode' AS contact_mode FROM crm_v2_clients c WHERE id=$1`,[item.clientId])).rows[0];
+      if(!client || client.status!=='active' || client.normalized_mobile!==null || client.contact_mode!=='organiser')
+        throw new MorningOfferError('Select the current guest profile again.');
+      return {clientId:Number(client.id),mobile:null,guest:true};
+    }
     if(item.clientId) {
       const client=(await queryable.query('/* morningOffer:client */ SELECT id,normalized_mobile FROM crm_v2_clients WHERE id=$1',[item.clientId])).rows[0];
       if(!client)throw new MorningOfferError('Your client profile changed. Sign in again before booking.');
+      if(!client.normalized_mobile)throw new MorningOfferError('Review this guest’s first-visit choice through the group booking.');
       return {clientId:Number(client.id),mobile:client.normalized_mobile};
     }
     if(!/^27[678][0-9]{8}$/.test(String(item.guestMobile || '')))throw new MorningOfferError('Review the guest details again.');
@@ -53,30 +64,35 @@ function createMorningWelcomeOfferService({db=pool,now=()=>new Date()}={}) {
       FROM visits v WHERE v.status IN ('scheduled','confirmed','completed','unknown')`,[binding.clientId,binding.mobile])).rows[0] || {};
     return {firstDate:row.first_date || null,offerDate:row.offer_date || null};
   }
-  async function quoteItems(items,{queryable=db,lock=false,useOffer=true,otherPromotion=false}={}) {
+  async function quoteItems(items,{queryable=db,lock=false,useOffer=true,otherPromotion=false,allowNoMobile=false}={}) {
     if(typeof useOffer!=='boolean' || typeof otherPromotion!=='boolean')throw new MorningOfferError('Review the promotional offer choice again.');
     const policy=await activePolicy(queryable);
     if(!policy) {
-      const priced=items.map(item=>({...promotionPrice(item.price,false),availableDiscount:'0.00',serviceId:Number(item.serviceId),staffId:Number(item.staffId),startsAt:new Date(item.startsAt).toISOString(),identityKey:item.identityKey || `client:${item.clientId}`,visitDate:clinicDate(item.startsAt)}));
+      const priced=items.map(item=>({...promotionPrice(item.price,false),availableDiscount:'0.00',serviceId:Number(item.serviceId),staffId:Number(item.staffId),startsAt:new Date(item.startsAt).toISOString(),identityKey:item.identityKey || `client:${item.clientId}`,visitDate:clinicDate(item.startsAt),...(item.noMobile?{firstVisitChoice:item.firstVisitChoice,eligibilityReason:'offer_unavailable'}:{})}));
       return {items:priced,total:(priced.reduce((sum,p)=>sum+Math.round(Number(p.total)*100),0)/100).toFixed(2),discount:'0.00',terms:[...MORNING_TERMS]};
     }
     const bindings=[];
-    for(const item of items)bindings.push(await clientBinding(queryable,item));
+    for(const item of items)bindings.push(await clientBinding(queryable,item,{allowNoMobile}));
     if(lock)await queryable.query('SELECT id FROM crm_v2_clients WHERE id=ANY($1::bigint[]) ORDER BY id FOR UPDATE',[[...new Set(bindings.map(b=>b.clientId).filter(Boolean))].sort((a,b)=>a-b)]);
     const histories=new Map();
     const priced=[];
     for(const [index,item] of items.entries()) {
       const binding=bindings[index];
-      if(!histories.has(binding.mobile))histories.set(binding.mobile,await visitHistory(queryable,binding));
-      const history=histories.get(binding.mobile), date=clinicDate(item.startsAt);
-      const candidateDates=items.filter((_,i)=>bindings[i].mobile===binding.mobile).map(i=>clinicDate(i.startsAt));
+      // NULL is not a shared contact identity. Each selected guest has their
+      // own history; a new reviewed slot remains stable after profile creation.
+      const key=binding.guest ? (binding.clientId?`client:${binding.clientId}`:item.identityKey) : binding.mobile;
+      if(!histories.has(key))histories.set(key,await visitHistory(queryable,binding));
+      const history=histories.get(key), date=clinicDate(item.startsAt);
+      const candidateDates=items.filter((_,i)=>binding.guest ? i===index : bindings[i].mobile===binding.mobile).map(i=>clinicDate(i.startsAt));
       const firstDate=[history.firstDate,...candidateDates].filter(Boolean).sort()[0];
       const activeAtVisit=policy && (!policy.startsAt || Date.parse(item.startsAt)>=Date.parse(policy.startsAt)) && (!policy.endsAt || Date.parse(item.startsAt)<Date.parse(policy.endsAt));
       const eligible=Boolean(!otherPromotion && activeAtVisit && new Date(item.startsAt)>now() && eligibleService(item) && offerTimeEligible(item.startsAt)
-        && date===firstDate && (!history.offerDate || history.offerDate===date));
+        && date===firstDate && (!history.offerDate || history.offerDate===date)
+        && (!binding.guest || (item.firstVisitChoice==='first_visit' && !history.firstDate && !history.offerDate)));
       const price=promotionPrice(item.price,eligible && useOffer);
       priced.push({...price,availableDiscount:promotionPrice(item.price,eligible).discount,serviceId:Number(item.serviceId),staffId:Number(item.staffId),startsAt:new Date(item.startsAt).toISOString(),
-        identityKey:item.identityKey || `client:${binding.clientId}`,visitDate:date});
+        identityKey:item.identityKey || `client:${binding.clientId}`,visitDate:date,
+        ...(binding.guest?{firstVisitChoice:item.firstVisitChoice,eligibilityReason:history.firstDate||history.offerDate?'recorded_history':item.firstVisitChoice!=='first_visit'?'not_confirmed_first_visit':eligible?'eligible':'treatment_time_or_promotion'}:{})});
     }
     return {items:priced,total:(priced.reduce((sum,p)=>sum+Math.round(Number(p.total)*100),0)/100).toFixed(2),
       discount:(priced.reduce((sum,p)=>sum+Math.round(Number(p.discount)*100),0)/100).toFixed(2),terms:[...MORNING_TERMS]};
@@ -87,15 +103,16 @@ function createMorningWelcomeOfferService({db=pool,now=()=>new Date()}={}) {
   async function record(queryable,{appointmentId,clientId,price}) {
     if(!price.offerCode || Number(price.discount)<=0)return;
     await queryable.query(`INSERT INTO morning_offer_booking_prices(appointment_id,crm_v2_client_id,offer_code,canonical_subtotal,discount_amount,final_total,terms_snapshot)
-      VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)`,[appointmentId,clientId,MORNING_OFFER.code,price.subtotal,price.discount,price.total,JSON.stringify({version:MORNING_OFFER.code,terms:MORNING_TERMS,visitDate:price.visitDate})]);
+      VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)`,[appointmentId,clientId,MORNING_OFFER.code,price.subtotal,price.discount,price.total,JSON.stringify({version:MORNING_OFFER.code,terms:MORNING_TERMS,visitDate:price.visitDate,...(price.firstVisitChoice?{firstVisitChoice:price.firstVisitChoice,eligibilityBasis:'staff_declaration_and_canonical_history'}:{})})]);
   }
   // Calendar reviews persist the server quote in their existing pending session.
   // Guest mobile remains the quote identity before and after a new CRM row is made.
-  async function calendarQuote(assignments, people, {queryable=db,lock=false,useOffer=true,otherPromotion=false}={}) {
+  async function calendarQuote(assignments, people, {queryable=db,lock=false,useOffer=true,otherPromotion=false,allowNoMobile=false}={}) {
     const items=assignments.map((a,i)=>({
       clientId:people[i].clientId || people[i].id || null,
       guestMobile:people[i].mobile || people[i].normalized_mobile,
-      identityKey:people[i].mobile ? `guest:${people[i].mobile}` : `client:${people[i].clientId || people[i].id}`,
+      identityKey:people[i].noMobile ? (people[i].offerIdentityKey || (people[i].clientId?`client:${people[i].clientId}`:`guest-slot:${i+1}`)) : people[i].mobile ? `guest:${people[i].mobile}` : `client:${people[i].clientId || people[i].id}`,
+      ...(people[i].noMobile?{noMobile:true,firstVisitChoice:people[i].firstVisitChoice}:{}),
       serviceId:a.service?.id || a.service_id || a.row?.service_id,
       staffId:a.practitioner?.id || a.staff_id || a.row?.staff_id,
       startsAt:a.startsAt,
@@ -105,7 +122,7 @@ function createMorningWelcomeOfferService({db=pool,now=()=>new Date()}={}) {
       variablePrice:a.service?.variablePrice || a.variable_price || a.row?.variable_price,
       prepaidPackage:a.prepaidPackage === true,
     }));
-    return quoteItems(items,{queryable,lock,useOffer,otherPromotion});
+    return quoteItems(items,{queryable,lock,useOffer,otherPromotion,allowNoMobile});
   }
   return {activePolicy,quoteItems,assertReviewed,record,calendarQuote};
 }

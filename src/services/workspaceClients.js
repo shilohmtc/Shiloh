@@ -1,5 +1,6 @@
+const { CLIENT_COLUMNS } = require('../repositories/crmV2ClientRepository');
 const { pool } = require('../db/pool');
-const { readClientAppStatus } = require('./workspaceClientAppStatus');
+const { readClientAppStatus, readClientAppStatuses } = require('./workspaceClientAppStatus');
 const crmReadService = require('./crmReadService');
 const { createWorkspaceCommunicationEvidenceService } = require('./workspaceCommunicationEvidence');
 const { evaluateClientManageAuthority, clientRelationshipRevision } = require('./workspaceClientMutations');
@@ -70,7 +71,7 @@ function normalizeOffset(value) {
   return Math.min(offset, 100000);
 }
 
-function createWorkspaceClientsService({ db = pool, readService = crmReadService, communicationService = null, policyAcceptanceService = null, submissionService = null, rewardsService = null, voucherService = null } = {}) {
+function createWorkspaceClientsService({ db = pool, readService = crmReadService, communicationService = null, policyAcceptanceService = null, submissionService = null, rewardsService = null, voucherService = null, paymentService = null } = {}) {
   if (!db || typeof db.query !== 'function') throw new Error('Workspace Clients database is required');
   const communicationReads = communicationService || createWorkspaceCommunicationEvidenceService({ db });
   const policyReads = policyAcceptanceService || createInPersonBookingPolicyService({ db });
@@ -124,10 +125,12 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
       offset: safeOffset,
       scope: authority.clientScope,
     });
+    const pageClients = clients.slice(0, CLIENT_LIST_PAGE_SIZE);
+    const appStatuses = await readClientAppStatuses({ db, clientIds: pageClients.map(client => client.id), scope: authority.clientScope });
     return {
       authority,
       manageAllowed,
-      clients: clients.slice(0, CLIENT_LIST_PAGE_SIZE),
+      clients: pageClients.map(client => ({ ...client, appStatus: appStatuses[String(client.id)] })),
       hasMore: clients.length > CLIENT_LIST_PAGE_SIZE,
       offset: safeOffset,
       pageSize: CLIENT_LIST_PAGE_SIZE,
@@ -149,8 +152,7 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
 
     const revisionResult = await db.query(
       `/* workspaceClients:revision */
-       SELECT id,name,normalized_mobile,date_of_birth,gender,profile_status,
-              mobile_verified_at,source,status,created_at,updated_at
+       SELECT ${CLIENT_COLUMNS}
          FROM crm_v2_clients
         WHERE id=$1
         LIMIT 1`,
@@ -158,6 +160,7 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
     );
     if (!revisionResult.rows[0]) throw new WorkspaceClientsError('WORKSPACE_CLIENT_NOT_FOUND', 'Client was not found.', 404);
     client.revision = clientRelationshipRevision(revisionResult.rows[0], client.status);
+    client.contact_mode = revisionResult.rows[0].contact_mode || null;
 
     const appStatus = await readClientAppStatus({ db, clientId: id, scope: authority.clientScope });
     const safeOffset = normalizeOffset(historyOffset);
@@ -195,7 +198,11 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
       consultationHistoryRestricted = error.httpStatus === 403;
       consultationHistoryUnavailable = !consultationHistoryRestricted;
     }
-    const appointmentsWithReadiness = visibleHistory.map(item => ({
+    const selectedServices = ['overview', 'appointments', 'forms', 'rewards', 'vouchers', 'activity'].includes(services) ? services : (formsPage != null || policyOffset != null ? 'forms' : historyOffset != null ? 'appointments' : 'overview');
+    const paymentHistory = selectedServices === 'appointments'
+      ? await require('./workspaceClientPaymentSummary').clientHistoryPayments({ appointments: visibleHistory, scope: authority.clientScope, adminId, paymentService: paymentService || require('./bookingPayments').createBookingPaymentService({ db }) })
+      : visibleHistory;
+    const appointmentsWithReadiness = paymentHistory.map(item => ({
       ...item,
       bookingReadiness: readiness.get(Number(item.id)) || null,
     }));
@@ -239,7 +246,7 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
       communicationsUnavailable,
       rewards,
       vouchers,
-      services: ['forms', 'rewards', 'vouchers', 'activity'].includes(services) ? services : (formsPage != null || policyOffset != null ? 'forms' : null),
+      services: selectedServices,
     };
   }
 

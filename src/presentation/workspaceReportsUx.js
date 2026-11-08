@@ -2,6 +2,7 @@ const { formatRand: generatedRand } = require('./currency');
 // Preserve the report's existing non-negative/missing-value presentation authority.
 function formatRand(value) { return generatedRand(Math.max(0, Number(value) || 0)); }
 const { workspaceErrorRecoveryClientScript } = require('./workspaceErrorRecovery');
+const {targetStyles,targetSection}=require('./workspaceBusinessTargetsUx');
 const { recordsStyles, recordSections } = require('./workspaceFinancialRecordsUx');
 const { financialStyles, financialOverview, financialContext, financialSections } = require('./workspaceFinancialReportsUx');
 const {
@@ -111,6 +112,31 @@ function trendSummary(trend) {
   return `${Math.abs(delta)} ${direction} appointment${Math.abs(delta) === 1 ? '' : 's'} than the previous period.`;
 }
 
+function visitComparisonStyles() {
+  return `.visit-comparison{margin:0 0 18px}.visit-comparison figcaption{font-weight:750;font-size:.85rem}.visit-comparison dl{display:grid;gap:16px;margin:16px 0}.visit-comparison-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:16px;align-items:center}.visit-comparison dt{font-size:.82rem;font-weight:650}.visit-comparison small{display:block;margin-top:4px;color:var(--muted);font-size:.73rem;font-weight:400}.visit-comparison dd{margin:0;display:grid;grid-template-columns:3ch minmax(0,1fr);gap:10px;align-items:center}.visit-bar-track{display:block;height:14px;background:var(--leaf-soft);border-radius:3px;overflow:hidden}.visit-bar-track>span{display:block;height:100%;background:var(--leaf)}@media(max-width:700px){.visit-comparison-row{grid-template-columns:1fr;gap:8px}}`;
+}
+
+function visitPeriodLabel(from, to) {
+  const start = new Date(from), end = new Date(new Date(to).getTime() - 1);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return 'Dates unavailable';
+  const format = new Intl.DateTimeFormat('en-ZA', { timeZone: 'Africa/Johannesburg', day: 'numeric', month: 'short', year: 'numeric' });
+  return `${format.format(start)} – ${format.format(end)}`;
+}
+
+function recordedVisitBars(trend, period) {
+  const max = Math.max(trend.currentCount, trend.previousCount, 1);
+  const rows = [
+    ['Previous period', period.previousFrom, period.previousTo, trend.previousCount],
+    ['This period', period.from, period.to, trend.currentCount],
+  ].map(([label, from, to, count]) => `<div class="visit-comparison-row"><dt>${label}<small>${escapeHtml(visitPeriodLabel(from, to))}</small></dt><dd><strong>${count}</strong><span class="visit-bar-track" aria-hidden="true"><span style="width:${count / max * 100}%"></span></span></dd></div>`).join('');
+  return `<figure class="visit-comparison"><figcaption>Recorded visits by reporting period</figcaption><dl>${rows}</dl></figure>`;
+}
+
+function recordedVisitsSection(trend, period = {}) {
+  const available = trend?.available === true;
+  return `<details class="panel" id="recorded-visits" data-report-section><summary class="panel-heading"><div><span class="eyebrow">Visit outcomes</span><h3>Recorded completed visits</h3><p>Completed and no-charge appointment records, compared with the previous period.</p></div></summary><div class="panel-body">${available ? `${recordedVisitBars(trend, period)}<div class="client-grid"><div class="client-stat"><strong>${escapeHtml(trend.currentCount)}</strong><span>This period</span></div><div class="client-stat"><strong>${escapeHtml(trend.previousCount)}</strong><span>Previous period</span></div><div class="client-stat"><strong>${trend.delta > 0 ? '+' : ''}${escapeHtml(trend.delta)}</strong><span>Change in records</span></div></div><p class="footer-note">${trend.percent === null ? 'Percentage change is unavailable because the previous period has no recorded completed visits.' : `${escapeHtml(trend.percent > 0 ? '+' : '')}${escapeHtml(trend.percent)}% compared with the previous period.`}</p>` : '<p class="empty">Visit comparison unavailable.</p>'}<p class="footer-note">Completion does not confirm payment.</p><details><summary>How this is calculated</summary><p class="footer-note">Counts use the appointment date and its current recorded outcome. Scheduled, cancelled and no-show appointments do not count. Each completed appointment record counts once, including individual records in a group booking; this is not a count of unique clients or a 30/60/90-day return rate. Late outcome corrections can change these figures. Historical record completeness has not been verified.</p></details></div></details>`;
+}
+
 function renderReportsPage(model, {
   staffAccessScriptPath = '/calendar/staff/client.js',
   csrfToken = '',
@@ -164,7 +190,7 @@ function renderReportsPage(model, {
       ? `Showing ${selectedStaff?.displayName || selectedStaff?.display_name || 'the selected team member'}.`
       : 'Showing the whole team.';
 
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clinic reports — Shiloh Workspace</title><style>${workspaceShellStyles()}${reportStyles()}${phoneCapacityStyles()}${earningsStyles()}${reportSectionStyles()}${financialStyles()}${recordsStyles()}</style><script src="/calendar/reports/sections.js" defer></script><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${model.staffEarnings ? '<script src="/calendar/reports/commission.js" defer></script>' : ''}${model.financial?.records ? '<script src="/calendar/reports/finance-records.js" defer></script>' : ''}</head><body data-workspace-reports="true"><div class="workspace-frame">${renderWorkspaceNavigation({
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Clinic reports — Shiloh Workspace</title><style>${workspaceShellStyles()}${reportStyles()}${visitComparisonStyles()}${phoneCapacityStyles()}${earningsStyles()}${reportSectionStyles()}${financialStyles()}${recordsStyles()}${targetStyles()}</style><script src="/calendar/reports/sections.js" defer></script><script src="${escapeHtml(staffAccessScriptPath)}" defer></script>${model.staffEarnings ? '<script src="/calendar/reports/commission.js" defer></script>' : ''}${model.financial?.records ? '<script src="/calendar/reports/finance-records.js" defer></script>' : ''}${model.targets ? '<script src="/calendar/reports/targets.js" defer></script>' : ''}</head><body data-workspace-reports="true"><div class="workspace-frame">${renderWorkspaceNavigation({
     active: 'reports',
     displayName: model.authority?.displayName,
     calendarHref: '/calendar/read-only',
@@ -187,7 +213,7 @@ function renderReportsPage(model, {
     </section>
 
     ${financialOverview(model)}
-    <nav class="jump-row" aria-label="Report sections">${model.financial ? '<a class="jump-link" href="#money">Money</a>' : ''}<a class="jump-link" href="#team">Team</a><a class="jump-link" href="#activity">Activity</a></nav>
+    <nav class="jump-row" aria-label="Report sections">${model.financial ? '<a class="jump-link" href="#money">Money</a>' : ''}${model.targets ? '<a class="jump-link" href="#targets">Targets</a>' : ''}<a class="jump-link" href="#team">Team</a><a class="jump-link" href="#activity">Activity</a></nav>
 
     ${model.financial ? `<details class="panel report-group" id="money" data-report-section><summary class="panel-heading"><div><h2>Money</h2><p>Whole clinic · receipts, balances${model.financial.records ? ', expenses and daily cash-up' : ''}.</p></div></summary><div class="panel-body">
       ${model.financial.records ? '<div class="report-tools"><a class="button" href="#financial-expenses">Record expense</a><a class="button" href="#financial-cashup">Review / close cash-up</a></div>' : ''}
@@ -195,6 +221,8 @@ function renderReportsPage(model, {
       ${financialSections(model.financial)}
       ${recordSections(model.financial.records, model.period, csrfToken)}
     </div></details>` : ''}
+
+    ${targetSection(model.targets,model.period,csrfToken)}
 
     <details class="panel report-group" id="team" data-report-section><summary class="panel-heading"><div><h2>Team</h2><p>Booking time${model.staffEarnings ? ' and calculated commission' : ''} · ${escapeHtml(showingText)}${commissionReview ? ` · ${escapeHtml(commissionReview)} commission ${commissionReview === 1 ? 'entry needs' : 'entries need'} review.` : ''}</p></div></summary><div class="panel-body">
       <div class="metrics" aria-label="Team booking time summary">
@@ -211,9 +239,10 @@ function renderReportsPage(model, {
 
     <details class="panel report-group" id="activity" data-report-section><summary class="panel-heading"><div><h2>Activity</h2><p>Appointments, treatments and clients · ${escapeHtml(showingText)}</p></div></summary><div class="panel-body">
         <section class="panel"><div class="panel-heading"><div><span class="eyebrow">Appointments</span><h3>Appointment status</h3><p>${escapeHtml(model.appointments?.operational || 0)} appointment${Number(model.appointments?.operational || 0) === 1 ? '' : 's'} excluding cancellations · ${escapeHtml(model.appointments?.allRecorded || 0)} appointment${Number(model.appointments?.allRecorded || 0) === 1 ? '' : 's'} recorded, including cancellations.</p></div></div><div class="status-strip">${statusPills || '<div class="empty">No appointments were recorded in this period.</div>'}</div></section>
+        ${recordedVisitsSection(model.recordedVisits, model.period)}
         <details class="panel" id="treatments" data-report-section><summary class="panel-heading"><div><span class="eyebrow">Treatments</span><h3>Treatments booked</h3><p>Which treatments were booked most often.</p></div></summary><div class="panel-body"><div class="service-list">${serviceRows || '<div class="empty">No treatments were booked in this period.</div>'}</div></div></details>
 
-        <details class="panel" id="clients" data-report-section><summary class="panel-heading"><div><span class="eyebrow">Clients</span><h3>New and returning clients</h3><p>Clients linked to non-cancelled appointments in this period.</p></div></summary><div class="panel-body"><p class="footer-note">This client mix does not yet include all clients in the current Clients list. Appointment totals can be higher. New means their first recorded non-cancelled appointment falls in this period; it does not confirm attendance. Contact details are not shown here.</p><div class="client-grid"><div class="client-stat"><strong>${escapeHtml(model.clients?.uniqueClients || 0)}</strong><span>Total clients</span></div><div class="client-stat"><strong>${escapeHtml(model.clients?.newClients || 0)}</strong><span>New</span></div><div class="client-stat"><strong>${escapeHtml(model.clients?.returningClients || 0)}</strong><span>Returning</span></div></div></div></details>
+        <details class="panel" id="clients" data-report-section><summary class="panel-heading"><div><span class="eyebrow">Clients</span><h3>Recorded client history</h3><p>Clients linked to non-cancelled appointments in this period.</p></div></summary><div class="panel-body"><p class="footer-note">This client mix does not yet include all clients in the current Clients list. Appointment totals can be higher. First recorded means the earliest linked non-cancelled appointment falls in this period. It does not establish a first-ever visit or confirm attendance; legacy history may be incomplete. Contact details are not shown here.</p><div class="client-grid"><div class="client-stat"><strong>${escapeHtml(model.clients?.uniqueClients || 0)}</strong><span>Total clients</span></div><div class="client-stat"><strong>${escapeHtml(model.clients?.newClients || 0)}</strong><span>First recorded in period</span></div><div class="client-stat"><strong>${escapeHtml(model.clients?.returningClients || 0)}</strong><span>Earlier appointment recorded</span></div></div></div></details>
 
         <details class="panel" id="activity-comparison" data-report-section><summary class="panel-heading"><div><span class="eyebrow">Comparison</span><h3>Appointments compared with the previous period</h3><p>${model.period.preset === 'week' ? 'The same weekdays last week.' : model.period.preset === 'month' ? 'The same elapsed dates last month, up to its final day.' : 'The same number of days immediately before this report.'}</p></div></summary><div class="panel-body"><div class="trend-card"><div class="trend-number">${Number(model.trend?.delta || 0) > 0 ? '+' : ''}${escapeHtml(model.trend?.delta || 0)}</div><div class="trend-copy">${escapeHtml(trendSummary(model.trend))} This period: ${escapeHtml(model.trend?.currentOperationalAppointments || 0)} · Previous: ${escapeHtml(model.trend?.previousOperationalAppointments || 0)}.</div></div></div></details>
     </div></details>

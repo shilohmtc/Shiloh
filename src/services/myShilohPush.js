@@ -349,6 +349,7 @@ function createMyShilohPushService({
     body,
     targetPath = '/my-shiloh/',
     retryExisting = false,
+    deferWake = false,
   } = {}) {
     const clientId = Number(crmV2ClientId);
     if (!Number.isSafeInteger(clientId) || clientId <= 0) return { queued: false, reason: 'client_unavailable' };
@@ -376,9 +377,12 @@ function createMyShilohPushService({
         [key, clientId, now()],
       );
       if (!existing.rows.length) return { queued: false, reason: 'existing_notification_unavailable' };
+      if (deferWake === true) return { queued: true, duplicate: true, notificationId: Number(existing.rows[0].id), deferred: true };
       const delivery = await wakeClient(clientId);
       return { queued: true, duplicate: true, notificationId: Number(existing.rows[0].id), ...delivery };
     }
+    // Transactional callers wake the canonical client only after their outer commit.
+    if (deferWake === true) return { queued: true, notificationId: Number(inserted.rows[0].id), deferred: true };
     const delivery = await wakeClient(clientId);
     return { queued: true, notificationId: Number(inserted.rows[0].id), ...delivery };
   }
@@ -396,7 +400,7 @@ function createMyShilohPushService({
     )).rows[0];
     if (!subscription) return { notifications: [] };
     const result = await db.query(
-      `SELECT id,category,title,body,target_path,created_at
+      `SELECT id,category,title,body,target_path,created_at,event_key,expires_at
          FROM my_shiloh_push_notifications
         WHERE crm_v2_client_id=$1
           AND id>COALESCE($2,0)
@@ -414,8 +418,12 @@ function createMyShilohPushService({
         [Number(subscription.id), lastId, now()],
       );
     }
+    const visible = [];
+    for (const row of result.rows) {
+      if (await require('./guestBookingNoticeValidity').guestBookingNoticeVisible(db, row, { recipientClientId: clientId, now: now() })) visible.push(row);
+    }
     return {
-      notifications: result.rows.slice().reverse().map((row) => ({
+      notifications: visible.slice().reverse().map((row) => ({
         id: Number(row.id),
         category: row.category,
         title: row.title,
@@ -438,11 +446,15 @@ function createMyShilohPushService({
         LIMIT $2`,
       [clientId, safeLimit],
     );
+    const visible = [];
+    for (const row of result.rows) {
+      if (await require('./guestBookingNoticeValidity').guestBookingNoticeVisible(db, row, { recipientClientId: clientId, now: now() })) visible.push(row);
+    }
     return {
-      notifications: result.rows.map((row) => ({
+      notifications: visible.map((row) => ({
         id: Number(row.id),
         category: row.category,
-        requiresAttention: /^appointment-(cancellation|time|service|practitioner|price):/.test(String(row.event_key || '')),
+        requiresAttention: /^(?:appointment-(?:cancellation|time|service|practitioner|price):|guest-booking:(?:booking_changed|booking_cancelled):)/.test(String(row.event_key || '')),
         title: row.title,
         body: row.body,
         targetPath: safeTargetPath(row.target_path),

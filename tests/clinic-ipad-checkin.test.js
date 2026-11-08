@@ -49,10 +49,10 @@ test('appointment form preparation omits device revocation while active device c
   assert.doesNotMatch(settings,/data-revoke="2"/);
 });
 
-test('Workspace shows iPad controls only for authorised clinic client management while enabled',() => {
+test('Add client leaves clinic iPad setup to the permission-controlled Workspace menu',() => {
   const html='<html><head><style></style></head><body><main data-clients-list-view></main></body></html>';
   const clinic={ manageAllowed:true,authority:{clientScope:{kind:'clinic'}} };
-  assert.match(injectClientListManagement(html,clinic,{checkinEnabled:true}),/\/calendar\/check-in\/devices/);
+  assert.doesNotMatch(injectClientListManagement(html,clinic,{checkinEnabled:true}),/\/calendar\/check-in\/devices/);
   assert.doesNotMatch(injectClientListManagement(html,clinic),/\/calendar\/check-in\/devices/);
   assert.doesNotMatch(injectClientListManagement(html,{...clinic,authority:{clientScope:{kind:'tenant_staff'}}},{checkinEnabled:true}),/\/calendar\/check-in\/devices/);
 });

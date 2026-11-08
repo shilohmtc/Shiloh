@@ -155,6 +155,7 @@ test('Reports derive team time from the scheduling timeline and use read-only ag
   assert.equal(model.services[0].name, 'Sports Massage');
   assert.deepEqual(model.clients, { uniqueClients: 2, newClients: 1, returningClients: 1 });
   assert.equal(model.appointments.statusCounts.cancelled, 1);
+  assert.deepEqual(model.recordedVisits, { available: true, currentCount: 0, previousCount: 0, delta: 0, percent: null });
 
   for (const { sql } of db.seen) {
     assert.match(sql, /WorkspaceReports:/);
@@ -185,7 +186,7 @@ test('Reports presentation uses staff-friendly wording and escapes names and tre
   assert.match(html, /View report/);
   assert.match(html, /Team booking time/);
   assert.match(html, /Treatments booked/);
-  assert.match(html, /New and returning clients/);
+  assert.match(html, /Recorded client history/);
   assert.match(html, /Appointment and client sections are read only/);
   assert.doesNotMatch(html, /canonical|business-wide operational scope|practitioner authority|service snapshot|aggregate identity|utilisation/i);
   assert.doesNotMatch(html, /<Christel>|<Massage>/);
@@ -250,4 +251,32 @@ test('Reports skips retired campaign reads while retaining independently authori
   assert.equal(res.statusCode, 200);
   assert.equal(campaignReads, 0);
   assert.deepEqual(JSON.parse(res.body), financial);
+});
+
+
+test('Status summary reconciles with its categories when calendar visibility omits historical records', async () => {
+  const db = fakeDb();
+  const originalQuery = db.query.bind(db);
+  db.query = async (sql, params) => /WorkspaceReports:appointment_status/.test(sql)
+    ? { rows: [{status:'completed',count:48},{status:'no_show',count:3},{status:'scheduled',count:12},{status:'cancelled',count:18}] }
+    : originalQuery(sql, params);
+  const timeline = timelineFixture();
+  timeline.appointments = Array.from({length:62}, (_,i)=>({...timeline.appointments[0],id:100+i}));
+  const service = createWorkspaceReportsService({db,listTimeline:async()=>timeline});
+  const model = await service.buildReport({adminId:7,from:'2026-10-01',to:'2026-10-31'});
+  assert.equal(model.appointments.operational,63);
+  assert.equal(model.appointments.allRecorded,81);
+  assert.equal(model.appointments.operational+model.appointments.statusCounts.cancelled,model.appointments.allRecorded);
+  assert.equal(model.trend.currentOperationalAppointments,63);
+  const html=renderReportsPage(model);
+  assert.match(html,/63 appointments excluding cancellations/);
+  assert.match(html,/81 appointments recorded, including cancellations/);
+  assert.equal(timeline.appointments.length,62);
+});
+
+test('Status summary retains the selected practitioner scope', async () => {
+  const db=fakeDb({authority:ownerRow({calendar_scope:'own_appointments',staff_id:2})});
+  const model=await createWorkspaceReportsService({db,listTimeline:async()=>timelineFixture()}).buildReport({adminId:7,from:'2026-08-31',to:'2026-08-31'});
+  assert.equal(model.appointments.operational,1);
+  for (const call of db.seen.filter(x=>/WorkspaceReports:appointment_status/.test(x.sql))) assert.equal(call.params[2],2);
 });

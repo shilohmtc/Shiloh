@@ -58,15 +58,51 @@ function formatAppointmentDate(value) {
   }).format(new Date(value));
 }
 
-async function createAppointment({ appointmentId = null, clientId = null, crmV2ClientId = null, clientName = null, phone, service, appointmentAt, appointmentEndsAt = null, therapist, source = "admin" }) {
-  await ensureTable();
+async function createAppointment(input, { db = pool } = {}) {
+  const { appointmentId = null, clientId = null, crmV2ClientId = null, clientName = null, phone, service, appointmentAt, appointmentEndsAt = null, therapist, source = "admin" } = input;
+  if (db === pool) await ensureTable();
   const cleanPhone = normalizePhone(phone);
   const when = new Date(appointmentAt);
   const ends = appointmentEndsAt ? new Date(appointmentEndsAt) : null;
   if (!cleanPhone || !service || Number.isNaN(when.getTime()) || (ends && Number.isNaN(ends.getTime()))) throw new Error("phone, service and a valid appointmentAt are required");
 
   if (appointmentId) {
-    const result = await pool.query(
+    if (typeof db.connect === 'function' && typeof db.release !== 'function') {
+      const tx = await db.connect();
+      let released = false;
+      try {
+        await tx.query('BEGIN');
+        const result = await createAppointment(input, { db: tx });
+        await tx.query('COMMIT');
+        return result;
+      } catch (error) {
+        try { await tx.query('ROLLBACK'); } catch (_) {}
+        tx.release(error);
+        released = true;
+        throw error;
+      } finally { if (!released) tx.release(); }
+    }
+    const previous = (await db.query(`SELECT id,to_jsonb(al)->>'delivery_recipient_role' AS recipient_role,
+      to_jsonb(al)->>'organiser_group_id' AS organiser_group_id
+      FROM appointment_lifecycle al WHERE appointment_id=$1 FOR UPDATE`, [appointmentId])).rows[0];
+    if (previous?.recipient_role === 'organiser') {
+      const current = (await db.query(`SELECT c.id,c.normalized_mobile,to_jsonb(c)->>'contact_mode' AS contact_mode
+        FROM appointments a JOIN crm_v2_clients c ON c.id=a.crm_v2_client_id
+        WHERE a.id=$1 AND a.client_id IS NULL AND a.crm_v2_client_id=$2 AND c.status='active'
+        FOR UPDATE OF a,c`, [appointmentId, crmV2ClientId])).rows[0];
+      if (clientId != null || !current || current.contact_mode !== 'direct' || current.normalized_mobile !== cleanPhone) {
+        throw Object.assign(new Error('Use the guest’s own recorded mobile before enrolling direct appointment messages.'), {
+          code: 'GROUP_GUEST_DIRECT_CONTACT_REQUIRED', httpStatus: 409,
+        });
+      }
+      await db.query(`UPDATE appointment_lifecycle SET delivery_recipient_role='client',organiser_group_id=NULL,
+        phone=$2,updated_at=NOW() WHERE id=$1`, [previous.id, cleanPhone]);
+      await db.query(`INSERT INTO crm_audit_events(action,entity_type,entity_id,metadata)
+        VALUES('booking.guest_lifecycle_became_direct','appointment',$1,$2::jsonb)`, [appointmentId,
+        JSON.stringify({ lifecycleId: Number(previous.id), crmV2ClientId: Number(current.id),
+          previousOrganiserGroupId: Number(previous.organiser_group_id), reason: 'canonical_own_mobile' })]);
+    }
+    const result = await db.query(
       `INSERT INTO appointment_lifecycle
          (appointment_id, client_id, crm_v2_client_id, client_name_snapshot,
           phone, service_text, appointment_at, appointment_ends_at, therapist_text, source)
@@ -83,7 +119,7 @@ async function createAppointment({ appointmentId = null, clientId = null, crmV2C
     return result.rows[0];
   }
 
-  const result = await pool.query(
+  const result = await db.query(
     `INSERT INTO appointment_lifecycle (phone, service_text, appointment_at, appointment_ends_at, therapist_text, source)
      VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
     [cleanPhone, String(service).trim(), when.toISOString(), ends?.toISOString() || null, therapist || null, source]
@@ -116,6 +152,7 @@ async function claimDueReminder(db = pool, { appOnly = false } = {}) {
          FROM appointment_lifecycle al
          LEFT JOIN appointments ap ON ap.id=al.appointment_id
         WHERE al.status IN ('confirmed','confirmed_by_client')
+          AND al.phone IS NOT NULL
           AND al.reminder_sent_at IS NULL
           AND (al.appointment_id IS NULL OR (ap.id IS NOT NULL AND ap.status IN ('scheduled','confirmed')))
           AND COALESCE(ap.starts_at,al.appointment_at)>NOW()
@@ -147,12 +184,12 @@ async function claimDueReminder(db = pool, { appOnly = false } = {}) {
   return result.rows[0] || null;
 }
 
-async function claimDueFollowup() {
-  await ensureTable();
-  const result = await pool.query(
+async function claimDueFollowup(db = pool) {
+  if (db === pool) await ensureTable();
+  const result = await db.query(
     `UPDATE appointment_lifecycle a SET followup_sent_at=NOW(),updated_at=NOW()
      WHERE a.id=(SELECT id FROM appointment_lifecycle
-       WHERE status='completed' AND followup_sent_at IS NULL
+       WHERE status='completed' AND followup_sent_at IS NULL AND phone IS NOT NULL
          AND COALESCE(appointment_ends_at,appointment_at)<=NOW()-($1*INTERVAL '1 hour')
        ORDER BY COALESCE(appointment_ends_at,appointment_at) ASC FOR UPDATE SKIP LOCKED LIMIT 1)
      RETURNING a.*`, [FOLLOWUP_HOURS]
@@ -245,6 +282,7 @@ async function deliverClaimedReminder(appointment, reminderTemplate, reminderAct
 }
 
 async function processReminders() {
+  await require('./guestBookingReminders').processGuestReminders({ reminderHours: REMINDER_HOURS });
   const paused=true;
   const reminderActionsTemplate=null;
   const reminderTemplate=null;
@@ -265,4 +303,4 @@ async function processReminders() {
 async function runScan(){if(running)return;running=true;try{await processReminders();}catch(error){logger.error({err:error},"Appointment lifecycle scan failed");}finally{running=false;}}
 function startAppointmentLifecycleScheduler(){if(timer)return;logger.info({scanMinutes:SCAN_MINUTES,reminderHours:REMINDER_HOURS,followupHours:FOLLOWUP_HOURS,channel:"my_shiloh"},"Appointment lifecycle scheduler started");setTimeout(runScan,5000).unref();timer=setInterval(runScan,Math.max(SCAN_MINUTES,1)*60*1000);timer.unref();}
 
-module.exports={ensureTable,createAppointment,listAppointments,updateAppointmentStatus,claimDueReminder,deliverClaimedReminder,deliverClaimedFollowup,processReminders,startAppointmentLifecycleScheduler};
+module.exports={ensureTable,createAppointment,listAppointments,updateAppointmentStatus,claimDueReminder,claimDueFollowup,deliverClaimedReminder,deliverClaimedFollowup,processReminders,startAppointmentLifecycleScheduler};

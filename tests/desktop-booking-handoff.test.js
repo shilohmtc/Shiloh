@@ -1,7 +1,15 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {toPublicService}=require('../src/services/publicPresentation');
+const {toPublicService,correctYoungGuestBackNeckTypo}=require('../src/services/publicPresentation');
 const {renderMyShilohPage}=require('../src/presentation/myShilohPwa');
+test('internal Young Guest label correction preserves age wording and unrelated treatment names',()=>{
+ for(const amp of ['&!','&amp;!']){
+  const suffix=' Massage (age 8-15)';
+  assert.equal(correctYoungGuestBackNeckTypo('Young Guest Back '+amp+'Neck'+suffix),'Young Guest Back & Neck'+suffix);
+ }
+ for(const name of ['Sports Massage Full Body','Young Guest Back & Neck Massage (age 8-15)','Different Back &!Neck Massage'])
+  assert.equal(correctYoungGuestBackNeckTypo(name),name);
+});
 for(const name of ['Young Guest Back &amp;!Neck Massage','Young Guest Back &!Neck Massage','Young Guest Back &amp;!Neck Massage(age8–15)'])test('correct known Young Guest display typo: '+name,()=>{
  const service={id:901,name,category:'Massage',duration:'30 min',price:'250'};
  const view=toPublicService(service);assert.ok(!view.name.includes('!'));assert.match(view.name,/Young Guest Back & Neck Massage/);assert.equal(view.canonicalName,name);assert.equal(service.name,name);assert.equal(view.id,901);assert.equal(view.duration,'30 min');assert.equal(view.price,'R250');

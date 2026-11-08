@@ -7,7 +7,7 @@ const lifecycle = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 
 const finalization = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'adminAppointmentFinalization.js'), 'utf8');
 
 test('post-appointment client followups require explicit completed attendance', () => {
-  const claim = lifecycle.match(/async function claimDueFollowup\(\)[\s\S]*?async function undoClaim/);
+  const claim = lifecycle.match(/async function claimDueFollowup\(db = pool\)[\s\S]*?async function undoClaim/);
   assert.ok(claim);
   assert.match(claim[0], /WHERE status='completed' AND followup_sent_at IS NULL/);
   assert.doesNotMatch(claim[0], /confirmed_by_client/);

@@ -1,7 +1,7 @@
 const { calendarReturnClientScript } = require('./calendarReturnContext');
 const { calendarCouplesEditingClientScript } = require('./calendarCouplesEditingUx');
 function calendarAppointmentDetailsClientScript() {
-  return calendarCouplesEditingClientScript() + `(function(){'use strict';
+  return require('./calendarClientToolsUx').calendarClientToolsScript() + calendarCouplesEditingClientScript() + `(function(){'use strict';
 ${calendarReturnClientScript()}
 function one(selector,root){return(root||document).querySelector(selector);}
 function text(selector,root){var node=one(selector,root);return node?String(node.textContent||'').trim():'';}

@@ -1,4 +1,14 @@
+const crypto = require('node:crypto');
 const { pool } = require('../db/pool');
+const { groupGuestStorageReady } = require('./groupGuestStorageReadiness');
+const { createGroupBookingOrganiserService } = require('./groupBookingOrganiser');
+const { createGuestGroupConfirmationService } = require('./guestGroupConfirmation');
+const { resolveGuestWithoutMobile } = require('./groupGuestProfiles');
+const { PostgresCrmV2ClientRepository } = require('../repositories/crmV2ClientRepository');
+const { isOrganiserContactGuest } = require('./crmV2GuestProfile');
+const { clientRevision } = require('./workspaceClientMutations');
+const { defaultPushService } = require('./myShilohPush');
+const { GUEST_BOOKINGS_ENABLED } = require('./groupGuestFeature');
 const { createMorningWelcomeOfferService, pricingHash, MorningOfferError, applyCalendarOffer } = require('./morningWelcomeOffer');
 const crmV2 = require('./crmV2ClientService');
 const { createCalendarCreateBookingService, canonicalLocalDateTimeFromInputs } = require('./calendarCreateBooking');
@@ -30,24 +40,31 @@ function positiveId(value) {
   return Number.isSafeInteger(number) && number > 0 ? number : null;
 }
 
-function normalizeGuest(value = {}) {
+function normalizeGuest(value = {}, options = {}) {
   const rawClientId = String(value.clientId || '').trim();
   const clientId = positiveId(value.clientId);
   if (rawClientId && !clientId) throw groupError('GROUP_INVALID_CLIENT', 'Select a valid client profile or clear the client selection.');
   const name = crmV2.normalizeName(value.name);
-  const mobile = crmV2.normalizeMobile(value.mobile);
+  const noMobile = value.noMobile === true || value.noMobile === 'on';
+  if (noMobile && (options?.allowNoMobile !== true || String(value.mobile ?? '').trim())) throw groupError('GROUP_GUEST_CONTACT_REVIEW', 'Review the guest and organiser contact before continuing.');
+  const mobile = noMobile ? null : crmV2.normalizeMobile(value.mobile);
   const dateOfBirth = crmV2.normalizeDateOfBirth(value.dateOfBirth);
   const gender = crmV2.normalizeGender(value.gender);
   if (!name) throw groupError('GROUP_INVALID_NAME', 'Enter the guest’s first name and surname.');
-  if (!mobile) throw groupError('GROUP_INVALID_MOBILE', 'Enter a valid South African mobile number for each guest.');
-  return { clientId, name, mobile, dateOfBirth, gender };
+  if (!mobile && !noMobile) throw groupError('GROUP_INVALID_MOBILE', 'Enter a valid South African mobile number for each guest.');
+  const firstVisitChoice = value.firstVisitChoice ?? 'unknown';
+  if (noMobile && !['first_visit', 'returning', 'unknown'].includes(firstVisitChoice))
+    throw groupError('GROUP_GUEST_VISIT_CHOICE', 'Review whether this guest has visited Shiloh before.');
+  return { clientId, name, mobile, dateOfBirth, gender, ...(noMobile ? { noMobile: true, firstVisitChoice, ...(value.profileRevision ? { profileRevision: String(value.profileRevision) } : {}) } : {}) };
 }
 
 function ensureDistinctGroupGuests(guests) {
   if (guests.length < MIN_GROUP_GUESTS || guests.length > MAX_GROUP_GUESTS) {
     throw groupError('GROUP_GUEST_COUNT_INVALID', 'Add between 3 and 10 guests.');
   }
-  if (new Set(guests.map(guest => guest.mobile)).size !== guests.length) {
+  if (guests.some(guest => !guest.mobile && guest.noMobile !== true)) throw groupError('GROUP_INVALID_MOBILE', 'Enter a valid mobile or explicitly review this guest without a mobile.');
+  const mobiles = guests.map(guest => guest.mobile).filter(Boolean);
+  if (new Set(mobiles).size !== mobiles.length) {
     throw groupError('GROUP_DUPLICATE_MOBILE', 'Every guest needs a different mobile number.');
   }
   const selectedIds = guests.map(guest => guest.clientId).filter(Boolean);
@@ -119,7 +136,20 @@ function createCalendarGroupBookingService({
   db = pool,
   standardBooking = createCalendarCreateBookingService({ db }),
   morningOffer = db === pool ? createMorningWelcomeOfferService({ db }) : null,
+  // Staged locally: enabling requires approved compatible storage and release checks.
+  guestBookingsEnabled = GUEST_BOOKINGS_ENABLED,
+  organiserService = createGroupBookingOrganiserService(),
+  wakeOrganiser = id => defaultPushService.wakeClient(id),
 } = {}) {
+  const organiserConfirmation = createGuestGroupConfirmationService({ organiser: organiserService });
+  function guestAuthority(admin) {
+    const a = admin?.calendarAuthority;
+    return a?.calendarScope === 'all_business' && a.serviceScope === 'all_services'
+      && hasCapability(a, 'appointment:create') && hasCapability(a, 'client:lookup');
+  }
+  async function guestAvailable(admin, queryable = db) {
+    return guestBookingsEnabled === true && guestAuthority(admin) && await groupGuestStorageReady(queryable);
+  }
   async function resolveOperator(adminId) {
     return standardBooking.resolveOperator(adminId);
   }
@@ -146,6 +176,7 @@ function createCalendarGroupBookingService({
     const eligibleStaffIds = new Set(services.flatMap(service => service.staffIds.map(Number)));
     return {
       services,
+      ...(await guestAvailable(admin) ? { guestBooking: { available: true } } : {}),
       staff: standard.staff.filter(person => eligibleStaffIds.has(Number(person.id))),
       authority: {
         ...standard.authority,
@@ -156,6 +187,22 @@ function createCalendarGroupBookingService({
 
   async function searchClients(adminId, query) {
     const result = await standardBooking.searchClients(adminId, query);
+    const guestMode = await guestAvailable(await resolveOperator(adminId));
+    if (guestMode) {
+      const repository = new PostgresCrmV2ClientRepository(db);
+      const clients = [];
+      for (const summary of result.clients || []) {
+        const row = await repository.getClientById(summary.id);
+        const clinic = (await db.query("SELECT 1 FROM crm_v2_client_relationships WHERE client_id=$1 AND relationship_type='clinic' AND owner_staff_id IS NULL AND status='active'", [summary.id])).rows;
+        if (!row || row.status !== 'active' || clinic.length !== 1) continue;
+        const noMobile = isOrganiserContactGuest(row);
+        if (!noMobile && !crmV2.normalizeMobile(row.normalized_mobile)) continue;
+        clients.push({ ...summary, name: row.name, mobile: row.normalized_mobile ? `+${row.normalized_mobile}` : '',
+          dateOfBirth: row.date_of_birth, gender: row.gender, noMobile,
+          profileRevision: clientRevision(row), contactHint: noMobile ? 'No mobile · organiser contact' : summary.contactHint });
+      }
+      return { ...result, clients };
+    }
     const clients = await Promise.all((result.clients || []).map(async summary => {
       const client = await crmV2.getClientById(summary.id);
       return {
@@ -180,10 +227,24 @@ function createCalendarGroupBookingService({
     discount,
     notes,
     useMorningOffer = true,
+    organiserClientId,
   } = {}) {
     if (typeof useMorningOffer !== 'boolean') throw groupError('BOOKING_OFFER_INVALID', 'Review the promotional offer choice again.');
     const options = await listOptions(adminId);
-    const guests = (Array.isArray(rawGuests) ? rawGuests : []).map(normalizeGuest);
+    const guests = (Array.isArray(rawGuests) ? rawGuests : []).map(value => normalizeGuest(value, { allowNoMobile: options.guestBooking?.available === true }));
+    let guestContact = null;
+    if (guests.some(guest => guest.noMobile)) {
+      const reviewedOrganiser = await organiserService.review(db, { adminId, organiserClientId });
+      const repository = new PostgresCrmV2ClientRepository(db);
+      for (const guest of guests.filter(item => item.noMobile && item.clientId)) {
+        const current = await repository.getClientById(guest.clientId);
+        const clinic = (await db.query("SELECT 1 FROM crm_v2_client_relationships WHERE client_id=$1 AND relationship_type='clinic' AND owner_staff_id IS NULL AND status='active'", [guest.clientId])).rows;
+        if (!current || current.status !== 'active' || !isOrganiserContactGuest(current) || clinic.length !== 1)
+          throw groupError('GROUP_GUEST_CHANGED', 'Select the current active guest profile again.', 409);
+        guest.profileRevision = clientRevision(current);
+      }
+      guestContact = { reviewedOrganiser, reviewKey: crypto.randomBytes(24).toString('base64url') };
+    }
     ensureDistinctGroupGuests(guests);
     const assignments = resolveAssignments(options, rawStaffIds, rawServiceIds);
     if (assignments.length !== guests.length) {
@@ -229,11 +290,12 @@ function createCalendarGroupBookingService({
 
     const startsAt = new Date(Math.min(...resolved.map(item => new Date(item.startsAt).getTime()))).toISOString();
     const endsAt = new Date(Math.max(...resolved.map(item => new Date(item.endsAt).getTime()))).toISOString();
-    const offerPricing = morningOffer ? await morningOffer.calendarQuote(resolved, guests, { useOffer: useMorningOffer, otherPromotion: pricing.discountAmount > 0 }) : null;
+    const offerPricing = morningOffer ? await morningOffer.calendarQuote(resolved, guests, { useOffer: useMorningOffer, otherPromotion: pricing.discountAmount > 0, allowNoMobile: Boolean(guestContact) }) : null;
     pricing = applyCalendarOffer(pricing, offerPricing);
     const payload = {
       ...(offerPricing ? { morningOffer: { hash: pricingHash(offerPricing), useOffer: useMorningOffer } } : {}),
       guests,
+      ...(guestContact ? { guestContact } : {}),
       assignments: resolved.map(item => ({
         guestPosition: item.guestPosition,
         staffId: Number(item.practitioner.id),
@@ -262,6 +324,7 @@ function createCalendarGroupBookingService({
     return {
       status: 'pending_confirmation',
       review: {
+        ...(guestContact ? { guestContact: { organiser: guestContact.reviewedOrganiser, reviewKey: guestContact.reviewKey } } : {}),
         guests: guests.map(guest => ({ ...guest, clientId: guest.clientId ? String(guest.clientId) : null })),
         assignments: resolved.map(item => ({
           guestPosition: item.guestPosition,
@@ -285,12 +348,14 @@ function createCalendarGroupBookingService({
     return { status: result.rowCount ? 'discarded' : 'no_pending' };
   }
 
-  async function confirm({ adminId, quoteHash } = {}) {
+  async function confirm({ adminId, quoteHash, reviewKey } = {}) {
     const admin = await resolveOperator(adminId);
     const currentOptions = await listOptions(adminId);
     const client = await db.connect();
     const appointmentIds = [];
     const obligations = [];
+    let guestObligation = null;
+    const directAppointmentIds = [];
     try {
       await client.query('BEGIN');
       const draftResult = await client.query(
@@ -298,9 +363,29 @@ function createCalendarGroupBookingService({
         [Number(adminId)]
       );
       const payload = draftResult.rows[0]?.payload;
-      if (!payload) throw groupError('GROUP_NO_PENDING', 'There is no Group booking review waiting to be confirmed.', 409);
+      if (!payload) {
+        // An interrupted successful guest commit must resolve the original booking,
+        // never create another group or resend direct participant messages.
+        if (guestBookingsEnabled && guestAuthority(admin) && typeof reviewKey === 'string' && /^[A-Za-z0-9_-]{32}$/.test(reviewKey)) {
+          const prior = (await client.query(`SELECT g.id,g.starts_at,e.metadata FROM crm_audit_events e
+            JOIN appointment_groups g ON g.id::text=e.entity_id::text
+            WHERE e.action='admin.group_booking_created' AND e.entity_type='appointment_group'
+              AND e.actor_admin_id=$1 AND e.metadata->>'guestReviewKey'=$2
+              AND g.created_by_admin_id=$1 AND g.source='shiloh_calendar_group' LIMIT 2`, [Number(adminId), reviewKey])).rows;
+          if (prior.length === 1) {
+            await client.query('COMMIT');
+            return { status: 'created', replayed: true, groupId: Number(prior[0].id), startsAt: new Date(prior[0].starts_at).toISOString(), appointmentIds: prior[0].metadata.appointmentIds };
+          }
+        }
+        throw groupError('GROUP_NO_PENDING', 'There is no Group booking review waiting to be confirmed.', 409);
+      }
+      const guestMode = Boolean(payload.guestContact);
+      if (guestMode && (!(await guestAvailable(admin, client)) || payload.guestContact.reviewKey !== reviewKey))
+        throw groupError('GROUP_GUEST_CONTACT_REVIEW', 'Review the current guests and organiser before creating the booking.', 409);
       if(payload.morningOffer && payload.morningOffer.hash!==quoteHash) throw new MorningOfferError('This booking review changed. Review its current total before creating the appointments.');
-      const guests = payload.guests.map(normalizeGuest);
+      const guests = payload.guests.map(value => normalizeGuest(value, { allowNoMobile: guestMode }));
+      if (guests.some(guest => guest.noMobile) !== guestMode)
+        throw groupError('GROUP_GUEST_CONTACT_REVIEW', 'Review the guest contact choices again.', 409);
       ensureDistinctGroupGuests(guests);
       const payloadAssignments = Array.isArray(payload.assignments) ? payload.assignments : [];
       const assignments = resolveAssignments(
@@ -313,7 +398,7 @@ function createCalendarGroupBookingService({
       }
       const lockedStaffIds = assignments.map(item => Number(item.practitioner.id)).sort((a, b) => a - b);
       for (const staffId of lockedStaffIds) await client.query(`SELECT pg_advisory_xact_lock($1::bigint)`, [staffId]);
-      for (const mobile of guests.map(guest => guest.mobile).sort()) {
+      for (const mobile of guests.map(guest => guest.mobile).filter(Boolean).sort()) {
         await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`crm-v2-mobile:${mobile}`]);
       }
 
@@ -382,7 +467,13 @@ function createCalendarGroupBookingService({
       }
 
       const resolvedClients = [];
-      for (const guest of guests) {
+      for (const [index, guest] of guests.entries()) {
+        if (guest.noMobile) {
+          const resolved = await resolveGuestWithoutMobile(client, { guest, adminId: admin.id,
+            reviewKey: payload.guestContact.reviewKey, guestPosition: index + 1 });
+          resolvedClients.push(resolved.client);
+          continue;
+        }
         const exact = await client.query(
           `SELECT * FROM crm_v2_clients WHERE normalized_mobile=$1 AND status='active' ORDER BY id FOR UPDATE`,
           [guest.mobile]
@@ -415,8 +506,11 @@ function createCalendarGroupBookingService({
 
       let offerPricing = null;
       if (morningOffer) {
-        offerPricing = await morningOffer.calendarQuote(selections.map((row, index) => ({ ...row, startsAt: reviewedStarts[index].toISOString() })), guests,
-          { queryable: client, lock: true, useOffer: payload.morningOffer?.useOffer ?? true, otherPromotion: pricing.discountAmount > 0 });
+        const quotedPeople = guests.map((guest, index) => guest.noMobile ? { ...guest,
+          offerIdentityKey: guest.clientId ? `client:${guest.clientId}` : `guest-slot:${index + 1}`,
+          clientId: resolvedClients[index].id } : guest);
+        offerPricing = await morningOffer.calendarQuote(selections.map((row, index) => ({ ...row, startsAt: reviewedStarts[index].toISOString() })), quotedPeople,
+          { queryable: client, lock: true, useOffer: payload.morningOffer?.useOffer ?? true, otherPromotion: pricing.discountAmount > 0, allowNoMobile: guestMode });
         morningOffer.assertReviewed(offerPricing, payload.morningOffer?.hash, { required: Boolean(payload.morningOffer) });
         pricing = applyCalendarOffer(pricing, offerPricing);
       }
@@ -484,10 +578,17 @@ function createCalendarGroupBookingService({
            VALUES($1,NULL,'scheduled',$2,'Atomic Group booking creation')`,
           [appointmentId, `admin:${admin.id}:${admin.display_name}`]
         );
-        obligations.push(await queueCustomerBookingConfirmation(appointmentId, { db: client }));
-        if (!obligations[index]?.queued && obligations[index]?.status !== 'sent') {
+        if (guests[index].noMobile) continue;
+        directAppointmentIds.push(Number(appointmentId));
+        const obligation = await queueCustomerBookingConfirmation(appointmentId, { db: client });
+        obligations.push(obligation);
+        if (!obligation?.queued && obligation?.status !== 'sent') {
           throw groupError('GROUP_CONFIRMATION_QUEUE_FAILED', 'Client confirmations could not be secured, so nothing was created.', 503);
         }
+      }
+      if (guestMode) {
+        guestObligation = await organiserConfirmation.queue(client, { groupId, adminId: admin.id,
+          reviewedOrganiser: payload.guestContact.reviewedOrganiser });
       }
       await client.query(
         `INSERT INTO crm_audit_events(actor_admin_id,action,entity_type,entity_id,metadata)
@@ -497,9 +598,14 @@ function createCalendarGroupBookingService({
           groupId,
           JSON.stringify({
             appointmentIds,
+            ...(guestMode ? { guestReviewKey: payload.guestContact.reviewKey, organiserNotificationId: guestObligation.notificationId } : {}),
             staffIds: selections.map(row => Number(row.staff_id)),
             serviceIds: selections.map(row => Number(row.service_id)),
             clientIds: resolvedClients.map(row => Number(row.id)),
+            ...(guestMode ? { guestOfferDeclarations: guests.flatMap((guest, index) => guest.noMobile ? [{
+              clientId: Number(resolvedClients[index].id), firstVisitChoice: guest.firstVisitChoice,
+              discount: offerPricing?.items[index]?.discount || '0.00',
+            }] : []) } : {}),
             pricing: {
               canonicalSubtotal: pricing.subtotal,
               discountType: pricing.discountType,
@@ -516,13 +622,20 @@ function createCalendarGroupBookingService({
       );
       await client.query(`DELETE FROM admin_group_booking_sessions WHERE admin_id=$1`, [Number(admin.id)]);
       await client.query('COMMIT');
-      const confirmations = await Promise.all(appointmentIds.map(async appointmentId => {
+      const confirmations = await Promise.all(directAppointmentIds.map(async appointmentId => {
         try { return await sendCustomerBookingConfirmationForAppointment(appointmentId); }
         catch (_error) { return { sent: false, deliveryStatus: 'retry_pending', retryable: true }; }
       }));
+      let organiserDelivery = null;
+      if (guestObligation) {
+        try { organiserDelivery = await wakeOrganiser(guestObligation.organiserClientId); }
+        catch (_error) { organiserDelivery = { accepted: 0, retryable: true }; }
+      }
       return {
         status: 'created',
+        ...(guestObligation ? { guestObligation, organiserDelivery } : {}),
         groupId: Number(groupId),
+        startsAt: payload.startsAt,
         appointmentIds,
         confirmations,
         obligations,

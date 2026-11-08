@@ -17,6 +17,7 @@ for (const width of [320, 390, 500, 700, 701, 1440]) {
     const writes = [];
     page.on('request', request => { if (request.method() !== 'GET') writes.push(request.url()); });
     await page.goto('/iframe.html?id=workspace-browser-review--today-counts&viewMode=story', { waitUntil: 'networkidle' });
+    await expect.poll(() => page.frames().some(frame => frame.url().includes('/dashboard-') || frame.url().endsWith('/dashboard.html'))).toBe(true);
     const fixture = page.frames().find(frame => frame.url().includes('/dashboard-') || frame.url().endsWith('/dashboard.html'));
     expect(fixture).toBeTruthy();
     await page.goto(fixture.url(), { waitUntil: 'networkidle' });
@@ -49,7 +50,8 @@ for (const width of [320, 390, 500, 700, 701, 1440]) {
       await expect(page.getByRole('heading', { level: 1, name: 'Welcome, Synthetic Reviewer' })).toBeVisible();
     }
     await expect(today).toContainText('1 appointment');
-    await expect(today).toContainText('2 pending requests');
+    await expect(today.locator('.day-summary')).not.toContainText('pending requests');
+    await expect(today.locator('.day-summary')).not.toContainText('holiday');
     await expect(attention.locator('[data-dashboard-planning-request]')).toHaveCount(2);
     await expect(attention.getByRole('link', { name: 'Set holiday hours' })).toHaveAttribute('href', '/calendar/clinic-hours');
     await expect(today.getByRole('link', { name: 'Open calendar', exact: true })).toHaveAttribute('href', /date=2026-10-14/);
@@ -85,18 +87,18 @@ for (const state of ['busy', 'empty', 'loading', 'unavailable', 'practitioner', 
     if (state === 'next-day') await expect(today.getByText('Next operational day', { exact: true })).toBeVisible();
     if (state === 'empty') {
       await expect(today).toContainText('No appointments are scheduled');
-      await expect(page.locator('.topbar a')).toHaveCount(0);
+      await expect(page.locator('.topbar a')).toHaveCount(0);await expect(page.getByRole('link',{name:'Review unfinished visits',exact:true})).toBeVisible();
     }
     if (state === 'busy') {
       const deposits = page.locator('[data-dashboard-deposits]');
       await expect(deposits.locator('[data-deposit-account]')).toHaveCount(2);
       await expect(today.locator('[data-dashboard-appointment]')).toHaveCount(12);
       const t = await today.boundingBox(), d = await deposits.boundingBox();
-      expect(d.y - t.y - t.height).toBeCloseTo(12, 0);
+      const unfinished=await page.locator('[data-dashboard-carryover-panel]').boundingBox();expect(unfinished.y).toBeGreaterThan(t.y+t.height);expect(d.y-unfinished.y-unfinished.height).toBeCloseTo(12,0);
       const finalize = today.locator('[data-dashboard-finalize="completed"]').first();
       for (let repeat = 0; repeat < 2; repeat++) {
         await finalize.click();
-        await page.getByRole('button', { name: 'Not yet', exact: true }).click();
+        await page.getByRole('button', { name: 'Close payment window', exact: true }).click();
         await expect(finalize).toBeFocused();
       }
       await finalize.click();
@@ -106,6 +108,7 @@ for (const state of ['busy', 'empty', 'loading', 'unavailable', 'practitioner', 
     if (['loading', 'unavailable'].includes(state)) {
       const content = page.locator('[data-deposits-content]');
       await expect(content).toContainText(state === 'loading' ? 'Checking current deposits' : 'temporarily unavailable');
+      await page.locator('[data-deposits-review] summary').click();
       let release;
       await page.route('**/calendar/workspace/deposits', async route => { await new Promise(resolve => { release = resolve; }); return route.fulfill({ status: 503, body: 'Synthetic unavailable' }); });
       await page.getByRole('button', { name: 'Refresh deposits' }).click();
@@ -113,7 +116,7 @@ for (const state of ['busy', 'empty', 'loading', 'unavailable', 'practitioner', 
       await expect(page.getByRole('button', { name: 'Refresh deposits' })).toBeDisabled();
       await expect.poll(() => Boolean(release)).toBe(true);
       release();
-      await expect(content).toContainText('temporarily unavailable');
+      await expect(page.locator('[data-deposits-status]')).toContainText('Could not refresh deposits');await expect(content).toContainText(state === 'loading' ? 'Checking current deposits' : 'temporarily unavailable');
       await expect(page.getByRole('button', { name: 'Refresh deposits' })).toBeEnabled();
     }
     expect(writes).toBe(0);

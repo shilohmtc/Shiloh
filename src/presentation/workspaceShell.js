@@ -77,6 +77,7 @@ function renderWorkspaceNavigation({ active, displayName = '', dashboardHref = n
       active: active === 'clinicHours',
       href: clinicHoursHref,
     }),
+    '<span hidden data-workspace-destination="clinicCheckin">Clinic check-in</span>',
     workspaceItem({
       key: 'problemReports',
       label: 'Problem reports',
@@ -84,7 +85,7 @@ function renderWorkspaceNavigation({ active, displayName = '', dashboardHref = n
       href: problemReportsHref,
     }),
   ].join('');
-  const moreActive = ['staff', 'services', 'reports', 'clinicHours', 'problemReports', 'website'].includes(active);
+  const moreActive = ['staff', 'services', 'reports', 'clinicHours', 'clinicCheckin', 'problemReports', 'website'].includes(active);
   const accountLabel = String(displayName || '').trim();
   const account = `<footer class="workspace-account" data-workspace-account-footer><div class="workspace-account-identity">${accountLabel ? `<span>Signed in as</span><strong>${escapeHtml(accountLabel)}</strong>` : '<span>Signed in</span>'}</div><section data-workspace-notifications hidden aria-label="Workspace notifications"><button class="workspace-account-signout workspace-notification-switch" type="button" role="switch" aria-label="Notifications on this device" aria-checked="false" data-workspace-push-toggle disabled><span class="workspace-control-label">Notifications</span><span class="workspace-switch-state" aria-hidden="true" data-workspace-push-state>Off</span><span class="workspace-switch-track" aria-hidden="true"></span></button><span class="workspace-account-status" role="status" aria-live="polite" data-workspace-push-status></span></section><button class="workspace-account-signout" type="button" data-workspace-refresh><span class="workspace-link-label">Refresh Workspace<span class="workspace-app-version" data-app-version>Version ${escapeHtml(APP_VERSION)}</span></span></button><span class="workspace-account-status" role="status" aria-live="polite" data-workspace-refresh-status></span><button class="workspace-account-signout" type="button" data-shiloh-logout>Sign out</button><span class="workspace-account-status" role="status" aria-live="polite" data-shiloh-calendar-access-status></span></footer>`;
   const logo = '<img src="/calendar/pwa/icon-192.png?v=official-brand-v4" alt="" width="42" height="42" decoding="async">';
@@ -100,7 +101,7 @@ function workspaceNavigationClientScript() {
 const listPaths=['/calendar/clients','/calendar/team','/calendar/services'];
 function safeListReturn(value,path){if(!value||value.length>2000||!value.startsWith('/')||value.startsWith('//'))return'';try{const url=new URL(value,location.origin);return url.origin===location.origin&&url.pathname===path&&!url.hash?url.pathname+url.search:'';}catch(_error){return'';}}
 const listPath=listPaths.includes(location.pathname)?location.pathname:'';
-if(listPath)document.querySelectorAll('.workspace-main .client-row[href],.workspace-main .staff-row[href],.workspace-main .service-row[href]').forEach(link=>{const url=new URL(link.href,location.origin);if(url.origin===location.origin&&url.pathname.startsWith(listPath+'/')){url.searchParams.set('returnTo',listPath+location.search);link.href=url.pathname+url.search;}});
+if(listPath)document.querySelectorAll('.workspace-main .client-row[href],.workspace-main [data-client-profile-link],.workspace-main [data-client-payment-id][href],.workspace-main .staff-row[href],.workspace-main .service-row[href]').forEach(link=>{const url=new URL(link.href,location.origin);if(url.origin===location.origin&&url.pathname.startsWith(listPath+'/')){url.searchParams.set('returnTo',listPath+location.search);link.href=url.pathname+url.search;}});
 document.querySelectorAll('[data-workspace-back-context]').forEach(link=>{const path=link.dataset.workspaceBackContext;if(!listPaths.includes(path))return;const value=safeListReturn(new URLSearchParams(location.search).get('returnTo'),path);if(!value)return;link.href=value;document.querySelectorAll('.workspace-main .pager-link[href]').forEach(pager=>{const url=new URL(pager.href,location.origin);if(url.origin===location.origin&&url.pathname===location.pathname){url.searchParams.set('returnTo',value);pager.href=url.pathname+url.search;}});});
 const refresh=document.querySelector('[data-workspace-refresh]');
 const refreshStatus=document.querySelector('[data-workspace-refresh-status]');

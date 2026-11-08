@@ -132,7 +132,9 @@ test('current authenticated admin permission is re-read server-side for every Cl
   const reads = fakeReadService();
   const service = createWorkspaceClientsService({ db, readService: reads });
   const model = await service.listClients({ adminId: 41, q: '  Synthetic   Client ', status: 'active', offset: 0 });
-  assert.equal(db.calls.length, 1);
+  assert.equal(db.calls.filter(call => call.sql.includes('FROM staff_admin_accounts a')).length, 1);
+  assert.equal(db.calls.length, 2, 'one principal read and one bounded app-status read');
+  assert.match(db.calls[1].sql, /workspaceClientAppStatus:clinic/);
   assert.match(db.calls[0].sql, /FROM staff_admin_accounts a/);
   assert.deepEqual(db.calls[0].values, [41]);
   assert.equal(model.authority.capability, 'client:lookup');
@@ -306,12 +308,12 @@ test('Calendar session/view authority alone does not grant Clients', async () =>
   });
 });
 
-test('list presentation is compact, bounded and masks mobile contact', () => {
+test('list presentation keeps client identity and omits routine mobile detail', () => {
   const html = renderClientListPage({
     clients: [canonicalClient()], hasMore: false, offset: 0, pageSize: 24, query: '', status: 'active',
   }, { calendarNavigationAllowed: true });
   assert.match(html, /data-clients-list-view/);
-  assert.match(html, /Mobile ending 4567/);
+  assert.doesNotMatch(html, /Mobile ending/);
   assert.doesNotMatch(html, /27821234567|082 123 4567/);
   assert.doesNotMatch(html, /Results are bounded/);
   assert.match(html, /href="\/calendar\/read-only">Calendar/);
@@ -342,13 +344,34 @@ test('Calendar and Clients share capability-driven navigation without making Cal
   assert.doesNotMatch(denied, /href="\/calendar\/clients"/);
 });
 
-test('Clients surface is GET-only and introduces no public CRM or mutation route', () => {
+test('Clients keeps scoped reads and exposes only protected contextual financial actions', () => {
   const routeSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'workspaceClients.js'), 'utf8');
   const calendarSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'calendar.js'), 'utf8');
   assert.match(routeSource, /requireStaffSession/);
   assert.match(routeSource, /router\.get\('\/'/);
   assert.match(routeSource, /router\.get\('\/:id'/);
-  assert.doesNotMatch(routeSource, /router\.(?:post|put|patch|delete)\s*\(/i);
+  assert.doesNotMatch(routeSource, /router\.(?:put|patch|delete)\s*\(/i);
+  assert.match(routeSource, /router\.post\('\/:id\/actions\/' \+ kind, sameOriginGuard/);
+  assert.match(routeSource, /csrfGuard\(\{service:sessionService\}\)/);
   assert.doesNotMatch(routeSource, /logger|console\.|normalized_mobile|client_contacts/i);
   assert.match(calendarSource, /router\.use\('\/clients'/);
+});
+
+test('client actions reject missing session, origin and CSRF and bind actor/client from the request boundary', async()=>{
+  const calls=[];const app=express();app.use(express.json());
+  app.use('/calendar/clients',createWorkspaceClientsRouter({env:ENABLED_ENV,sessionService:{validateSessionToken:async token=>token==='authorized'?{ok:true,adminId:41,viewer:{}}:{ok:false},validateCsrfToken:(_session,token)=>token==='valid'},rewardsService:{adjust:async input=>{calls.push(input);return {status:'adjusted'};}}}));
+  await withServer(app,async base=>{
+    const url=base+'/calendar/clients/912/actions/rewards',body=JSON.stringify({adminId:999,contextClientId:666,sendDigitalCopy:true,amount:'50'});
+    const headers={'content-type':'application/json',cookie:'shiloh_staff_session=authorized',origin:base,'x-shiloh-csrf-token':'valid'};
+    for(const missing of ['cookie','origin','x-shiloh-csrf-token']){const h={...headers};delete h[missing];const r=await fetch(url,{method:'POST',headers:h,body});assert.equal(r.status,missing==='cookie'?401:403);}
+    assert.equal(calls.length,0);
+    const r=await fetch(url,{method:'POST',headers,body});assert.equal(r.status,200);assert.equal(calls[0].adminId,41);assert.equal(calls[0].contextClientId,'912');assert.equal(calls[0].sendDigitalCopy,false);
+  });
+});
+
+test('completed history replaces pre-booking readiness prompts without claiming payment or acceptance',()=>{
+  const html=renderClientDetailPage({client:canonicalClient(),appointments:[canonicalAppointment({bookingReadiness:{depositState:'awaiting',termsAccepted:false}})],historyOffset:0,pageSize:20});
+  assert.doesNotMatch(html,/Terms awaiting|Deposit awaiting|Deposit not recorded/);
+  assert.match(html,/Payment status unavailable/);
+  assert.doesNotMatch(html,/✓ Terms accepted|Deposit received/);
 });

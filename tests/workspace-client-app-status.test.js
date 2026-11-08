@@ -41,3 +41,17 @@ test('private scope and unavailable evidence stay conservative without a data or
   assert.deepEqual(await readClientAppStatus({ db, clientId: 901, scope }), expected);
   assert.equal(calls, 1);
 });
+
+test('Directory status read is one bounded query for the supplied page and never leaks another client', async () => {
+  const { readClientAppStatuses } = require('../src/services/workspaceClientAppStatus');
+  const calls=[];
+  const db={async query(sql,values){calls.push({sql,values});return {rows:[{id:901,used_before:true,active_setup:true,alerts_enabled:true},{id:999,used_before:true,alerts_enabled:true}]};}};
+  assert.deepEqual(await readClientAppStatuses({db,scope,clientIds:[901,902,901]}), {
+    901:{usage:'Used before',phoneAlerts:'Enabled'},902:{usage:'Not yet confirmed',phoneAlerts:'Unknown'},
+  });
+  assert.equal(calls.length,1);assert.deepEqual(calls[0].values,[['901','902']]);
+  assert.match(calls[0].sql,/c.id=ANY\(\$1::bigint\[\]\)/);
+  await readClientAppStatuses({db,scope:{kind:'tenant_staff',ownerStaffId:5},clientIds:[901]});
+  await readClientAppStatuses({db,scope,clientIds:[]});
+  assert.equal(calls.length,1,'private scopes and empty pages make no account read');
+});

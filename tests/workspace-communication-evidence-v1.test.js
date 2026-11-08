@@ -79,6 +79,7 @@ test('provider evidence uses strongest truthful lifecycle state and never downgr
 
 test('Client Communications UX shows Shiloh template and provider outcome but hides provider identifiers', () => {
   const html = renderClientDetailPageWithCommunications(clientDetailModel({
+    services: 'activity',
     communications: [{
       intent: 'booking_confirmation',
       label: 'Booking confirmation',
@@ -104,14 +105,14 @@ test('Client Communications UX retains current app availability beside document/
   const notification = appNotificationEntry({ category: 'appointment', title: 'Booking confirmation',
     appointment_id: 71, created_at: '2026-09-01T08:00:08.000Z',
     template_name: 'private_template', provider_message_id: 'private_provider_id', provider_delivered_at: '2026-09-01T08:00:09Z' });
-  const html = renderClientDetailPageWithCommunications(clientDetailModel({ communications: [notification] }), { calendarNavigationAllowed: true });
+  const html = renderClientDetailPageWithCommunications(clientDetailModel({ services:'activity', communications: [notification] }), { calendarNavigationAllowed: true });
   assert.equal((html.match(/data-client-communications/g) || []).length, 1);
   assert.match(html, /My Shiloh updates/);
   assert.match(html, /Booking confirmation/);
   assert.match(html, /Available in My Shiloh/);
   assert.match(html, /Appointment #71/);
   assert.match(html, /id="appointment-history"/);
-  assert.match(html, /id="policy-documents"/);
+  assert.match(html, /services=forms#client-forms/);
   assert.doesNotMatch(html, /Template:|private_template|private_provider_id|provider_message_id|Graph API/i);
   assert.doesNotMatch(html, /Delivered on WhatsApp|Sent to WhatsApp|Read on WhatsApp/);
   assert.doesNotMatch(html, /Send message|Reply|Compose/);
@@ -140,12 +141,13 @@ test('Client appointment history exposes an obvious accessible drill-in to Calen
 
 test('communication evidence failure renders a neutral unavailable state rather than a false empty or delivery claim', () => {
   const html = renderClientDetailPageWithCommunications(clientDetailModel({
+    services: 'activity',
     communications: [],
     communicationsUnavailable: true,
   }));
   assert.equal((html.match(/data-client-communications/g) || []).length, 1);
   assert.equal((html.match(/id="appointment-history"/g) || []).length, 1);
-  assert.match(html, /href="#appointment-history"/);
+  assert.match(html, /services=appointments#client-appointments/);
   assert.match(html, /Communication evidence is temporarily unavailable/);
   assert.match(html, /No delivery claim is being made/);
   assert.doesNotMatch(html, /No recorded Shiloh notifications yet/);
@@ -158,20 +160,20 @@ test('communication section remains truthful when there is no recorded evidence'
 });
 
 
-test('client detail composition retains scoped documents, communications and profile management beside the history jump', () => {
+test('client sections retain scoped documents, communications and profile management without duplicate sections', () => {
   const { injectClientConsultationHistory } = require('../src/presentation/workspaceClientDocumentsUx');
   const { injectClientDetailManagement } = require('../src/presentation/workspaceClientsManageUx');
-  for (const manageAllowed of [true,false]) for (const communicationsUnavailable of [true,false]) {
-    const model = clientDetailModel({ manageAllowed, communicationsUnavailable,
+  for (const manageAllowed of [true,false]) for (const communicationsUnavailable of [true,false]) for(const services of ['overview','forms','activity']) {
+    const model = clientDetailModel({ manageAllowed, communicationsUnavailable, services,
       consultationHistory: { items:[{submissionId:101,appointmentId:71,formTitle:'Synthetic consent',signedAt:'2026-09-01T08:00:00Z',services:['Synthetic treatment'],canOpen:false}], page:0,hasMore:false } });
     const html = injectClientDetailManagement(injectClientConsultationHistory(renderClientDetailPageWithCommunications(model),model),model);
-    for (const marker of ['id="appointment-history"','data-client-communications','data-policy-acceptance-history','data-client-consultation-history']) {
-      assert.equal(html.split(marker).length-1,1,marker);
-    }
+    assert.equal(html.split('id="appointment-history"').length-1,1);
+    for(const marker of ['data-policy-acceptance-history','data-client-consultation-history'])assert.equal(html.split(marker).length-1,services==='forms'?1:0,marker);
+    assert.equal(html.split('data-client-communications').length-1,services==='activity'?1:0);
     assert.equal(html.split('data-client-management ').length-1,manageAllowed ? 1 : 0);
-    assert.match(html,/href="#appointment-history"/);
-    assert.match(html,/Private answers restricted/);
+    assert.match(html,/services=appointments#client-appointments/);
+    if(services==='forms')assert.match(html,/Private answers restricted/);
     assert.doesNotMatch(html,/href="[^"]*consultation-forms\/101|Send booking confirmation/);
-    if (communicationsUnavailable) assert.match(html,/Communication evidence is temporarily unavailable/);
+    if (communicationsUnavailable && services==='activity') assert.match(html,/Communication evidence is temporarily unavailable/);
   }
 });

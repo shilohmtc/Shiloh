@@ -59,7 +59,7 @@ function createCalendarGroupBookingRouter({
   for (const action of ['prepare', 'discard', 'confirm']) {
     router.post(`/${action}`, sameOrigin, requireSession, requireCsrf, async (req, res, next) => {
       try {
-        const result = await bookingService[action]({ adminId: req.staffBrowserSession.adminId, ...req.body });
+        const result = await bookingService[action]({ ...req.body, adminId: req.staffBrowserSession.adminId });
         return res.status(action === 'confirm' ? 201 : 200).json(result);
       } catch (error) {
         const status = errorStatus(error);

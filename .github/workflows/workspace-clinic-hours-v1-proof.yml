@@ -10,7 +10,8 @@ permissions:
 jobs:
   clinic_hours_exact_head:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Allow slow runner font downloads without changing the browser or test coverage.
+    timeout-minutes: 20
     steps:
       - name: Checkout exact PR head
         uses: actions/checkout@v7
@@ -28,6 +29,9 @@ jobs:
       - name: Run focused Clinic hours security and orchestration tests
         run: node --test tests/workspace-clinic-hours-v1.test.js
       - name: Run authenticated Desktop and Phone Clinic hours proof
+        # Pin this proof to the browser installed above, regardless of runner CHROME_BIN defaults.
+        env:
+          CHROME_BIN: ""
         run: node scripts/workspace-clinic-hours-browser-proof.js
       - name: Upload authenticated Clinic hours proof
         uses: actions/upload-artifact@v7

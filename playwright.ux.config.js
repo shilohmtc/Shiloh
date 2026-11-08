@@ -101,4 +101,24 @@ module.exports.testMatch.push("workspace-client-profile-services.spec.js");
 module.exports.testMatch.push("workspace-already-attended.spec.js");
 
 module.exports.testMatch.push('workspace-alert-context.spec.js');
+
+module.exports.testMatch.push('workspace-client-home.spec.js', 'workspace-client-actions.spec.js', 'workspace-visit-payment.spec.js');
+
+module.exports.testMatch.push("workspace-client-search.spec.js");
+
+module.exports.testMatch.push("client-directory-payment-review.spec.js");
+module.exports.testMatch.push('workspace-business-targets.spec.js');
+
+module.exports.testMatch.push('payment-visit-context.spec.js');
+
+module.exports.testMatch.push('dashboard-step-one.spec.js');
+
+module.exports.testMatch.push("calendar-booking-request-context.spec.js");
+module.exports.testMatch.push("workspace-payment-review.spec.js");
+
+module.exports.testMatch.push('guest-profile-compatibility.spec.js');
+module.exports.testMatch.push("completed-visit-rewards.spec.js");
+module.exports.testMatch.push('calendar-group-guests.spec.js');
+module.exports.testMatch.push('my-shiloh-voucher-recovery.spec.js');
+
 module.exports.testMatch.push('workspace-session-message.spec.js');

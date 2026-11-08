@@ -105,5 +105,7 @@ test('finalization revalidates authority under row lock and writes canonical his
 test('attendance finalization itself synchronizes lifecycle without directly mutating calendar or payment truth', () => {
   assert.match(finalization, /UPDATE appointment_lifecycle/);
   assert.doesNotMatch(finalization, /createBookingEvent|cancelBookingEvent/);
-  assert.doesNotMatch(finalization, /payment|ozow|voucher/i);
+  assert.doesNotMatch(finalization, /INSERT INTO payment_ledger_entries|UPDATE booking_payment_accounts|ozow|voucher/i);
+  assert.match(finalization, /needsPaymentChoice = workspace && targetStatus === 'completed'/);
+  assert.match(finalization, /recordCompletionPayment\(db,/);
 });

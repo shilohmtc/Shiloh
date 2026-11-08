@@ -1,3 +1,6 @@
+import targetsData from './fixtures/workspaceBusinessTargets.js';
+const {targetsFixture}=targetsData;
+import visitTrends from '../src/domain/recordedVisitTrend.js';
 import reportsPresentation from '../src/presentation/workspaceReportsUx.js';
 import financialRecords from '../src/domain/workspaceFinancialRecords.js';
 import financialReports from '../src/domain/workspaceFinancialReports.js';
@@ -67,6 +70,7 @@ function reportModel() {
     ],
     clients: { uniqueClients: 43, newClients: 12, returningClients: 31 },
     closures: 1,
+    recordedVisits: visitTrends.recordedVisitTrend({ completed: 36 }, { completed: 30, no_charge: 2 }),
     trend: { delta: 6, currentOperationalAppointments: 54, previousOperationalAppointments: 48 },
     staffEarnings: {
       earliestNewRuleDate: '2026-09-16',
@@ -145,4 +149,27 @@ export const EmptyPeriod = {
       totals: {}, clients: {}, trend: {},
     }));
   },
+};
+
+export const MonthlyTargets = {
+  render: () => productionSurface(renderReportsPage({ ...reportModel(), targets: targetsFixture() })),
+};
+export const MonthlyTargetsUnset = {
+  render: () => productionSurface(renderReportsPage({ ...reportModel(), targets: targetsFixture({ unset: true }) })),
+};
+
+export const ReconciledHistoricalStatus = {
+  render: () => productionSurface(renderReportsPage({ ...reportModel(),
+    appointments: {operational:63,allRecorded:81,statusCounts:{completed:48,no_show:3,scheduled:12,cancelled:18}},
+  })),
+};
+
+export const RecordedVisitComparison = {
+  render: () => productionSurface(renderReportsPage(reportModel())),
+};
+export const RecordedVisitZeroBaseline = {
+  render: () => productionSurface(renderReportsPage({ ...reportModel(), recordedVisits: visitTrends.recordedVisitTrend({ completed: 3 }, {}) })),
+};
+export const RecordedVisitUnavailable = {
+  render: () => productionSurface(renderReportsPage({ ...reportModel(), recordedVisits: { available: false } })),
 };

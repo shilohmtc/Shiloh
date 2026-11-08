@@ -119,7 +119,7 @@ test('visit outcomes use an accessible Shiloh confirmation instead of the browse
   assert.match(html, />Not yet<\/button>/);
   assert.match(script, /Mark this visit as completed\?/);
   assert.match(script, /Mark this visit as a no-show\?/);
-  assert.match(script, /Mark completed/);
+  assert.match(script, /Complete visit/);
   assert.match(script, /Mark no-show/);
   assert.doesNotMatch(script, /Record this visit as/);
 });

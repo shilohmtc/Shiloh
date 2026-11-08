@@ -209,7 +209,7 @@ async function main() {
       assert.equal(scriptResponse.status(), hasEarnings ? 200 : 403);
       await page.getByRole('navigation',{name:'Report sections'}).getByRole('link', {name:'Activity',exact:true}).click();
       assert.equal(await page.getByRole('heading', { name: 'Treatments booked' }).isVisible(), true);
-      assert.equal(await page.getByRole('heading', { name: 'New and returning clients' }).isVisible(), true);
+      assert.equal(await page.getByRole('heading', { name: 'Recorded client history' }).isVisible(), true);
 
       assert.equal((await context.request.get(`${origin}/calendar/reports/finance-records.js`)).status(),hasEarnings ? 200 : 403);
       assert.equal((await context.request.get(`${origin}/calendar/reports/cashup-preview?date=2026-09-15`)).status(),hasEarnings ? 200 : 403);

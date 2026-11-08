@@ -156,7 +156,7 @@ async function main() {
       assert.equal(adminId, 81);
       return listModel(state, status || 'active');
     },
-    async getClientDetail({ adminId, clientId }) {
+    async getClientDetail({ adminId, clientId, services }) {
       assert.equal(adminId, 81);
       if (Number(clientId) === 999) {
         throw new WorkspaceClientsError('WORKSPACE_CLIENT_NOT_FOUND', 'Client was not found.', 404);
@@ -164,7 +164,7 @@ async function main() {
       if (Number(clientId) !== 701) {
         throw new WorkspaceClientsError('WORKSPACE_CLIENT_NOT_FOUND', 'Client was not found.', 404);
       }
-      return detailModel(state);
+      return { ...detailModel(state), services: services || 'overview' };
     },
   };
 
@@ -206,10 +206,16 @@ async function main() {
     const rotated = await sessionService.rotateCsrfToken(req.staffBrowserSession.sessionId);
     return res.status(200).json({ csrfToken: rotated.csrfToken });
   });
+  app.get('/calendar/pwa/icon-192.png', (_req, res) => res.type('image/png').sendFile(path.join(__dirname, '..', 'public', 'assets', 'pwa', 'shiloh-pwa-192.png')));
   app.use('/calendar/clients', createWorkspaceClientsRouter({
     env: ENV,
     sessionService,
     service: readService,
+    paymentService: { async getDirectoryReviews({ adminId, ids }) {
+      assert.equal(adminId, 81);
+      assert.ok(ids.every(id => [701, 702].includes(Number(id))));
+      return Object.fromEntries(ids.map(id => [id, { state: 'restricted' }]));
+    } },
     mutationService,
     notificationService,
   }));
@@ -267,6 +273,7 @@ async function main() {
       assert.equal(await page.getByText('Shared Shiloh Client', { exact: true }).isVisible(), true);
       assert.equal(await page.getByText('Clinic Only Client', { exact: true }).count(), 0);
       assert.equal(await page.locator('.client-row').count(), 2);
+      assert.equal(await page.getByText('Payment details restricted', { exact: true }).count(), 2);
       assert.equal(await page.locator('[data-tenant-client-base="true"]').count() > 0, true);
 
       const denied = await page.goto(`${origin}/calendar/clients/999`, { waitUntil: 'networkidle' });
@@ -277,9 +284,12 @@ async function main() {
       assert.equal(detailResponse.status(), 200);
       await page.locator('[data-client-management]').waitFor();
       assert.equal(await page.locator('[data-client-edit-form]').isVisible(), false);
-      await page.locator('.client-edit-summary').click();
-      assert.equal(await page.getByRole('button', { name: 'Remove from my clients', exact: true }).isVisible(), true);
+      await page.getByRole('navigation', { name: 'Client sections' }).getByRole('link', { name: 'Appointments', exact: true }).click();
       assert.equal(await page.getByText('Marietjie Signature Massage', { exact: true }).isVisible(), true);
+      await page.getByRole('navigation', { name: 'Client sections' }).getByRole('link', { name: 'Overview', exact: true }).click();
+      await page.locator('[data-client-edit-start]').click();
+      await page.locator('.client-more-options summary').click();
+      assert.equal(await page.getByRole('button', { name: 'Remove from my clients', exact: true }).isVisible(), true);
 
       const geometry = await page.evaluate(() => ({
         viewportWidth: window.innerWidth,
@@ -308,8 +318,8 @@ async function main() {
       const updateResponsePromise = page.waitForResponse(response =>
         response.url().endsWith('/calendar/clients/701/update') && response.request().method() === 'POST'
       );
-      await page.locator('[data-client-edit-form] input[name="name"]').fill('Marietjie Client One');
-      await page.getByRole('button', { name: 'Save client', exact: true }).click();
+      await page.locator('#edit-client-name').fill('Marietjie Client One');
+      await page.getByRole('button', { name: 'Save changes', exact: true }).click();
       const updateResponse = await updateResponsePromise;
       assert.equal(updateResponse.status(), 200);
       await page.waitForLoadState('networkidle');
@@ -318,7 +328,8 @@ async function main() {
         response.url().endsWith('/calendar/clients/701/archive') && response.request().method() === 'POST'
       );
       const beforeArchive = archiveCalls;
-      await page.locator('.client-edit-summary').click();
+      await page.locator('[data-client-edit-start]').click();
+      await page.locator('.client-more-options summary').click();
       await page.getByRole('button', { name: 'Remove from my clients', exact: true }).click();
       const confirmation = page.getByRole('dialog', { name: 'Remove client from your list?' });
       await confirmation.waitFor({ state: 'visible' });

@@ -192,7 +192,7 @@ function createFixture() {
       }
       return { clients: [], hasMore: false, offset: 0, pageSize: 24, query: '', status: 'active' };
     },
-    async getClientDetail({ adminId, clientId }) {
+    async getClientDetail({ adminId, clientId, services }) {
       const operator = operatorFor(adminId);
       if (!operator?.permissions?.[CLIENT_LOOKUP_CAPABILITY]) {
         const error = new Error('Client lookup forbidden');
@@ -205,6 +205,7 @@ function createFixture() {
         throw error;
       }
       return {
+        services: services || 'overview',
         client: {
           id: CLIENT_ID,
           name: 'Synthetic Client',
@@ -262,7 +263,9 @@ function createFixture() {
     return res.status(200).json({ csrfToken: rotated.csrfToken });
   });
 
+  app.get('/calendar/pwa/icon-192.png', (_req, res) => res.type('image/png').sendFile(path.join(__dirname, '..', 'public', 'assets', 'pwa', 'shiloh-pwa-192.png')));
   app.use('/calendar/clients', createWorkspaceClientsRouter({
+    paymentService: { async getDirectoryReviews({ ids }) { return Object.fromEntries(ids.map(id => [id, { state: 'unavailable' }])); } },
     env,
     sessionService,
     service: clientService,
@@ -410,10 +413,13 @@ async function main() {
       await poll(() => evaluate(cdp, 'document.readyState'), value => value === 'complete');
     }
     async function openClientActivity() {
-      const categories = await evaluate(cdp, `[...document.querySelectorAll('[data-client-profile-services] > details > summary')].map(item => item.textContent.trim())`);
-      assert.deepEqual(categories, ['Activity', 'Forms', 'Rewards', 'Vouchers']);
-      await evaluate(cdp, `document.querySelector('#client-activity > summary').click();true`);
-      assert.equal(await evaluate(cdp, `document.querySelector('#client-activity').open`), true);
+      const categories = await evaluate(cdp, `[...document.querySelectorAll('[aria-label="Client sections"] > a')].map(item => item.textContent.trim())`);
+      assert.deepEqual(categories, ['Overview', 'Appointments', 'Vouchers', 'Rewards', 'Forms', 'Communications']);
+      const href = await evaluate(cdp, `document.querySelector('[aria-label="Client sections"] a[href*="services=activity"]').href`);
+      assert.equal(new URL(href).pathname, `/calendar/clients/${CLIENT_ID}`);
+      await navigate(href);
+      await poll(() => evaluate(cdp, `document.querySelector('[data-client-home-section]')?.dataset.clientHomeSection`), value => value === 'activity');
+      assert.equal(await evaluate(cdp, `document.querySelector('#client-activity').getClientRects().length > 0`), true);
     }
     async function screenshot(name) {
       const shot = await cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });

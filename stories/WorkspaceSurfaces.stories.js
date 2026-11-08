@@ -5,6 +5,7 @@ import dashboardPresentation from '../src/presentation/workspaceDashboardUx.js';
 import clientPresentation from '../src/presentation/workspaceCommunicationEvidenceUx.js';
 import messagesPresentation from '../src/presentation/workspaceMessagesUx.js';
 import editorPresentation from '../src/presentation/calendarAppointmentCompactEditorUx.js';
+import clientChoicePresentation from '../src/presentation/calendarCreateBookingClientChoiceUx.js';
 import createBookingPresentation from '../src/presentation/calendarCreateBookingUx.js';
 import couplesBookingPresentation from '../src/presentation/calendarCouplesBookingUx.js';
 import groupBookingPresentation from '../src/presentation/calendarGroupBookingUx.js';
@@ -171,7 +172,7 @@ function clientModel() {
     },
     appointments: [
       { id: 9067, starts_at: '2026-10-04T08:00:00.000Z', ends_at: '2026-10-04T09:30:00.000Z', status: 'scheduled', services: [{ name: 'Full Body Swedish' }], staff: [{ name: 'Synthetic Client AN' }] },
-      { id: 9040, starts_at: '2026-10-03T08:00:00.000Z', ends_at: '2026-10-03T08:45:00.000Z', status: 'completed', services: [{ name: 'Quick Relief: Back & Neck (45 min)' }], staff: [{ name: 'Synthetic Client AN' }] },
+      { id: 9040, paymentSummary: { available: true, state: 'known', outstanding: '650.00', scopeLabel: 'Appointment balance' }, starts_at: '2026-10-03T08:00:00.000Z', ends_at: '2026-10-03T08:45:00.000Z', status: 'completed', services: [{ name: 'Quick Relief: Back & Neck (45 min)' }], staff: [{ name: 'Synthetic Client AN' }] },
       { id: 9020, starts_at: '2026-10-01T07:00:00.000Z', ends_at: '2026-10-01T07:45:00.000Z', status: 'cancelled', services: [{ name: 'Quick Relief: Back & Neck (45 min)' }], staff: [{ name: 'Synthetic Client AN' }] },
     ],
     communications: [{ intent: 'booking_confirmation', label: 'Booking confirmation', statusLabel: 'Available in My Shiloh', occurredAt: '2026-10-02T11:56:00.000Z', appointmentId: 9067, templateName: null }],
@@ -355,14 +356,19 @@ export const NavigationDrawerOpen = { render: () => workspaceNavigationOpenStory
 export const CompactMenuNotificationsOn = { render: () => workspaceNavigationOpenStory('on') };
 export const CompactMenuNotificationsOff = { render: () => workspaceNavigationOpenStory('off') };
 export const CompactMenuNotificationsBlocked = { render: () => workspaceNavigationOpenStory('blocked') };
-export const ClientProfileServices = { render: () => productionSurface(renderClientDetailPageWithCommunications({
-  ...clientModel(),
+function clientServicesModel(services = 'overview') { return {
+  ...clientModel(), services,
   consultationHistory: { items: [{ reference: '7001', formTitle: 'Synthetic consultation form', appointmentId: 9067, signedAt: '2026-10-02T11:56:00Z', services: ['Synthetic treatment'], canOpen: true }], page: 0, hasMore: false },
-  rewards: { data: { policy: { unlockThreshold: 100 }, wallet: { balance: 120, unlocked: true }, entries: [{ entry_type: 'earn', signed_amount: 120, created_at: '2026-10-02T11:56:00Z', notes: 'Synthetic completed treatment' }] } },
-  vouchers: { data: { received: [{ voucher_code: 'SV-SYNTHETIC-RECEIVED', balance: 250, original_value: 500, state: 'active', order_state: 'paid', valid_until: null }], purchased: [{ voucher_code: 'SV-SYNTHETIC-PURCHASED', balance: 0, original_value: 300, state: 'redeemed', order_state: 'paid', valid_until: null }] } },
-}, { calendarNavigationAllowed: true })) };
+  rewards: { data: { authority: { canManage: true }, policy: { unlockThreshold: 100 }, wallet: { balance: 120, unlocked: true }, entries: [{ entry_type: 'earn', signed_amount: 120, created_at: '2026-10-02T11:56:00Z', notes: 'Synthetic completed treatment' }] } },
+  vouchers: { data: { authority: { canIssue: true }, received: [{ voucher_code: 'SV-SYNTHETIC-RECEIVED', balance: 250, original_value: 500, state: 'active', order_state: 'paid', valid_until: null }], purchased: [{ voucher_code: 'SV-SYNTHETIC-PURCHASED', balance: 0, original_value: 300, state: 'redeemed', order_state: 'paid', valid_until: null }] } },
+}; }
+export const ClientProfileServices = { render: () => productionSurface(renderClientDetailPageWithCommunications(clientServicesModel())) };
+export const ClientHomeForms = { render: () => productionSurface(renderClientDetailPageWithCommunications(clientServicesModel('forms'))) };
+export const ClientHomeRewards = { render: () => productionSurface(renderClientDetailPageWithCommunications(clientServicesModel('rewards'))) };
+export const ClientHomeVouchers = { render: () => productionSurface(renderClientDetailPageWithCommunications(clientServicesModel('vouchers'))) };
+export const ClientHomeActivity = { render: () => productionSurface(renderClientDetailPageWithCommunications(clientServicesModel('activity'))) };
 
-export const ClientAppointmentHistory = { render: () => productionSurface(renderClientDetailPageWithCommunications(clientModel(), { calendarNavigationAllowed: true, notificationActionAllowed: true })) };
+export const ClientAppointmentHistory = { render: () => productionSurface(renderClientDetailPageWithCommunications({...clientModel(),services:'appointments'}, { calendarNavigationAllowed: true, notificationActionAllowed: true })) };
 export const MessagesAttention = { render: () => productionSurface(renderMessagesPage(messagesModel())) };
 export const MessagesChangeDeliveryAttention = {
   render: () => productionSurface(renderMessagesPage({
@@ -555,6 +561,20 @@ export const GroupBookingMultipleGuestsAndDiscount = {
   ),
 };
 
+export const GroupBookingWithOrganiserContact = {
+  render: () => interactiveProductionSurface(
+    renderCalendarGroupBookingPage({
+      options: {
+        services: couplesBookingOptions.services, staff,
+        guestBooking: { available: true },
+        authority: { operatorAdminId: 7, canApplyDiscount: true },
+      },
+      prefill: { date: '2026-11-20', time: '10:30' },
+    }),
+    calendarGroupBookingClientScript()
+  ),
+};
+
 export const MultiServiceClientBooking = {
   render: () => interactiveProductionSurface(
     renderCalendarMultiServiceBookingPage({
@@ -730,3 +750,11 @@ export const BookingNotesUpcoming = {render:()=>{const model=dashboardModel();mo
 
 export const CompactMenuNotificationsStale = { render: () => workspaceNavigationOpenStory('stale') };
 export const CompactMenuNotificationsUnknown = { render: () => workspaceNavigationOpenStory('unknown') };
+
+// Synthetic request context: no live client lookup or booking is performed.
+export const CreateBookingFromRequest = {
+  render: () => interactiveProductionSurface(renderCalendarCreateBookingPage({
+    options: { authority: { bookingFlow: 'practitioner_first' }, staff, services: [{ id: 81, name: 'Quick Relief: Back & Neck (45 min)', durationMinutes: 45, staffIds: [11, 12] }] },
+    prefill: { date: '2030-11-02', client: { id: '123', displayName: 'Synthetic Request Client', status: 'active', profileStatus: 'registered', contactHint: 'ending in 4567' }, returnTo: '/calendar/workspace#planning-request-81' },
+  }), calendarCreateBookingClientScript() + '\n' + clientChoicePresentation.calendarCreateBookingClientChoiceScript()),
+};

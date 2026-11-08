@@ -37,7 +37,7 @@ test('missing profile evidence never implies installation, alert setup, or readi
   delete model.appStatus;
   const html = renderClientDetailPage(model).replace(/<[^>]*>/g, '');
   assert.match(html, /My Shiloh: Not yet confirmed/);
-  assert.match(html, /Phone alerts: Unknown/);
+  assert.match(html, /Notifications: Unknown/);
   assert.doesNotMatch(html, /last used|App installed|Never used/i);
 });
 

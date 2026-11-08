@@ -1,3 +1,4 @@
+const { clientActionForm } = require('./workspaceClientActionsUx');
 const { escapeHtml } = require('./workspaceShell');
 const { renderConsultationHistory } = require('./workspaceClientDocumentsUx');
 
@@ -29,12 +30,15 @@ function renderVouchers(state) {
 function renderClientServices(model, { policySection, activitySection }) {
   const selected = model.services;
   const sections = [
-    ['activity', 'Activity', activitySection],
+    ['activity', 'Communications', activitySection],
     ['forms', 'Forms', `<section id="consultation-documents" data-client-consultation-history><h3>Consultation forms</h3>${renderConsultationHistory(model) || '<p>No completed consultation forms are recorded for this client.</p>'}</section>${policySection}`],
-    ['rewards', 'Rewards', renderRewards(model.rewards)],
-    ['vouchers', 'Vouchers', renderVouchers(model.vouchers)],
+    ['rewards', 'Rewards', clientActionForm(model, 'rewards') + renderRewards(model.rewards)],
+    ['vouchers', 'Vouchers', clientActionForm(model, 'vouchers') + renderVouchers(model.vouchers)],
   ];
-  return `<section class="history-panel client-services" data-client-profile-services aria-labelledby="client-services-title"><header class="section-heading"><div><span class="eyebrow">This client</span><h2 id="client-services-title">Client services</h2></div></header>${sections.map(([key, title, body]) => `<details class="client-service" id="client-${key}"${selected === key ? ' open' : ''}><summary>${title}</summary><div class="client-service-body">${body}</div></details>`).join('')}</section>`;
+  const section=sections.find(([key])=>key===selected);
+  if (!section) return '<section class="history-panel client-services" data-client-profile-services hidden></section>';
+  const [key,title,body]=section;
+  return `<section class="history-panel client-services" data-client-profile-services id="client-${key}" aria-labelledby="client-services-title"><div class="client-service-body"><h2 id="client-services-title">${title}</h2>${body}</div></section>`;
 }
 
 const clientServicesStyles = `.client-services{margin-bottom:12px}.client-service{border-top:1px solid var(--line,#dce4df)}.client-service>summary{padding:18px 4px;font-size:1.05rem;font-weight:700;cursor:pointer;min-height:48px}.client-service>summary:focus-visible{outline:3px solid #547c63;outline-offset:2px}.client-service-body{padding:0 4px 18px;overflow-wrap:anywhere;min-width:0}.client-service-body .history-panel{padding:0;box-shadow:none;border:0;background:transparent}.client-service-body .section-heading{flex-wrap:wrap}.client-service-body h3{margin:16px 0 10px}.workspace-main .client-service-body .history-panel{padding:0!important;box-shadow:none!important}`;

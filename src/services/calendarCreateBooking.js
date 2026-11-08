@@ -225,6 +225,18 @@ function createCalendarCreateBookingService({
     };
   }
 
+  async function bookingClient(adminId, clientId) {
+    await resolveOperator(adminId);
+    if (!['string', 'number'].includes(typeof clientId) || !/^[1-9][0-9]*$/.test(String(clientId || '')) || !positiveId(clientId) || String(clientId) !== String(clientId).trim()) {
+      throw bookingError('CRM_V2_INVALID_CLIENT_ID', 'Choose a valid client.');
+    }
+    const client = await crmV2Service.getClientById(String(clientId));
+    if (!client || client.status !== 'active') {
+      throw bookingError('CALENDAR_BOOKING_CRM_V2_CLIENT_INACTIVE', 'Choose an active client.');
+    }
+    return serializeClient(client);
+  }
+
   async function resolveEligibleSelection(admin, staffId, serviceId) {
     const staff = positiveId(staffId);
     const service = positiveId(serviceId);
@@ -415,6 +427,7 @@ function createCalendarCreateBookingService({
     resolveOperator,
     listBookableOptions,
     searchClients,
+    bookingClient,
     prepare,
     discard,
     confirm,

@@ -33,7 +33,8 @@ test('settled/waived/terminal deposits have no shortcut; current all-member scop
  await pg.exec("UPDATE appointments SET status='scheduled'");const restricted=principal(2);restricted.calendarAuthority.serviceScope='own_services';restricted.calendarAuthority.allowedServiceIds=[21];assert.deepEqual(await service.list({principal:restricted,now}),[]);
 }));
 test('only eligible explicit model flag adds secondary link beside unchanged review path and existing reason form anchor',()=>{
- const item={accountId:1,appointmentId:201,state:'partial',outstanding:'150.00',hasLink:true,members:[],canWaiveDeposit:true};
+ const item={accountId:1,appointmentId:201,state:'partial',outstanding:'150.00',hasLink:true,members:[{appointmentId:201,startsAt:'2026-12-15T08:00:00Z',clientName:'Synthetic guest',serviceName:'Synthetic treatment',staffNames:[]}],canWaiveDeposit:true};
  const html=depositQueueContent({items:[item]});assert.match(html,/>Review payment<\/a><a data-workspace-action="secondary" class="button" href="\/calendar\/payments\/appointments\/201#deposit-waiver">Waive deposit<\/a>/);assert.match(html,/href="\/calendar\/payments\/appointments\/201">Review payment/);assert.match(html,/>View booking/);assert.doesNotMatch(depositQueueContent({items:[{...item,canWaiveDeposit:false}]}),/>Waive deposit/);
  assert.match(renderDepositWaiverForm(waiverFixture()),/<form id="deposit-waiver"/);assert.doesNotMatch(renderDepositWaiverForm(waiverFixture({allowed:false})),/id="deposit-waiver"/);
+ assert.match(html,/href="\/calendar\/read-only\?view=week&amp;date=2026-12-15&amp;appointment=201&amp;staff=all">View booking/);
 });
