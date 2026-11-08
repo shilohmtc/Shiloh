@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { pool } = require('../db/pool');
+const { createGroupPlanningBookingContext } = require('./groupPlanningBookingContext');
 const { groupGuestStorageReady } = require('./groupGuestStorageReadiness');
 const { createGroupBookingOrganiserService } = require('./groupBookingOrganiser');
 const { createGuestGroupConfirmationService } = require('./guestGroupConfirmation');
@@ -141,6 +142,10 @@ function createCalendarGroupBookingService({
   organiserService = createGroupBookingOrganiserService(),
   wakeOrganiser = id => defaultPushService.wakeClient(id),
 } = {}) {
+  const planningContext = createGroupPlanningBookingContext({ organiserService });
+  async function requestContext(adminId, id) {
+    return planningContext.resolve(db, { principal: await resolveOperator(adminId), id });
+  }
   const organiserConfirmation = createGuestGroupConfirmationService({ organiser: organiserService });
   function guestAuthority(admin) {
     const a = admin?.calendarAuthority;
@@ -228,10 +233,18 @@ function createCalendarGroupBookingService({
     notes,
     useMorningOffer = true,
     organiserClientId,
+    planningRequestId,
+    planningRequestRevision,
   } = {}) {
     if (typeof useMorningOffer !== 'boolean') throw groupError('BOOKING_OFFER_INVALID', 'Review the promotional offer choice again.');
     const options = await listOptions(adminId);
+    const hasRequest = planningRequestId !== undefined || planningRequestRevision !== undefined;
+    const context = hasRequest ? await planningContext.resolve(db, { principal: await resolveOperator(adminId),
+      id: planningRequestId, revision: planningRequestRevision ?? '', organiserClientId: organiserClientId ?? '' }) : null;
     const guests = (Array.isArray(rawGuests) ? rawGuests : []).map(value => normalizeGuest(value, { allowNoMobile: options.guestBooking?.available === true }));
+    if (context && guests.some(guest => String(guest.clientId) === context.organiser.clientId
+      && (guest.name !== context.organiser.name || guest.mobile !== context.organiser.mobile)))
+      throw groupError('GROUP_REQUEST_ORGANISER_MISMATCH', 'Select the enquiry contact’s current profile if they are also receiving a treatment.', 409);
     let guestContact = null;
     if (guests.some(guest => guest.noMobile)) {
       const reviewedOrganiser = await organiserService.review(db, { adminId, organiserClientId });
@@ -295,6 +308,7 @@ function createCalendarGroupBookingService({
     const payload = {
       ...(offerPricing ? { morningOffer: { hash: pricingHash(offerPricing), useOffer: useMorningOffer } } : {}),
       guests,
+      ...(context ? { requestContext: context, requestReviewKey: crypto.randomBytes(24).toString('base64url') } : {}),
       ...(guestContact ? { guestContact } : {}),
       assignments: resolved.map(item => ({
         guestPosition: item.guestPosition,
@@ -324,6 +338,7 @@ function createCalendarGroupBookingService({
     return {
       status: 'pending_confirmation',
       review: {
+        ...(context ? { requestContext: context, requestReviewKey: payload.requestReviewKey } : {}),
         ...(guestContact ? { guestContact: { organiser: guestContact.reviewedOrganiser, reviewKey: guestContact.reviewKey } } : {}),
         guests: guests.map(guest => ({ ...guest, clientId: guest.clientId ? String(guest.clientId) : null })),
         assignments: resolved.map(item => ({
@@ -342,10 +357,27 @@ function createCalendarGroupBookingService({
     };
   }
 
-  async function discard({ adminId } = {}) {
+  async function discard({ adminId, planningRequestId, requestDraftKey } = {}) {
     await resolveOperator(adminId);
-    const result = await db.query(`DELETE FROM admin_group_booking_sessions WHERE admin_id=$1`, [Number(adminId)]);
-    return { status: result.rowCount ? 'discarded' : 'no_pending' };
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      const payload = (await client.query('SELECT payload FROM admin_group_booking_sessions WHERE admin_id=$1 FOR UPDATE', [Number(adminId)])).rows[0]?.payload;
+      if (!payload) { await client.query('COMMIT'); return { status: 'no_pending' }; }
+      const scoped = planningRequestId !== undefined || requestDraftKey !== undefined;
+      if (payload.requestContext || scoped) {
+        if (!payload.requestContext || String(planningRequestId) !== String(payload.requestContext.requestId)
+          || typeof requestDraftKey !== 'string' || !/^[A-Za-z0-9_-]{32}$/.test(requestDraftKey)
+          || requestDraftKey !== payload.requestReviewKey)
+          throw groupError('GROUP_REQUEST_REVIEW_CHANGED', 'A different or unchecked booking review is pending. Review this enquiry again before discarding it.', 409);
+      }
+      await client.query('DELETE FROM admin_group_booking_sessions WHERE admin_id=$1', [Number(adminId)]);
+      await client.query('COMMIT');
+      return { status: 'discarded' };
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally { client.release(); }
   }
 
   async function confirm({ adminId, quoteHash, reviewKey } = {}) {
@@ -363,24 +395,32 @@ function createCalendarGroupBookingService({
         [Number(adminId)]
       );
       const payload = draftResult.rows[0]?.payload;
-      if (!payload) {
-        // An interrupted successful guest commit must resolve the original booking,
-        // never create another group or resend direct participant messages.
-        if (guestBookingsEnabled && guestAuthority(admin) && typeof reviewKey === 'string' && /^[A-Za-z0-9_-]{32}$/.test(reviewKey)) {
+      const pendingReviewKey = payload?.requestReviewKey || payload?.guestContact?.reviewKey;
+      if (!payload || (reviewKey !== undefined && reviewKey !== pendingReviewKey)) {
+        // Recover the exact committed review even if another tab has prepared a
+        // newer draft. An old key must never consume that unrelated draft.
+        if (guestAuthority(admin) && typeof reviewKey === 'string' && /^[A-Za-z0-9_-]{32}$/.test(reviewKey)) {
           const prior = (await client.query(`SELECT g.id,g.starts_at,e.metadata FROM crm_audit_events e
             JOIN appointment_groups g ON g.id::text=e.entity_id::text
             WHERE e.action='admin.group_booking_created' AND e.entity_type='appointment_group'
-              AND e.actor_admin_id=$1 AND e.metadata->>'guestReviewKey'=$2
-              AND g.created_by_admin_id=$1 AND g.source='shiloh_calendar_group' LIMIT 2`, [Number(adminId), reviewKey])).rows;
+              AND e.actor_admin_id=$1 AND (e.metadata->>'requestReviewKey'=$2 OR ($3::boolean AND e.metadata->>'guestReviewKey'=$2))
+              AND g.created_by_admin_id=$1 AND g.source='shiloh_calendar_group' LIMIT 2`, [Number(adminId), reviewKey, guestBookingsEnabled])).rows;
           if (prior.length === 1) {
             await client.query('COMMIT');
-            return { status: 'created', replayed: true, groupId: Number(prior[0].id), startsAt: new Date(prior[0].starts_at).toISOString(), appointmentIds: prior[0].metadata.appointmentIds };
+            return { status: 'created', replayed: true, ...(prior[0].metadata.planningRequestId ? { planningRequestId: Number(prior[0].metadata.planningRequestId) } : {}), groupId: Number(prior[0].id), startsAt: new Date(prior[0].starts_at).toISOString(), appointmentIds: prior[0].metadata.appointmentIds };
           }
         }
+        if (payload) throw groupError(payload.requestContext ? 'GROUP_REQUEST_REVIEW_CHANGED' : payload.guestContact ? 'GROUP_GUEST_CONTACT_REVIEW' : 'GROUP_REVIEW_CHANGED', 'This booking review changed. Review the current group before confirming.', 409);
         throw groupError('GROUP_NO_PENDING', 'There is no Group booking review waiting to be confirmed.', 409);
       }
+      const context = payload.requestContext ? await planningContext.resolve(client, {
+        principal: await standardBooking.resolveOperator(adminId), id: payload.requestContext.requestId,
+        revision: payload.requestContext.revision, organiserClientId: payload.requestContext.organiser.clientId, lock: true,
+      }) : null;
+      if (context && payload.requestReviewKey !== reviewKey)
+        throw groupError('GROUP_REQUEST_REVIEW_CHANGED', 'Review the current enquiry booking before confirming.', 409);
       const guestMode = Boolean(payload.guestContact);
-      if (guestMode && (!(await guestAvailable(admin, client)) || payload.guestContact.reviewKey !== reviewKey))
+      if (guestMode && (!(await guestAvailable(admin, client)) || (context ? payload.requestReviewKey : payload.guestContact.reviewKey) !== reviewKey))
         throw groupError('GROUP_GUEST_CONTACT_REVIEW', 'Review the current guests and organiser before creating the booking.', 409);
       if(payload.morningOffer && payload.morningOffer.hash!==quoteHash) throw new MorningOfferError('This booking review changed. Review its current total before creating the appointments.');
       const guests = payload.guests.map(value => normalizeGuest(value, { allowNoMobile: guestMode }));
@@ -482,6 +522,11 @@ function createCalendarGroupBookingService({
         if (guest.clientId) {
           row = exact.rows.find(item => Number(item.id) === guest.clientId);
           if (!row || exact.rowCount !== 1) throw groupError('GROUP_CLIENT_CHANGED', 'A selected client or mobile changed. Nothing was created; select the client again.', 409);
+          // The enquiry contact is the source identity, not editable guest input.
+          if (context && String(row.id) === context.organiser.clientId) {
+            resolvedClients.push(row);
+            continue;
+          }
           const updated = await client.query(
             `UPDATE crm_v2_clients SET name=$2,date_of_birth=COALESCE($3::date,date_of_birth),gender=COALESCE($4,gender),
                     profile_status=CASE WHEN COALESCE($3::date,date_of_birth) IS NOT NULL AND COALESCE($4,gender) IS NOT NULL THEN 'registered' ELSE 'minimal' END,updated_at=NOW(),
@@ -586,6 +631,7 @@ function createCalendarGroupBookingService({
           throw groupError('GROUP_CONFIRMATION_QUEUE_FAILED', 'Client confirmations could not be secured, so nothing was created.', 503);
         }
       }
+      if (context) await organiserService.bind(client, { groupId, adminId: admin.id, reviewedOrganiser: context.organiser });
       if (guestMode) {
         guestObligation = await organiserConfirmation.queue(client, { groupId, adminId: admin.id,
           reviewedOrganiser: payload.guestContact.reviewedOrganiser });
@@ -598,6 +644,7 @@ function createCalendarGroupBookingService({
           groupId,
           JSON.stringify({
             appointmentIds,
+            ...(context ? { planningRequestId: context.requestId, requestReviewKey: payload.requestReviewKey } : {}),
             ...(guestMode ? { guestReviewKey: payload.guestContact.reviewKey, organiserNotificationId: guestObligation.notificationId } : {}),
             staffIds: selections.map(row => Number(row.staff_id)),
             serviceIds: selections.map(row => Number(row.service_id)),
@@ -633,6 +680,7 @@ function createCalendarGroupBookingService({
       }
       return {
         status: 'created',
+        ...(context ? { planningRequestId: context.requestId } : {}),
         ...(guestObligation ? { guestObligation, organiserDelivery } : {}),
         groupId: Number(groupId),
         startsAt: payload.startsAt,
@@ -649,7 +697,7 @@ function createCalendarGroupBookingService({
     }
   }
 
-  return { resolveOperator, listOptions, searchClients, prepare, discard, confirm };
+  return { resolveOperator, listOptions, requestContext, searchClients, prepare, discard, confirm };
 }
 
 module.exports = {

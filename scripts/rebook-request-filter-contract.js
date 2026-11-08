@@ -38,3 +38,12 @@ function normalizeRebookIndividualRequestLink(html) {
     .replace('<a data-workspace-action="primary" class="button" href="/calendar/book?client=8301&amp;returnTo=%2Fcalendar%2Fworkspace%23planning-request-8201&amp;date=2030-11-02">Arrange booking</a>', '<a data-workspace-action="primary" class="button" href="/calendar/read-only?view=week&amp;date=2030-11-02&amp;staff=all">Arrange booking</a>');
 }
 module.exports.normalizeRebookIndividualRequestLink = normalizeRebookIndividualRequestLink;
+
+// This fixture's group enquiry now opens its verified request-bound workflow.
+// Normalize only that exact destination and return anchor, never arbitrary IDs.
+function normalizeRebookGroupRequestLink(html) {
+  return html.replace(/<article class="booking-request" id="planning-request-8202" data-dashboard-planning-request="8202">[\s\S]*?<\/article>/, card => card
+    .replace(' id="planning-request-8202"', '')
+    .replace('<a data-workspace-action="primary" class="button" href="/calendar/book/group?request=8202">Arrange booking</a>', '<a data-workspace-action="primary" class="button" href="/calendar/read-only?view=week&amp;date=2030-11-02&amp;staff=all">Arrange booking</a>'));
+}
+module.exports.normalizeRebookGroupRequestLink = normalizeRebookGroupRequestLink;

@@ -50,16 +50,19 @@ test('untrusted return destinations are omitted, and unauthenticated requests ca
   assert.deepEqual(denied.reads, []);
 });
 
-test('only an individual request with a stable client gets the direct booking handoff', () => {
+test('individual and group requests use their distinct context-preserving booking handoffs', () => {
   const { renderDashboardPage } = require('../src/presentation/workspaceDashboardUx');
   const { rebookModel } = require('../stories/fixtures/rebookActionPresentation');
   const html = renderDashboardPage(rebookModel());
   assert.match(html, /id="planning-request-8201"/);
   assert.match(html, /href="\/calendar\/book\?client=8301&amp;returnTo=%2Fcalendar%2Fworkspace%23planning-request-8201&amp;date=2030-11-02"/);
   const group = html.match(/<article[^>]*data-dashboard-planning-request="8202"[\s\S]*?<\/article>/)[0];
-  assert.match(group, /href="\/calendar\/read-only\?view=week&amp;date=2030-11-02&amp;staff=all"/);
+  assert.match(group, /href="\/calendar\/book\/group\?request=8202"/);
+  assert.match(group, /id="planning-request-8202"/);
   assert.doesNotMatch(group, /\/calendar\/book\?/);
   const model = rebookModel();
   model.planningRequests[0].client_id = null;
+  model.planningRequests[1].client_id = null;
+  assert.doesNotMatch(renderDashboardPage(model), /\/calendar\/book\/group\?request=/);
   assert.doesNotMatch(renderDashboardPage(model), /\/calendar\/book\?client=/);
 });

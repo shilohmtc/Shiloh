@@ -31,7 +31,9 @@ function createCalendarGroupBookingRouter({
   router.get('/', requireSession, async (req, res, next) => {
     try {
       const options = await bookingService.listOptions(req.staffBrowserSession.adminId);
-      const prefill = bookingPrefillFromQuery(req.query, options);
+      const hasRequest = Object.prototype.hasOwnProperty.call(req.query, 'request');
+      if (hasRequest) options.requestContext = await bookingService.requestContext(req.staffBrowserSession.adminId, req.query.request);
+      const prefill = hasRequest ? { date: options.requestContext.preferredDate || '' } : bookingPrefillFromQuery(req.query, options);
       return res.status(200).type('html').send(renderPage({ options, prefill, clientScriptPath: `${req.baseUrl || '/calendar/book/group'}/client.js` }));
     } catch (error) {
       const status = errorStatus(error);

@@ -73,3 +73,16 @@ test('Rebook evidence allows only the exact approved individual client/date/retu
   }
   assert.notEqual(normalizeRequest(after + '<script>changed()</script>'), before);
 });
+
+const { normalizeRebookGroupRequestLink: normalizeGroupRequest } = require('../scripts/rebook-request-filter-contract');
+test('Rebook evidence allows only the exact group enquiry ID link and return anchor', () => {
+  const after = rebookHtml();
+  const before = after.replace(' id="planning-request-8202"', '').replace('/calendar/book/group?request=8202', '/calendar/read-only?view=week&amp;date=2030-11-02&amp;staff=all');
+  assert.notEqual(after, before);
+  assert.equal(normalizeGroupRequest(after), before);
+  for (const [from, to] of [['request=8202', 'request=9999'], ['id="planning-request-8202"', 'id="planning-request-9999"'], ['client=8301', 'client=9999'], ['value="41"', 'value="42"'], ['appointment=8101', 'appointment=9999'], ['>Arrange booking</a>', '>Confirm booking</a>']]) {
+    assert.ok(after.includes(from), from);
+    assert.notEqual(normalizeGroupRequest(after.replace(from, to)), before, from);
+  }
+  assert.notEqual(normalizeGroupRequest(after + '<script>changed()</script>'), before);
+});

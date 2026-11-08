@@ -124,3 +124,4 @@ module.exports.testMatch.push('my-shiloh-voucher-recovery.spec.js');
 module.exports.testMatch.push('workspace-session-message.spec.js');
 
 module.exports.testMatch.push("client-recorded-visits.spec.js");
+module.exports.testMatch.push("group-planning-booking.spec.js");

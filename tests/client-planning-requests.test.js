@@ -108,6 +108,9 @@ test('arranged requests list every approved upcoming booking and recheck eligibi
     CREATE TABLE services(id bigint PRIMARY KEY,name text);
     CREATE TABLE staff(id bigint PRIMARY KEY,display_name text);
     CREATE TABLE appointments(id bigint PRIMARY KEY,crm_v2_client_id bigint,starts_at timestamptz,status text);
+    CREATE TABLE appointment_groups(id bigint PRIMARY KEY,group_type text,source text,status text);
+    CREATE TABLE appointment_group_members(group_id bigint,appointment_id bigint,guest_position int);
+    CREATE TABLE appointment_group_booking_contacts(appointment_group_id bigint,organiser_crm_v2_client_id bigint);
     CREATE TABLE appointment_booking_approvals(appointment_id bigint PRIMARY KEY,status text);
     CREATE TABLE appointment_services(id bigint PRIMARY KEY,appointment_id bigint,service_id bigint);
     CREATE TABLE appointment_staff(appointment_id bigint,staff_id bigint);

@@ -322,6 +322,14 @@ jobs:
           path: artifacts/ux-playwright-results/**/enquiry-*.png
           if-no-files-found: error
           retention-days: 14
+      - name: Upload group enquiry handover review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: group-enquiry-handover-review
+          path: artifacts/ux-playwright-results/**/group-enquiry-*.png
+          if-no-files-found: error
+          retention-days: 14
       - name: Upload Workspace deposit visual review
         if: always()
         uses: actions/upload-artifact@v7
