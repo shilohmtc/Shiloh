@@ -86,11 +86,12 @@ test('intervals require four distinct dates and avoid calling irregular gaps usu
   assert.equal(projectRecordedVisits({...base,record_count:5001},asOf).available,false);
 });
 
-test('Workspace integration batches only visible IDs and rejects direct unauthorized clients before summary reads', async t => {
+test('Workspace keeps Directory lightweight and rejects unauthorized clients before Overview summary reads', async t => {
   const f = await fixture();t.after(f.close);
   await f.add({id:1});
   const list=await f.service.listClients({adminId:41}); assert.equal(list.clients.length,2);
-  assert.equal(list.clients[0].visitSummary.available,true);
+  assert.equal(list.clients[0].visitSummary,undefined);
+  assert.equal(f.calls.filter(c=>c.text.includes('clientRecordedVisits:scoped-batch')).length,0);
   const detail=await f.service.getClientDetail({adminId:41,clientId:1});assert.equal(detail.visitSummary.visitCount,1);
   const before=f.calls.filter(c=>c.text.includes('clientRecordedVisits:scoped-batch')).length;
   await assert.rejects(f.service.getClientDetail({adminId:41,clientId:3}),e=>e.httpStatus===404);

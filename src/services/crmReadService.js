@@ -1,3 +1,4 @@
+const { endedAttendedSql } = require('./recordedVisitRead');
 const { pool } = require("../db/pool");
 const { normalizeMobileSearch } = require('./crmV2ClientService');
 const { CLIENT_RELATIONSHIP_TYPES, validClientScope, positiveId } = require('./clientRelationshipScope');
@@ -89,7 +90,7 @@ async function listClients({ q, status, limit, offset, scope }) {
               FROM appointments a_last
              WHERE a_last.crm_v2_client_id=c.id
                AND a_last.client_id IS NULL
-               AND a_last.status IN ('completed','no_charge') AND a_last.starts_at < NOW()
+               AND ${endedAttendedSql('a_last', 'NOW()')}
                ${appointmentScope ? `AND ${appointmentScope}` : ''}) AS last_visit_at,
            (SELECT MIN(a_last.starts_at) FROM appointments a_last
              WHERE a_last.crm_v2_client_id=c.id AND a_last.client_id IS NULL

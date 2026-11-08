@@ -17,7 +17,10 @@ async function search(next,historyMode='replace'){
  const doc=new DOMParser().parseFromString(await response.text(),'text/html'),updated=doc.querySelector('[data-client-search-results]');
  if(!updated)throw Error('Search is unavailable. Please try again, or refresh your sign-in.');
  if(current!==sequence)return;
- results.replaceChildren(...updated.childNodes);status.dataset.complete='true';status.textContent=results.querySelector('.result-summary')?.textContent.trim()||'No clients found.';
+ results.replaceChildren(...updated.childNodes);
+ const insightsLink=document.querySelector('.client-insights-link'),updatedInsights=doc.querySelector('.client-insights-link');
+ if(insightsLink&&updatedInsights)insightsLink.setAttribute('href',updatedInsights.getAttribute('href'));
+ status.dataset.complete='true';status.textContent=results.querySelector('.result-summary')?.textContent.trim()||'No clients found.';
  if(historyMode==='push')history.pushState(null,'',next.pathname+next.search);else if(historyMode==='replace')history.replaceState(null,'',next.pathname+next.search);
  }catch(error){if(current!==sequence||error.name==='AbortError')return;status.textContent=error.message;button.hidden=false;}
  finally{if(current===sequence)results.removeAttribute('aria-busy');}

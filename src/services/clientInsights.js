@@ -1,0 +1,87 @@
+'use strict';
+const { pool } = require('../db/pool');
+const workspaceClients = require('./workspaceClients');
+const {
+  relationshipPredicate,
+  appointmentScopePredicate,
+  validClientScope,
+} = require('./clientRelationshipScope');
+const { endedAttendedSql, recordedEventKeySql, boundedVisitRead } = require('./recordedVisitRead');
+const {
+  MAX_INSIGHT_RECORDS,
+  INSIGHT_PAGE_SIZE,
+  insightPeriod,
+  projectClientInsights,
+} = require('../domain/clientInsights');
+
+function createClientInsightsService({
+  db = pool,
+  accessService = workspaceClients,
+  now = () => new Date(),
+} = {}) {
+  async function getModel({ adminId, months = 2, offset = 0 } = {}) {
+    const authority = await accessService.requireAccess(adminId);
+    const period = insightPeriod(months, now());
+    const safeOffset = Math.min(100000, Math.max(0, Number.parseInt(offset, 10) || 0));
+    const scope = authority.clientScope;
+    if (!validClientScope(scope))
+      return { ...projectClientInsights(null, period, safeOffset), authority };
+    const rel = relationshipPredicate('rel', scope, 3);
+    const appointments = appointmentScopePredicate('a.id', scope, 3);
+    const otherAppointments = appointmentScopePredicate('other.id', scope, 3);
+    const offsetParam = '$' + rel.nextParameterIndex;
+    const result = await boundedVisitRead(db, (client) =>
+      client.query(
+        `/* clientInsights:scoped-period */
+      WITH authorized AS MATERIALIZED (
+        SELECT c.id,c.name,rel.status FROM crm_v2_clients c
+        JOIN crm_v2_client_relationships rel ON rel.client_id=c.id WHERE ${rel.sql}
+      ), records AS MATERIALIZED (
+        SELECT a.id,a.crm_v2_client_id AS client_id,a.starts_at,gm.group_id,${recordedEventKeySql('a')} AS event_key
+        FROM appointments a JOIN authorized c ON c.id=a.crm_v2_client_id
+        LEFT JOIN appointment_group_members gm ON gm.appointment_id=a.id
+        WHERE a.client_id IS NULL AND ${endedAttendedSql('a', '$2::timestamptz')}
+          AND a.starts_at>=($1::date::timestamp AT TIME ZONE 'Africa/Johannesburg')
+          AND a.starts_at<$2::timestamptz AND ${appointments.sql}
+        ORDER BY a.starts_at DESC,a.id DESC LIMIT ${MAX_INSIGHT_RECORDS + 1}
+      ), count_check AS (SELECT COUNT(*)::int AS record_count FROM records), events AS MATERIALIZED (
+        SELECT r.client_id,r.event_key,MIN(r.starts_at) AS starts_at
+        FROM records r WHERE (SELECT record_count FROM count_check)<=${MAX_INSIGHT_RECORDS}
+        GROUP BY r.client_id,r.event_key
+      ), group_check AS (
+        SELECT EXISTS(SELECT 1 FROM records r
+          JOIN appointment_group_members other_member ON other_member.group_id=r.group_id
+          JOIN appointments other ON other.id=other_member.appointment_id
+          WHERE (SELECT record_count FROM count_check)<=${MAX_INSIGHT_RECORDS}
+            AND other.crm_v2_client_id=r.client_id AND other.client_id IS NULL
+            AND ${endedAttendedSql('other', '$2::timestamptz')} AND ${otherAppointments.sql}
+            AND (other.starts_at AT TIME ZONE 'Africa/Johannesburg')::date<>(r.starts_at AT TIME ZONE 'Africa/Johannesburg')::date
+        ) AS split_group
+      ), client_counts AS MATERIALIZED (
+        SELECT e.client_id,COUNT(*)::int AS visits,MAX(e.starts_at) AS last_visit_at,
+          jsonb_agg(DISTINCT TO_CHAR(e.starts_at AT TIME ZONE 'Africa/Johannesburg','YYYY-MM-DD') ORDER BY TO_CHAR(e.starts_at AT TIME ZONE 'Africa/Johannesburg','YYYY-MM-DD')) AS dates
+        FROM events e GROUP BY e.client_id
+      ), ranked AS MATERIALIZED (
+        SELECT cc.*,c.name,c.status,DENSE_RANK() OVER(ORDER BY cc.visits DESC) AS rank
+        FROM client_counts cc JOIN authorized c ON c.id=cc.client_id
+      ), page AS (
+        SELECT * FROM ranked ORDER BY visits DESC,LOWER(name),client_id LIMIT ${INSIGHT_PAGE_SIZE} OFFSET ${offsetParam}::int
+      ), months AS (
+        SELECT TO_CHAR(month,'YYYY-MM') AS month,
+          (SELECT COUNT(*)::int FROM events e WHERE TO_CHAR(e.starts_at AT TIME ZONE 'Africa/Johannesburg','YYYY-MM')=TO_CHAR(month,'YYYY-MM')) AS visits,
+          (SELECT COUNT(DISTINCT e.client_id)::int FROM events e WHERE TO_CHAR(e.starts_at AT TIME ZONE 'Africa/Johannesburg','YYYY-MM')=TO_CHAR(month,'YYYY-MM')) AS clients
+        FROM generate_series($1::date::timestamp,$1::date::timestamp+INTERVAL '1 month'*${period.months - 1},INTERVAL '1 month') month
+      )
+      SELECT cc.record_count,gc.split_group,(SELECT COUNT(*)::int FROM events) AS total_visits,
+        (SELECT COUNT(*)::int FROM client_counts) AS unique_clients,
+        COALESCE((SELECT jsonb_agg(jsonb_build_object('month',m.month,'visits',m.visits,'clients',m.clients) ORDER BY m.month) FROM months m),'[]') AS monthly,
+        COALESCE((SELECT jsonb_agg(jsonb_build_object('clientId',p.client_id::text,'name',LEFT(p.name,120),'status',p.status,'visits',p.visits,'rank',p.rank,'lastVisitAt',p.last_visit_at,'dates',p.dates) ORDER BY p.visits DESC,LOWER(p.name),p.client_id) FROM page p),'[]') AS ranking
+      FROM count_check cc CROSS JOIN group_check gc`,
+        [period.startDate, period.asOf, ...rel.values, safeOffset],
+      ),
+    );
+    return { ...projectClientInsights(result?.rows?.[0], period, safeOffset), authority };
+  }
+  return { getModel };
+}
+module.exports = { createClientInsightsService };

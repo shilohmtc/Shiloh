@@ -13,6 +13,7 @@ function decorateClientHome(html, model) {
   const selected=selectedClientSection(model);
   return html.replace('<main data-client-detail-view>',`<main data-client-detail-view><div class="client-home" data-client-home-section="${selected}">`)
     .replace('</main>','</div></main>')
+    .replace('>Back to Clients</a>',model.clientListReturnHref?.startsWith('/calendar/clients/insights?')?'>Back to Insights</a>':'>Back to Clients</a>')
     .replace('href="/calendar/clients" data-workspace-back-context',`href="${escapeHtml(model.clientListReturnHref || '/calendar/clients')}" data-workspace-back-context`)
     .replace('<nav class="detail-actions" aria-label="Client navigation">', '<nav class="detail-actions" aria-label="Client navigation">' + (model.returnHref ? `<a class="button" href="${escapeHtml(model.returnHref)}">Back to booking</a>` : ''))
     .replace('<div class="profile-grid">',`${clientSectionNavigation(model)}<div class="profile-grid">`)

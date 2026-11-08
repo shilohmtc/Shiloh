@@ -1,4 +1,4 @@
-const { renderCompactRecordedVisits, renderRecordedVisits, recordedVisitStyles } = require('./clientRecordedVisitsUx');
+const { renderRecordedVisits, recordedVisitStyles } = require('./clientRecordedVisitsUx');
 const { directoryPaymentLabel } = require('./clientDirectoryPaymentUx');
 const { workspaceBookingStatus } = require('./workspaceBookingStatus');
 const { displayPhone } = require('./southAfricanPhone');
@@ -85,8 +85,8 @@ function listHref({ query = '', status = 'active', offset = 0 } = {}) {
   return `/calendar/clients${suffix ? `?${suffix}` : ''}`;
 }
 
-function shellStart({ title, subtitle, displayName, calendarNavigationAllowed, staffAccessScriptPath }) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} — Shiloh Workspace</title><style>${workspaceShellStyles()}${styles()}${appointmentHistoryResponsiveStyles}${clientDetailStyles}${recordedVisitStyles}</style><script src="${escapeHtml(staffAccessScriptPath)}" defer></script></head><body data-workspace-clients="true"><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'clients', displayName, calendarHref: calendarNavigationAllowed ? '/calendar/read-only' : null })}<div class="workspace-main"><div class="shell"><header class="topbar"><div class="brand"><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p></div><div class="topbar-side"><span class="truth-note">View only</span></div></header>`;
+function shellStart({ title, subtitle, displayName, calendarNavigationAllowed, staffAccessScriptPath = '/calendar/staff/client.js', actions = '' }) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)} — Shiloh Workspace</title><style>${workspaceShellStyles()}${styles()}${appointmentHistoryResponsiveStyles}${clientDetailStyles}${recordedVisitStyles}.client-insights-link{min-height:44px}.client-last{position:relative;z-index:1}.client-last>span{display:grid;gap:4px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel);min-width:0}.client-last>span strong{font-size:.8rem}</style><script src="${escapeHtml(staffAccessScriptPath)}" defer></script></head><body data-workspace-clients="true"><div class="workspace-frame">${renderWorkspaceNavigation({ active: 'clients', displayName, calendarHref: calendarNavigationAllowed ? '/calendar/read-only' : null })}<div class="workspace-main"><div class="shell"><header class="topbar"><div class="brand"><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p></div><div class="topbar-side">${actions}<span class="truth-note">View only</span></div></header>`;
 }
 
 function renderClientListPage(model, {
@@ -97,19 +97,19 @@ function renderClientListPage(model, {
   const selectedStatus = model.status || 'all';
   const directoryReturn = listHref({query:model.query,status:selectedStatus,offset:model.offset});
   const rows = (model.clients || []).map(client => {
-    const lastVisit = client.visitSummary ? (client.visitSummary.available ? client.visitSummary.lastVisitAt : null) : client.last_visit_at;
-    const last = client.visitSummary?.available === false ? 'Unavailable' : lastVisit ? formatDateTime(lastVisit).date : 'None recorded';
+    const last = client.last_visit_at ? formatDateTime(client.last_visit_at).date : 'None recorded';
     const next = client.next_appointment_at ? formatDateTime(client.next_appointment_at) : null;
     const paymentLabel = client.paymentReview ? directoryPaymentLabel(client.paymentReview) : { text: 'Payment review available in Appointments', attention: false };
     const context = encodeURIComponent(directoryReturn);
-    return `<article class="client-row"><span class="client-identity"><a class="client-name" data-client-profile-link href="/calendar/clients/${escapeHtml(client.id)}?returnTo=${context}">${escapeHtml(client.name || 'Unnamed client')}</a><a href="/calendar/clients/${escapeHtml(client.id)}?services=appointments&amp;returnTo=${context}#client-appointments" class="client-payment-review" data-client-payment-id="${escapeHtml(client.id)}"${paymentLabel.attention ? ' data-attention="true"' : ''} title="Review linked records in the client’s Appointments tab. Shared booking balances are not individual client debt.">${escapeHtml(paymentLabel.text)}</a>${renderCompactRecordedVisits(client.visitSummary)}</span>${statusPill(client.status)}${appStatusIndicators(client.appStatus)}<span class="client-last"><span>Next appointment<strong>${next ? escapeHtml(next.date) : 'None booked'}</strong>${next ? '<small>'+escapeHtml(next.time)+'</small>' : ''}</span><span>Last recorded visit<strong>${escapeHtml(last)}</strong></span></span><span class="row-arrow" aria-hidden="true">›</span></article>`;
+    return `<article class="client-row"><span class="client-identity"><a class="client-name" data-client-profile-link href="/calendar/clients/${escapeHtml(client.id)}?returnTo=${context}">${escapeHtml(client.name || 'Unnamed client')}</a><a href="/calendar/clients/${escapeHtml(client.id)}?services=appointments&amp;returnTo=${context}#client-appointments" class="client-payment-review" data-client-payment-id="${escapeHtml(client.id)}"${paymentLabel.attention ? ' data-attention="true"' : ''} title="Review linked records in the client’s Appointments tab. Shared booking balances are not individual client debt.">${escapeHtml(paymentLabel.text)}</a></span>${statusPill(client.status)}${appStatusIndicators(client.appStatus)}<span class="client-last"><span>Next appointment<strong>${next ? escapeHtml(next.date) : 'None booked'}</strong>${next ? '<small>'+escapeHtml(next.time)+'</small>' : ''}</span><span>Last recorded visit<strong>${escapeHtml(last)}</strong></span></span><span class="row-arrow" aria-hidden="true">›</span></article>`;
   }).join('');
   const statusOptions = [['active', 'Active'], ['archived', 'Archived'], ['all', 'All']]
     .map(([value, label]) => `<option value="${value}"${selectedStatus === value || (!model.status && value === 'all') ? ' selected' : ''}>${label}</option>`).join('');
   const previousOffset = Math.max(0, model.offset - model.pageSize);
   const previous = model.offset > 0 ? `<a data-workspace-action="secondary" class="pager-link" href="${escapeHtml(listHref({ query: model.query, status: selectedStatus, offset: previousOffset }))}">Previous</a>` : '<span class="pager-spacer"></span>';
   const next = model.hasMore ? `<a data-workspace-action="secondary" class="pager-link" href="${escapeHtml(listHref({ query: model.query, status: selectedStatus, offset: model.offset + model.pageSize }))}">Next</a>` : '<span class="pager-spacer"></span>';
-  return `${shellStart({ title: 'Client Directory', subtitle: 'Find and view client records.', displayName: model.authority?.displayName, calendarNavigationAllowed, staffAccessScriptPath })}<main data-clients-list-view>
+  const insightsLink = `<a class="button client-insights-link" href="/calendar/clients/insights?returnTo=${encodeURIComponent(directoryReturn)}">Client Insights</a>`;
+  return `${shellStart({ actions: insightsLink, title: 'Client Directory', subtitle: 'Find and view client records.', displayName: model.authority?.displayName, calendarNavigationAllowed, staffAccessScriptPath })}<main data-clients-list-view>
     <script src="/calendar/clients/search.js" defer></script>
     <script src="/calendar/clients/payments.js" defer></script>
     <section class="search-panel"><form class="search-form" data-client-search-form method="get" action="/calendar/clients"><div class="field"><label for="client-search">Name or mobile number</label><input id="client-search" name="q" type="search" value="${escapeHtml(model.query || '')}" placeholder="Enter a name or mobile number" maxlength="120"></div><div class="field"><label for="client-status">Client status</label><select id="client-status" name="status">${statusOptions}</select></div><button data-workspace-action="secondary" class="button primary" type="submit">Search</button></form><p data-client-search-status role="status" aria-live="polite" class="search-status"></p></section>
@@ -212,6 +212,7 @@ function renderClientsUnavailablePage({ code = 'WORKSPACE_CLIENTS_UNAVAILABLE', 
 }
 
 module.exports = {
+  shellStart,
   formatDateOnly,
   formatDateTime,
   formatMobile,

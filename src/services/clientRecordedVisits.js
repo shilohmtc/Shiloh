@@ -2,8 +2,9 @@
 
 const { relationshipPredicate, appointmentScopePredicate, validClientScope } = require('./clientRelationshipScope');
 const { MAX_APPOINTMENTS, projectRecordedVisits } = require('../domain/clientRecordedVisits');
+const { endedAttendedSql, recordedEventKeySql, boundedVisitRead } = require('./recordedVisitRead');
 
-// One bounded read for the visible Directory page or the authorized Overview.
+// One bounded batch for authorized profile summaries.
 // No phone/name/organiser matching, ledger getters, writes or cached private data.
 async function readClientRecordedVisits({ db, clientIds = [], scope, asOf = new Date() } = {}) {
   const ids = [...new Set(clientIds.map(String))];
@@ -13,17 +14,7 @@ async function readClientRecordedVisits({ db, clientIds = [], scope, asOf = new 
   const appointments = appointmentScopePredicate('a.id', scope, 3);
   const tenant = scope.kind === 'tenant_staff';
   const visibleService = tenant ? "visibility.owner_staff_id=$3" : 'visibility.service_id IS NULL';
-  let client, acquisition, timedOut = false;
-  try {
-    const pending = Promise.resolve(db.connect());
-    pending.then(late => { if (timedOut) late.release(); }).catch(() => {});
-    client = await Promise.race([pending, new Promise((_, reject) => { acquisition = setTimeout(() => { timedOut = true; reject(Error('VISIT_READ_ACQUIRE_TIMEOUT')); }, 3000); })]);
-    clearTimeout(acquisition);
-    await client.query('BEGIN READ ONLY');
-    await client.query("SET LOCAL statement_timeout='2000ms'");
-    await client.query("SET LOCAL lock_timeout='250ms'");
-    await client.query("SET LOCAL idle_in_transaction_session_timeout='3000ms'");
-    const result = await client.query(`/* clientRecordedVisits:scoped-batch */
+  const result = await boundedVisitRead(db, client => client.query(`/* clientRecordedVisits:scoped-batch */
       WITH authorized AS MATERIALIZED (
         SELECT c.id FROM crm_v2_clients c
         WHERE c.id=ANY($1::bigint[]) AND EXISTS (
@@ -31,12 +22,11 @@ async function readClientRecordedVisits({ db, clientIds = [], scope, asOf = new 
       ), bounds AS (
         SELECT (($2::timestamptz AT TIME ZONE 'Africa/Johannesburg')::date - INTERVAL '12 months')::date AS first_date
       ), records AS MATERIALIZED (
-        SELECT visible.*, COALESCE('g:'||gm.group_id::text,'a:'||visible.id::text) AS event_key
+        SELECT visible.*, ${recordedEventKeySql('visible')} AS event_key
         FROM authorized c CROSS JOIN LATERAL (
           SELECT a.id,a.crm_v2_client_id AS client_id,a.starts_at
           FROM appointments a WHERE a.crm_v2_client_id=c.id AND a.client_id IS NULL
-            AND a.status IN ('completed','no_charge') AND a.starts_at<=$2::timestamptz
-            AND a.ends_at<=$2::timestamptz AND a.ends_at>a.starts_at AND ${appointments.sql}
+            AND ${endedAttendedSql('a', '$2::timestamptz')} AND ${appointments.sql}
           ORDER BY a.starts_at DESC,a.id DESC LIMIT ${MAX_APPOINTMENTS + 1}
         ) visible LEFT JOIN appointment_group_members gm ON gm.appointment_id=visible.id
       ), record_counts AS MATERIALIZED (
@@ -76,19 +66,14 @@ async function readClientRecordedVisits({ db, clientIds = [], scope, asOf = new 
         (SELECT COUNT(*)::int FROM frequencies f WHERE f.client_id=c.id) AS treatment_count,
         (SELECT COUNT(*)::int FROM leaders l WHERE l.client_id=c.id) AS leader_count,
         COALESCE((SELECT jsonb_agg(jsonb_build_object('name',LEFT(l.name,160),'visits',l.visits) ORDER BY l.name,l.service_id) FROM (SELECT * FROM leaders WHERE client_id=c.id ORDER BY name,service_id LIMIT 3) l),'[]'::jsonb) AS leaders
-      FROM authorized c CROSS JOIN bounds b`, [ids, new Date(asOf).toISOString(), ...(tenant ? [scope.ownerStaffId] : [])]);
+      FROM authorized c CROSS JOIN bounds b`, [ids, new Date(asOf).toISOString(), ...(tenant ? [scope.ownerStaffId] : [])]));
+  if (!result) return unavailable;
+  try {
     const answer = { ...unavailable };
     for (const row of result.rows) if (Object.hasOwn(answer, String(row.client_id))) answer[String(row.client_id)] = projectRecordedVisits(row, asOf);
     return answer;
   } catch (_) {
     return unavailable;
-  } finally {
-    clearTimeout(acquisition);
-    if (client) {
-      let rollbackError;
-      try { await client.query('ROLLBACK'); } catch (error) { rollbackError = error; }
-      client.release(rollbackError); // Discard a connection whose transaction could not be closed.
-    }
   }
 }
 

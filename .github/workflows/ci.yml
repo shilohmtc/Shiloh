@@ -384,10 +384,10 @@ jobs:
           tests/calendar-couples-creation-sql.test.js
           tests/morning-offer-booking-sql.test.js
           tests/guest-first-visit-concurrency.test.js
-      - name: Prove scoped recorded client visit summaries in PostgreSQL
+      - name: Prove scoped recorded client summaries and Insights in PostgreSQL
         env:
           TEST_RECORDED_VISITS_DATABASE_URL: postgres://postgres:synthetic-test-only@localhost:5432/package_proof
-        run: node --test tests/client-recorded-visits.test.js
+        run: node --test --test-concurrency=1 tests/client-recorded-visits.test.js tests/client-insights.test.js
       - name: Prove atomic My Shiloh couples booking in PostgreSQL
         env:
           TEST_COUPLES_DATABASE_URL: postgres://postgres:synthetic-test-only@localhost:5432/package_proof
