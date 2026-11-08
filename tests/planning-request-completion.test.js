@@ -32,6 +32,9 @@ test('enquiry completion retains real visits/payments, checks attendance and sco
     CREATE TABLE staff_admin_accounts(id bigint PRIMARY KEY,active boolean,staff_id bigint,business_role text,calendar_scope text,permissions jsonb);
     CREATE TABLE services(id bigint PRIMARY KEY,name text);
     CREATE TABLE appointments(id bigint PRIMARY KEY,client_id bigint,crm_v2_client_id bigint,starts_at timestamptz,ends_at timestamptz,status text);
+    CREATE TABLE appointment_groups(id bigint PRIMARY KEY,group_type text,source text,status text);
+    CREATE TABLE appointment_group_members(group_id bigint,appointment_id bigint,guest_position int);
+    CREATE TABLE appointment_group_booking_contacts(appointment_group_id bigint,organiser_crm_v2_client_id bigint);
     CREATE TABLE appointment_booking_approvals(appointment_id bigint PRIMARY KEY,status text);
     CREATE TABLE appointment_services(id bigint PRIMARY KEY,appointment_id bigint,service_id bigint,service_name_snapshot text);
     CREATE TABLE appointment_staff(appointment_id bigint,staff_id bigint,staff_name_snapshot text);

@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const { pool } = require('../db/pool');
+const { hasCapability, CALENDAR_CAPABILITIES } = require('./calendarAuthorization');
 const { isDerivedGlobalCoordinator } = require('./workspaceBookingRequestRouting');
 const { createPlanningRequestCompletion } = require('./clientPlanningRequestCompletion');
 
@@ -34,13 +35,38 @@ function arrangedAppointmentPredicate(alias = 'a') {
       WHERE approval.appointment_id=${alias}.id AND approval.status<>'approved')`;
 }
 
-function candidateAppointmentsSql() {
+// Only the first member represents a linked group, and only its verified organiser
+// can link it to a group enquiry. Individual requests retain their own-client rule.
+function linkedGroupPredicate(alias = 'a', requester = 'r.crm_v2_client_id') {
+  return `EXISTS (SELECT 1 FROM appointment_group_members gm
+    JOIN appointment_groups g ON g.id=gm.group_id
+    JOIN appointment_group_booking_contacts gc ON gc.appointment_group_id=g.id
+    WHERE gm.appointment_id=${alias}.id AND gm.guest_position=1
+      AND g.group_type='group_booking' AND g.source='shiloh_calendar_group'
+      AND g.status IN ('scheduled','confirmed')
+      AND NOT EXISTS (SELECT 1 FROM appointment_group_members member
+        JOIN appointments sibling ON sibling.id=member.appointment_id
+        WHERE member.group_id=g.id AND NOT (${arrangedAppointmentPredicate('sibling')}))
+      AND gc.organiser_crm_v2_client_id=${requester})`;
+}
+function canLinkGroupEnquiry(principal) {
+  const authority = principal?.calendarAuthority;
+  return isDerivedGlobalCoordinator(principal) && principal.permissions?.['client:lookup'] === true
+    && authority?.calendarScope === 'all_business' && authority.serviceScope === 'all_services'
+    && hasCapability(authority, CALENDAR_CAPABILITIES.BOOKING_CREATE)
+    && hasCapability(authority, CALENDAR_CAPABILITIES.CLIENT_LOOKUP);
+}
+function candidateAppointmentsSql(allowLinkedGroups = false) {
+  const linkedGroup = allowLinkedGroups ? linkedGroupPredicate() : 'FALSE';
   return `SELECT a.id,a.starts_at,
+    (r.request_kind='group' AND ${linkedGroup}) AS linked_group,
+    CASE WHEN r.request_kind='group' AND ${linkedGroup} THEN
+      (SELECT gm.group_id FROM appointment_group_members gm WHERE gm.appointment_id=a.id AND gm.guest_position=1 LIMIT 1) END AS group_id,
     (SELECT string_agg(s.name,' + ' ORDER BY aps.id) FROM appointment_services aps
       JOIN services s ON s.id=aps.service_id WHERE aps.appointment_id=a.id) AS service_name,
     (SELECT string_agg(p.display_name,' + ' ORDER BY p.id) FROM appointment_staff ast
       JOIN staff p ON p.id=ast.staff_id WHERE ast.appointment_id=a.id) AS staff_names
-    FROM appointments a WHERE a.crm_v2_client_id=r.crm_v2_client_id
+    FROM appointments a WHERE ((a.crm_v2_client_id=r.crm_v2_client_id AND (r.request_kind<>'group' OR NOT EXISTS (SELECT 1 FROM appointment_group_members own_group WHERE own_group.appointment_id=a.id))) OR (r.request_kind='group' AND ${linkedGroup}))
       AND ${arrangedAppointmentPredicate()} ORDER BY a.starts_at,a.id`;
 }
 
@@ -135,8 +161,8 @@ function createClientPlanningRequestService({ db = pool, now = () => new Date(),
       r.guest_count,r.special_occasion,r.occasion_note,r.client_note,r.requested_at,r.planning_started_at,r.updated_at,
       c.name AS client_name,CASE WHEN $1::boolean THEN c.id END AS client_id,CASE WHEN $1::boolean THEN c.normalized_mobile END AS client_mobile,r.source_channel,s.name AS service_name,p.display_name AS practitioner_name,
       COALESCE((SELECT jsonb_agg(jsonb_build_object('id',candidate.id,'startsAt',candidate.starts_at,
-        'serviceName',candidate.service_name,'staffNames',candidate.staff_names) ORDER BY candidate.starts_at,candidate.id)
-        FROM (${candidateAppointmentsSql()}) candidate),'[]'::jsonb) AS candidate_appointments
+        'serviceName',CASE WHEN candidate.linked_group THEN 'Linked group #' || candidate.group_id || ' · ' || COALESCE(candidate.service_name,'Group booking') ELSE candidate.service_name END,'staffNames',candidate.staff_names,'linkedGroup',candidate.linked_group,'groupId',candidate.group_id) ORDER BY candidate.starts_at,candidate.id)
+        FROM (${candidateAppointmentsSql(canLinkGroupEnquiry(principal))}) candidate),'[]'::jsonb) AS candidate_appointments
       FROM client_planning_requests r JOIN crm_v2_clients c ON c.id=r.crm_v2_client_id
       LEFT JOIN services s ON s.id=r.service_id LEFT JOIN staff p ON p.id=r.practitioner_id
       WHERE r.status IN ('requested','planning') ORDER BY r.requested_at,r.id LIMIT 100`,[principal.permissions?.['client:lookup']===true]);
@@ -148,8 +174,8 @@ function createClientPlanningRequestService({ db = pool, now = () => new Date(),
     const requestId = positiveId(id);
     if (!requestId) throw new ClientPlanningRequestError('PLANNING_ACTION_INVALID', 'Please reload and try again.');
     const result = await db.query(`SELECT candidate.id,candidate.starts_at AS "startsAt",
-      candidate.service_name AS "serviceName",candidate.staff_names AS "staffNames"
-      FROM client_planning_requests r CROSS JOIN LATERAL (${candidateAppointmentsSql()}) candidate
+      CASE WHEN candidate.linked_group THEN 'Linked group #' || candidate.group_id || ' · ' || COALESCE(candidate.service_name,'Group booking') ELSE candidate.service_name END AS "serviceName",candidate.staff_names AS "staffNames",candidate.linked_group AS "linkedGroup",candidate.group_id AS "groupId"
+      FROM client_planning_requests r CROSS JOIN LATERAL (${candidateAppointmentsSql(canLinkGroupEnquiry(principal))}) candidate
       WHERE r.id=$1 AND r.status IN ('requested','planning') ORDER BY candidate.starts_at,candidate.id`, [requestId]);
     return { appointments: result.rows };
   }
@@ -201,8 +227,24 @@ function createClientPlanningRequestService({ db = pool, now = () => new Date(),
       if (action === 'arranged') {
         linked = positiveId(appointmentId);
         if (!linked) throw new ClientPlanningRequestError('PLANNING_APPOINTMENT_REQUIRED', 'Choose the appointment arranged for this client.');
+        if (row.request_kind === 'group') {
+          const membership = (await connection.query('SELECT group_id FROM appointment_group_members WHERE appointment_id=$1', [linked])).rows[0];
+          if (membership) {
+            if (!canLinkGroupEnquiry(principal)) throw new ClientPlanningRequestError('PLANNING_FORBIDDEN', 'Current staff access does not permit linking this group enquiry.', 403);
+            // Match booking-change lock order: appointments before group/contact.
+            // Lock every sibling, not only the representative first member.
+            await connection.query(`SELECT a.id FROM appointments a JOIN appointment_group_members gm ON gm.appointment_id=a.id
+              WHERE gm.group_id=$1 ORDER BY a.id FOR UPDATE OF a`, [membership.group_id]);
+            await connection.query('SELECT id FROM appointment_groups WHERE id=$1 FOR UPDATE', [membership.group_id]);
+            await connection.query('SELECT appointment_group_id FROM appointment_group_booking_contacts WHERE appointment_group_id=$1 FOR UPDATE', [membership.group_id]);
+            await connection.query('SELECT appointment_id FROM appointment_group_members WHERE group_id=$1 ORDER BY appointment_id FOR UPDATE', [membership.group_id]);
+            await connection.query(`SELECT approval.appointment_id FROM appointment_booking_approvals approval
+              JOIN appointment_group_members gm ON gm.appointment_id=approval.appointment_id
+              WHERE gm.group_id=$1 ORDER BY approval.appointment_id FOR UPDATE OF approval`, [membership.group_id]);
+          }
+        }
         const matching = await connection.query(`SELECT a.id FROM appointments a WHERE a.id=$1
-          AND a.crm_v2_client_id=$2 AND ${arrangedAppointmentPredicate()} FOR UPDATE OF a`, [linked,row.crm_v2_client_id]);
+          AND ((a.crm_v2_client_id=$2 AND ($3<>'group' OR NOT EXISTS (SELECT 1 FROM appointment_group_members own_group WHERE own_group.appointment_id=a.id))) OR ($3='group' AND ${canLinkGroupEnquiry(principal) ? linkedGroupPredicate('a', '$2') : 'FALSE'})) AND ${arrangedAppointmentPredicate()} FOR UPDATE OF a`, [linked,row.crm_v2_client_id,row.request_kind]);
         if (!matching.rowCount) throw new ClientPlanningRequestError('PLANNING_APPOINTMENT_MISMATCH', 'That appointment is no longer available to link. Refresh appointments and choose an approved upcoming booking for this client.', 409);
       }
       const status = 'arranged';
