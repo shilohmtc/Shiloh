@@ -29,6 +29,10 @@ function createClientInsightsService({
     const rel = relationshipPredicate('rel', scope, 3);
     const appointments = appointmentScopePredicate('a.id', scope, 3);
     const otherAppointments = appointmentScopePredicate('other.id', scope, 3);
+    const visibleTreatment =
+      scope.kind === 'tenant_staff'
+        ? 'visibility.owner_staff_id=$3'
+        : 'visibility.service_id IS NULL';
     const offsetParam = '$' + rel.nextParameterIndex;
     const result = await boundedVisitRead(db, (client) =>
       client.query(
@@ -66,6 +70,29 @@ function createClientInsightsService({
         FROM client_counts cc JOIN authorized c ON c.id=cc.client_id
       ), page AS (
         SELECT * FROM ranked ORDER BY visits DESC,LOWER(name),client_id LIMIT ${INSIGHT_PAGE_SIZE} OFFSET ${offsetParam}::int
+      ), page_treatments AS MATERIALIZED (
+        SELECT r.client_id,r.event_key,aps.service_id,MAX(r.starts_at) AS latest,
+          (ARRAY_AGG(NULLIF(BTRIM(aps.service_name_snapshot),'') ORDER BY r.starts_at DESC,r.id DESC,aps.position)
+            FILTER (WHERE NULLIF(BTRIM(aps.service_name_snapshot),'') IS NOT NULL))[1] AS name
+        FROM page p JOIN records r ON r.client_id=p.client_id
+        JOIN appointment_services aps ON aps.appointment_id=r.id
+        LEFT JOIN service_visibility_policies visibility ON visibility.service_id=aps.service_id AND visibility.visibility_scope='tenant_private'
+        WHERE ${visibleTreatment}
+        GROUP BY r.client_id,r.event_key,aps.service_id
+      ), treatment_frequencies AS MATERIALIZED (
+        SELECT client_id,service_id,(ARRAY_AGG(name ORDER BY latest DESC,event_key))[1] AS name,COUNT(*)::int AS visits
+        FROM page_treatments WHERE name IS NOT NULL AND service_id IS NOT NULL GROUP BY client_id,service_id
+      ), treatment_leaders AS MATERIALIZED (
+        SELECT f.* FROM treatment_frequencies f WHERE f.visits=(SELECT MAX(top.visits) FROM treatment_frequencies top WHERE top.client_id=f.client_id)
+      ), treatment_summaries AS (
+        SELECT p.client_id,
+          (SELECT COUNT(*)::int FROM events e WHERE e.client_id=p.client_id AND (
+            NOT EXISTS(SELECT 1 FROM page_treatments t WHERE t.client_id=e.client_id AND t.event_key=e.event_key)
+            OR EXISTS(SELECT 1 FROM page_treatments t WHERE t.client_id=e.client_id AND t.event_key=e.event_key AND (t.name IS NULL OR t.service_id IS NULL)))) AS missing_visits,
+          (SELECT COUNT(*)::int FROM treatment_leaders l WHERE l.client_id=p.client_id) AS leader_count,
+          COALESCE((SELECT jsonb_agg(jsonb_build_object('name',LEFT(l.name,160),'visits',l.visits) ORDER BY l.name,l.service_id)
+            FROM (SELECT * FROM treatment_leaders WHERE client_id=p.client_id ORDER BY name,service_id LIMIT 3) l),'[]'::jsonb) AS leaders
+        FROM page p
       ), months AS (
         SELECT TO_CHAR(month,'YYYY-MM') AS month,
           (SELECT COUNT(*)::int FROM events e WHERE TO_CHAR(e.starts_at AT TIME ZONE 'Africa/Johannesburg','YYYY-MM')=TO_CHAR(month,'YYYY-MM')) AS visits,
@@ -75,7 +102,7 @@ function createClientInsightsService({
       SELECT cc.record_count,gc.split_group,(SELECT COUNT(*)::int FROM events) AS total_visits,
         (SELECT COUNT(*)::int FROM client_counts) AS unique_clients,
         COALESCE((SELECT jsonb_agg(jsonb_build_object('month',m.month,'visits',m.visits,'clients',m.clients) ORDER BY m.month) FROM months m),'[]') AS monthly,
-        COALESCE((SELECT jsonb_agg(jsonb_build_object('clientId',p.client_id::text,'name',LEFT(p.name,120),'status',p.status,'visits',p.visits,'rank',p.rank,'lastVisitAt',p.last_visit_at,'dates',p.dates) ORDER BY p.visits DESC,LOWER(p.name),p.client_id) FROM page p),'[]') AS ranking
+        COALESCE((SELECT jsonb_agg(jsonb_build_object('clientId',p.client_id::text,'name',LEFT(p.name,120),'status',p.status,'visits',p.visits,'rank',p.rank,'lastVisitAt',p.last_visit_at,'dates',p.dates,'treatment',jsonb_build_object('missingVisits',t.missing_visits,'leaderCount',t.leader_count,'leaders',t.leaders)) ORDER BY p.visits DESC,LOWER(p.name),p.client_id) FROM page p JOIN treatment_summaries t ON t.client_id=p.client_id),'[]') AS ranking
       FROM count_check cc CROSS JOIN group_check gc`,
         [period.startDate, period.asOf, ...rel.values, safeOffset],
       ),

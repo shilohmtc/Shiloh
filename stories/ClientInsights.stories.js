@@ -17,7 +17,7 @@ function model(months = 2) {
   const monthly = period.monthKeys.map((month) => ({
     month,
     visits: month === '2026-10' ? 8 : month === '2026-11' ? 2 : 4,
-    clients: month === '2026-10' ? 3 : 2,
+    clients: month === '2026-10' ? 3 : ['2026-07', '2026-08'].includes(month) ? 1 : 2,
   }));
   return {
     available: true,
@@ -38,6 +38,11 @@ function model(months = 2) {
         visits: months === 5 ? 18 : 6,
         lastVisitAt: '2026-11-05T07:00:00Z',
         interval: { state: 'regular', days: 7 },
+        treatment: {
+          state: 'recorded',
+          leaderCount: 1,
+          leaders: [{ name: 'Back massage', visits: months === 5 ? 12 : 4 }],
+        },
       },
       {
         clientId: '2',
@@ -46,6 +51,14 @@ function model(months = 2) {
         visits: 2,
         lastVisitAt: '2026-10-22T07:00:00Z',
         interval: { state: 'sparse' },
+        treatment: {
+          state: 'recorded',
+          leaderCount: 2,
+          leaders: [
+            { name: 'Facial', visits: 1 },
+            { name: 'Foot massage', visits: 1 },
+          ],
+        },
       },
       {
         clientId: '3',
@@ -55,6 +68,7 @@ function model(months = 2) {
         visits: 2,
         lastVisitAt: '2026-11-01T07:00:00Z',
         interval: { state: 'sparse' },
+        treatment: { state: 'incomplete', missingVisits: 1 },
       },
     ],
   };

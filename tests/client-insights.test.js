@@ -212,6 +212,9 @@ test(
     await f.db.query(
       "INSERT INTO appointments SELECT n,NULL,10+(n%100),'2026-10-01'::timestamptz+(n%38)*INTERVAL '1 day','2026-10-01 01:00'::timestamptz+(n%38)*INTERVAL '1 day','completed','Synthetic' FROM generate_series(1,5000) n",
     );
+    await f.db.query(
+      "INSERT INTO appointment_services SELECT id,10,1,'Back massage' FROM appointments",
+    );
     const before = f.calls.length,
       begun = Date.now(),
       model = await service(f).getModel({ adminId: 41, months: 5 });
@@ -220,6 +223,11 @@ test(
     assert.equal(model.uniqueClients, 100);
     assert.equal(model.ranking.length, 20);
     assert.equal(model.hasMore, true);
+    assert.deepEqual(model.ranking[0].treatment, {
+      state: 'recorded',
+      leaderCount: 1,
+      leaders: [{ name: 'Back massage', visits: 50 }],
+    });
     assert.equal(
       f.calls.slice(before).filter((c) => c.text.includes('clientInsights:scoped-period')).length,
       1,
@@ -285,4 +293,142 @@ test('Insights route retains session, lookup authority, private headers and safe
   response = await fetch(base, { redirect: 'manual' });
   assert.equal(response.status, 401);
   assert.doesNotMatch(await response.text(), /Synthetic Alpha/);
+});
+
+test('selected-period treatment frequencies deduplicate linked treatments, preserve guests and ties, and hide private detail', async (t) => {
+  const f = await fixture();
+  t.after(f.close);
+  await f.add({ id: 1, date: '2026-10-01', group: 20 });
+  await f.add({
+    id: 2,
+    date: '2026-10-01',
+    time: '11:00',
+    group: 20,
+    services: [
+      { id: 10, name: 'Back massage' },
+      { id: 90, name: 'Private treatment' },
+    ],
+  });
+  await f.add({ id: 3, date: '2026-10-08' });
+  await f.add({ id: 4, date: '2026-10-15', services: [{ id: 11, name: 'Facial' }] });
+  await f.add({ id: 5, date: '2026-09-01', services: [{ id: 11, name: 'Facial' }] });
+  await f.add({ id: 6, date: '2026-08-01', services: [{ id: 11, name: 'Facial' }] });
+  await f.add({
+    id: 7,
+    client: 2,
+    date: '2026-10-01',
+    group: 20,
+    status: 'no_charge',
+    services: [
+      { id: 11, name: 'Facial' },
+      { id: 12, name: 'Hand massage' },
+      { id: 13, name: 'Foot massage' },
+      { id: 14, name: 'Scalp massage' },
+    ],
+  });
+  const two = await service(f).getModel({ adminId: 41 });
+  assert.equal(two.ranking[0].visits, 3);
+  assert.deepEqual(two.ranking[0].treatment, {
+    state: 'recorded',
+    leaderCount: 1,
+    leaders: [{ name: 'Back massage', visits: 2 }],
+  });
+  assert.equal(two.ranking[1].treatment.leaderCount, 4);
+  assert.equal(two.ranking[1].treatment.leaders.length, 3);
+  assert.ok(two.ranking[1].treatment.leaders.every((l) => l.visits === 1));
+  assert.doesNotMatch(JSON.stringify(two), /Private treatment/);
+  const five = await service(f).getModel({ adminId: 41, months: 5 });
+  assert.deepEqual(five.ranking[0].treatment, {
+    state: 'recorded',
+    leaderCount: 1,
+    leaders: [{ name: 'Facial', visits: 3 }],
+  });
+  await f.add({ id: 8, date: '2026-10-22', services: [{ id: 11, name: 'Facial' }] });
+  const tied = await service(f).getModel({ adminId: 41 });
+  assert.deepEqual(tied.ranking[0].treatment, {
+    state: 'recorded',
+    leaderCount: 2,
+    leaders: [
+      { name: 'Back massage', visits: 2 },
+      { name: 'Facial', visits: 2 },
+    ],
+  });
+  await f.db.query(
+    "UPDATE staff_admin_accounts SET business_role='tenant_practitioner' WHERE id=41",
+  );
+  const tenant = await service(f).getModel({ adminId: 41 });
+  assert.deepEqual(tenant.ranking[0].treatment, {
+    state: 'recorded',
+    leaderCount: 1,
+    leaders: [{ name: 'Private treatment', visits: 1 }],
+  });
+  assert.doesNotMatch(JSON.stringify(tenant.ranking[0].treatment), /Back massage|Facial/);
+});
+
+test('incomplete treatment snapshots or missing service identities prevent a definitive leader', async (t) => {
+  const f = await fixture();
+  t.after(f.close);
+  await f.add({ id: 1 });
+  await f.add({
+    id: 2,
+    date: '2026-10-08',
+    services: [
+      { id: 10, name: 'Back massage' },
+      { id: 11, name: '   ' },
+    ],
+  });
+  await f.add({ id: 3, date: '2026-10-15', services: [] });
+  await f.add({ id: 4, date: '2026-10-22', services: [{ id: null, name: 'Unlinked treatment' }] });
+  const model = await service(f).getModel({ adminId: 41 });
+  assert.deepEqual(model.ranking[0].treatment, { state: 'incomplete', missingVisits: 3 });
+  assert.doesNotMatch(
+    JSON.stringify(model.ranking[0].treatment),
+    /Back massage|Unlinked treatment/,
+  );
+});
+
+test('treatment projection rejects invalid summaries and rendering escapes treatment names', () => {
+  const { projectInsightTreatment } = require('../src/domain/clientInsights');
+  const { renderClientInsightsPage } = require('../src/presentation/clientInsightsUx');
+  for (const value of [
+    null,
+    { missingVisits: -1 },
+    { missingVisits: 3 },
+    { missingVisits: 0, leaderCount: 2, leaders: [{ name: 'Back', visits: 1 }] },
+    { missingVisits: 0, leaderCount: 1, leaders: [{ name: 'Back', visits: 3 }] },
+  ])
+    assert.equal(projectInsightTreatment(value, 2).state, 'unavailable');
+  const period = insightPeriod(2, asOf);
+  const html = renderClientInsightsPage({
+    available: true,
+    period,
+    offset: 0,
+    pageSize: 20,
+    hasMore: false,
+    totalVisits: 2,
+    uniqueClients: 1,
+    monthly: period.monthKeys.map((month) => ({ month, visits: 1, clients: 1 })),
+    ranking: [
+      {
+        clientId: '1',
+        name: 'Synthetic',
+        rank: 1,
+        visits: 2,
+        lastVisitAt: asOf,
+        interval: { state: 'sparse' },
+        treatment: projectInsightTreatment(
+          {
+            missingVisits: 0,
+            leaderCount: 1,
+            leaders: [{ name: '<img src=x onerror=alert(1)>', visits: 2 }],
+          },
+          2,
+        ),
+      },
+    ],
+  });
+  assert.match(html, /&lt;img/);
+  assert.doesNotMatch(html, /<img src=x/);
+  assert.match(html, /Most-received treatment/);
+  assert.match(html, /not personal preference/);
 });

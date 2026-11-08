@@ -82,6 +82,9 @@ for (const width of [390, 1440])
       await expect(page.locator('.insight-months li')).toHaveCount(2);
       await expect(page.locator('.insight-ranking li').first()).toContainText('Synthetic Zulu');
       await expect(page.locator('.insight-ranking li').first()).toContainText('About every 7 days');
+      await expect(
+        page.locator('.insight-ranking li').first().locator('.insight-treatment'),
+      ).toContainText('Back massage · 5 visits');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
@@ -157,6 +160,20 @@ for (const width of [390, 1440]) {
           ).toBeVisible();
           await expect(page.locator('.insight-totals')).toHaveCount(0);
         } else {
+          if (state !== 'empty') {
+            await expect(page.locator('.insight-treatment').first()).toContainText(
+              'Most-received treatment',
+            );
+            await expect(page.locator('.insight-treatment').nth(1)).toContainText(
+              '2 treatments tied',
+            );
+            await expect(page.locator('.insight-treatment').nth(1)).toContainText(
+              'Facial · Foot massage',
+            );
+            await expect(page.locator('.insight-treatment').nth(2)).toContainText(
+              'Treatment details incomplete',
+            );
+          }
           await expect(page.locator('.insight-months li')).toHaveCount(
             state === 'five-months' ? 5 : 2,
           );

@@ -28,6 +28,34 @@ function insightPeriod(months = 2, asOf = new Date()) {
     partialMonth: monthKeys.at(-1),
   };
 }
+function projectInsightTreatment(value, visitCount) {
+  const integer = (n) => n != null && Number.isSafeInteger(Number(n)) && Number(n) >= 0;
+  if (!value || !integer(value.missingVisits) || Number(value.missingVisits) > visitCount)
+    return { state: 'unavailable' };
+  if (Number(value.missingVisits) > 0)
+    return { state: 'incomplete', missingVisits: Number(value.missingVisits) };
+  if (
+    !integer(value.leaderCount) ||
+    !Number(value.leaderCount) ||
+    !Array.isArray(value.leaders) ||
+    value.leaders.length !== Math.min(3, Number(value.leaderCount)) ||
+    value.leaders.some(
+      (l) =>
+        typeof l.name !== 'string' ||
+        !l.name.trim() ||
+        !integer(l.visits) ||
+        !Number(l.visits) ||
+        Number(l.visits) > visitCount ||
+        Number(l.visits) !== Number(value.leaders[0].visits),
+    )
+  )
+    return { state: 'unavailable' };
+  return {
+    state: 'recorded',
+    leaderCount: Number(value.leaderCount),
+    leaders: value.leaders.map((l) => ({ name: l.name.slice(0, 160), visits: Number(l.visits) })),
+  };
+}
 function projectClientInsights(row, period, offset = 0) {
   const unavailable = { available: false, period, offset, pageSize: INSIGHT_PAGE_SIZE };
   const integer = (value) =>
@@ -91,8 +119,15 @@ function projectClientInsights(row, period, offset = 0) {
       visits: Number(item.visits),
       rank: Number(item.rank),
       interval: recordedVisitInterval(item.dates),
+      treatment: projectInsightTreatment(item.treatment, Number(item.visits)),
     })),
     hasMore: offset + row.ranking.length < Number(row.unique_clients),
   };
 }
-module.exports = { MAX_INSIGHT_RECORDS, INSIGHT_PAGE_SIZE, insightPeriod, projectClientInsights };
+module.exports = {
+  MAX_INSIGHT_RECORDS,
+  INSIGHT_PAGE_SIZE,
+  insightPeriod,
+  projectClientInsights,
+  projectInsightTreatment,
+};
