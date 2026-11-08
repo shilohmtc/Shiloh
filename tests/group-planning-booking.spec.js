@@ -9,9 +9,9 @@ const reviewKey = 'synthetic_review_key_12345678901';
 const options = { requestContext, authority: { operatorAdminId: 7, canApplyDiscount: true }, guestBooking: { available: true }, services: [{ id: 81, name: 'Swedish Massage', durationMinutes: 60, price: 590, staffIds: [11, 12, 13] }], staff: [11, 12, 13].map((id, i) => ({ id, displayName: `Synthetic Practitioner ${i + 1}` })) };
 let server, origin, state;
 test.beforeEach(async () => {
-  state = { prepares: [], confirms: [], discards: 0, discardPayloads: [], delayDiscard: null, failDiscard: false, failConfirm: false, delayPrepare: null, reviewContext: requestContext, confirmRequestId: 42 };
+  state = { prepares: [], confirms: [], discards: 0, discardPayloads: [], delayDiscard: null, failDiscard: false, failConfirm: false, delayPrepare: null, reviewContext: requestContext, confirmRequestId: 42, ordinaryBooking: false, offerPricing: false };
   const app = express(); app.use(express.json());
-  app.get('/calendar/book/group', (_req, res) => res.send(renderCalendarGroupBookingPage({ options, prefill: { date: requestContext.preferredDate } })));
+  app.get('/calendar/book/group', (_req, res) => res.send(renderCalendarGroupBookingPage({ options: state.ordinaryBooking ? { ...options, requestContext: null } : options, prefill: { date: requestContext.preferredDate } })));
   app.get('/calendar/book/group/client.js', (_req, res) => res.type('js').send(calendarGroupBookingClientScript()));
   app.post('/calendar/staff-auth/csrf', (_req, res) => res.json({ csrfToken: 'synthetic-csrf' }));
   app.post('/calendar/book/group/client-search', (_req, res) => res.json({ clients: [{ id: '201', name: 'Synthetic Organiser', displayName: 'Synthetic Organiser', mobile: '27810000201', profileStatus: 'complete', profileRevision: 'contact-v1' }] }));
@@ -19,10 +19,11 @@ test.beforeEach(async () => {
     state.prepares.push(req.body);
     if (state.delayPrepare) await state.delayPrepare;
     const startsAt = `${req.body.date}T${req.body.time}:00+02:00`;
-    res.json({ review: { requestContext: state.reviewContext, requestReviewKey: reviewKey, guests: req.body.guests, startsAt, assignments: req.body.guests.map((_, i) => ({ service: options.services[0], practitioner: options.staff[i], startsAt })), pricing: { subtotal: 1770, total: 1770, allocations: [590, 590, 590], discountAmount: 0 } } });
+    res.json({ review: { ...(state.ordinaryBooking ? {} : { requestContext: state.reviewContext, requestReviewKey: state.offerPricing ? String(state.prepares.length).padStart(32, 'q') : reviewKey }), ...(state.offerPricing ? { quoteHash: `synthetic-quote-${state.prepares.length}`, offerPricing: { discount: req.body.useMorningOffer ? 354 : 0, items: req.body.guests.map(() => ({ subtotal: 590, availableDiscount: 118, discount: req.body.useMorningOffer ? 118 : 0 })) } } : {}), guests: req.body.guests, startsAt, assignments: req.body.guests.map((_, i) => ({ service: options.services[0], practitioner: options.staff[i], startsAt })), pricing: { subtotal: 1770, total: state.offerPricing && req.body.useMorningOffer ? 1416 : 1770, allocations: Array(3).fill(state.offerPricing && req.body.useMorningOffer ? 472 : 590), discountAmount: 0 } } });
   });
   app.post('/calendar/book/group/discard', async (req, res) => { state.discards++; state.discardPayloads.push(req.body); if (state.delayDiscard) await state.delayDiscard; res.status(state.failDiscard ? 503 : 200).json(state.failDiscard ? { error: 'Synthetic discard unavailable' } : { ok: true }); });
-  app.post('/calendar/book/group/confirm', (req, res) => { state.confirms.push(req.body); res.status(state.failConfirm ? 503 : 201).json(state.failConfirm ? { error: 'Synthetic interrupted response' } : { groupId: 501, planningRequestId: state.confirmRequestId, startsAt: '2099-10-25T07:00:00Z' }); });
+  app.post('/calendar/book/group/confirm', (req, res) => { state.confirms.push(req.body); res.status(state.failConfirm ? 503 : 201).json(state.failConfirm ? { error: 'Synthetic interrupted response' } : { groupId: 501, ...(state.ordinaryBooking ? {} : { planningRequestId: state.confirmRequestId }), startsAt: '2099-10-25T07:00:00Z' }); });
+  app.get('/calendar/read-only', (_req, res) => res.send('<!doctype html><html lang="en"><title>Synthetic calendar</title><main><h1>Synthetic calendar</h1></main></html>'));
   app.get('/calendar/workspace', (_req, res) => res.send('<!doctype html><html lang="en"><title>Synthetic requests</title><main><h1>Requests</h1><section id="planning-request-42">Group enquiry #42 remains open. Review linked group before confirming arranged.</section><a href="/calendar/book/group?request=42">Arrange booking</a></main></html>'));
   server = app.listen(0, '127.0.0.1'); await once(server, 'listening'); origin = `http://127.0.0.1:${server.address().port}`;
 });
@@ -145,4 +146,42 @@ for (const action of ['Back to request', 'Edit details']) test(`pending ${action
   if (action === 'Back to request') await expect(page).toHaveURL(`${origin}/calendar/workspace#planning-request-42`);
   else { await expect(page.locator('[data-group-review]')).toBeHidden(); await expect(page.locator('[data-group-status]')).toContainText('Review discarded'); }
   expect(state.confirms).toEqual([]); expect(state.prepares).toHaveLength(1); expect(state.discards).toBe(1);
+});
+
+for (const ordinary of [false, true]) test(`Morning Welcome Offer toggles re-review and confirm the latest quote for ${ordinary ? 'ordinary booking' : 'enquiry handover'}`, async ({ page }) => {
+  state.offerPricing = true; state.ordinaryBooking = ordinary;
+  if (ordinary) await page.goto(`${origin}/calendar/book/group`);
+  else await open(page);
+  await expect(page.locator('[data-group-request]')).toHaveCount(ordinary ? 0 : 1);
+  await fill(page); await review(page);
+  const initialPayload = structuredClone(state.prepares[0]);
+  expect(initialPayload.useMorningOffer).toBe(true);
+  if (ordinary) {
+    expect(initialPayload).not.toHaveProperty('planningRequestId');
+    expect(initialPayload).not.toHaveProperty('planningRequestRevision');
+    expect(initialPayload.organiserClientId).toBe('');
+  } else {
+    expect(initialPayload.planningRequestId).toBe(42);
+    expect(initialPayload.planningRequestRevision).toBe('request-v1');
+  }
+  const offer = page.getByRole('checkbox', { name: /Apply Morning Welcome Offer/ });
+  await expect(offer).toBeChecked();
+  await offer.uncheck();
+  await expect.poll(() => state.prepares.length).toBe(2);
+  await expect(page.locator('[data-group-review]')).toBeVisible();
+  await expect(offer).not.toBeChecked();
+  await expect(page.locator('[data-group-status]')).toContainText('Review ready');
+  await expect(page.locator('[data-group-status]')).not.toContainText('Details changed');
+  expect(state.prepares[1]).toEqual({ ...initialPayload, useMorningOffer: false });
+  await offer.check();
+  await expect.poll(() => state.prepares.length).toBe(3);
+  await expect(page.locator('[data-group-review]')).toBeVisible();
+  await expect(offer).toBeChecked();
+  await expect(page.locator('[data-group-status]')).toContainText('Review ready');
+  await expect(page.locator('[data-group-status]')).not.toContainText('Details changed');
+  expect(state.prepares[2]).toEqual({ ...initialPayload, useMorningOffer: true });
+  await page.getByRole('button', { name: 'Create group booking' }).click();
+  if (ordinary) await expect(page).toHaveURL(`${origin}/calendar/read-only?view=week&date=2099-10-25&staff=all`);
+  else await expect(page).toHaveURL(`${origin}/calendar/workspace#planning-request-42`);
+  expect(state.confirms).toEqual([{ quoteHash: 'synthetic-quote-3', ...(ordinary ? {} : { reviewKey: '3'.padStart(32, 'q') }) }]);
 });
