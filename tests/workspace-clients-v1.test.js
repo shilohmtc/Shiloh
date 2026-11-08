@@ -197,7 +197,7 @@ test('Workspace phone search finds equivalent SA numbers while preserving relati
       gender TEXT, profile_status TEXT, mobile_verified_at TIMESTAMPTZ, status TEXT);
     CREATE TABLE crm_v2_client_relationships(client_id BIGINT, relationship_type TEXT,
       owner_staff_id BIGINT, status TEXT);
-    CREATE TABLE appointments(id BIGINT, crm_v2_client_id BIGINT, client_id BIGINT, starts_at TIMESTAMPTZ, status TEXT);
+    CREATE TABLE appointments(id BIGINT, crm_v2_client_id BIGINT, client_id BIGINT, starts_at TIMESTAMPTZ, ends_at TIMESTAMPTZ, status TEXT);
     CREATE TABLE appointment_services(appointment_id BIGINT, service_id BIGINT);
     CREATE TABLE service_visibility_policies(service_id BIGINT, visibility_scope TEXT, owner_staff_id BIGINT);
     INSERT INTO crm_v2_clients VALUES
@@ -220,7 +220,7 @@ test('Workspace phone search finds equivalent SA numbers while preserving relati
   assert.equal((await crmReadService.listClients({ q: '0821234567', status: 'active', scope })).length, 0);
   assert.equal((await crmReadService.listClients({ q: '0821234567', status: null, scope })).length, 1);
   assert.equal((await crmReadService.listClients({ q: 'Synthetic Phone', status: null, scope })).length, 1);
-  await pg.exec(`INSERT INTO appointments VALUES
+  await pg.exec(`INSERT INTO appointments(id,crm_v2_client_id,client_id,starts_at,status) VALUES
     (10,1,NULL,NOW()-INTERVAL '10 days','completed'),
     (11,1,NULL,NOW()-INTERVAL '9 days','no_charge'),
     (12,1,NULL,NOW()-INTERVAL '8 days','scheduled'),
@@ -230,6 +230,7 @@ test('Workspace phone search finds equivalent SA numbers while preserving relati
     (16,1,NULL,NOW()+INTERVAL '2 days','confirmed'),
     (17,1,NULL,NOW()+INTERVAL '3 days','completed'),
     (18,NULL,1,NOW()-INTERVAL '1 day','completed');`);
+  await pg.exec("UPDATE appointments SET ends_at=starts_at+INTERVAL '1 hour'");
   const summary=(await crmReadService.listClients({q:'Synthetic Phone',status:null,scope}))[0];
   const expected=await pg.query('SELECT starts_at FROM appointments WHERE id IN (11,15) ORDER BY id');
   assert.equal(new Date(summary.last_visit_at).toISOString(),new Date(expected.rows[0].starts_at).toISOString());

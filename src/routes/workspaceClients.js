@@ -1,3 +1,6 @@
+const {createClientInsightsService}=require('../services/clientInsights');
+const {renderClientInsightsPage}=require('../presentation/clientInsightsUx');
+const {clientInsightsReturnHref}=require('../presentation/clientInsightsContext');
 const express = require('express');
 const workspaceNavigation = require('../services/workspaceNavigation');
 const workspaceClients = require('../services/workspaceClients');
@@ -115,7 +118,7 @@ function createWorkspaceClientDetailHandler({
         services: req.query?.services,
       });
       const returnTo = String(req.query?.returnTo || '');
-      model.clientListReturnHref = require('../presentation/clientDirectoryContext').clientDirectoryReturnHref(returnTo);
+      model.clientListReturnHref = clientInsightsReturnHref(returnTo) || require('../presentation/clientDirectoryContext').clientDirectoryReturnHref(returnTo);
       if (returnTo.startsWith('/calendar/read-only?') && returnTo.length <= 2000) {
         const appointment = new URL(returnTo, 'https://calendar.invalid').searchParams.get('appointment');
         if (/^[1-9][0-9]*$/.test(appointment || '')) model.returnHref = require('../presentation/calendarReturnContext').calendarReturnHref(returnTo, appointment);
@@ -221,6 +224,19 @@ function createWorkspaceClientsRouter({ sessionService, ...options } = {}) {
     }
   });
   router.get('/', createWorkspaceClientListHandler({ ...options, service }));
+  router.get('/insights', async (req,res) => {
+    setWorkspaceClientsSecurityHeaders(res);
+    if(!isWorkspaceClientsEnabled(options.env || process.env))return res.sendStatus(404);
+    try {
+      const insights=options.insightsService || createClientInsightsService({accessService:service});
+      const model=await insights.getModel({adminId:req.staffBrowserSession?.adminId,months:req.query.months ?? 2,offset:req.query.offset});
+      model.directoryHref=require('../presentation/clientDirectoryContext').clientDirectoryReturnHref(req.query.returnTo)||'/calendar/clients';
+      return res.type('html').send(renderClientInsightsPage(model,pageOptions(req,options.staffAccessPath || '/calendar/staff')));
+    }catch(error){
+      const safe=safeError(error);
+      return res.status(safe.status).type('html').send(renderClientsUnavailablePage({message:error.httpStatus===400?'Choose the 2- or 5-month view.':safe.message}));
+    }
+  });
   router.get('/:id', createWorkspaceClientDetailHandler({ ...options, service }));
   return router;
 }

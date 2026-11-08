@@ -128,11 +128,10 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
     });
     const pageClients = clients.slice(0, CLIENT_LIST_PAGE_SIZE);
     const appStatuses = await readClientAppStatuses({ db, clientIds: pageClients.map(client => client.id), scope: authority.clientScope });
-    const visits = await visitReader({ db, clientIds: pageClients.map(client => client.id), scope: authority.clientScope });
     return {
       authority,
       manageAllowed,
-      clients: pageClients.map(client => ({ ...client, appStatus: appStatuses[String(client.id)], visitSummary: visits[String(client.id)] })),
+      clients: pageClients.map(client => ({ ...client, appStatus: appStatuses[String(client.id)] })),
       hasMore: clients.length > CLIENT_LIST_PAGE_SIZE,
       offset: safeOffset,
       pageSize: CLIENT_LIST_PAGE_SIZE,

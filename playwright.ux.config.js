@@ -125,3 +125,5 @@ module.exports.testMatch.push('workspace-session-message.spec.js');
 
 module.exports.testMatch.push("client-recorded-visits.spec.js");
 module.exports.testMatch.push("group-planning-booking.spec.js");
+
+module.exports.testMatch.push("client-insights.spec.js");

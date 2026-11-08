@@ -25,9 +25,9 @@ for (const width of [390,1440]) {
     await page.setViewportSize({width,height:950});
     try {
       await page.goto(origin+'/calendar/clients?status=active');
-      await expect(page.locator('.client-row').first()).toContainText('4 recorded visits · past 12 months');
-      await expect(page.locator('.client-row').nth(1)).toContainText('1 recorded visit · past 12 months');
-      await expect(page.locator('.client-row').first()).toContainText('Back massage · 4 visits');
+      await expect(page.locator('.client-row').first()).toContainText('Last recorded visit');
+      await expect(page.locator('.client-row [data-recorded-visit-summary]')).toHaveCount(0);
+      await expect(page.locator('.client-last a,.client-last button,.client-last [tabindex]')).toHaveCount(0);
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
       expect((await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations).toEqual([]);
       await page.screenshot({path:info.outputPath(`recorded-directory-${width}.png`),fullPage:true});

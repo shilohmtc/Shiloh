@@ -48,7 +48,7 @@ async function clientRecordedVisitsFixture({ nativeUrl = null } = {}) {
     for (let i = 0; i < services.length; i++) await query('INSERT INTO appointment_services VALUES($1,$2,$3,$4)', [id, services[i].id, i + 1, services[i].name]);
   }
   const readService = {
-    async listClients({ q = '', limit = 25, offset = 0 }) { return (await query("SELECT * FROM crm_v2_clients WHERE id IN (1,2) AND name ILIKE $1 ORDER BY name,id LIMIT $2 OFFSET $3", [`%${q}%`, limit, offset])).rows; },
+    async listClients({ q = '', limit = 25, offset = 0 }) { return (await query("SELECT c.*,(SELECT MAX(a.starts_at) FROM appointments a WHERE a.crm_v2_client_id=c.id AND a.client_id IS NULL AND a.status IN ('completed','no_charge') AND a.ends_at<='2026-11-08T08:00:00Z' AND a.ends_at>a.starts_at) AS last_visit_at FROM crm_v2_clients c WHERE id IN (1,2) AND name ILIKE $1 ORDER BY name,id LIMIT $2 OFFSET $3", [`%${q}%`, limit, offset])).rows; },
     async getClient(id) { return (await query('SELECT * FROM crm_v2_clients WHERE id=$1 AND id IN (1,2)', [id])).rows[0]; },
     async getClientAppointments(id, { limit, offset }) { return (await query("SELECT a.*, COALESCE((SELECT jsonb_agg(jsonb_build_object('name',service_name_snapshot)) FROM appointment_services WHERE appointment_id=a.id),'[]') services,'[]'::jsonb staff FROM appointments a WHERE crm_v2_client_id=$1 AND client_id IS NULL ORDER BY starts_at DESC,id DESC LIMIT $2 OFFSET $3", [id, limit, offset])).rows; },
   };

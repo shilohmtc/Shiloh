@@ -387,3 +387,11 @@ jobs:
             artifacts/ux-playwright-results/client-treatment-credit-*/error-context.md
           if-no-files-found: error
           retention-days: 14
+      - name: Upload synthetic Client Insights review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: client-insights-review
+          path: artifacts/ux-playwright-results/**/*insights*.png
+          if-no-files-found: error
+          retention-days: 14
