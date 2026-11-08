@@ -1,6 +1,7 @@
 const { CLIENT_COLUMNS } = require('../repositories/crmV2ClientRepository');
 const { pool } = require('../db/pool');
 const { readClientAppStatus, readClientAppStatuses } = require('./workspaceClientAppStatus');
+const { readClientRecordedVisits } = require('./clientRecordedVisits');
 const crmReadService = require('./crmReadService');
 const { createWorkspaceCommunicationEvidenceService } = require('./workspaceCommunicationEvidence');
 const { evaluateClientManageAuthority, clientRelationshipRevision } = require('./workspaceClientMutations');
@@ -71,7 +72,7 @@ function normalizeOffset(value) {
   return Math.min(offset, 100000);
 }
 
-function createWorkspaceClientsService({ db = pool, readService = crmReadService, communicationService = null, policyAcceptanceService = null, submissionService = null, rewardsService = null, voucherService = null, paymentService = null } = {}) {
+function createWorkspaceClientsService({ db = pool, readService = crmReadService, communicationService = null, policyAcceptanceService = null, submissionService = null, rewardsService = null, voucherService = null, paymentService = null, visitReader = readClientRecordedVisits } = {}) {
   if (!db || typeof db.query !== 'function') throw new Error('Workspace Clients database is required');
   const communicationReads = communicationService || createWorkspaceCommunicationEvidenceService({ db });
   const policyReads = policyAcceptanceService || createInPersonBookingPolicyService({ db });
@@ -127,10 +128,11 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
     });
     const pageClients = clients.slice(0, CLIENT_LIST_PAGE_SIZE);
     const appStatuses = await readClientAppStatuses({ db, clientIds: pageClients.map(client => client.id), scope: authority.clientScope });
+    const visits = await visitReader({ db, clientIds: pageClients.map(client => client.id), scope: authority.clientScope });
     return {
       authority,
       manageAllowed,
-      clients: pageClients.map(client => ({ ...client, appStatus: appStatuses[String(client.id)] })),
+      clients: pageClients.map(client => ({ ...client, appStatus: appStatuses[String(client.id)], visitSummary: visits[String(client.id)] })),
       hasMore: clients.length > CLIENT_LIST_PAGE_SIZE,
       offset: safeOffset,
       pageSize: CLIENT_LIST_PAGE_SIZE,
@@ -226,12 +228,14 @@ function createWorkspaceClientsService({ db = pool, readService = crmReadService
       catch (error) { return error.httpStatus === 403 ? { restricted: true } : { unavailable: true }; }
     }
     const [rewards, vouchers] = await Promise.all([financialHistory(rewardsReads), financialHistory(voucherReads)]);
+    const visits = selectedServices === 'overview' ? await visitReader({ db, clientIds: [id], scope: authority.clientScope }) : {};
     return {
       authority,
       manageAllowed,
       client,
       appointments: appointmentsWithReadiness,
       appStatus,
+      visitSummary: visits[String(id)],
       policyAcceptances: policyAcceptances.slice(0,20),
       policyOffset: safePolicyOffset,
       policyHasMore: policyAcceptances.length > 20,
