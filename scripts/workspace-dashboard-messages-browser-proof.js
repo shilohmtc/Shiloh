@@ -478,7 +478,14 @@ async function main() {
       // A same-URL navigation can otherwise read the old document as complete.
       if (navigation.loaderId) await poll(() => cdp.send('Page.getFrameTree'), tree => tree.frameTree.frame.loaderId === navigation.loaderId);
       await poll(() => evaluate(cdp, 'document.readyState'), value => value === 'complete');
-      await poll(() => evaluate(cdp, `Array.from(document.querySelectorAll('[data-workspace-destination]')).filter(n=>n.tagName==='A'||n.classList.contains('active')).length`), value => value === 7);
+      const expectedDestinations = ['dashboard', 'calendar', 'clients', 'clientInsights', 'staff', 'services', 'reports', 'clinicHours'];
+      const enabledDestinations = await poll(
+        () => evaluate(cdp, `Array.from(document.querySelectorAll('[data-workspace-destination]')).filter(n=>n.tagName==='A'||n.classList.contains('active')).map(n=>n.dataset.workspaceDestination)`),
+        value => JSON.stringify(value) === JSON.stringify(expectedDestinations),
+      );
+      assert.deepEqual(enabledDestinations, expectedDestinations, 'Workspace must expose exactly the authorized destinations in order');
+      assert.equal(await evaluate(cdp, `document.querySelector('[data-workspace-destination="clients"]').nextElementSibling.dataset.workspaceDestination`), 'clientInsights');
+      assert.equal(await evaluate(cdp, `new URL(document.querySelector('[data-workspace-destination="clientInsights"]').href).pathname`), '/calendar/clients/insights');
     }
     async function screenshot(name) {
       const result = await cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false, fromSurface: true });
@@ -501,6 +508,7 @@ async function main() {
       if (new URL(urlPath, origin).pathname === '/calendar/clients') {
         assert.equal(await evaluate(cdp, `document.querySelector('[data-client-management]') === null`), true);
         assert.equal(await evaluate(cdp, `document.querySelector('#client-search').getClientRects().length > 0`), true);
+        assert.equal(await evaluate(cdp, `Array.from(document.querySelectorAll('.workspace-main a[href]')).some(link=>new URL(link.href).pathname==='/calendar/clients/insights')`), false, 'Client Insights belongs in navigation, not the Directory content');
       }
       const metrics = await evaluate(cdp, METRICS_EXPRESSION);
       assert.deepEqual(metrics.viewport, { width, height, screenWidth: width, screenHeight: height });
@@ -517,7 +525,7 @@ async function main() {
         assert.equal(metrics.framePaddingBottom, 0, `${name} still reserves bottom-navigation space`);
         if (openDrawer) {
           assert.equal(metrics.drawerOpen, true);
-          assert.deepEqual(metrics.primary, ['Dashboard', 'Calendar', 'Client Directory']);
+          assert.deepEqual(metrics.primary, ['Dashboard', 'Calendar', 'Client Directory', 'Client Insights']);
           assert.deepEqual(metrics.secondary, ['Staff', 'Services', 'Clinic reports', 'Clinic hours']);
           assert.ok(Math.abs(metrics.navWidth - Math.min(width * 0.6, 220)) <= 1, `${name} drawer width is not compactly contained: ${metrics.navWidth}px`);
           assert.ok(metrics.drawerHeaderRight <= metrics.navRight, `${name} drawer header escapes its panel`);
@@ -541,7 +549,7 @@ async function main() {
         }
       } else {
         assert.equal(metrics.drawerLogoLoaded, true, `${name} did not paint the Shiloh desktop logo`);
-        assert.deepEqual([...metrics.primary, ...metrics.secondary], ['Dashboard', 'Calendar', 'Client Directory', 'Staff', 'Services', 'Clinic reports', 'Clinic hours', 'Problem reports']);
+        assert.deepEqual([...metrics.primary, ...metrics.secondary], ['Dashboard', 'Calendar', 'Client Directory', 'Client Insights', 'Staff', 'Services', 'Clinic reports', 'Clinic hours', 'Problem reports']);
         assert.equal(metrics.moreVisible, false);
         assert.equal(metrics.accountFooterVisible, true, `${name} does not show the Desktop account footer`);
       }
