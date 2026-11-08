@@ -111,3 +111,14 @@ export const CompactDirectory = {
       }),
     ),
 };
+
+// The shared menu starts hidden until the existing navigation authority resolves.
+export const WorkspaceMenu = {
+  render: () =>
+    markup(
+      clients.renderClientManagementPage(
+        { formsHref: '/calendar/forms' },
+        { displayName: 'Synthetic operator' },
+      ),
+    ),
+};
