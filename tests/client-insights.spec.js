@@ -132,6 +132,22 @@ for (const width of [390, 1440])
       await expect(page.locator('.brand')).toContainText(
         'Recorded client visits and visiting patterns.',
       );
+      await expect(page.locator('.insight-comparison li')).toHaveCount(3);
+      await expect(page.locator('.insight-comparison li strong')).toHaveText([
+        '0 clients',
+        '2 clients',
+        '1 client',
+      ]);
+      await expect(page.locator('.insight-comparison li').last()).toContainText('08 Nov 2026');
+      await expect(page.locator('.insight-rank')).toHaveCount(0);
+      await expect(page.locator('.insight-bubble')).toHaveCount(6);
+      await expect(
+        page.locator('.insight-bubble a,.insight-bubble button,.insight-bubble [tabindex]'),
+      ).toHaveCount(0);
+      const insightsUrl = page.url();
+      await page.locator('.insight-bubble').first().click();
+      expect(page.url()).toBe(insightsUrl);
+      await expect(page.locator('.insight-ranking li').nth(1)).toContainText('Not enough history');
       await expect(page.locator('.insight-ranking li').first()).toContainText('Synthetic Zulu');
       await expect(page.locator('.insight-ranking li').first()).toContainText('About every 7 days');
       await expect(
@@ -187,7 +203,16 @@ for (const width of [390, 1440])
   });
 
 for (const width of [390, 1440]) {
-  for (const state of ['two-months', 'five-months', 'empty', 'unavailable', 'compact-directory']) {
+  for (const state of [
+    'two-months',
+    'five-months',
+    'month-end-clamping',
+    'comparison-unavailable',
+    'sparse-intervals',
+    'empty',
+    'unavailable',
+    'compact-directory',
+  ]) {
     test(`Client Insights Storybook ${state} at ${width}`, async ({ page }, info) => {
       await page.setViewportSize({ width, height: 950 });
       await page.route('**/calendar/pwa/icon-192.png*', (route) =>
@@ -216,7 +241,43 @@ for (const width of [390, 1440]) {
             'Total visits',
             'Individual clients',
           ]);
+          if (state === 'comparison-unavailable') {
+            await expect(
+              page.getByText('Client comparison unavailable.', { exact: false }),
+            ).toBeVisible();
+            await expect(page.locator('.insight-comparison')).toHaveCount(0);
+          } else {
+            await expect(page.locator('.insight-comparison li')).toHaveCount(3);
+            await expect(
+              page.getByText('Same dates and cutoff time in each month.', { exact: false }),
+            ).toBeVisible();
+          }
+          if (state === 'month-end-clamping') {
+            await expect(
+              page.getByText('All three months end on day 28', { exact: false }),
+            ).toBeVisible();
+            for (const month of ['Jan', 'Feb', 'Mar'])
+              await expect(page.locator('.insight-comparison')).toContainText(`28 ${month} 2026`);
+          }
+          if (state === 'empty')
+            await expect(page.locator('.insight-comparison li strong')).toHaveText([
+              '0 clients',
+              '0 clients',
+              '0 clients',
+            ]);
+          if (state === 'sparse-intervals')
+            await expect(
+              page.locator('.insight-bubble dd').filter({ hasText: 'Not enough history' }),
+            ).toHaveCount(3);
           if (state !== 'empty') {
+            await expect(page.locator('.insight-rank')).toHaveCount(0);
+            await expect(page.locator('.insight-bubble')).toHaveCount(9);
+            await expect(
+              page.locator('.insight-bubble a,.insight-bubble button,.insight-bubble [tabindex]'),
+            ).toHaveCount(0);
+            const beforeBubble = page.url();
+            await page.locator('.insight-bubble').first().click();
+            expect(page.url()).toBe(beforeBubble);
             await expect(page.locator('.insight-treatment').first()).toContainText(
               'Most-received treatment',
             );

@@ -12,6 +12,14 @@ function markup(html) {
   return root;
 }
 const authority = { displayName: 'Synthetic operator' };
+function comparison(asOf = '2026-11-08T08:00:00Z') {
+  const period = domain.insightComparisonPeriod(asOf);
+  return {
+    available: true,
+    period,
+    monthly: period.monthKeys.map((month, index) => ({ month, clients: [1, 2, 2][index] })),
+  };
+}
 function model(months = 2) {
   const period = domain.insightPeriod(months, '2026-11-08T08:00:00Z');
   const monthly = period.monthKeys.map((month) => ({
@@ -21,6 +29,7 @@ function model(months = 2) {
   }));
   return {
     available: true,
+    comparison: comparison(),
     period,
     offset: 0,
     pageSize: 20,
@@ -81,10 +90,49 @@ export const Empty = {
     return markup(
       presentation.renderClientInsightsPage({
         ...value,
+        comparison: {
+          ...value.comparison,
+          monthly: value.comparison.monthly.map((item) => ({ ...item, clients: 0 })),
+        },
         totalVisits: 0,
         uniqueClients: 0,
         ranking: [],
         monthly: value.monthly.map((item) => ({ ...item, visits: 0, clients: 0 })),
+      }),
+    );
+  },
+};
+export const MonthEndClamping = {
+  render: () => {
+    const value = model();
+    return markup(
+      presentation.renderClientInsightsPage({
+        ...value,
+        period: domain.insightPeriod(2, '2026-03-31T08:00:00Z'),
+        monthly: [
+          { month: '2026-02', visits: 8, clients: 3 },
+          { month: '2026-03', visits: 2, clients: 2 },
+        ],
+        ranking: value.ranking.map((client) => ({
+          ...client,
+          lastVisitAt: '2026-03-25T07:00:00Z',
+        })),
+        comparison: comparison('2026-03-31T08:00:00Z'),
+      }),
+    );
+  },
+};
+export const ComparisonUnavailable = {
+  render: () =>
+    markup(presentation.renderClientInsightsPage({ ...model(), comparison: { available: false } })),
+};
+export const SparseIntervals = {
+  render: () => {
+    const value = model();
+    return markup(
+      presentation.renderClientInsightsPage({
+        ...value,
+        ranking: value.ranking.map((client) => ({ ...client, interval: { state: 'sparse' } })),
       }),
     );
   },

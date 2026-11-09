@@ -12,6 +12,8 @@ const {
   INSIGHT_PAGE_SIZE,
   insightPeriod,
   projectClientInsights,
+  insightComparisonPeriod,
+  projectInsightComparison,
 } = require('../domain/clientInsights');
 
 function createClientInsightsService({
@@ -107,7 +109,54 @@ function createClientInsightsService({
         [period.startDate, period.asOf, ...rel.values, safeOffset],
       ),
     );
-    return { ...projectClientInsights(result?.rows?.[0], period, safeOffset), authority };
+    const model = projectClientInsights(result?.rows?.[0], period, safeOffset);
+    if (!model.available) return { ...model, authority };
+    const comparisonPeriod = insightComparisonPeriod(period.asOf);
+    // Separate bounded read keeps the existing selected-period totals, ordering,
+    // limits and failure behavior unchanged. A failed comparison is never zero.
+    const comparisonResult = await boundedVisitRead(db, (client) =>
+      client.query(
+        `/* clientInsights:same-date-comparison */
+      WITH windows AS (
+        SELECT * FROM jsonb_to_recordset($1::jsonb) AS w(month text,"startDate" date,"endAt" timestamptz)
+      ), authorized AS MATERIALIZED (
+        SELECT c.id FROM crm_v2_clients c
+        JOIN crm_v2_client_relationships rel ON rel.client_id=c.id WHERE ${rel.sql}
+      ), records AS MATERIALIZED (
+        SELECT a.id,a.crm_v2_client_id AS client_id,a.starts_at,gm.group_id,w.month
+        FROM appointments a JOIN authorized c ON c.id=a.crm_v2_client_id
+        JOIN windows w ON a.starts_at>=(w."startDate"::timestamp AT TIME ZONE 'Africa/Johannesburg')
+          AND a.starts_at<w."endAt"
+        LEFT JOIN appointment_group_members gm ON gm.appointment_id=a.id
+        WHERE a.client_id IS NULL AND ${endedAttendedSql('a', 'w."endAt"')}
+          AND ${appointments.sql}
+        ORDER BY a.starts_at DESC,a.id DESC LIMIT ${MAX_INSIGHT_RECORDS + 1}
+      ), count_check AS (SELECT COUNT(*)::int AS record_count FROM records), group_check AS (
+        SELECT EXISTS(SELECT 1 FROM records r
+          JOIN appointment_group_members other_member ON other_member.group_id=r.group_id
+          JOIN appointments other ON other.id=other_member.appointment_id
+          WHERE (SELECT record_count FROM count_check)<=${MAX_INSIGHT_RECORDS}
+            AND other.crm_v2_client_id=r.client_id AND other.client_id IS NULL
+            AND ${endedAttendedSql('other', '$2::timestamptz')} AND ${otherAppointments.sql}
+            AND (other.starts_at AT TIME ZONE 'Africa/Johannesburg')::date<>(r.starts_at AT TIME ZONE 'Africa/Johannesburg')::date
+        ) AS split_group
+      ), months AS (
+        SELECT w.month,COUNT(DISTINCT r.client_id)::int AS clients
+        FROM windows w LEFT JOIN records r ON r.month=w.month
+          AND (SELECT record_count FROM count_check)<=${MAX_INSIGHT_RECORDS}
+        GROUP BY w.month
+      )
+      SELECT cc.record_count,gc.split_group,
+        (SELECT jsonb_agg(jsonb_build_object('month',m.month,'clients',m.clients) ORDER BY m.month) FROM months m) AS monthly
+      FROM count_check cc CROSS JOIN group_check gc`,
+        [JSON.stringify(comparisonPeriod.windows), period.asOf, ...rel.values],
+      ),
+    );
+    return {
+      ...model,
+      comparison: projectInsightComparison(comparisonResult?.rows?.[0], comparisonPeriod),
+      authority,
+    };
   }
   return { getModel };
 }
