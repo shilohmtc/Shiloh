@@ -18,7 +18,7 @@ async function search(next,historyMode='replace'){
  if(!updated)throw Error('Search is unavailable. Please try again, or refresh your sign-in.');
  if(current!==sequence)return;
  results.replaceChildren(...updated.childNodes);
- const insightsLink=document.querySelector('.client-insights-link'),updatedInsights=doc.querySelector('.client-insights-link');
+ const insightsLink=document.querySelector('[data-workspace-destination="clientInsights"]'),updatedInsights=doc.querySelector('[data-workspace-destination="clientInsights"]');
  if(insightsLink&&updatedInsights)insightsLink.setAttribute('href',updatedInsights.getAttribute('href'));
  status.dataset.complete='true';status.textContent=results.querySelector('.result-summary')?.textContent.trim()||'No clients found.';
  if(historyMode==='push')history.pushState(null,'',next.pathname+next.search);else if(historyMode==='replace')history.replaceState(null,'',next.pathname+next.search);

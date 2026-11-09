@@ -27,7 +27,7 @@ function workspaceItem({ key, label, active, href, currentSection = false }) {
   return `<span class="workspace-link future${section}" aria-disabled="true" ${destination}>${escapeHtml(label)}</span>`;
 }
 
-function renderWorkspaceNavigation({ active, displayName = '', dashboardHref = null, calendarHref = '/calendar/workspace', clientsHref = null, staffHref = null, servicesHref = null, reportsHref = null, clinicHoursHref = null, problemReportsHref = null, websiteHref = null } = {}) {
+function renderWorkspaceNavigation({ active, displayName = '', dashboardHref = null, calendarHref = '/calendar/workspace', clientsHref = null, clientInsightsHref = null, staffHref = null, servicesHref = null, reportsHref = null, clinicHoursHref = null, problemReportsHref = null, websiteHref = null } = {}) {
   const primary = [
     workspaceItem({
       key: 'dashboard',
@@ -48,6 +48,9 @@ function renderWorkspaceNavigation({ active, displayName = '', dashboardHref = n
       href: clientsHref,
       currentSection: ['messages', 'vouchers', 'rewards', 'forms'].includes(active),
     }),
+    clientInsightsHref || active === 'clientInsights'
+      ? workspaceItem({ key: 'clientInsights', label: 'Client Insights', active: active === 'clientInsights', href: clientInsightsHref })
+      : '<span hidden data-workspace-destination="clientInsights">Client Insights</span>',
   ].join('');
   const secondary = [
     websiteHref || active === 'website'

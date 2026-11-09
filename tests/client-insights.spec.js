@@ -2,6 +2,8 @@
 const { test, expect } = require('@playwright/test');
 const AxeBuilder = require('@axe-core/playwright').default;
 const express = require('express');
+const { workspaceIconClientScript } = require('../src/presentation/workspaceIconClient');
+const { workspaceNavigationClientScript } = require('../src/presentation/workspaceShell');
 const { clientRecordedVisitsFixture } = require('./helpers/clientRecordedVisitsFixture');
 const { createClientInsightsService } = require('../src/services/clientInsights');
 const { createWorkspaceClientsRouter } = require('../src/routes/workspaceClients');
@@ -30,6 +32,12 @@ for (const width of [390, 1440])
         accessService: f.service,
         now: () => new Date('2026-11-08T08:00:00Z'),
       });
+    app.get('/calendar/workspace/nav.js', (_req, res) =>
+      res.type('js').send(workspaceNavigationClientScript() + workspaceIconClientScript()),
+    );
+    app.get('/calendar/workspace/navigation', (_req, res) =>
+      res.json({ clientInsights: { allowed: true, href: '/calendar/clients/insights' } }),
+    );
     app.use(
       '/calendar/clients',
       createWorkspaceClientsRouter({
@@ -75,7 +83,44 @@ for (const width of [390, 1440])
       await expect(
         page.getByRole('link', { name: 'Client Insights', exact: true }),
       ).toHaveAttribute('href', /q%3DZulu/);
-      await page.getByRole('link', { name: 'Client Insights', exact: true }).click();
+      await expect(
+        page.locator('.workspace-main').getByRole('link', { name: 'Client Insights', exact: true }),
+      ).toHaveCount(0);
+      const menu = page.locator('[data-workspace-navigation-drawer]');
+      const menuToggle = page.getByRole('button', { name: 'Open Shiloh Workspace navigation' });
+      if (width === 390) {
+        await menuToggle.click();
+        await expect(menuToggle).toHaveAttribute('aria-expanded', 'true');
+        await page.keyboard.press('Escape');
+        await expect(menuToggle).toHaveAttribute('aria-expanded', 'false');
+        await menuToggle.click();
+        await page.goBack();
+        await expect(menuToggle).toHaveAttribute('aria-expanded', 'false');
+        await menuToggle.click();
+      }
+      await expect(
+        menu.locator(
+          '[data-workspace-destination="clients"] + [data-workspace-destination="clientInsights"]',
+        ),
+      ).toHaveText('Client Insights');
+      expect(
+        (
+          await new AxeBuilder({ page })
+            .include('[data-workspace-navigation-drawer]')
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+            .analyze()
+        ).violations,
+      ).toEqual([]);
+      await page.screenshot({
+        path: info.outputPath(`insights-menu-${width}.png`),
+        fullPage: true,
+      });
+      await menu.getByRole('link', { name: 'Client Insights', exact: true }).click();
+      await expect(menu.locator('[data-workspace-destination="clientInsights"]')).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      if (width === 390) await expect(menuToggle).toHaveAttribute('aria-expanded', 'false');
       const periods = page.getByRole('navigation', { name: 'Insights period' });
       await expect(periods.locator('[aria-current="page"]')).toHaveText('2 months');
       await expect(page.locator('.insight-dates')).toContainText('01 Oct 2026');
@@ -180,6 +225,21 @@ for (const width of [390, 1440]) {
           if (state === 'empty') await expect(page.locator('.insight-ranking li')).toHaveCount(0);
         }
       }
+      await page.route('**/calendar/workspace/navigation', (route) =>
+        route.fulfill({
+          json: { clientInsights: { allowed: true, href: '/calendar/clients/insights' } },
+        }),
+      );
+      await page.addScriptTag({
+        content: workspaceNavigationClientScript() + workspaceIconClientScript(),
+      });
+      if (width === 390)
+        await page.getByRole('button', { name: 'Open Shiloh Workspace navigation' }).click();
+      await expect(
+        page.locator(
+          '[data-workspace-destination="clients"] + [data-workspace-destination="clientInsights"]',
+        ),
+      ).toHaveText('Client Insights');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
@@ -198,3 +258,65 @@ for (const width of [390, 1440]) {
     });
   }
 }
+
+for (const width of [390, 1440])
+  for (const access of ['allowed', 'tools-only', 'unavailable']) {
+    test(`Shared Client Insights menu ${access} at ${width}`, async ({ page }, info) => {
+      await page.setViewportSize({ width, height: 950 });
+      await page.route('**/calendar/pwa/icon-192.png*', (route) =>
+        route.fulfill({
+          path: require('node:path').resolve('public/assets/brand/shiloh-mark-192.png'),
+        }),
+      );
+      await page.route('**/calendar/workspace/navigation', (route) =>
+        access === 'unavailable'
+          ? route.fulfill({ status: 503, json: {} })
+          : route.fulfill({
+              json: {
+                clients: { allowed: true, href: '/calendar/clients' },
+                clientInsights: {
+                  allowed: access === 'allowed',
+                  href: access === 'allowed' ? '/calendar/clients/insights' : null,
+                },
+              },
+            }),
+      );
+      await page.goto('/iframe.html?id=workspace-client-insights--workspace-menu&viewMode=story');
+      await expect(
+        page.getByRole('heading', { name: 'Client Directory', exact: true }),
+      ).toBeVisible();
+      await page.addScriptTag({
+        content: workspaceNavigationClientScript() + workspaceIconClientScript(),
+      });
+      if (width === 390)
+        await page.getByRole('button', { name: 'Open Shiloh Workspace navigation' }).click();
+      const insights = page.locator('[data-workspace-destination="clientInsights"]');
+      if (access === 'allowed') {
+        await expect(insights).toBeVisible();
+        await expect(insights).toHaveAttribute('href', '/calendar/clients/insights');
+        await expect(insights.locator('.workspace-nav-icon')).toBeVisible();
+        await expect(
+          page.locator(
+            '[data-workspace-destination="clients"] + [data-workspace-destination="clientInsights"]',
+          ),
+        ).toHaveText('Client Insights');
+      } else {
+        await expect(insights).toBeHidden();
+        await expect(page.getByRole('link', { name: 'Client Insights', exact: true })).toHaveCount(
+          0,
+        );
+      }
+      expect(
+        (
+          await new AxeBuilder({ page })
+            .include('[data-workspace-navigation-drawer]')
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+            .analyze()
+        ).violations,
+      ).toEqual([]);
+      await page.screenshot({
+        path: info.outputPath(`insights-menu-${access}-${width}.png`),
+        fullPage: true,
+      });
+    });
+  }

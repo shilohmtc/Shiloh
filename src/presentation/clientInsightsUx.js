@@ -78,6 +78,8 @@ function renderClientInsightsPage(model, options = {}) {
     subtitle: 'Recorded client visits and visiting patterns.',
     displayName: model.authority?.displayName,
     ...options,
+    active: 'clientInsights',
+    clientsHref: model.directoryHref || '/calendar/clients',
   }).replace('</style>', `${insightStyles}</style>`);
   return `${start}<main data-client-insights><div class="insight-controls"><a class="button" href="${escapeHtml(model.directoryHref || '/calendar/clients')}">Back to Client Directory</a>${periodLinks}</div><p class="insight-dates"><strong>${escapeHtml(periodDate(period.startDate))} – ${escapeHtml(periodDate(period.endDate))}</strong><span>Current month to date · SAST</span></p>${content}<p class="insight-note">Only ended, completed and no-charge visits linked to profiles within your access are included. Linked treatments count once per client; guests keep separate histories. Cancelled, no-show and pending visits are excluded. Each treatment counts once per recorded visit in the selected period. Missing treatment details prevent a most-received claim. This describes recorded history, not personal preference. Older or unlinked history may be missing.</p></main></div></div></div></body></html>`;
 }
