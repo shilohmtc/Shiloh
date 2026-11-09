@@ -288,7 +288,7 @@ test('Insights route retains session, lookup authority, private headers and safe
   actor = 999;
   response = await fetch(base);
   assert.equal(response.status, 403);
-  assert.doesNotMatch(await response.text(), /Recorded client visits/);
+  assert.doesNotMatch(await response.text(), /Recorded client visits|Total visits|Individual clients/);
   signedIn = false;
   response = await fetch(base, { redirect: 'manual' });
   assert.equal(response.status, 401);
