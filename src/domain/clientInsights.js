@@ -28,6 +28,73 @@ function insightPeriod(months = 2, asOf = new Date()) {
     partialMonth: monthKeys.at(-1),
   };
 }
+function insightComparisonPeriod(asOf = new Date()) {
+  const current = insightPeriod(2, asOf);
+  const [year, month, currentDay] = current.endDate.split('-').map(Number);
+  const monthKeys = Array.from({ length: 3 }, (_, i) =>
+    new Date(Date.UTC(year, month - 3 + i, 1)).toISOString().slice(0, 7),
+  );
+  // Use the latest day all three months share. Never roll a missing February
+  // day into March or compare a longer elapsed period against a shorter one.
+  const day = Math.min(
+    currentDay,
+    ...monthKeys.map((key) => {
+      const [y, m] = key.split('-').map(Number);
+      return new Date(Date.UTC(y, m, 0)).getUTCDate();
+    }),
+  );
+  const clamped = day !== currentDay;
+  const timeLabel = clamped
+    ? 'end of day'
+    : new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Africa/Johannesburg',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      }).format(new Date(asOf));
+  return {
+    day,
+    currentDay,
+    timeLabel,
+    monthKeys,
+    clamped,
+    windows: monthKeys.map((key) => {
+      const endDate = key + '-' + String(day).padStart(2, '0');
+      return {
+        month: key,
+        startDate: key + '-01',
+        endDate,
+        // Once the common day has passed, keep its whole day fixed instead of
+        // moving the cutoff backwards each morning in a longer month.
+        endAt: clamped
+          ? new Date(new Date(endDate + 'T00:00:00+02:00').getTime() + 86400000).toISOString()
+          : new Date(endDate + 'T' + timeLabel + ':00+02:00').toISOString(),
+      };
+    }),
+  };
+}
+function projectInsightComparison(row, period) {
+  const unavailable = { available: false, period };
+  const integer = (n) => n != null && Number.isSafeInteger(Number(n)) && Number(n) >= 0;
+  if (
+    !row ||
+    !integer(row.record_count) ||
+    Number(row.record_count) > MAX_INSIGHT_RECORDS ||
+    row.split_group !== false ||
+    !Array.isArray(row.monthly) ||
+    row.monthly.length !== 3 ||
+    row.monthly.some(
+      (item, index) => !item || item.month !== period.monthKeys[index] || !integer(item.clients),
+    ) ||
+    row.monthly.reduce((sum, item) => sum + Number(item.clients), 0) > Number(row.record_count)
+  )
+    return unavailable;
+  return {
+    available: true,
+    period,
+    monthly: row.monthly.map((item) => ({ month: item.month, clients: Number(item.clients) })),
+  };
+}
 function projectInsightTreatment(value, visitCount) {
   const integer = (n) => n != null && Number.isSafeInteger(Number(n)) && Number(n) >= 0;
   if (!value || !integer(value.missingVisits) || Number(value.missingVisits) > visitCount)
@@ -130,4 +197,6 @@ module.exports = {
   insightPeriod,
   projectClientInsights,
   projectInsightTreatment,
+  insightComparisonPeriod,
+  projectInsightComparison,
 };

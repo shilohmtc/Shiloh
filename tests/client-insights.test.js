@@ -223,6 +223,11 @@ test(
     assert.equal(model.uniqueClients, 100);
     assert.equal(model.ranking.length, 20);
     assert.equal(model.hasMore, true);
+    assert.equal(model.comparison.available, true);
+    assert.deepEqual(
+      model.comparison.monthly.map((m) => m.clients),
+      [0, 100, 100],
+    );
     assert.deepEqual(model.ranking[0].treatment, {
       state: 'recorded',
       leaderCount: 1,
@@ -431,4 +436,203 @@ test('treatment projection rejects invalid summaries and rendering escapes treat
   assert.doesNotMatch(html, /<img src=x/);
   assert.match(html, /Most-received treatment/);
   assert.match(html, /not personal preference/);
+});
+
+test('same-date comparison windows keep SAST day and time aligned through month ends and leap years', () => {
+  const { insightComparisonPeriod } = require('../src/domain/clientInsights');
+  const current = insightComparisonPeriod('2026-11-08T08:17:49.500Z');
+  assert.equal(current.timeLabel, '10:17');
+  assert.equal(current.day, 8);
+  assert.equal(current.clamped, false);
+  assert.deepEqual(current.windows, [
+    {
+      month: '2026-09',
+      startDate: '2026-09-01',
+      endDate: '2026-09-08',
+      endAt: '2026-09-08T08:17:00.000Z',
+    },
+    {
+      month: '2026-10',
+      startDate: '2026-10-01',
+      endDate: '2026-10-08',
+      endAt: '2026-10-08T08:17:00.000Z',
+    },
+    {
+      month: '2026-11',
+      startDate: '2026-11-01',
+      endDate: '2026-11-08',
+      endAt: '2026-11-08T08:17:00.000Z',
+    },
+  ]);
+  const short = insightComparisonPeriod('2027-03-31T12:00:00Z');
+  assert.equal(short.currentDay, 31);
+  assert.equal(short.day, 28);
+  assert.equal(short.clamped, true);
+  assert.equal(short.timeLabel, 'end of day');
+  assert.equal(short.windows[1].endAt, '2027-02-28T22:00:00.000Z');
+  assert.deepEqual(insightComparisonPeriod('2027-03-29T01:00:00Z').windows, short.windows);
+  assert.ok(short.windows.every((window) => window.endDate.endsWith('-28')));
+  assert.equal(insightComparisonPeriod('2028-03-31T12:00:00Z').day, 29);
+  const boundary = insightComparisonPeriod('2026-12-31T22:00:00Z');
+  assert.deepEqual(boundary.monthKeys, ['2026-11', '2026-12', '2027-01']);
+  assert.equal(boundary.day, 1);
+  assert.equal(boundary.timeLabel, '00:00');
+  assert.equal(boundary.windows[2].endAt, '2026-12-31T22:00:00.000Z');
+  assert.throws(() => insightComparisonPeriod('invalid'));
+});
+
+test('same-date trend counts each canonical client once per month, preserving repeated visits and identity boundaries', async (t) => {
+  const f = await fixture();
+  t.after(f.close);
+  await f.db.query(
+    "UPDATE crm_v2_clients SET name='Same synthetic name',normalized_mobile='+27820000000' WHERE id IN (1,2)",
+  );
+  await f.add({ id: 1, date: '2026-09-01' });
+  await f.add({ id: 2, date: '2026-09-08', time: '08:30', group: 20 });
+  await f.add({ id: 3, date: '2026-09-08', time: '08:45', group: 20 });
+  await f.add({
+    id: 4,
+    client: 2,
+    date: '2026-09-08',
+    time: '09:00',
+    status: 'no_charge',
+    group: 20,
+  });
+  await f.add({ id: 5, date: '2026-10-01' });
+  await f.add({ id: 6, date: '2026-11-08', time: '09:00' }); // ends exactly at 10:00 SAST cutoff
+  await f.add({ id: 7, client: 2, date: '2026-10-08', time: '09:01' }); // one minute after cutoff
+  await f.add({ id: 8, client: 2, date: '2026-10-09' }); // outside matched dates, still in full-month total
+  await f.add({ id: 9, date: '2026-11-08', time: '09:01' }); // not yet ended
+  await f.add({ id: 10, date: '2026-09-01', status: 'cancelled' });
+  await f.add({ id: 11, client: 3, date: '2026-09-01' }); // outside clinic scope
+  await f.add({ id: 12, date: '2026-09-01', legacy: 99 });
+  await f.add({ id: 13, date: '2026-09-01', services: [{ id: 90, name: 'Private treatment' }] });
+  const before = f.calls.length;
+  const model = await service(f).getModel({ adminId: 41 });
+  assert.equal(model.available, true);
+  assert.equal(model.comparison.available, true);
+  assert.deepEqual(model.comparison.monthly, [
+    { month: '2026-09', clients: 2 },
+    { month: '2026-10', clients: 1 },
+    { month: '2026-11', clients: 1 },
+  ]);
+  assert.equal(model.totalVisits, 4);
+  assert.equal(model.monthly[0].visits, 3);
+  assert.deepEqual(
+    (await service(f).getModel({ adminId: 41, months: 5, offset: 20 })).comparison,
+    model.comparison,
+  );
+  assert.equal(
+    f.calls.slice(before).filter((c) => c.text.includes('clientInsights:same-date-comparison'))
+      .length,
+    2,
+  );
+  assert.doesNotMatch(JSON.stringify(model.comparison), /clientId|name|mobile|Private treatment/);
+  await f.db.query(
+    "UPDATE staff_admin_accounts SET business_role='tenant_practitioner' WHERE id=41",
+  );
+  const tenant = await service(f).getModel({ adminId: 41 });
+  assert.deepEqual(tenant.comparison.monthly, [
+    { month: '2026-09', clients: 1 },
+    { month: '2026-10', clients: 0 },
+    { month: '2026-11', clients: 0 },
+  ]);
+});
+
+test('same-date query obeys common short-month cutoff and first-day SAST midnight', async (t) => {
+  const f = await fixture();
+  t.after(f.close);
+  await f.add({ id: 1, date: '2027-01-28', time: '09:00' });
+  await f.add({ id: 2, client: 2, date: '2027-01-29', time: '09:00' });
+  await f.add({ id: 3, date: '2027-02-28', time: '09:00' });
+  await f.add({ id: 4, client: 2, date: '2027-03-28', time: '09:01' });
+  await f.add({ id: 5, date: '2027-03-29', time: '09:00' });
+  const short = await createClientInsightsService({
+    db: f.db,
+    accessService: f.service,
+    now: () => new Date('2027-03-31T08:00:00Z'),
+  }).getModel({ adminId: 41 });
+  assert.equal(short.comparison.period.day, 28);
+  assert.deepEqual(
+    short.comparison.monthly.map((m) => m.clients),
+    [1, 1, 1],
+  );
+  assert.equal(short.totalVisits, 3);
+  const midnight = await createClientInsightsService({
+    db: f.db,
+    accessService: f.service,
+    now: () => new Date('2027-03-31T22:00:00Z'),
+  }).getModel({ adminId: 41 });
+  assert.equal(midnight.comparison.period.day, 1);
+  assert.deepEqual(
+    midnight.comparison.monthly.map((m) => m.clients),
+    [0, 0, 0],
+  );
+});
+
+test('comparison overflow, ambiguity and query failure are unavailable without erasing verified selected-period totals', async (t) => {
+  const f = await fixture();
+  t.after(f.close);
+  await f.add({ id: 1, date: '2026-10-01' });
+  const brokenDb = {
+    connect: async () => {
+      const client = await f.db.connect();
+      return {
+        ...client,
+        query: (text, values) => {
+          if (text.includes('clientInsights:same-date-comparison'))
+            throw Error('Synthetic comparison failure');
+          return client.query(text, values);
+        },
+      };
+    },
+  };
+  const broken = await createClientInsightsService({
+    db: brokenDb,
+    accessService: f.service,
+    now: () => new Date(asOf),
+  }).getModel({ adminId: 41 });
+  assert.equal(broken.available, true);
+  assert.equal(broken.totalVisits, 1);
+  assert.equal(broken.comparison.available, false);
+  assert.equal(broken.comparison.monthly, undefined);
+  await f.add({ id: 2, date: '2026-09-01', group: 20 });
+  await f.add({ id: 3, date: '2026-09-02', group: 20 });
+  const split = await service(f).getModel({ adminId: 41 });
+  assert.equal(split.available, true);
+  assert.equal(split.comparison.available, false);
+  await f.db.query(
+    "INSERT INTO appointments SELECT n,NULL,1,'2026-09-01'::timestamptz,'2026-09-01 01:00'::timestamptz,'completed','Synthetic' FROM generate_series(10,10010) n",
+  );
+  const cap = await service(f).getModel({ adminId: 41 });
+  assert.equal(cap.available, true);
+  assert.equal(cap.totalVisits, 1);
+  assert.equal(cap.comparison.available, false);
+});
+
+test('comparison projection rejects incomplete, reordered, invalid and inconsistent rows rather than inventing values', () => {
+  const {
+    insightComparisonPeriod,
+    projectInsightComparison,
+  } = require('../src/domain/clientInsights');
+  const period = insightComparisonPeriod(asOf);
+  const valid = {
+    record_count: 4,
+    split_group: false,
+    monthly: period.monthKeys.map((month) => ({ month, clients: 1 })),
+  };
+  assert.equal(projectInsightComparison(valid, period).available, true);
+  for (const row of [
+    null,
+    { ...valid, record_count: 10001 },
+    { ...valid, split_group: true },
+    { ...valid, split_group: undefined },
+    { ...valid, monthly: [null, ...valid.monthly.slice(1)] },
+    { ...valid, monthly: valid.monthly.slice(1) },
+    { ...valid, monthly: valid.monthly.toReversed() },
+    { ...valid, record_count: 2 },
+    { ...valid, monthly: valid.monthly.map((m) => ({ ...m, clients: -1 })) },
+    { ...valid, monthly: valid.monthly.map((m) => ({ ...m, clients: null })) },
+  ])
+    assert.equal(projectInsightComparison(row, period).available, false);
 });
