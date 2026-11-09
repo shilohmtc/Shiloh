@@ -293,7 +293,10 @@ test('Insights route retains session, lookup authority, private headers and safe
   actor = 999;
   response = await fetch(base);
   assert.equal(response.status, 403);
-  assert.doesNotMatch(await response.text(), /Recorded client visits|Total visits|Individual clients/);
+  assert.doesNotMatch(
+    await response.text(),
+    /Recorded client visits|Total visits|Individual clients/,
+  );
   signedIn = false;
   response = await fetch(base, { redirect: 'manual' });
   assert.equal(response.status, 401);
@@ -436,6 +439,120 @@ test('treatment projection rejects invalid summaries and rendering escapes treat
   assert.doesNotMatch(html, /<img src=x/);
   assert.match(html, /Most-received treatment/);
   assert.match(html, /not personal preference/);
+});
+
+test('Insights presentation keeps four informational bubbles, concise context and one shared comparison cutoff', () => {
+  const { insightComparisonPeriod } = require('../src/domain/clientInsights');
+  const { renderClientInsightsPage } = require('../src/presentation/clientInsightsUx');
+  const treatments = [
+    {
+      state: 'recorded',
+      leaderCount: 1,
+      leaders: [{ name: 'Back massage', visits: 2 }],
+    },
+    {
+      state: 'recorded',
+      leaderCount: 2,
+      leaders: [
+        { name: 'Facial', visits: 1 },
+        { name: 'Foot massage', visits: 1 },
+      ],
+    },
+    { state: 'incomplete', missingVisits: 1 },
+    { state: 'unavailable' },
+  ];
+  for (const date of [asOf, '2026-03-31T08:00:00Z']) {
+    const period = insightPeriod(2, date),
+      comparisonPeriod = insightComparisonPeriod(date);
+    const html = renderClientInsightsPage({
+      available: true,
+      period,
+      offset: 0,
+      pageSize: 20,
+      hasMore: false,
+      totalVisits: 8,
+      uniqueClients: 4,
+      monthly: period.monthKeys.map((month) => ({ month, visits: 4, clients: 4 })),
+      comparison: {
+        available: true,
+        period: comparisonPeriod,
+        monthly: comparisonPeriod.monthKeys.map((month) => ({ month, clients: 4 })),
+      },
+      ranking: treatments.map((treatment, index) => ({
+        clientId: String(index + 1),
+        name: `Synthetic client ${index + 1}`,
+        visits: 2,
+        lastVisitAt: date,
+        interval: { state: 'sparse' },
+        treatment,
+      })),
+    });
+    assert.doesNotMatch(html, /\bSAST\b/);
+    assert.match(html, /<h2 id="insight-ranking-title">Most frequent clients<\/h2>/);
+    assert.match(
+      html,
+      /Most visits first, then alphabetical\. Details are for the selected period\./,
+    );
+    assert.match(html, /<span>Includes this month so far<\/span>/);
+    assert.match(html, /<p class="insight-caption">The current month is incomplete\.<\/p>/);
+    assert.match(
+      html,
+      /<p class="insight-note">Based on completed and no-charge visits recorded in Shiloh, within your access\. Older or unlinked history may be incomplete\. Treatment reflects recorded visits, not personal preference\.<\/p>/,
+    );
+    const comparison = html.match(
+      /<section class="insight-panel" aria-labelledby="insight-comparison-title">(.*?)<\/section>/,
+    )[1];
+    const cutoff = comparisonPeriod.clamped
+      ? 'Compared through the end of each date range.'
+      : 'Compared up to 10:00 each month.';
+    assert.ok(
+      comparison.includes(`Same dates each month. ${cutoff} Each client counts once per month.`),
+    );
+    assert.equal(comparison.split(cutoff).length - 1, 1);
+    assert.match(
+      comparison,
+      /<\/ul><p class="insight-caption">Three-month comparison, regardless of the selected view\.<\/p>/,
+    );
+    const ranges = [...comparison.matchAll(/<li>.*?<small>(.*?)<\/small><\/li>/g)].map(
+      (match) => match[1],
+    );
+    // Node and Chromium ICU releases may abbreviate September as Sep or Sept.
+    assert.deepEqual(
+      ranges.map((range) => range.replaceAll('Sept ', 'Sep ')),
+      comparisonPeriod.clamped
+        ? ['01 Jan 2026 – 28 Jan 2026', '01 Feb 2026 – 28 Feb 2026', '01 Mar 2026 – 28 Mar 2026']
+        : ['01 Sep 2026 – 08 Sep 2026', '01 Oct 2026 – 08 Oct 2026', '01 Nov 2026 – 08 Nov 2026'],
+    );
+    if (comparisonPeriod.clamped) {
+      assert.match(comparison, /All three months end on day 28 because one month is shorter\./);
+      assert.doesNotMatch(comparison, /Compared up to|\d{2}:\d{2}|end of day/);
+    } else {
+      assert.equal((comparison.match(/10:00/g) || []).length, 1);
+      assert.doesNotMatch(comparison, /All three months end|end of each date range/);
+    }
+    const rows = [...html.matchAll(/<li class="insight-client">(.*?)<\/li>/g)];
+    assert.equal(rows.length, 4);
+    for (const [, row] of rows) {
+      const details = row.match(/<dl>(.*?)<\/dl>/)[1];
+      assert.equal(
+        (details.match(/class="insight-bubble(?: insight-treatment)?"/g) || []).length,
+        4,
+      );
+      assert.match(
+        details,
+        /<div class="insight-bubble insight-treatment"><dt>Most-received treatment<\/dt>/,
+      );
+      assert.doesNotMatch(details, /<(?:a|button|input)\b|\b(?:tabindex|onclick|role)=/);
+    }
+    assert.match(rows[0][1], /Back massage · 2 visits/);
+    assert.match(rows[1][1], /2 treatments tied/);
+    assert.match(rows[1][1], /<small>Facial · Foot massage<\/small>/);
+    assert.match(
+      rows[2][1],
+      /Treatment details incomplete<small>1 visit has incomplete details<\/small>/,
+    );
+    assert.match(rows[3][1], /Treatment details unavailable/);
+  }
 });
 
 test('same-date comparison windows keep SAST day and time aligned through month ends and leap years', () => {
