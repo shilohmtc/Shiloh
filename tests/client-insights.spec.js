@@ -125,6 +125,13 @@ for (const width of [390, 1440])
       await expect(periods.locator('[aria-current="page"]')).toHaveText('2 months');
       await expect(page.locator('.insight-dates')).toContainText('01 Oct 2026');
       await expect(page.locator('.insight-months li')).toHaveCount(2);
+      await expect(page.locator('.insight-totals dt')).toHaveText([
+        'Total visits',
+        'Individual clients',
+      ]);
+      await expect(page.locator('.brand')).toContainText(
+        'Recorded client visits and visiting patterns.',
+      );
       await expect(page.locator('.insight-ranking li').first()).toContainText('Synthetic Zulu');
       await expect(page.locator('.insight-ranking li').first()).toContainText('About every 7 days');
       await expect(
@@ -205,6 +212,10 @@ for (const width of [390, 1440]) {
           ).toBeVisible();
           await expect(page.locator('.insight-totals')).toHaveCount(0);
         } else {
+          await expect(page.locator('.insight-totals dt')).toHaveText([
+            'Total visits',
+            'Individual clients',
+          ]);
           if (state !== 'empty') {
             await expect(page.locator('.insight-treatment').first()).toContainText(
               'Most-received treatment',
