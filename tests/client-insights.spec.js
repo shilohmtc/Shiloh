@@ -8,6 +8,105 @@ const { clientRecordedVisitsFixture } = require('./helpers/clientRecordedVisitsF
 const { createClientInsightsService } = require('../src/services/clientInsights');
 const { createWorkspaceClientsRouter } = require('../src/routes/workspaceClients');
 
+async function expectInformationalBubbles(page, clientCount) {
+  const clients = page.locator('.insight-ranking li');
+  await expect(clients).toHaveCount(clientCount);
+  await expect(page.locator('.insight-bubble')).toHaveCount(clientCount * 4);
+  await expect(
+    page.locator('.insight-bubble a,.insight-bubble button,.insight-bubble [tabindex]'),
+  ).toHaveCount(0);
+  for (const client of await clients.all()) {
+    await expect(client.locator('.insight-bubble')).toHaveCount(4);
+    await expect(client.locator('.insight-bubble dt')).toHaveText([
+      'Visits',
+      'Last recorded visit',
+      'Usual interval',
+      'Most-received treatment',
+    ]);
+    const treatment = client.locator('.insight-treatment');
+    await expect(treatment).toHaveClass('insight-bubble insight-treatment');
+    const layout = await treatment.evaluate((element) => {
+      const style = getComputedStyle(element),
+        firstStyle = getComputedStyle(element.parentElement.querySelector('.insight-bubble'));
+      return {
+        matchingSurface: [
+          'backgroundColor',
+          'borderRadius',
+          'paddingTop',
+          'paddingRight',
+          'paddingBottom',
+          'paddingLeft',
+        ].every((property) => style[property] === firstStyle[property]),
+        spansGrid: style.gridColumnStart === '1' && style.gridColumnEnd === '-1',
+        width: element.getBoundingClientRect().width,
+        rowWidth: element.parentElement.getBoundingClientRect().width,
+        interactive: element.matches(
+          'a,button,input,[tabindex],[onclick],[role="button"],[role="link"]',
+        ),
+      };
+    });
+    expect(layout.matchingSurface).toBe(true);
+    expect(layout.spansGrid).toBe(true);
+    expect(layout.width).toBeCloseTo(layout.rowWidth, 0);
+    expect(layout.interactive).toBe(false);
+    const before = page.url(),
+      text = await treatment.textContent();
+    await treatment.click();
+    expect(page.url()).toBe(before);
+    await expect(treatment).toHaveText(text);
+  }
+}
+
+async function expectComparisonCopy(page, clamped = false) {
+  const comparison = page.locator('[aria-labelledby="insight-comparison-title"]'),
+    cutoff = clamped
+      ? 'Compared through the end of each date range.'
+      : 'Compared up to 10:00 each month.';
+  await expect(comparison.locator('.insight-caption').first()).toHaveText(
+    `Same dates each month. ${cutoff} Each client counts once per month.`,
+  );
+  await expect(comparison.locator('li > small')).toHaveText(
+    clamped
+      ? ['01 Jan 2026 – 28 Jan 2026', '01 Feb 2026 – 28 Feb 2026', '01 Mar 2026 – 28 Mar 2026']
+      : [
+          /^01 Sept? 2026 – 08 Sept? 2026$/,
+          '01 Oct 2026 – 08 Oct 2026',
+          '01 Nov 2026 – 08 Nov 2026',
+        ],
+  );
+  await expect(comparison.locator('ul + .insight-caption')).toHaveText(
+    'Three-month comparison, regardless of the selected view.',
+  );
+  const text = await comparison.innerText();
+  expect(text.split(cutoff).length - 1).toBe(1);
+  if (clamped) {
+    await expect(comparison).toContainText(
+      'All three months end on day 28 because one month is shorter.',
+    );
+    expect(text).not.toMatch(/Compared up to|\d{2}:\d{2}|end of day/);
+  } else {
+    expect(text.match(/10:00/g)).toHaveLength(1);
+    expect(text).not.toMatch(/All three months end|end of each date range/);
+  }
+}
+
+async function expectConciseContext(page) {
+  await expect(page.locator('[data-client-insights]')).not.toContainText(/\bSAST\b/);
+  await expect(page.locator('.insight-dates span')).toHaveText('Includes this month so far');
+  await expect(
+    page.getByRole('heading', { name: 'Most frequent clients', exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('[aria-labelledby="insight-ranking-title"] header p')).toHaveText(
+    'Most visits first, then alphabetical. Details are for the selected period.',
+  );
+  await expect(page.locator('[aria-labelledby="insight-trend-title"] .insight-caption')).toHaveText(
+    'The current month is incomplete.',
+  );
+  await expect(page.locator('.insight-note')).toHaveText(
+    'Based on completed and no-charge visits recorded in Shiloh, within your access. Older or unlinked history may be incomplete. Treatment reflects recorded visits, not personal preference.',
+  );
+}
+
 for (const width of [390, 1440])
   test(`Client Insights periods and profile returns preserve a compact alphabetic Directory at ${width}`, async ({
     page,
@@ -139,11 +238,10 @@ for (const width of [390, 1440])
         '1 client',
       ]);
       await expect(page.locator('.insight-comparison li').last()).toContainText('08 Nov 2026');
+      await expectComparisonCopy(page);
+      await expectConciseContext(page);
       await expect(page.locator('.insight-rank')).toHaveCount(0);
-      await expect(page.locator('.insight-bubble')).toHaveCount(6);
-      await expect(
-        page.locator('.insight-bubble a,.insight-bubble button,.insight-bubble [tabindex]'),
-      ).toHaveCount(0);
+      await expectInformationalBubbles(page, 2);
       const insightsUrl = page.url();
       await page.locator('.insight-bubble').first().click();
       expect(page.url()).toBe(insightsUrl);
@@ -172,6 +270,9 @@ for (const width of [390, 1440])
       await page.keyboard.press('Enter');
       await expect(page.locator('.insight-months li')).toHaveCount(5);
       await expect(page.locator('.insight-dates')).toContainText('01 Jul 2026');
+      await expectComparisonCopy(page);
+      await expectConciseContext(page);
+      await expectInformationalBubbles(page, 2);
       await page.screenshot({
         path: info.outputPath(`insights-five-months-${width}.png`),
         fullPage: true,
@@ -231,6 +332,7 @@ for (const width of [390, 1440]) {
         await expect(
           page.getByRole('heading', { name: 'Client Insights', exact: true }),
         ).toBeVisible();
+        await expect(page.locator('[data-client-insights]')).not.toContainText(/\bSAST\b/);
         if (state === 'unavailable') {
           await expect(
             page.getByRole('heading', { name: 'Client Insights unavailable' }),
@@ -241,6 +343,7 @@ for (const width of [390, 1440]) {
             'Total visits',
             'Individual clients',
           ]);
+          await expectConciseContext(page);
           if (state === 'comparison-unavailable') {
             await expect(
               page.getByText('Client comparison unavailable.', { exact: false }),
@@ -248,9 +351,7 @@ for (const width of [390, 1440]) {
             await expect(page.locator('.insight-comparison')).toHaveCount(0);
           } else {
             await expect(page.locator('.insight-comparison li')).toHaveCount(3);
-            await expect(
-              page.getByText('Same dates and cutoff time in each month.', { exact: false }),
-            ).toBeVisible();
+            await expectComparisonCopy(page, state === 'month-end-clamping');
           }
           if (state === 'month-end-clamping') {
             await expect(
@@ -271,10 +372,7 @@ for (const width of [390, 1440]) {
             ).toHaveCount(3);
           if (state !== 'empty') {
             await expect(page.locator('.insight-rank')).toHaveCount(0);
-            await expect(page.locator('.insight-bubble')).toHaveCount(9);
-            await expect(
-              page.locator('.insight-bubble a,.insight-bubble button,.insight-bubble [tabindex]'),
-            ).toHaveCount(0);
+            await expectInformationalBubbles(page, 3);
             const beforeBubble = page.url();
             await page.locator('.insight-bubble').first().click();
             expect(page.url()).toBe(beforeBubble);
@@ -289,6 +387,9 @@ for (const width of [390, 1440]) {
             );
             await expect(page.locator('.insight-treatment').nth(2)).toContainText(
               'Treatment details incomplete',
+            );
+            await expect(page.locator('.insight-treatment').nth(2).locator('small')).toHaveText(
+              '1 visit has incomplete details',
             );
           }
           await expect(page.locator('.insight-months li')).toHaveCount(
