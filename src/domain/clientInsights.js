@@ -28,6 +28,58 @@ function insightPeriod(months = 2, asOf = new Date()) {
     partialMonth: monthKeys.at(-1),
   };
 }
+// Complete calendar periods only; no inferred clinic opening schedule.
+function insightAverageWindows(period) {
+  const windows = [];
+  const end = Date.parse(period.endDate + 'T00:00:00Z');
+  for (let time = Date.parse(period.startDate + 'T00:00:00Z'); time < end; time += 86400000) {
+    const date = new Date(time);
+    windows.push({
+      kind: 'day',
+      startDate: date.toISOString().slice(0, 10),
+      endDate: new Date(time + 86400000).toISOString().slice(0, 10),
+    });
+    if (date.getUTCDay() === 1 && time + 7 * 86400000 <= end)
+      windows.push({
+        kind: 'week',
+        startDate: date.toISOString().slice(0, 10),
+        endDate: new Date(time + 7 * 86400000).toISOString().slice(0, 10),
+      });
+    const nextMonth = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
+    if (date.getUTCDate() === 1 && nextMonth.getTime() <= end)
+      windows.push({
+        kind: 'month',
+        startDate: date.toISOString().slice(0, 10),
+        endDate: nextMonth.toISOString().slice(0, 10),
+      });
+  }
+  return windows;
+}
+function projectInsightAverages(value, period, totalVisits) {
+  const windows = insightAverageWindows(period);
+  if (!Array.isArray(value) || value.length !== 3) return { available: false };
+  const items = ['day', 'week', 'month'].map((kind) => {
+    const item = value.find((entry) => entry?.kind === kind);
+    const periods = windows.filter((window) => window.kind === kind).length;
+    if (
+      !item ||
+      Number(item.periods) !== periods ||
+      item.clientPeriods == null ||
+      !Number.isSafeInteger(Number(item.clientPeriods)) ||
+      Number(item.clientPeriods) < 0 ||
+      Number(item.clientPeriods) > totalVisits ||
+      (!periods && Number(item.clientPeriods))
+    )
+      return null;
+    return {
+      kind,
+      periods,
+      clientPeriods: Number(item.clientPeriods),
+      average: periods ? Number(item.clientPeriods) / periods : null,
+    };
+  });
+  return items.every(Boolean) ? { available: true, items } : { available: false };
+}
 function insightComparisonPeriod(asOf = new Date()) {
   const current = insightPeriod(2, asOf);
   const [year, month, currentDay] = current.endDate.split('-').map(Number);
@@ -173,6 +225,7 @@ function projectClientInsights(row, period, offset = 0) {
     period,
     offset,
     pageSize: INSIGHT_PAGE_SIZE,
+    averages: projectInsightAverages(row.averages, period, Number(row.total_visits)),
     totalVisits: Number(row.total_visits),
     uniqueClients: Number(row.unique_clients),
     monthly: row.monthly.map((item) => ({
@@ -195,6 +248,8 @@ module.exports = {
   MAX_INSIGHT_RECORDS,
   INSIGHT_PAGE_SIZE,
   insightPeriod,
+  insightAverageWindows,
+  projectInsightAverages,
   projectClientInsights,
   projectInsightTreatment,
   insightComparisonPeriod,

@@ -309,6 +309,7 @@ for (const width of [390, 1440]) {
     'five-months',
     'month-end-clamping',
     'comparison-unavailable',
+    'opening-data-unavailable',
     'sparse-intervals',
     'empty',
     'unavailable',
@@ -344,6 +345,25 @@ for (const width of [390, 1440]) {
             'Individual clients',
           ]);
           await expectConciseContext(page);
+          await expect(
+            page.getByRole('heading', { name: 'Average individual clients', exact: true }),
+          ).toBeVisible();
+          await expect(page.locator('.insight-averages dt')).toHaveText([
+            'Per open day · estimate',
+            'Per calendar week',
+            'Per calendar month',
+          ]);
+          await expect(page.locator('.insight-average-value')).toHaveCount(3);
+          if (state === 'empty')
+            await expect(page.locator('.insight-average-value')).toHaveText(['0.0', '0.0', '0.0']);
+          if (state === 'opening-data-unavailable') {
+            await expect(page.locator('.insight-average-value').first()).toHaveText('Unavailable');
+            await expect(page.locator('.insight-average-value').nth(2)).toHaveText('3.0');
+          }
+          await expect(
+            page.getByText('historical opening hours may differ', { exact: false }),
+          ).toBeVisible();
+
           if (state === 'comparison-unavailable') {
             await expect(
               page.getByText('Client comparison unavailable.', { exact: false }),

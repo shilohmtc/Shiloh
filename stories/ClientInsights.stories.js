@@ -1,5 +1,6 @@
 import presentation from '../src/presentation/clientInsightsUx.js';
 import domain from '../src/domain/clientInsights.js';
+import openDays from '../src/domain/clientInsightOpenDays.js';
 import clients from '../src/presentation/workspaceClientsUx.js';
 
 export default { title: 'Workspace/Client Insights', parameters: { layout: 'fullscreen' } };
@@ -20,6 +21,51 @@ function comparison(asOf = '2026-11-08T08:00:00Z') {
     monthly: period.monthKeys.map((month, index) => ({ month, clients: [1, 2, 2][index] })),
   };
 }
+function sampleAverages(period, monthly) {
+  const windows = domain.insightAverageWindows(period);
+  const days = windows
+    .filter((w) => w.kind === 'day')
+    .map((w) => ({
+      date: w.startDate,
+      state: new Date(w.startDate + 'T00:00:00Z').getUTCDay() ? 'open' : 'closed',
+      source: 'current_schedule',
+    }));
+  const counts = days.map((day) => ({
+    date: day.date,
+    clients:
+      day.state === 'open' &&
+      days.find((d) => d.state === 'open' && d.date.slice(0, 7) === day.date.slice(0, 7))?.date ===
+        day.date
+        ? monthly.find((m) => m.month === day.date.slice(0, 7))?.clients || 0
+        : 0,
+  }));
+  const values = ['day', 'week', 'month'].map((kind) => ({
+    kind,
+    periods: windows.filter((w) => w.kind === kind).length,
+    // Fictional client identities 1..N recur across months; dedupe in each window.
+    clientPeriods: windows
+      .filter((w) => w.kind === kind)
+      .reduce(
+        (sum, w) =>
+          sum +
+          Math.max(
+            0,
+            ...counts
+              .filter((c) => c.date >= w.startDate && c.date < w.endDate)
+              .map((c) => c.clients),
+          ),
+        0,
+      ),
+  }));
+  const result = domain.projectInsightAverages(values, period, 100);
+  result.items[0] = openDays.projectOpenDayAverage(
+    counts,
+    { available: true, days, asOf: period.asOf },
+    period,
+    100,
+  );
+  return result;
+}
 function model(months = 2) {
   const period = domain.insightPeriod(months, '2026-11-08T08:00:00Z');
   const monthly = period.monthKeys.map((month) => ({
@@ -29,6 +75,7 @@ function model(months = 2) {
   }));
   return {
     available: true,
+    averages: sampleAverages(period, monthly),
     comparison: comparison(),
     period,
     offset: 0,
@@ -94,6 +141,10 @@ export const Empty = {
           ...value.comparison,
           monthly: value.comparison.monthly.map((item) => ({ ...item, clients: 0 })),
         },
+        averages: sampleAverages(
+          value.period,
+          value.monthly.map((item) => ({ ...item, clients: 0 })),
+        ),
         totalVisits: 0,
         uniqueClients: 0,
         ranking: [],
@@ -109,6 +160,10 @@ export const MonthEndClamping = {
       presentation.renderClientInsightsPage({
         ...value,
         period: domain.insightPeriod(2, '2026-03-31T08:00:00Z'),
+        averages: sampleAverages(domain.insightPeriod(2, '2026-03-31T08:00:00Z'), [
+          { month: '2026-02', clients: 3 },
+          { month: '2026-03', clients: 2 },
+        ]),
         monthly: [
           { month: '2026-02', visits: 8, clients: 3 },
           { month: '2026-03', visits: 2, clients: 2 },
@@ -125,6 +180,17 @@ export const MonthEndClamping = {
 export const ComparisonUnavailable = {
   render: () =>
     markup(presentation.renderClientInsightsPage({ ...model(), comparison: { available: false } })),
+};
+export const OpeningDataUnavailable = {
+  render: () => {
+    const value = model();
+    value.averages.items[0] = {
+      kind: 'day',
+      available: false,
+      reason: 'Opening-day data unavailable',
+    };
+    return markup(presentation.renderClientInsightsPage(value));
+  },
 };
 export const SparseIntervals = {
   render: () => {

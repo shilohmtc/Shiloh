@@ -753,3 +753,77 @@ test('comparison projection rejects incomplete, reordered, invalid and inconsist
   ])
     assert.equal(projectInsightComparison(row, period).available, false);
 });
+
+test('averages count clients once per complete calendar period, including zero days and excluding partial periods', async (t) => {
+  const f = await fixture();
+  t.after(f.close);
+  for (const [id, client, date, time] of [
+    [1, 1, '2026-10-01', '09:00'],
+    [2, 1, '2026-10-01', '11:00'],
+    [3, 2, '2026-10-01', '09:00'],
+    [4, 1, '2026-10-02', '09:00'],
+    [5, 1, '2026-10-05', '09:00'],
+    [6, 1, '2026-11-08', '08:00'],
+  ])
+    await f.add({ id, client, date, time });
+  // Sunday 8 November is unfinished, so its entire week is excluded.
+  const model = await service(f).getModel({ adminId: 41 });
+  assert.equal(model.averages.available, true);
+  assert.deepEqual(
+    model.averages.items
+      .filter((item) => item.kind !== 'day')
+      .map(({ kind, periods, clientPeriods }) => ({
+        kind,
+        periods,
+        clientPeriods,
+      })),
+    [
+      { kind: 'week', periods: 4, clientPeriods: 1 },
+      { kind: 'month', periods: 1, clientPeriods: 2 },
+    ],
+  );
+  assert.equal(model.averages.items[0].available, false); // no opening tables in this fixture
+  assert.equal(model.totalVisits, 6);
+  const empty = await service(f).getModel({ adminId: 41, months: 5 });
+  assert.equal(empty.averages.items[2].periods, 4);
+  assert.equal(empty.averages.items[2].clientPeriods, 2);
+});
+
+test('average windows preserve local midnight, Monday boundaries and leap-month lengths', () => {
+  const { insightAverageWindows, projectInsightAverages } = require('../src/domain/clientInsights');
+  const period = insightPeriod(2, '2028-02-29T22:00:00Z');
+  const windows = insightAverageWindows(period);
+  assert.equal(windows.filter((w) => w.kind === 'day').length, 29);
+  assert.deepEqual(
+    windows.filter((w) => w.kind === 'month'),
+    [{ kind: 'month', startDate: '2028-02-01', endDate: '2028-03-01' }],
+  );
+  assert.ok(
+    windows
+      .filter((w) => w.kind === 'week')
+      .every((w) => new Date(w.startDate).getUTCDay() === 1 && w.endDate <= period.endDate),
+  );
+  assert.equal(projectInsightAverages(null, period, 1).available, false);
+  const rows = ['day', 'week', 'month'].map((kind) => ({
+    kind,
+    periods: windows.filter((w) => w.kind === kind).length,
+    clientPeriods: 0,
+  }));
+  assert.equal(projectInsightAverages(rows, period, 0).available, true);
+  assert.equal(
+    projectInsightAverages(
+      rows.map((r) => ({ ...r, clientPeriods: -1 })),
+      period,
+      0,
+    ).available,
+    false,
+  );
+  assert.equal(
+    projectInsightAverages(
+      rows.map((r) => ({ ...r, periods: r.periods + 1 })),
+      period,
+      0,
+    ).available,
+    false,
+  );
+});
