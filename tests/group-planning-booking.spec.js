@@ -81,6 +81,11 @@ for (const width of [390, 1440]) test(`production-backed Storybook enquiry at ${
   await expect(frame.locator('[data-guest]')).toHaveCount(3);
   await expect(frame.locator('[data-guest]').first().locator('[data-name]')).toHaveValue('');
   expect(await frame.locator('html').evaluate(node => node.scrollWidth <= node.ownerDocument.defaultView.innerWidth)).toBe(true);
+  // Storybook's finished phase follows its automatic afterEach accessibility audit.
+  await page.waitForFunction(() => {
+    const render = window.__STORYBOOK_PREVIEW__?.currentRender;
+    return render?.id === 'calendar-group-enquiry-handover--enquiry-contact' && render.phase === 'finished';
+  });
   const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(axe.violations.filter(v => ['serious', 'critical'].includes(v.impact))).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath(`group-enquiry-story-${width}.png`), fullPage: true });

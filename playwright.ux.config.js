@@ -127,3 +127,5 @@ module.exports.testMatch.push("client-recorded-visits.spec.js");
 module.exports.testMatch.push("group-planning-booking.spec.js");
 
 module.exports.testMatch.push("client-insights.spec.js");
+
+module.exports.testMatch.push('calendar-linked-visit-review.spec.js');
