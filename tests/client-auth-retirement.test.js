@@ -40,7 +40,7 @@ test('uncertain delivery consumes its reservation; invalid or excessive allowanc
   const h=await clientHarness(t);await h.owner();h.outcome('uncertain');const service=h.make({budget});await service.begin(h.context);await service.dispatchOne();
   assert.equal(h.sent.length,1);assert.equal((await h.db.query('SELECT attempts FROM client_code_rates WHERE attempts=100')).rows.length,1);
   h.advance(60000);await service.begin(h.context);await service.dispatchOne();assert.equal(h.sent.length,1);
-  for(const value of [{...budget,dailyMinor:501},{...budget,whatsappCostMinor:0},{...budget,currency:'USD'},{}]){
+  for(const value of [{...budget,dailyMinor:1001},{...budget,whatsappCostMinor:0},{...budget,currency:'USD'},{}]){
     assert.equal(validClientBudget(value),false);assert.equal(h.make({budget:value}).enabled(),false);
   }
 });
@@ -49,7 +49,7 @@ test('disabled release is inert; missing schema, separate template or explicit c
   let calls=0;const no=()=>{calls++;throw Error('Unexpected I/O');};
   const release=createClientCodeRelease({env:{},db:{query:no,connect:no},fetchImpl:no});assert.equal((await release.start()).ok,false);await release.stop();
   assert.equal(parseClientManifest(JSON.stringify({reviewedForClients:true,budget,smsFallbackEnabled:true})),null);
-  assert.equal(parseClientManifest(JSON.stringify({reviewedForClients:true,budget:{...budget,dailyMinor:600},smsFallbackEnabled:false})),null);
+  assert.equal(parseClientManifest(JSON.stringify({reviewedForClients:true,budget:{...budget,dailyMinor:1001},smsFallbackEnabled:false})),null);
   const runtime=createClientCodeRuntime({enabled:true,config:{reviewedForClients:true,budget,template:{name:'shiloh_workspace_verification'}},db:{query:no,connect:no},fetchImpl:no});
   assert.equal((await runtime.prepare()).ok,false);assert.equal(calls,0);
 });
