@@ -1,5 +1,17 @@
 # Workspace WhatsApp authentication
 
+## Client daily allowance ceiling — 10 November 2026
+
+The owner approved a maximum **R10 estimated daily My Shiloh client allowance**.
+The client release policy accepts explicitly reviewed ZAR budgets up to 1000
+cents; R5 remains valid and an absent or invalid budget never gains a default.
+This supersedes only the earlier R5 client ceiling, not the separate staff
+allowance. The repository manifest stays at R5; any live manifest increase is a
+separate reviewed step after compatible code is deployed. Keep the R1
+estimate per WhatsApp attempt, existing counters, three codes per client, 50
+overall and the South African midnight reset. Raising the ceiling does not reset
+usage or enable SMS, and estimated reservations are not an invoice guarantee.
+
 ## Accepted immediate client-details retirement — 20 October 2026
 
 After the read-only eligibility audit, the owner initially selected a phased
@@ -9,8 +21,9 @@ only ways in.”** This supersedes the phased transition and earlier details-fir
 client standard. The owner was told that clients without either ready alternative
 may need Reception's help. Do not preserve a hidden biographical fallback or
 silently verify, claim, merge or overwrite those records to manufacture access.
-Keep SMS and recovery off and the approved **separate R5 estimated daily client
-allowance**. Staff configuration, proof keys, permissions and counters stay intact.
+Keep SMS and recovery off and the separately reviewed client allowance within
+the current ceiling above. Staff configuration, proof keys, permissions and
+counters stay intact.
 
 Existing client sessions retain their original fixed 30-day deadline. Existing
 saved keys stay valid; native first-key enrollment from a valid remembered session
@@ -39,9 +52,10 @@ secrets back into chat nor copies, rotates or alters staff credentials. Independ
 client credentials remain supported. Never log token/key values or customer data.
 
 `client_code_rates` atomically reserves the conservative R1 estimate per attempt
-against R5 per South African day, alongside the existing 50-code clinic,
-three-code person and 60-second cooldown limits. R5 therefore permits at most
-five estimated attempts daily, across people, purposes, concurrency and restarts.
+against the explicitly configured client allowance (at most R10) per South
+African day, alongside the existing 50-code clinic, three-code person and
+60-second cooldown limits. At R1 each, R5 permits five and R10 permits ten
+estimated attempts daily, across people, purposes, concurrency and restarts.
 Uncertain attempts consume the reservation. These are app estimates, not a Meta
 invoice guarantee. No counter reset, automatic SMS fallback or recovery activation.
 
