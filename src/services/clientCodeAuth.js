@@ -10,7 +10,8 @@ const DISABLED=Object.freeze({ok:false,code:'CLIENT_CODE_DISABLED'});
 const equalHash=(a,b)=>typeof a==='string'&&typeof b==='string'&&a.length===b.length&&crypto.timingSafeEqual(Buffer.from(a),Buffer.from(b));
 // A separate client namespace, store and provider approval are mandatory.
 // Construction/import has no effects. Public intake never looks up an account.
-function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,now=()=>new Date(),randomBytes=crypto.randomBytes,randomInt=crypto.randomInt,budget=null,whatsappCodeTtlSeconds=300}={}) {
+function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,now=()=>new Date(),randomBytes=crypto.randomBytes,randomInt=crypto.randomInt,budget=null,whatsappCodeTtlSeconds=300,onDiagnostic=()=>{}}={}) {
+  const diagnostic=reason=>{try{onDiagnostic({event:"client_code_delivery_diagnostic",reason});}catch(_){/* Diagnostics cannot change authentication. */}};
   const key=Buffer.isBuffer(hmacKey)?Buffer.from(hmacKey):null;
   const operational=()=>[300,900].includes(whatsappCodeTtlSeconds)&&enabled===true&&(budget===null||validClientBudget(budget))&&key?.length>=32&&store?.transaction&&delivery?.audience==='client'&&delivery.configured?.()===true;
   const smsEnabled=()=>operational()&&smsDelivery?.audience==='client'&&smsDelivery.configured?.()===true;
@@ -64,17 +65,18 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
       if(outcome==='not_sent'&&r.channel==='whatsapp'&&r.fallbackRequested&&!r.fallbackUsed){r.state='queued';r.channel='sms';r.fallbackUsed=true;r.sendBy=new Date(now().getTime()+300000);}
       await tx.save(r);});}
     let mobile,ready;
-    try{mobile=decrypt(row);ready=await provider?.readiness();}catch(_){await settle('not_sent');return done;}
-    if(!ready?.ready||ready.codeTtlSeconds!==codeTtlSeconds){await settle('not_sent');return done;}
+    try{mobile=decrypt(row);ready=await provider?.readiness();}catch(_){await settle('not_sent');diagnostic('readiness_or_record_unavailable');return done;}
+    if(!ready?.ready||ready.codeTtlSeconds!==codeTtlSeconds){await settle('not_sent');diagnostic('provider_readiness');return done;}
+    let blockedReason='request_state_or_timing';
     const prepared=await store.transaction(async tx=>{
       const current=now(),r=await tx.get(row.hash);
       if(!r||r.state!=='claimed'||!mobile||new Date(r.sendBy)-current<60000)return null;
       const identity=await tx.identity(mobile);
-      if(row.purpose!=='continue'&&(row.purpose==='signin'?!identity.verified:!identity.empty))return null;
-      if(await tx.uncertain(row.personKey,current))return null;
+      if(row.purpose!=='continue'&&(row.purpose==='signin'?!identity.verified:!identity.empty)){blockedReason='identity_ineligible';return null;}
+      if(await tx.uncertain(row.personKey,current)){blockedReason='previous_delivery_uncertain';return null;}
       const until=await tx.rateUntil(hash('code-resend','client',row.personKey),current);
-      if(until){r.state='queued';r.notBefore=until;await tx.save(r);return {deferred:true};}
-      if(!await tx.takeRate([...codeReservationBuckets({audience:'client',personKey:row.personKey,channel:row.channel,digest:hash,current}),...clientBudgetBuckets({budget,channel:row.channel,digest:hash,current})],current))return null;
+      if(until){blockedReason='resend_deferred';r.state='queued';r.notBefore=until;await tx.save(r);return {deferred:true};}
+      if(!await tx.takeRate([...codeReservationBuckets({audience:'client',personKey:row.personKey,channel:row.channel,digest:hash,current}),...clientBudgetBuckets({budget,channel:row.channel,digest:hash,current})],current)){blockedReason='limits_or_budget';return null;}
       const code=String(randomInt(0,1000000)).padStart(6,'0');
       r.codeHash=hash('code',r.hash,r.purpose,code);r.codeExpiresAt=new Date(current.getTime()+codeTtlSeconds*1000);
       // Retain only for the unchanged fallback path; validity is codeExpiresAt.
@@ -85,17 +87,18 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
       await tx.revokeOthers(r.personKey,r.hash);await tx.save(r);
       return {code,mobile};
     });
-    if(prepared?.deferred)return done;
-    if(!prepared){await settle('not_sent');return done;}
-    let sent;try{sent=await provider.deliver({...prepared,codeTtlSeconds});}catch(_){sent={};}
+    if(prepared?.deferred){diagnostic('resend_deferred');return done;}
+    if(!prepared){await settle('not_sent');diagnostic(blockedReason);return done;}
+    let sent,deliveryReason;try{sent=await provider.deliver({...prepared,codeTtlSeconds});}catch(_){sent={};deliveryReason='provider_exception_uncertain';}
     await store.transaction(async tx=>{const r=await tx.get(row.hash);if(r?.state!=='claimed')return;
       const accepted=sent?.ok===true&&typeof sent.providerMessageId==='string'&&sent.providerMessageId.startsWith(row.channel==='sms'?'sms.':'wamid.');
+      deliveryReason=accepted?'provider_accepted':deliveryReason||(sent?.outcome==='not_sent'?'provider_not_sent':'provider_result_uncertain');
       r.state=accepted?'ready':sent?.outcome==='not_sent'?'not_sent':'uncertain';
       if(r.state==='not_sent')r.deliveryStarted=false;
       if(['ready','uncertain'].includes(r.state))r.fallbackRequested=false;
       if(r.state==='not_sent'&&r.channel==='whatsapp'&&r.fallbackRequested&&!r.fallbackUsed){r.state='queued';r.channel='sms';r.fallbackUsed=true;r.codeHash=null;r.sendBy=new Date(now().getTime()+300000);}
       await tx.save(r);
-    });return done;
+    });if(deliveryReason)diagnostic(deliveryReason);return done;
   }
   async function verify(input={}){
     if(!operational())return DISABLED;

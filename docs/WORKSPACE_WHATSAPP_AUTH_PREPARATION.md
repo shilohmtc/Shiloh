@@ -705,3 +705,26 @@ Session validation, CSRF, identity revision, eligibility, browser binding, nativ
 challenge freshness and replacement safeguards remain unchanged. Storybook,
 phone/desktop browser checks, accessibility and SQL expiry/revocation proof are
 required; synthetic credential cancellation does not establish handset acceptance.
+
+### Client delivery diagnostics — 10 November 2026
+
+My Shiloh emits `client_code_delivery_diagnostic` through the existing server
+logger after dispatch decisions. The event contains only `event` and a fixed
+`reason`: `provider_readiness`, `readiness_or_record_unavailable`,
+`request_state_or_timing`, `identity_ineligible`, `previous_delivery_uncertain`,
+`resend_deferred`, `limits_or_budget`, `provider_not_sent`,
+`provider_exception_uncertain`, `provider_result_uncertain`, or
+`provider_accepted`. Acceptance means provider acceptance, not device delivery.
+
+Startup configuration/schema/template failures retain the existing release and
+readiness codes. Dispatch diagnostics do not include numbers, codes, request or
+client identifiers, hashes, provider responses, exception messages or secrets.
+They use existing log access and retention, with no new database storage or
+retention setting. Logger failure cannot change dispatch results. Public responses
+and authentication safeguards remain unchanged.
+
+Limits and budget are checked atomically together, so the diagnostic honestly
+reports `limits_or_budget` without guessing which reservation failed. Reasons
+are aggregate operational evidence; there is deliberately no per-person
+correlation. They cannot reconstruct earlier failed attempts, prove handset
+receipt, or establish the cause of the later unexplained sign-in attempt.

@@ -6,7 +6,7 @@ const {createClientCodeStore}=require('./clientCodeStore');
 const {createClientCodeRouter}=require('../routes/clientCodeAuth');
 const {createAuthInvitations}=require('./authInvitations');
 const {validClientBudget}=require('./clientCodeReleasePolicy');
-function createClientCodeRuntime({enabled=false,config={},db,sessions,hmacKey,metaCredentials={},smsCredentials={},fetchImpl,env={},now,workerOptions={}}={}){
+function createClientCodeRuntime({enabled=false,config={},db,sessions,hmacKey,metaCredentials={},smsCredentials={},fetchImpl,env={},now,workerOptions={},onDiagnostic=()=>{}}={}){
   // The staff template must never silently become a client template. The owner
   // must supply a distinct reviewed client contract; no default is fabricated.
   const name=config.template?.name;
@@ -26,7 +26,7 @@ function createClientCodeRuntime({enabled=false,config={},db,sessions,hmacKey,me
     sessions?.validateSessionToken&&sessions?.validateCsrfToken&&Buffer.isBuffer(hmacKey)&&hmacKey.length>=32&&
     (config.smsFallbackEnabled!==true||sms.configured());
   const service=createClientCodeAuth({enabled:!!configured,store:configured?createClientCodeStore({db,sessions}):null,
-    delivery:{...meta,configured:()=>ready&&meta.configured()},smsDelivery:sms,hmacKey,budget:config.budget,whatsappCodeTtlSeconds,...(now?{now}:{})});
+    delivery:{...meta,configured:()=>ready&&meta.configured()},smsDelivery:sms,hmacKey,onDiagnostic,budget:config.budget,whatsappCodeTtlSeconds,...(now?{now}:{})});
   async function prepare(){ready=false;if(!configured)return {ok:false,code:'CLIENT_RUNTIME_UNCONFIGURED'};
     preparing=true;
     try{const r=(await db.query(`SELECT to_regclass('client_code_records') AS records,to_regclass('client_code_rates') AS rates,
