@@ -310,6 +310,7 @@ for (const width of [390, 1440]) {
     'month-end-clamping',
     'comparison-unavailable',
     'opening-data-unavailable',
+    'outside-assumed-schedule',
     'sparse-intervals',
     'empty',
     'unavailable',
@@ -349,9 +350,9 @@ for (const width of [390, 1440]) {
             page.getByRole('heading', { name: 'Average individual clients', exact: true }),
           ).toBeVisible();
           await expect(page.locator('.insight-averages dt')).toHaveText([
-            'Per open day · estimate',
-            'Per calendar week',
-            'Per calendar month',
+            'Open day',
+            'Week',
+            'Month',
           ]);
           await expect(page.locator('.insight-average-value')).toHaveCount(3);
           if (state === 'empty')
@@ -360,9 +361,29 @@ for (const width of [390, 1440]) {
             await expect(page.locator('.insight-average-value').first()).toHaveText('Unavailable');
             await expect(page.locator('.insight-average-value').nth(2)).toHaveText('3.0');
           }
-          await expect(
-            page.getByText('historical opening hours may differ', { exact: false }),
-          ).toBeVisible();
+          await expect(page.locator('.insight-average-caveat')).toHaveText(
+            'Open-day estimate uses current clinic hours and saved date decisions; historical hours and visit records may be incomplete.',
+          );
+          const positions = await page
+            .locator('.insight-averages > div')
+            .evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().top));
+          expect(Math.max(...positions) - Math.min(...positions)).toBeLessThan(2);
+          const method = page.locator('.insight-average-method');
+          await expect(method).not.toHaveAttribute('open', '');
+          await expect(method.locator('summary')).toHaveText('How it’s calculated');
+          if (state === 'outside-assumed-schedule') {
+            await expect(page.locator('.insight-average-warning')).toBeVisible();
+            await expect(page.locator('.insight-average-warning')).toContainText(
+              '2 recorded client-days on 1 date',
+            );
+          } else await expect(page.locator('.insight-average-warning')).toHaveCount(0);
+          await method.locator('summary').press('Enter');
+          await expect(method).toHaveAttribute('open', '');
+          await expect(method).toContainText(
+            'Current hours are not a reconstruction of historical hours.',
+          );
+          await method.locator('summary').press('Enter');
+          await expect(method).not.toHaveAttribute('open', '');
 
           if (state === 'comparison-unavailable') {
             await expect(
@@ -513,3 +534,53 @@ for (const width of [390, 1440])
       });
     });
   }
+
+for (const scale of [1, 2]) {
+  test(`Compact averages wrap on a 320px phone at ${scale * 100} percent text`, async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width: 320, height: 950 });
+    await page.route('**/calendar/pwa/icon-192.png*', (route) =>
+      route.fulfill({
+        path: require('node:path').resolve('public/assets/brand/shiloh-mark-192.png'),
+      }),
+    );
+    await page.goto(
+      '/iframe.html?id=workspace-client-insights--opening-data-unavailable&viewMode=story',
+    );
+    await expect(
+      page.getByRole('heading', { name: 'Average individual clients', exact: true }),
+    ).toBeVisible();
+    if (scale === 2) await page.addStyleTag({ content: ':root{font-size:200% !important}' });
+    const boxes = await page.locator('.insight-averages > div').evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const box = node.getBoundingClientRect();
+        return { left: box.left, right: box.right, top: box.top };
+      }),
+    );
+    expect(boxes.every((box) => box.left >= 0 && box.right <= 320)).toBe(true);
+    expect(
+      Math.max(...boxes.map((box) => box.top)) - Math.min(...boxes.map((box) => box.top)),
+    ).toBeGreaterThan(1);
+    expect(
+      await page
+        .locator('.insight-average-panel')
+        .evaluate((node) => node.scrollWidth <= node.clientWidth),
+    ).toBe(true);
+    await expect(page.locator('.insight-average-value').first()).toHaveText('Unavailable');
+    await page.locator('.insight-average-method summary').press('Enter');
+    await expect(page.locator('.insight-average-method')).toHaveAttribute('open', '');
+    expect(
+      (
+        await new AxeBuilder({ page })
+          .include('.workspace-frame')
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+          .analyze()
+      ).violations,
+    ).toEqual([]);
+    await page.screenshot({
+      path: info.outputPath(`insights-compact-320-text-${scale}.png`),
+      fullPage: true,
+    });
+  });
+}
