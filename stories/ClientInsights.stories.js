@@ -29,6 +29,15 @@ function model(months = 2) {
   }));
   return {
     available: true,
+    averages: domain.projectInsightAverages(
+      ['day', 'week', 'month'].map((kind) => ({
+        kind,
+        periods: domain.insightAverageWindows(period).filter((w) => w.kind === kind).length,
+        clientPeriods: kind === 'day' ? 8 : kind === 'week' ? 5 : 3,
+      })),
+      period,
+      30,
+    ),
     comparison: comparison(),
     period,
     offset: 0,
@@ -94,6 +103,16 @@ export const Empty = {
           ...value.comparison,
           monthly: value.comparison.monthly.map((item) => ({ ...item, clients: 0 })),
         },
+        averages: domain.projectInsightAverages(
+          ['day', 'week', 'month'].map((kind) => ({
+            kind,
+            periods: domain.insightAverageWindows(value.period).filter((w) => w.kind === kind)
+              .length,
+            clientPeriods: 0,
+          })),
+          value.period,
+          0,
+        ),
         totalVisits: 0,
         uniqueClients: 0,
         ranking: [],
@@ -109,6 +128,17 @@ export const MonthEndClamping = {
       presentation.renderClientInsightsPage({
         ...value,
         period: domain.insightPeriod(2, '2026-03-31T08:00:00Z'),
+        averages: domain.projectInsightAverages(
+          ['day', 'week', 'month'].map((kind) => ({
+            kind,
+            periods: domain
+              .insightAverageWindows(domain.insightPeriod(2, '2026-03-31T08:00:00Z'))
+              .filter((w) => w.kind === kind).length,
+            clientPeriods: 0,
+          })),
+          domain.insightPeriod(2, '2026-03-31T08:00:00Z'),
+          10,
+        ),
         monthly: [
           { month: '2026-02', visits: 8, clients: 3 },
           { month: '2026-03', visits: 2, clients: 2 },

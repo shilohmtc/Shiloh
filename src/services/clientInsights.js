@@ -11,6 +11,7 @@ const {
   MAX_INSIGHT_RECORDS,
   INSIGHT_PAGE_SIZE,
   insightPeriod,
+  insightAverageWindows,
   projectClientInsights,
   insightComparisonPeriod,
   projectInsightComparison,
@@ -43,7 +44,7 @@ function createClientInsightsService({
         SELECT c.id,c.name,rel.status FROM crm_v2_clients c
         JOIN crm_v2_client_relationships rel ON rel.client_id=c.id WHERE ${rel.sql}
       ), records AS MATERIALIZED (
-        SELECT a.id,a.crm_v2_client_id AS client_id,a.starts_at,gm.group_id,${recordedEventKeySql('a')} AS event_key
+        SELECT a.id,a.crm_v2_client_id AS client_id,a.starts_at,a.ends_at,gm.group_id,${recordedEventKeySql('a')} AS event_key
         FROM appointments a JOIN authorized c ON c.id=a.crm_v2_client_id
         LEFT JOIN appointment_group_members gm ON gm.appointment_id=a.id
         WHERE a.client_id IS NULL AND ${endedAttendedSql('a', '$2::timestamptz')}
@@ -51,7 +52,7 @@ function createClientInsightsService({
           AND a.starts_at<$2::timestamptz AND ${appointments.sql}
         ORDER BY a.starts_at DESC,a.id DESC LIMIT ${MAX_INSIGHT_RECORDS + 1}
       ), count_check AS (SELECT COUNT(*)::int AS record_count FROM records), events AS MATERIALIZED (
-        SELECT r.client_id,r.event_key,MIN(r.starts_at) AS starts_at
+        SELECT r.client_id,r.event_key,MIN(r.starts_at) AS starts_at,MAX(r.ends_at) AS ends_at
         FROM records r WHERE (SELECT record_count FROM count_check)<=${MAX_INSIGHT_RECORDS}
         GROUP BY r.client_id,r.event_key
       ), group_check AS (
@@ -95,18 +96,38 @@ function createClientInsightsService({
           COALESCE((SELECT jsonb_agg(jsonb_build_object('name',LEFT(l.name,160),'visits',l.visits) ORDER BY l.name,l.service_id)
             FROM (SELECT * FROM treatment_leaders WHERE client_id=p.client_id ORDER BY name,service_id LIMIT 3) l),'[]'::jsonb) AS leaders
         FROM page p
+      ), average_windows AS (
+        SELECT * FROM jsonb_to_recordset($${rel.nextParameterIndex + 1}::jsonb) AS w(kind text,"startDate" date,"endDate" date)
+      ), average_counts AS (
+        SELECT w.kind,(SELECT COUNT(DISTINCT e.client_id)::int FROM events e
+          WHERE e.starts_at>=(w."startDate"::timestamp AT TIME ZONE 'Africa/Johannesburg')
+            AND e.starts_at<(w."endDate"::timestamp AT TIME ZONE 'Africa/Johannesburg')
+            AND e.ends_at<=(w."endDate"::timestamp AT TIME ZONE 'Africa/Johannesburg')) AS clients
+        FROM average_windows w
+      ), averages AS (
+        SELECT k.kind,COUNT(c.kind)::int AS periods,COALESCE(SUM(c.clients),0)::int AS client_periods
+        FROM (VALUES ('day'),('week'),('month')) k(kind)
+        LEFT JOIN average_counts c ON c.kind=k.kind GROUP BY k.kind
       ), months AS (
         SELECT TO_CHAR(month,'YYYY-MM') AS month,
           (SELECT COUNT(*)::int FROM events e WHERE TO_CHAR(e.starts_at AT TIME ZONE 'Africa/Johannesburg','YYYY-MM')=TO_CHAR(month,'YYYY-MM')) AS visits,
           (SELECT COUNT(DISTINCT e.client_id)::int FROM events e WHERE TO_CHAR(e.starts_at AT TIME ZONE 'Africa/Johannesburg','YYYY-MM')=TO_CHAR(month,'YYYY-MM')) AS clients
         FROM generate_series($1::date::timestamp,$1::date::timestamp+INTERVAL '1 month'*${period.months - 1},INTERVAL '1 month') month
       )
-      SELECT cc.record_count,gc.split_group,(SELECT COUNT(*)::int FROM events) AS total_visits,
+      SELECT cc.record_count,gc.split_group,
+        (SELECT jsonb_agg(jsonb_build_object('kind',kind,'periods',periods,'clientPeriods',client_periods)) FROM averages) AS averages,
+        (SELECT COUNT(*)::int FROM events) AS total_visits,
         (SELECT COUNT(*)::int FROM client_counts) AS unique_clients,
         COALESCE((SELECT jsonb_agg(jsonb_build_object('month',m.month,'visits',m.visits,'clients',m.clients) ORDER BY m.month) FROM months m),'[]') AS monthly,
         COALESCE((SELECT jsonb_agg(jsonb_build_object('clientId',p.client_id::text,'name',LEFT(p.name,120),'status',p.status,'visits',p.visits,'rank',p.rank,'lastVisitAt',p.last_visit_at,'dates',p.dates,'treatment',jsonb_build_object('missingVisits',t.missing_visits,'leaderCount',t.leader_count,'leaders',t.leaders)) ORDER BY p.visits DESC,LOWER(p.name),p.client_id) FROM page p JOIN treatment_summaries t ON t.client_id=p.client_id),'[]') AS ranking
       FROM count_check cc CROSS JOIN group_check gc`,
-        [period.startDate, period.asOf, ...rel.values, safeOffset],
+        [
+          period.startDate,
+          period.asOf,
+          ...rel.values,
+          safeOffset,
+          JSON.stringify(insightAverageWindows(period)),
+        ],
       ),
     );
     const model = projectClientInsights(result?.rows?.[0], period, safeOffset);

@@ -344,6 +344,18 @@ for (const width of [390, 1440]) {
             'Individual clients',
           ]);
           await expectConciseContext(page);
+          await expect(
+            page.getByRole('heading', { name: 'Average individual clients', exact: true }),
+          ).toBeVisible();
+          await expect(page.locator('.insight-averages dt')).toHaveText([
+            'Per calendar day',
+            'Per calendar week',
+            'Per calendar month',
+          ]);
+          await expect(page.locator('.insight-averages dd')).toHaveCount(3);
+          if (state === 'empty')
+            await expect(page.locator('.insight-averages dd')).toHaveText(['0.0', '0.0', '0.0']);
+
           if (state === 'comparison-unavailable') {
             await expect(
               page.getByText('Client comparison unavailable.', { exact: false }),
