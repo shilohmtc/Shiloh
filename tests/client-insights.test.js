@@ -770,17 +770,19 @@ test('averages count clients once per complete calendar period, including zero d
   const model = await service(f).getModel({ adminId: 41 });
   assert.equal(model.averages.available, true);
   assert.deepEqual(
-    model.averages.items.map(({ kind, periods, clientPeriods }) => ({
-      kind,
-      periods,
-      clientPeriods,
-    })),
+    model.averages.items
+      .filter((item) => item.kind !== 'day')
+      .map(({ kind, periods, clientPeriods }) => ({
+        kind,
+        periods,
+        clientPeriods,
+      })),
     [
-      { kind: 'day', periods: 38, clientPeriods: 4 },
       { kind: 'week', periods: 4, clientPeriods: 1 },
       { kind: 'month', periods: 1, clientPeriods: 2 },
     ],
   );
+  assert.equal(model.averages.items[0].available, false); // no opening tables in this fixture
   assert.equal(model.totalVisits, 6);
   const empty = await service(f).getModel({ adminId: 41, months: 5 });
   assert.equal(empty.averages.items[2].periods, 4);

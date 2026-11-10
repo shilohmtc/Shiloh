@@ -1,6 +1,8 @@
 'use strict';
 const { pool } = require('../db/pool');
 const workspaceClients = require('./workspaceClients');
+const { readInsightOpeningDays } = require('./clientInsightOpeningDays');
+const { projectOpenDayAverage } = require('../domain/clientInsightOpenDays');
 const {
   relationshipPredicate,
   appointmentScopePredicate,
@@ -37,8 +39,8 @@ function createClientInsightsService({
         ? 'visibility.owner_staff_id=$3'
         : 'visibility.service_id IS NULL';
     const offsetParam = '$' + rel.nextParameterIndex;
-    const result = await boundedVisitRead(db, (client) =>
-      client.query(
+    const result = await boundedVisitRead(db, async (client) => {
+      const visits = await client.query(
         `/* clientInsights:scoped-period */
       WITH authorized AS MATERIALIZED (
         SELECT c.id,c.name,rel.status FROM crm_v2_clients c
@@ -99,7 +101,7 @@ function createClientInsightsService({
       ), average_windows AS (
         SELECT * FROM jsonb_to_recordset($${rel.nextParameterIndex + 1}::jsonb) AS w(kind text,"startDate" date,"endDate" date)
       ), average_counts AS (
-        SELECT w.kind,(SELECT COUNT(DISTINCT e.client_id)::int FROM events e
+        SELECT w.kind,w."startDate",(SELECT COUNT(DISTINCT e.client_id)::int FROM events e
           WHERE e.starts_at>=(w."startDate"::timestamp AT TIME ZONE 'Africa/Johannesburg')
             AND e.starts_at<(w."endDate"::timestamp AT TIME ZONE 'Africa/Johannesburg')
             AND e.ends_at<=(w."endDate"::timestamp AT TIME ZONE 'Africa/Johannesburg')) AS clients
@@ -116,6 +118,7 @@ function createClientInsightsService({
       )
       SELECT cc.record_count,gc.split_group,
         (SELECT jsonb_agg(jsonb_build_object('kind',kind,'periods',periods,'clientPeriods',client_periods)) FROM averages) AS averages,
+        (SELECT jsonb_agg(jsonb_build_object('date',"startDate",'clients',clients) ORDER BY "startDate") FROM average_counts WHERE kind='day') AS daily,
         (SELECT COUNT(*)::int FROM events) AS total_visits,
         (SELECT COUNT(*)::int FROM client_counts) AS unique_clients,
         COALESCE((SELECT jsonb_agg(jsonb_build_object('month',m.month,'visits',m.visits,'clients',m.clients) ORDER BY m.month) FROM months m),'[]') AS monthly,
@@ -128,10 +131,25 @@ function createClientInsightsService({
           safeOffset,
           JSON.stringify(insightAverageWindows(period)),
         ],
-      ),
-    );
+      );
+      // Schedule failures do not erase independently verified visit totals.
+      let opening;
+      try {
+        opening = await readInsightOpeningDays(client, period);
+      } catch (_) {
+        opening = { available: false };
+      }
+      return { ...visits, opening };
+    });
     const model = projectClientInsights(result?.rows?.[0], period, safeOffset);
     if (!model.available) return { ...model, authority };
+    if (model.averages.available)
+      model.averages.items[0] = projectOpenDayAverage(
+        result.rows[0].daily,
+        result.opening,
+        period,
+        model.totalVisits,
+      );
     const comparisonPeriod = insightComparisonPeriod(period.asOf);
     // Separate bounded read keeps the existing selected-period totals, ordering,
     // limits and failure behavior unchanged. A failed comparison is never zero.
