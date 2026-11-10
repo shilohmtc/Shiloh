@@ -582,5 +582,67 @@ for (const scale of [1, 2]) {
       path: info.outputPath(`insights-compact-320-text-${scale}.png`),
       fullPage: true,
     });
+    // Keep the original closed-drawer audit above, then prove the same text fits
+    // its real dark background when navigation is open at the enlarged size.
+    await page.route('**/calendar/workspace/navigation', (route) =>
+      route.fulfill({
+        json: { clientInsights: { allowed: true, href: '/calendar/clients/insights' } },
+      }),
+    );
+    await page.addScriptTag({
+      content: workspaceNavigationClientScript() + workspaceIconClientScript(),
+    });
+    await page
+      .getByRole('button', { name: 'Open Shiloh Workspace navigation', exact: true })
+      .click();
+    const drawer = page.locator('[data-workspace-navigation-drawer]');
+    await expect(drawer).toHaveClass(/open/);
+    const brandingFits = await drawer.evaluate((node) => {
+      const bounds = node.getBoundingClientRect();
+      const close = node.querySelector('[data-workspace-drawer-close]').getBoundingClientRect();
+      const copy = node.querySelector('.workspace-drawer-header .workspace-brand-copy');
+      const walker = document.createTreeWalker(copy, NodeFilter.SHOW_TEXT);
+      let text;
+      const rects = [];
+      while ((text = walker.nextNode())) {
+        if (!text.textContent.trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        rects.push(...range.getClientRects());
+      }
+      return (
+        close.left >= bounds.left &&
+        close.right <= bounds.right &&
+        rects.length > 0 &&
+        rects.every(
+          (rect) =>
+            rect.left >= bounds.left - 1 &&
+            rect.right <= bounds.right + 1 &&
+            !(
+              rect.left < close.right &&
+              rect.right > close.left &&
+              rect.top < close.bottom &&
+              rect.bottom > close.top
+            ),
+        )
+      );
+    });
+    expect(brandingFits).toBe(true);
+    expect(
+      (
+        await new AxeBuilder({ page })
+          .include('.workspace-frame')
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+          .analyze()
+      ).violations,
+    ).toEqual([]);
+    await page.screenshot({
+      path: info.outputPath(`insights-navigation-320-text-${scale}.png`),
+      fullPage: true,
+    });
+    await page.getByRole('button', { name: 'Close Workspace navigation', exact: true }).click();
+    await expect(
+      page.getByRole('button', { name: 'Open Shiloh Workspace navigation', exact: true }),
+    ).toHaveAttribute('aria-expanded', 'false');
   });
 }

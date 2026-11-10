@@ -1,7 +1,7 @@
 'use strict';
 
-// Accepted 20 October 2026. Independent of staff counters and credentials.
-const CLIENT_DAILY_BUDGET_MINOR = 500;
+// Client ceiling approved 10 November 2026. Independent of staff counters and credentials.
+const CLIENT_DAILY_BUDGET_MINOR = 1000;
 const clientDetailsRetired = (env = process.env) => env.MY_SHILOH_CRM_AUTH_RETIRED === 'true';
 function validClientBudget(budget) {
   return budget?.currency === 'ZAR' && Number.isSafeInteger(budget.dailyMinor) &&
