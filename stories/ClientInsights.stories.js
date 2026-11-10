@@ -192,6 +192,13 @@ export const OpeningDataUnavailable = {
     return markup(presentation.renderClientInsightsPage(value));
   },
 };
+export const OutsideAssumedSchedule = {
+  render: () => {
+    const value = model();
+    value.averages.items[0] = { ...value.averages.items[0], outsideDates: 1, outsideClientDays: 2 };
+    return markup(presentation.renderClientInsightsPage(value));
+  },
+};
 export const SparseIntervals = {
   render: () => {
     const value = model();
