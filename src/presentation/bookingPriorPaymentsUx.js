@@ -161,6 +161,7 @@ function priorPaymentsClientScript() {
 function renderNoChargeForm(model) {
   if (
     !model.authority.canRecordNoCharge ||
+    model.noChargeEligibility?.eligible !== true ||
     model.subject.final ||
     model.subject.groupId ||
     model.subject.status !== 'completed'

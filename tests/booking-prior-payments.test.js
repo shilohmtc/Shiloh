@@ -475,6 +475,7 @@ async function noChargeInput(service, overrides = {}) {
 test('no charge preserves original price and attendance, records actor/reason, creates no payment and retries exactly', async (t) => {
   const { pg, service } = await setup(t);
   const input = await noChargeInput(service);
+  assert.equal((await service.get({ adminId: 2, appointmentId: 201 })).noChargeEligibility.eligible, true);
   await pg.exec(
     "INSERT INTO booking_payment_accounts(id,appointment_id,canonical_amount_due,currency,pricing_revision) VALUES(100,201,500,'ZAR',NOW()); INSERT INTO payment_requests(payment_account_id,state,amount,request_key) VALUES(100,'pending',250,'no_charge_request')",
   );
@@ -564,6 +565,11 @@ for (const [label, sql] of [
       "INSERT INTO booking_payment_accounts(id,appointment_id,canonical_amount_due,currency,pricing_revision) VALUES(100,201,500,'ZAR',NOW())",
     );
     await pg.exec(sql);
+    const review = await service.get({ adminId: 2, appointmentId: 201 });
+    assert.equal(review.noChargeEligibility.eligible, false);
+    assert.ok(review.noChargeEligibility.reason);
+    assert.match(renderCalendarPaymentPage({ model: review }), /value="no-charge" disabled/);
+    assert.doesNotMatch(renderCalendarPaymentPage({ model: review }), /<form[^>]+data-prior-payment="no-charge"/);
     await assert.rejects(service.recordNoCharge(input), { httpStatus: 409 });
     assert.equal(
       (await pg.query('SELECT total_price FROM appointments WHERE id=201')).rows[0].total_price,

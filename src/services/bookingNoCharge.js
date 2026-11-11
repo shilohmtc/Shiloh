@@ -28,6 +28,25 @@ function createBookingNoChargeActions({
       hasCapability(authority, 'payment:collect')
     );
   }
+  const activitySql = `SELECT 1 FROM payment_ledger_entries WHERE payment_account_id=$1
+          UNION ALL SELECT 1 FROM treatment_credit_entries WHERE booking_payment_account_id=$1
+          UNION ALL SELECT 1 FROM booking_gift_voucher_allocations WHERE booking_payment_account_id=$1
+          UNION ALL SELECT 1 FROM booking_prior_payment_entries WHERE booking_payment_account_id=$1 OR source_payment_account_id=$1
+          UNION ALL SELECT 1 FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1
+          UNION ALL SELECT 1 FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 LIMIT 1`;
+  // Advisory presentation only. record() still locks and validates every rule.
+  async function eligibility(client, subject, account) {
+    if (subject.status !== 'completed' || subject.groupId)
+      return { eligible: false, reason: 'Complete an ordinary treatment first; linked bookings need separate review.' };
+    if (subject.financialClassification === 'no_charge')
+      return { eligible: false, reason: 'This booking is already marked No charge. Review its audit history.' };
+    const packages = await client.query('SELECT 1 FROM package_session_redemptions WHERE appointment_id=$1 LIMIT 1', [subject.appointmentId]);
+    if (packages.rowCount)
+      return { eligible: false, reason: 'This is a package visit. Review its existing package evidence instead.' };
+    if (account && (await client.query(activitySql, [account.id])).rowCount)
+      return { eligible: false, reason: 'This booking has payment or credit activity. Review the payment history before changing its charge.' };
+    return { eligible: true, reason: '' };
+  }
   async function record(input = {}) {
     const data = {
       adminId: positiveId(input.adminId),
@@ -115,12 +134,7 @@ function createBookingNoChargeActions({
           [account.id],
         );
         const activity = await client.query(
-          `SELECT 1 FROM payment_ledger_entries WHERE payment_account_id=$1
-          UNION ALL SELECT 1 FROM treatment_credit_entries WHERE booking_payment_account_id=$1
-          UNION ALL SELECT 1 FROM booking_gift_voucher_allocations WHERE booking_payment_account_id=$1
-          UNION ALL SELECT 1 FROM booking_prior_payment_entries WHERE booking_payment_account_id=$1 OR source_payment_account_id=$1
-          UNION ALL SELECT 1 FROM booking_loyalty_allocations WHERE booking_payment_account_id=$1
-          UNION ALL SELECT 1 FROM booking_welcome_voucher_allocations WHERE booking_payment_account_id=$1 LIMIT 1`,
+          activitySql,
           [account.id],
         );
         if (activity.rowCount)
@@ -173,6 +187,6 @@ function createBookingNoChargeActions({
     await syncDepositAfterSettlement(data.appointmentId);
     return result;
   }
-  return { allowed, record };
+  return { allowed, record, eligibility };
 }
 module.exports = { createBookingNoChargeActions };
