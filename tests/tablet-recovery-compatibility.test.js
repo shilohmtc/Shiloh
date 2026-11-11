@@ -90,11 +90,31 @@ test('ordinary sign-in still works without claiming or revoking tablet records',
   assert.equal(h.sent.length, 1);
 });
 
-test('recovery source contains no booked-tablet composition, routes or worker despite an inherited flag', async () => {
-  const root = path.join(__dirname, '..');
-  for (const file of ['app.js', 'src/services/clientCodeRuntime.js', 'src/services/clientCodeRelease.js']) {
-    assert.doesNotMatch(fs.readFileSync(path.join(root, file), 'utf8'), /clinicTabletBooked|SHILOH_CLINIC_TABLET_BOOKED_ENABLED|phoneProofOnly/);
+test('feature-off source does not prepare tablet access, start its worker or expose its route and CTA', async t => {
+  const express = require('express');
+  const { once } = require('node:events');
+  const { prepareConfiguredClinicTablet, FLAG } = require('../src/services/clinicTabletBookedActivation');
+  const { createClinicTabletBookedRouter } = require('../src/routes/clinicTabletBooked');
+  const { welcome } = require('../src/presentation/clinicIpadCheckinUx');
+  const never = () => assert.fail('Feature-off must not access services, query, send, prepare or start');
+  for (const value of [undefined, false, 'false']) {
+    const result = await prepareConfiguredClinicTablet({
+      env: { [FLAG]: value, SHILOH_CLINIC_IPAD_CHECKIN_ENABLED: 'true', SHILOH_CLIENT_CONSULTATION_FORMS_ENABLED: 'true' },
+      clientRelease: new Proxy({}, { get: never }), createCheckin: never, forms: new Proxy({}, { get: never }),
+    });
+    assert.equal(result, null);
   }
-  assert.equal(fs.existsSync(path.join(root, 'src/routes/clinicTabletBooked.js')), false);
-  assert.equal(fs.existsSync(path.join(root, 'src/services/clinicTabletGrantStore.js')), false);
+  assert.doesNotMatch(welcome({ bookedJourneyAvailable: false }), /href="\/check-in\/booked\//);
+  const app = express();
+  app.use('/check-in/booked', createClinicTabletBookedRouter({
+    enabled: false, approvedForProduction: true, env: { NODE_ENV: 'production' }, service: new Proxy({}, { get: never }),
+  }));
+  const server = app.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const base = `http://127.0.0.1:${server.address().port}/check-in/booked`;
+  for (const [method, suffix] of [['GET', '/'], ['GET', '/current'], ['POST', '/start'], ['POST', '/verify'], ['POST', '/choose'], ['POST', '/form'], ['POST', '/touch'], ['POST', '/cancel']]) {
+    const response = await fetch(base + suffix, { method, redirect: 'manual' });
+    assert.equal(response.status, 404, `${method} ${suffix}`);
+    assert.equal(response.headers.get('set-cookie'), null);
+  }
 });

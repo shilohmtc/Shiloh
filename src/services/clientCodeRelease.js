@@ -25,7 +25,7 @@ function createClientCodeRelease({env={},db,sessions,fetchImpl,now,workerOptions
   const missing=[...(!manifest?[MANIFEST]:[]),...(!key?[KEY]:[]),...(!credential?[TOKEN]:[])];
   const runtime=createClientCodeRuntime({enabled:requested&&missing.length===0,config:manifest||{},db,sessions,
     hmacKey:key,metaCredentials:{accessToken:credential?env[TOKEN]:undefined},fetchImpl,env,workerOptions,onDiagnostic,...(now?{now}:{})});
-  let controller=null,pending=null,state=requested?'unready':'disabled';
+  let controller=null,pending=null,tablet=null,tabletPreparing=false,state=requested?'unready':'disabled';
   const status=()=>({requested,state,enabled:state==='running'&&runtime.service.enabled(),
     detailsSigninRetired:clientDetailsRetired(env),smsEnabled:false,missing:[...missing],worker:runtime.worker.status()});
   async function start() {
@@ -41,7 +41,21 @@ function createClientCodeRelease({env={},db,sessions,fetchImpl,now,workerOptions
     }).catch(()=>{state='unready';runtime.stop();});
     return {ok:true,...status()};
   }
-  async function stop(){state='stopped';runtime.stop();controller?.abort();if(pending)await pending;}
-  return {status,start,stop,mount:app=>app.use('/my-shiloh/code-auth',runtime.router)};
+  async function prepareTabletJourney(options){
+    if(state!=='running'||tablet||tabletPreparing)throw new Error('Client runtime must be running and tablet preparation unique');
+    tabletPreparing=true;
+    try {
+      const candidate=await runtime.prepareTabletJourney(options);
+      if(state!=='running'){await candidate.stop();throw new Error('Client runtime stopped');}
+      tablet=candidate;return candidate;
+    } finally {tabletPreparing=false;}
+  }
+  async function stop(){
+    state='stopped';runtime.stop();controller?.abort();
+    // Close the shared sender/HTTP gate before waiting for a tablet attempt
+    // already in progress. A readiness read must not begin a later send.
+    try {await tablet?.stop();} finally {tablet=null;if(pending)await pending;}
+  }
+  return {status,start,stop,prepareTabletJourney,mount:app=>app.use('/my-shiloh/code-auth',runtime.router)};
 }
 module.exports={createClientCodeRelease,parseClientManifest,ENABLED,MANIFEST,KEY,TOKEN};

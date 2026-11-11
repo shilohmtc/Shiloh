@@ -50,7 +50,7 @@ function originMatches(req) {
   try { return new URL(origin).origin === expectedOrigin(req); }
   catch (_error) { return false; }
 }
-function createClinicIpadPublicRouter({ env = process.env, service = createClinicIpadCheckinService() } = {}) {
+function createClinicIpadPublicRouter({ env = process.env, service = createClinicIpadCheckinService(), bookedJourneyAvailable=()=>false } = {}) {
   const router = express.Router();
   router.use((_req,res,next) => { headers(res); next(); });
   router.use((_req,res,next) => String(env.SHILOH_CLINIC_IPAD_CHECKIN_ENABLED).toLowerCase() === 'true' ? next() : res.sendStatus(404));
@@ -148,7 +148,7 @@ function createClinicIpadPublicRouter({ env = process.env, service = createClini
       await service.cancelDeviceForm(req.checkinDeviceToken);
       res.append('Set-Cookie',cookie(VISIT_COOKIE,'',{ env,seconds:0 }));
       res.append('Set-Cookie',cookie(FORM_COOKIE,'',{ env,seconds:0 }));
-      return res.type('html').send(ux.welcome({ formReady:await service.readyForm(req.checkinDeviceToken),csrfToken:formToken(req.checkinDeviceToken) }));
+      return res.type('html').send(ux.welcome({ bookedJourneyAvailable:bookedJourneyAvailable()===true,formReady:await service.readyForm(req.checkinDeviceToken),csrfToken:formToken(req.checkinDeviceToken) }));
     } catch (error) { next(error); }
   });
   router.get('/thank-you',(_req,res) => res.type('html').send(ux.done()));

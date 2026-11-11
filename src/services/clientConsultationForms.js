@@ -442,13 +442,14 @@ function createClientConsultationFormsService({
     };
   }
 
-  async function openForm(accessToken) {
+  async function openForm(accessToken, { transaction } = {}) {
+    const queryable=transaction||db;
     const tokenHash = hashAccessToken(accessToken);
-    const row = await assignmentRowByHash(tokenHash);
+    const row = await assignmentRowByHash(tokenHash, queryable);
     if (!row) throw new ClientConsultationFormError('CONSULTATION_FORM_LINK_UNAVAILABLE', 'This consultation form link is not available.', 404);
-    const model = await formModelFromRow(row);
+    const model = await formModelFromRow(row, queryable);
     if (!model.completed && ['not_sent', 'sent'].includes(String(row.assignment_status || ''))) {
-      await db.query(
+      await queryable.query(
         `/* clientConsultationForms:mark-opened */
          UPDATE consultation_form_assignments
             SET status='opened',opened_at=COALESCE(opened_at,$2),updated_at=$2
@@ -503,9 +504,9 @@ function createClientConsultationFormsService({
     return transaction ? issue(transaction) : withTransaction(db, issue);
   }
 
-  async function submitForm(accessToken, body = {}) {
+  async function submitForm(accessToken, body = {}, { transaction } = {}) {
     const tokenHash = hashAccessToken(accessToken);
-    return withTransaction(db, async client => {
+    const submit = async client => {
       const row = await assignmentRowByHash(tokenHash, client, { lock: true });
       if (!row) throw new ClientConsultationFormError('CONSULTATION_FORM_LINK_UNAVAILABLE', 'This consultation form link is not available.', 404);
       const state = validateAssignment(row, { allowCompleted: true });
@@ -559,7 +560,8 @@ function createClientConsultationFormsService({
         assignmentId: state.assignmentId,
         submittedAt: signedAt,
       };
-    });
+    };
+    return transaction ? submit(transaction) : withTransaction(db, submit);
   }
 
   return {

@@ -101,3 +101,23 @@ test('migration 198 is additive and transactionally preserves existing sessions,
   assert.equal((await h.sessions.validateSessionToken(issued.sessionToken)).ok,true);assert.equal((await h.db.query('SELECT * FROM client_code_records')).rows.length,0);assert.equal((await h.db.query('SELECT * FROM client_code_rates')).rows.length,0);
   assert.doesNotMatch(sql.replace(/^--.*$/gm,''),/UPDATE\s+crm_v2_clients|DELETE|DROP|GRANT|TRUNCATE/i);
 });
+
+test('client entry and sender close immediately while the attached tablet drains',async t=>{
+  const h=await clientHarness(t),sent=[],release=createProductionClientCode({env:settings(),canonicalDb:h.db,PoolClass:fakePool(h),fetchImpl:provider(sent),now:h.now});
+  let finishDrain;const draining=new Promise(resolve=>{finishDrain=resolve;});let stopping,component,originalStop;
+  t.after(async()=>{finishDrain();if(component&&originalStop)component.stop=originalStop;if(stopping)await stopping.catch(()=>{});await release.stop();});
+  // This test exercises lifecycle composition; form operations are forbidden.
+  await h.db.query('CREATE TABLE clinic_tablet_visit_grants(token_hash text PRIMARY KEY)');
+  assert.equal((await release.start()).ok,true);
+  component=await release.prepareTabletJourney({approved:true,checkin:{tabletDeviceFor:()=>assert.fail('No tablet form access expected')},formService:{issueAccessToken:()=>assert.fail(),openForm:()=>assert.fail(),submitForm:()=>assert.fail()}});
+  originalStop=component.stop;component.stop=()=>draining;
+  const app=express();release.mount(app);const origin=await serve(t,app);
+  const before=await fetch(origin+'/my-shiloh/code-auth/');assert.equal(before.status,200);const cookie=before.headers.get('set-cookie').split(';')[0];
+  stopping=release.stop();
+  // The HTTP/runtime gate, not only the release's status flag, must be closed
+  // before a pending tablet drain is allowed to finish.
+  assert.equal((await fetch(origin+'/my-shiloh/code-auth/')).status,404);
+  const intake=await fetch(origin+'/my-shiloh/code-auth/start',{method:'POST',headers:{Origin:origin,Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({mobile:h.context.mobile})});
+  assert.equal(intake.status,404);assert.equal((await h.db.query('SELECT COUNT(*)::int AS n FROM client_code_records')).rows[0].n,0);assert.equal(sent.length,0);
+  finishDrain();await stopping;assert.equal(release.status().worker.state,'stopped');
+});

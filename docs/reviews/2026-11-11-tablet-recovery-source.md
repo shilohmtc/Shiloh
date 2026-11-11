@@ -1,6 +1,12 @@
 # Migration 202 recovery source preparation
 
-Status: local preparation only. Not published, release-tested in GitHub, built by Render, retained as a live artifact, deployed or authorised for production execution. PR #1582 is unchanged. No code sends, production reads or writes are part of this preparation.
+Status: **historical recovery-only source plan, released through #1583**. Original
+merge `b1256a51cc31eaf653e48a72657c4fa4ede1eff1`, deployment
+`dep-dbq64o5g1s2s739i6n6g`, applied migration 202 and read-only postflight were
+verified on 11 November 2026. Its four-file candidate passed all 15 applicable
+workflows. No real code sends or client-record test mutations were performed.
+The scope and dry-run sequence below describe that immutable recovery-only source,
+not the later tablet feature composition now being prepared on this branch.
 
 ## Exact scope
 
@@ -9,13 +15,14 @@ Base: stable live source `8426754838da7f61e0527dd3ed94f4859786425b`.
 - Include the exact `202_clinic_tablet_booked_grants.sql` from PR #1582, SHA-256 `40c37de7579056fcf88352419af18f87d33b8d2ad1500d341abc9d954d12d56d`.
 - Add only two predicates in the ordinary client OTP store: queued claims and ready-record revocation exclude `tablet_forms`.
 - Keep the migration authority, authentication, identity, provider, shared counter namespaces, allowance, expiry cleanup and all other runtime code unchanged from stable source.
-- No tablet routes, composition, access grants or lifecycle workers exist in this source. An inherited tablet-enabled flag cannot activate missing code. An eventual recovery deployment must nevertheless explicitly use the reviewed false flag.
+- No tablet routes, composition, access grants or lifecycle workers exist in the released recovery-only artifact. An inherited tablet-enabled flag cannot activate missing code. Recovery deployment must nevertheless explicitly use the reviewed false flag.
 
 This recognises a correctly checksummed 202 ledger and continues to refuse pending, mismatched and unknown migration history. It does not apply migration 202 on import or startup verification, ignore ledger discrepancies, reset quotas or rewrite records to make a recovery succeed. Normal clinic operations still have their existing authorised effects; no application deployment is a read-only database session.
 
 ## Dry-run deployment-recovery runbook
 
-These are future operator decisions/checks, not executed deployment commands. Production execution requires specific migration/authentication/access approval, completed preflights and the parent's release coordination.
+This is the historical plan, not authority to repeat its completed migration or
+deployment. Later feature-source deployment and activation remain separately held.
 
 1. Record the final recovery commit/tree and compare the entire diff with the stable base. Verify the preceding 201 migration files and migration authority are byte-identical. Verify migration 202 matches the feature release. Run focused synthetic migration, ordinary-client, purpose-exclusion and quota-preservation checks; then complete required exact-head remote release checks before treating the candidate as deployable. Local tests alone are insufficient.
 2. Through existing authorised, nonmutating Render views, verify the exact My Workspace/service/database, linked repository, existing build/start commands, same-service exact-commit deployment capability, health path, effective environment and any retained artifacts. Do not create a new service, preview, job or database, upload credentials, install tools, modify build/settings or spend money. If exact-commit source deployment cannot be verified, stop. It has not been established by this local preparation.
@@ -26,6 +33,25 @@ These are future operator decisions/checks, not executed deployment commands. Pr
 
 ## Limits
 
-This candidate supplies rebuildable compatible source, not an already healthy retained Render artifact. Rebuilding can fail or take time. It cannot promise availability through the first post-migration boot, undo signed forms, recall messages or restore a database. No fresh backup restore was tested. If the gate requires a pre-existing healthy compatible retained artifact before migration, that operational requirement remains unresolved; do not bypass migration checks to manufacture one.
+The original recovery artifact retains its original marker environment; rollback
+can restore that configuration. The later No charge release #1581 is now live at
+`eacd82c93a5d6422712b4790b4f806e9402fd62a`, deployment
+`dep-dbqardnavr4c739sn9t0`. Its startup on 11 November at 18:03:40 UTC
+verified 202 matching files/ledger rows in read-only mode with controlled migration
+action disabled and filename null. That is a marker-free startup, unlike merely
+saving marker removal. This newer source still lacks tablet composition and the
+feature's ordinary-purpose whitelist; it is not a validated post-activation backout.
+Retained builds restore their own applicable configuration, so verify the selected
+artifact and effective settings before any separately approved rollback. Rebuilding
+can still fail or take time; no database restore was tested.
+
+This artifact is bounded to first recovery before tablet activation. Ordinary
+verification is unchanged from stable source and lacks an explicit ordinary-purpose
+whitelist. A ready tablet proof with its exact request/browser bindings and valid
+code could reach ordinary session issuance. Therefore neither grant cleanup alone
+nor ordinary-worker exclusion validates this artifact as a post-activation backout.
+Prefer the separately tested full-feature/off checkpoint and a reviewed quiesce,
+token/grant cleanup and effective-configuration procedure. See the current held
+stages in `2026-11-11-tablet-booked-journey.md`.
 
 No new provider, costs, credentials, permissions, access settings or schema beyond the already proposed migration 202 is introduced. Publishing and deploying this candidate are not authorised by preparation alone.

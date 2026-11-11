@@ -1,0 +1,28 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const {once}=require('node:events');
+const express=require('express');
+const {tabletBookedFixture}=require('./support/tabletBookedFixture');
+const {createClinicTabletBookedRouter}=require('../src/routes/clinicTabletBooked');
+const {serializeClientSessionCookie}=require('../src/middleware/clientBrowserSession');
+test('paired-device, CSRF, origin, private cache and no personal-session reuse gate every tablet step',async t=>{
+ const h=await tabletBookedFixture();t.after(()=>h.close());const app=express();app.use('/check-in/booked',createClinicTabletBookedRouter({enabled:true,service:h.service,env:{NODE_ENV:'test'}}));
+ const server=app.listen(0,'127.0.0.1');await once(server,'listening');t.after(()=>new Promise(r=>server.close(r)));
+ const origin=`http://127.0.0.1:${server.address().port}`,base=origin+'/check-in/booked';
+ const personal=serializeClientSessionCookie('S'.repeat(43),{env:{NODE_ENV:'test'}}).split(';')[0];
+ const unpaired=await fetch(base+'/',{headers:{cookie:personal}});assert.equal(unpaired.status,401);
+ assert.equal(unpaired.headers.getSetCookie().some(c=>c.startsWith(personal.split('=')[0]+'=')),false);
+ const device='shiloh_checkin_device='+h.deviceToken;
+ const response=await fetch(base+'/',{headers:{cookie:device+'; '+personal}});assert.equal(response.status,200);
+ assert.match(response.headers.get('cache-control'),/no-store/);assert.equal(response.headers.get('referrer-policy'),'no-referrer');assert.equal(response.headers.get('x-frame-options'),'DENY');
+ const entry=response.headers.getSetCookie().find(c=>c.startsWith('shiloh_tablet_entry=')).split(';')[0];
+ const markup=await response.text(),csrf=/name="tablet_csrf" value="([^"]+)"/.exec(markup)[1];
+ const post=(path,body,from=origin)=>fetch(base+path,{method:'POST',headers:{cookie:device+'; '+entry,origin:from,'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body),redirect:'manual'});
+ assert.equal((await post('/start',{mobile:'0820000001'})).status,403);
+ assert.equal((await post('/start',{mobile:'0820000001',tablet_csrf:csrf},'https://outside.invalid')).status,403);
+ assert.equal((await post('/form',{tablet_csrf:csrf,assignment_id:'7'})).status,410);
+ assert.equal((await h.db.query('SELECT COUNT(*)::int AS n FROM consultation_form_submissions')).rows[0].n,0);
+ assert.equal((await h.db.query('SELECT COUNT(*)::int AS n FROM client_code_records')).rows[0].n,0);
+ assert.equal((await h.db.query('SELECT COUNT(*)::int AS n FROM client_browser_sessions')).rows[0].n,0);
+});

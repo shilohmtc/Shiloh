@@ -183,6 +183,14 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
     }
   }
 
+  // New self-service composition remains unmounted pending its access review.
+  async function tabletDeviceFor(rawToken) {
+    const device=await deviceFor(rawToken);
+    if(!device)return null;
+    await requireFormPreparationAccess(device.activated_by_admin_id);
+    return device;
+  }
+
   async function listFormAssignments(adminId, appointmentId) {
     await requireFormPreparationAccess(adminId);
     if (!/^\d+$/.test(String(appointmentId || ''))) throw new CheckinError('Invalid appointment reference.');
@@ -554,7 +562,7 @@ function createClinicIpadCheckinService({ db = pool, now = () => new Date(), ran
 
   return { canActivate, activate, createSetupCode, redeemSetupCode, startPair, pairFor, pairDetails, approvePair, revoke, listDevices, listFormAssignments, queueForm,
     readyForm, formDetails, handoverCurrent, confirmHandover, cancelHandover, beginForm, formAccess, finishForm, cancelDeviceForm,
-    deviceFor, begin, active, finish, register };
+    deviceFor, tabletDeviceFor, begin, active, finish, register };
 }
 
 module.exports = { createClinicIpadCheckinService, CheckinError, SESSION_MS, validToken };

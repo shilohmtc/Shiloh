@@ -6,30 +6,46 @@ const revision=row=>crypto.createHash('sha256').update(JSON.stringify([String(ro
   row.mobile_verified_at?new Date(row.mobile_verified_at).toISOString():null,row.name,
   row.date_of_birth instanceof Date?row.date_of_birth.toISOString().slice(0,10):String(row.date_of_birth||'').slice(0,10),
   row.gender,row.profile_status])).digest('hex');
-function createClientCodeStore({db,sessions}={}){
+async function lockClientCodeIdentity(c,mobile){
+  await c.query('SELECT pg_advisory_xact_lock(hashtext($1))',[`crm-v2-mobile:${mobile}`]);
+}
+async function readClientCodeIdentity(c,mobile){
+  await lockClientCodeIdentity(c,mobile);
+  const rows=(await c.query('SELECT * FROM crm_v2_clients WHERE normalized_mobile=$1 ORDER BY id FOR UPDATE',[mobile])).rows;
+  // Phone proof never chooses between owners or crosses identity models.
+  const historical=(await c.query("SELECT id FROM client_contacts WHERE normalized_value=$1 AND contact_type IN ('whatsapp','mobile') ORDER BY id FOR SHARE",[mobile])).rows;
+  const owner=rows.length===1?rows[0]:null;
+  const verified=!historical.length&&owner?.status==='active'&&owner.profile_status==='registered'&&!!owner.mobile_verified_at;
+  // Current canonical ownership controls My Shiloh. Legacy contacts do
+  // not block that one active owner, and are never opened or linked.
+  const available=owner?.status==='active';
+  const snapshot=crypto.createHash('sha256').update(JSON.stringify([rows.map(r=>[String(r.id),revision(r),r.status,r.first_name,r.surname]),historical.map(r=>String(r.id))])).digest('hex');
+  return {historicalConflict:historical.length>0,empty:rows.length===0&&historical.length===0,legacyOnly:rows.length===0&&historical.length>0,verified,available,owner,revision:verified?revision(owner):null,snapshot};
+}
+function createClientCodeStore({db,sessions,transactionClient=null}={}){
   if(!db?.connect||!sessions?.issueVerifiedPhoneCodeSession)throw Error('Explicit client database and sessions required');
   async function transaction(fn){
-    const c=await db.connect();
+    const c=transactionClient||await db.connect();
     try{
-      await c.query('BEGIN');await c.query("SELECT pg_advisory_xact_lock(hashtextextended('my-shiloh-code-auth',0))");
+      if(!transactionClient)await c.query('BEGIN');await c.query("SELECT pg_advisory_xact_lock(hashtextextended('my-shiloh-code-auth',0))");
       const tx={
         async insert(row){await c.query('INSERT INTO client_code_records(record_hash,expires_at,payload) VALUES($1,$2,$3::jsonb)',[row.hash,row.expiresAt,JSON.stringify(row)]);},
         async get(hash){return (await c.query('SELECT payload FROM client_code_records WHERE record_hash=$1 FOR UPDATE',[hash])).rows[0]?.payload||null;},
         async save(row){await c.query('UPDATE client_code_records SET expires_at=$2,payload=$3::jsonb WHERE record_hash=$1',[row.hash,row.expiresAt,JSON.stringify(row)]);},
-        async claim(current){
+        async claim(current,{phoneProofOnly=false}={}){
           await c.query('DELETE FROM client_code_records WHERE record_hash IN (SELECT record_hash FROM client_code_records WHERE expires_at<=$1 ORDER BY expires_at LIMIT 100)',[current]);
           const r=(await c.query(`SELECT payload FROM client_code_records WHERE payload->>'state'='queued' AND expires_at>$1
-            AND COALESCE(payload->>'purpose','')<>'tablet_forms'
+            AND (COALESCE(payload->>'purpose','')='tablet_forms')=$2
             AND (payload->>'notBefore' IS NULL OR (payload->>'notBefore')::timestamptz<=$1)
-            ORDER BY queued_at,record_hash LIMIT 1 FOR UPDATE`,[current])).rows[0]?.payload;
+            ORDER BY queued_at,record_hash LIMIT 1 FOR UPDATE`,[current,phoneProofOnly===true])).rows[0]?.payload;
           if(!r)return null;await tx.save({...r,state:'claimed'});return r;
         },
         async uncertain(personKey,current){return (await c.query(`SELECT 1 FROM client_code_records WHERE payload->>'personKey'=$1
           AND payload->>'state' IN ('claimed','uncertain') AND payload->>'deliveryStarted'='true'
           AND (payload->>'codeExpiresAt')::timestamptz>$2 LIMIT 1`,[personKey,current])).rows.length>0;},
-        async revokeOthers(personKey,hash){await c.query(`UPDATE client_code_records SET payload=jsonb_set(payload,'{state}','"revoked"')
+        async revokeOthers(personKey,hash,{phoneProofOnly=false}={}){await c.query(`UPDATE client_code_records SET payload=jsonb_set(payload,'{state}','"revoked"')
           WHERE payload->>'personKey'=$1 AND record_hash<>$2 AND payload->>'state'='ready'
-          AND COALESCE(payload->>'purpose','')<>'tablet_forms'`,[personKey,hash]);},
+          AND (COALESCE(payload->>'purpose','')='tablet_forms')=$3`,[personKey,hash,phoneProofOnly===true]);},
         async rateUntil(key,current){const r=(await c.query('SELECT expires_at FROM client_code_rates WHERE bucket_key=$1 AND expires_at>$2 FOR UPDATE',[key,current])).rows[0];return r?new Date(r.expires_at):null;},
         async takeRate(buckets,current){
           const rows=(await c.query('SELECT * FROM client_code_rates WHERE bucket_key=ANY($1::text[]) FOR UPDATE',[buckets.map(b=>b.key)])).rows;
@@ -40,19 +56,13 @@ function createClientCodeStore({db,sessions}={}){
               ON CONFLICT(bucket_key) DO UPDATE SET attempts=$2,expires_at=$3`,[b.key,fresh?s.attempts+(b.amount??1):(b.amount??1),fresh?s.expires_at:new Date(current.getTime()+b.windowMs)]);}
           await c.query('DELETE FROM client_code_rates WHERE bucket_key IN (SELECT bucket_key FROM client_code_rates WHERE expires_at<$1 LIMIT 100)',[current]);return true;
         },
-        async identity(mobile){
-          await c.query('SELECT pg_advisory_xact_lock(hashtext($1))',[`crm-v2-mobile:${mobile}`]);
-          const rows=(await c.query('SELECT * FROM crm_v2_clients WHERE normalized_mobile=$1 ORDER BY id FOR UPDATE',[mobile])).rows;
-          // Phone proof never chooses between owners or crosses identity models.
-          const historical=(await c.query("SELECT id FROM client_contacts WHERE normalized_value=$1 AND contact_type IN ('whatsapp','mobile') ORDER BY id FOR SHARE",[mobile])).rows;
-          const owner=rows.length===1?rows[0]:null;
-          const verified=!historical.length&&owner?.status==='active'&&owner.profile_status==='registered'&&!!owner.mobile_verified_at;
-          // Current canonical ownership controls My Shiloh. Legacy contacts do
-          // not block that one active owner, and are never opened or linked.
-          const available=owner?.status==='active';
-          const snapshot=crypto.createHash('sha256').update(JSON.stringify([rows.map(r=>[String(r.id),revision(r),r.status,r.first_name,r.surname]),historical.map(r=>String(r.id))])).digest('hex');
-          return {empty:rows.length===0&&historical.length===0,legacyOnly:rows.length===0&&historical.length>0,verified,available,owner,revision:verified?revision(owner):null,snapshot};
+        async tabletAllowed(deviceId,grantHash,current){
+          if(!/^[1-9][0-9]*$/.test(String(deviceId||''))||!/^[0-9a-f]{64}$/.test(String(grantHash||'')))return false;
+          return (await c.query(`SELECT 1 FROM clinic_tablet_visit_grants g JOIN clinic_checkin_devices d ON d.id=g.device_id
+            WHERE g.device_id=$1 AND g.token_hash=$2 AND g.state='code' AND g.expires_at>$3
+            AND g.last_activity_at>$4 AND d.revoked_at IS NULL LIMIT 1`,[deviceId,grantHash,current,new Date(current.getTime()-5*60*1000)])).rows.length===1;
         },
+        identity:mobile=>readClientCodeIdentity(c,mobile),
         async verifyMobile({mobile,current,channel}){
           // Called only after consuming fresh browser-bound phone proof, under
           // the exact-owner locks and snapshot check in this transaction.
@@ -77,9 +87,9 @@ function createClientCodeStore({db,sessions}={}){
           return result;
         },
       };
-      const result=await fn(tx);await c.query('COMMIT');return result;
-    }catch(error){try{await c.query('ROLLBACK');}catch(_){}throw error;}finally{c.release();}
+      const result=await fn(tx);if(!transactionClient)await c.query('COMMIT');return result;
+    }catch(error){if(!transactionClient){try{await c.query('ROLLBACK');}catch(_){}}throw error;}finally{if(!transactionClient)c.release();}
   }
   return {transaction};
 }
-module.exports={createClientCodeStore,clientCodeRevision:revision};
+module.exports={createClientCodeStore,clientCodeRevision:revision,readClientCodeIdentity,lockClientCodeIdentity};
