@@ -14,6 +14,7 @@ function surface(options) {
       options?.receiptReview !== true &&
       options?.noChargeSaved !== true
     ) {
+      if (options?.noChargeBlocked) return;
       selector.value = options?.noCharge ? 'no-charge' : 'prior-payment';
       selector.dispatchEvent(new Event('change'));
       node.querySelector('[data-payment-method-card]').open = true;
@@ -30,3 +31,6 @@ export const PriorReceiptReview = { render: () => surface({ settled: true, recei
 
 export const NoCharge = { render: () => surface({ noCharge: true }) };
 export const NoChargeRecorded = { render: () => surface({ noChargeSaved: true }) };
+
+export const NoChargePaymentActivity = { render: () => surface({ noCharge: true, noChargeBlocked: "This booking has payment or credit activity. Review the payment history before changing its charge." }) };
+export const NoChargePackage = { render: () => surface({ noCharge: true, noChargeBlocked: "This is a package visit. Review its existing package evidence instead." }) };

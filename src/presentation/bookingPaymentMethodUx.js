@@ -20,7 +20,7 @@ function renderBookingPaymentMethod({ model, manualForm, noncashForms }) {
       'EFT',
       model.authority.canCollect ? '' : 'Your access does not permit recording money received.',
     ],
-    ...(model.authority.canRecordNoCharge ? [['no-charge','No charge',model.subject.status==='completed'&&!model.subject.groupId?'':'Complete an ordinary treatment first; linked bookings need separate review.']] : []),
+    ...(model.authority.canRecordNoCharge ? [['no-charge','No charge',model.noChargeEligibility?.eligible===true?'':model.noChargeEligibility?.reason||'Refresh the payment review to check No charge eligibility.']] : []),
     ['gift-voucher', 'Voucher', noncash.gift],
     ['client-credit', 'Client credit', noncash.credit],
     ...(model.authority.canRecordPrior ? [['prior-payment','Paid previously',model.subject.crmV2ClientId?'':'Link the current Shiloh client before recording prior payment.']] : []),
@@ -193,7 +193,7 @@ function initializeBookingPaymentMethod() {
     } else {
       const status = root.querySelector('[data-payment-status]');
       status.textContent =
-        'An earlier voucher or credit request needs review. Retry that exact request to resolve its result before another payment.';
+        'An earlier payment decision needs review. Retry that exact request to resolve its result before another payment.';
       const button = document.createElement('button');
       button.type = 'button';
       button.textContent = 'Retry earlier request';

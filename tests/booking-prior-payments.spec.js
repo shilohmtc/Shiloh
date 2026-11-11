@@ -222,7 +222,9 @@ for (const [name, viewport] of [
       '500.00',
     );
     let lost = true;
+    const noChargeRequests = [];
     await page.route('**/appointments/201/no-charge', async (route) => {
+      noChargeRequests.push(route.request().postDataJSON());
       const response = await route.fetch();
       if (lost) {
         lost = false;
@@ -236,8 +238,13 @@ for (const [name, viewport] of [
     await page.getByRole('dialog').getByRole('button', { name: 'Record no charge' }).click();
     await expect(form.locator('[data-prior-status]')).toContainText('Retry this unchanged request');
     await page.reload();
-    await expect(form).toBeVisible();
-    await Promise.all([page.waitForEvent('load'), form.getByRole('button', { name: 'Record no charge' }).click()]);
+    await expect(form).toHaveCount(0);
+    await expect(page.locator('option[value="no-charge"]')).toBeDisabled();
+    const retry = page.getByRole('button', { name: 'Retry earlier request' });
+    await expect(retry).toBeVisible();
+    await Promise.all([page.waitForEvent('load'), retry.click()]);
+    expect(noChargeRequests).toHaveLength(2);
+    expect(noChargeRequests[1]).toEqual(noChargeRequests[0]);
     await expect(page.locator('.payment-head .state')).toHaveText('No charge');
     await expect(page.locator('[data-no-charge-history]')).toContainText(
       'Owner approved complimentary visit',
@@ -264,4 +271,21 @@ for (const [name, viewport] of [
       await accessibilityViolations(page),
     ).toEqual([]);
     await shot(page, `${name}-no-charge-saved`);
+  });
+
+for (const [name, viewport] of [['desktop', { width: 1440, height: 1000 }], ['phone', { width: 390, height: 844 }]])
+  test(`No charge explains unavailable choices before entry on ${name}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    for (const [story, reason] of [['no-charge-payment-activity', 'payment or credit activity'], ['no-charge-package', 'package visit']]) {
+      await page.goto(`${base}/storybook/iframe.html?id=workspace-paid-previously--${story}&viewMode=story`);
+      await expect(page.locator('[data-payment-page]')).toBeVisible();
+      await page.locator('[data-payment-method-card]').evaluate(node => { node.open = true; });
+      await expect(page.locator('option[value="no-charge"]')).toBeDisabled();
+      await expect(page.locator('.payment-method-unavailable')).toContainText(reason);
+      await expect(page.locator('[data-prior-payment="no-charge"]')).toHaveCount(0);
+      await expect(page.locator('[data-payment-method]')).toBeEnabled();
+      expect(await accessibilityViolations(page)).toEqual([]);
+      await page.evaluate(() => scrollTo(0, 0));
+      await shot(page, `${name}-${story}-unavailable`);
+    }
   });

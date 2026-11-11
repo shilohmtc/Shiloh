@@ -7,6 +7,7 @@ function priorPaymentFixture({
   receiptReview = false,
   noCharge = false,
   noChargeSaved = false,
+  noChargeBlocked = null,
 } = {}) {
   const model = paymentMethodFixture();
   model.authority.canRecordPrior = !viewOnly;
@@ -97,6 +98,11 @@ function priorPaymentFixture({
   }
   if (noCharge || noChargeSaved) {
     model.authority.canRecordNoCharge = !viewOnly;
+    model.noChargeEligibility = { eligible: !noChargeSaved && !noChargeBlocked, reason: noChargeSaved ? "This booking is already marked No charge. Review its audit history." : noChargeBlocked || "" };
+    if (noChargeBlocked?.includes('payment or credit')) {
+      Object.assign(model.payment, { netPaid: '100.00', receivedToday: '100.00', outstanding: '400.00', state: 'partially_paid',
+        entries: [{ id: 91, entry_type: 'payment', method: 'cash', amount: '100.00', created_at: '2026-10-12T09:00Z' }] });
+    }
     model.subject.pricingRevision = '2026-10-12T08:00:00.000Z';
     if (noChargeSaved) {
       model.subject.financialClassification = 'no_charge';
