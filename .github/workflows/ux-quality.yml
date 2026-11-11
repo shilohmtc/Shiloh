@@ -237,6 +237,19 @@ jobs:
           path: artifacts/prior-payments-review
           if-no-files-found: error
           retention-days: 14
+      - name: Bind booked tablet review to exact head
+        env:
+          EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/package-tablet-booked-evidence.js
+      - name: Upload booked tablet review
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: tablet-booked-review
+          path: artifacts/tablet-booked-review
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Bind couples editing screenshots to exact head
         env:
           EVIDENCE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}

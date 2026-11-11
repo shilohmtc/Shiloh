@@ -10,11 +10,12 @@ const DISABLED=Object.freeze({ok:false,code:'CLIENT_CODE_DISABLED'});
 const equalHash=(a,b)=>typeof a==='string'&&typeof b==='string'&&a.length===b.length&&crypto.timingSafeEqual(Buffer.from(a),Buffer.from(b));
 // A separate client namespace, store and provider approval are mandatory.
 // Construction/import has no effects. Public intake never looks up an account.
-function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,now=()=>new Date(),randomBytes=crypto.randomBytes,randomInt=crypto.randomInt,budget=null,whatsappCodeTtlSeconds=300,onDiagnostic=()=>{}}={}) {
+function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,now=()=>new Date(),randomBytes=crypto.randomBytes,randomInt=crypto.randomInt,budget=null,whatsappCodeTtlSeconds=300,onDiagnostic=()=>{},phoneProofOnly=false,tabletProofAllowed=async()=>false}={}) {
   const diagnostic=reason=>{try{onDiagnostic({event:"client_code_delivery_diagnostic",reason});}catch(_){/* Diagnostics cannot change authentication. */}};
+  const purposeAllowed=value=>phoneProofOnly===true?value==='tablet_forms':['continue','signin','register'].includes(value);
   const key=Buffer.isBuffer(hmacKey)?Buffer.from(hmacKey):null;
   const operational=()=>[300,900].includes(whatsappCodeTtlSeconds)&&enabled===true&&(budget===null||validClientBudget(budget))&&key?.length>=32&&store?.transaction&&delivery?.audience==='client'&&delivery.configured?.()===true;
-  const smsEnabled=()=>operational()&&smsDelivery?.audience==='client'&&smsDelivery.configured?.()===true;
+  const smsEnabled=()=>phoneProofOnly!==true&&operational()&&smsDelivery?.audience==='client'&&smsDelivery.configured?.()===true;
   const hash=(...parts)=>crypto.createHmac('sha256',key).update(JSON.stringify(['my-shiloh-code',...parts])).digest('hex');
   const crypt=(mobile,id)=>{const nonce=randomBytes(12),c=crypto.createCipheriv('aes-256-gcm',Buffer.from(hash('encryption'),'hex'),nonce);c.setAAD(Buffer.from(id));const body=Buffer.concat([c.update(mobile),c.final()]);return Buffer.concat([nonce,c.getAuthTag(),body]).toString('base64');};
   const decrypt=row=>{const p=Buffer.from(row.mobile,'base64'),c=crypto.createDecipheriv('aes-256-gcm',Buffer.from(hash('encryption'),'hex'),p.subarray(0,12));c.setAAD(Buffer.from(row.hash));c.setAuthTag(p.subarray(12,28));return Buffer.concat([c.update(p.subarray(28)),c.final()]).toString('utf8');};
@@ -27,7 +28,7 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
   }
   async function begin(input={}) {
     if(!operational())return DISABLED;
-    if(!context(input)||!['continue','signin','register'].includes(input.purpose))return INVALID;
+    if(!context(input)||!purposeAllowed(input.purpose))return INVALID;
     const request=randomBytes(32).toString('base64url'),mobile=typeof input.mobile==='string'&&input.mobile.length<=30?normalizeMobile(input.mobile):null;
     await store.transaction(async tx=>{
       const current=now();
@@ -36,6 +37,7 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
         {key:hash('intake-clinic'),limit:300,windowMs:600000}],current))return;
       const id=hash('request',request);
       await tx.insert({hash:id,browserHash:hash('browser',input.browserToken),personKey:hash('phone',mobile||'invalid'),
+        ...(phoneProofOnly?{tabletDeviceId:input.tabletBinding?.deviceId,tabletGrantHash:input.tabletBinding?.grantHash}:{}),
         purpose:input.purpose,mobile:crypt(mobile||'',id),state:'queued',channel:'whatsapp',issuedAt:current,
         expiresAt:new Date(current.getTime()+900000),sendBy:new Date(current.getTime()+300000),attempts:0});
     });
@@ -57,7 +59,7 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
   }
   async function dispatchOne(){
     if(!operational())return DISABLED;
-    const row=await store.transaction(tx=>tx.claim(now()));
+    const row=await store.transaction(tx=>tx.claim(now(),{phoneProofOnly}));
     if(!row)return {ok:true,processed:false};
     const done={ok:true,processed:true},provider=row.channel==='sms'?smsDelivery:delivery,codeTtlSeconds=row.channel==='sms'?300:whatsappCodeTtlSeconds;
     async function settle(outcome){await store.transaction(async tx=>{const r=await tx.get(row.hash);if(r?.state!=='claimed')return;r.state=outcome;
@@ -71,8 +73,9 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
     const prepared=await store.transaction(async tx=>{
       const current=now(),r=await tx.get(row.hash);
       if(!r||r.state!=='claimed'||!mobile||new Date(r.sendBy)-current<60000)return null;
+      if(phoneProofOnly&&!await tabletProofAllowed(r,tx,current))return null;
       const identity=await tx.identity(mobile);
-      if(row.purpose!=='continue'&&(row.purpose==='signin'?!identity.verified:!identity.empty)){blockedReason='identity_ineligible';return null;}
+      if(!phoneProofOnly&&row.purpose!=='continue'&&(row.purpose==='signin'?!identity.verified:!identity.empty)){blockedReason='identity_ineligible';return null;}
       if(await tx.uncertain(row.personKey,current)){blockedReason='previous_delivery_uncertain';return null;}
       const until=await tx.rateUntil(hash('code-resend','client',row.personKey),current);
       if(until){blockedReason='resend_deferred';r.state='queued';r.notBefore=until;await tx.save(r);return {deferred:true};}
@@ -84,7 +87,7 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
       if(new Date(r.expiresAt)<retainUntil)r.expiresAt=retainUntil;
       r.clientId=identity.owner?.id||null;r.identityRevision=identity.revision||null;r.identitySnapshot=identity.snapshot;
       r.attempts=0;r.deliveryStarted=true;
-      await tx.revokeOthers(r.personKey,r.hash);await tx.save(r);
+      await tx.revokeOthers(r.personKey,r.hash,{phoneProofOnly});await tx.save(r);
       return {code,mobile};
     });
     if(prepared?.deferred){diagnostic('resend_deferred');return done;}
@@ -102,7 +105,7 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
   }
   async function verify(input={}){
     if(!operational())return DISABLED;
-    if(!context(input)||!token(input.request))return INVALID;
+    if(!context(input)||!purposeAllowed(input.purpose)||!token(input.request))return INVALID;
     return store.transaction(async tx=>{
       const current=now();
       if(!await tx.takeRate([{key:hash('verify-network',input.network),limit:100,windowMs:600000}],current))return INVALID;
@@ -116,8 +119,12 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
       const mobile=decrypt(r);
       const identity=await tx.identity(mobile);
       if(r.purpose==='signin'&&(!identity.verified||Number(identity.owner.id)!==Number(r.clientId)||identity.revision!==r.identityRevision)||r.purpose==='register'&&!identity.empty){r.state='revoked';await tx.save(r);return INVALID;}
-      if(r.purpose==='continue'&&identity.snapshot!==r.identitySnapshot){r.state='revoked';await tx.save(r);return INVALID;}
+      if((r.purpose==='continue'||r.purpose==='tablet_forms')&&identity.snapshot!==r.identitySnapshot){r.state='revoked';await tx.save(r);return INVALID;}
+      if(phoneProofOnly&&!await tabletProofAllowed(r,tx,current)){r.state='revoked';await tx.save(r);return INVALID;}
       r.state='consumed';await tx.save(r);
+      // Internal proof only: the tablet coordinator consumes this result. It is
+      // never mounted on My Shiloh routes and cannot issue/upgrade a client session.
+      if(phoneProofOnly)return {ok:true,verifiedMobile:mobile};
       const legacyOnlyRegistration=r.purpose==='continue'&&r.channel==='whatsapp'&&identity.legacyOnly===true;
       if(r.purpose==='continue'&&!identity.empty&&!legacyOnlyRegistration){
         if(!identity.available)return {ok:true,accountAccessRequired:true};
@@ -140,6 +147,7 @@ function createClientCodeAuth({enabled=false,store,delivery,smsDelivery,hmacKey,
     });
   }
   async function completeRegistration(input={}){
+    if(phoneProofOnly)return DISABLED;
     if(!operational())return DISABLED;
     if(!context(input)||!token(input.grant))return INVALID;
     return store.transaction(async tx=>{

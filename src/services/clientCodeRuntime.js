@@ -6,6 +6,7 @@ const {createClientCodeStore}=require('./clientCodeStore');
 const {createClientCodeRouter}=require('../routes/clientCodeAuth');
 const {createAuthInvitations}=require('./authInvitations');
 const {validClientBudget}=require('./clientCodeReleasePolicy');
+const {buildClinicTabletBookedPreparation}=require('./clinicTabletBookedPreparation');
 function createClientCodeRuntime({enabled=false,config={},db,sessions,hmacKey,metaCredentials={},smsCredentials={},fetchImpl,env={},now,workerOptions={},onDiagnostic=()=>{}}={}){
   // The staff template must never silently become a client template. The owner
   // must supply a distinct reviewed client contract; no default is fabricated.
@@ -37,7 +38,14 @@ function createClientCodeRuntime({enabled=false,config={},db,sessions,hmacKey,me
       const inventory=await meta.readiness();ready=inventory?.ready===true&&inventory.codeTtlSeconds===whatsappCodeTtlSeconds;
       return ready?{ok:true}:{ok:false,code:'CLIENT_TEMPLATE_UNREADY'};
     }catch(_){return {ok:false,code:'CLIENT_RUNTIME_UNAVAILABLE'};}finally{preparing=false;}}
-  return {prepare,stop:()=>{ready=false;preparing=false;},status:()=>({configured:!!configured,enabled:service.enabled()}),service,worker:createWorkspaceWhatsAppWorker({service,enabled,...workerOptions}),
+  async function prepareTabletJourney({approved=false,checkin,formService}={}){
+    if(approved!==true||!ready||!configured)throw new Error('Reviewed tablet activation and ready client runtime required');
+    const schema=(await db.query("SELECT to_regclass('clinic_tablet_visit_grants') AS grants")).rows[0];
+    if(!schema?.grants)throw new Error('Reviewed tablet grant migration is not present');
+    return buildClinicTabletBookedPreparation({approved:true,db,delivery:{...meta,configured:()=>ready&&meta.configured()},
+      hmacKey,budget:config.budget,whatsappCodeTtlSeconds,checkin,formService,env,now,onDiagnostic,workerOptions});
+  }
+  return {prepare,prepareTabletJourney,stop:()=>{ready=false;preparing=false;},status:()=>({configured:!!configured,enabled:service.enabled()}),service,worker:createWorkspaceWhatsAppWorker({service,enabled,...workerOptions}),
     router:createClientCodeRouter({enabled,service,sessions,env,invitations:configured?createAuthInvitations({db,audience:'client'}):null})};
 }
 module.exports={createClientCodeRuntime};

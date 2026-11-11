@@ -1,0 +1,13 @@
+'use strict';
+const fs=require('node:fs'),crypto=require('node:crypto'),path=require('node:path');
+const {execFileSync}=require('node:child_process');
+const directory='artifacts/tablet-booked-review';
+const head=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
+if(process.env.EVIDENCE_EXPECTED_HEAD&&process.env.EVIDENCE_EXPECTED_HEAD!==head)throw new Error('Tablet evidence must match exact source');
+const images=fs.readdirSync(directory).filter(name=>name.endsWith('.png')).sort();
+for(const viewport of ['tablet','phone'])for(const state of ['welcome','code','visits','first-form','complete'])if(!images.includes(`${viewport}-${state}.png`))throw new Error('Missing tablet visual review');
+for(const name of ['tablet-shared-phone-help.png','tablet-wrong-code.png'])if(!images.includes(name))throw new Error('Missing tablet failure review');
+const sources=['app.js','migrations/202_clinic_tablet_booked_grants.sql','src/services/clientCodeAuth.js','src/services/clientCodeStore.js','src/services/clientCodeRuntime.js','src/services/clientCodeRelease.js','src/services/clientConsultationForms.js','src/services/clinicIpadCheckin.js','src/routes/clinicTabletBooked.js','src/presentation/clinicTabletBookedUx.js','src/services/clinicTabletBookedJourney.js','src/services/clinicTabletBookedAuthority.js','src/services/clinicTabletGrantStore.js','src/services/clinicTabletOtpProof.js','src/services/clinicTabletBookedPreparation.js','src/services/clinicTabletBookedActivation.js','tests/support/tabletBookedFixture.js','tests/clinic-tablet-booked.spec.js'];
+execFileSync('git',['diff','--exit-code','HEAD','--',...sources]);
+const digest=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+fs.writeFileSync(path.join(directory,'manifest.json'),JSON.stringify({head,tree:execFileSync('git',['rev-parse','HEAD^{tree}'],{encoding:'utf8'}).trim(),synthetic:true,productionActivation:'requires_separate_migration_and_authentication_approval',sources:sources.map(file=>({file,sha256:digest(file)})),images:images.map(file=>({file,sha256:digest(path.join(directory,file))}))},null,2)+'\n');
