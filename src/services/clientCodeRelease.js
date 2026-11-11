@@ -50,7 +50,12 @@ function createClientCodeRelease({env={},db,sessions,fetchImpl,now,workerOptions
       tablet=candidate;return candidate;
     } finally {tabletPreparing=false;}
   }
-  async function stop(){state='stopped';await tablet?.stop();tablet=null;runtime.stop();controller?.abort();if(pending)await pending;}
+  async function stop(){
+    state='stopped';runtime.stop();controller?.abort();
+    // Close the shared sender/HTTP gate before waiting for a tablet attempt
+    // already in progress. A readiness read must not begin a later send.
+    try {await tablet?.stop();} finally {tablet=null;if(pending)await pending;}
+  }
   return {status,start,stop,prepareTabletJourney,mount:app=>app.use('/my-shiloh/code-auth',runtime.router)};
 }
 module.exports={createClientCodeRelease,parseClientManifest,ENABLED,MANIFEST,KEY,TOKEN};

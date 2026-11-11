@@ -38,6 +38,9 @@ proofs while counters remain shared. Pending requests bind to an active device a
 grant; revoked/cancelled/replaced/expired grants cannot start a send or consume proof.
 An already in-flight provider send cannot be unsent. The public My Shiloh service
 cannot begin or consume the tablet purpose. No proof-only service is constructed unless the new reviewed activation setting is explicitly enabled.
+Shutdown closes the shared client runtime's sender/HTTP readiness gate and
+aborts its ordinary worker before waiting for the tablet worker to drain. A
+pending readiness read cannot start a subsequent provider send after shutdown.
 
 ## Temporary access boundary
 
