@@ -112,7 +112,7 @@ test('feature-off source does not prepare tablet access, start its worker or exp
   const server = app.listen(0, '127.0.0.1'); await once(server, 'listening');
   t.after(() => new Promise(resolve => server.close(resolve)));
   const base = `http://127.0.0.1:${server.address().port}/check-in/booked`;
-  for (const [method, suffix] of [['GET', '/'], ['GET', '/current'], ['POST', '/start'], ['POST', '/code'], ['POST', '/choose'], ['POST', '/form'], ['POST', '/touch'], ['POST', '/cancel']]) {
+  for (const [method, suffix] of [['GET', '/'], ['GET', '/current'], ['POST', '/start'], ['POST', '/verify'], ['POST', '/choose'], ['POST', '/form'], ['POST', '/touch'], ['POST', '/cancel']]) {
     const response = await fetch(base + suffix, { method, redirect: 'manual' });
     assert.equal(response.status, 404, `${method} ${suffix}`);
     assert.equal(response.headers.get('set-cookie'), null);
