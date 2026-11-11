@@ -1,7 +1,10 @@
 # Booked-client tablet preparation — 11 November 2026
 
-Status: **draft preparation, not authorised for production activation**. No production
-migration, setting, credential, provider send or client record was changed.
+Status: **draft feature-source preparation; neither feature deployment nor activation
+is authorised**. The separate recovery-only release #1583 is live at
+`b1256a51cc31eaf653e48a72657c4fa4ede1eff1`; its migration 202 is complete.
+This preparation performs no further production migration, setting change, provider
+send or client-record mutation.
 Walk-ins are a separate later stage. No charge PR #1581 remains held independently.
 
 ## Intended experience
@@ -84,10 +87,14 @@ inactivity reset remains in place.
 Validation still uses the canonical form service, including encrypted answers and
 immutable consent/form snapshots. No client profile update is performed.
 
-## Schema and lifecycle proposal requiring approval
+## Applied schema; lifecycle activation still requires approval
 
-Prepared migration `202_clinic_tablet_booked_grants.sql` adds **one table and four explicit
-indexes**, no existing-table/record changes. It references existing paired devices.
+Migration `202_clinic_tablet_booked_grants.sql` was applied by #1583. Its unchanged
+SHA-256 is `40c37de7579056fcf88352419af18f87d33b8d2ad1500d341abc9d954d12d56d`.
+Read-only postflight confirmed 202 matching source files/ledger rows, expected
+constraints and five valid/ready indexes (four explicit plus the primary-key index),
+and zero grants. This feature branch introduces no additional migration and must not
+request another controlled migration marker. The table references existing paired devices.
 The assignment reference is bounded operational metadata used to enforce one active form grant; answers remain in the canonical encrypted submissions. Payloads use AES-256-GCM with a separate HKDF context from the existing private client
 proof key, device/hash AAD and random IV. No new key value or credential is requested.
 The table stores access state only, never answers. Completion/cancel wipes identity
@@ -105,29 +112,61 @@ provider payloads, exceptions with request data, hashes or tokens.
 
 ## Held production actions
 
-1. Review the new proof-only purpose, device/visit/form boundary, cookie/CSRF/cache
-   behavior, encrypted grant storage and short-lived retention/cleanup policy.
-2. Specifically approve additive migration 202. Before applying it: exact source and
-   checksum inventory, fresh recovery evidence, lock/availability assessment, tested
-   transaction rollback and backup/recovery limitations. No migration is run by app
-   startup unless the existing controlled release procedure explicitly permits it.
-   Proposed marker: `SHILOH_CONTROLLED_RELEASE_MIGRATION=202_clinic_tablet_booked_grants.sql`.
-3. Review a production composition using the current client runtime's private
+1. Reconcile current main and preserve ordinary/tablet queue and revocation
+   separation. Keep recovery ledger/checksum/idempotency/quota regressions; replace
+   the obsolete recovery-only assertion that tablet source files are absent with
+   executable flag-off preparation, route and CTA coverage. Ordinary HTTP verification
+   must reject even a valid tablet proof without consuming it or issuing a session.
+2. Run required exact-head checks and review the reconciled source before requesting
+   a separate feature-source deployment with tablet access off. Shared ordinary
+   authentication purpose validation, store/identity refactoring, canonical form
+   transaction support and shutdown hooks change even while the flag is false.
+   Verify a marker-free startup against the already applied ledger 202; do not rerun
+   the migration. Retain the exact healthy feature-off build and its effective config.
+3. Separately review and approve the new proof-only purpose, device/visit/form
+   boundary, cookie/CSRF/cache behavior, encrypted grant storage and short-lived
+   retention/cleanup policy. Review a composition using the current client runtime's private
    provider/key/budget, its proof-only worker, the cleanup lifecycle and protected
-   route. Prepared activation wiring reads `SHILOH_CLINIC_TABLET_BOOKED_ENABLED`, default off. It also requires existing check-in/forms flags and the client runtime to be ready. While off, the reserved path returns 404, no worker is created/started and no CTA appears. No setting was changed. The router independently defaults off and denies production construction without explicit approval. Preparation failures are contained to the feature with a fixed, non-sensitive warning.
-4. Use a compatible rollback version that understands the isolated tablet purpose.
-   Disable the new route/workers and invalidate only new tablet grants/proofs before
-   rollback. Do not revert to an older worker that can claim unknown purposes, drop
-   the new table as a reflex, change ordinary client counters, or restore production
-   as a test. Table/index creation can take catalog locks; failure before commit must
-   roll back. No old record backfill is proposed.
+   route. Activation reads `SHILOH_CLINIC_TABLET_BOOKED_ENABLED`, default off, and
+   requires existing check-in/forms flags and a ready client runtime. While off, the
+   reserved path returns 404, no tablet component/worker is prepared/started and no
+   CTA appears. The router independently defaults off and denies production
+   construction without explicit approval. Preparation failures remain contained to
+   this feature with a fixed, non-sensitive warning. No real-code acceptance test,
+   new allowance, security setting or client-record test mutation is authorised here.
+4. Before planned disabling or rollback, quiesce new tablet use while cleanup is
+   still available, finish/cancel temporary access and drain in-flight work. Verify
+   final grant deletion and matching tablet-owned form-token invalidation, preserving
+   signed submissions and newer staff-handover tokens. Only then disable or select
+   the reviewed compatible feature-off build. An outage may prevent cleanup; stop
+   for a specifically reviewed recovery/cleanup decision rather than improvising
+   deletions. Started provider sends cannot be recalled. Do not drop the table,
+   rewrite the ledger, reset counters or restore production as a test.
 5. Run all required checks on the final exact production composition. Issue #1198 still tracks physical privacy/reset and separate staff-account acceptance. Signed-in
    physical tablet acceptance and real WhatsApp receipt are separate owner-authorised
    milestones; synthetic tests do not prove them.
 
-The new activation setting itself requires specific approval before it is set. No migration, authentication/access activation or new retention configuration may
-be released under routine-UI standing approval. Keep this PR draft until those
-specific decisions and all preflight evidence are resolved.
+The new activation setting requires specific approval before it is set. Feature-off
+deployment and later authentication/access/retention activation are separate
+decisions; preparation approval authorises neither. Keep this PR draft.
+
+## Recovery checkpoint and configuration limits
+
+Render deployment `dep-dbq64o5g1s2s739i6n6g` is the verified recovery-only build
+`b1256a51`. Source, schema/ledger 202, zero grants and application/database health
+were verified on 11 November. Ordinary/staff script GETs returned 200 without code
+sends or session issuance. The saved migration marker was removed using Save only
+and the saved tablet flag is false. No second deployment or restart occurred.
+Therefore the running/retained recovery artifact still has its original marker
+environment; rollback can restore it. Marker-free startup has not yet been tested.
+
+The recovery-only artifact has no tablet composition or cleanup worker and is
+bounded to recovery before tablet activation. Its ordinary verification does not
+explicitly whitelist purposes: a matching ready tablet record plus exact bindings
+and valid code could reach session issuance. Do not use it as a general post-activation
+backout. The feature source closes that purpose boundary. Prefer a verified healthy
+full-feature/off checkpoint with marker absent once separately released. Saved
+settings alone do not rewrite any retained artifact's configuration.
 
 ## Walk-ins, later
 

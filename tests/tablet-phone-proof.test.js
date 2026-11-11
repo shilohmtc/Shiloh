@@ -2,6 +2,24 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {clientHarness}=require('./helpers/clientCodeHarness');
+test('ordinary HTTP verification rejects a valid tablet proof without consuming it or issuing a session',async t=>{
+  const express=require('express'),{once}=require('node:events');
+  const {createClientCodeRouter}=require('../src/routes/clientCodeAuth');
+  const h=await clientHarness(t);await h.owner();
+  const tablet=h.make({phoneProofOnly:true,tabletProofAllowed:async()=>true});
+  const input={...h.context,purpose:'tablet_forms'},request=await tablet.begin(input);await tablet.dispatchOne();
+  assert.equal(h.sent.length,1);
+  const app=express();app.use('/my-shiloh/code-auth',createClientCodeRouter({enabled:true,service:h.service,sessions:h.sessions,env:{NODE_ENV:'test'}}));
+  const server=app.listen(0,'127.0.0.1');await once(server,'listening');t.after(()=>new Promise(r=>server.close(r)));
+  const origin=`http://127.0.0.1:${server.address().port}`;
+  const response=await fetch(origin+'/my-shiloh/code-auth/verify',{method:'POST',headers:{origin,cookie:'shiloh_client_code_browser='+h.context.browserToken,'content-type':'application/json'},
+    body:JSON.stringify({purpose:'tablet_forms',request:request.request,code:h.sent[0].code}),redirect:'manual'});
+  assert.equal(response.status,401);assert.equal(response.headers.get('set-cookie'),null);
+  assert.equal((await h.db.query('SELECT COUNT(*)::int AS n FROM client_browser_sessions')).rows[0].n,0);
+  assert.equal((await h.db.query('SELECT payload FROM client_code_records')).rows[0].payload.state,'ready');
+  assert.deepEqual(await tablet.verify({...input,request:request.request,code:h.sent[0].code}),{ok:true,verifiedMobile:h.context.mobile});
+  assert.equal((await h.db.query('SELECT COUNT(*)::int AS n FROM client_browser_sessions')).rows[0].n,0);
+});
 test('tablet proof shares client reservations but cannot issue a My Shiloh session or consume ordinary proofs',async t=>{
   const h=await clientHarness(t);await h.owner();
   const tablet=h.make({phoneProofOnly:true,tabletProofAllowed:async()=>true,budget:{currency:'ZAR',dailyMinor:1000,whatsappCostMinor:100}});
