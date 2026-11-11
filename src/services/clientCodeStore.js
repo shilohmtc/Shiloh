@@ -19,6 +19,7 @@ function createClientCodeStore({db,sessions}={}){
         async claim(current){
           await c.query('DELETE FROM client_code_records WHERE record_hash IN (SELECT record_hash FROM client_code_records WHERE expires_at<=$1 ORDER BY expires_at LIMIT 100)',[current]);
           const r=(await c.query(`SELECT payload FROM client_code_records WHERE payload->>'state'='queued' AND expires_at>$1
+            AND COALESCE(payload->>'purpose','')<>'tablet_forms'
             AND (payload->>'notBefore' IS NULL OR (payload->>'notBefore')::timestamptz<=$1)
             ORDER BY queued_at,record_hash LIMIT 1 FOR UPDATE`,[current])).rows[0]?.payload;
           if(!r)return null;await tx.save({...r,state:'claimed'});return r;
@@ -27,7 +28,8 @@ function createClientCodeStore({db,sessions}={}){
           AND payload->>'state' IN ('claimed','uncertain') AND payload->>'deliveryStarted'='true'
           AND (payload->>'codeExpiresAt')::timestamptz>$2 LIMIT 1`,[personKey,current])).rows.length>0;},
         async revokeOthers(personKey,hash){await c.query(`UPDATE client_code_records SET payload=jsonb_set(payload,'{state}','"revoked"')
-          WHERE payload->>'personKey'=$1 AND record_hash<>$2 AND payload->>'state'='ready'`,[personKey,hash]);},
+          WHERE payload->>'personKey'=$1 AND record_hash<>$2 AND payload->>'state'='ready'
+          AND COALESCE(payload->>'purpose','')<>'tablet_forms'`,[personKey,hash]);},
         async rateUntil(key,current){const r=(await c.query('SELECT expires_at FROM client_code_rates WHERE bucket_key=$1 AND expires_at>$2 FOR UPDATE',[key,current])).rows[0];return r?new Date(r.expires_at):null;},
         async takeRate(buckets,current){
           const rows=(await c.query('SELECT * FROM client_code_rates WHERE bucket_key=ANY($1::text[]) FOR UPDATE',[buckets.map(b=>b.key)])).rows;
