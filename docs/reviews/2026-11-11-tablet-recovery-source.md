@@ -1,6 +1,6 @@
 # Migration 202 recovery source preparation
 
-Status: **historical recovery-only source plan, released through #1583**. Exact live
+Status: **historical recovery-only source plan, released through #1583**. Original
 merge `b1256a51cc31eaf653e48a72657c4fa4ede1eff1`, deployment
 `dep-dbq64o5g1s2s739i6n6g`, applied migration 202 and read-only postflight were
 verified on 11 November 2026. Its four-file candidate passed all 15 applicable
@@ -33,11 +33,17 @@ deployment. Later feature-source deployment and activation remain separately hel
 
 ## Limits
 
-The recovery deployment is now healthy and retained. The saved one-time marker was
-removed using Save only with tablet false, without a restart/second deployment.
-Its running/retained environment still contains the original marker; saved cleanup
-does not prove marker-free startup, and rollback can restore that configuration.
-Rebuilding can still fail or take time; no database restore was tested.
+The original recovery artifact retains its original marker environment; rollback
+can restore that configuration. The later No charge release #1581 is now live at
+`eacd82c93a5d6422712b4790b4f806e9402fd62a`, deployment
+`dep-dbqardnavr4c739sn9t0`. Its startup on 11 November at 18:03:40 UTC
+verified 202 matching files/ledger rows in read-only mode with controlled migration
+action disabled and filename null. That is a marker-free startup, unlike merely
+saving marker removal. This newer source still lacks tablet composition and the
+feature's ordinary-purpose whitelist; it is not a validated post-activation backout.
+Retained builds restore their own applicable configuration, so verify the selected
+artifact and effective settings before any separately approved rollback. Rebuilding
+can still fail or take time; no database restore was tested.
 
 This artifact is bounded to first recovery before tablet activation. Ordinary
 verification is unchanged from stable source and lacks an explicit ordinary-purpose

@@ -551,7 +551,8 @@ function createBookingPaymentService({
           AND e.metadata->'result'->>'requirementId'=$2 ORDER BY e.id DESC LIMIT 1`,[account.id,String(deposit.requirement.id)])).rows[0];
       if(row)depositWaiverEvidence={reason:row.reason,actorName:row.actor_name,createdAt:row.created_at};
     }
-    return { subject, depositWaiverEvidence, noChargeEvidence, priceReview, payment: await position(db, account, subject), priorPayments:await prior.evidenceModel(db,subject,account,!priceReview&&hasCapability(operator.calendarAuthority,CAPABILITIES.COLLECT)&&prior.allowed(operator)), deposit, rewards: rewardWallet, paymentReview, authority: {
+    const noChargeEligibility = !priceReview && noCharge.allowed(operator) ? await noCharge.eligibility(db, subject, account) : null;
+    return { subject, depositWaiverEvidence, noChargeEvidence, noChargeEligibility, priceReview, payment: await position(db, account, subject), priorPayments:await prior.evidenceModel(db,subject,account,!priceReview&&hasCapability(operator.calendarAuthority,CAPABILITIES.COLLECT)&&prior.allowed(operator)), deposit, rewards: rewardWallet, paymentReview, authority: {
       canCollect: !priceReview && hasCapability(operator.calendarAuthority, CAPABILITIES.COLLECT),
       canRecordNoCharge: !priceReview && noCharge.allowed(operator),
       canWaiveDeposit: !priceReview && !subject.final && await waiver.allowed(operator),

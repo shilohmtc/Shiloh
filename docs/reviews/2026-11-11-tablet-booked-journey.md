@@ -1,11 +1,13 @@
 # Booked-client tablet preparation — 11 November 2026
 
 Status: **draft feature-source preparation; neither feature deployment nor activation
-is authorised**. The separate recovery-only release #1583 is live at
-`b1256a51cc31eaf653e48a72657c4fa4ede1eff1`; its migration 202 is complete.
+is authorised**. Current live source after No charge release #1581 is
+`eacd82c93a5d6422712b4790b4f806e9402fd62a`. Migration 202 was completed
+by the separate recovery-only release #1583 and must not be reapplied.
 This preparation performs no further production migration, setting change, provider
 send or client-record mutation.
-Walk-ins are a separate later stage. No charge PR #1581 remains held independently.
+Walk-ins are a separate later stage. This branch preserves the released No charge
+eligibility explanation and all financial recording safeguards unchanged.
 
 ## Intended experience
 
@@ -152,13 +154,22 @@ decisions; preparation approval authorises neither. Keep this PR draft.
 
 ## Recovery checkpoint and configuration limits
 
-Render deployment `dep-dbq64o5g1s2s739i6n6g` is the verified recovery-only build
-`b1256a51`. Source, schema/ledger 202, zero grants and application/database health
-were verified on 11 November. Ordinary/staff script GETs returned 200 without code
-sends or session issuance. The saved migration marker was removed using Save only
-and the saved tablet flag is false. No second deployment or restart occurred.
-Therefore the running/retained recovery artifact still has its original marker
-environment; rollback can restore it. Marker-free startup has not yet been tested.
+The original recovery-only deployment `dep-dbq64o5g1s2s739i6n6g` at
+`b1256a51` applied migration 202 and passed its read-only postflight. Its saved
+marker was removed with Save only; its retained artifact can still restore the
+original marker configuration.
+
+Current live deployment `dep-dbqardnavr4c739sn9t0` is No charge release #1581 at
+`eacd82c93a5d6422712b4790b4f806e9402fd62a`, live at 18:03:46 UTC on
+11 November. Its new-instance startup at 18:03:40 UTC reported read-only mode,
+controlled migration action disabled, filename null, 202 matching files/ledger
+rows and no pending, unknown or mismatched entries. This establishes marker-free
+startup for this source; it does not establish the full tablet feature-off checkpoint.
+Render confirmed the exact source live with `/health` readiness configured; the
+existing mounted My Shiloh HTTP proof passed. No real payment/client test mutation
+or message was performed. Saved tablet access remains false and was not changed.
+Verify the effective configuration and retained-artifact availability again before
+any specifically approved backout; do not infer later configuration from saved values.
 
 The recovery-only artifact has no tablet composition or cleanup worker and is
 bounded to recovery before tablet activation. Its ordinary verification does not
