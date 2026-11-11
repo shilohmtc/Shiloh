@@ -4,8 +4,8 @@ const TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const LIFE_MS = 40 * 60 * 1000;
 const IDLE_MS = 5 * 60 * 1000;
 class TabletJourneyError extends Error {
-  constructor(message = 'This tablet session has ended. Please start again.', httpStatus = 410) {
-    super(message); this.httpStatus = httpStatus;
+  constructor(message = 'This tablet session has ended. Please start again.', httpStatus = 410, code = null) {
+    super(message); this.httpStatus = httpStatus; this.code = code;
   }
 }
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
@@ -15,7 +15,7 @@ const digest = value => crypto.createHash('sha256').update(value).digest('hex');
 function createClinicTabletBookedJourney({ store, authorizeDevice, otp, visits, forms,
   now = () => new Date(), randomToken = () => crypto.randomBytes(32).toString('base64url') } = {}) {
   if (!store?.create || !store?.withGrant || !authorizeDevice || !otp?.begin || !otp?.verify ||
-    !visits?.forVerifiedPhone || !visits?.recheck || !forms?.required || !forms?.open || !forms?.submit || !forms?.close || !forms?.model || otp.proofOnly!==true || otp.sharedAllowance!==true || otp.atomic!==true)
+    !visits?.forVerifiedPhone || !visits?.recheck || !visits?.recheckIdentity || !forms?.required || !forms?.open || !forms?.submit || !forms?.close || !forms?.model || otp.proofOnly!==true || otp.sharedAllowance!==true || otp.atomic!==true)
     throw new Error('Explicit tablet-only authority, durable grant store and canonical adapters required');
   async function device(raw) {
     const found = TOKEN.test(String(raw || '')) ? await authorizeDevice(raw) : null;
@@ -57,10 +57,10 @@ function createClinicTabletBookedJourney({ store, authorizeDevice, otp, visits, 
       const found = await visits.forVerifiedPhone(result.verifiedMobile, tx);
       // A phone is not permission to choose between people. No names or booking
       // details escape on a shared, missing or unverified canonical identity.
-      if (found?.ambiguous || !found?.clientId || !Array.isArray(found.visits) || !found.visits.length || found.visits.length > 20) {
+      if (found?.ambiguous || !found?.clientId || found.identity?.mobile!==result.verifiedMobile || !/^[0-9a-f]{64}$/.test(found.identity?.snapshot||'') || !Array.isArray(found.visits) || !found.visits.length || found.visits.length > 20) {
         s.state = 'help'; return { state: 'help' };
       }
-      s.clientId = String(found.clientId);
+      s.clientId = String(found.clientId); s.identity=found.identity;
       s.choices = found.visits.map(v => ({ id: String(v.id), label: String(v.label), revision: String(v.revision) }));
       if (new Set(s.choices.map(v => v.id)).size !== s.choices.length || s.choices.some(v => !/^[1-9]\d*$/.test(v.id) || !v.revision)) {
         s.state = 'help'; delete s.choices; return { state: 'help' };
@@ -73,7 +73,7 @@ function createClinicTabletBookedJourney({ store, authorizeDevice, otp, visits, 
     return outcome;
   }
   async function scope(s, tx) {
-    if (!await visits.recheck({ clientId: s.clientId, appointmentId: s.appointmentId, revision: s.revision }, tx))
+    if (!await visits.recheck({ clientId: s.clientId, appointmentId: s.appointmentId, revision: s.revision, identity:s.identity }, tx))
       throw new TabletJourneyError('The visit changed. Please ask Reception to check it.', 409);
   }
   async function current(s, tx) {
@@ -83,7 +83,7 @@ function createClinicTabletBookedJourney({ store, authorizeDevice, otp, visits, 
     const outstanding = required.filter(f => !f.completed);
     if (outstanding.some(f => !f.id || !f.canComplete)) {
       if(s.form)await forms.close(s.form,tx);
-      for(const key of ['form','clientId','appointmentId','revision','choices'])delete s[key];
+      for(const key of ['form','clientId','identity','appointmentId','revision','choices'])delete s[key];
       s.state = 'help'; return { state: 'help' };
     }
     if (!outstanding.length) {
@@ -116,14 +116,16 @@ function createClinicTabletBookedJourney({ store, authorizeDevice, otp, visits, 
     return access(deviceToken, grant, async (s, tx) => {
       if (s.state === 'finished')return {state:'finished'};
       if (s.state === 'form') return current(s, tx);
+      if(s.state==='choose'&&!await visits.recheckIdentity(s.identity,tx))throw new TabletJourneyError('The phone ownership changed. Please ask Reception to check it.',409);
       return s.state === 'choose' ? { state: 'choose', visits: s.choices.map(({ id, label }) => ({ id, label })) } : { state: s.state };
     },{allowFinished:true});
   }
   async function submit(deviceToken, grant, assignmentId, answers) {
     return access(deviceToken, grant, async (s, tx) => {
       if(s.state==='finished')return {state:'finished'};
-      if (s.state !== 'form' || String(s.form?.assignmentId) !== String(assignmentId))
-        throw new TabletJourneyError('This form step has changed. Refresh to check the saved result.', 409);
+      if(s.state==='form'&&String(s.form?.assignmentId)!==String(assignmentId))
+        throw new TabletJourneyError('This form step has changed. Refresh to check the saved result.',409,'TABLET_STALE_FORM_STEP');
+      if(s.state!=='form')throw new TabletJourneyError('This form step has ended. Please start again.',409);
       await scope(s, tx);
       await forms.submit(s.form, answers, tx);
       // The backend's saved submission, not browser navigation or a success
@@ -145,7 +147,11 @@ function createClinicTabletBookedJourney({ store, authorizeDevice, otp, visits, 
     });
     return { state: 'cancelled' };
   }
-  const touch=(deviceToken,grant)=>access(deviceToken,grant,async()=>({ok:true}));
+  const touch=(deviceToken,grant)=>access(deviceToken,grant,async(s,tx)=>{
+    if(s.state==='form')await scope(s,tx);
+    else if(s.state==='choose'&&!await visits.recheckIdentity(s.identity,tx))throw new TabletJourneyError('The phone ownership changed. Please ask Reception to check it.',409);
+    return {ok:true};
+  });
   return { begin, verify, choose, resume, submit, cancel, touch, ready:device };
 }
 module.exports = { createClinicTabletBookedJourney, TabletJourneyError, LIFE_MS, IDLE_MS };

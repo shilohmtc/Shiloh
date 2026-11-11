@@ -77,10 +77,19 @@ function createClinicTabletBookedRouter({enabled=false,approvedForProduction=fal
     if(state.state==='help'){await service.cancel(req.tabletDevice,req.tabletGrant);clear(res);return show(req,res,state);}
     return res.redirect(303,`${BASE}/current`);
   }catch(error){
+    if(error instanceof TabletJourneyError&&error.code==='TABLET_STALE_FORM_STEP'){
+      try {
+        // Re-read authorised backend progress; never apply the stale answers to
+        // the next assignment or discard the cookie needed for recovery.
+        const state=await service.resume(req.tabletDevice,req.tabletGrant);
+        if(state.state==='form')return res.redirect(303,`${BASE}/current`);
+        if(state.state==='finished'){clear(res);return show(req,res,state);}
+      }catch(recoveryError){return next(recoveryError);}
+    }
     if(error.httpStatus===422){try{
       const state=await service.resume(req.tabletDevice,req.tabletGrant);
       if(state.state==='form')return res.status(422).type('html').send(tabletBookedPage({...state,csrf:csrf(req),error:'Please check the highlighted fields.',model:{...state.model,values:error.values||{},fieldErrors:error.fieldErrors||{}}}));
-    }catch(_){/* Fail closed below. */}}
+    }catch(recoveryError){return next(recoveryError);}}
     next(error);
   }});
   router.post('/touch',async(req,res,next)=>{try{await service.touch(req.tabletDevice,req.tabletGrant);return res.sendStatus(204);}catch(error){next(error);}});

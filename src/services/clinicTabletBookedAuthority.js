@@ -2,6 +2,7 @@
 const crypto=require('node:crypto');
 const {requiredFormVersionsSql,projectRequiredForm}=require('./consultationFormReadiness');
 const {hashAccessToken}=require('./clientConsultationForms');
+const {readClientCodeIdentity,lockClientCodeIdentity}=require('./clientCodeStore');
 const {TabletJourneyError}=require('./clinicTabletBookedJourney');
 const revision=row=>crypto.createHash('sha256').update(JSON.stringify([String(row.id),String(row.crm_v2_client_id),row.starts_at,row.appointment_revision,row.client_revision,row.normalized_mobile])).digest('hex');
 function clinicDay(at){const day=new Date(at.getTime()+7200000).toISOString().slice(0,10);const start=new Date(`${day}T00:00:00+02:00`);return [start,new Date(start.getTime()+86400000)];}
@@ -16,21 +17,28 @@ function createClinicTabletBookedAuthority({db,formService,checkin,now=()=>new D
     AND EXISTS(SELECT 1 FROM crm_v2_client_relationships rel WHERE rel.client_id=c.id AND rel.relationship_type='clinic' AND rel.status='active')`;
   async function forVerifiedPhone(mobile,tx){
     if(!tx?.query)throw new Error('Tablet lookup requires its grant transaction');
-    const owners=(await tx.query("SELECT id FROM crm_v2_clients WHERE normalized_mobile=$1 AND status='active' ORDER BY id LIMIT 2",[mobile])).rows;
-    const historical=(await tx.query("SELECT 1 FROM client_contacts WHERE normalized_value=$1 AND contact_type IN ('mobile','whatsapp') LIMIT 1",[mobile])).rows;
-    if(owners.length!==1||historical.length)return {ambiguous:true};
+    const identity=await readClientCodeIdentity(tx,mobile);
+    if(!identity.owner||!identity.available||identity.historicalConflict||!identity.owner.id)return {ambiguous:true};
     const [start,end]=clinicDay(now());
-    const rows=(await tx.query(`${sql} ORDER BY ap.starts_at,ap.id LIMIT 21`,[owners[0].id,start,end])).rows;
-    return {clientId:owners[0].id,visits:rows.map(row=>({id:row.id,revision:revision(row),label:`${new Date(row.starts_at).toLocaleString('en-ZA',{timeZone:'Africa/Johannesburg',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} · ${row.treatment}`}))};
+    const rows=(await tx.query(`${sql} ORDER BY ap.starts_at,ap.id LIMIT 21`,[identity.owner.id,start,end])).rows;
+    return {clientId:identity.owner.id,identity:{mobile,snapshot:identity.snapshot},visits:rows.map(row=>({id:row.id,revision:revision(row),label:`${new Date(row.starts_at).toLocaleString('en-ZA',{timeZone:'Africa/Johannesburg',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} · ${row.treatment}`}))};
+  }
+  async function recheckIdentity(expected,tx){
+    if(typeof expected?.mobile!=='string'||!/^[0-9a-f]{64}$/.test(expected.snapshot||''))return false;
+    const current=await readClientCodeIdentity(tx,expected.mobile);
+    return !current.historicalConflict&&current.available&&!!current.owner&&current.snapshot===expected.snapshot;
   }
   const lockedAssignments=new WeakMap();
   async function recheck(scope,tx){
+    if(typeof scope.identity?.mobile!=='string')return false;
+    await lockClientCodeIdentity(tx,scope.identity.mobile);
     // Share staff queueing's assignment advisory locks BEFORE client/appointment
     // row locks; sorted order prevents two tablets forming a lock cycle.
     const assigned=(await tx.query('SELECT id FROM consultation_form_assignments WHERE appointment_id=$1 AND crm_v2_client_id=$2 ORDER BY id LIMIT 65',[scope.appointmentId,scope.clientId])).rows;
     if(assigned.length>64)return false;
     for(const row of assigned)await tx.query('SELECT pg_advisory_xact_lock(-$1::bigint)',[row.id]);
     lockedAssignments.set(tx,new Set(assigned.map(row=>String(row.id))));
+    if(!await recheckIdentity(scope.identity,tx))return false;
     const [start,end]=clinicDay(now());
     const row=(await tx.query(`${sql} AND ap.id=$4 FOR SHARE OF ap,c`,[scope.clientId,start,end,scope.appointmentId])).rows[0];
     return !!row&&revision(row)===scope.revision;
@@ -67,7 +75,7 @@ function createClinicTabletBookedAuthority({db,formService,checkin,now=()=>new D
     await tx.query(`UPDATE consultation_form_assignments SET access_expires_at=$5 WHERE id=$1 AND appointment_id=$2 AND crm_v2_client_id=$3 AND access_token_hash=$4`,
       [form.assignmentId,form.appointmentId,form.clientId,hashAccessToken(form.token),now()]);
   }
-  return {authorizeDevice:raw=>checkin.tabletDeviceFor(raw),visits:{forVerifiedPhone,recheck},forms:{required,open,close,
+  return {authorizeDevice:raw=>checkin.tabletDeviceFor(raw),visits:{forVerifiedPhone,recheck,recheckIdentity},forms:{required,open,close,
     model:async(form,tx)=>{await assignment(form,tx,form.token);const result=await formService.openForm(form.token,{transaction:tx});if(String(result.assignmentId)!==String(form.assignmentId))throw new Error('Tablet form scope changed');return result;},
     submit:async(form,answers,tx)=>{await assignment(form,tx,form.token);return formService.submitForm(form.token,answers,{transaction:tx});}}};
 }

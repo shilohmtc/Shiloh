@@ -6,6 +6,22 @@ const revision=row=>crypto.createHash('sha256').update(JSON.stringify([String(ro
   row.mobile_verified_at?new Date(row.mobile_verified_at).toISOString():null,row.name,
   row.date_of_birth instanceof Date?row.date_of_birth.toISOString().slice(0,10):String(row.date_of_birth||'').slice(0,10),
   row.gender,row.profile_status])).digest('hex');
+async function lockClientCodeIdentity(c,mobile){
+  await c.query('SELECT pg_advisory_xact_lock(hashtext($1))',[`crm-v2-mobile:${mobile}`]);
+}
+async function readClientCodeIdentity(c,mobile){
+  await lockClientCodeIdentity(c,mobile);
+  const rows=(await c.query('SELECT * FROM crm_v2_clients WHERE normalized_mobile=$1 ORDER BY id FOR UPDATE',[mobile])).rows;
+  // Phone proof never chooses between owners or crosses identity models.
+  const historical=(await c.query("SELECT id FROM client_contacts WHERE normalized_value=$1 AND contact_type IN ('whatsapp','mobile') ORDER BY id FOR SHARE",[mobile])).rows;
+  const owner=rows.length===1?rows[0]:null;
+  const verified=!historical.length&&owner?.status==='active'&&owner.profile_status==='registered'&&!!owner.mobile_verified_at;
+  // Current canonical ownership controls My Shiloh. Legacy contacts do
+  // not block that one active owner, and are never opened or linked.
+  const available=owner?.status==='active';
+  const snapshot=crypto.createHash('sha256').update(JSON.stringify([rows.map(r=>[String(r.id),revision(r),r.status,r.first_name,r.surname]),historical.map(r=>String(r.id))])).digest('hex');
+  return {historicalConflict:historical.length>0,empty:rows.length===0&&historical.length===0,legacyOnly:rows.length===0&&historical.length>0,verified,available,owner,revision:verified?revision(owner):null,snapshot};
+}
 function createClientCodeStore({db,sessions,transactionClient=null}={}){
   if(!db?.connect||!sessions?.issueVerifiedPhoneCodeSession)throw Error('Explicit client database and sessions required');
   async function transaction(fn){
@@ -46,19 +62,7 @@ function createClientCodeStore({db,sessions,transactionClient=null}={}){
             WHERE g.device_id=$1 AND g.token_hash=$2 AND g.state='code' AND g.expires_at>$3
             AND g.last_activity_at>$4 AND d.revoked_at IS NULL LIMIT 1`,[deviceId,grantHash,current,new Date(current.getTime()-5*60*1000)])).rows.length===1;
         },
-        async identity(mobile){
-          await c.query('SELECT pg_advisory_xact_lock(hashtext($1))',[`crm-v2-mobile:${mobile}`]);
-          const rows=(await c.query('SELECT * FROM crm_v2_clients WHERE normalized_mobile=$1 ORDER BY id FOR UPDATE',[mobile])).rows;
-          // Phone proof never chooses between owners or crosses identity models.
-          const historical=(await c.query("SELECT id FROM client_contacts WHERE normalized_value=$1 AND contact_type IN ('whatsapp','mobile') ORDER BY id FOR SHARE",[mobile])).rows;
-          const owner=rows.length===1?rows[0]:null;
-          const verified=!historical.length&&owner?.status==='active'&&owner.profile_status==='registered'&&!!owner.mobile_verified_at;
-          // Current canonical ownership controls My Shiloh. Legacy contacts do
-          // not block that one active owner, and are never opened or linked.
-          const available=owner?.status==='active';
-          const snapshot=crypto.createHash('sha256').update(JSON.stringify([rows.map(r=>[String(r.id),revision(r),r.status,r.first_name,r.surname]),historical.map(r=>String(r.id))])).digest('hex');
-          return {empty:rows.length===0&&historical.length===0,legacyOnly:rows.length===0&&historical.length>0,verified,available,owner,revision:verified?revision(owner):null,snapshot};
-        },
+        identity:mobile=>readClientCodeIdentity(c,mobile),
         async verifyMobile({mobile,current,channel}){
           // Called only after consuming fresh browser-bound phone proof, under
           // the exact-owner locks and snapshot check in this transaction.
@@ -88,4 +92,4 @@ function createClientCodeStore({db,sessions,transactionClient=null}={}){
   }
   return {transaction};
 }
-module.exports={createClientCodeStore,clientCodeRevision:revision};
+module.exports={createClientCodeStore,clientCodeRevision:revision,readClientCodeIdentity,lockClientCodeIdentity};

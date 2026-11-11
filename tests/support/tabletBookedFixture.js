@@ -8,7 +8,7 @@ const {createClinicTabletBookedAuthority}=require('../../src/services/clinicTabl
 const {createClinicTabletGrantStore}=require('../../src/services/clinicTabletGrantStore');
 const {createClinicTabletOtpProof}=require('../../src/services/clinicTabletOtpProof');
 const {createClinicTabletBookedJourney}=require('../../src/services/clinicTabletBookedJourney');
-async function tabletBookedFixture({whatsappCodeTtlSeconds=900}={}){
+async function tabletBookedFixture({whatsappCodeTtlSeconds=900,afterTransactionQuery}={}){
   let pg,pool,schema;
   const url=process.env.WORKSPACE_WHATSAPP_SYNTHETIC_DATABASE_URL;
   if(url){
@@ -18,7 +18,9 @@ async function tabletBookedFixture({whatsappCodeTtlSeconds=900}={}){
   }else pg=new PGlite();
   let queue=Promise.resolve(),clock=new Date('2026-11-11T08:00:00Z'),active=true;
   const query=async(sql,args)=>{const r=await pg.query(sql,args);return {...r,rowCount:r.rowCount??r.affectedRows??r.rows.length};};
-  const db=pool||{query,connect:async()=>{const before=queue;let release;queue=new Promise(r=>{release=r;});await before;return {query,release};}};
+  const db=pool?{query:(...args)=>pool.query(...args),connect:async()=>{
+    const c=await pool.connect();return {release:()=>c.release(),query:async(...args)=>{const result=await c.query(...args);if(afterTransactionQuery)await afterTransactionQuery(args[0],result);return result;}};
+  }}:{query,connect:async()=>{const before=queue;let release;queue=new Promise(r=>{release=r;});await before;return {query,release};}};
   await pg.exec(`CREATE TABLE staff(id bigint PRIMARY KEY,status text);
     CREATE TABLE staff_admin_accounts(id bigint PRIMARY KEY,staff_id bigint,display_name text,role text,business_role text,calendar_scope text,service_scope text,permissions jsonb,active boolean,updated_at timestamptz DEFAULT NOW());
     INSERT INTO staff_admin_accounts VALUES(2,NULL,'Synthetic Reception','admin','booking_operator','all_business','all_services','{"appointment:create":true,"client:lookup":true,"calendar:booking:reschedule":true,"forms:view":true}',true,NOW());

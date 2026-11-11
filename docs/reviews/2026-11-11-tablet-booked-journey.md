@@ -58,6 +58,14 @@ self-selected here. Multiple appointments require explicit selection. Linked
 appointments remain separate canonical appointment selections; no guest's forms
 are inferred from an organiser's number. All returned choices share one canonical
 client. Visit/client revision is rechecked before every form operation.
+The encrypted grant also retains the verified mobile and canonical ownership
+snapshot. Choices, form opens, submissions and live-grant heartbeats recheck the
+same shared identity authority, including new canonical owners or historical
+contacts. The canonical mobile advisory key is reused before assignment/identity
+row locks. A bounded transaction-level shared lock on the legacy contact table
+prevents a new legacy match racing that check; it can briefly delay historical
+contact writes and requires production privilege/contention review. It does not
+change the normal My Shiloh locking or authentication outcomes.
 
 Canonical required mappings plus existing assignments are reused, including missing
 assignments (staff help), and completion requires an actual signed submission.
@@ -65,6 +73,11 @@ The tablet holds an encrypted server-side canonical token for exactly its curren
 assignment. Direct `/forms/f/...` URLs are never rendered. Existing prepared/claimed staff handovers are not replaced; assignment advisory locks share the existing staff ordering, and a unique active-assignment constraint prevents two tablets rotating each other’s form. Form submission,
 next-form issuance and grant progress share one transaction; a lost reply is resolved
 by reading backend progress. Old-step replay never submits to a later form.
+An explicitly identified stale form POST reopens authorised backend progress
+without discarding the recovery cookie or copying the old answers into the next
+form. Other invalid grants still fail closed. The welcome page has no live-grant
+heartbeat; active typing survives the first 30 seconds while its separate
+inactivity reset remains in place.
 Validation still uses the canonical form service, including encrypted answers and
 immutable consent/form snapshots. No client profile update is performed.
 

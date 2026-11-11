@@ -7,6 +7,40 @@ const input={mobile:'27820000001',network:'192.0.2.0/24'};
 const answers={consent_acknowledged:'yes',signature_name:'Synthetic Client',signature_confirm:'yes'};
 async function setup(t){const h=await tabletBookedFixture();t.after(()=>h.close());return h;}
 async function verified(h){const r=await h.service.begin(h.deviceToken,input);await h.otp.dispatchOne();await h.service.verify(h.deviceToken,r.token,{code:h.sent.at(-1).code,network:input.network});return r;}
+for(const conflict of ['canonical','historical'])for(const stage of ['selection','open form'])
+ test(`fresh ${conflict} phone conflict after ${stage} prevents disclosure and submission`,async t=>{
+ const h=await setup(t),r=await verified(h);
+ if(stage==='open form')await h.service.choose(h.deviceToken,r.token,'42');
+ if(conflict==='canonical')await h.db.query('UPDATE crm_v2_clients SET normalized_mobile=$1 WHERE id=11',[input.mobile]);
+ else await h.db.query("INSERT INTO client_contacts VALUES(1,1,'mobile',$1)",[input.mobile]);
+ await assert.rejects(h.service.resume(h.deviceToken,r.token),{httpStatus:409});
+ await assert.rejects(h.service.touch(h.deviceToken,r.token),{httpStatus:409});
+ if(stage==='selection')await assert.rejects(h.service.choose(h.deviceToken,r.token,'42'),{httpStatus:409});
+ else await assert.rejects(h.service.submit(h.deviceToken,r.token,'7',answers),{httpStatus:409});
+ assert.equal((await h.db.query('SELECT COUNT(*)::int AS n FROM consultation_form_submissions')).rows[0].n,0);
+ });
+test('native PostgreSQL serializes a concurrent legacy phone claim through the form operation',{
+ skip:!process.env.WORKSPACE_WHATSAPP_SYNTHETIC_DATABASE_URL,timeout:20000,
+},async()=>{
+ let hold=false,entered,release;const reached=new Promise(r=>{entered=r;}),continueRead=new Promise(r=>{release=r;});
+ const h=await tabletBookedFixture({afterTransactionQuery:async sql=>{
+  if(hold&&sql.startsWith('SELECT * FROM crm_v2_clients WHERE normalized_mobile=')){hold=false;entered();await continueRead;}
+ }});let writer,resuming,write;
+ try {
+  const r=await verified(h);await h.service.choose(h.deviceToken,r.token,'42');hold=true;resuming=h.service.resume(h.deviceToken,r.token);await reached;
+  writer=await h.db.connect();await writer.query('BEGIN');const pid=(await writer.query('SELECT pg_backend_pid() AS id')).rows[0].id;
+  write=writer.query("INSERT INTO client_contacts VALUES(1,1,'mobile',$1)",[input.mobile]);
+  let blocked=false;for(let attempt=0;attempt<100;attempt++){
+   blocked=(await h.db.query("SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND relation=to_regclass('client_contacts') AND mode='RowExclusiveLock' AND NOT granted) AS waiting",[pid])).rows[0].waiting;
+   if(blocked)break;await new Promise(r=>setTimeout(r,10));
+  }
+  assert.equal(blocked,true,'A new legacy owner must wait for the protected identity/form transaction');
+  release();assert.equal((await resuming).assignmentId,'7');await write;await writer.query('COMMIT');
+  await assert.rejects(h.service.resume(h.deviceToken,r.token),{httpStatus:409});
+  await assert.rejects(h.service.submit(h.deviceToken,r.token,'7',answers),{httpStatus:409});
+  assert.equal((await h.db.query('SELECT COUNT(*)::int AS n FROM consultation_form_submissions')).rows[0].n,0);
+ }finally{release();if(resuming)await resuming.catch(()=>{});if(write)await write.catch(()=>{});if(writer){await writer.query('ROLLBACK').catch(()=>{});writer.release();}await h.close();}
+});
 test('booked tablet uses real synthetic phone proof, explicit visit and sequential signed form confirmations only',async t=>{
  const h=await setup(t),before=(await h.db.query('SELECT * FROM crm_v2_clients ORDER BY id')).rows;
  const r=await h.service.begin(h.deviceToken,input);assert.deepEqual(Object.keys(r).sort(),['state','token']);

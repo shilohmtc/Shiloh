@@ -20,6 +20,10 @@ function createClinicTabletGrantStore({db,hmacKey,closeForm,now=()=>new Date(),r
   async function transaction(deviceId,fn,{allowRevoked=false}={}){
     const client=await db.connect();try{
       await client.query('BEGIN');await client.query("SET LOCAL lock_timeout='3s'");await client.query("SET LOCAL statement_timeout='10s'");
+      // Legacy contact writers do not share the canonical phone advisory key.
+      // A bounded shared predicate lock prevents a new/changed legacy match
+      // between the ownership snapshot check and the form transaction commit.
+      await client.query('LOCK TABLE client_contacts IN SHARE MODE');
       const d=(await client.query('SELECT id FROM clinic_checkin_devices WHERE id=$1 AND ($2 OR revoked_at IS NULL) FOR UPDATE',[deviceId,allowRevoked])).rows[0];
       if(!d)throw new TabletJourneyError('This tablet is not available.',401);
       const result=await fn(client);await client.query('COMMIT');return result;

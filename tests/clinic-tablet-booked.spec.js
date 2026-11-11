@@ -58,11 +58,37 @@ test('duplicate start and lost form response recover backend state without anoth
  await verify(page);await page.locator('[name=appointment_id]').check();await page.getByRole('button',{name:'Continue to forms'}).click();
  let lost=true;await page.route('**/check-in/booked/form',async route=>{const response=await route.fetch();if(lost){lost=false;await route.abort('failed');}else await route.fulfill({response});});
  await page.locator('[name=consent_acknowledged]').check();await page.locator('[name=signature_name]').fill('Synthetic Client');await page.locator('[name=signature_confirm]').check();
+ const originalPost={tablet_csrf:csrf,assignment_id:'7',consent_acknowledged:'yes',signature_name:'Synthetic Client',signature_confirm:'yes'};
  const networkErrorShown=page.waitForEvent('framenavigated',{predicate:frame=>frame===page.mainFrame()&&frame.url().startsWith('chrome-error:')});
  await page.getByRole('button',{name:'Sign & submit securely'}).click();await networkErrorShown;
+ const repeated=await page.request.post(origin+BASE+'/form',{form:originalPost,headers:{origin}});
+ expect(repeated.ok()).toBe(true);expect(await repeated.text()).toContain('Form 2 of 2');
+ expect((await page.context().cookies()).some(c=>c.name==='shiloh_tablet_visit')).toBe(true);
  await page.goto(origin+BASE+'/current');await expect(page.getByRole('status')).toContainText('Form 2 of 2');
+ await shot(page,'tablet-recovered-second-form');
  expect((await h.db.query('SELECT COUNT(*)::int AS n FROM consultation_form_submissions')).rows[0].n).toBe(1);expect(h.sent.length).toBe(1);
  await page.getByRole('button',{name:'Clear and start again'}).click();await expect(page.getByRole('heading',{name:'Welcome to Shiloh'})).toBeVisible();await expect(page.locator('[name=signature_name]')).toHaveCount(0);
+});
+test('welcome keeps active typing beyond thirty seconds without a grant heartbeat',async({page})=>{
+ await page.clock.install();let touches=0;page.on('request',request=>{if(request.url().endsWith('/touch'))touches++;});
+ await page.goto(origin+BASE+'/');const mobile=page.getByLabel('Mobile number',{exact:true});await mobile.fill('082');
+ await page.clock.runFor(31000);await mobile.fill('082000');await page.clock.runFor(31000);
+ await expect(mobile).toHaveValue('082000');await expect(page.getByRole('heading',{name:'Welcome to Shiloh'})).toBeVisible();expect(touches).toBe(0);
+ await shot(page,'tablet-welcome-active-typing');
+ await page.clock.runFor(300000);await expect(mobile).toHaveValue('');expect(touches).toBe(0);
+});
+test('ownership changes after proof and an opened form fail closed at the HTTP boundary',async({page,context})=>{
+ test.setTimeout(60000);await page.setViewportSize({width:1024,height:1366});await start(page);await verify(page);
+ await h.db.query("INSERT INTO client_contacts VALUES(1,1,'mobile','27820000001')");await page.reload();
+ await expect(page.getByRole('heading',{name:'Reception can help'})).toBeVisible();await expect(page.locator('[name=appointment_id]')).toHaveCount(0);
+ expect((await context.cookies()).some(c=>c.name==='shiloh_tablet_visit')).toBe(false);
+ await h.db.query('DELETE FROM client_contacts');h.advance(61000);await start(page);await verify(page);await page.locator('input[name=appointment_id]').check();await page.getByRole('button',{name:'Continue to forms'}).click();
+ await h.db.query("UPDATE crm_v2_clients SET normalized_mobile='27820000001' WHERE id=11");
+ const csrf=await page.locator('[name=tablet_csrf]').first().getAttribute('value');
+ const denied=await page.request.post(origin+BASE+'/form',{headers:{origin},form:{tablet_csrf:csrf,assignment_id:'7',consent_acknowledged:'yes',signature_name:'Synthetic Client',signature_confirm:'yes'}});
+ expect(denied.status()).toBe(409);expect(await denied.text()).not.toContain('name="signature_name"');
+ await page.goto(origin+BASE+'/current');await expect(page.getByRole('heading',{name:'Reception can help'})).toBeVisible();await expect(page.locator('[name=signature_name]')).toHaveCount(0);
+ expect((await h.db.query('SELECT COUNT(*)::int AS n FROM consultation_form_submissions')).rows[0].n).toBe(0);await shot(page,'tablet-ownership-changed');
 });
 for(const [name,viewport] of [['tablet',{width:1024,height:1366}],['phone',{width:390,height:844}]])
  test(`booked ${name} Storybook catalogue preserves all six presentation states`,async({page})=>{
