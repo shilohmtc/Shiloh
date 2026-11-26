@@ -1,5 +1,7 @@
+const { quoteWhatsAppBooking } = require('./whatsAppBookingQuote');
+const { loadPolicy: loadDepositPolicy } = require('./bookingDepositPolicy');
 const { pendingRequestReceipt } = require('./whatsAppBookingRequestReceipt');
-const { createMorningWelcomeOfferService } = require('./morningWelcomeOffer');
+const { createMorningWelcomeOfferService, pricingHash } = require('./morningWelcomeOffer');
 const { pool } = require('../db/pool');
 const { getIntent, verifyService } = require('./bookingIntent');
 const {
@@ -173,8 +175,11 @@ async function resolveCommitContext(phone, intent, { crmV2ClientId = null } = {}
   };
 }
 
-async function commitAcceptedClientBooking(phone, { crmV2ClientId = null, enableMorningOffer = false, pricingReviewHash = null, useMorningOffer = true, whatsappAcceptanceId = null } = {}) {
-  if (whatsappAcceptanceId !== null && crmV2ClientId === null) throw new TypeError('WhatsApp requests require a verified client');
+async function commitAcceptedClientBooking(phone, { crmV2ClientId = null, enableMorningOffer = false, pricingReviewHash = null, useMorningOffer = true, whatsappAcceptanceId = null, whatsappReviewHash = null } = {}) {
+  if (whatsappAcceptanceId !== null && (crmV2ClientId === null || typeof whatsappReviewHash !== 'string' ||
+      !/^[A-Za-z0-9_-]{43}$/.test(whatsappReviewHash) || !enableMorningOffer)) {
+    throw new TypeError('WhatsApp requests require verified identity and reviewed pricing');
+  }
   const normalizedPhone = normalizePhone(phone);
   const initialIntent = await getIntent(normalizedPhone);
   if (!initialIntent || initialIntent.status !== 'policy_accepted') {
@@ -333,8 +338,19 @@ async function commitAcceptedClientBooking(phone, { crmV2ClientId = null, enable
     if(morningOffer && canonical.crm_v2_client_id && totalPrice != null) {
       pricing=await morningOffer.quoteItems([{clientId:Number(canonical.crm_v2_client_id),serviceId:canonical.service_id,staffId:canonical.staff_id,startsAt,
         name:canonical.service_name,category:canonical.category_name,price:totalPrice,prepaidPackage:canonical.is_package_session,variablePrice:canonical.variable_price}],{queryable:db,lock:true,useOffer:useMorningOffer});
-      morningOffer.assertReviewed(pricing,pricingReviewHash);
+      if (whatsappAcceptanceId === null) morningOffer.assertReviewed(pricing,pricingReviewHash);
       totalPrice=pricing.items[0].total;
+    }
+    if (whatsappAcceptanceId !== null) {
+      const policy = await loadDepositPolicy(db);
+      const review = quoteWhatsAppBooking({
+        serviceId: canonical.service_id, staffId: canonical.staff_id, startsAt,
+        total: totalPrice, pricingHash: pricing && pricingHash(pricing), policy, now: new Date(),
+      });
+      if (review?.reviewHash !== whatsappReviewHash) {
+        await db.query('ROLLBACK');
+        return { handled: true, status: 'whatsapp_price_changed' };
+      }
     }
     const appointment = await insertOrdinaryClientAppointment(
       db, appointmentIdentity, canonical.location_id, startsAt, endsAt, canonical.service_name, totalPrice

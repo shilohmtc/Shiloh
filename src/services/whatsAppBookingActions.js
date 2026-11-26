@@ -6,7 +6,8 @@ const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const MAX_ACTION_AGE_SECONDS = 15 * 60;
 const MOBILE = /^27[678][0-9]{8}$/;
 const ID = /^[1-9][0-9]{0,18}$/;
-const TAP = /^request_appointment:([A-Za-z0-9_-]{1,130})\.([A-Za-z0-9_-]{43})$/;
+const REVIEW = /^[A-Za-z0-9_-]{43}$/;
+const TAP = /^request_appointment:([A-Za-z0-9_-]{1,140})\.([A-Za-z0-9_-]{43})$/;
 
 function validId(id) {
   return typeof id === 'string' && ID.test(id) && BigInt(id) <= 9223372036854775807n;
@@ -18,21 +19,23 @@ function mac(secret, bytes) {
 
 // Issue only after browser verification, quote review and explicit policy acceptance.
 function issueBookingAction(
-  { acceptanceId, verifiedClientId, senderMobile },
+  { acceptanceId, verifiedClientId, senderMobile, reviewHash },
   { secret, now = Date.now() },
 ) {
   if (
     !secret ||
     !validId(acceptanceId) ||
     !validId(verifiedClientId) ||
+    typeof reviewHash !== 'string' ||
+    !REVIEW.test(reviewHash) ||
     typeof senderMobile !== 'string' ||
     !MOBILE.test(senderMobile)
   )
     throw new TypeError('Invalid booking action authority');
   const expires = Math.floor(now / 1000) + MAX_ACTION_AGE_SECONDS;
-  const body = Buffer.from([acceptanceId, verifiedClientId, expires].join(':')).toString(
-    'base64url',
-  );
+  const body = Buffer.from(
+    [acceptanceId, verifiedClientId, expires, reviewHash].join(':'),
+  ).toString('base64url');
   const signature = mac(secret, 'request_appointment:' + senderMobile + ':' + body).toString(
     'base64url',
   );
@@ -48,16 +51,17 @@ function bookingAction(id, senderMobile, secret, now) {
   );
   if (!timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) return null;
   const fields = Buffer.from(body, 'base64url').toString('utf8').split(':');
-  const [acceptanceId, verifiedClientId, expires] = fields;
+  const [acceptanceId, verifiedClientId, expires, reviewHash] = fields;
   if (
-    fields.length !== 3 ||
+    fields.length !== 4 ||
     !validId(acceptanceId) ||
     !validId(verifiedClientId) ||
+    !REVIEW.test(reviewHash) ||
     !/^\d{10}$/.test(expires) ||
     Number(expires) <= Math.floor(now / 1000)
   )
     return null;
-  return { acceptanceId, verifiedClientId, senderMobile };
+  return { acceptanceId, verifiedClientId, senderMobile, reviewHash };
 }
 
 function list(value) {

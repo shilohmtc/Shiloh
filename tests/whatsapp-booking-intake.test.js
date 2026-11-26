@@ -9,7 +9,12 @@ const {
 } = require('../src/services/whatsAppBookingActions');
 const { createWhatsAppBookingIntake } = require('../src/services/whatsAppBookingIntake');
 
-const action = { acceptanceId: '31', verifiedClientId: '4', senderMobile: '27820000001' };
+const action = {
+  acceptanceId: '31',
+  verifiedClientId: '4',
+  senderMobile: '27820000001',
+  reviewHash: 'a'.repeat(43),
+};
 const settings = {
   providerSecret: 'synthetic-provider-key',
   actionSecret: 'synthetic-action-key',
@@ -83,7 +88,12 @@ test('intake uses the exact accepted request and replays a receipt without writi
     commitBooking: async (mobile, options) => {
       calls++;
       assert.equal(mobile, action.senderMobile);
-      assert.deepEqual(options, { crmV2ClientId: '4', whatsappAcceptanceId: '31' });
+      assert.deepEqual(options, {
+        crmV2ClientId: '4',
+        whatsappAcceptanceId: '31',
+        whatsappReviewHash: action.reviewHash,
+        enableMorningOffer: true,
+      });
       receipt = {
         status: 'pending_resolution',
         appointmentId: '53',

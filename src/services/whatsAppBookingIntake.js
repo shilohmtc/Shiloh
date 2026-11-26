@@ -22,6 +22,8 @@ function createWhatsAppBookingIntake({
       const committed = await commitBooking(action.senderMobile, {
         crmV2ClientId: action.verifiedClientId,
         whatsappAcceptanceId: action.acceptanceId,
+        whatsappReviewHash: action.reviewHash,
+        enableMorningOffer: true,
       });
       // Another executor may have committed after our first read.
       const receipt =
