@@ -8,10 +8,13 @@ const {
 const logger = require('../lib/logger');
 const { createWhatsAppBookingIntake } = require('../services/whatsAppBookingIntake');
 
+const { bookingLinkReplies } = require('../services/whatsAppBookingEntry');
+
 function createWebhookRouter({
   booking = null,
   receiveBooking = createWhatsAppBookingIntake(),
   deliverAcknowledgement,
+  deliverBookingLink,
   persistStatuses,
 } = {}) {
   const router = express.Router();
@@ -50,6 +53,15 @@ function createWebhookRouter({
   });
   router.post('/webhook', parseJson, recordStatus, async (req, res) => {
     try {
+      if (deliverBookingLink) {
+        for (const reply of bookingLinkReplies(
+          req.whatsAppRawBody,
+          req.get('X-Hub-Signature-256'),
+          booking,
+        )) {
+          await deliverBookingLink(reply);
+        }
+      }
       const replies = await receiveBooking(
         req.whatsAppRawBody,
         req.get('X-Hub-Signature-256'),

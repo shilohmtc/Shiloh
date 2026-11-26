@@ -169,3 +169,54 @@ test('bad signature, unrelated number and ordinary chat cannot enter the booking
 test('enabling intake with no acknowledgement sender fails at construction', () => {
   assert.throws(() => createWebhookRouter({ booking }), /acknowledgement sender/);
 });
+
+test('the explicit booking greeting opens the browser sign-in flow without handling unrelated chat', async (t) => {
+  const sent = new Map();
+  let writes = 0;
+  const post = await setup(t, {
+    booking,
+    receiveBooking: createWhatsAppBookingIntake({
+      db: {},
+      readReceipt: async () => null,
+      commitBooking: async () => {
+        writes++;
+        return { status: 'stale_whatsapp_action' };
+      },
+    }),
+    deliverAcknowledgement: async () =>
+      assert.fail('The greeting cannot acknowledge an appointment'),
+    deliverBookingLink: async (reply) => sent.set(reply.deduplicationKey, reply),
+  });
+  const message = {
+    id: 'wamid.welcome-fixture',
+    from: senderMobile,
+    type: 'text',
+    timestamp: String(booking.now / 1000 - 60),
+    text: { body: '  Book an appointment  ' },
+  };
+  const body = payload(callback([message, message]));
+  assert.equal(await post(body, 'sha256=' + 'f'.repeat(64)), 200);
+  assert.equal(await post(payload(callback([message], undefined, 'other-number'))), 200);
+  for (const changed of [
+    { text: { body: 'Can I book an appointment next week?' } },
+    { text: { body: 'Hello' } },
+    { timestamp: String(booking.now / 1000 - 86400) },
+    { timestamp: String(booking.now / 1000 + 1) },
+    { id: '' },
+  ]) {
+    assert.equal(await post(payload(callback([{ ...message, ...changed }]))), 200);
+  }
+  assert.equal(sent.size, 0);
+  assert.equal(await post(body), 200);
+  assert.equal(await post(body), 200);
+  assert.equal(writes, 0);
+  assert.equal(sent.size, 1);
+  const [welcome] = sent.values();
+  assert.equal(welcome.recipient, senderMobile);
+  assert.match(
+    welcome.text,
+    /^Welcome to Shiloh!.*sign in or create your profile.*Then you can choose.*Reception will review/i,
+  );
+  assert.match(welcome.text, /https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/book$/);
+  assert.equal(welcome.expiresAt, new Date(booking.now + (86400 - 60) * 1000).toISOString());
+});

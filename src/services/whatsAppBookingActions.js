@@ -68,15 +68,10 @@ function list(value) {
   return Array.isArray(value) ? value : [];
 }
 
-// The signature must be checked against the exact provider request body.
-function verifiedBookingTaps(
-  raw,
-  header,
-  { providerSecret, actionSecret, phoneNumberId, now = Date.now() } = {},
-) {
+// Verify the original callback bytes before interpreting messages from the configured number.
+function* verifiedWhatsAppMessages(raw, header, { providerSecret, phoneNumberId } = {}) {
   if (
     !providerSecret ||
-    !actionSecret ||
     !phoneNumberId ||
     !Buffer.isBuffer(raw) ||
     !raw.length ||
@@ -84,16 +79,16 @@ function verifiedBookingTaps(
     typeof header !== 'string' ||
     !/^sha256=[0-9a-f]{64}$/.test(header)
   )
-    return [];
-  if (!timingSafeEqual(mac(providerSecret, raw), Buffer.from(header.slice(7), 'hex'))) return [];
+    return;
+
+  if (!timingSafeEqual(mac(providerSecret, raw), Buffer.from(header.slice(7), 'hex'))) return;
   let payload;
   try {
     payload = JSON.parse(raw.toString('utf8'));
   } catch {
-    return [];
+    return;
   }
-  const actions = new Map();
-  if (payload?.object !== 'whatsapp_business_account') return [];
+  if (payload?.object !== 'whatsapp_business_account') return;
   for (const entry of list(payload.entry)) {
     for (const change of list(entry?.changes)) {
       const value = change?.value;
@@ -104,24 +99,27 @@ function verifiedBookingTaps(
       )
         continue;
       for (const message of list(value.messages)) {
-        if (
-          message?.type !== 'interactive' ||
-          message.interactive?.type !== 'button_reply' ||
-          typeof message.from !== 'string' ||
-          !MOBILE.test(message.from)
-        )
-          continue;
-        const action = bookingAction(
-          message.interactive.button_reply?.id,
-          message.from,
-          actionSecret,
-          now,
-        );
-        if (action) actions.set(action.acceptanceId, action);
+        if (typeof message?.from === 'string' && MOBILE.test(message.from)) yield message;
       }
     }
+  }
+}
+
+function verifiedBookingTaps(raw, header, configuration = {}) {
+  const { actionSecret, now = Date.now() } = configuration;
+  if (!actionSecret) return [];
+  const actions = new Map();
+  for (const message of verifiedWhatsAppMessages(raw, header, configuration)) {
+    if (message.type !== 'interactive' || message.interactive?.type !== 'button_reply') continue;
+    const action = bookingAction(
+      message.interactive.button_reply?.id,
+      message.from,
+      actionSecret,
+      now,
+    );
+    if (action) actions.set(action.acceptanceId, action);
   }
   return [...actions.values()];
 }
 
-module.exports = { issueBookingAction, verifiedBookingTaps };
+module.exports = { issueBookingAction, verifiedBookingTaps, verifiedWhatsAppMessages };
