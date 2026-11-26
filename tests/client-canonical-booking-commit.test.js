@@ -12,7 +12,7 @@ test('policy acceptance immediately delegates to the canonical client booking co
   assert.match(policy, /commitAcceptedClientBooking/);
   assert.match(policy, /intent\.status === ["']policy_accepted["']/);
   assert.match(policy, /processAcceptedClientBookingMessage\(phone, text\)/);
-  assert.match(policy, /recordAcceptance\(phone\)[\s\S]*finalizeAcceptedBooking\(phone\)/);
+  assert.match(policy, /recordAcceptance\(phone\)[\s\S]*finalizeAcceptedBooking\(phone, accepted\)/);
 });
 
 test('canonical client booking can only consume an explicitly policy-accepted intent', () => {
