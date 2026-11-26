@@ -25,6 +25,26 @@ function validSelection(value) {
   );
 }
 
+async function verifiedWhatsAppBookingOwner(db, senderMobile, crmV2ClientId) {
+  if (typeof senderMobile !== 'string' || !MOBILE.test(senderMobile) || !crmV2ClientId)
+    return false;
+  const identity = await db.query(
+    `
+      SELECT c.id FROM crm_v2_clients c
+      WHERE c.id=$1 AND c.normalized_mobile=$2 AND c.status='active'
+        AND c.profile_status='registered' AND c.mobile_verified_at IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM crm_v2_clients other WHERE other.id<>c.id AND other.status='active' AND other.normalized_mobile=$2
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM client_contacts contact WHERE contact.normalized_value=$2
+            AND lower(contact.contact_type) IN ('phone','telephone','mobile','whatsapp')
+        )`,
+    [crmV2ClientId, senderMobile],
+  );
+  return identity.rows.length === 1;
+}
+
 function createWhatsAppBookingContinuation({
   key,
   db = pool,
@@ -84,21 +104,7 @@ function createWhatsAppBookingContinuation({
     if (!selection || !session?.crmV2ClientId) return null;
     const { senderMobile, serviceId, staffId, startsAt } = selection;
     const crmV2ClientId = session.crmV2ClientId;
-    const identity = await db.query(
-      `
-      SELECT c.id FROM crm_v2_clients c
-      WHERE c.id=$1 AND c.normalized_mobile=$2 AND c.status='active'
-        AND c.profile_status='registered' AND c.mobile_verified_at IS NOT NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM crm_v2_clients other WHERE other.id<>c.id AND other.status='active' AND other.normalized_mobile=$2
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM client_contacts contact WHERE contact.normalized_value=$2
-            AND lower(contact.contact_type) IN ('phone','telephone','mobile','whatsapp')
-        )`,
-      [crmV2ClientId, senderMobile],
-    );
-    if (identity.rows.length !== 1) return null;
+    if (!(await verifiedWhatsAppBookingOwner(db, senderMobile, crmV2ClientId))) return null;
 
     const inputs = { crmV2ClientId, serviceId, staffId };
     const availability = await service.slots({
@@ -134,4 +140,4 @@ function createWhatsAppBookingContinuation({
   return { issue, resume, selectedMobile: (token) => open(token)?.senderMobile || null };
 }
 
-module.exports = { createWhatsAppBookingContinuation };
+module.exports = { createWhatsAppBookingContinuation, verifiedWhatsAppBookingOwner };
