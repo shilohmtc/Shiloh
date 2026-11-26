@@ -6,7 +6,7 @@ const {
   BOOKING_POLICY_TEXT: POLICY_TEXT,
 } = require('../config/bookingPolicyAuthority');
 const { localDate, localTime } = require('./myShilohBooking');
-const { issueBookingAction } = require('./whatsAppBookingActions');
+const { issueBookingAction, BOOKING_ACTION_TTL_SECONDS } = require('./whatsAppBookingActions');
 
 async function stageReviewedRequest(pool, { mobile, clientId, service, practitioner, startsAt }) {
   const db = await pool.connect();
@@ -46,7 +46,7 @@ async function stageReviewedRequest(pool, { mobile, clientId, service, practitio
     if (!intent.rows.length) {
       const prior = await db.query(
         `
-        SELECT p.id FROM booking_policy_acceptances p
+        SELECT p.id, p.accepted_at FROM booking_policy_acceptances p
         JOIN booking_intents i ON i.phone=p.phone AND i.policy_accepted_at=p.accepted_at
           AND i.policy_version=p.policy_version AND i.policy_channel=p.channel
         JOIN crm_v2_clients c ON c.id=p.crm_v2_client_id
@@ -62,7 +62,9 @@ async function stageReviewedRequest(pool, { mobile, clientId, service, practitio
         details,
       );
       await db.query('COMMIT');
-      return prior.rows.length === 1 ? String(prior.rows[0].id) : null;
+      return prior.rows.length === 1
+        ? { id: String(prior.rows[0].id), acceptedAt: prior.rows[0].accepted_at }
+        : null;
     }
 
     const acceptance = await db.query(
@@ -75,7 +77,7 @@ async function stageReviewedRequest(pool, { mobile, clientId, service, practitio
       [...details, intent.rows[0].accepted_at, POLICY_TEXT],
     );
     await db.query('COMMIT');
-    return String(acceptance.rows[0].id);
+    return { id: String(acceptance.rows[0].id), acceptedAt: intent.rows[0].accepted_at };
   } catch (error) {
     await db.query('ROLLBACK');
     throw error;
@@ -98,18 +100,23 @@ function createWhatsAppBookingSubmission({
       return { status: 'review_changed' };
     const mobile = continuation.selectedMobile(token);
     if (!mobile) return { status: 'review_changed' };
-    const acceptanceId = await stage(db, {
+    const acceptance = await stage(db, {
       mobile,
       clientId: session.crmV2ClientId,
       service: review.service.name,
       practitioner: review.practitioner.name,
       startsAt: review.startsAt,
     });
-    if (!acceptanceId) return { status: 'request_in_progress' };
+    if (!acceptance) return { status: 'request_in_progress' };
+    const acceptanceId = acceptance.id;
+    const acceptedAt = new Date(acceptance.acceptedAt).getTime();
     return {
       status: 'ready',
       recipient: mobile,
       acceptanceId,
+      expiresAt: new Date(
+        (Math.floor(acceptedAt / 1000) + BOOKING_ACTION_TTL_SECONDS) * 1000,
+      ).toISOString(),
       action: issueBookingAction(
         {
           acceptanceId,
@@ -117,7 +124,7 @@ function createWhatsAppBookingSubmission({
           senderMobile: mobile,
           reviewHash,
         },
-        { secret: actionSecret },
+        { secret: actionSecret, now: acceptedAt },
       ),
     };
   };

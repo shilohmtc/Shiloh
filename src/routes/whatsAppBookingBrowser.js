@@ -146,6 +146,7 @@ function createWhatsAppBookingBrowser({
         await deliverRequestButton({
           recipient: result.recipient,
           action: result.action,
+          expiresAt: result.expiresAt,
           deduplicationKey: 'booking-request-button:' + result.acceptanceId,
         });
       } catch {

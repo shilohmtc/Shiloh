@@ -151,6 +151,7 @@ test('registration returns to the original private review and a sender retry reu
   assert.equal(retried.status, 200);
   assert.match(await retried.text(), /Request appointment/);
   assert.equal(outgoing.length, 2);
+  assert.equal(outgoing[0].action, outgoing[1].action);
   assert.equal(outgoing[0].deduplicationKey, outgoing[1].deduplicationKey);
   assert.equal((await db.query('SELECT id FROM booking_policy_acceptances')).rows.length, 1);
   assert.equal(writes, 0);

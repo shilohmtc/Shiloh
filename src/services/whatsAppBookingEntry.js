@@ -6,6 +6,10 @@ const { verifiedWhatsAppMessages } = require('./whatsAppBookingActions');
 const SERVICE_WINDOW_SECONDS = 24 * 60 * 60;
 const BOOKING_LINK = 'https://app.shilohmtc.co.za/my-shiloh/book';
 
+const WELCOME_TEXT =
+  'Welcome to Shiloh! To request an appointment, sign in or create your profile in your browser. Then you can choose a treatment and time. Reception will review your request before any deposit is due.\n\n' +
+  BOOKING_LINK;
+
 function bookingLinkReplies(raw, signature, configuration) {
   const now = Math.floor((configuration.now ?? Date.now()) / 1000);
   const replies = new Map();
@@ -13,7 +17,7 @@ function bookingLinkReplies(raw, signature, configuration) {
     if (
       message.type !== 'text' ||
       typeof message.text?.body !== 'string' ||
-      !/^book an appointment$/i.test(message.text.body.trim()) ||
+      !/^(?:book|book an appointment)$/i.test(message.text.body.trim()) ||
       typeof message.id !== 'string' ||
       !/^wamid\.[a-zA-Z0-9+/_=-]{1,240}$/.test(message.id) ||
       typeof message.timestamp !== 'string' ||
@@ -25,9 +29,7 @@ function bookingLinkReplies(raw, signature, configuration) {
     const key = createHash('sha256').update(message.id).digest('hex');
     replies.set(key, {
       recipient: message.from,
-      text:
-        'Welcome to Shiloh! To request an appointment, sign in or create your profile in your browser. Then you can choose a treatment and time. Reception will review your request before any deposit is due.\n\n' +
-        BOOKING_LINK,
+      text: WELCOME_TEXT,
       deduplicationKey: 'booking-entry:' + key,
       expiresAt: new Date((sentAt + SERVICE_WINDOW_SECONDS) * 1000).toISOString(),
     });
@@ -35,4 +37,4 @@ function bookingLinkReplies(raw, signature, configuration) {
   return [...replies.values()];
 }
 
-module.exports = { bookingLinkReplies };
+module.exports = { bookingLinkReplies, WELCOME_TEXT };

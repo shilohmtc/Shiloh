@@ -211,6 +211,9 @@ test('the explicit booking greeting opens the browser sign-in flow without handl
   assert.equal(await post(body), 200);
   assert.equal(writes, 0);
   assert.equal(sent.size, 1);
+  const rebooking = payload(callback([{ ...message, id: 'wamid.rebook', text: { body: 'BOOK' } }]));
+  assert.equal(await post(rebooking), 200);
+  assert.equal(sent.size, 2);
   const [welcome] = sent.values();
   assert.equal(welcome.recipient, senderMobile);
   assert.match(

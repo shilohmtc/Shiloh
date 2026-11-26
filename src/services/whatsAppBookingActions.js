@@ -3,7 +3,7 @@
 const { createHmac, timingSafeEqual } = require('node:crypto');
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
-const MAX_ACTION_AGE_SECONDS = 15 * 60;
+const BOOKING_ACTION_TTL_SECONDS = 15 * 60;
 const MOBILE = /^27[678][0-9]{8}$/;
 const ID = /^[1-9][0-9]{0,18}$/;
 const REVIEW = /^[A-Za-z0-9_-]{43}$/;
@@ -32,7 +32,7 @@ function issueBookingAction(
     !MOBILE.test(senderMobile)
   )
     throw new TypeError('Invalid booking action authority');
-  const expires = Math.floor(now / 1000) + MAX_ACTION_AGE_SECONDS;
+  const expires = Math.floor(now / 1000) + BOOKING_ACTION_TTL_SECONDS;
   const body = Buffer.from(
     [acceptanceId, verifiedClientId, expires, reviewHash].join(':'),
   ).toString('base64url');
@@ -122,4 +122,9 @@ function verifiedBookingTaps(raw, header, configuration = {}) {
   return [...actions.values()];
 }
 
-module.exports = { issueBookingAction, verifiedBookingTaps, verifiedWhatsAppMessages };
+module.exports = {
+  issueBookingAction,
+  verifiedBookingTaps,
+  verifiedWhatsAppMessages,
+  BOOKING_ACTION_TTL_SECONDS,
+};

@@ -2,6 +2,8 @@
 
 const { normalizeMobile } = require('./crmV2ClientService');
 
+const PENDING_REPLY = 'Your request is with Reception. We’ll message you when it’s reviewed.';
+
 function validId(value) {
   if (typeof value === 'number') return Number.isSafeInteger(value) && value > 0;
   return (
@@ -46,8 +48,8 @@ async function pendingRequestReceipt(db, { acceptanceId, verifiedClientId, sende
   return {
     appointmentId: String(rows[0].id),
     status: 'pending_resolution',
-    reply: 'Your request is with Reception. We’ll message you when it’s reviewed.',
+    reply: PENDING_REPLY,
   };
 }
 
-module.exports = { pendingRequestReceipt };
+module.exports = { pendingRequestReceipt, PENDING_REPLY };
