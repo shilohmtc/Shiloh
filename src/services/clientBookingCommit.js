@@ -1,3 +1,4 @@
+const { pendingRequestReceipt } = require('./whatsAppBookingRequestReceipt');
 const { createMorningWelcomeOfferService } = require('./morningWelcomeOffer');
 const { pool } = require('../db/pool');
 const { getIntent, verifyService } = require('./bookingIntent');
@@ -172,7 +173,8 @@ async function resolveCommitContext(phone, intent, { crmV2ClientId = null } = {}
   };
 }
 
-async function commitAcceptedClientBooking(phone, { crmV2ClientId = null, enableMorningOffer = false, pricingReviewHash = null, useMorningOffer = true } = {}) {
+async function commitAcceptedClientBooking(phone, { crmV2ClientId = null, enableMorningOffer = false, pricingReviewHash = null, useMorningOffer = true, whatsappAcceptanceId = null } = {}) {
+  if (whatsappAcceptanceId !== null && crmV2ClientId === null) throw new TypeError('WhatsApp requests require a verified client');
   const normalizedPhone = normalizePhone(phone);
   const initialIntent = await getIntent(normalizedPhone);
   if (!initialIntent || initialIntent.status !== 'policy_accepted') {
@@ -181,7 +183,7 @@ async function commitAcceptedClientBooking(phone, { crmV2ClientId = null, enable
 
   const context = await resolveCommitContext(normalizedPhone, initialIntent, { crmV2ClientId });
   if (context.status !== 'ready') {
-    if (context.retryTime) await resetAcceptedIntentForNewSlot(normalizedPhone);
+    if (context.retryTime && whatsappAcceptanceId === null) await resetAcceptedIntentForNewSlot(normalizedPhone);
     return { handled: true, ...context };
   }
 
@@ -211,6 +213,22 @@ async function commitAcceptedClientBooking(phone, { crmV2ClientId = null, enable
     ) {
       await db.query('ROLLBACK');
       return { handled: true, status: 'intent_changed', reply: 'The booking details changed while I was confirming them, so nothing was booked. Please review the current booking details again.' };
+    }
+
+    if (whatsappAcceptanceId !== null) {
+      const accepted = await db.query(`
+        SELECT p.id FROM booking_policy_acceptances p
+        JOIN booking_intents i ON i.phone=p.phone AND i.policy_version=p.policy_version
+          AND i.policy_accepted_at=p.accepted_at AND i.policy_channel=p.channel
+          AND i.service_text=p.service_text AND i.preferred_date=p.preferred_date
+          AND i.preferred_time=p.preferred_time AND i.therapist_text=p.therapist_text
+        WHERE p.id=$1 AND p.crm_v2_client_id=$2 AND p.phone=$3
+          AND p.channel='whatsapp' AND p.appointment_id IS NULL AND i.status='policy_accepted'
+        FOR UPDATE OF p`, [whatsappAcceptanceId, crmV2ClientId, normalizedPhone]);
+      if (accepted.rows.length !== 1) {
+        await db.query('ROLLBACK');
+        return { handled: true, status: 'stale_whatsapp_action' };
+      }
     }
 
     await db.query('SELECT pg_advisory_xact_lock($1::bigint)', [context.availability.staff.id]);
@@ -377,9 +395,18 @@ async function commitAcceptedClientBooking(phone, { crmV2ClientId = null, enable
     })]);
 
     if(pricing)await morningOffer.record(db,{appointmentId:appointment.id,clientId:canonical.crm_v2_client_id,price:pricing.items[0]});
+    const whatsappReceipt = whatsappAcceptanceId === null ? null : await pendingRequestReceipt(db, {
+      acceptanceId: whatsappAcceptanceId, verifiedClientId: crmV2ClientId, senderMobile: normalizedPhone,
+    });
+    if (whatsappAcceptanceId !== null && whatsappReceipt?.appointmentId !== String(appointment.id)) {
+      await db.query('ROLLBACK');
+      return { handled: true, status: 'whatsapp_review_unavailable' };
+    }
+
     await db.query('DELETE FROM booking_intents WHERE phone = $1', [normalizedPhone]);
     await db.query('COMMIT');
 
+    if (whatsappReceipt) return { handled: true, ...whatsappReceipt };
     return {
       handled: true,
       status: 'created',
