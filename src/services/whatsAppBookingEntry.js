@@ -30,7 +30,7 @@ function messageChoice(message) {
   return null;
 }
 
-function bookingEntryReplies(raw, signature, configuration) {
+function bookingEntryReplies(raw, signature, configuration, bookingChat) {
   const now = Math.floor((configuration.now ?? Date.now()) / 1000);
   const replies = new Map();
   for (const message of verifiedWhatsAppMessages(raw, signature, configuration)) {
@@ -45,6 +45,11 @@ function bookingEntryReplies(raw, signature, configuration) {
     if (sentAt > now || now - sentAt >= SERVICE_WINDOW_SECONDS) continue;
     const choice = messageChoice(message);
     if (!choice) continue;
+    if (choice.kind === 'link' && bookingChat) {
+      const start = bookingChat.startLink(message.from, sentAt);
+      if (!start) continue;
+      choice.text = WELCOME_TEXT.replace(BOOKING_LINK, start);
+    }
     const key = createHash('sha256').update(message.id).digest('hex');
     replies.set(key, {
       ...choice,

@@ -16,10 +16,20 @@ function createWebhookRouter({
   deliverAcknowledgement,
   deliverBookingLink,
   deliverGreeting,
+  bookingChat,
+  deliverBookingMenu,
   deliverReceptionPrompt,
   persistStatuses,
 } = {}) {
   const router = express.Router();
+  if (
+    bookingChat &&
+    (!booking ||
+      typeof deliverBookingMenu !== 'function' ||
+      typeof deliverBookingLink !== 'function')
+  ) {
+    throw new TypeError('WhatsApp chat booking requires its menu and link senders');
+  }
   if (
     booking &&
     (!booking.providerSecret ||
@@ -65,9 +75,18 @@ function createWebhookRouter({
           req.whatsAppRawBody,
           req.get('X-Hub-Signature-256'),
           booking,
+          bookingChat,
         )) {
           await senders[kind]?.(reply);
         }
+      }
+      if (bookingChat) {
+        await bookingChat.receive(
+          req.whatsAppRawBody,
+          req.get('X-Hub-Signature-256'),
+          booking,
+          deliverBookingMenu,
+        );
       }
       const replies = await receiveBooking(
         req.whatsAppRawBody,

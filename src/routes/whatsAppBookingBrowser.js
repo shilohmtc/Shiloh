@@ -13,7 +13,11 @@ const COOKIE = 'shiloh_booking_continuation';
 
 function tokenFrom(req) {
   const token = parseCookieValue(req.headers.cookie, COOKIE);
-  return /^[A-Za-z0-9_-]{70,420}$/.test(token || '') ? token : null;
+  return /^(?:[A-Za-z0-9_-]{70,420}|shiloh_chat\.[A-Za-z0-9_-]{2,144}\.[A-Za-z0-9_-]{43})$/.test(
+    token || '',
+  )
+    ? token
+    : null;
 }
 function escapeHtml(value) {
   return String(value ?? '').replace(
@@ -80,6 +84,7 @@ function reviewPage(review, csrf) {
 
 function createWhatsAppBookingBrowser({
   continuation,
+  bookingChat,
   submit,
   deliverRequestButton,
   sessions,
@@ -116,11 +121,28 @@ function createWhatsAppBookingBrowser({
   });
   router.get('/open', optionalSession, (req, res) => {
     const token = req.query.request;
-    if (!continuation.selectedMobile(token)) return unavailable(req, res);
+    if (!continuation.selectedMobile(token) && !bookingChat?.isStart(token))
+      return unavailable(req, res);
     res.cookie(COOKIE, token, { ...cookie, maxAge: 45 * 60 * 1000 });
     return res.redirect(303, req.myShilohClientSession ? REVIEW_PATH : ROOT + '/');
   });
   router.get('/review', requireSession, async (req, res) => {
+    const token = tokenFrom(req);
+    if (bookingChat?.isStart(token)) {
+      const link = await bookingChat.resumeLink(token, req.myShilohClientSession);
+      if (!link) return unavailable(req, res);
+      return res
+        .type('html')
+        .send(
+          page(
+            'Continue in WhatsApp',
+            '<p>Choose your treatment and time in your Shiloh chat.</p><a href="' +
+              escapeHtml(link) +
+              '">Return to WhatsApp</a>',
+          ),
+        );
+    }
+
     const review = await continuation.resume(tokenFrom(req), req.myShilohClientSession);
     if (review?.status !== 'review') return unavailable(req, res);
     const csrf = await sessions.rotateCsrfToken(req.myShilohClientSession.sessionId);
