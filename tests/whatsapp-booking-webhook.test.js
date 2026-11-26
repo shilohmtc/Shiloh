@@ -223,3 +223,57 @@ test('the explicit booking greeting opens the browser sign-in flow without handl
   assert.match(welcome.text, /https:\/\/app\.shilohmtc\.co\.za\/my-shiloh\/book$/);
   assert.equal(welcome.expiresAt, new Date(booking.now + (86400 - 60) * 1000).toISOString());
 });
+
+test('Hi and Hello offer booking or Reception without creating an appointment', async (t) => {
+  const sent = new Map();
+  const record = (kind) => async (reply) => sent.set(reply.deduplicationKey, { kind, ...reply });
+  const post = await setup(t, {
+    booking,
+    deliverAcknowledgement: async () => assert.fail('Menu is not a booking request'),
+    deliverGreeting: record('greeting'),
+    deliverBookingLink: record('booking'),
+    deliverReceptionPrompt: record('reception'),
+  });
+  const message = { from: senderMobile, timestamp: String(booking.now / 1000 - 5) };
+  const greeting = (text) => ({
+    ...message,
+    id: 'wamid.' + text,
+    type: 'text',
+    text: { body: text },
+  });
+  const choice = (id) => ({
+    ...message,
+    id: 'wamid.' + id,
+    type: 'interactive',
+    interactive: {
+      type: 'button_reply',
+      button_reply: { id },
+    },
+  });
+  const body = payload(callback([greeting('Hi'), greeting('Hello')]));
+  assert.equal(await post(body, 'sha256=' + 'f'.repeat(64)), 200);
+  assert.equal(sent.size, 0);
+  assert.equal(await post(body), 200);
+  assert.equal(await post(body), 200);
+  assert.equal(
+    await post(
+      payload(
+        callback([
+          choice('shiloh_booking_start'),
+          choice('shiloh_talk_to_reception'),
+          choice('unrelated'),
+        ]),
+      ),
+    ),
+    200,
+  );
+  assert.deepEqual(
+    [...sent.values()].map((reply) => reply.kind),
+    ['greeting', 'greeting', 'booking', 'reception'],
+  );
+  const [hi, hello, book, staff] = sent.values();
+  assert.equal(hi.text, 'Welcome to Shiloh! How can we help?');
+  assert.equal(hello.text, hi.text);
+  assert.match(book.text, /sign in or create your profile.*\/my-shiloh\/book$/is);
+  assert.match(staff.text, /leave your message here so Reception can help/i);
+});

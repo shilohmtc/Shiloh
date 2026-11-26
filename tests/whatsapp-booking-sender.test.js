@@ -6,7 +6,11 @@ const path = require('node:path');
 const test = require('node:test');
 const { PGlite } = require('@electric-sql/pglite');
 const { createWhatsAppBookingSender } = require('../src/services/whatsAppBookingSender');
-const { WELCOME_TEXT } = require('../src/services/whatsAppBookingEntry');
+const {
+  WELCOME_TEXT,
+  GREETING_TEXT,
+  RECEPTION_TEXT,
+} = require('../src/services/whatsAppBookingEntry');
 const { PENDING_REPLY } = require('../src/services/whatsAppBookingRequestReceipt');
 const { issueBookingAction } = require('../src/services/whatsAppBookingActions');
 
@@ -112,4 +116,26 @@ test('booking-only sender respects admission and prevents duplicate provider att
   const persisted = JSON.stringify(evidence.rows);
   for (const value of [mobile, action, WELCOME_TEXT, PENDING_REPLY])
     assert.ok(!persisted.includes(value));
+  const greeting = {
+    recipient,
+    text: GREETING_TEXT,
+    expiresAt: expiry,
+    deduplicationKey: 'booking-entry:' + 'c'.repeat(64),
+  };
+  await first.deliverGreeting(greeting);
+  await createWhatsAppBookingSender(options).deliverGreeting(greeting);
+  assert.deepEqual(
+    requests[3].body.interactive.action.buttons.map((item) => item.reply),
+    [
+      { id: 'shiloh_booking_start', title: 'Book an appointment' },
+      { id: 'shiloh_talk_to_reception', title: 'Talk to Reception' },
+    ],
+  );
+  await first.deliverReceptionPrompt({
+    ...greeting,
+    text: RECEPTION_TEXT,
+    deduplicationKey: 'booking-entry:' + 'd'.repeat(64),
+  });
+  assert.equal(requests[4].body.text.body, RECEPTION_TEXT);
+  assert.equal(requests.length, 5);
 });

@@ -3,13 +3,20 @@
 const { createHmac } = require('node:crypto');
 const { createBoundedJsonRequest } = require('./workspaceWhatsAppProviders');
 
-const { WELCOME_TEXT } = require('./whatsAppBookingEntry');
+const {
+  WELCOME_TEXT,
+  GREETING_TEXT,
+  GREETING_BUTTONS,
+  RECEPTION_TEXT,
+} = require('./whatsAppBookingEntry');
 const { PENDING_REPLY } = require('./whatsAppBookingRequestReceipt');
 
 const MOBILE = /^27[678][0-9]{8}$/;
 const PROVIDER_ID = /^wamid\.[A-Za-z0-9+/_=-]{1,240}$/;
 const KEYS = {
   welcome: /^booking-entry:[a-f0-9]{64}$/,
+  greeting: /^booking-entry:[a-f0-9]{64}$/,
+  reception: /^booking-entry:[a-f0-9]{64}$/,
   button: /^booking-request-button:[1-9][0-9]{0,18}$/,
   pending: /^booking-pending:[1-9][0-9]{0,18}$/,
 };
@@ -35,7 +42,18 @@ function messageBody(kind, input) {
     };
   }
 
-  const text = kind === 'welcome' ? WELCOME_TEXT : PENDING_REPLY;
+  if (kind === 'greeting') {
+    if (input.text !== GREETING_TEXT) return null;
+    return {
+      type: 'interactive',
+      interactive: {
+        type: 'button',
+        body: { text: GREETING_TEXT },
+        action: { buttons: GREETING_BUTTONS.map((reply) => ({ type: 'reply', reply })) },
+      },
+    };
+  }
+  const text = { welcome: WELCOME_TEXT, reception: RECEPTION_TEXT, pending: PENDING_REPLY }[kind];
   if (input.text !== text) return null;
   return { type: 'text', text: { body: text, preview_url: false } };
 }
@@ -146,6 +164,8 @@ function createWhatsAppBookingSender({
 
   return {
     deliverBookingLink: (input) => deliver('welcome', input),
+    deliverGreeting: (input) => deliver('greeting', input),
+    deliverReceptionPrompt: (input) => deliver('reception', input),
     deliverRequestButton: (input) => deliver('button', input),
     deliverAcknowledgement: (input) => deliver('pending', input),
   };
