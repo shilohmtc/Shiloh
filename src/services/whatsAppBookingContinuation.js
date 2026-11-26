@@ -131,7 +131,7 @@ function createWhatsAppBookingContinuation({
     };
   }
 
-  return { issue, resume };
+  return { issue, resume, selectedMobile: (token) => open(token)?.senderMobile || null };
 }
 
 module.exports = { createWhatsAppBookingContinuation };
