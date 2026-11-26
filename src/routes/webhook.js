@@ -1,14 +1,76 @@
-const express = require("express");
-const router = express.Router();
+'use strict';
 
-const { processWhatsAppStatusWebhook } = require("../controllers/whatsappStatusWebhookController");
-
-router.post(
-  "/webhook",
+const express = require('express');
+const {
+  createWhatsAppStatusWebhookController,
   processWhatsAppStatusWebhook,
-  // Delivery receipts remain; conversations belong to human Reception.
-  // My Shiloh and Workspace authenticate with passkeys and SMS setup.
-  (_req, res) => res.sendStatus(200),
-);
+} = require('../controllers/whatsappStatusWebhookController');
+const logger = require('../lib/logger');
+const { createWhatsAppBookingIntake } = require('../services/whatsAppBookingIntake');
 
-module.exports = router;
+function createWebhookRouter({
+  booking = null,
+  receiveBooking = createWhatsAppBookingIntake(),
+  deliverAcknowledgement,
+  persistStatuses,
+} = {}) {
+  const router = express.Router();
+  if (
+    booking &&
+    (!booking.providerSecret ||
+      !booking.actionSecret ||
+      !booking.phoneNumberId ||
+      typeof deliverAcknowledgement !== 'function')
+  ) {
+    throw new TypeError(
+      'WhatsApp booking requires provider authentication and an acknowledgement sender',
+    );
+  }
+  if (!booking) {
+    router.post(
+      '/webhook',
+      express.json({ limit: '2mb' }),
+      persistStatuses
+        ? createWhatsAppStatusWebhookController({ persistStatuses })
+        : processWhatsAppStatusWebhook,
+      (_req, res) => res.sendStatus(200),
+    );
+    return router;
+  }
+
+  const parseJson = express.json({
+    limit: '2mb',
+    verify(req, _res, bytes) {
+      req.whatsAppRawBody = bytes;
+    },
+  });
+  const recordStatus = createWhatsAppStatusWebhookController({
+    persistStatuses,
+    continueAfterStatuses: true,
+  });
+  router.post('/webhook', parseJson, recordStatus, async (req, res) => {
+    try {
+      const replies = await receiveBooking(
+        req.whatsAppRawBody,
+        req.get('X-Hub-Signature-256'),
+        booking,
+      );
+      for (const reply of replies) {
+        // The delivery service must persist this key across process and provider retries.
+        await deliverAcknowledgement({
+          recipient: reply.senderMobile,
+          text: reply.reply,
+          deduplicationKey: 'booking-pending:' + reply.appointmentId,
+        });
+      }
+      return res.sendStatus(200);
+    } catch {
+      (req.log || logger).warn('WhatsApp booking intake or acknowledgement failed safely');
+      return res.sendStatus(503);
+    }
+  });
+  return router;
+}
+
+module.exports = createWebhookRouter();
+module.exports.createWebhookRouter = createWebhookRouter;
