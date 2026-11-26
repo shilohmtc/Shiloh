@@ -69,7 +69,11 @@ function list(value) {
 }
 
 // Verify the original callback bytes before interpreting messages from the configured number.
-function* verifiedWhatsAppMessages(raw, header, { providerSecret, phoneNumberId } = {}) {
+function* verifiedWhatsAppMessages(
+  raw,
+  header,
+  { providerSecret, phoneNumberId, allowedSender } = {},
+) {
   if (
     !providerSecret ||
     !phoneNumberId ||
@@ -99,7 +103,12 @@ function* verifiedWhatsAppMessages(raw, header, { providerSecret, phoneNumberId 
       )
         continue;
       for (const message of list(value.messages)) {
-        if (typeof message?.from === 'string' && MOBILE.test(message.from)) yield message;
+        if (
+          typeof message?.from === 'string' &&
+          MOBILE.test(message.from) &&
+          (allowedSender === undefined || message.from === allowedSender)
+        )
+          yield message;
       }
     }
   }

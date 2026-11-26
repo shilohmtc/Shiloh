@@ -67,4 +67,5 @@ module.exports = {
   GREETING_TEXT,
   GREETING_BUTTONS,
   RECEPTION_TEXT,
+  BOOKING_LINK,
 };

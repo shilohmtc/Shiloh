@@ -5,10 +5,12 @@ const { createBoundedJsonRequest } = require('./workspaceWhatsAppProviders');
 
 const {
   WELCOME_TEXT,
+  BOOKING_LINK,
   GREETING_TEXT,
   GREETING_BUTTONS,
   RECEPTION_TEXT,
 } = require('./whatsAppBookingEntry');
+const { STEP_TITLES, UNAVAILABLE, BOOKING_REVIEW_URL } = require('./whatsAppBookingChat');
 const { PENDING_REPLY } = require('./whatsAppBookingRequestReceipt');
 
 const MOBILE = /^27[678][0-9]{8}$/;
@@ -18,10 +20,64 @@ const KEYS = {
   greeting: /^booking-entry:[a-f0-9]{64}$/,
   reception: /^booking-entry:[a-f0-9]{64}$/,
   button: /^booking-request-button:[1-9][0-9]{0,18}$/,
+  menu: /^booking-menu:[a-f0-9]{64}$/,
   pending: /^booking-pending:[1-9][0-9]{0,18}$/,
 };
 
-function messageBody(kind, input) {
+function messageBody(kind, input, chat, continuation) {
+  if (kind === 'menu') {
+    if (!chat) return null;
+    if (
+      input.type === 'list' &&
+      Object.values(STEP_TITLES).includes(input.text) &&
+      Array.isArray(input.rows) &&
+      input.rows.length > 0 &&
+      input.rows.length <= 10 &&
+      input.rows.every(
+        (row) =>
+          typeof row.title === 'string' &&
+          [...row.title].length > 0 &&
+          [...row.title].length <= 24 &&
+          chat.acceptsMenuRow(row.id, input.recipient),
+      )
+    ) {
+      return {
+        type: 'interactive',
+        interactive: {
+          type: 'list',
+          body: { text: input.text },
+          action: {
+            button: 'See options',
+            sections: [
+              { title: 'Booking', rows: input.rows.map(({ id, title }) => ({ id, title })) },
+            ],
+          },
+        },
+      };
+    }
+    if (input.type !== 'text' || typeof input.text !== 'string' || input.text.length > 1024)
+      return null;
+    if (input.text === UNAVAILABLE)
+      return { type: 'text', text: { body: input.text, preview_url: false } };
+    const marker = '\nReview your appointment and booking terms: ' + BOOKING_REVIEW_URL;
+    const separator = input.text.indexOf(marker);
+    if (
+      !input.text.startsWith('Treatment: ') ||
+      separator < 0 ||
+      continuation?.selectedMobile(input.text.slice(separator + marker.length)) !== input.recipient
+    )
+      return null;
+    return { type: 'text', text: { body: input.text, preview_url: false } };
+  }
+  if (kind === 'welcome' && chat && typeof input.text === 'string') {
+    const prefix = WELCOME_TEXT.slice(0, -BOOKING_LINK.length);
+    if (
+      !input.text.startsWith(prefix) ||
+      !chat.acceptsStartLink(input.text.slice(prefix.length), input.recipient)
+    )
+      return null;
+    return { type: 'text', text: { body: input.text, preview_url: false } };
+  }
   if (kind === 'button') {
     if (
       typeof input.action !== 'string' ||
@@ -64,6 +120,8 @@ function createWhatsAppBookingSender({
   provider,
   fingerprintKey,
   authorizeDelivery,
+  chat,
+  continuation,
   fetchImpl,
   clock = Date.now,
 } = {}) {
@@ -91,10 +149,15 @@ function createWhatsAppBookingSender({
     ) {
       throw new Error('Invalid WhatsApp booking delivery');
     }
-    const contents = messageBody(kind, input);
+    const contents = messageBody(kind, input, chat, continuation);
     if (!contents) throw new Error('Invalid WhatsApp booking message');
     const body = JSON.stringify({ messaging_product: 'whatsapp', to: recipient, ...contents });
-    const fingerprint = createHmac('sha256', fingerprintKey).update(body).digest('hex');
+    // A callback retry may mint a new private link for the same reviewed selection.
+    const comparable =
+      kind === 'menu' && contents.type === 'text'
+        ? body.replace(/request=[A-Za-z0-9_-]+(?="[^"]*$)/, 'request=[private]')
+        : body;
+    const fingerprint = createHmac('sha256', fingerprintKey).update(comparable).digest('hex');
     const lookup = async () =>
       (
         await db.query(
@@ -163,6 +226,7 @@ function createWhatsAppBookingSender({
   }
 
   return {
+    deliverBookingMenu: (input) => deliver('menu', input),
     deliverBookingLink: (input) => deliver('welcome', input),
     deliverGreeting: (input) => deliver('greeting', input),
     deliverReceptionPrompt: (input) => deliver('reception', input),

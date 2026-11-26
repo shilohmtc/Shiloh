@@ -17,6 +17,8 @@ const WHEN = new Intl.DateTimeFormat('en-ZA', {
   timeZone: 'Africa/Johannesburg',
 });
 const WAMID = /^wamid\.[A-Za-z0-9+/_=-]{1,240}$/;
+const UNAVAILABLE =
+  'This choice is no longer available. Return to your booking link to start again, or leave a message for Reception.';
 const STEP_TITLES = {
   treatment: 'Choose a treatment',
   practitioner: 'Choose a practitioner',
@@ -167,7 +169,7 @@ function createWhatsAppBookingChat({ key, choices, db = pool, clock = Date.now }
       } else {
         content = {
           type: 'text',
-          text: 'This choice is no longer available. Return to your booking link to start again, or leave a message for Reception.',
+          text: UNAVAILABLE,
         };
       }
       await deliverMenu({
@@ -179,12 +181,24 @@ function createWhatsAppBookingChat({ key, choices, db = pool, clock = Date.now }
     }
   }
 
+  function acceptsStartLink(url, mobile) {
+    return (
+      typeof url === 'string' &&
+      url.startsWith(BASE) &&
+      unpack(url.slice(BASE.length), mobile)?.[0] === 0
+    );
+  }
+  function acceptsMenuRow(id, mobile) {
+    return unpack(id, mobile)?.[0] === 1;
+  }
   return {
     startLink,
+    acceptsStartLink,
+    acceptsMenuRow,
     resumeLink,
     receive,
     isStart: (value) => typeof value === 'string' && CHAT_TOKEN.test(value),
   };
 }
 
-module.exports = { createWhatsAppBookingChat };
+module.exports = { createWhatsAppBookingChat, STEP_TITLES, UNAVAILABLE, BOOKING_REVIEW_URL: BASE };

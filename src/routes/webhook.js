@@ -18,9 +18,20 @@ function createWebhookRouter({
   deliverGreeting,
   bookingChat,
   deliverBookingMenu,
+  admission,
+  bookingReady = () => true,
   deliverReceptionPrompt,
   persistStatuses,
 } = {}) {
+  if (
+    admission &&
+    (!booking || typeof admission.recordInbound !== 'function' || !admission.allowedSender)
+  ) {
+    throw new TypeError('Booking pilot requires an inbound admission service and staff number');
+  }
+  const configuration = admission
+    ? { ...booking, allowedSender: admission.allowedSender }
+    : booking;
   const router = express.Router();
   if (
     bookingChat &&
@@ -65,6 +76,16 @@ function createWebhookRouter({
   });
   router.post('/webhook', parseJson, recordStatus, async (req, res) => {
     try {
+      if (
+        !bookingReady() ||
+        (admission &&
+          !(await admission.recordInbound(
+            req.whatsAppRawBody,
+            req.get('X-Hub-Signature-256'),
+            configuration,
+          )))
+      )
+        return res.sendStatus(200);
       const senders = {
         link: deliverBookingLink,
         greeting: deliverGreeting,
@@ -74,7 +95,7 @@ function createWebhookRouter({
         for (const { kind, ...reply } of bookingEntryReplies(
           req.whatsAppRawBody,
           req.get('X-Hub-Signature-256'),
-          booking,
+          configuration,
           bookingChat,
         )) {
           await senders[kind]?.(reply);
@@ -84,14 +105,14 @@ function createWebhookRouter({
         await bookingChat.receive(
           req.whatsAppRawBody,
           req.get('X-Hub-Signature-256'),
-          booking,
+          configuration,
           deliverBookingMenu,
         );
       }
       const replies = await receiveBooking(
         req.whatsAppRawBody,
         req.get('X-Hub-Signature-256'),
-        booking,
+        configuration,
       );
       for (const reply of replies) {
         // The delivery service must persist this key across process and provider retries.

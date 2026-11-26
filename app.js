@@ -75,7 +75,7 @@ app.use(requestContext);
 workspaceWhatsAppRelease.mount(app);
 clientCodeRelease.mount(app);
 // The WhatsApp route owns its JSON parser so it can verify exact callback bytes.
-app.use("/", webhookRoutes);
+app.use("/", clientCodeRelease.bookingWebhook || webhookRoutes);
 app.use(express.json({ limit: "2mb" }));
 app.use("/assets/service-images", express.static(path.join(__dirname, "public", "service-images"), { maxAge: "30d", immutable: true }));
 app.use("/assets/brand", express.static(path.join(__dirname, "public", "assets", "brand"), { maxAge: "30d", immutable: true }));

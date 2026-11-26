@@ -4,6 +4,7 @@ const logger=require('../lib/logger');
 const {pool:canonicalPool}=require('../db/pool');
 const {createClientBrowserSessionService}=require('./clientBrowserSession');
 const {createClientCodeRelease,TOKEN}=require('./clientCodeRelease');
+const {prepareConfiguredBookingPilot}=require('./whatsAppBookingPilot');
 
 // An explicit same-business credential reference avoids copying or exposing the
 // existing Meta token. Client proof keys, template, budget and records stay separate.
@@ -30,11 +31,20 @@ function createProductionClientCode({env,canonicalDb,PoolClass=Pool,fetchImpl,lo
     return clientPool;
   }
   const db={query:(...args)=>connection().query(...args),connect:()=>connection().connect()};
+  let bookingPilot;
+  try {
+    bookingPilot=prepareConfiguredBookingPilot({
+      env,db:canonicalDb,fetchImpl,bookingReady:()=>release.status().enabled,
+    });
+  } catch {
+    log.warn('WhatsApp appointment pilot configuration incomplete');
+  }
   const release=createClientCodeRelease({env:productionClientEnv(env),db,
     workerOptions:{onStateChange:event=>log[event.event==='worker_recovered'?'info':'warn'](event,'My Shiloh WhatsApp worker state')},
     onDiagnostic:event=>log.info(event,"My Shiloh code delivery diagnostic"),
+    bookingBrowser:bookingPilot?.bookingBrowser,
     sessions:createClientBrowserSessionService({db:canonicalDb}),fetchImpl,...(now?{now}:{})});
-  return {...release,async stop(){await release.stop();if(clientPool&&!closed){closed=true;await clientPool.end();}}};
+  return {...release,bookingWebhook:bookingPilot?.webhookRouter,async stop(){await release.stop();if(clientPool&&!closed){closed=true;await clientPool.end();}}};
 }
 const production=createProductionClientCode({env:process.env,canonicalDb:canonicalPool,fetchImpl:globalThis.fetch});
 module.exports=production;
