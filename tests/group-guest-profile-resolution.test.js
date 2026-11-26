@@ -8,4 +8,24 @@ test('identical names stay separate; an unchanged creation retry reuses its exac
 test('changed creation decisions, malformed selected IDs and shared mobile substitutions cannot create another profile',async t=>{const db=await setup(t);await resolve(db,base);await assert.rejects(resolve(db,{...base,guest:{...base.guest,name:'Synthetic Beta'}}),{code:'GROUP_GUEST_RETRY_MISMATCH'});for(const clientId of [0,false,[], 'bad'])await assert.rejects(resolve(db,{...base,guest:{...base.guest,clientId}}),{code:'GROUP_INVALID_CLIENT'});await assert.rejects(resolve(db,{...base,guest:{...base.guest,mobile:'27810000001'}}),{code:'GROUP_GUEST_REVIEW_REQUIRED'});assert.equal((await db.query('SELECT COUNT(*)::int n FROM crm_v2_clients')).rows[0].n,1);});
 test('explicit reuse requires the current revision and preserves the selected identity and absent mobile',async t=>{const db=await setup(t);const a=await resolve(db,base);await db.query("INSERT INTO crm_v2_client_relationships VALUES($1,'clinic',NULL,'active')",[a.client.id]);const selected={...base,guest:{...base.guest,clientId:a.client.id,profileRevision:clientRevision(a.client),name:'Synthetic Revised',dateOfBirth:'2000-01-01',gender:'female'}};await db.exec('BEGIN');const updated=await resolve(db,selected);await db.exec('COMMIT');assert.equal(updated.client.id,a.client.id);assert.equal(updated.client.normalized_mobile,null);assert.equal(updated.client.profile_status,'minimal');assert.equal(updated.client.name,'Synthetic Revised');await assert.rejects(resolve(db,selected),{code:'GROUP_GUEST_CHANGED'});await db.query("UPDATE crm_v2_clients SET normalized_mobile='27810000001',contact_mode='direct' WHERE id=$1",[a.client.id]);await assert.rejects(resolve(db,selected),{code:'GROUP_GUEST_CHANGED'});assert.equal((await db.query('SELECT COUNT(*)::int n FROM crm_v2_clients')).rows[0].n,1);});
 test('audit failure rolls back a newly created guest with the outer booking transaction',async t=>{const db=await setup(t);await db.exec("ALTER TABLE crm_audit_events ADD CONSTRAINT synthetic_reject CHECK(action<>'booking.guest_profile_created');BEGIN");await assert.rejects(resolve(db,base));await db.exec('ROLLBACK');assert.equal((await db.query('SELECT COUNT(*)::int n FROM crm_v2_clients')).rows[0].n,0);});
-test('birth dates use a text result type for the PostgreSQL driver and preserve the recorded calendar date during guest reuse',async t=>{const db=await setup(t);const a=await resolve(db,{...base,guest:{...base.guest,dateOfBirth:'2000-01-01'}});assert.equal(a.client.date_of_birth,'2000-01-01');const {CLIENT_COLUMNS,PostgresCrmV2ClientRepository}=require('../src/repositories/crmV2ClientRepository');await db.exec("SET DateStyle='SQL, DMY'");const result=await db.query(`SELECT ${CLIENT_COLUMNS} FROM crm_v2_clients WHERE id=$1`,[a.client.id]);assert.equal(result.fields.find(f=>f.name==='date_of_birth').dataTypeID,25);const parser=require('pg').types.getTypeParser(25);assert.equal(parser(result.rows[0].date_of_birth),'2000-01-01');await db.query("INSERT INTO crm_v2_client_relationships VALUES($1,'clinic',NULL,'active')",[a.client.id]);const row=await new PostgresCrmV2ClientRepository(db).getClientById(a.client.id);const selected=await resolve(db,{...base,guest:{...base.guest,name:'Synthetic Updated',clientId:a.client.id,profileRevision:clientRevision(row)}});assert.equal(selected.client.date_of_birth,'2000-01-01');});
+test('birth dates use a text result type for the PostgreSQL driver and preserve the recorded calendar date during guest reuse', async t => {
+  const db = await setup(t);
+  const a = await resolve(db, { ...base, guest: { ...base.guest, dateOfBirth: '2000-01-01' } });
+  assert.equal(a.client.date_of_birth, '2000-01-01');
+  const { CLIENT_COLUMNS, PostgresCrmV2ClientRepository } = require('../src/repositories/crmV2ClientRepository');
+
+  // Change the date output only for the type check. The application uses ISO timestamps.
+  await db.exec("BEGIN; SET LOCAL DateStyle='SQL, DMY'");
+  const result = await db.query(`SELECT ${CLIENT_COLUMNS} FROM crm_v2_clients WHERE id=$1`, [a.client.id]);
+  await db.exec('ROLLBACK');
+  assert.equal(result.fields.find(f => f.name === 'date_of_birth').dataTypeID, 25);
+  const parser = require('pg').types.getTypeParser(25);
+  assert.equal(parser(result.rows[0].date_of_birth), '2000-01-01');
+
+  await db.query("INSERT INTO crm_v2_client_relationships VALUES($1,'clinic',NULL,'active')", [a.client.id]);
+  const row = await new PostgresCrmV2ClientRepository(db).getClientById(a.client.id);
+  const selected = await resolve(db, {
+    ...base, guest: { ...base.guest, name: 'Synthetic Updated', clientId: a.client.id, profileRevision: clientRevision(row) },
+  });
+  assert.equal(selected.client.date_of_birth, '2000-01-01');
+});

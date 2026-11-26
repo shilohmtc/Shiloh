@@ -18,18 +18,22 @@ function verificationDb(ledger) {
     throw Error('Unexpected verification query');
   } };
 }
+const tabletMigration = '202_clinic_tablet_booked_grants.sql';
+const tabletChecksum = '40c37de7579056fcf88352419af18f87d33b8d2ad1500d341abc9d954d12d56d';
 const ledger = () => migrations.migrationInventory().map(row => ({ ...row, applied_at: '2026-11-11T00:00:00Z' }));
 
-test('recovery source recognises exact ledger 202 using unchanged read-only authority', async () => {
-  const db = verificationDb(ledger());
+test('recovery source verifies the current ledger read-only and preserves the exact migration 202 bytes', async () => {
+  const expected = ledger();
+  const db = verificationDb(expected);
   const state = await migrations.verifyMigrationState({ db });
-  assert.equal(state.migrationFiles, 202);
-  assert.equal(state.ledgerRows, 202);
+  assert.equal(state.migrationFiles, expected.length);
+  assert.equal(state.ledgerRows, expected.length);
+  assert.equal(state.migrations[201].filename, tabletMigration);
   assert.deepEqual(state.pending, []);
   assert.equal(db.calls.at(-1), 'ROLLBACK');
   assert.ok(db.calls.every(sql => !/\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\b/i.test(sql)));
-  const bytes = fs.readFileSync(path.join(__dirname, '../migrations/202_clinic_tablet_booked_grants.sql'));
-  assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'), '40c37de7579056fcf88352419af18f87d33b8d2ad1500d341abc9d954d12d56d');
+  const bytes = fs.readFileSync(path.join(__dirname, '../migrations', tabletMigration));
+  assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'), tabletChecksum);
 });
 
 test('recovery source refuses pending, changed and unknown migration history', async () => {
@@ -43,19 +47,32 @@ test('canonical migration executor and recovery verifier agree on an isolated 20
   const pg = new PGlite();
   t.after(() => pg.close());
   await pg.exec('CREATE TABLE clinic_checkin_devices(id BIGINT PRIMARY KEY); CREATE TABLE consultation_form_assignments(id BIGINT PRIMARY KEY); CREATE TABLE schema_migrations(filename TEXT PRIMARY KEY, checksum TEXT NOT NULL, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()); CREATE TABLE synthetic_unchanged_budget(attempts INT); INSERT INTO synthetic_unchanged_budget VALUES(7)');
-  await pg.query('INSERT INTO schema_migrations(filename,checksum) SELECT filename,checksum FROM jsonb_to_recordset($1::jsonb) AS r(filename TEXT,checksum TEXT)', [JSON.stringify(ledger().slice(0, -1))]);
+  await pg.query('INSERT INTO schema_migrations(filename,checksum) SELECT filename,checksum FROM jsonb_to_recordset($1::jsonb) AS r(filename TEXT,checksum TEXT)', [JSON.stringify(ledger().slice(0, 201))]);
   const db = { async query(sql, args) {
     const result = args ? await pg.query(sql, args) : (await pg.exec(sql)).at(-1);
     return { ...result, rowCount: result.rows?.length ?? result.affectedRows ?? 0 };
   } };
-  await assert.rejects(migrations.verifyMigrationState({ db }), e => e.code === 'MIGRATION_PENDING');
-  const result = await migrations.applyMigrationFile('202_clinic_tablet_booked_grants.sql', { db });
+  const laterMigrations = ledger().slice(202).map(row => row.filename);
+  await assert.rejects(migrations.verifyMigrationState({ db }), {
+    code: 'MIGRATION_PENDING', details: { filenames: [tabletMigration, ...laterMigrations] },
+  });
+  const result = await migrations.applyMigrationFile(tabletMigration, { db });
   assert.equal(result.applied, true);
-  assert.equal((await migrations.verifyMigrationState({ db })).ledgerRows, 202);
+  const status = await migrations.getMigrationStatus({ db });
+  assert.equal(status.filter(row => row.applied && row.checksumMatches).length, 202);
+  assert.deepEqual(status.filter(row => !row.applied).map(row => row.filename), laterMigrations);
+  assert.equal(status.find(row => row.filename === tabletMigration).checksum, tabletChecksum);
+  if (laterMigrations.length) {
+    await assert.rejects(migrations.verifyMigrationState({ db }), {
+      code: 'MIGRATION_PENDING', details: { filenames: laterMigrations },
+    });
+  } else {
+    assert.equal((await migrations.verifyMigrationState({ db })).ledgerRows, 202);
+  }
   assert.equal((await pg.query('SELECT COUNT(*)::int AS n FROM clinic_tablet_visit_grants')).rows[0].n, 0);
   assert.equal((await pg.query("SELECT COUNT(*)::int AS n FROM pg_indexes WHERE tablename='clinic_tablet_visit_grants'")).rows[0].n, 5);
   assert.equal((await pg.query('SELECT attempts FROM synthetic_unchanged_budget')).rows[0].attempts, 7);
-  assert.equal((await migrations.applyMigrationFile('202_clinic_tablet_booked_grants.sql', { db })).applied, false);
+  assert.equal((await migrations.applyMigrationFile(tabletMigration, { db })).applied, false);
 });
 
 test('ordinary worker skips queued tablet proofs across restart without changing quotas', async t => {
