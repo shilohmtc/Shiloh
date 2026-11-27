@@ -1,0 +1,93 @@
+{
+  "version": "7.2",
+  "screens": [
+    {
+      "id": "REGISTER",
+      "title": "Register with Shiloh",
+      "terminal": true,
+      "success": true,
+      "sensitive": [
+        "first_name",
+        "surname",
+        "date_of_birth",
+        "gender"
+      ],
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "registration",
+            "children": [
+              {
+                "type": "TextBody",
+                "text": "Complete your profile to request an appointment. We’ll use the number on this WhatsApp chat."
+              },
+              {
+                "type": "TextInput",
+                "name": "first_name",
+                "label": "First name",
+                "input-type": "text",
+                "required": true
+              },
+              {
+                "type": "TextInput",
+                "name": "surname",
+                "label": "Surname",
+                "input-type": "text",
+                "required": true
+              },
+              {
+                "type": "DatePicker",
+                "name": "date_of_birth",
+                "label": "Date of birth",
+                "required": true
+              },
+              {
+                "type": "Dropdown",
+                "name": "gender",
+                "label": "Gender",
+                "required": true,
+                "data-source": [
+                  {
+                    "id": "female",
+                    "title": "Female"
+                  },
+                  {
+                    "id": "male",
+                    "title": "Male"
+                  },
+                  {
+                    "id": "non_binary",
+                    "title": "Non-binary"
+                  },
+                  {
+                    "id": "other",
+                    "title": "Other"
+                  },
+                  {
+                    "id": "prefer_not_to_say",
+                    "title": "Prefer not to say"
+                  }
+                ]
+              },
+              {
+                "type": "Footer",
+                "label": "Continue to booking",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "first_name": "${form.first_name}",
+                    "surname": "${form.surname}",
+                    "date_of_birth": "${form.date_of_birth}",
+                    "gender": "${form.gender}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -8,7 +8,7 @@ const {
 const logger = require('../lib/logger');
 const { createWhatsAppBookingIntake } = require('../services/whatsAppBookingIntake');
 
-const { bookingEntryReplies } = require('../services/whatsAppBookingEntry');
+const { bookingEntryReplies, RECEPTION_TEXT } = require('../services/whatsAppBookingEntry');
 
 function createWebhookRouter({
   booking = null,
@@ -18,6 +18,9 @@ function createWebhookRouter({
   deliverGreeting,
   bookingChat,
   deliverBookingMenu,
+  receiveNativeReview,
+  registration,
+  deliverRegistration,
   admission,
   bookingReady = () => true,
   deliverReceptionPrompt,
@@ -97,8 +100,18 @@ function createWebhookRouter({
           req.get('X-Hub-Signature-256'),
           configuration,
           bookingChat,
+          Boolean(registration),
         )) {
-          await senders[kind]?.(reply);
+          if (registration && kind === 'link') {
+            await registration.start(reply, {
+              deliverBookingMenu,
+              deliverRegistration,
+              deliverReceptionPrompt: (input) =>
+                deliverReceptionPrompt({ ...input, text: RECEPTION_TEXT }),
+            });
+          } else {
+            await senders[kind]?.(reply);
+          }
         }
       }
       if (bookingChat) {
@@ -109,6 +122,17 @@ function createWebhookRouter({
           deliverBookingMenu,
         );
       }
+      await registration?.receive(
+        req.whatsAppRawBody,
+        req.get('X-Hub-Signature-256'),
+        configuration,
+        deliverBookingMenu,
+      );
+      await receiveNativeReview?.(
+        req.whatsAppRawBody,
+        req.get('X-Hub-Signature-256'),
+        configuration,
+      );
       const replies = await receiveBooking(
         req.whatsAppRawBody,
         req.get('X-Hub-Signature-256'),
