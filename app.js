@@ -74,6 +74,8 @@ app.use(canonicalHostRedirect);
 app.use(requestContext);
 workspaceWhatsAppRelease.mount(app);
 clientCodeRelease.mount(app);
+// The WhatsApp route owns its JSON parser so it can verify exact callback bytes.
+app.use("/", clientCodeRelease.bookingWebhook || webhookRoutes);
 app.use(express.json({ limit: "2mb" }));
 app.use("/assets/service-images", express.static(path.join(__dirname, "public", "service-images"), { maxAge: "30d", immutable: true }));
 app.use("/assets/brand", express.static(path.join(__dirname, "public", "assets", "brand"), { maxAge: "30d", immutable: true }));
@@ -81,7 +83,7 @@ app.use("/assets/pwa", express.static(path.join(__dirname, "public", "assets", "
 app.use("/assets/website", express.static(path.join(__dirname, "public", "assets", "website"), { maxAge: "30d", immutable: true }));
 app.get("/health", async (req, res) => { const ok = await checkDatabase(); return res.status(ok ? 200 : 503).json({ status: ok ? "ok" : "degraded", database: ok ? "ok" : "unavailable", timestamp: new Date().toISOString() }); });
 const paymentProviderRouter = createPaymentProviderRouter();
-app.use("/payments", createPaymentReturnRouter()); app.use("/payments/providers", paymentProviderRouter); app.use("/", paymentProviderRouter); app.use("/pay", createPaymentLinkRouter()); app.use("/audit-read", auditReadRoutes); app.use("/admin", adminRoutes); app.use("/calendar", calendarRoutes); app.use('/check-in', createClinicIpadPublicRouter()); app.use("/forms", createClientConsultationFormsRouter()); app.use("/", myShilohRoutes); app.use("/", publicWebsiteRoutes); app.use("/", serviceRoutes); app.use("/", walkinRoutes); app.use("/", bookRoutes); app.use("/", webhookRoutes);
+app.use("/payments", createPaymentReturnRouter()); app.use("/payments/providers", paymentProviderRouter); app.use("/", paymentProviderRouter); app.use("/pay", createPaymentLinkRouter()); app.use("/audit-read", auditReadRoutes); app.use("/admin", adminRoutes); app.use("/calendar", calendarRoutes); app.use('/check-in', createClinicIpadPublicRouter()); app.use("/forms", createClientConsultationFormsRouter()); app.use("/", myShilohRoutes); app.use("/", publicWebsiteRoutes); app.use("/", serviceRoutes); app.use("/", walkinRoutes); app.use("/", bookRoutes);
 app.use((err, req, res, next) => {
   if (!res.headersSent && err?.code === 'P0M01') return res.status(409).json({
     error: 'This booking has a Morning Welcome Offer price. Choose a start from 08:00 and before 12:00, excluding Saturdays, on the same visit date, or review its price with Shiloh before moving it.',

@@ -13,6 +13,7 @@ const {
 } = require('./bookingDepositPolicy');
 const { ensureBookingApprovalInfrastructure } = require("./clientBookingApprovalSchema");
 const logger = require("../lib/logger");
+const { pendingRequestReceipt } = require("./whatsAppBookingRequestReceipt");
 const {
   BOOKING_POLICY_VERSION: POLICY_VERSION,
   BOOKING_POLICY_TEXT: POLICY_TEXT,
@@ -61,8 +62,11 @@ async function recordAcceptance(phone, channel = POLICY_CHANNEL) {
     if (!intent) { await client.query("ROLLBACK"); return null; }
     // Keep the shared parameter TEXT for the CRM comparison and VARCHAR insert;
     // assignment into phone still enforces its existing column length limit.
-    await client.query(`INSERT INTO booking_policy_acceptances (phone, policy_version, accepted_at, channel, service_text, preferred_date, preferred_time, therapist_text, policy_text_snapshot, crm_v2_client_id) VALUES ($1::text, $2, $3, $4, $5, $6, $7, $8, $9, (SELECT MIN(id) FROM crm_v2_clients WHERE normalized_mobile=$1::text AND status='active' HAVING COUNT(*)=1))`, [phone, POLICY_VERSION, intent.policy_accepted_at, channel, intent.service_text, intent.preferred_date, intent.preferred_time, intent.therapist_text, POLICY_TEXT]);
-    await client.query("COMMIT"); return intent;
+    const evidence = await client.query(`INSERT INTO booking_policy_acceptances (phone, policy_version, accepted_at, channel, service_text, preferred_date, preferred_time, therapist_text, policy_text_snapshot, crm_v2_client_id) VALUES ($1::text, $2, $3, $4, $5, $6, $7, $8, $9, (SELECT MIN(id) FROM crm_v2_clients WHERE normalized_mobile=$1::text AND status='active' HAVING COUNT(*)=1)) RETURNING id, crm_v2_client_id`, [phone, POLICY_VERSION, intent.policy_accepted_at, channel, intent.service_text, intent.preferred_date, intent.preferred_time, intent.therapist_text, POLICY_TEXT]);
+    await client.query("COMMIT");
+    return channel === 'whatsapp'
+      ? { ...intent, acceptanceId:evidence.rows[0].id, acceptedClientId:evidence.rows[0].crm_v2_client_id }
+      : intent;
   } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
 }
 
@@ -118,8 +122,21 @@ async function stageCreatedBookingForApproval(result, { occasionNote = null, spe
   };
 }
 
-async function finalizeAcceptedBooking(phone) {
-  try { await ensureBookingApprovalInfrastructure(); return stageCreatedBookingForApproval(await commitAcceptedClientBooking(phone)); }
+async function finalizeAcceptedBooking(phone, acceptance) {
+  try {
+    await ensureBookingApprovalInfrastructure();
+    const staged = await stageCreatedBookingForApproval(await commitAcceptedClientBooking(phone));
+    if (staged.status !== 'pending_resolution' || !acceptance?.acceptedClientId) return staged;
+    // This evidence comes from recordAcceptance, never from inbound message data.
+    const receipt = await pendingRequestReceipt(pool, {
+      acceptanceId: acceptance.acceptanceId, verifiedClientId: acceptance.acceptedClientId, senderMobile: phone,
+    }).catch(() => {
+      logger.error('Unable to read back a queued WhatsApp booking request');
+      return null;
+    });
+    if (receipt && receipt.appointmentId === String(staged.appointmentId)) return { ...staged, reply: receipt.reply };
+    return { handled:true, status:'review_needed', reply:'Please contact Reception to check your request before trying again.' };
+  }
   catch (error) { logger.error({ err: error }, "Canonical client booking commit failed after policy acceptance"); return { handled: true, status: "commit_failed", reply: "Your Booking Policy acceptance was recorded, but I couldn’t safely complete the final appointment write. I have not claimed a booking. Reply *RETRY BOOKING* to run the final availability and calendar checks again, or *CANCEL BOOKING* to stop." }; }
 }
 
@@ -142,7 +159,7 @@ async function processBookingPolicyMessage(phone, text) {
     const accepted = await recordAcceptance(phone);
     if (!accepted) return { handled: true, reply: "I couldn't record your policy acceptance safely, so the booking has not been confirmed. Please try again." };
     logger.info({ policyVersion: POLICY_VERSION }, "Booking policy accepted via WhatsApp");
-    return finalizeAcceptedBooking(phone);
+    return finalizeAcceptedBooking(phone, accepted);
   } catch (error) { logger.error({ err: error }, "Booking policy processing failed"); return { handled: true, reply: "I couldn't complete the booking-policy step safely, so I have not claimed an appointment. Please try again in a moment." }; }
 }
 

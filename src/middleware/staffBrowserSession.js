@@ -68,7 +68,7 @@ function expectedOrigin(req) {
   return `${proto}://${host}`;
 }
 
-function sameOriginGuard({ env = process.env } = {}) {
+function sameOriginGuard({ env = process.env, form = false } = {}) {
   return function staffAuthSameOriginGuard(req, res, next) {
     const origin = String(req.get?.('origin') || req.headers?.origin || '').trim();
     const expected = expectedOrigin(req);
@@ -82,6 +82,10 @@ function sameOriginGuard({ env = process.env } = {}) {
     const fetchSite = String(req.get?.('sec-fetch-site') || req.headers?.['sec-fetch-site'] || '').trim().toLowerCase();
     if (fetchSite && fetchSite !== 'same-origin') return res.status(403).json({ error: 'Forbidden', requestId: req.id });
     const contentType = String(req.get?.('content-type') || req.headers?.['content-type'] || '').toLowerCase();
+    if (form) {
+      if (contentType.split(';', 1)[0].trim() !== 'application/x-www-form-urlencoded') return res.sendStatus(415);
+      return next();
+    }
     if (!contentType.startsWith('application/json')) return res.status(415).json({ error: 'JSON required', requestId: req.id });
     return next();
   };
