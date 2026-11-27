@@ -17,6 +17,7 @@ async function cleanupTemporarySessions() {
   const ttlHours = temporarySessionTtlHours();
   // Independent support-link expiry shares this existing hourly timer.
   void cleanupSupportLinks();
+  void cleanupWhatsAppRegistrationGrants();
   try {
     const [onboarding, walkin] = await Promise.all([
       pool.query(
@@ -49,6 +50,13 @@ async function cleanupTemporarySessions() {
 async function cleanupSupportLinks() {
   try { await require('./bookingSubmissionIncidents').service.expire(); }
   catch (_) { logger.warn('Booking support link expiry temporarily unavailable'); }
+}
+async function cleanupWhatsAppRegistrationGrants() {
+  try {
+    await pool.query('DELETE FROM whatsapp_booking_registration_grants WHERE expires_at <= NOW()');
+  } catch {
+    logger.warn('WhatsApp registration grant expiry temporarily unavailable');
+  }
 }
 function startTemporarySessionCleanupScheduler() {
   if (cleanupTimer) return cleanupTimer;

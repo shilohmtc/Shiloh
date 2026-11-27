@@ -8,10 +8,14 @@ const { createWhatsAppBookingChat } = require('./whatsAppBookingChat');
 const { createWhatsAppBookingPilotAdmission } = require('./whatsAppBookingPilotAdmission');
 const { createWhatsAppBookingSender } = require('./whatsAppBookingSender');
 const { createWhatsAppBookingSubmission } = require('./whatsAppBookingSubmission');
+const { createWhatsAppBookingRegistration } = require('./whatsAppBookingRegistration');
+const { createWhatsAppBookingNativeReview } = require('./whatsAppBookingNativeReview');
 const { createWhatsAppBookingIntake } = require('./whatsAppBookingIntake');
 
 function createWhatsAppBookingPilot({
   enabled = false,
+  nativeReviewEnabled = false,
+  registrationFlowId,
   db,
   provider,
   providerSecret,
@@ -62,7 +66,33 @@ function createWhatsAppBookingPilot({
     continuation,
     clock,
   });
-  const bookingChat = createWhatsAppBookingChat({ key: derive('chat'), choices, db, clock });
+  const submit = createWhatsAppBookingSubmission({ continuation, actionSecret, db });
+  const nativeReview =
+    nativeReviewEnabled === true
+      ? createWhatsAppBookingNativeReview({
+          key: derive('native-review'),
+          continuation,
+          submit,
+          clock,
+        })
+      : null;
+  const bookingChat = createWhatsAppBookingChat({
+    key: derive('chat'),
+    choices,
+    nativeReview,
+    db,
+    clock,
+  });
+  const registration =
+    nativeReview && registrationFlowId
+      ? createWhatsAppBookingRegistration({
+          db,
+          key: derive('registration'),
+          flowId: registrationFlowId,
+          chat: bookingChat,
+          clock,
+        })
+      : null;
   const sender = createWhatsAppBookingSender({
     enabled: true,
     db,
@@ -71,6 +101,8 @@ function createWhatsAppBookingPilot({
     clock,
     chat: bookingChat,
     continuation,
+    nativeReview,
+    registration,
     fingerprintKey: derive('delivery'),
     authorizeDelivery: admission.authorizeDelivery,
   });
@@ -79,15 +111,20 @@ function createWhatsAppBookingPilot({
       booking: { providerSecret, actionSecret, phoneNumberId: provider.phoneNumberId },
       bookingChat,
       admission,
+      registration,
       bookingReady,
       receiveBooking: receiveBooking ?? createWhatsAppBookingIntake({ db }),
       persistStatuses,
+      receiveNativeReview:
+        nativeReview &&
+        ((raw, signature, configuration) =>
+          nativeReview.receive(raw, signature, configuration, sender.deliverRequestButton)),
       ...sender,
     }),
     bookingBrowser: {
       continuation,
       bookingChat,
-      submit: createWhatsAppBookingSubmission({ continuation, actionSecret, db }),
+      submit,
       deliverRequestButton: sender.deliverRequestButton,
     },
   };
@@ -98,6 +135,8 @@ function prepareConfiguredBookingPilot({ env, db, fetchImpl, bookingReady }) {
   const encodedKey = env.SHILOH_WHATSAPP_BOOKING_PILOT_KEY;
   return createWhatsAppBookingPilot({
     enabled: true,
+    nativeReviewEnabled: env.SHILOH_WHATSAPP_BOOKING_NATIVE_REVIEW_ENABLED === 'true',
+    registrationFlowId: env.SHILOH_WHATSAPP_BOOKING_REGISTRATION_FLOW_ID,
     db,
     fetchImpl,
     bookingReady,

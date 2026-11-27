@@ -11,20 +11,49 @@ const {
   RECEPTION_TEXT,
 } = require('./whatsAppBookingEntry');
 const { STEP_TITLES, UNAVAILABLE, BOOKING_REVIEW_URL } = require('./whatsAppBookingChat');
+const { termsDelivery, TERMS } = require('./whatsAppBookingNativeReview');
 const { PENDING_REPLY } = require('./whatsAppBookingRequestReceipt');
 
 const MOBILE = /^27[678][0-9]{8}$/;
 const PROVIDER_ID = /^wamid\.[A-Za-z0-9+/_=-]{1,240}$/;
 const KEYS = {
+  registration: /^booking-entry:[a-f0-9]{64}$/,
   welcome: /^booking-entry:[a-f0-9]{64}$/,
   greeting: /^booking-entry:[a-f0-9]{64}$/,
   reception: /^booking-entry:[a-f0-9]{64}$/,
   button: /^booking-request-button:[1-9][0-9]{0,18}$/,
   menu: /^booking-menu:[a-f0-9]{64}$/,
+  terms: /^booking-terms:[a-f0-9]{64}$/,
+  review: /^booking-menu:[a-f0-9]{64}$/,
   pending: /^booking-pending:[1-9][0-9]{0,18}$/,
 };
 
-function messageBody(kind, input, chat, continuation) {
+function messageBody(kind, input, chat, continuation, nativeReview, registration) {
+  if (kind === 'registration') return registration?.flowMessage(input);
+  if (kind === 'terms') {
+    return nativeReview && input.text === TERMS
+      ? { type: 'text', text: { body: TERMS, preview_url: false } }
+      : null;
+  }
+  if (kind === 'review') {
+    if (
+      !nativeReview?.read(input.action, input.recipient) ||
+      typeof input.text !== 'string' ||
+      !input.text.startsWith('Treatment: ') ||
+      [...input.text].length > 1024
+    )
+      return null;
+    return {
+      type: 'interactive',
+      interactive: {
+        type: 'button',
+        body: { text: input.text },
+        action: {
+          buttons: [{ type: 'reply', reply: { id: input.action, title: 'Accept terms' } }],
+        },
+      },
+    };
+  }
   if (kind === 'menu') {
     if (!chat) return null;
     if (
@@ -122,6 +151,8 @@ function createWhatsAppBookingSender({
   authorizeDelivery,
   chat,
   continuation,
+  nativeReview,
+  registration,
   fetchImpl,
   clock = Date.now,
 } = {}) {
@@ -149,7 +180,7 @@ function createWhatsAppBookingSender({
     ) {
       throw new Error('Invalid WhatsApp booking delivery');
     }
-    const contents = messageBody(kind, input, chat, continuation);
+    const contents = messageBody(kind, input, chat, continuation, nativeReview, registration);
     if (!contents) throw new Error('Invalid WhatsApp booking message');
     const body = JSON.stringify({ messaging_product: 'whatsapp', to: recipient, ...contents });
     // A callback retry may mint a new private link for the same reviewed selection.
@@ -226,7 +257,15 @@ function createWhatsAppBookingSender({
   }
 
   return {
-    deliverBookingMenu: (input) => deliver('menu', input),
+    async deliverBookingMenu(input) {
+      if (input.type !== 'review') return deliver('menu', input);
+      if (!messageBody('review', input, chat, continuation, nativeReview)) {
+        throw new Error('Invalid WhatsApp booking review');
+      }
+      await deliver('terms', termsDelivery(input));
+      return deliver('review', input);
+    },
+    deliverRegistration: (input) => deliver('registration', input),
     deliverBookingLink: (input) => deliver('welcome', input),
     deliverGreeting: (input) => deliver('greeting', input),
     deliverReceptionPrompt: (input) => deliver('reception', input),
