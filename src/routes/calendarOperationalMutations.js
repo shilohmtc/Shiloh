@@ -225,6 +225,8 @@ function createCalendarOperationalMutationRouter({
         appointmentId: req.params.appointmentId,
         expectedRevision: req.body?.expectedRevision,
         startsAt: req.body?.startsAt,
+        fromStaffId: req.body?.fromStaffId,
+        destinationStaffId: req.body?.destinationStaffId,
         requestId: req.body?.requestId,
       });
       let customerNotification;

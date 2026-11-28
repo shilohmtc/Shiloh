@@ -550,7 +550,10 @@ async function main() {
     assert.ok(operatorProof.find((item) => item.identity === 'Naomi').controls < operatorProof.find((item) => item.identity === 'Christel').controls);
 
     await navigate('christel');
-    await panelOperation('appointment:reschedule', `form.elements.date.value='2026-09-04';form.elements.time.value='10:00'`, 'reschedule');
+    await panelOperation('appointment:reschedule', `form.elements.date.value='2026-09-04';form.elements.time.value='10:00';form.elements.destinationStaffId.value='2'`, 'reschedule');
+    assert.equal(state.operations.at(-1).fromStaffId, 1);
+    assert.equal(state.operations.at(-1).destinationStaffId, 2);
+    assert.equal(state.operations.at(-1).startsAt, '2026-09-04T08:00:00.000Z');
     const manualPath = state.requests.filter((item) => item.path.endsWith('/reschedule')).at(-1);
     assert.deepEqual(manualPath, { method: 'POST', path: '/calendar/operations/appointments/7001/reschedule' });
 
