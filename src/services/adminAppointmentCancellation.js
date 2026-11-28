@@ -57,6 +57,7 @@ async function cancelCanonicalAppointmentInTransaction(db, {
   allowedStatuses = null,
   auditAction = 'admin.appointment_cancelled',
   auditMetadata = {},
+  linkedGroupId = null,
 }) {
   const current = await db.query(`SELECT a.id,a.starts_at,a.ends_at,a.status,a.updated_at FROM appointments a WHERE a.id=$1 FOR UPDATE`, [appointmentId]);
   const row = current.rows[0];
@@ -92,6 +93,7 @@ async function cancelCanonicalAppointmentInTransaction(db, {
     appointmentId,
     actorAdminId,
     reason: 'appointment_cancelled',
+    linkedGroupId,
   });
   await db.query(
     `INSERT INTO crm_audit_events (actor_admin_id,action,entity_type,entity_id,metadata)

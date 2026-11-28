@@ -12,7 +12,7 @@ const {
   isOperationalLeave,
 } = require('../src/services/calendarOperationalMutations');
 const { calendarOperationalMutationsClientScript } = require('../src/presentation/calendarOperationalMutationsUx');
-const { renderCalendarPage } = require('../src/presentation/calendarReadOnlyUx');
+const { renderCalendarPage, renderEventCard } = require('../src/presentation/calendarReadOnlyUx');
 
 const ROOT = path.join(__dirname, '..');
 const REVISION = '2026-08-27T05:00:00.000Z';
@@ -67,6 +67,11 @@ function fakeDatabase(handler, { replay = null, admin = adminRow(), allowedServi
 
 function appointmentHandler(overrides = {}) {
   return async (sql) => {
+    if (sql.startsWith('SELECT group_id FROM appointment_group_members')) {
+      return result(overrides.groupId ? [{ group_id: overrides.groupId }] : []);
+    }
+    if (sql.startsWith('SELECT id FROM appointment_groups') || sql.startsWith('SELECT appointment_id FROM appointment_group_members')) return result();
+    if (sql.startsWith('SELECT a.id FROM appointments a WHERE a.id=$1 OR')) return result();
     if (sql.includes('FROM appointments') && (sql.includes('WHERE id=$1') || sql.includes('WHERE a.id=$1')) && sql.includes('FOR UPDATE')) {
       return result([{
         id: 592, location_id: 1, starts_at: FUTURE_START, ends_at: FUTURE_END,
@@ -270,6 +275,31 @@ test('cockpit renders only data-granted operation families for a booking operato
   assert.doesNotMatch(html, /data-block-id=|data-leave-id=/);
 });
 
+test('linked visits expose only scoped cancellation for scheduled or confirmed appointments', () => {
+  const model = dayModel({
+    enabled: true,
+    operations: ['appointment:reschedule', 'appointment:cancel', 'appointment:reassign'],
+    calendarScope: 'all_business',
+    serviceScope: 'all_services',
+  });
+  const appointment = model.timeline.appointments[0];
+  appointment.appointmentGroupId = 81;
+  appointment.appointmentGroupType = 'multi_service_booking';
+  const render = () => renderEventCard(appointment, model);
+  assert.match(render(), /data-appointment-group-id="81"/);
+  assert.match(render(), /data-allowed-operations="appointment:cancel"/);
+  assert.match(renderCalendarPage(model), /data-linked-cancellation hidden/);
+  assert.doesNotMatch(render(), /draggable="true"/);
+  appointment.bookingRequestState = 'pending';
+  assert.doesNotMatch(render(), /data-allowed-operations="appointment:cancel"/);
+  delete appointment.bookingRequestState;
+  appointment.status = 'completed';
+  assert.doesNotMatch(render(), /data-allowed-operations="appointment:cancel"/);
+  appointment.status = 'scheduled';
+  model.mutationCapability.operations = ['appointment:reschedule'];
+  assert.doesNotMatch(render(), /data-allowed-operations="appointment:cancel"/);
+});
+
 test('management panel and drag/drop rescheduling share one client function and one endpoint', () => {
   const script = calendarOperationalMutationsClientScript();
   assert.doesNotThrow(() => new Function(script));
@@ -396,6 +426,29 @@ test('cancellation requires exact confirmation and audits the authenticated oper
   const audit = fake.calls.find(call => call.sql.startsWith('INSERT INTO crm_audit_events'));
   assert.equal(audit.params[0], 71);
   assert.doesNotMatch(audit.params.at(-1), /phone|sender/i);
+});
+
+test('linked cancellation confirms and writes exactly one appointment with scoped payment-link cleanup', async () => {
+  const input = {
+    adminId: 71, appointmentId: 592, expectedRevision: REVISION, requestId: 'cancel_linked_1',
+    confirmation: { confirmed: true, appointmentId: 592, revision: REVISION },
+  };
+  const fake = fakeDatabase(appointmentHandler({ groupId: 81 }));
+  const service = createCalendarOperationalMutationService({ db: fake.db });
+  await assert.rejects(service.cancel(input), error => error.code === 'CALENDAR_OPERATION_CANCELLATION_CONFIRMATION');
+  await assert.rejects(service.cancel({ ...input, confirmation: { ...input.confirmation, linkedGroupId: 82 } }),
+    error => error.code === 'CALENDAR_OPERATION_CANCELLATION_CONFIRMATION');
+  assert.ok(!fake.calls.some(call => call.sql.startsWith('UPDATE appointments')));
+  await service.cancel({ ...input, confirmation: { ...input.confirmation, linkedGroupId: 81 } });
+  const update = fake.calls.filter(call => call.sql.startsWith('UPDATE appointments'));
+  assert.deepEqual(update.map(call => call.params), [[592, 'scheduled']]);
+  const payment = fake.calls.find(call => call.sql.startsWith('UPDATE payment_requests pr'));
+  assert.deepEqual(payment.params, [592, 81]);
+  assert.match(payment.sql, /bpa\.appointment_group_id=\$2 AND pr\.deposit_member_appointment_id IS NULL/);
+  assert.match(payment.sql, /pr\.deposit_member_appointment_id=\$1/);
+  const linkedLock = fake.calls.findIndex(call => call.sql.startsWith('SELECT id FROM appointment_groups'));
+  const appointmentRead = fake.calls.findIndex(call => call.sql.includes('booking_request_status'));
+  assert.ok(linkedLock >= 0 && appointmentRead > linkedLock);
 });
 
 test('block and operational leave conflicts roll back without changing appointments', async () => {

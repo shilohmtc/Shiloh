@@ -33,6 +33,7 @@ async function lockBookingPaymentScope(queryable, appointmentId, ErrorType=Error
   if(String(current?.group_id||'')!==String(seed?.group_id||'')){
     throw guardError(ErrorType,'PAYMENT_SCOPE_CHANGED','The linked booking changed. Refresh before another financial decision.');
   }
+  return seed?.group_id || null;
 }
 
 function guardError(ErrorType,code,message){

@@ -3,6 +3,7 @@ const { pool } = require('../db/pool');
 const { checkClinicHours } = require('./clinicHours');
 const { checkAuthoritativeSchedule } = require('./adminAvailability');
 const { cancelCanonicalAppointmentInTransaction } = require('./adminAppointmentCancellation');
+const { lockBookingPaymentScope } = require('./paymentCollectionGuard');
 const {
   CALENDAR_OPERATIONS: OPERATIONS,
   evaluateCalendarAuthority,
@@ -492,6 +493,9 @@ function createCalendarOperationalMutationService({
   async function cancel({ adminId, appointmentId, expectedRevision, confirmation, reason, requestId }) {
     const id = positiveId(appointmentId, 'CALENDAR_OPERATION_APPOINTMENT_INVALID');
     const expected = exactRevision(expectedRevision);
+    const confirmedGroupId = confirmation?.linkedGroupId == null
+      ? null
+      : positiveId(confirmation.linkedGroupId, 'CALENDAR_OPERATION_CANCELLATION_CONFIRMATION');
     if (
       confirmation?.confirmed !== true
       || Number(confirmation?.appointmentId) !== id
@@ -504,11 +508,18 @@ function createCalendarOperationalMutationService({
       operation: 'appointment:cancel',
       action: 'calendar.appointment_cancelled',
       requestId,
-      fingerprintPayload: { appointmentId: id, expectedRevision: expected, reason: clean(reason) },
+      fingerprintPayload: {
+        appointmentId: id, expectedRevision: expected, reason: clean(reason),
+        ...(confirmedGroupId ? { linkedGroupId: confirmedGroupId } : {}),
+      },
       execute: async (client, operator, request) => {
+        const groupId = await lockBookingPaymentScope(client, id);
         const context = await appointmentContext(client, id);
         requireAppointmentAuthority(operator, context);
         requireMutableAppointment(context.appointment, expected);
+        if ((groupId == null ? null : Number(groupId)) !== confirmedGroupId) {
+          throw mutationError('CALENDAR_OPERATION_CANCELLATION_CONFIRMATION', 'The booking links changed. Reload Calendar and confirm this appointment again.');
+        }
         const cancelled = await cancelCanonicalAppointmentInTransaction(client, {
           appointmentId: id,
           actorAdminId: operator.id,
@@ -517,6 +528,7 @@ function createCalendarOperationalMutationService({
           allowedStatuses: [...MUTABLE_APPOINTMENT_STATUSES],
           auditAction: 'calendar.appointment_cancelled',
           auditMetadata: request,
+          linkedGroupId: groupId,
         });
         if (cancelled.status === 'not_found') throw mutationError('CALENDAR_OPERATION_APPOINTMENT_NOT_FOUND', 'The canonical appointment no longer exists.');
         if (cancelled.status !== 'cancelled') throw mutationError('CALENDAR_OPERATION_STALE_REVISION', 'The appointment changed before cancellation.');
