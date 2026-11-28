@@ -52,7 +52,7 @@ test('Calendar cancellation client remains confirmation-gated and omits reason f
   assert.notEqual(end, -1);
   const cancellationBranch = script.slice(start, end);
   assert.ok(cancellationBranch.includes('if(!form.elements.confirmed.checked)return;'));
-  assert.ok(cancellationBranch.includes('confirmation:{confirmed:true,appointmentId:data.id,revision:data.revision,linkedGroupId:Number(activeAppointmentCard.dataset.appointmentGroupId)||null}'));
+  assert.ok(cancellationBranch.includes('confirmation:{confirmed:true,appointmentId:data.id,revision:data.revision,...(activeAppointmentCard.dataset.appointmentGroupId?{linkedGroupId:Number(activeAppointmentCard.dataset.appointmentGroupId)}:{})}'));
   assert.ok(cancellationBranch.includes('requestId:operationId()'));
   assert.equal(cancellationBranch.includes('reason:'), false);
 });
