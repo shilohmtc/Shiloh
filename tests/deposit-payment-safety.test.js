@@ -43,7 +43,7 @@ test('cancelling a booking invalidates open Shiloh payment requests in the same 
   assert.match(update.text, /pr\.state IN \('created','link_issued','pending'\)/);
   assert.match(update.text, /bpa\.appointment_id=\$1/);
   assert.match(update.text, /pr\.deposit_member_appointment_id=\$1/);
-  assert.deepEqual(update.params, [759]);
+  assert.deepEqual(update.params, [759, null]);
   const audit = calls[1];
   assert.equal(audit.params[0], 3);
   assert.equal(audit.params[1], 759);

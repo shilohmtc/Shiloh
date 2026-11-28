@@ -9,6 +9,7 @@ async function cancelOutstandingPaymentRequestsForAppointment(db, {
   appointmentId,
   actorAdminId = null,
   reason = 'appointment_cancelled',
+  linkedGroupId = null,
 } = {}) {
   if (!db || typeof db.query !== 'function') throw new Error('Payment safety database is required');
   const id = positiveId(appointmentId);
@@ -24,13 +25,14 @@ async function cancelOutstandingPaymentRequestsForAppointment(db, {
         AND (
           bpa.appointment_id=$1
           OR pr.deposit_member_appointment_id=$1
-          OR EXISTS (
+          OR (bpa.appointment_group_id=$2 AND pr.deposit_member_appointment_id IS NULL)
+          OR ($2::bigint IS NULL AND EXISTS (
             SELECT 1 FROM appointment_group_members gm JOIN appointment_groups g ON g.id=gm.group_id
             WHERE gm.appointment_id=$1 AND g.id=bpa.appointment_group_id AND g.source IN ('shiloh_my_shiloh_multi','shiloh_my_shiloh_couples')
-          )
+          ))
         )
     RETURNING pr.id,pr.request_key,pr.purpose,pr.amount,pr.payer_crm_v2_client_id`,
-    [id],
+    [id, positiveId(linkedGroupId)],
   );
 
   if (result.rowCount) {

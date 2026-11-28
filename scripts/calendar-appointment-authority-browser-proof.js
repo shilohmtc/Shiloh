@@ -9,6 +9,10 @@ const {
   decorateWorkspaceAppointmentLinks,
 } = require('../src/presentation/calendarAppointmentDetailLinks');
 const { renderCalendarRetrospectiveBookingPage } = require('../src/presentation/calendarRetrospectiveBookingV1Ux');
+const { renderCalendarPage } = require('../src/presentation/calendarReadOnlyUx');
+const { calendarOperationalMutationsClientScript } = require('../src/presentation/calendarOperationalMutationsUx');
+const { fixtureModel } = require('./calendar-phone-working-day-fixture');
+
 
 const output = path.join(process.cwd(), 'artifacts', 'calendar-appointment-authority-v1');
 fs.mkdirSync(output, { recursive: true });
@@ -31,6 +35,21 @@ function installedChrome() {
 
 function calendarFixture(editable, cancellable = false) {
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{--panel:#fff;--line:#dfe5df;--leaf-soft:#e7eee9;--leaf-deep:#294b3e}body{font-family:system-ui;background:#f7f5ef;padding:20px}.event-card{min-height:64px;border:1px solid #dfe5df;border-radius:14px;background:#fff;padding:14px;max-width:420px}.event-card h4{margin:4px 0}.event-meta{display:flex;gap:8px}.eyebrow{font-size:11px;text-transform:uppercase}</style></head><body><article class="event-card" data-event-id="appointment-42" data-kind="appointment" data-canonical="true" ${editable ? 'data-appointment-management-target="true" data-appointment-id="42"' : ''} ${cancellable ? 'data-allowed-operations="appointment:reschedule,appointment:cancel"' : ''} data-client-name="Client Example" data-client-mobile="+27 82 000 0000" data-service-name="Treatment Example" data-practitioner-names="Practitioner A" data-appointment-status="confirmed"><div class="event-time"><span class="event-time-range">09:00–10:00</span></div><span class="kind-pill">Appointment</span><h4>Client Example</h4><p class="event-client-mobile">+27 82 000 0000</p><p class="event-meta"><span class="event-practitioners">Practitioner A</span><span class="event-service-context"><span>Treatment Example</span></span><span class="event-state">confirmed</span></p></article><dialog data-calendar-management-panel><section class="management-card"><div class="panel-actions"><form class="panel-action visible" data-panel-action="appointment:cancel"><label><input type="checkbox" required name="confirmed"> Confirm cancellation</label><button type="submit">Cancel appointment</button></form></div></section></dialog><script>${calendarAppointmentDetailsClientScript()}</script><script>${calendarAppointmentCompactEditorClientScript()}</script><script>document.addEventListener('click',event=>{const card=event.target.closest('[data-appointment-management-target="true"]');if(!card||card.dataset.detailsEditBypass!=='true')return;const panel=document.querySelector('[data-calendar-management-panel]');panel.showModal();panel.dispatchEvent(new CustomEvent('shiloh:appointment-panel-open',{detail:{section:card.dataset.detailsManagementSection}}));});</script></body></html>`;
+}
+
+function linkedCancellationFixture() {
+  const model = fixtureModel();
+  model.mutationCapability.operations = ['appointment:cancel'];
+  const selected = model.timeline.appointments[0];
+  const sibling = model.timeline.appointments[1];
+  for (const visit of [selected, sibling]) {
+    visit.appointmentGroupId = 41;
+    visit.appointmentGroupType = 'multi_service_booking';
+  }
+  const html = renderCalendarPage(model).replace(/<script\b[^>]*\bsrc="[^"]+"[^>]*><\/script>/gi, '');
+  const script = calendarOperationalMutationsClientScript() + calendarAppointmentDetailsClientScript()
+    + calendarAppointmentCompactEditorClientScript();
+  return html.replace('</body>', '<script>' + script + '</script></body>');
 }
 
 function clientHistoryFixture() {
@@ -110,6 +129,19 @@ function fileUrl(filePath, query = '') {
       if (await page.locator('[data-panel-action="appointment:cancel"] input[name="confirmed"]').isChecked()) throw new Error(`${state.name}: cancellation was preconfirmed`);
       if (await page.locator('[data-appointment-details-dialog]').isVisible()) throw new Error(`${state.name}: details did not close before confirmation`);
 
+
+      await page.setContent(linkedCancellationFixture());
+      await page.locator('[data-event-id="appointment-2"]').first().click();
+      await page.locator('[data-details-cancel]').click();
+      const linkedConfirmation = page.locator('[data-calendar-management-panel][open]');
+      const checkbox = linkedConfirmation.getByRole('checkbox', { name: 'I confirm that only appointment #2 should be cancelled.' });
+      await checkbox.waitFor();
+      if (await checkbox.isChecked()) throw new Error(`${state.name}: linked cancellation was preconfirmed`);
+      await linkedConfirmation.getByText('Shiloh closes open payment requests for this visit or the whole booking when you confirm.', { exact: false }).waitFor();
+      if (await linkedConfirmation.getByRole('button', { name: 'Date & time' }).isVisible()) {
+        throw new Error(`${state.name}: linked cancellation exposed rescheduling`);
+      }
+      await page.screenshot({ path: path.join(output, `${state.name}-linked-cancellation-confirmation.png`), fullPage: true });
 
       await page.setContent(clientHistoryFixture());
       const historyLink = page.locator('[data-appointment-detail-link="42"]');
