@@ -9,10 +9,12 @@ function createWhatsAppBookingPilotAdmission({
   recipient,
   key,
   maximumAttempts,
+  slot = 1,
   clock = Date.now,
 }) {
   if (
     !db?.query ||
+    (slot !== 1 && slot !== 2) ||
     typeof recipient !== 'string' ||
     !/^27[678][0-9]{8}$/.test(recipient) ||
     !Buffer.isBuffer(key) ||
@@ -43,11 +45,14 @@ function createWhatsAppBookingPilotAdmission({
     const result = await db.query(
       `
       INSERT INTO whatsapp_booking_pilot_admission(slot,recipient_hash,window_ends_at)
-      VALUES(1,$1,$2)
+      SELECT $3::smallint,$1,$2
+      WHERE NOT EXISTS (
+        SELECT 1 FROM whatsapp_booking_pilot_admission WHERE recipient_hash=$1 AND slot<>$3::smallint
+      )
       ON CONFLICT(slot) DO UPDATE SET window_ends_at=GREATEST(whatsapp_booking_pilot_admission.window_ends_at,EXCLUDED.window_ends_at)
       WHERE whatsapp_booking_pilot_admission.recipient_hash=EXCLUDED.recipient_hash
       RETURNING slot`,
-      [hash, new Date(windowEndsAt)],
+      [hash, new Date(windowEndsAt), slot],
     );
     return result.rows.length === 1;
   }
@@ -57,9 +62,9 @@ function createWhatsAppBookingPilotAdmission({
     const { rows } = await db.query(
       `
       UPDATE whatsapp_booking_pilot_admission SET reserved_attempts=reserved_attempts+1
-      WHERE slot=1 AND recipient_hash=$1 AND window_ends_at>$2 AND reserved_attempts<$3
+      WHERE slot=$4 AND recipient_hash=$1 AND window_ends_at>$2 AND reserved_attempts<$3
       RETURNING window_ends_at`,
-      [hash, new Date(clock()), maximumAttempts],
+      [hash, new Date(clock()), maximumAttempts, slot],
     );
     return rows.length === 1
       ? { allowed: true, serviceWindowEndsAt: rows[0].window_ends_at }

@@ -16,6 +16,7 @@ function createWhatsAppBookingPilot({
   enabled = false,
   nativeReviewEnabled = false,
   registrationFlowId,
+  admissionSlot = 1,
   db,
   provider,
   providerSecret,
@@ -46,12 +47,16 @@ function createWhatsAppBookingPilot({
     createHmac('sha256', key)
       .update('booking-pilot:' + purpose)
       .digest();
+  if (admissionSlot === 2 && (nativeReviewEnabled !== true || !registrationFlowId)) {
+    throw new TypeError('The separate staff slot requires native registration');
+  }
   const actionSecret = derive('appointment-action');
   const admission = createWhatsAppBookingPilotAdmission({
     db,
     recipient,
     maximumAttempts,
     key: derive('admission'),
+    slot: admissionSlot,
     clock,
   });
   const continuation = createWhatsAppBookingContinuation({
@@ -137,6 +142,7 @@ function prepareConfiguredBookingPilot({ env, db, fetchImpl, bookingReady }) {
     enabled: true,
     nativeReviewEnabled: env.SHILOH_WHATSAPP_BOOKING_NATIVE_REVIEW_ENABLED === 'true',
     registrationFlowId: env.SHILOH_WHATSAPP_BOOKING_REGISTRATION_FLOW_ID,
+    admissionSlot: Number(env.SHILOH_WHATSAPP_BOOKING_PILOT_ADMISSION_SLOT ?? '1'),
     db,
     fetchImpl,
     bookingReady,
