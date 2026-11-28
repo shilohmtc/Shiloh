@@ -493,7 +493,7 @@ async function main() {
       const beforeLoads = completedLoads;
       const beforeRenders = Number(state.renders.get(adminId) || 0);
       await evaluate(cdp, `document.querySelector('[data-appointment-management-target="true"]').click();true`);
-      const section = action === 'appointment:reassign' ? 'practitioner' : 'danger';
+      const section = { 'appointment:reschedule': 'timing', 'appointment:reassign': 'practitioner', 'appointment:cancel': 'danger' }[action];
       await poll(() => evaluate(cdp, `Boolean(document.querySelector('[data-appointment-editor-toggle="${section}"]'))`), Boolean);
       await evaluate(cdp, `(()=>{document.querySelector('[data-appointment-editor-toggle="${section}"]').click();const form=document.querySelector('[data-panel-action="${action}"]');${setup};form.requestSubmit();return true;})()`);
       await poll(() => state.operations.slice(beforeOperations), (items) => items.some((item) => item.type === expectedType));
