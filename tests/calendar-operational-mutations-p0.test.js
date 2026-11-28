@@ -276,7 +276,7 @@ test('management panel and drag/drop rescheduling share one client function and 
   assert.equal((script.match(/function rescheduleAppointment\(/g) || []).length, 1);
   assert.equal((script.match(/\/appointments\/'\+data\.id\+'\/reschedule/g) || []).length, 1);
   assert.match(script, /data-panel-action="appointment:reschedule"/);
-  assert.match(script, /rescheduleAppointment\(data,form\.elements\.date\.value,form\.elements\.time\.value\)/);
+  assert.match(script, /rescheduleAppointment\(data,form\.elements\.date\.value,form\.elements\.time\.value,destination\)/);
   assert.match(script, /askReschedule\(card,date\)/);
   assert.match(script, /window\.location\.reload\(\)/, 'browser never treats optimistic state as authoritative');
   assert.doesNotMatch(script, /adminId|actorAdminId|google|whatsapp|provider/i);
@@ -601,4 +601,49 @@ test('Create Booking and mutations share capability/scope policy without named-p
   assert.match(mutations, /resolveCalendarAuthority/);
   assert.match(policy, /CALENDAR_CAPABILITIES/);
   assert.doesNotMatch(`${booking}\n${mutations}\n${policy}`, /GOVERNED_PRACTITIONERS|OPERATIONAL_PRINCIPALS|JP_UNION_PRINCIPALS|jean-pierre|christel|abigail|marietjie|naomi/i);
+});
+
+test('a combined appointment edit checks the destination at the new time and commits both changes once', async () => {
+  const fake = fakeDatabase(appointmentHandler());
+  const windows = [];
+  const service = createCalendarOperationalMutationService({
+    db: fake.db,
+    clinicHours: async () => ({ covered: true }),
+    authoritativeSchedule: async ({ staffId, startsAt, endsAt }) => {
+      windows.push([staffId, startsAt.toISOString(), endsAt.toISOString()]);
+      return { covered: true };
+    },
+    now: () => new Date('2026-08-27T00:00:00Z'),
+  });
+  const startsAt = '2026-09-10T06:00:00.000Z';
+  const result = await service.reschedule({
+    adminId: 71, appointmentId: 592, expectedRevision: REVISION, startsAt,
+    fromStaffId: 1, destinationStaffId: 2, requestId: 'combined_calendar_01',
+  });
+  assert.equal(result.revision, NEXT_REVISION);
+  assert.deepEqual(windows, [[2, startsAt, '2026-09-10T06:45:00.000Z']]);
+  const writes = fake.calls.filter(({ sql }) => sql.startsWith('UPDATE '));
+  assert.deepEqual(writes.find(({ sql }) => sql.startsWith('UPDATE appointment_staff')).params, [801, 2, 'Abigail']);
+  assert.equal(writes.filter(({ sql }) => sql.startsWith('UPDATE appointments')).length, 1);
+  assert.equal(fake.calls.filter(({ sql }) => sql === 'COMMIT').length, 1);
+  const audit = fake.calls.find(({ sql }) => sql.startsWith('INSERT INTO crm_audit_events'));
+  assert.equal(JSON.parse(audit.params[4]).destinationStaffId, 2);
+});
+
+test('a combined appointment edit refuses missing reassignment authority or an unavailable destination before any writes', async () => {
+  for (const forbidden of [true, false]) {
+    const admin = adminRow();
+    if (forbidden) delete admin.permissions['calendar:booking:reassign'];
+    const fake = fakeDatabase(appointmentHandler({ conflicts: [{ conflict_type: 'appointment', id: 91 }] }), { admin });
+    const service = createCalendarOperationalMutationService({
+      db: fake.db, clinicHours: async () => ({ covered: true }), authoritativeSchedule: async () => ({ covered: true }),
+      now: () => new Date('2026-08-27T00:00:00Z'),
+    });
+    await assert.rejects(service.reschedule({
+      adminId: 71, appointmentId: 592, expectedRevision: REVISION, startsAt: '2026-09-10T06:00:00.000Z',
+      fromStaffId: 1, destinationStaffId: 2, requestId: 'combined_calendar_02',
+    }), (error) => error.code === (forbidden ? 'CALENDAR_OPERATION_FORBIDDEN' : 'CALENDAR_OPERATION_CONFLICT'));
+    assert.ok(fake.calls.some(({ sql }) => sql === 'ROLLBACK'));
+    assert.ok(!fake.calls.some(({ sql }) => sql.startsWith('UPDATE ')));
+  }
 });

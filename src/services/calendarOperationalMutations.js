@@ -137,7 +137,7 @@ function createCalendarOperationalMutationService({
     const capability = admin ? staticMutationCapability(admin, {
       allowedServiceIds: admin.calendarAuthority.allowedServiceIds || [],
     }) : null;
-    if (!admin || !capability || (operation && !capability.operations.includes(operation))) {
+    if (!admin || !capability || (operation && [].concat(operation).some(item => !capability.operations.includes(item)))) {
       throw mutationError('CALENDAR_OPERATION_FORBIDDEN', 'Current canonical staff authority does not permit Calendar operations.');
     }
     return { ...admin, mutationCapability: capability };
@@ -338,27 +338,81 @@ function createCalendarOperationalMutationService({
     }
   }
 
-  async function reschedule({ adminId, appointmentId, expectedRevision, startsAt, requestId }) {
+  async function replacementPractitioner(client, context, fromStaffId, destinationId) {
+    const selected = fromStaffId == null
+      ? (context.staff.length === 1 ? context.staff[0] : null)
+      : context.staff.find(row => Number(row.staff_id) === positiveId(fromStaffId, 'CALENDAR_OPERATION_STAFF_INVALID'));
+    if (!selected) throw mutationError('CALENDAR_OPERATION_ASSIGNMENT_AMBIGUOUS', 'Select the exact current practitioner assignment to replace.');
+    if (Number(selected.staff_id) === destinationId || context.staff.some(row => Number(row.staff_id) === destinationId)) {
+      throw mutationError('CALENDAR_OPERATION_ASSIGNMENT_DUPLICATE', 'That practitioner is already assigned to this appointment.');
+    }
+    const destination = await activeStaff(client, destinationId);
+    if (!context.services.length || context.services.some(row => !row.service_id)) {
+      throw mutationError('CALENDAR_OPERATION_SERVICE_MAPPING', 'Every booked service must resolve canonically before reassignment.');
+    }
+    const serviceIds = context.services.map(row => Number(row.service_id));
+    const mapped = await client.query(
+      `SELECT service_id
+         FROM staff_services
+        WHERE staff_id=$1 AND service_id=ANY($2::bigint[])
+        ORDER BY service_id`,
+      [destinationId, serviceIds]
+    );
+    const mappedIds = new Set(mapped.rows.map(row => Number(row.service_id)));
+    const missingServiceIds = serviceIds.filter(serviceId => !mappedIds.has(serviceId));
+    if (missingServiceIds.length) {
+      throw mutationError('CALENDAR_OPERATION_SERVICE_MAPPING', 'The destination practitioner is not eligible for every booked service.', { serviceIds: missingServiceIds });
+    }
+    return { selected, destination };
+  }
+
+  async function replaceAppointmentPractitioner(client, replacement, destinationId) {
+    await client.query(
+      `UPDATE appointment_staff
+          SET staff_id=$2, staff_name_snapshot=$3
+        WHERE id=$1`,
+      [replacement.selected.assignment_id, destinationId, replacement.destination.display_name]
+    );
+  }
+
+  async function syncLifecyclePractitioners(client, id) {
+    await client.query(
+      `UPDATE appointment_lifecycle
+          SET therapist_text=(SELECT string_agg(staff_name_snapshot,' + ' ORDER BY position)
+                                 FROM appointment_staff WHERE appointment_id=$1),
+              updated_at=NOW()
+        WHERE appointment_id=$1`,
+      [id]
+    );
+  }
+
+  async function reschedule({ adminId, appointmentId, expectedRevision, startsAt, fromStaffId = null, destinationStaffId = null, requestId }) {
     const id = positiveId(appointmentId, 'CALENDAR_OPERATION_APPOINTMENT_INVALID');
     const newStart = requireFutureStart(startsAt, now());
+    const destinationId = destinationStaffId == null ? null : positiveId(destinationStaffId, 'CALENDAR_OPERATION_STAFF_INVALID');
     return inMutation({
       adminId,
-      operation: 'appointment:reschedule',
+      operation: destinationId == null ? 'appointment:reschedule' : ['appointment:reschedule', 'appointment:reassign'],
       action: 'calendar.appointment_rescheduled',
       requestId,
-      fingerprintPayload: { appointmentId: id, expectedRevision, startsAt: newStart.toISOString() },
+      fingerprintPayload: { appointmentId: id, expectedRevision, startsAt: newStart.toISOString(),
+        ...(destinationId == null ? {} : { fromStaffId, destinationStaffId: destinationId }) },
       execute: async (client, operator, request) => {
         const context = await appointmentContext(client, id);
-        requireAppointmentAuthority(operator, context);
+        requireAppointmentAuthority(operator, context, destinationId);
         requireMutableAppointment(context.appointment, expectedRevision);
-        const lockedStaffIds = await lockStaff(client, context.staff.map(row => row.staff_id));
-        if (context.staff.some(row => row.staff_status !== 'active')) {
+        const lockedStaffIds = await lockStaff(client, [...context.staff.map(row => row.staff_id), destinationId]);
+        const replacement = destinationId == null ? null : await replacementPractitioner(client, context, fromStaffId, destinationId);
+        const retainedStaff = context.staff.filter(row => row !== replacement?.selected);
+        if (retainedStaff.some(row => row.staff_status !== 'active')) {
           throw mutationError('CALENDAR_OPERATION_STAFF_UNAVAILABLE', 'An assigned practitioner is no longer active.');
         }
         const duration = new Date(context.appointment.ends_at).getTime() - new Date(context.appointment.starts_at).getTime();
         if (!Number.isFinite(duration) || duration <= 0) throw mutationError('CALENDAR_OPERATION_INVALID_WINDOW', 'The appointment duration is invalid.');
         const newEnd = new Date(newStart.getTime() + duration);
-        for (const staffId of lockedStaffIds) {
+        const newStaffIds = retainedStaff.map(row => Number(row.staff_id));
+        if (replacement) newStaffIds.push(destinationId);
+        for (const staffId of newStaffIds) {
           await validateStaffWindow(client, {
             staffId,
             locationId: context.appointment.location_id,
@@ -368,6 +422,7 @@ function createCalendarOperationalMutationService({
           });
         }
         const before = { startsAt: context.appointment.starts_at, endsAt: context.appointment.ends_at, revision: revisionOf(context.appointment.updated_at) };
+        if (replacement) await replaceAppointmentPractitioner(client, replacement, destinationId);
         const updated = await client.query(
           `UPDATE appointments
               SET starts_at=$2, ends_at=$3, updated_at=NOW()
@@ -382,6 +437,7 @@ function createCalendarOperationalMutationService({
             WHERE appointment_id=$1`,
           [id, newStart, newEnd]
         );
+        if (replacement) await syncLifecyclePractitioners(client, id);
         await client.query(
           `INSERT INTO appointment_status_history(appointment_id,from_status,to_status,changed_by,reason)
            VALUES($1,$2,$2,$3,'Rescheduled through authenticated Shiloh Calendar operations')`,
@@ -389,6 +445,7 @@ function createCalendarOperationalMutationService({
         );
         await audit(client, operator, 'calendar.appointment_rescheduled', 'appointment', id, {
           ...request, before, after: { startsAt: row.starts_at, endsAt: row.ends_at, revision: revisionOf(row.updated_at) }, lockedStaffIds,
+          ...(replacement ? { fromStaffId: Number(replacement.selected.staff_id), destinationStaffId: destinationId } : {}),
         });
         return { status: 'rescheduled', appointmentId: id, startsAt: row.starts_at, endsAt: row.ends_at, revision: revisionOf(row.updated_at) };
       },
@@ -408,31 +465,8 @@ function createCalendarOperationalMutationService({
         const context = await appointmentContext(client, id);
         requireAppointmentAuthority(operator, context, destinationId);
         requireMutableAppointment(context.appointment, expectedRevision);
-        const selected = fromStaffId == null
-          ? (context.staff.length === 1 ? context.staff[0] : null)
-          : context.staff.find(row => Number(row.staff_id) === positiveId(fromStaffId, 'CALENDAR_OPERATION_STAFF_INVALID'));
-        if (!selected) throw mutationError('CALENDAR_OPERATION_ASSIGNMENT_AMBIGUOUS', 'Select the exact current practitioner assignment to replace.');
-        if (Number(selected.staff_id) === destinationId || context.staff.some(row => Number(row.staff_id) === destinationId)) {
-          throw mutationError('CALENDAR_OPERATION_ASSIGNMENT_DUPLICATE', 'That practitioner is already assigned to this appointment.');
-        }
-        const destination = await activeStaff(client, destinationId);
         const lockedStaffIds = await lockStaff(client, [...context.staff.map(row => row.staff_id), destinationId]);
-        if (!context.services.length || context.services.some(row => !row.service_id)) {
-          throw mutationError('CALENDAR_OPERATION_SERVICE_MAPPING', 'Every booked service must resolve canonically before reassignment.');
-        }
-        const serviceIds = context.services.map(row => Number(row.service_id));
-        const mapped = await client.query(
-          `SELECT service_id
-             FROM staff_services
-            WHERE staff_id=$1 AND service_id=ANY($2::bigint[])
-            ORDER BY service_id`,
-          [destinationId, serviceIds]
-        );
-        const mappedIds = new Set(mapped.rows.map(row => Number(row.service_id)));
-        const missingServiceIds = serviceIds.filter(serviceId => !mappedIds.has(serviceId));
-        if (missingServiceIds.length) {
-          throw mutationError('CALENDAR_OPERATION_SERVICE_MAPPING', 'The destination practitioner is not eligible for every booked service.', { serviceIds: missingServiceIds });
-        }
+        const { selected, destination } = await replacementPractitioner(client, context, fromStaffId, destinationId);
         await validateStaffWindow(client, {
           staffId: destinationId,
           locationId: context.appointment.location_id,
@@ -440,20 +474,8 @@ function createCalendarOperationalMutationService({
           endsAt: context.appointment.ends_at,
           excludeAppointmentId: id,
         });
-        await client.query(
-          `UPDATE appointment_staff
-              SET staff_id=$2, staff_name_snapshot=$3
-            WHERE id=$1`,
-          [selected.assignment_id, destinationId, destination.display_name]
-        );
-        await client.query(
-          `UPDATE appointment_lifecycle
-              SET therapist_text=(SELECT string_agg(staff_name_snapshot,' + ' ORDER BY position)
-                                     FROM appointment_staff WHERE appointment_id=$1),
-                  updated_at=NOW()
-            WHERE appointment_id=$1`,
-          [id]
-        );
+        await replaceAppointmentPractitioner(client, { selected, destination }, destinationId);
+        await syncLifecyclePractitioners(client, id);
         const updated = await client.query(`UPDATE appointments SET updated_at=NOW() WHERE id=$1 RETURNING updated_at`, [id]);
         const revision = revisionOf(updated.rows[0].updated_at);
         await audit(client, operator, 'calendar.appointment_reassigned', 'appointment', id, {

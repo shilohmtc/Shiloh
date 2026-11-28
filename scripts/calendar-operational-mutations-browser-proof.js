@@ -493,7 +493,7 @@ async function main() {
       const beforeLoads = completedLoads;
       const beforeRenders = Number(state.renders.get(adminId) || 0);
       await evaluate(cdp, `document.querySelector('[data-appointment-management-target="true"]').click();true`);
-      const section = action === 'appointment:reassign' ? 'practitioner' : 'danger';
+      const section = { 'appointment:reschedule': 'timing', 'appointment:reassign': 'practitioner', 'appointment:cancel': 'danger' }[action];
       await poll(() => evaluate(cdp, `Boolean(document.querySelector('[data-appointment-editor-toggle="${section}"]'))`), Boolean);
       await evaluate(cdp, `(()=>{document.querySelector('[data-appointment-editor-toggle="${section}"]').click();const form=document.querySelector('[data-panel-action="${action}"]');${setup};form.requestSubmit();return true;})()`);
       await poll(() => state.operations.slice(beforeOperations), (items) => items.some((item) => item.type === expectedType));
@@ -550,7 +550,10 @@ async function main() {
     assert.ok(operatorProof.find((item) => item.identity === 'Naomi').controls < operatorProof.find((item) => item.identity === 'Christel').controls);
 
     await navigate('christel');
-    await panelOperation('appointment:reschedule', `form.elements.date.value='2026-09-04';form.elements.time.value='10:00'`, 'reschedule');
+    await panelOperation('appointment:reschedule', `form.elements.date.value='2026-09-04';form.elements.time.value='10:00';form.elements.destinationStaffId.value='2'`, 'reschedule');
+    assert.equal(state.operations.at(-1).fromStaffId, 1);
+    assert.equal(state.operations.at(-1).destinationStaffId, 2);
+    assert.equal(state.operations.at(-1).startsAt, '2026-09-04T08:00:00.000Z');
     const manualPath = state.requests.filter((item) => item.path.endsWith('/reschedule')).at(-1);
     assert.deepEqual(manualPath, { method: 'POST', path: '/calendar/operations/appointments/7001/reschedule' });
 
